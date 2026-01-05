@@ -1,0 +1,50 @@
+name: Installer CI
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*.*.*" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Installer - lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck (bash installer)
+        uses: ludeeus/action-shellcheck@v2
+        with:
+          scandir: installer
+
+  release:
+    name: Installer - publish release assets
+    needs: lint
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare dist
+        run: |
+          mkdir -p dist
+          cp installer/easywi-installer-linux.sh dist/ || true
+          cp installer/easywi-installer-windows.ps1 dist/ || true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > checksums-installer.txt
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+          generate_release_notes: false
