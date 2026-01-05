@@ -1,0 +1,71 @@
+name: Agent CI (Go)
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*.*.*" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Agent - build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build linux-amd64
+        run: |
+          mkdir -p ../dist
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w"             -o ../dist/easywi-agent-linux-amd64 ./cmd/agent
+
+      - name: Build windows-amd64
+        run: |
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w"             -o ../dist/easywi-agent-windows-amd64.exe ./cmd/agent
+
+      - name: Generate checksums
+        run: |
+          cd ../dist
+          sha256sum easywi-agent-* > checksums-agent.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-binaries
+          path: |
+            dist/easywi-agent-*
+            dist/checksums-agent.txt
+
+  release:
+    name: Agent - publish release assets
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-binaries
+          path: dist
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/easywi-agent-*
+            dist/checksums-agent.txt
+          generate_release_notes: false
