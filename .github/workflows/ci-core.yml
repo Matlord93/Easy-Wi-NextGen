@@ -1,0 +1,104 @@
+name: Core CI (Symfony)
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*.*.*" ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Core - tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, intl, pdo, pdo_mysql, pdo_pgsql, openssl
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.composer/cache/files
+            core/vendor
+          key: ${{ runner.os }}-php84-${{ hashFiles('core/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php84-
+
+      - name: Composer install
+        run: composer install --no-interaction --no-progress
+
+      - name: Lint (optional)
+        run: |
+          if composer run -q | grep -q "lint"; then composer run lint; else echo "No lint script"; fi
+
+      - name: Tests (optional)
+        run: |
+          if composer run -q | grep -q "test"; then composer run test; else echo "No test script"; fi
+
+  release:
+    name: Core - release bundle
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, intl, pdo, pdo_mysql, pdo_pgsql, openssl
+          tools: composer:v2
+
+      - name: Install deps (prod)
+        run: composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+
+      - name: Build frontend assets (optional)
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+            npm run build
+          else
+            echo "No frontend build"
+          fi
+
+      - name: Symfony cache warmup (optional)
+        run: php bin/console cache:warmup --env=prod || true
+
+      - name: Prepare bundle
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p ../dist
+          BUNDLE="../dist/easywi-core-${VERSION}.tar.gz"
+          tar -czf "$BUNDLE"             --exclude=".git"             --exclude="var/cache"             --exclude="var/log"             --exclude=".env.local"             --exclude=".env"             --exclude="node_modules"             .
+
+      - name: Generate checksums
+        run: |
+          cd ../dist
+          sha256sum easywi-core-*.tar.gz > checksums-core.txt
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/easywi-core-*.tar.gz
+            dist/checksums-core.txt
+          generate_release_notes: true
