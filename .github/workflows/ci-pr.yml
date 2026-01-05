@@ -1,0 +1,84 @@
+name: PR Fast Checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core (Symfony) - install + tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, intl, pdo, pdo_mysql, pdo_pgsql, openssl
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.composer/cache/files
+            core/vendor
+          key: ${{ runner.os }}-php84-${{ hashFiles('core/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php84-
+
+      - name: Composer install
+        run: composer install --no-interaction --no-progress
+
+      - name: Lint (optional)
+        run: |
+          if composer run -q | grep -q "lint"; then composer run lint; else echo "No lint script"; fi
+
+      - name: Tests (optional)
+        run: |
+          if composer run -q | grep -q "test"; then composer run test; else echo "No test script"; fi
+
+  agent:
+    name: Agent (Go) - build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build linux-amd64
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w"             -o dist/easywi-agent-linux-amd64 ./cmd/agent
+
+      - name: Build windows-amd64
+        run: |
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w"             -o dist/easywi-agent-windows-amd64.exe ./cmd/agent
+
+  installer:
+    name: Installer - lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck (bash installer)
+        uses: ludeeus/action-shellcheck@v2
+        with:
+          scandir: installer
