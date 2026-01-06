@@ -14,10 +14,10 @@ jobs:
     name: Installer - lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: ShellCheck (bash installer)
-        uses: ludeeus/action-shellcheck@v2
+        uses: ludeeus/action-shellcheck@master
         with:
           scandir: installer
 
@@ -29,7 +29,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Prepare dist
         run: |
