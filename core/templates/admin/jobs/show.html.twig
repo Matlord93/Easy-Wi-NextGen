@@ -1,0 +1,123 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Job {{ job.id }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+{% set statusStyles = {
+    'queued': 'bg-amber-50 text-amber-700 border-amber-200',
+    'running': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'succeeded': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'failed': 'bg-rose-50 text-rose-700 border-rose-200',
+    'cancelled': 'bg-slate-100 text-slate-600 border-slate-200'
+} %}
+{% set resultStyles = {
+    'succeeded': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'failed': 'bg-rose-50 text-rose-700 border-rose-200',
+    'cancelled': 'bg-slate-100 text-slate-600 border-slate-200'
+} %}
+
+<div class="flex flex-col gap-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <p class="text-xs uppercase text-slate-500">Job detail</p>
+            <h1 class="text-2xl font-semibold text-slate-900">Job {{ job.id }}</h1>
+            <p class="text-sm text-slate-500">Trace agent work, payload, and output in one place.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700" href="/admin/jobs">Back to jobs</a>
+            {% if canRetry %}
+                <form method="post" action="/admin/jobs/{{ job.id }}/retry">
+                    <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Retry job</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <p class="text-xs uppercase text-slate-500">Status</p>
+            <div class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ statusStyles[job.status] ?? 'bg-slate-100 text-slate-600 border-slate-200' }}">
+                {{ job.status|title }}
+            </div>
+            <div class="mt-4 space-y-1 text-sm text-slate-500">
+                <p><span class="text-slate-700 font-medium">Type:</span> {{ job.type }}</p>
+                <p><span class="text-slate-700 font-medium">Created:</span> {{ job.createdAt|date('Y-m-d H:i') }}</p>
+                <p><span class="text-slate-700 font-medium">Updated:</span> {{ job.updatedAt|date('Y-m-d H:i') }}</p>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <p class="text-xs uppercase text-slate-500">Lock</p>
+            {% if job.lockedBy %}
+                <p class="mt-3 text-sm font-medium text-slate-700">{{ job.lockedBy }}</p>
+                <p class="text-xs text-slate-400">Locked at {{ job.lockedAt ? job.lockedAt|date('Y-m-d H:i') : '—' }}</p>
+                <p class="text-xs text-slate-400">Expires {{ job.lockExpiresAt ? job.lockExpiresAt|date('Y-m-d H:i') : '—' }}</p>
+            {% else %}
+                <p class="mt-3 text-sm text-slate-400">Not locked</p>
+            {% endif %}
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <p class="text-xs uppercase text-slate-500">Result</p>
+            {% if result %}
+                <div class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ resultStyles[result.status] ?? 'bg-slate-100 text-slate-600 border-slate-200' }}">
+                    {{ result.status|title }}
+                </div>
+                <p class="mt-2 text-sm text-slate-500">Completed {{ result.completedAt|date('Y-m-d H:i') }}</p>
+            {% else %}
+                <p class="mt-3 text-sm text-slate-400">No result yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold">Payload</h2>
+                    <p class="text-sm text-slate-500">Inputs sent to the agent.</p>
+                </div>
+            </div>
+            <pre class="mt-4 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">{{ job.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold">Output</h2>
+                    <p class="text-sm text-slate-500">Structured result from the agent.</p>
+                </div>
+            </div>
+            {% if result %}
+                <pre class="mt-4 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">{{ result.output|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+            {% else %}
+                <div class="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-400">
+                    Output will appear after the job completes.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-semibold">Live logs</h2>
+                <p class="text-sm text-slate-500">Tail the latest job output.</p>
+            </div>
+            <button
+                class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+                hx-get="/admin/jobs/{{ job.id }}/log"
+                hx-target="#job-log-tail"
+                hx-swap="innerHTML"
+            >Refresh</button>
+        </div>
+        <div
+            id="job-log-tail"
+            class="mt-4"
+            hx-get="/admin/jobs/{{ job.id }}/log"
+            hx-trigger="load, every 4s"
+            hx-target="#job-log-tail"
+            hx-swap="innerHTML"
+        >
+            {% include 'admin/jobs/_log_tail.html.twig' with { logLines: logLines } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -18,7 +18,7 @@ jobs:
       run:
         working-directory: core
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
@@ -29,7 +29,7 @@ jobs:
           coverage: none
 
       - name: Cache Composer
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: |
             ~/.composer/cache/files
@@ -56,10 +56,10 @@ jobs:
       run:
         working-directory: agent
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
           go-version: "1.22"
 
@@ -76,7 +76,7 @@ jobs:
     name: Installer - lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: ShellCheck (bash installer)
         uses: ludeeus/action-shellcheck@v2

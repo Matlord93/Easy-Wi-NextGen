@@ -40,11 +40,12 @@ jobs:
       - name: Generate checksums
         run: |
           cd dist
-          sha256sum * > checksums-installer.txt
+          sha256sum easywi-installer-* > checksums-installer.txt
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*
+            dist/easywi-installer-*
+            dist/checksums-installer.txt
           generate_release_notes: false

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+{% set activeNav = activeNav|default('') %}
+<input id="sidebar-toggle" type="checkbox" class="peer sr-only">
+<div class="min-h-screen flex">
+    <div class="fixed inset-0 z-30 hidden bg-slate-900/40 peer-checked:block lg:hidden"></div>
+    <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-slate-950 text-white transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
+        {% set activeNav = activeNav|default('') %}
+        <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
+        <nav class="flex-1 px-4 space-y-2">
+            {% set jobsActive = activeNav == 'jobs' %}
+            <a href="/admin/jobs" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ jobsActive ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md bg-slate-700">
+            <a href="/admin" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'dashboard' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'dashboard' ? 'bg-slate-700' : 'bg-slate-900' }}">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M3 3.75A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 3 8.25v-4.5Zm8 0a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-8.5Zm-8 8a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 3 16.25v-4.5Zm8 2a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-2.5Z"/>
+                    </svg>
+                </span>
+                <span class="text-sm font-medium">Dashboard</span>
+            </a>
+            <a href="/admin/jobs" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'jobs' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'jobs' ? 'bg-slate-700' : 'bg-slate-900' }}">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm3 2.75a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5H6Zm0 4a.75.75 0 0 0 0 1.5h5a.75.75 0 0 0 0-1.5H6Z"/>
+                    </svg>
+                </span>
+                <span class="text-sm font-medium">Jobs</span>
+            </a>
+            {% set nodesActive = activeNav == 'nodes' %}
+            <a href="/admin/nodes" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ nodesActive ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M9.5 3.75a.75.75 0 0 1 1.5 0v1.06a3.5 3.5 0 0 1 2.45 1.35.75.75 0 1 1-1.2.9A2 2 0 0 0 10.5 6.5h-1A2 2 0 0 0 7.7 7.06a.75.75 0 0 1-1.2-.9A3.5 3.5 0 0 1 9.5 4.81V3.75Zm-4.75 9a2.75 2.75 0 0 1 2.75-2.75h5a2.75 2.75 0 0 1 2.75 2.75v.75a2.75 2.75 0 0 1-2.75 2.75h-5A2.75 2.75 0 0 1 4.75 13.5v-.75Zm2.75-1.25a1.25 1.25 0 0 0-1.25 1.25v.75a1.25 1.25 0 0 0 1.25 1.25h5a1.25 1.25 0 0 0 1.25-1.25v-.75a1.25 1.25 0 0 0-1.25-1.25h-5Z"/>
+                    </svg>
+                </span>
+                <span class="text-sm font-medium">Nodes</span>
+            </a>
+            <a href="#" class="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M9.25 4.75a.75.75 0 0 1 .75-.75h4a2 2 0 0 1 2 2v6.5a.75.75 0 0 1-1.5 0V6a.5.5 0 0 0-.5-.5h-3.25V15a.75.75 0 0 1-1.5 0V4.75Zm-4 2A2.25 2.25 0 0 1 7.5 4.5h.25v1.5H7.5a.75.75 0 0 0-.75.75V16a.75.75 0 0 0 .75.75h5a.75.75 0 0 0 .75-.75v-1.25h1.5V16a2.25 2.25 0 0 1-2.25 2.25h-5A2.25 2.25 0 0 1 5.25 16V6.75Z"/>
+                    </svg>
+                </span>
+                <span class="text-sm font-medium">Audit Logs</span>
+            </a>
+        </nav>
+        <div class="px-6 py-4 text-xs text-slate-400">Admin Panel · vNext</div>
+    </aside>
+
+    <main class="flex-1 flex flex-col lg:ml-0">
+        <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
+            <div class="flex items-center justify-between px-4 py-4 sm:px-6">
+                <div class="flex items-center gap-3 w-full">
+                    <label for="sidebar-toggle" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500 lg:hidden">
+                        <span class="sr-only">Toggle sidebar</span>
+                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path d="M3 5.75A.75.75 0 0 1 3.75 5h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 5.75Zm0 4A.75.75 0 0 1 3.75 9h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 9.75Zm0 4a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z"/>
+                        </svg>
+                    </label>
+                    <div class="relative w-full max-w-xl">
+                        <input type="search" placeholder="Search jobs, agents, actions" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                    </div>
+                </div>
+                <div class="hidden items-center gap-4 sm:flex">
+                    <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">Quick Action</button>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <p class="text-sm font-semibold">Admin</p>
+                            <p class="text-xs text-slate-500">Operations</p>
+                        </div>
+                        <div class="h-10 w-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold">A</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 sm:hidden">
+                    <div class="h-9 w-9 rounded-full bg-indigo-500 text-white flex items-center justify-center text-sm font-semibold">A</div>
+                </div>
+            </div>
+        </header>
+
+        <section class="px-4 py-6 sm:px-6">
+            {% block content %}{% endblock %}
+        </section>
+    </main>
+</div>
+</body>
+</html>

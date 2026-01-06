@@ -1,0 +1,52 @@
+{% set statusStyles = {
+    'queued': 'bg-amber-50 text-amber-700 border-amber-200',
+    'running': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'succeeded': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'failed': 'bg-rose-50 text-rose-700 border-rose-200',
+    'cancelled': 'bg-slate-100 text-slate-600 border-slate-200'
+} %}
+
+<div id="jobs-table" class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+        <tr>
+            <th class="px-5 py-3 text-left font-medium">Job ID</th>
+            <th class="px-5 py-3 text-left font-medium">Type</th>
+            <th class="px-5 py-3 text-left font-medium">Status</th>
+            <th class="px-5 py-3 text-left font-medium">Locked By</th>
+            <th class="px-5 py-3 text-left font-medium">Created</th>
+            <th class="px-5 py-3 text-right font-medium">Actions</th>
+        </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+        {% for job in jobs %}
+            <tr class="hover:bg-slate-50">
+                <td class="px-5 py-4 font-mono text-xs text-slate-600">{{ job.id }}</td>
+                <td class="px-5 py-4 font-medium">{{ job.type }}</td>
+                <td class="px-5 py-4">
+                    {% set style = statusStyles[job.status] ?? 'bg-slate-100 text-slate-600 border-slate-200' %}
+                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ style }}">
+                        {{ job.status|title }}
+                    </span>
+                </td>
+                <td class="px-5 py-4 text-slate-500">
+                    {% if job.lockedBy %}
+                        <div class="text-sm font-medium text-slate-700">{{ job.lockedBy }}</div>
+                        <div class="text-xs text-slate-400">{{ job.lockedAt ? job.lockedAt|date('Y-m-d H:i') : '' }}</div>
+                    {% else %}
+                        <span class="text-xs text-slate-400">Unassigned</span>
+                    {% endif %}
+                </td>
+                <td class="px-5 py-4 text-slate-500">{{ job.createdAt|date('Y-m-d H:i') }}</td>
+                <td class="px-5 py-4 text-right">
+                    <a class="text-xs font-semibold text-indigo-600 hover:text-indigo-500" href="/admin/jobs/{{ job.id }}">View</a>
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="6" class="px-5 py-8 text-center text-slate-400">No jobs available yet.</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
