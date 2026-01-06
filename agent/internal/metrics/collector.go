@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -31,15 +30,6 @@ func Collect() map[string]any {
 			"available": available,
 			"used":      total - available,
 			"percent":   usedPercent,
-		}
-	}
-
-	if total, free, usedPercent, err := diskUsage("/"); err == nil {
-		snapshot["disk"] = map[string]any{
-			"total":   total,
-			"free":    free,
-			"used":    total - free,
-			"percent": usedPercent,
 		}
 	}
 
