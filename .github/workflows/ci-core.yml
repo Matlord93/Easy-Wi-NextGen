@@ -26,19 +26,21 @@ jobs:
           extensions: mbstring, intl, pdo, pdo_mysql, pdo_pgsql, openssl
           tools: composer:v2
           coverage: none
+        env:
+          # Löst den "symfony/runtime" Fehler durch explizite Erlaubnis
+          COMPOSER_ALLOW_PLUGINS: "symfony/runtime,symfony/flex"
 
       - name: Cache Composer
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.composer/cache/files
-            core/vendor
-          key: ${{ runner.os }}-php84-${{ hashFiles('core/composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-php84-
+          path: ~/.composer/cache/files
+          key: ${{ runner.os }}-composer-${{ hashFiles('core/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
 
       - name: Composer install
         run: composer install --no-interaction --no-progress
+        env:
+          COMPOSER_ALLOW_SUPERUSER: 1
 
       - name: Lint (optional)
         run: |
@@ -65,30 +67,25 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
-          extensions: mbstring, intl, pdo, pdo_mysql, pdo_pgsql, openssl
           tools: composer:v2
+        env:
+          COMPOSER_ALLOW_PLUGINS: "symfony/runtime,symfony/flex"
 
       - name: Install deps (prod)
         run: composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
-
-      - name: Build frontend assets (optional)
-        run: |
-          if [ -f package.json ]; then
-            npm ci
-            npm run build
-          else
-            echo "No frontend build"
-          fi
-
-      - name: Symfony cache warmup (optional)
-        run: php bin/console cache:warmup --env=prod || true
 
       - name: Prepare bundle
         run: |
           VERSION="${GITHUB_REF_NAME}"
           mkdir -p ../dist
-          BUNDLE="../dist/easywi-core-${VERSION}.tar.gz"
-          tar -czf "$BUNDLE"             --exclude=".git"             --exclude="var/cache"             --exclude="var/log"             --exclude=".env.local"             --exclude=".env"             --exclude="node_modules"             .
+          # Archiviert den core-Ordner ohne unnötige Dateien
+          tar -czf "../dist/easywi-core-${VERSION}.tar.gz" \
+            --exclude=".git" \
+            --exclude="var/cache" \
+            --exclude="var/log" \
+            --exclude=".env.local" \
+            --exclude="node_modules" \
+            .
 
       - name: Generate checksums
         run: |
@@ -98,6 +95,7 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          # Korrigierte Pfade, da die Dateien im Root-Dist Ordner liegen
           files: |
             dist/easywi-core-*.tar.gz
             dist/checksums-core.txt
