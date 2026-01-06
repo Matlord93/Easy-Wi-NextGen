@@ -144,22 +144,6 @@ func parseMeminfoValue(line string) (uint64, error) {
 	return value * 1024, nil
 }
 
-func diskUsage(path string) (uint64, uint64, float64, error) {
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(path, &stat); err != nil {
-		return 0, 0, 0, err
-	}
-
-	total := stat.Blocks * uint64(stat.Bsize)
-	free := stat.Bfree * uint64(stat.Bsize)
-	if total == 0 {
-		return 0, 0, 0, fmt.Errorf("invalid disk total")
-	}
-
-	usedPercent := float64(total-free) / float64(total) * 100
-	return total, free, usedPercent, nil
-}
-
 func networkCounters() (uint64, uint64, error) {
 	file, err := os.Open("/proc/net/dev")
 	if err != nil {
