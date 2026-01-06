@@ -1,0 +1,62 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Templates · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Templates</h1>
+        <p class="text-sm text-slate-500">Define game build commands, ports, and immutable start parameters.</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+            {{ summary.total }} template{{ summary.total == 1 ? '' : 's' }} configured
+        </span>
+        <button
+            class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
+            hx-get="/admin/templates/table"
+            hx-target="#templates-table"
+            hx-swap="outerHTML"
+        >Refresh</button>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-500">Total Templates</p>
+        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-500">Required Ports</p>
+        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.ports }}</p>
+        <p class="mt-1 text-xs text-slate-400">Across all templates</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-500">Install Commands</p>
+        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.commands }}</p>
+        <p class="mt-1 text-xs text-slate-400">Ready for rollout</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+    <div class="rounded-xl bg-white border border-slate-200">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+            <div>
+                <h2 class="text-lg font-semibold">Template Catalog</h2>
+                <p class="text-sm text-slate-500">Immutable build definitions for admin-only provisioning.</p>
+            </div>
+            <button
+                class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+                hx-get="/admin/templates/table"
+                hx-target="#templates-table"
+                hx-swap="outerHTML"
+            >Refresh</button>
+        </div>
+        {% include 'admin/templates/_table.html.twig' with { templates: templates } %}
+    </div>
+
+    <div class="rounded-xl bg-white border border-slate-200" id="template-form" hx-trigger="templates-changed from:body" hx-get="/admin/templates/form" hx-swap="outerHTML">
+        {% include 'admin/templates/_form.html.twig' with { form: form } %}
+    </div>
+</div>
+{% endblock %}

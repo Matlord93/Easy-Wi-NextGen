@@ -1,0 +1,55 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Ticket #{{ ticket.id }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div class="rounded-xl border border-slate-200 bg-white p-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+                <p class="text-xs uppercase text-slate-500">Ticket #{{ ticket.id }}</p>
+                <h1 class="text-2xl font-semibold text-slate-900">{{ ticket.subject }}</h1>
+                <p class="mt-2 text-sm text-slate-500">Customer {{ ticket.customer.email }} · Category {{ ticket.category|title }}</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+                <div id="ticket-status-badge">
+                    {% include 'admin/tickets/_status_badge.html.twig' with { ticket: ticket, statusStyles: statusStyles } %}
+                </div>
+                <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ priorityStyles[ticket.priority] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
+                    {{ ticket.priority|title }} Priority
+                </span>
+            </div>
+        </div>
+        <div class="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="text-sm text-slate-500">
+                Created {{ ticket.created_at|date('d.m.Y H:i') }} · Last update {{ ticket.last_message_at|date('d.m.Y H:i') }}
+            </div>
+            <form class="flex items-center gap-3" method="post" action="/admin/tickets/{{ ticket.id }}/status" hx-post="/admin/tickets/{{ ticket.id }}/status" hx-target="#ticket-status-badge" hx-swap="outerHTML">
+                <label class="text-xs font-semibold uppercase text-slate-500">Status</label>
+                <select name="status" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="open" {{ ticket.status == 'open' ? 'selected' : '' }}>Open</option>
+                    <option value="pending" {{ ticket.status == 'pending' ? 'selected' : '' }}>Pending</option>
+                    <option value="resolved" {{ ticket.status == 'resolved' ? 'selected' : '' }}>Resolved</option>
+                    <option value="closed" {{ ticket.status == 'closed' ? 'selected' : '' }}>Closed</option>
+                </select>
+                <button type="submit" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">Update</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
+        <div class="rounded-xl border border-slate-200 bg-white">
+            <div class="border-b border-slate-200 px-6 py-4">
+                <h2 class="text-lg font-semibold">Conversation</h2>
+                <p class="text-sm text-slate-500">Internal support thread for the ticket.</p>
+            </div>
+            <div id="ticket-messages">
+                {% include 'admin/tickets/_messages.html.twig' with { ticket: ticket, messages: messages, statusStyles: statusStyles, priorityStyles: priorityStyles } %}
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white">
+            {% include 'admin/tickets/_message_form.html.twig' with { ticket: ticket } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

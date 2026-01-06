@@ -1,0 +1,59 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Mailboxes · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Mailboxes</h1>
+        <p class="text-sm text-slate-500">Manage mailbox provisioning, quotas, and access status.</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+            hx-get="/admin/mailboxes/table"
+            hx-target="#mailboxes-table"
+            hx-swap="outerHTML"
+        >Refresh</button>
+        <button
+            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
+            hx-get="/admin/mailboxes/form"
+            hx-target="#mailbox-form"
+            hx-swap="outerHTML"
+        >New Mailbox</button>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-500">Total Mailboxes</p>
+        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-500">Enabled</p>
+        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.enabled }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-500">Disabled</p>
+        <p class="mt-2 text-2xl font-semibold text-rose-500">{{ summary.disabled }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-500">Quota Total (MB)</p>
+        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.quotaTotal }}</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div id="mailbox-form" class="rounded-xl bg-white border border-slate-200">
+        {% include 'admin/mailboxes/_form.html.twig' with { domains: domains, form: form } %}
+    </div>
+    <div class="lg:col-span-2">
+        <div id="mailboxes-table" class="rounded-xl bg-white border border-slate-200"
+             hx-get="/admin/mailboxes/table"
+             hx-trigger="mailboxes-changed from:body"
+             hx-swap="outerHTML">
+            {% include 'admin/mailboxes/_table.html.twig' with { mailboxes: mailboxes } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

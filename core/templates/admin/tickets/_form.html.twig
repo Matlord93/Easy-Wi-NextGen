@@ -1,0 +1,60 @@
+<div class="p-6 border-b border-slate-200">
+    <h2 class="text-lg font-semibold">Create Ticket</h2>
+    <p class="text-sm text-slate-500">Log a request on behalf of a customer.</p>
+</div>
+<form class="p-6 space-y-4" method="post" action="/admin/tickets" hx-post="/admin/tickets" hx-target="#ticket-form" hx-swap="outerHTML">
+    {% if form.errors is not empty %}
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <ul class="list-disc list-inside">
+                {% for error in form.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div>
+        <label class="text-xs font-semibold uppercase text-slate-500">Customer</label>
+        <select name="customer_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value="">Select customer</option>
+            {% for customer in customers %}
+                <option value="{{ customer.id }}" {{ form.customer_id == customer.id ? 'selected' : '' }}>{{ customer.email }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div>
+        <label class="text-xs font-semibold uppercase text-slate-500">Subject</label>
+        <input name="subject" value="{{ form.subject }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Subject" />
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-500">Category</label>
+            <select name="category" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="general" {{ form.category == 'general' ? 'selected' : '' }}>General</option>
+                <option value="billing" {{ form.category == 'billing' ? 'selected' : '' }}>Billing</option>
+                <option value="technical" {{ form.category == 'technical' ? 'selected' : '' }}>Technical</option>
+                <option value="abuse" {{ form.category == 'abuse' ? 'selected' : '' }}>Abuse</option>
+            </select>
+        </div>
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-500">Priority</label>
+            <select name="priority" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="low" {{ form.priority == 'low' ? 'selected' : '' }}>Low</option>
+                <option value="normal" {{ form.priority == 'normal' ? 'selected' : '' }}>Normal</option>
+                <option value="high" {{ form.priority == 'high' ? 'selected' : '' }}>High</option>
+                <option value="urgent" {{ form.priority == 'urgent' ? 'selected' : '' }}>Urgent</option>
+            </select>
+        </div>
+    </div>
+
+    <div>
+        <label class="text-xs font-semibold uppercase text-slate-500">Initial Message</label>
+        <textarea name="message" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Describe the request">{{ form.message }}</textarea>
+    </div>
+
+    <div class="flex items-center justify-end">
+        <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Create Ticket</button>
+    </div>
+</form>

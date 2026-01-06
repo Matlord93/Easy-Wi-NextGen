@@ -13,6 +13,7 @@ import (
 	"easywi/agent/internal/api"
 	"easywi/agent/internal/config"
 	"easywi/agent/internal/jobs"
+	"easywi/agent/internal/metrics"
 	"easywi/agent/internal/system"
 )
 
@@ -90,6 +91,7 @@ func collectStats(version string) map[string]any {
 		"go_version": runtime.Version(),
 		"os":         runtime.GOOS,
 		"arch":       runtime.GOARCH,
+		"metrics":    metrics.Collect(),
 	}
 }
 
@@ -103,6 +105,82 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleDomainAdd(job)
 	case "domain.ssl.issue":
 		return handleDomainSSLIssue(job)
+	case "mail.domain.create":
+		return handleMailDomainCreate(job)
+	case "mail.alias.create":
+		return handleMailAliasCreate(job)
+	case "mail.alias.update":
+		return handleMailAliasUpdate(job)
+	case "mail.alias.delete":
+		return handleMailAliasDelete(job)
+	case "mail.alias.enable":
+		return handleMailAliasEnable(job)
+	case "mail.alias.disable":
+		return handleMailAliasDisable(job)
+	case "mailbox.create":
+		return handleMailboxCreate(job)
+	case "mailbox.password.reset":
+		return handleMailboxPasswordReset(job)
+	case "mailbox.quota.update":
+		return handleMailboxQuotaUpdate(job)
+	case "mailbox.enable":
+		return handleMailboxEnable(job)
+	case "mailbox.disable":
+		return handleMailboxDisable(job)
+	case "dns.zone.create":
+		return handleDNSZoneCreate(job)
+	case "dns.record.create":
+		return handleDNSRecordCreate(job)
+	case "dns.record.update":
+		return handleDNSRecordUpdate(job)
+	case "dns.record.delete":
+		return handleDNSRecordDelete(job)
+	case "mariadb.db.create":
+		return handleMariaDBDatabaseCreate(job)
+	case "mariadb.user.create":
+		return handleMariaDBUserCreate(job)
+	case "mariadb.grant.apply":
+		return handleMariaDBGrantApply(job)
+	case "postgres.db.create":
+		return handlePostgresDatabaseCreate(job)
+	case "postgres.role.create":
+		return handlePostgresRoleCreate(job)
+	case "postgres.grant.apply":
+		return handlePostgresGrantApply(job)
+	case "instance.create":
+		return handleInstanceCreate(job)
+	case "instance.start":
+		return handleInstanceStart(job)
+	case "instance.stop":
+		return handleInstanceStop(job)
+	case "instance.restart":
+		return handleInstanceRestart(job)
+	case "instance.reinstall":
+		return handleInstanceReinstall(job)
+	case "firewall.open_ports":
+		return handleFirewallOpen(job.ID, job.Payload)
+	case "firewall.close_ports":
+		return handleFirewallClose(job.ID, job.Payload)
+	case "ts3.create":
+		return handleTs3Create(job)
+	case "ts3.start":
+		return handleTs3Start(job)
+	case "ts3.stop":
+		return handleTs3Stop(job)
+	case "ts3.restart":
+		return handleTs3Restart(job)
+	case "ts3.update":
+		return handleTs3Update(job)
+	case "ts3.backup":
+		return handleTs3Backup(job)
+	case "ts3.restore":
+		return handleTs3Restore(job)
+	case "ts3.token.reset":
+		return handleTs3TokenReset(job)
+	case "ts3.slots.set":
+		return handleTs3SlotsSet(job)
+	case "ts3.logs.export":
+		return handleTs3LogsExport(job)
 	default:
 		return jobs.Result{
 			JobID:     job.ID,

@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Entity\JobResult;
+use App\Entity\MetricSample;
 use App\Enum\JobResultStatus;
 use App\Enum\JobStatus;
 use App\Repository\AgentRepository;
 use App\Repository\DomainRepository;
 use App\Repository\JobRepository;
+use App\Repository\Ts3InstanceRepository;
 use App\Service\AgentSignatureVerifier;
 use App\Service\AuditLogger;
 use App\Service\EncryptionService;
+use App\Service\FirewallStateManager;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -29,10 +32,12 @@ final class AgentApiController
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
         private readonly DomainRepository $domainRepository,
+        private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
         private readonly AuditLogger $auditLogger,
+        private readonly FirewallStateManager $firewallStateManager,
     ) {
     }
 
@@ -56,6 +61,14 @@ final class AgentApiController
 
         $agent->recordHeartbeat($stats, $version, $ip, $roles, $metadata, $status);
         $this->entityManager->persist($agent);
+        $metricSample = $this->buildMetricSample($agent, $stats['metrics'] ?? null);
+        if ($metricSample !== null) {
+            $this->entityManager->persist($metricSample);
+            $this->auditLogger->log(null, 'agent.metrics_ingested', [
+                'agent_id' => $agent->getId(),
+                'recorded_at' => $metricSample->getRecordedAt()->format(DATE_RFC3339),
+            ]);
+        }
         $this->auditLogger->log(null, 'agent.heartbeat', [
             'agent_id' => $agent->getId(),
             'version' => $version,
@@ -164,6 +177,16 @@ final class AgentApiController
 
         $this->entityManager->persist($jobResult);
         $this->applyDomainUpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
+        if ($resultStatus === JobResultStatus::Succeeded) {
+            $ports = $this->firewallStateManager->portsFromJob($job);
+            if ($job->getType() === 'firewall.open_ports') {
+                $this->firewallStateManager->applyOpenPorts($agent, $ports);
+            }
+            if ($job->getType() === 'firewall.close_ports') {
+                $this->firewallStateManager->applyClosePorts($agent, $ports);
+            }
+        }
+        $this->applyTs3UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->auditLogger->log(null, 'agent.job_completed', [
             'agent_id' => $agent->getId(),
             'job_id' => $job->getId(),
@@ -203,6 +226,71 @@ final class AgentApiController
         }
 
         return new DateTimeImmutable();
+    }
+
+    private function buildMetricSample(\App\Entity\Agent $agent, mixed $metrics): ?MetricSample
+    {
+        if (!is_array($metrics)) {
+            return null;
+        }
+
+        $recordedAt = $this->parseMetricTimestamp($metrics['collected_at'] ?? null);
+        $cpuPercent = $this->parseMetricPercent($metrics, 'cpu');
+        $memoryPercent = $this->parseMetricPercent($metrics, 'memory');
+        $diskPercent = $this->parseMetricPercent($metrics, 'disk');
+
+        $netBytesSent = $this->parseMetricInt($metrics, ['net', 'bytes_sent']);
+        $netBytesRecv = $this->parseMetricInt($metrics, ['net', 'bytes_recv']);
+
+        return new MetricSample(
+            $agent,
+            $recordedAt,
+            $cpuPercent,
+            $memoryPercent,
+            $diskPercent,
+            $netBytesSent,
+            $netBytesRecv,
+            $metrics,
+        );
+    }
+
+    private function parseMetricTimestamp(mixed $value): \DateTimeImmutable
+    {
+        if (is_string($value) && $value !== '') {
+            try {
+                return new \DateTimeImmutable($value);
+            } catch (\Exception) {
+            }
+        }
+
+        return new \DateTimeImmutable();
+    }
+
+    private function parseMetricPercent(array $metrics, string $key): ?float
+    {
+        $value = $metrics[$key]['percent'] ?? null;
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    private function parseMetricInt(array $metrics, array $path): ?int
+    {
+        $cursor = $metrics;
+        foreach ($path as $segment) {
+            if (!is_array($cursor) || !array_key_exists($segment, $cursor)) {
+                return null;
+            }
+            $cursor = $cursor[$segment];
+        }
+
+        if (!is_numeric($cursor)) {
+            return null;
+        }
+
+        return (int) $cursor;
     }
 
     private function applyDomainUpdatesFromJob(\App\Entity\Job $job, JobResultStatus $resultStatus, string $agentId, array $output): void
@@ -262,6 +350,47 @@ final class AgentApiController
             'previous_ssl_expires_at' => $previousExpiry?->format(DATE_RFC3339),
             'cert_path' => is_string($output['cert_path'] ?? null) ? $output['cert_path'] : null,
             'fullchain_path' => is_string($output['fullchain_path'] ?? null) ? $output['fullchain_path'] : null,
+        ]);
+    }
+
+    private function applyTs3UpdatesFromJob(\App\Entity\Job $job, JobResultStatus $resultStatus, string $agentId, array $output): void
+    {
+        $payload = $job->getPayload();
+        $instanceId = $payload['ts3_instance_id'] ?? $payload['instance_id'] ?? null;
+        if (!is_int($instanceId) && !is_string($instanceId)) {
+            return;
+        }
+
+        $instance = $this->ts3InstanceRepository->find((int) $instanceId);
+        if ($instance === null) {
+            return;
+        }
+
+        $newStatus = null;
+        if ($resultStatus === JobResultStatus::Failed) {
+            $newStatus = \App\Enum\Ts3InstanceStatus::Error;
+        } elseif ($resultStatus === JobResultStatus::Succeeded) {
+            $newStatus = match ($job->getType()) {
+                'ts3.create', 'ts3.start', 'ts3.restart', 'ts3.update', 'ts3.restore' => \App\Enum\Ts3InstanceStatus::Running,
+                'ts3.stop' => \App\Enum\Ts3InstanceStatus::Stopped,
+                default => null,
+            };
+        }
+
+        if ($newStatus === null || $instance->getStatus() === $newStatus) {
+            return;
+        }
+
+        $previousStatus = $instance->getStatus()->value;
+        $instance->setStatus($newStatus);
+        $this->entityManager->persist($instance);
+        $this->auditLogger->log(null, 'ts3.instance_status_updated', [
+            'instance_id' => $instance->getId(),
+            'job_id' => $job->getId(),
+            'agent_id' => $agentId,
+            'previous_status' => $previousStatus,
+            'status' => $newStatus->value,
+            'output' => $output,
         ]);
     }
 

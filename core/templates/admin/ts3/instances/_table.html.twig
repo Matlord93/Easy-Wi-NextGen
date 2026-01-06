@@ -1,0 +1,119 @@
+<div class="p-6 border-b border-slate-200 flex items-center justify-between">
+    <div>
+        <h2 class="text-lg font-semibold">Instances</h2>
+        <p class="text-sm text-slate-500">Live status, ports, and quick actions.</p>
+    </div>
+</div>
+<div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50 text-slate-500">
+        <tr>
+            <th class="px-6 py-3 text-left font-medium">Instance</th>
+            <th class="px-6 py-3 text-left font-medium">Customer</th>
+            <th class="px-6 py-3 text-left font-medium">Node</th>
+            <th class="px-6 py-3 text-left font-medium">Ports</th>
+            <th class="px-6 py-3 text-left font-medium">DB Mode</th>
+            <th class="px-6 py-3 text-left font-medium">Status</th>
+            <th class="px-6 py-3 text-left font-medium">Actions</th>
+        </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+        {% for instance in instances %}
+            <tr class="hover:bg-slate-50">
+                <td class="px-6 py-4">
+                    <p class="font-semibold text-slate-900">{{ instance.name }}</p>
+                    <p class="text-xs text-slate-500">ID {{ instance.id }}</p>
+                </td>
+                <td class="px-6 py-4">
+                    <p class="text-slate-900">{{ instance.customer.email }}</p>
+                    <p class="text-xs text-slate-500">#{{ instance.customer.id }}</p>
+                </td>
+                <td class="px-6 py-4">
+                    <p class="text-slate-900">{{ instance.node.name }}</p>
+                    <p class="text-xs text-slate-500">{{ instance.node.id }}</p>
+                </td>
+                <td class="px-6 py-4 text-slate-700">
+                    V {{ instance.voice_port }} · Q {{ instance.query_port }} · F {{ instance.file_port }}
+                </td>
+                <td class="px-6 py-4">
+                    <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">{{ instance.db_mode|upper }}</span>
+                </td>
+                <td class="px-6 py-4">
+                    {% set statusColor = 'bg-slate-100 text-slate-600' %}
+                    {% if instance.status == 'running' %}
+                        {% set statusColor = 'bg-emerald-100 text-emerald-700' %}
+                    {% elseif instance.status == 'stopped' %}
+                        {% set statusColor = 'bg-amber-100 text-amber-700' %}
+                    {% elseif instance.status == 'error' %}
+                        {% set statusColor = 'bg-rose-100 text-rose-700' %}
+                    {% elseif instance.status == 'provisioning' %}
+                        {% set statusColor = 'bg-indigo-100 text-indigo-700' %}
+                    {% endif %}
+                    <span class="rounded-full px-2 py-1 text-xs font-semibold {{ statusColor }}">{{ instance.status }}</span>
+                </td>
+                <td class="px-6 py-4">
+                    <div class="flex flex-wrap gap-2">
+                        <button class="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                                hx-post="/admin/ts3/instances/{{ instance.id }}/action"
+                                hx-vals='{"action":"start"}'
+                                hx-target="#ts3-instances-table"
+                                hx-swap="outerHTML">Start</button>
+                        <button class="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                                hx-post="/admin/ts3/instances/{{ instance.id }}/action"
+                                hx-vals='{"action":"stop"}'
+                                hx-target="#ts3-instances-table"
+                                hx-swap="outerHTML">Stop</button>
+                        <button class="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                                hx-post="/admin/ts3/instances/{{ instance.id }}/action"
+                                hx-vals='{"action":"restart"}'
+                                hx-target="#ts3-instances-table"
+                                hx-swap="outerHTML">Restart</button>
+                        <button class="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                                hx-post="/admin/ts3/instances/{{ instance.id }}/action"
+                                hx-vals='{"action":"update"}'
+                                hx-target="#ts3-instances-table"
+                                hx-swap="outerHTML">Update</button>
+                        <button class="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                                hx-post="/admin/ts3/instances/{{ instance.id }}/action"
+                                hx-vals='{"action":"backup"}'
+                                hx-target="#ts3-instances-table"
+                                hx-swap="outerHTML">Backup</button>
+                        <button class="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                                hx-post="/admin/ts3/instances/{{ instance.id }}/action"
+                                hx-vals='{"action":"token_reset"}'
+                                hx-target="#ts3-instances-table"
+                                hx-swap="outerHTML">Reset Token</button>
+                        <button class="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+                                hx-post="/admin/ts3/instances/{{ instance.id }}/action"
+                                hx-vals='{"action":"logs"}'
+                                hx-target="#ts3-instances-table"
+                                hx-swap="outerHTML">Export Logs</button>
+                    </div>
+                    <div class="mt-3 flex flex-col gap-2">
+                        <form class="flex items-center gap-2"
+                              hx-post="/admin/ts3/instances/{{ instance.id }}/action"
+                              hx-target="#ts3-instances-table"
+                              hx-swap="outerHTML">
+                            <input type="hidden" name="action" value="slots">
+                            <input name="slots" class="w-24 rounded-lg border border-slate-200 px-2 py-1 text-xs" placeholder="Slots">
+                            <button class="rounded-lg border border-slate-200 px-2 py-1 text-xs">Set Slots</button>
+                        </form>
+                        <form class="flex items-center gap-2"
+                              hx-post="/admin/ts3/instances/{{ instance.id }}/action"
+                              hx-target="#ts3-instances-table"
+                              hx-swap="outerHTML">
+                            <input type="hidden" name="action" value="restore">
+                            <input name="restore_path" class="w-48 rounded-lg border border-slate-200 px-2 py-1 text-xs" placeholder="/backups/ts3.tar.gz">
+                            <button class="rounded-lg border border-slate-200 px-2 py-1 text-xs">Restore</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td class="px-6 py-8 text-center text-sm text-slate-500" colspan="7">No TS3 instances yet.</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

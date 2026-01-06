@@ -1,0 +1,92 @@
+<div class="p-6 border-b border-slate-200">
+    <h2 class="text-lg font-semibold">Provision TS3 Instance</h2>
+    <p class="text-sm text-slate-500">Define ports, database mode, and the target node.</p>
+</div>
+<form class="p-6 space-y-4"
+      hx-post="{{ form.action_url }}"
+      hx-target="#ts3-instance-form"
+      hx-swap="outerHTML">
+    {% if form.errors is not empty %}
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <ul class="list-disc pl-4 space-y-1">
+                {% for error in form.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 gap-4">
+        <label class="block text-sm font-medium text-slate-700">
+            Customer
+            <select name="customer_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="">Select customer</option>
+                {% for customer in customers %}
+                    <option value="{{ customer.id }}" {{ customer.id == form.customer_id ? 'selected' : '' }}>{{ customer.email }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            Node
+            <select name="node_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="">Select node</option>
+                {% for node in nodes %}
+                    <option value="{{ node.id }}" {{ node.id == form.node_id ? 'selected' : '' }}>{{ node.name ?? node.id }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            Instance Name
+            <input name="name" value="{{ form.name }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="TS3 - EU Central">
+        </label>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <label class="block text-sm font-medium text-slate-700">
+            Voice Port
+            <input name="voice_port" value="{{ form.voice_port }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="9987">
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            Query Port
+            <input name="query_port" value="{{ form.query_port }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="10011">
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            File Port
+            <input name="file_port" value="{{ form.file_port }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="30033">
+        </label>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label class="block text-sm font-medium text-slate-700">
+            Database Mode
+            <select name="db_mode" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="sqlite" {{ form.db_mode == 'sqlite' ? 'selected' : '' }}>SQLite (local)</option>
+                <option value="mysql" {{ form.db_mode == 'mysql' ? 'selected' : '' }}>MySQL</option>
+            </select>
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            MySQL Host
+            <input name="db_host" value="{{ form.db_host }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="127.0.0.1">
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            MySQL Port
+            <input name="db_port" value="{{ form.db_port }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="3306">
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            MySQL Database
+            <input name="db_name" value="{{ form.db_name }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="ts3">
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            MySQL Username
+            <input name="db_username" value="{{ form.db_username }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="ts3_user">
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            MySQL Password
+            <input type="password" name="db_password" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="••••••••">
+        </label>
+    </div>
+
+    <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
+        {{ form.submit_label }}
+    </button>
+</form>
