@@ -849,7 +849,7 @@ apply_roles() {
     log "Configuring role: ${role}"
     if [[ "${role}" != "web" ]]; then
       packages=$(role_packages "${role}")
-      pkg_install ${packages}
+      pkg_install "${packages}"
     fi
     mkdir -p /etc/easywi/roles.d
     echo "role=${role}" > "/etc/easywi/roles.d/${role}.conf"
