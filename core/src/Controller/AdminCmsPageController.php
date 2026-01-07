@@ -252,11 +252,17 @@ final class AdminCmsPageController
 
     private function normalizeBlocks(array $blocks): array
     {
-        return array_map(static function (CmsBlock $block): array {
+        return array_map(function (CmsBlock $block): array {
+            $preview = $block->getContent();
+            if (in_array($block->getType(), ['server_list', 'server_featured'], true)) {
+                $preview = $this->buildServerBlockPreview($block->getContent());
+            }
+
             return [
                 'id' => $block->getId(),
                 'type' => $block->getType(),
                 'content' => $block->getContent(),
+                'preview' => $preview,
                 'sort_order' => $block->getSortOrder(),
                 'updated_at' => $block->getUpdatedAt(),
             ];
@@ -281,6 +287,12 @@ final class AdminCmsPageController
             'errors' => [],
             'type' => '',
             'content' => '',
+            'settings' => [
+                'game' => '',
+                'limit' => 5,
+                'show_players' => true,
+                'show_join_button' => false,
+            ],
         ];
 
         return array_merge($defaults, $overrides ?? []);
@@ -317,7 +329,38 @@ final class AdminCmsPageController
         if ($type === '') {
             $errors[] = 'Block type is required.';
         }
-        if ($content === '') {
+
+        $isServerBlock = in_array($type, ['server_list', 'server_featured'], true);
+        $settings = [
+            'game' => trim((string) $request->request->get('server_game', '')),
+            'limit' => $request->request->get('server_limit'),
+            'show_players' => $request->request->get('server_show_players') === 'on',
+            'show_join_button' => $request->request->get('server_show_join_button') === 'on',
+        ];
+
+        if ($isServerBlock) {
+            $limitValue = is_numeric($settings['limit']) ? (int) $settings['limit'] : null;
+            if ($limitValue === null) {
+                $limitValue = $type === 'server_featured' ? 1 : 5;
+            }
+            if ($limitValue < 1 || $limitValue > 100) {
+                $errors[] = 'Server list limit must be between 1 and 100.';
+            }
+            $settings['limit'] = $limitValue;
+
+            $encoded = json_encode([
+                'game' => $settings['game'] !== '' ? $settings['game'] : null,
+                'limit' => $settings['limit'],
+                'show_players' => $settings['show_players'],
+                'show_join_button' => $settings['show_join_button'],
+            ]);
+
+            if ($encoded === false) {
+                $errors[] = 'Server block settings could not be encoded.';
+            } else {
+                $content = $encoded;
+            }
+        } elseif ($content === '') {
             $errors[] = 'Content is required.';
         }
 
@@ -325,6 +368,7 @@ final class AdminCmsPageController
             'errors' => $errors,
             'type' => $type,
             'content' => $content,
+            'settings' => $settings,
         ];
     }
 
@@ -341,5 +385,20 @@ final class AdminCmsPageController
             'blockForm' => $this->buildBlockFormContext($formData),
             'page' => $formData['page'],
         ]), $statusCode);
+    }
+
+    private function buildServerBlockPreview(string $content): string
+    {
+        $data = json_decode($content, true);
+        if (!is_array($data)) {
+            return 'Server block (invalid settings)';
+        }
+
+        $game = is_string($data['game'] ?? null) && $data['game'] !== '' ? $data['game'] : 'all games';
+        $limit = is_numeric($data['limit'] ?? null) ? (int) $data['limit'] : 0;
+        $players = ($data['show_players'] ?? false) ? 'players shown' : 'players hidden';
+        $join = ($data['show_join_button'] ?? false) ? 'join enabled' : 'join hidden';
+
+        return sprintf('Server list: %s · limit %d · %s · %s', $game, $limit, $players, $join);
     }
 }

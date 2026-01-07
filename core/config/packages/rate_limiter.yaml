@@ -1,0 +1,26 @@
+framework:
+    rate_limiter:
+        public_servers:
+            policy: 'fixed_window'
+            limit: 60
+            interval: '1 minute'
+        public_status:
+            policy: 'fixed_window'
+            limit: 60
+            interval: '1 minute'
+        public_downloads:
+            policy: 'fixed_window'
+            limit: 60
+            interval: '1 minute'
+        public_changelog:
+            policy: 'fixed_window'
+            limit: 60
+            interval: '1 minute'
+        public_docs:
+            policy: 'fixed_window'
+            limit: 60
+            interval: '1 minute'
+        public_registration:
+            policy: 'fixed_window'
+            limit: 10
+            interval: '15 minutes'

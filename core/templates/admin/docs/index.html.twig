@@ -1,0 +1,37 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Docs · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold">Docs & Knowledge Base</h1>
+            <p class="text-sm text-slate-500">Publish FAQs and troubleshooting notes.</p>
+        </div>
+        <div class="grid grid-cols-3 gap-3 text-center">
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs uppercase text-slate-500">Total</p>
+                <p class="text-xl font-semibold text-slate-900">{{ summary.total }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs uppercase text-slate-500">Public</p>
+                <p class="text-xl font-semibold text-emerald-600">{{ summary.public }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs uppercase text-slate-500">Hidden</p>
+                <p class="text-xl font-semibold text-slate-700">{{ summary.hidden }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
+        <div class="rounded-xl border border-slate-200 bg-white" id="docs-table" hx-trigger="docs-changed from:body" hx-get="/admin/docs/table" hx-swap="outerHTML">
+            {% include 'admin/docs/_table.html.twig' with { articles: articles } %}
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white" id="docs-form" hx-trigger="docs-changed from:body" hx-get="/admin/docs/form" hx-swap="outerHTML">
+            {% include 'admin/docs/_form.html.twig' with { form: form, categories: categories } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

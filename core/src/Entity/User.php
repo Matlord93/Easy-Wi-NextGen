@@ -13,6 +13,8 @@ use Symfony\Component\Security\Core\User\UserInterface;
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: 'users')]
 #[ORM\UniqueConstraint(name: 'uniq_users_email', columns: ['email'])]
+#[ORM\Index(name: 'idx_users_email_verification_token', columns: ['email_verification_token_hash'])]
+#[ORM\Index(name: 'idx_users_reseller', columns: ['reseller_id'])]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
@@ -31,6 +33,31 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $emailVerifiedAt = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $emailVerificationTokenHash = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $emailVerificationExpiresAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $termsAcceptedAt = null;
+
+    #[ORM\Column(length: 45, nullable: true)]
+    private ?string $termsAcceptedIp = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $privacyAcceptedAt = null;
+
+    #[ORM\Column(length: 45, nullable: true)]
+    private ?string $privacyAcceptedIp = null;
+
+    #[ORM\ManyToOne(targetEntity: self::class)]
+    #[ORM\JoinColumn(name: 'reseller_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?self $resellerOwner = null;
 
     public function __construct(string $email, UserType $type)
     {
@@ -81,7 +108,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function getRoles(): array
     {
-        return [$this->getType() === UserType::Admin ? 'ROLE_ADMIN' : 'ROLE_CUSTOMER'];
+        return match ($this->getType()) {
+            UserType::Admin => ['ROLE_ADMIN'],
+            UserType::Reseller => ['ROLE_RESELLER'],
+            default => ['ROLE_CUSTOMER'],
+        };
     }
 
     public function eraseCredentials(): void
@@ -91,5 +122,78 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getEmailVerifiedAt(): ?\DateTimeImmutable
+    {
+        return $this->emailVerifiedAt;
+    }
+
+    public function setEmailVerifiedAt(?\DateTimeImmutable $emailVerifiedAt): void
+    {
+        $this->emailVerifiedAt = $emailVerifiedAt;
+    }
+
+    public function getEmailVerificationTokenHash(): ?string
+    {
+        return $this->emailVerificationTokenHash;
+    }
+
+    public function setEmailVerificationTokenHash(?string $emailVerificationTokenHash): void
+    {
+        $this->emailVerificationTokenHash = $emailVerificationTokenHash;
+    }
+
+    public function getEmailVerificationExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->emailVerificationExpiresAt;
+    }
+
+    public function setEmailVerificationExpiresAt(?\DateTimeImmutable $emailVerificationExpiresAt): void
+    {
+        $this->emailVerificationExpiresAt = $emailVerificationExpiresAt;
+    }
+
+    public function getTermsAcceptedAt(): ?\DateTimeImmutable
+    {
+        return $this->termsAcceptedAt;
+    }
+
+    public function getTermsAcceptedIp(): ?string
+    {
+        return $this->termsAcceptedIp;
+    }
+
+    public function getPrivacyAcceptedAt(): ?\DateTimeImmutable
+    {
+        return $this->privacyAcceptedAt;
+    }
+
+    public function getPrivacyAcceptedIp(): ?string
+    {
+        return $this->privacyAcceptedIp;
+    }
+
+    public function recordConsents(string $ipAddress, \DateTimeImmutable $acceptedAt): void
+    {
+        $this->termsAcceptedAt = $acceptedAt;
+        $this->termsAcceptedIp = $ipAddress;
+        $this->privacyAcceptedAt = $acceptedAt;
+        $this->privacyAcceptedIp = $ipAddress;
+    }
+
+    public function getResellerOwner(): ?self
+    {
+        return $this->resellerOwner;
+    }
+
+    public function setResellerOwner(?self $resellerOwner): void
+    {
+        $this->resellerOwner = $resellerOwner;
+    }
+
+    public function isOwnedBy(self $reseller): bool
+    {
+        return $this->resellerOwner?->getId() === $reseller->getId();
     }
 }

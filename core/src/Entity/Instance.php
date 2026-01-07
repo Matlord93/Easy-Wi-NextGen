@@ -7,6 +7,8 @@ namespace App\Entity;
 use App\Domain\Event\ResourceEventSource;
 use App\Domain\Event\ResourceEventSourceTrait;
 use App\Enum\InstanceStatus;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use App\Repository\InstanceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -54,6 +56,12 @@ class Instance implements ResourceEventSource
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
+    /**
+     * @var Collection<int, InstanceSchedule>
+     */
+    #[ORM\OneToMany(mappedBy: 'instance', targetEntity: InstanceSchedule::class, cascade: ['persist'], orphanRemoval: true)]
+    private Collection $schedules;
+
     public function __construct(
         User $customer,
         Template $template,
@@ -74,6 +82,7 @@ class Instance implements ResourceEventSource
         $this->status = $status;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
+        $this->schedules = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -159,6 +168,14 @@ class Instance implements ResourceEventSource
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    /**
+     * @return Collection<int, InstanceSchedule>
+     */
+    public function getSchedules(): Collection
+    {
+        return $this->schedules;
     }
 
     private function touch(): void

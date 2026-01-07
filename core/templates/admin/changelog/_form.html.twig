@@ -1,0 +1,50 @@
+<div class="px-5 py-4">
+    <div class="mb-4">
+        <h2 class="text-lg font-semibold">{{ form.action == 'create' ? 'Add changelog entry' : 'Edit changelog entry' }}</h2>
+        <p class="text-sm text-slate-500">Highlight customer-visible improvements.</p>
+    </div>
+
+    {% if form.errors is not empty %}
+        <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <p class="font-semibold">Please fix the following:</p>
+            <ul class="list-disc pl-5 mt-2">
+                {% for error in form.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form
+        class="space-y-4"
+        hx-post="{{ form.action_url }}"
+        hx-target="#changelog-form"
+        hx-swap="outerHTML"
+    >
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Title</label>
+            <input type="text" name="title" value="{{ form.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="New hosting regions">
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Version</label>
+                <input type="text" name="version" value="{{ form.version }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="v1.4.0">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Publish date</label>
+                <input type="date" name="published_at" value="{{ form.published_at }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+            </div>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Details</label>
+            <textarea name="content" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Describe the update">{{ form.content }}</textarea>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-1">
+            <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">
+                <input type="checkbox" name="visible_public" class="rounded border-slate-300 text-indigo-600" {% if form.visible_public %}checked{% endif %}>
+                Visible (Public)
+            </label>
+        </div>
+        <button type="submit" class="w-full rounded-lg px-4 py-2 text-sm font-semibold text-white {{ form.submit_color }} hover:opacity-90">{{ form.submit_label }}</button>
+    </form>
+</div>

@@ -16,7 +16,7 @@
                         <span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ block.type }}</span>
                     </td>
                     <td class="px-5 py-4 text-slate-600">
-                        <span class="line-clamp-2">{{ block.content|slice(0, 120) }}{% if block.content|length > 120 %}…{% endif %}</span>
+                        <span class="line-clamp-2">{{ block.preview|slice(0, 120) }}{% if block.preview|length > 120 %}…{% endif %}</span>
                     </td>
                     <td class="px-5 py-4 text-slate-500">{{ block.updated_at|date('Y-m-d H:i') }}</td>
                 </tr>

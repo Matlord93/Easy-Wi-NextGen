@@ -1,0 +1,38 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Maintenance Windows · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'admin/status/_nav.html.twig' %}
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold">Maintenance Windows</h1>
+            <p class="text-sm text-slate-500">Schedule and publish upcoming maintenance notices.</p>
+        </div>
+        <div class="grid grid-cols-3 gap-3 text-center">
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs uppercase text-slate-500">Total</p>
+                <p class="text-xl font-semibold text-slate-900">{{ summary.total }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs uppercase text-slate-500">Public</p>
+                <p class="text-xl font-semibold text-emerald-600">{{ summary.public }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs uppercase text-slate-500">Hidden</p>
+                <p class="text-xl font-semibold text-slate-700">{{ summary.hidden }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
+        <div class="rounded-xl border border-slate-200 bg-white" id="maintenance-windows-table" hx-trigger="maintenance-windows-changed from:body" hx-get="/admin/status/maintenance/table" hx-swap="outerHTML">
+            {% include 'admin/status/maintenance/_table.html.twig' with { windows: windows } %}
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white" id="maintenance-window-form" hx-trigger="maintenance-windows-changed from:body" hx-get="/admin/status/maintenance/form" hx-swap="outerHTML">
+            {% include 'admin/status/maintenance/_form.html.twig' with { form: form, components: components } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

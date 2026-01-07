@@ -1,0 +1,178 @@
+{% extends 'public/base.html.twig' %}
+
+{% block title %}Install · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl space-y-6">
+    <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+        <h1 class="text-lg font-semibold">Installer</h1>
+        <p class="mt-1 text-sm text-slate-500">Connect a database and create the first admin account.</p>
+    </div>
+
+    {% if completed %}
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm text-emerald-700">
+            Installation completed! You can now <a href="/login" class="font-semibold text-emerald-800">log in</a> with your admin account.
+        </div>
+    {% elseif hasAdmin %}
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-700">
+            An admin account already exists. Installation is locked. You can proceed to <a href="/login" class="font-semibold text-amber-800">login</a>.
+        </div>
+    {% endif %}
+
+    {% if errors is not empty %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm text-rose-700">
+            <ul class="list-disc space-y-1 pl-5">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if success is not empty %}
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm text-emerald-700">
+            <ul class="list-disc space-y-1 pl-5">
+                {% for message in success %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if not hasAdmin %}
+        <form method="post" action="/install" class="space-y-6">
+            <input type="hidden" name="step" value="{{ step }}">
+            {% if step != 1 %}
+                <input type="hidden" name="db_driver" value="{{ form.db_driver }}">
+                <input type="hidden" name="db_name" value="{{ form.db_name }}">
+                <input type="hidden" name="db_host" value="{{ form.db_host }}">
+                <input type="hidden" name="db_port" value="{{ form.db_port }}">
+                <input type="hidden" name="db_user" value="{{ form.db_user }}">
+                <input type="hidden" name="db_password" value="{{ form.db_password }}">
+                <input type="hidden" name="db_path" value="{{ form.db_path }}">
+            {% endif %}
+            {% if step != 2 %}
+                <input type="hidden" name="site_name" value="{{ form.site_name }}">
+                <input type="hidden" name="site_host" value="{{ form.site_host }}">
+            {% endif %}
+            {% if step != 3 %}
+                <input type="hidden" name="admin_email" value="{{ form.admin_email }}">
+            {% endif %}
+
+            <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+                <h2 class="text-sm font-semibold text-slate-900">Step {{ step }} of 3</h2>
+                <p class="mt-1 text-sm text-slate-500">
+                    {% if step == 1 %}
+                        Database settings
+                    {% elseif step == 2 %}
+                        Site defaults
+                    {% else %}
+                        Admin account
+                    {% endif %}
+                </p>
+            </div>
+
+            {% if step == 1 %}
+                <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+                    <h2 class="text-sm font-semibold text-slate-900">Database settings</h2>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="db_driver">Driver</label>
+                            <select id="db_driver" name="db_driver" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <option value="mysql" {% if form.db_driver == 'mysql' %}selected{% endif %}>MySQL / MariaDB</option>
+                                <option value="sqlite" {% if form.db_driver == 'sqlite' %}selected{% endif %}>SQLite (SQL)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="db_name">Database name</label>
+                            <input id="db_name" name="db_name" type="text" value="{{ form.db_name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="easywi">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="db_host">Host</label>
+                            <input id="db_host" name="db_host" type="text" value="{{ form.db_host }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="127.0.0.1">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="db_port">Port</label>
+                            <input id="db_port" name="db_port" type="text" value="{{ form.db_port }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="3306">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="db_user">Username</label>
+                            <input id="db_user" name="db_user" type="text" value="{{ form.db_user }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="dbuser">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="db_password">Password</label>
+                            <input id="db_password" name="db_password" type="password" value="{{ form.db_password }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Optional">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="text-sm font-medium text-slate-700" for="db_path">SQLite path</label>
+                            <input id="db_path" name="db_path" type="text" value="{{ form.db_path }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="/path/to/data.db">
+                            <p class="mt-1 text-xs text-slate-500">Used only when SQLite is selected.</p>
+                        </div>
+                    </div>
+                </div>
+            {% elseif step == 2 %}
+                <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+                    <h2 class="text-sm font-semibold text-slate-900">Site defaults</h2>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="site_name">Site name</label>
+                            <input id="site_name" name="site_name" type="text" value="{{ form.site_name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Default Site">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="site_host">Site host</label>
+                            <input id="site_host" name="site_host" type="text" value="{{ form.site_host }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="localhost">
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+                    <h2 class="text-sm font-semibold text-slate-900">Admin account</h2>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
+                            <label class="text-sm font-medium text-slate-700" for="admin_email">Admin email</label>
+                            <input id="admin_email" name="admin_email" type="email" value="{{ form.admin_email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="admin@example.com">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="admin_password">Password</label>
+                            <input id="admin_password" name="admin_password" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Minimum 8 characters">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="admin_password_confirm">Confirm password</label>
+                            <input id="admin_password_confirm" name="admin_password_confirm" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Repeat password">
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="flex flex-wrap gap-3">
+                {% if step > 1 %}
+                    <button type="submit" name="step_action" value="back" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">Back</button>
+                {% endif %}
+                {% if step == 1 %}
+                    <button type="submit" name="step_action" value="test" class="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100">Test MySQL/SQLite connection</button>
+                {% endif %}
+                {% if step < 3 %}
+                    <button type="submit" name="step_action" value="next" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">Next</button>
+                {% else %}
+                    <button type="submit" name="step_action" value="install" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">Run installer</button>
+                {% endif %}
+            </div>
+        </form>
+    {% endif %}
+
+    <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+        <h2 class="text-sm font-semibold text-slate-900">Server requirements</h2>
+        <p class="mt-2 text-sm text-slate-600">PHP version: <span class="font-semibold text-slate-900">{{ phpVersion }}</span></p>
+        <div class="mt-4">
+            <p class="text-sm font-medium text-slate-700">Loaded PHP extensions</p>
+            <div class="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                {% for extension in phpExtensions %}
+                    <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">{{ extension }}</span>
+                {% else %}
+                    <span class="text-sm text-slate-500">No PHP extensions detected.</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

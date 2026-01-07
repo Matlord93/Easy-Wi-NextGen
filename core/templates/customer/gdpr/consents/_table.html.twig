@@ -1,0 +1,34 @@
+<div class="overflow-hidden">
+    <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+            <tr>
+                <th class="px-5 py-3 text-left font-semibold">Type</th>
+                <th class="px-5 py-3 text-left font-semibold">Version</th>
+                <th class="px-5 py-3 text-left font-semibold">Accepted at</th>
+                <th class="px-5 py-3 text-left font-semibold">IP</th>
+                <th class="px-5 py-3 text-left font-semibold">User Agent</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+            {% if logs is empty %}
+                <tr>
+                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-500">No consent entries recorded yet.</td>
+                </tr>
+            {% else %}
+                {% for log in logs %}
+                    <tr class="bg-white">
+                        <td class="px-5 py-4">
+                            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ typeStyles[log.type.value].badge }}">
+                                {{ typeStyles[log.type.value].label }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-4 text-slate-700">{{ log.version }}</td>
+                        <td class="px-5 py-4 text-slate-700">{{ log.acceptedAt|date('Y-m-d H:i') }}</td>
+                        <td class="px-5 py-4 text-slate-700">{{ log.ip }}</td>
+                        <td class="px-5 py-4 text-slate-500 truncate max-w-[220px]" title="{{ log.userAgent }}">{{ log.userAgent }}</td>
+                    </tr>
+                {% endfor %}
+            {% endif %}
+        </tbody>
+    </table>
+</div>

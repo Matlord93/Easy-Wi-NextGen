@@ -28,4 +28,19 @@ final class UserRepository extends ServiceEntityRepository
     {
         return $this->findBy(['type' => UserType::Customer->value], ['email' => 'ASC']);
     }
+
+    /**
+     * @return User[]
+     */
+    public function findCustomersForReseller(User $reseller): array
+    {
+        return $this->createQueryBuilder('user')
+            ->andWhere('user.type = :type')
+            ->andWhere('user.resellerOwner = :reseller')
+            ->setParameter('type', UserType::Customer->value)
+            ->setParameter('reseller', $reseller)
+            ->orderBy('user.email', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

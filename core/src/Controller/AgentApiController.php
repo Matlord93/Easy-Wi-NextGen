@@ -11,6 +11,7 @@ use App\Enum\JobStatus;
 use App\Repository\AgentRepository;
 use App\Repository\DomainRepository;
 use App\Repository\JobRepository;
+use App\Repository\PublicServerRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Service\AgentSignatureVerifier;
 use App\Service\AuditLogger;
@@ -18,6 +19,7 @@ use App\Service\EncryptionService;
 use App\Service\FirewallStateManager;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -32,12 +34,14 @@ final class AgentApiController
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
         private readonly DomainRepository $domainRepository,
+        private readonly PublicServerRepository $publicServerRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
         private readonly AuditLogger $auditLogger,
         private readonly FirewallStateManager $firewallStateManager,
+        private readonly EventDispatcherInterface $eventDispatcher,
     ) {
     }
 
@@ -104,6 +108,11 @@ final class AgentApiController
             $lockToken = bin2hex(random_bytes(16));
             $job->lock($agent->getId(), $lockToken, $now->modify('+10 minutes'));
             $job->transitionTo(JobStatus::Running);
+
+            $this->eventDispatcher->dispatch(
+                new \App\Extension\Event\JobBeforeDispatchEvent($job, $agent),
+                'extension.job.before_dispatch',
+            );
 
             $jobPayloads[] = [
                 'id' => $job->getId(),
@@ -187,6 +196,11 @@ final class AgentApiController
             }
         }
         $this->applyTs3UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
+        $this->applyPublicServerUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
+        $this->eventDispatcher->dispatch(
+            new \App\Extension\Event\JobAfterResultEvent($job, $jobResult, $agent),
+            'extension.job.after_result',
+        );
         $this->auditLogger->log(null, 'agent.job_completed', [
             'agent_id' => $agent->getId(),
             'job_id' => $job->getId(),
@@ -405,5 +419,52 @@ final class AgentApiController
         } catch (\Exception) {
             return null;
         }
+    }
+
+    private function applyPublicServerUpdatesFromJob(
+        \App\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        string $agentId,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'server.status.check') {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $serverId = $payload['server_id'] ?? null;
+        if (!is_int($serverId) && !is_string($serverId)) {
+            return;
+        }
+
+        $server = $this->publicServerRepository->find((int) $serverId);
+        if ($server === null) {
+            return;
+        }
+
+        $status = match ($resultStatus) {
+            JobResultStatus::Succeeded => is_string($output['status'] ?? null) ? strtolower((string) $output['status']) : 'online',
+            JobResultStatus::Failed => 'error',
+            JobResultStatus::Cancelled => 'unknown',
+        };
+
+        $statusCache = $server->getStatusCache();
+        $statusCache['status'] = $status;
+        $statusCache['players'] = is_numeric($output['players'] ?? null) ? (int) $output['players'] : null;
+        $statusCache['max_players'] = is_numeric($output['max_players'] ?? null) ? (int) $output['max_players'] : null;
+        $statusCache['map'] = is_string($output['map'] ?? null) ? $output['map'] : null;
+        $statusCache['checked_at'] = $completedAt->format(DATE_RFC3339);
+
+        $server->setStatusCache($statusCache);
+        $server->setLastCheckedAt($completedAt);
+        $this->entityManager->persist($server);
+
+        $this->auditLogger->log(null, 'public_server.status_checked', [
+            'server_id' => $server->getId(),
+            'job_id' => $job->getId(),
+            'agent_id' => $agentId,
+            'status' => $status,
+        ]);
     }
 }

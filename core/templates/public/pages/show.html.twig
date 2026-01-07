@@ -1,0 +1,27 @@
+{% extends 'public/base.html.twig' %}
+
+{% block title %}{{ page.title }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ page.title }}</h1>
+    </div>
+
+    {% for block in blocks %}
+        <div class="rounded-xl border border-slate-200 bg-white p-6">
+            {% if block.type in ['server_list', 'server_featured'] %}
+                {% include 'public/servers/_server_list.html.twig' with {
+                    servers: block.servers,
+                    show_players: block.settings.show_players,
+                    show_join_button: block.settings.show_join_button
+                } %}
+            {% else %}
+                <div class="prose max-w-none text-slate-700">{{ block.content|raw }}</div>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">No blocks available.</div>
+    {% endfor %}
+</div>
+{% endblock %}

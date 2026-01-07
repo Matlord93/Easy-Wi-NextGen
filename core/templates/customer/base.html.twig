@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ pageLocale|default('en') }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,6 +15,14 @@
     <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-slate-950 text-white transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
         <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
         <nav class="flex-1 px-4 space-y-2">
+            <a href="/profile" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'profile' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'profile' ? 'bg-slate-700' : 'bg-slate-900' }}">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M10 11.5a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-6 6.5a6 6 0 0 1 12 0Z"/>
+                    </svg>
+                </span>
+                <span class="text-sm font-medium">Profile &amp; Billing</span>
+            </a>
             <a href="/tickets" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'tickets' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'tickets' ? 'bg-slate-700' : 'bg-slate-900' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -23,6 +31,21 @@
                 </span>
                 <span class="text-sm font-medium">Tickets</span>
             </a>
+            {% set extensionItems = extension_menu_items('customer') %}
+            {% for item in extensionItems %}
+                <a href="{{ item.href }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white">
+                    <span class="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900">
+                        {% if item.iconSvg %}
+                            {{ item.iconSvg|raw }}
+                        {% else %}
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M10 3.5a2.5 2.5 0 0 1 2.45 2h1.8a1.75 1.75 0 0 1 1.75 1.75v1.5a1.75 1.75 0 0 1-1.75 1.75h-1.8a2.5 2.5 0 0 1-4.9 0h-1.8A1.75 1.75 0 0 1 4 10.75v-1.5A1.75 1.75 0 0 1 5.75 7.5h1.8A2.5 2.5 0 0 1 10 3.5Zm0 1.5a1 1 0 0 0-1 1v1.25H5.75a.25.25 0 0 0-.25.25v1.5c0 .14.11.25.25.25H9V11a1 1 0 1 0 2 0V9.75h3.25a.25.25 0 0 0 .25-.25v-1.5a.25.25 0 0 0-.25-.25H11V6a1 1 0 0 0-1-1Z"/>
+                            </svg>
+                        {% endif %}
+                    </span>
+                    <span class="text-sm font-medium">{{ item.label }}</span>
+                </a>
+            {% endfor %}
         </nav>
         <div class="px-6 py-4 text-xs text-slate-400">Customer Portal · vNext</div>
     </aside>

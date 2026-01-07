@@ -1,0 +1,45 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Marketplace · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="space-y-6">
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h1 class="text-xl font-semibold text-slate-900">Marketplace</h1>
+            <p class="mt-1 text-sm text-slate-500">Browse and install official extensions when the marketplace launches.</p>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-2">
+            <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-900">Extension Storefront</h2>
+                        <p class="mt-2 text-sm text-slate-500">Soon you'll be able to discover, purchase, and enable extensions that expand your hosting stack.</p>
+                    </div>
+                    <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">Coming soon</span>
+                </div>
+                <ul class="mt-4 space-y-2 text-sm text-slate-600">
+                    <li class="flex items-center gap-2">
+                        <span class="h-2 w-2 rounded-full bg-indigo-400"></span>
+                        Curated partner extensions
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <span class="h-2 w-2 rounded-full bg-indigo-400"></span>
+                        Versioned updates and changelogs
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <span class="h-2 w-2 rounded-full bg-indigo-400"></span>
+                        Role-aware install controls
+                    </li>
+                </ul>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 class="text-lg font-semibold text-slate-900">Developer Portal</h2>
+                <p class="mt-2 text-sm text-slate-500">Extension authors will publish manifests, hooks, and UI components here.</p>
+                <div class="mt-6 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+                    Marketplace APIs and tooling will appear in a future release.
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -26,6 +26,11 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
 
     public function onKernelRequest(RequestEvent $event): void
     {
+        // ✅ never guard CLI commands
+        if (\PHP_SAPI === 'cli' || \PHP_SAPI === 'phpdbg') {
+            return;
+        }
+
         if (!$event->isMainRequest()) {
             return;
         }
@@ -58,7 +63,16 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
     private function isPublicPath(string $path): bool
     {
         return str_starts_with($path, '/api/auth/')
+            || $path === '/'
+            || $path === '/install'
             || $path === '/login'
+            || $path === '/register'
+            || $path === '/status'
+            || $path === '/changelog'
+            || $path === '/downloads'
+            || str_starts_with($path, '/docs')
+            || str_starts_with($path, '/servers')
+            || str_starts_with($path, '/pages/')
             || str_starts_with($path, '/_')
             || str_starts_with($path, '/assets/')
             || str_starts_with($path, '/css/')
