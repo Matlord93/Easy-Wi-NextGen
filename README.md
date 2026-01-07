@@ -210,8 +210,6 @@ Das Projekt wird in klaren Phasen gebaut:
 10. Teamspeak TS3
 11. Neue UI komplett, Legacy optional später
 
-Details: siehe `MASTERPLAN.md`
-
 ---
 
 ## ✅ Status
