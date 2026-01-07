@@ -1,0 +1,41 @@
+<div id="cms-pages-table" class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
+            <tr>
+                <th class="px-5 py-3 text-left font-semibold">Page</th>
+                <th class="px-5 py-3 text-left font-semibold">Slug</th>
+                <th class="px-5 py-3 text-left font-semibold">Status</th>
+                <th class="px-5 py-3 text-left font-semibold">Blocks</th>
+                <th class="px-5 py-3 text-left font-semibold">Updated</th>
+                <th class="px-5 py-3 text-right font-semibold">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {% for page in pages %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-5 py-4">
+                        <div class="font-semibold text-slate-900">{{ page.title }}</div>
+                        <div class="text-xs text-slate-500">ID #{{ page.id }}</div>
+                    </td>
+                    <td class="px-5 py-4 text-slate-600">/{{ page.slug }}</td>
+                    <td class="px-5 py-4">
+                        {% if page.is_published %}
+                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Published</span>
+                        {% else %}
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Draft</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-5 py-4 text-slate-600">{{ page.block_count }}</td>
+                    <td class="px-5 py-4 text-slate-500">{{ page.updated_at|date('Y-m-d H:i') }}</td>
+                    <td class="px-5 py-4 text-right">
+                        <a href="/admin/cms/pages/{{ page.id }}" class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Manage Blocks</a>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="6" class="px-5 py-6 text-center text-sm text-slate-500">No CMS pages yet. Create the first page to get started.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

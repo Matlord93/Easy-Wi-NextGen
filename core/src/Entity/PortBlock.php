@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Domain\Event\ResourceEventSource;
+use App\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\PortBlockRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: PortBlockRepository::class)]
 #[ORM\Table(name: 'port_blocks')]
-class PortBlock
+class PortBlock implements ResourceEventSource
 {
+    use ResourceEventSourceTrait;
+
     #[ORM\Id]
     #[ORM\Column(length: 32)]
     private string $id;

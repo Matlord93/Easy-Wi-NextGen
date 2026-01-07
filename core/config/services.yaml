@@ -29,3 +29,5 @@ services:
     arguments:
       $repository: '%app.agent_release_repository%'
       $cacheTtlSeconds: '%env(int:APP_AGENT_RELEASE_CACHE_TTL)%'
+
+  App\Domain\Event\EventBusInterface: '@App\Domain\Event\SymfonyEventBus'

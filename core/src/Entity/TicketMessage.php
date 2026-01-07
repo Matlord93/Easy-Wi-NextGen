@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Domain\Event\ResourceEventSource;
+use App\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\TicketMessageRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: TicketMessageRepository::class)]
 #[ORM\Table(name: 'ticket_messages')]
-class TicketMessage
+class TicketMessage implements ResourceEventSource
 {
+    use ResourceEventSourceTrait;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]

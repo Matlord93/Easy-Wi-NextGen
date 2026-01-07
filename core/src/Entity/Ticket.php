@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Domain\Event\ResourceEventSource;
+use App\Domain\Event\ResourceEventSourceTrait;
 use App\Enum\TicketCategory;
 use App\Enum\TicketPriority;
 use App\Enum\TicketStatus;
@@ -12,8 +14,10 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: TicketRepository::class)]
 #[ORM\Table(name: 'tickets')]
-class Ticket
+class Ticket implements ResourceEventSource
 {
+    use ResourceEventSourceTrait;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]

@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Domain\Event\ResourceEventSource;
+use App\Domain\Event\ResourceEventSourceTrait;
 use App\Enum\InstanceStatus;
 use App\Repository\InstanceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: InstanceRepository::class)]
 #[ORM\Table(name: 'instances')]
-class Instance
+class Instance implements ResourceEventSource
 {
+    use ResourceEventSourceTrait;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]

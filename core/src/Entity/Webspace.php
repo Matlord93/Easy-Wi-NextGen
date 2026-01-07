@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Domain\Event\ResourceEventSource;
+use App\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: WebspaceRepository::class)]
 #[ORM\Table(name: 'webspaces')]
-class Webspace
+class Webspace implements ResourceEventSource
 {
+    use ResourceEventSourceTrait;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]

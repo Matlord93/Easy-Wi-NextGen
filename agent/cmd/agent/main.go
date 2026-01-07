@@ -157,6 +157,12 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleInstanceRestart(job)
 	case "instance.reinstall":
 		return handleInstanceReinstall(job)
+	case "windows.service.start":
+		return handleWindowsServiceStart(job)
+	case "windows.service.stop":
+		return handleWindowsServiceStop(job)
+	case "windows.service.restart":
+		return handleWindowsServiceRestart(job)
 	case "firewall.open_ports":
 		return handleFirewallOpen(job.ID, job.Payload)
 	case "firewall.close_ports":

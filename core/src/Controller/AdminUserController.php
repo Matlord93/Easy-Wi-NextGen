@@ -7,7 +7,6 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Enum\UserType;
 use App\Repository\UserRepository;
-use App\Entity\User;
 use App\Service\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;

@@ -1,0 +1,44 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ page.title }} · CMS Pages · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ page.title }}</h1>
+        <p class="text-sm text-slate-500">Manage content blocks for <span class="font-semibold text-slate-700">/{{ page.slug }}</span>.</p>
+    </div>
+    <div class="flex items-center gap-3">
+        {% if page.is_published %}
+            <span class="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Published</span>
+        {% else %}
+            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Draft</span>
+        {% endif %}
+        <a href="/admin/cms/pages" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">Back to pages</a>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+    <div class="rounded-xl bg-white border border-slate-200">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+            <div>
+                <h2 class="text-lg font-semibold">Content Blocks</h2>
+                <p class="text-sm text-slate-500">Arrange and edit structured content for this page.</p>
+            </div>
+            <button
+                class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+                hx-get="/admin/cms/pages/{{ page.id }}/blocks/table"
+                hx-target="#cms-blocks-table"
+                hx-swap="outerHTML"
+            >Refresh</button>
+        </div>
+        <div id="cms-blocks-table" hx-trigger="cms-blocks-changed from:body" hx-get="/admin/cms/pages/{{ page.id }}/blocks/table" hx-swap="outerHTML">
+            {% include 'admin/cms/pages/_blocks_table.html.twig' with { blocks: blocks } %}
+        </div>
+    </div>
+
+    <div class="rounded-xl bg-white border border-slate-200" id="cms-block-form" hx-trigger="cms-blocks-changed from:body" hx-get="/admin/cms/pages/{{ page.id }}/blocks/form" hx-swap="outerHTML">
+        {% include 'admin/cms/pages/_block_form.html.twig' with { blockForm: blockForm, page: page } %}
+    </div>
+</div>
+{% endblock %}

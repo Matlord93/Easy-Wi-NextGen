@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Domain\Event\ResourceEventSource;
+use App\Domain\Event\ResourceEventSourceTrait;
 use App\Enum\Ts3DatabaseMode;
 use App\Enum\Ts3InstanceStatus;
 use App\Repository\Ts3InstanceRepository;
@@ -11,8 +13,10 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: Ts3InstanceRepository::class)]
 #[ORM\Table(name: 'ts3_instances')]
-class Ts3Instance
+class Ts3Instance implements ResourceEventSource
 {
+    use ResourceEventSourceTrait;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]

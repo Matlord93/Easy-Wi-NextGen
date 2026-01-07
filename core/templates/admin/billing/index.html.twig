@@ -1,0 +1,84 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Billing · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="space-y-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold text-slate-900">Billing &amp; Dunning</h1>
+                <p class="text-sm text-slate-500">Monitor invoices, dunning reminders, and payment provider status.</p>
+            </div>
+            <div class="flex gap-3">
+                <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">Create invoice</button>
+                <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">Run dunning</button>
+            </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-xs uppercase text-slate-400">Open invoices</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ summary.open }}</p>
+                <p class="mt-1 text-xs text-slate-500">Awaiting payment</p>
+            </div>
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+                <p class="text-xs uppercase text-amber-600">Past due</p>
+                <p class="mt-2 text-2xl font-semibold text-amber-900">{{ summary.past_due }}</p>
+                <p class="mt-1 text-xs text-amber-700">Requires dunning action</p>
+            </div>
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+                <p class="text-xs uppercase text-emerald-600">Paid</p>
+                <p class="mt-2 text-2xl font-semibold text-emerald-900">{{ summary.paid }}</p>
+                <p class="mt-1 text-xs text-emerald-700">Last 30 days</p>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Recent invoices</h2>
+                    <p class="text-sm text-slate-500">Latest billing activity across customers.</p>
+                </div>
+                <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">Export CSV</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-6 py-3 text-left">Invoice</th>
+                        <th class="px-6 py-3 text-left">Customer</th>
+                        <th class="px-6 py-3 text-left">Due date</th>
+                        <th class="px-6 py-3 text-left">Amount due</th>
+                        <th class="px-6 py-3 text-left">Status</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                    {% for invoice in invoices %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4 font-medium text-slate-900">{{ invoice.number }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ invoice.customer }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ invoice.due_date|date('Y-m-d') }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ invoice.amount_due / 100 }} {{ invoice.currency }}</td>
+                            <td class="px-6 py-4">
+                                {% if invoice.status == 'paid' %}
+                                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Paid</span>
+                                {% elseif invoice.status == 'past_due' %}
+                                    <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">Past due</span>
+                                {% elseif invoice.status == 'open' %}
+                                    <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">Open</span>
+                                {% else %}
+                                    <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{{ invoice.status|replace({'_': ' '})|title }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-sm text-slate-500">No invoices available yet.</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}

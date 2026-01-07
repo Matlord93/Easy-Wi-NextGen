@@ -1,0 +1,30 @@
+<div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
+            <tr>
+                <th class="px-5 py-3 text-left font-semibold">Order</th>
+                <th class="px-5 py-3 text-left font-semibold">Type</th>
+                <th class="px-5 py-3 text-left font-semibold">Preview</th>
+                <th class="px-5 py-3 text-left font-semibold">Updated</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {% for block in blocks %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-5 py-4 text-slate-600">{{ block.sort_order }}</td>
+                    <td class="px-5 py-4">
+                        <span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ block.type }}</span>
+                    </td>
+                    <td class="px-5 py-4 text-slate-600">
+                        <span class="line-clamp-2">{{ block.content|slice(0, 120) }}{% if block.content|length > 120 %}…{% endif %}</span>
+                    </td>
+                    <td class="px-5 py-4 text-slate-500">{{ block.updated_at|date('Y-m-d H:i') }}</td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4" class="px-5 py-6 text-center text-sm text-slate-500">No blocks yet. Add the first block for this page.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
