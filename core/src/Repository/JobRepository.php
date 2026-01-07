@@ -55,4 +55,22 @@ final class JobRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function countRunningByAgentAndTypes(string $agentId, array $types): int
+    {
+        if ($types === []) {
+            return 0;
+        }
+
+        return (int) $this->createQueryBuilder('job')
+            ->select('COUNT(job.id)')
+            ->andWhere('job.status = :status')
+            ->andWhere('job.lockedBy = :agent')
+            ->andWhere('job.type IN (:types)')
+            ->setParameter('status', JobStatus::Running)
+            ->setParameter('agent', $agentId)
+            ->setParameter('types', $types)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

@@ -10,11 +10,18 @@ final class ChangelogFetcher
 {
     private const CACHE_KEY = 'public.changelog.releases';
 
+    private readonly CacheItemPoolInterface $cache;
+    private readonly string $repository;
+    private readonly int $cacheTtlSeconds;
+
     public function __construct(
-        private readonly CacheItemPoolInterface $cache,
-        private readonly string $repository,
-        private readonly int $cacheTtlSeconds = 300,
+        CacheItemPoolInterface $cache,
+        ?string $repository,
+        int $cacheTtlSeconds = 300,
     ) {
+        $this->cache = $cache;
+        $this->repository = $repository ?? '';
+        $this->cacheTtlSeconds = $cacheTtlSeconds;
     }
 
     public function getRepository(): string

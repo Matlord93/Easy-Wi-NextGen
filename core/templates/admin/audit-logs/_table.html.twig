@@ -1,0 +1,45 @@
+<div id="audit-logs-table" class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+        <tr>
+            <th class="px-5 py-3 text-left font-medium">Timestamp</th>
+            <th class="px-5 py-3 text-left font-medium">Actor</th>
+            <th class="px-5 py-3 text-left font-medium">Action</th>
+            <th class="px-5 py-3 text-left font-medium">Payload</th>
+            <th class="px-5 py-3 text-left font-medium">Hash Chain</th>
+        </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+        {% for log in logs %}
+            <tr class="hover:bg-slate-50">
+                <td class="px-5 py-4 text-slate-500 whitespace-nowrap">{{ log.createdAt|date('Y-m-d H:i') }}</td>
+                <td class="px-5 py-4">
+                    <div class="font-medium text-slate-700">{{ log.actor }}</div>
+                    <div class="text-xs text-slate-400">{{ log.actorType ?? 'system' }}</div>
+                </td>
+                <td class="px-5 py-4 font-medium text-slate-800">{{ log.action }}</td>
+                <td class="px-5 py-4 text-slate-500">
+                    <details class="text-xs">
+                        <summary class="cursor-pointer text-indigo-600 hover:text-indigo-500">View payload</summary>
+                        <pre class="mt-2 whitespace-pre-wrap rounded-lg bg-slate-100 p-3 text-xs text-slate-600">{{ log.payload }}</pre>
+                    </details>
+                </td>
+                <td class="px-5 py-4 text-xs font-mono text-slate-500">
+                    <div>
+                        <span class="text-slate-400">Prev:</span>
+                        {{ log.hashPrev ? log.hashPrev|slice(0, 12) ~ '…' : 'Genesis' }}
+                    </div>
+                    <div class="mt-1">
+                        <span class="text-slate-400">Curr:</span>
+                        {{ log.hashCurrent|slice(0, 12) ~ '…' }}
+                    </div>
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="5" class="px-5 py-8 text-center text-slate-400">No audit events recorded yet.</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

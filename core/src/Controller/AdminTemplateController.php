@@ -69,6 +69,35 @@ final class AdminTemplateController
         ]));
     }
 
+    #[Route(path: '/preview', name: 'admin_templates_preview', methods: ['GET', 'POST'])]
+    public function preview(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $preview = [
+            'errors' => [],
+        ];
+
+        $templateId = (int) $request->query->get('id', 0);
+        if ($request->isMethod('GET') && $templateId > 0) {
+            $template = $this->templateRepository->find($templateId);
+            if ($template === null) {
+                $preview['errors'][] = 'Template not found.';
+            } else {
+                $preview = $this->buildPreviewFromTemplate($template);
+            }
+        } elseif ($request->isMethod('POST')) {
+            $formData = $this->parsePayload($request);
+            $preview = $this->buildPreviewFromForm($formData);
+        }
+
+        return new Response($this->twig->render('admin/templates/_preview.html.twig', [
+            'preview' => $preview,
+        ]));
+    }
+
     #[Route(path: '', name: 'admin_templates_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
@@ -84,10 +113,17 @@ final class AdminTemplateController
         }
 
         $template = new Template(
-            $formData['name'],
+            $formData['game_key'],
+            $formData['display_name'],
             $formData['description'],
-            $formData['start_params'],
+            $formData['steam_app_id'],
+            $formData['sniper_profile'],
             $formData['required_ports'],
+            $formData['start_params'],
+            $formData['env_vars'],
+            $formData['config_files'],
+            $formData['plugin_paths'],
+            $formData['fastdl_settings'],
             $formData['install_command'],
             $formData['update_command'],
             $formData['allowed_switch_flags'],
@@ -98,7 +134,8 @@ final class AdminTemplateController
 
         $this->auditLogger->log($actor, 'template.created', [
             'template_id' => $template->getId(),
-            'name' => $template->getName(),
+            'game_key' => $template->getGameKey(),
+            'display_name' => $template->getDisplayName(),
             'required_ports' => $template->getRequiredPorts(),
             'start_params' => $template->getStartParams(),
         ]);
@@ -138,10 +175,18 @@ final class AdminTemplateController
         return array_map(static function (Template $template): array {
             return [
                 'id' => $template->getId(),
-                'name' => $template->getName(),
+                'game_key' => $template->getGameKey(),
+                'display_name' => $template->getDisplayName(),
                 'description' => $template->getDescription(),
                 'start_params' => $template->getStartParams(),
                 'required_ports' => $template->getRequiredPorts(),
+                'required_port_labels' => $template->getRequiredPortLabels(),
+                'steam_app_id' => $template->getSteamAppId(),
+                'sniper_profile' => $template->getSniperProfile(),
+                'env_vars' => $template->getEnvVars(),
+                'config_files' => $template->getConfigFiles(),
+                'plugin_paths' => $template->getPluginPaths(),
+                'fastdl_settings' => $template->getFastdlSettings(),
                 'install_command' => $template->getInstallCommand(),
                 'update_command' => $template->getUpdateCommand(),
                 'allowed_switch_flags' => $template->getAllowedSwitchFlags(),
@@ -154,10 +199,19 @@ final class AdminTemplateController
     {
         $defaults = [
             'errors' => [],
-            'name' => '',
+            'game_key' => '',
+            'display_name' => '',
             'description' => '',
+            'steam_app_id' => '',
+            'sniper_profile' => '',
             'start_params' => '',
-            'required_ports' => '',
+            'required_ports' => [],
+            'env_vars' => '',
+            'config_files' => '',
+            'plugin_paths' => '',
+            'fastdl_enabled' => false,
+            'fastdl_base_url' => '',
+            'fastdl_root_path' => '',
             'install_command' => '',
             'update_command' => '',
             'allowed_switch_flags' => '',
@@ -169,22 +223,38 @@ final class AdminTemplateController
     private function parsePayload(Request $request): array
     {
         $errors = [];
-        $name = trim((string) $request->request->get('name', ''));
+        $gameKey = trim((string) $request->request->get('game_key', ''));
+        $displayName = trim((string) $request->request->get('display_name', ''));
         $description = trim((string) $request->request->get('description', ''));
+        $steamAppIdRaw = trim((string) $request->request->get('steam_app_id', ''));
+        $sniperProfile = trim((string) $request->request->get('sniper_profile', ''));
         $startParams = trim((string) $request->request->get('start_params', ''));
-        $requiredPortsRaw = trim((string) $request->request->get('required_ports', ''));
+        $requiredPortsRaw = $request->request->all('required_ports');
+        if (!is_array($requiredPortsRaw)) {
+            $requiredPortsRaw = [];
+        }
+        $envVarsRaw = trim((string) $request->request->get('env_vars', ''));
+        $configFilesRaw = trim((string) $request->request->get('config_files', ''));
+        $pluginPathsRaw = trim((string) $request->request->get('plugin_paths', ''));
+        $fastdlEnabled = (bool) $request->request->get('fastdl_enabled', false);
+        $fastdlBaseUrl = trim((string) $request->request->get('fastdl_base_url', ''));
+        $fastdlRootPath = trim((string) $request->request->get('fastdl_root_path', ''));
         $installCommand = trim((string) $request->request->get('install_command', ''));
         $updateCommand = trim((string) $request->request->get('update_command', ''));
         $allowedSwitchFlagsRaw = trim((string) $request->request->get('allowed_switch_flags', ''));
 
-        if ($name === '') {
-            $errors[] = 'Name is required.';
+        if ($gameKey === '') {
+            $errors[] = 'Game key is required.';
+        } elseif (!preg_match('/^[a-z0-9][a-z0-9_.-]+$/', $gameKey)) {
+            $errors[] = 'Game key must be lowercase and contain only letters, numbers, dots, dashes, or underscores.';
+        } elseif ($this->templateRepository->findOneBy(['gameKey' => $gameKey]) !== null) {
+            $errors[] = 'Game key must be unique.';
+        }
+        if ($displayName === '') {
+            $errors[] = 'Display name is required.';
         }
         if ($startParams === '') {
             $errors[] = 'Start params are required.';
-        }
-        if ($requiredPortsRaw === '') {
-            $errors[] = 'Required ports are required.';
         }
         if ($installCommand === '') {
             $errors[] = 'Install command is required.';
@@ -193,48 +263,152 @@ final class AdminTemplateController
             $errors[] = 'Update command is required.';
         }
 
-        $requiredPorts = $this->parsePortList($requiredPortsRaw, $errors, 'Required ports');
+        $steamAppId = null;
+        if ($steamAppIdRaw !== '') {
+            if (!ctype_digit($steamAppIdRaw)) {
+                $errors[] = 'Steam App ID must be numeric.';
+            } else {
+                $steamAppId = (int) $steamAppIdRaw;
+                if ($steamAppId <= 0) {
+                    $errors[] = 'Steam App ID must be positive.';
+                }
+            }
+        }
+
+        $requiredPorts = $this->parseRequiredPorts($requiredPortsRaw, $errors);
+        $envVars = $this->parseEnvVars($envVarsRaw, $errors);
+        $configFiles = $this->parseConfigFiles($configFilesRaw, $errors);
+        $pluginPaths = $this->parseLines($pluginPathsRaw);
         $allowedSwitchFlags = $this->parseList($allowedSwitchFlagsRaw);
+        $fastdlSettings = [
+            'enabled' => $fastdlEnabled,
+            'base_url' => $fastdlBaseUrl,
+            'root_path' => $fastdlRootPath,
+        ];
+        if ($fastdlEnabled && $fastdlBaseUrl === '') {
+            $errors[] = 'FastDL base URL is required when FastDL is enabled.';
+        }
 
         return [
             'errors' => $errors,
-            'name' => $name,
+            'game_key' => $gameKey,
+            'display_name' => $displayName,
             'description' => $description !== '' ? $description : null,
+            'steam_app_id' => $steamAppId,
+            'sniper_profile' => $sniperProfile !== '' ? $sniperProfile : null,
             'start_params' => $startParams,
             'required_ports' => $requiredPorts,
+            'env_vars' => $envVars,
+            'config_files' => $configFiles,
+            'plugin_paths' => $pluginPaths,
+            'fastdl_settings' => $fastdlSettings,
             'install_command' => $installCommand,
             'update_command' => $updateCommand,
             'allowed_switch_flags' => $allowedSwitchFlags,
             'required_ports_raw' => $requiredPortsRaw,
             'allowed_switch_flags_raw' => $allowedSwitchFlagsRaw,
+            'steam_app_id_raw' => $steamAppIdRaw,
+            'env_vars_raw' => $envVarsRaw,
+            'config_files_raw' => $configFilesRaw,
+            'plugin_paths_raw' => $pluginPathsRaw,
+            'fastdl_enabled' => $fastdlEnabled,
+            'fastdl_base_url' => $fastdlBaseUrl,
+            'fastdl_root_path' => $fastdlRootPath,
         ];
     }
 
-    private function parsePortList(string $value, array &$errors, string $label): array
+    private function parseRequiredPorts(array $portTypes, array &$errors): array
+    {
+        $definitions = [
+            'game' => ['label' => 'Game', 'protocol' => 'udp'],
+            'query' => ['label' => 'Query', 'protocol' => 'udp'],
+            'rcon' => ['label' => 'RCON', 'protocol' => 'tcp'],
+            'tv' => ['label' => 'SourceTV', 'protocol' => 'udp'],
+        ];
+
+        $ports = [];
+        foreach ($portTypes as $entry) {
+            $entry = trim((string) $entry);
+            if ($entry === '') {
+                continue;
+            }
+            if (!array_key_exists($entry, $definitions)) {
+                $errors[] = sprintf('Unknown port type "%s".', $entry);
+                continue;
+            }
+            $ports[] = [
+                'name' => $entry,
+                'label' => $definitions[$entry]['label'],
+                'protocol' => $definitions[$entry]['protocol'],
+            ];
+        }
+
+        if ($ports === [] || !in_array('game', array_column($ports, 'name'), true)) {
+            $errors[] = 'Required ports must include the game port.';
+        }
+
+        $unique = [];
+        foreach ($ports as $port) {
+            $uniqueKey = sprintf('%s:%s', $port['name'], $port['protocol']);
+            $unique[$uniqueKey] = $port;
+        }
+
+        return array_values($unique);
+    }
+
+    private function parseEnvVars(string $value, array &$errors): array
+    {
+        $entries = [];
+        foreach ($this->parseLines($value) as $line) {
+            if (!str_contains($line, '=')) {
+                $errors[] = sprintf('Env var "%s" must be in KEY=VALUE format.', $line);
+                continue;
+            }
+            [$key, $val] = array_map('trim', explode('=', $line, 2));
+            if ($key === '') {
+                $errors[] = sprintf('Env var "%s" is missing a key.', $line);
+                continue;
+            }
+            $entries[] = ['key' => $key, 'value' => $val];
+        }
+
+        return $entries;
+    }
+
+    private function parseConfigFiles(string $value, array &$errors): array
+    {
+        $entries = [];
+        foreach ($this->parseLines($value) as $line) {
+            $path = $line;
+            $description = null;
+            if (str_contains($line, '|')) {
+                [$path, $description] = array_map('trim', explode('|', $line, 2));
+            }
+            if ($path === '') {
+                $errors[] = 'Config file paths cannot be empty.';
+                continue;
+            }
+            $entries[] = [
+                'path' => $path,
+                'description' => $description,
+            ];
+        }
+
+        return $entries;
+    }
+
+    private function parseLines(string $value): array
     {
         if ($value === '') {
             return [];
         }
 
-        $ports = [];
-        foreach ($this->parseList($value) as $entry) {
-            if (!is_numeric($entry)) {
-                $errors[] = sprintf('%s must be numeric.', $label);
-                continue;
-            }
-            $port = (int) $entry;
-            if ($port <= 0 || $port > 65535) {
-                $errors[] = sprintf('%s must be between 1 and 65535.', $label);
-                continue;
-            }
-            $ports[] = $port;
+        $lines = preg_split('/\R/', $value);
+        if ($lines === false) {
+            return [];
         }
 
-        if ($ports === []) {
-            $errors[] = sprintf('%s cannot be empty.', $label);
-        }
-
-        return array_values(array_unique($ports));
+        return array_values(array_filter(array_map('trim', $lines), static fn (string $line) => $line !== ''));
     }
 
     private function parseList(string $value): array
@@ -248,15 +422,112 @@ final class AdminTemplateController
         return array_values(array_unique($items));
     }
 
+    private function buildPreviewFromTemplate(Template $template): array
+    {
+        $preview = [
+            'identity' => [
+                'game_key' => $template->getGameKey(),
+                'display_name' => $template->getDisplayName(),
+                'steam_app_id' => $template->getSteamAppId(),
+                'sniper_profile' => $template->getSniperProfile(),
+            ],
+            'start_params' => $template->getStartParams(),
+            'required_ports' => $template->getRequiredPorts(),
+            'install_command' => $template->getInstallCommand(),
+            'update_command' => $template->getUpdateCommand(),
+            'allowed_switch_flags' => $template->getAllowedSwitchFlags(),
+            'env_vars' => $template->getEnvVars(),
+            'config_files' => $template->getConfigFiles(),
+            'plugin_paths' => $template->getPluginPaths(),
+            'fastdl_settings' => $template->getFastdlSettings(),
+            'errors' => [],
+        ];
+
+        $preview['dry_run_steps'] = $this->buildDryRunSteps($preview);
+
+        return $preview;
+    }
+
+    private function buildPreviewFromForm(array $formData): array
+    {
+        $preview = [
+            'identity' => [
+                'game_key' => $formData['game_key'],
+                'display_name' => $formData['display_name'],
+                'steam_app_id' => $formData['steam_app_id'],
+                'sniper_profile' => $formData['sniper_profile'],
+            ],
+            'start_params' => $formData['start_params'],
+            'required_ports' => $formData['required_ports'],
+            'install_command' => $formData['install_command'],
+            'update_command' => $formData['update_command'],
+            'allowed_switch_flags' => $formData['allowed_switch_flags'],
+            'env_vars' => $formData['env_vars'],
+            'config_files' => $formData['config_files'],
+            'plugin_paths' => $formData['plugin_paths'],
+            'fastdl_settings' => $formData['fastdl_settings'],
+            'errors' => $formData['errors'],
+        ];
+
+        $preview['dry_run_steps'] = $this->buildDryRunSteps($preview);
+
+        return $preview;
+    }
+
+    private function buildDryRunSteps(array $preview): array
+    {
+        $steps = [];
+        if ($preview['install_command'] !== '') {
+            $steps[] = sprintf('Run install command: %s', $preview['install_command']);
+        }
+        if ($preview['update_command'] !== '') {
+            $steps[] = sprintf('Run update command: %s', $preview['update_command']);
+        }
+        if ($preview['start_params'] !== '') {
+            $steps[] = sprintf('Start with params: %s', $preview['start_params']);
+        }
+        if (!empty($preview['required_ports'])) {
+            $ports = array_map(static function (array $port): string {
+                $label = $port['label'] ?? $port['name'] ?? 'port';
+                $protocol = $port['protocol'] ?? 'udp';
+
+                return sprintf('%s (%s)', $label, $protocol);
+            }, $preview['required_ports']);
+            $steps[] = sprintf('Reserve ports: %s', implode(', ', $ports));
+        }
+        if (!empty($preview['env_vars'])) {
+            $envKeys = array_map(static fn (array $entry): string => (string) ($entry['key'] ?? ''), $preview['env_vars']);
+            $steps[] = sprintf('Export env vars: %s', implode(', ', array_filter($envKeys)));
+        }
+        if (!empty($preview['config_files'])) {
+            $paths = array_map(static fn (array $entry): string => (string) ($entry['path'] ?? ''), $preview['config_files']);
+            $steps[] = sprintf('Write config files: %s', implode(', ', array_filter($paths)));
+        }
+        if (!empty($preview['plugin_paths'])) {
+            $steps[] = sprintf('Ensure plugin paths: %s', implode(', ', $preview['plugin_paths']));
+        }
+
+        return $steps;
+    }
+
     private function renderFormWithErrors(array $formData, int $status): Response
     {
         return new Response($this->twig->render('admin/templates/_form.html.twig', [
             'form' => $this->buildFormContext([
                 'errors' => $formData['errors'],
-                'name' => $formData['name'],
+                'game_key' => $formData['game_key'],
+                'display_name' => $formData['display_name'],
                 'description' => $formData['description'] ?? '',
+                'steam_app_id' => $formData['steam_app_id_raw'],
+                'sniper_profile' => $formData['sniper_profile'] ?? '',
                 'start_params' => $formData['start_params'],
                 'required_ports' => $formData['required_ports_raw'],
+                'env_vars' => $formData['env_vars_raw'],
+                'config_files' => $formData['config_files_raw'],
+                'plugin_paths' => $formData['plugin_paths_raw'],
+                'fastdl_enabled' => $formData['fastdl_enabled'],
+                'fastdl_base_url' => $formData['fastdl_base_url'],
+                'fastdl_root_path' => $formData['fastdl_root_path'],
                 'install_command' => $formData['install_command'],
                 'update_command' => $formData['update_command'],
                 'allowed_switch_flags' => $formData['allowed_switch_flags_raw'],

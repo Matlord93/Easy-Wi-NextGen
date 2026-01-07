@@ -62,6 +62,12 @@ class Invoice
     #[ORM\OneToMany(mappedBy: 'invoice', targetEntity: DunningReminder::class, cascade: ['persist'], orphanRemoval: true)]
     private Collection $reminders;
 
+    /**
+     * @var Collection<int, CreditNote>
+     */
+    #[ORM\OneToMany(mappedBy: 'invoice', targetEntity: CreditNote::class, cascade: ['persist'], orphanRemoval: true)]
+    private Collection $creditNotes;
+
     public function __construct(User $customer, string $number, int $amountTotalCents, string $currency, \DateTimeImmutable $dueDate)
     {
         $this->customer = $customer;
@@ -75,6 +81,7 @@ class Invoice
         $this->updatedAt = $this->createdAt;
         $this->payments = new ArrayCollection();
         $this->reminders = new ArrayCollection();
+        $this->creditNotes = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -121,6 +128,16 @@ class Invoice
     public function addFee(int $feeCents): void
     {
         $this->amountDueCents += $feeCents;
+        $this->touch();
+    }
+
+    public function applyCredit(int $creditCents): void
+    {
+        if ($creditCents <= 0) {
+            return;
+        }
+
+        $this->amountDueCents = max(0, $this->amountDueCents - $creditCents);
         $this->touch();
     }
 
@@ -194,6 +211,21 @@ class Invoice
     {
         if (!$this->reminders->contains($reminder)) {
             $this->reminders->add($reminder);
+        }
+    }
+
+    /**
+     * @return Collection<int, CreditNote>
+     */
+    public function getCreditNotes(): Collection
+    {
+        return $this->creditNotes;
+    }
+
+    public function addCreditNote(CreditNote $creditNote): void
+    {
+        if (!$this->creditNotes->contains($creditNote)) {
+            $this->creditNotes->add($creditNote);
         }
     }
 

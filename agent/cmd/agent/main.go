@@ -157,6 +157,12 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleInstanceRestart(job)
 	case "instance.reinstall":
 		return handleInstanceReinstall(job)
+	case "sniper.install":
+		return handleSniperInstall(job)
+	case "sniper.update":
+		return handleSniperUpdate(job)
+	case "webspace.files.list":
+		return handleWebspaceFilesList(job)
 	case "windows.service.start":
 		return handleWindowsServiceStart(job)
 	case "windows.service.stop":

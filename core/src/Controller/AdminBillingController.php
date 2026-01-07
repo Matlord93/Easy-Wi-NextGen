@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Enum\InvoiceStatus;
 use App\Enum\UserType;
+use App\Repository\CreditNoteRepository;
 use App\Repository\InvoiceRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,6 +19,7 @@ final class AdminBillingController
 {
     public function __construct(
         private readonly InvoiceRepository $invoiceRepository,
+        private readonly CreditNoteRepository $creditNoteRepository,
         private readonly Environment $twig,
     ) {
     }
@@ -30,6 +32,7 @@ final class AdminBillingController
         }
 
         $recentInvoices = $this->invoiceRepository->findRecent();
+        $recentCreditNotes = $this->creditNoteRepository->findRecent();
         $summary = [
             'open' => $this->invoiceRepository->countByStatus(InvoiceStatus::Open),
             'past_due' => $this->invoiceRepository->countByStatus(InvoiceStatus::PastDue),
@@ -40,6 +43,7 @@ final class AdminBillingController
             'activeNav' => 'billing',
             'summary' => $summary,
             'invoices' => $this->normalizeInvoices($recentInvoices),
+            'credit_notes' => $this->normalizeCreditNotes($recentCreditNotes),
         ]));
     }
 
@@ -63,5 +67,22 @@ final class AdminBillingController
                 'paid_at' => $invoice->getPaidAt(),
             ];
         }, $invoices);
+    }
+
+    private function normalizeCreditNotes(array $creditNotes): array
+    {
+        return array_map(static function (\App\Entity\CreditNote $creditNote): array {
+            return [
+                'id' => $creditNote->getId(),
+                'number' => $creditNote->getNumber(),
+                'invoice_number' => $creditNote->getInvoice()->getNumber(),
+                'customer' => $creditNote->getInvoice()->getCustomer()->getEmail(),
+                'status' => $creditNote->getStatus()->value,
+                'amount' => $creditNote->getAmountCents(),
+                'currency' => $creditNote->getCurrency(),
+                'issued_at' => $creditNote->getIssuedAt(),
+                'reason' => $creditNote->getReason(),
+            ];
+        }, $creditNotes);
     }
 }

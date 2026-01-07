@@ -8,13 +8,17 @@ use App\Entity\Instance;
 use App\Entity\Job;
 use App\Entity\User;
 use App\Enum\InstanceStatus;
+use App\Enum\InstanceUpdatePolicy;
 use App\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\InstanceScheduleRepository;
 use App\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\InstanceJobPayloadBuilder;
+use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,8 +32,10 @@ final class InstanceApiController
         private readonly TemplateRepository $templateRepository,
         private readonly AgentRepository $agentRepository,
         private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly AuditLogger $auditLogger,
+        private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -108,6 +114,7 @@ final class InstanceApiController
             $diskLimit,
             $portBlock?->getId(),
             InstanceStatus::Provisioning,
+            InstanceUpdatePolicy::Manual,
         );
 
         $this->entityManager->persist($instance);
@@ -127,6 +134,10 @@ final class InstanceApiController
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'template_id' => (string) $template->getId(),
+            'game_key' => $template->getGameKey(),
+            'display_name' => $template->getDisplayName(),
+            'steam_app_id' => $template->getSteamAppId() !== null ? (string) $template->getSteamAppId() : '',
+            'sniper_profile' => $template->getSniperProfile() ?? '',
             'node_id' => $node->getId(),
             'cpu_limit' => (string) $cpuLimit,
             'ram_limit' => (string) $ramLimit,
@@ -134,12 +145,22 @@ final class InstanceApiController
             'port_block_id' => $instance->getPortBlockId() ?? '',
             'port_block_ports' => $portBlock ? implode(',', array_map('strval', $portBlock->getPorts())) : '',
             'start_params' => $template->getStartParams(),
-            'required_ports' => implode(',', array_map('strval', $template->getRequiredPorts())),
+            'required_ports' => implode(',', $template->getRequiredPortLabels()),
+            'env_vars' => $this->encodeJson($template->getEnvVars()),
+            'config_files' => $this->encodeJson($template->getConfigFiles()),
+            'plugin_paths' => $this->encodeJson($template->getPluginPaths()),
+            'fastdl_settings' => $this->encodeJson($template->getFastdlSettings()),
             'install_command' => $template->getInstallCommand(),
             'update_command' => $template->getUpdateCommand(),
             'allowed_switch_flags' => implode(',', $template->getAllowedSwitchFlags()),
         ]);
         $this->entityManager->persist($job);
+
+        $sniperInstallJob = null;
+        if ($template->getSniperProfile() !== null || $template->getInstallCommand() !== '') {
+            $sniperInstallJob = new Job('sniper.install', $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance));
+            $this->entityManager->persist($sniperInstallJob);
+        }
 
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
@@ -151,7 +172,18 @@ final class InstanceApiController
             'disk_limit' => $diskLimit,
             'port_block_id' => $instance->getPortBlockId(),
             'job_id' => $job->getId(),
+            'sniper_job_id' => $sniperInstallJob?->getId(),
         ]);
+
+        if ($sniperInstallJob !== null) {
+            $this->auditLogger->log($actor, 'instance.sniper.install_queued', [
+                'instance_id' => $instance->getId(),
+                'customer_id' => $customer->getId(),
+                'template_id' => $template->getId(),
+                'node_id' => $node->getId(),
+                'job_id' => $sniperInstallJob->getId(),
+            ]);
+        }
 
         $this->entityManager->flush();
 
@@ -166,6 +198,7 @@ final class InstanceApiController
             'port_block_id' => $instance->getPortBlockId(),
             'status' => $instance->getStatus()->value,
             'job_id' => $job->getId(),
+            'sniper_job_id' => $sniperInstallJob?->getId(),
         ], JsonResponse::HTTP_CREATED);
     }
 
@@ -226,6 +259,96 @@ final class InstanceApiController
         return new JsonResponse(['status' => 'deleted']);
     }
 
+    #[Route(path: '/admin/instances/{id}/update-settings', name: 'admin_instances_update_settings', methods: ['POST'])]
+    public function updateInstanceSettings(Request $request, int $id): JsonResponse
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
+        }
+
+        $instance = $this->instanceRepository->find($id);
+        if ($instance === null) {
+            return new JsonResponse(['error' => 'Instance not found.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $payload = $request->toArray();
+        $policyRaw = (string) ($payload['update_policy'] ?? InstanceUpdatePolicy::Manual->value);
+        $lockedBuildId = trim((string) ($payload['locked_build_id'] ?? ''));
+        $lockedVersion = trim((string) ($payload['locked_version'] ?? ''));
+        $cronExpression = trim((string) ($payload['cron_expression'] ?? ''));
+        $timeZone = trim((string) ($payload['time_zone'] ?? 'UTC'));
+
+        $policy = InstanceUpdatePolicy::tryFrom($policyRaw);
+        if ($policy === null) {
+            return new JsonResponse(['error' => 'Invalid update policy.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if ($policy === InstanceUpdatePolicy::Auto && $cronExpression === '') {
+            return new JsonResponse(['error' => 'Auto updates require a cron schedule.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if ($policy === InstanceUpdatePolicy::Auto && !CronExpression::isValidExpression($cronExpression)) {
+            return new JsonResponse(['error' => 'Cron expression is invalid.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $timeZone = $timeZone === '' ? 'UTC' : $timeZone;
+        try {
+            new \DateTimeZone($timeZone);
+        } catch (\Exception) {
+            return new JsonResponse(['error' => 'Time zone is invalid.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $instance->setUpdatePolicy($policy);
+        $instance->setLockedBuildId($lockedBuildId !== '' ? $lockedBuildId : null);
+        $instance->setLockedVersion($lockedVersion !== '' ? $lockedVersion : null);
+        $this->entityManager->persist($instance);
+
+        $schedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, \App\Enum\InstanceScheduleAction::Update);
+        if ($policy === InstanceUpdatePolicy::Auto) {
+            if ($schedule === null) {
+                $schedule = new \App\Entity\InstanceSchedule(
+                    $instance,
+                    $instance->getCustomer(),
+                    \App\Enum\InstanceScheduleAction::Update,
+                    $cronExpression,
+                    $timeZone,
+                    true,
+                );
+            } else {
+                $schedule->update(\App\Enum\InstanceScheduleAction::Update, $cronExpression, $timeZone, true);
+            }
+            $this->entityManager->persist($schedule);
+        } elseif ($schedule !== null) {
+            $schedule->update(\App\Enum\InstanceScheduleAction::Update, $schedule->getCronExpression(), $schedule->getTimeZone(), false);
+            $this->entityManager->persist($schedule);
+        }
+
+        $this->auditLogger->log($actor, 'instance.update.settings_overridden', [
+            'instance_id' => $instance->getId(),
+            'customer_id' => $instance->getCustomer()->getId(),
+            'policy' => $policy->value,
+            'locked_build_id' => $instance->getLockedBuildId(),
+            'locked_version' => $instance->getLockedVersion(),
+            'cron_expression' => $schedule?->getCronExpression(),
+            'time_zone' => $schedule?->getTimeZone(),
+            'schedule_enabled' => $schedule?->isEnabled(),
+        ]);
+
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'status' => 'updated',
+            'instance_id' => $instance->getId(),
+            'policy' => $instance->getUpdatePolicy()->value,
+            'locked_build_id' => $instance->getLockedBuildId(),
+            'locked_version' => $instance->getLockedVersion(),
+            'cron_expression' => $schedule?->getCronExpression(),
+            'time_zone' => $schedule?->getTimeZone(),
+            'schedule_enabled' => $schedule?->isEnabled(),
+        ]);
+    }
+
     #[Route(path: '/instances', name: 'customer_instances', methods: ['GET'])]
     public function listInstances(Request $request): JsonResponse
     {
@@ -244,7 +367,8 @@ final class InstanceApiController
                 'id' => $instance->getId(),
                 'template' => [
                     'id' => $template->getId(),
-                    'name' => $template->getName(),
+                    'name' => $template->getDisplayName(),
+                    'game_key' => $template->getGameKey(),
                 ],
                 'node' => [
                     'id' => $node->getId(),
@@ -259,5 +383,12 @@ final class InstanceApiController
         }
 
         return new JsonResponse(['instances' => $payload]);
+    }
+
+    private function encodeJson(array $value): string
+    {
+        $encoded = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return $encoded === false ? '[]' : $encoded;
     }
 }

@@ -55,8 +55,13 @@
         {% include 'admin/templates/_table.html.twig' with { templates: templates } %}
     </div>
 
-    <div class="rounded-xl bg-white border border-slate-200" id="template-form" hx-trigger="templates-changed from:body" hx-get="/admin/templates/form" hx-swap="outerHTML">
-        {% include 'admin/templates/_form.html.twig' with { form: form } %}
+    <div class="flex flex-col gap-6">
+        <div class="rounded-xl bg-white border border-slate-200" id="template-form" hx-trigger="templates-changed from:body" hx-get="/admin/templates/form" hx-swap="outerHTML">
+            {% include 'admin/templates/_form.html.twig' with { form: form } %}
+        </div>
+        <div class="rounded-xl bg-white border border-slate-200" id="template-preview">
+            {% include 'admin/templates/_preview.html.twig' with { preview: { errors: [] } } %}
+        </div>
     </div>
 </div>
 {% endblock %}

@@ -16,7 +16,7 @@
         {% set activeNav = activeNav|default('') %}
         <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
         <nav class="flex-1 px-4 space-y-2">
-            <a href="/admin" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'dashboard' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <a href="/admin" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'dashboard' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'dashboard' ? 'bg-slate-700' : 'bg-slate-900' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M3 3.75A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 3 8.25v-4.5Zm8 0a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-8.5Zm-8 8a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 3 16.25v-4.5Zm8 2a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-2.5Z"/>
@@ -57,6 +57,14 @@
                     </svg>
                 </span>
                 <span class="text-sm font-medium">Templates</span>
+            </a>
+            <a href="/admin/plugins" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'plugins' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'plugins' ? 'bg-slate-700' : 'bg-slate-900' }}">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M6.5 3.5a3 3 0 1 1 5.18 2.01l.82.82a3.5 3.5 0 1 1-2.47 2.12l-.8-.8A3 3 0 0 1 6.5 3.5Zm1.5 0a1.5 1.5 0 1 0 2.75.87l-.3-.3A1.5 1.5 0 0 0 8 3.5Zm6.5 5a2 2 0 1 0 1.41.59A2 2 0 0 0 14.5 8.5Zm-6.2 3.1.8.8a3.5 3.5 0 0 1-1.92 1.92l-.8-.8a2.5 2.5 0 0 0 1.92-1.92Z"/>
+                    </svg>
+                </span>
+                <span class="text-sm font-medium">Plugins</span>
             </a>
             <a href="/admin/cms/pages" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'cms-pages' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'cms-pages' ? 'bg-slate-700' : 'bg-slate-900' }}">
@@ -186,8 +194,8 @@
                     <span class="text-sm font-medium">{{ item.label }}</span>
                 </a>
             {% endfor %}
-            <a href="#" class="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900">
+            <a href="/admin/audit-logs" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'audit-logs' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'audit-logs' ? 'bg-slate-700' : 'bg-slate-900' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M9.25 4.75a.75.75 0 0 1 .75-.75h4a2 2 0 0 1 2 2v6.5a.75.75 0 0 1-1.5 0V6a.5.5 0 0 0-.5-.5h-3.25V15a.75.75 0 0 1-1.5 0V4.75Zm-4 2A2.25 2.25 0 0 1 7.5 4.5h.25v1.5H7.5a.75.75 0 0 0-.75.75V16a.75.75 0 0 0 .75.75h5a.75.75 0 0 0 .75-.75v-1.25h1.5V16a2.25 2.25 0 0 1-2.25 2.25h-5A2.25 2.25 0 0 1 5.25 16V6.75Z"/>
                     </svg>

@@ -10,6 +10,7 @@ use App\Enum\JobResultStatus;
 use App\Enum\JobStatus;
 use App\Repository\AgentRepository;
 use App\Repository\DomainRepository;
+use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Repository\PublicServerRepository;
 use App\Repository\Ts3InstanceRepository;
@@ -34,6 +35,7 @@ final class AgentApiController
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
         private readonly DomainRepository $domainRepository,
+        private readonly InstanceRepository $instanceRepository,
         private readonly PublicServerRepository $publicServerRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly EntityManagerInterface $entityManager,
@@ -93,6 +95,9 @@ final class AgentApiController
 
         $jobs = $this->jobRepository->findQueuedForDispatch(20);
         $jobPayloads = [];
+        $updateJobTypes = ['sniper.update'];
+        $maxUpdateJobsPerAgent = 2;
+        $runningUpdateJobs = $this->jobRepository->countRunningByAgentAndTypes($agent->getId(), $updateJobTypes);
 
         foreach ($jobs as $job) {
             if ($job->getStatus() !== JobStatus::Queued) {
@@ -102,6 +107,10 @@ final class AgentApiController
             $payload = $job->getPayload();
             $targetAgentId = is_string($payload['agent_id'] ?? null) ? $payload['agent_id'] : '';
             if ($targetAgentId !== '' && $targetAgentId !== $agent->getId()) {
+                continue;
+            }
+
+            if (in_array($job->getType(), $updateJobTypes, true) && $runningUpdateJobs >= $maxUpdateJobsPerAgent) {
                 continue;
             }
 
@@ -125,6 +134,10 @@ final class AgentApiController
                 'agent_id' => $agent->getId(),
                 'job_id' => $job->getId(),
             ]);
+
+            if (in_array($job->getType(), $updateJobTypes, true)) {
+                $runningUpdateJobs++;
+            }
         }
 
         $this->entityManager->flush();
@@ -163,6 +176,7 @@ final class AgentApiController
 
         $status = (string) ($payload['status'] ?? '');
         $resultStatus = match ($status) {
+            'success' => JobResultStatus::Succeeded,
             'succeeded' => JobResultStatus::Succeeded,
             'failed' => JobResultStatus::Failed,
             'cancelled' => JobResultStatus::Cancelled,
@@ -196,6 +210,7 @@ final class AgentApiController
             }
         }
         $this->applyTs3UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
+        $this->applyInstanceUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyPublicServerUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->eventDispatcher->dispatch(
             new \App\Extension\Event\JobAfterResultEvent($job, $jobResult, $agent),
@@ -405,6 +420,58 @@ final class AgentApiController
             'previous_status' => $previousStatus,
             'status' => $newStatus->value,
             'output' => $output,
+        ]);
+    }
+
+    private function applyInstanceUpdatesFromJob(
+        \App\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        string $agentId,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($resultStatus !== JobResultStatus::Succeeded) {
+            return;
+        }
+
+        if (!in_array($job->getType(), ['sniper.install', 'sniper.update'], true)) {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $instanceId = $payload['instance_id'] ?? null;
+        if (!is_int($instanceId) && !is_string($instanceId)) {
+            return;
+        }
+
+        $instance = $this->instanceRepository->find((int) $instanceId);
+        if ($instance === null) {
+            return;
+        }
+
+        if ($instance->getNode()->getId() !== $agentId) {
+            return;
+        }
+
+        $buildId = is_string($output['build_id'] ?? null) ? (string) $output['build_id'] : null;
+        $version = is_string($output['version'] ?? null) ? (string) $output['version'] : null;
+
+        if ($buildId === null && $version === null) {
+            return;
+        }
+
+        $instance->setPreviousBuildId($instance->getCurrentBuildId());
+        $instance->setPreviousVersion($instance->getCurrentVersion());
+        $instance->setCurrentBuildId($buildId);
+        $instance->setCurrentVersion($version);
+        $this->entityManager->persist($instance);
+
+        $this->auditLogger->log(null, 'instance.build.updated', [
+            'instance_id' => $instance->getId(),
+            'job_id' => $job->getId(),
+            'build_id' => $buildId,
+            'version' => $version,
+            'completed_at' => $completedAt->format(DATE_RFC3339),
         ]);
     }
 

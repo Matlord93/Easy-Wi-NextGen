@@ -21,6 +21,8 @@ use Twig\Environment;
 #[Route(path: '/admin/mail-aliases')]
 final class AdminMailAliasController
 {
+    private string $aliasMapPath;
+
     public function __construct(
         private readonly MailAliasRepository $aliasRepository,
         private readonly DomainRepository $domainRepository,
@@ -28,8 +30,9 @@ final class AdminMailAliasController
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
         #[Autowire('%env(default::APP_MAIL_ALIAS_MAP_PATH)%')]
-        private readonly string $aliasMapPath,
+        ?string $aliasMapPath,
     ) {
+        $this->aliasMapPath = $aliasMapPath ?? '';
     }
 
     #[Route(path: '', name: 'admin_mail_aliases', methods: ['GET'])]

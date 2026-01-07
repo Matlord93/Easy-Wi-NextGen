@@ -16,11 +16,14 @@ final class EncryptionService
      */
     private array $keyring;
 
+    private readonly string $activeKeyId;
+
     public function __construct(
-        private readonly string $activeKeyId,
-        string $keyring,
+        ?string $activeKeyId,
+        ?string $keyring,
     ) {
-        $this->keyring = $this->parseKeyring($keyring);
+        $this->activeKeyId = $activeKeyId ?? '';
+        $this->keyring = $this->parseKeyring($keyring ?? '');
     }
 
     /**
@@ -29,6 +32,9 @@ final class EncryptionService
     public function encrypt(string $plaintext): array
     {
         $keyId = $this->activeKeyId;
+        if ($keyId === '') {
+            throw new RuntimeException('No active encryption key configured.');
+        }
         $key = $this->requireKey($keyId);
         $nonce = random_bytes(self::NONCE_BYTES);
         $ciphertext = sodium_crypto_aead_aes256gcm_encrypt(

@@ -16,8 +16,11 @@ class Template
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(length: 120)]
-    private string $name;
+    #[ORM\Column(length: 80)]
+    private string $gameKey;
+
+    #[ORM\Column(length: 120, name: 'display_name')]
+    private string $displayName;
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
@@ -27,6 +30,24 @@ class Template
 
     #[ORM\Column(type: 'json')]
     private array $requiredPorts;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $steamAppId = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $sniperProfile = null;
+
+    #[ORM\Column(type: 'json')]
+    private array $envVars;
+
+    #[ORM\Column(type: 'json')]
+    private array $configFiles;
+
+    #[ORM\Column(type: 'json')]
+    private array $pluginPaths;
+
+    #[ORM\Column(type: 'json')]
+    private array $fastdlSettings;
 
     #[ORM\Column(type: 'text')]
     private string $installCommand;
@@ -44,18 +65,32 @@ class Template
     private \DateTimeImmutable $updatedAt;
 
     public function __construct(
-        string $name,
+        string $gameKey,
+        string $displayName,
         ?string $description,
-        string $startParams,
+        ?int $steamAppId,
+        ?string $sniperProfile,
         array $requiredPorts,
+        string $startParams,
+        array $envVars,
+        array $configFiles,
+        array $pluginPaths,
+        array $fastdlSettings,
         string $installCommand,
         string $updateCommand,
         array $allowedSwitchFlags,
     ) {
-        $this->name = $name;
+        $this->gameKey = $gameKey;
+        $this->displayName = $displayName;
         $this->description = $description;
-        $this->startParams = $startParams;
+        $this->steamAppId = $steamAppId;
+        $this->sniperProfile = $sniperProfile;
         $this->requiredPorts = $requiredPorts;
+        $this->startParams = $startParams;
+        $this->envVars = $envVars;
+        $this->configFiles = $configFiles;
+        $this->pluginPaths = $pluginPaths;
+        $this->fastdlSettings = $fastdlSettings;
         $this->installCommand = $installCommand;
         $this->updateCommand = $updateCommand;
         $this->allowedSwitchFlags = $allowedSwitchFlags;
@@ -70,12 +105,33 @@ class Template
 
     public function getName(): string
     {
-        return $this->name;
+        return $this->displayName;
     }
 
     public function setName(string $name): void
     {
-        $this->name = $name;
+        $this->setDisplayName($name);
+    }
+
+    public function getGameKey(): string
+    {
+        return $this->gameKey;
+    }
+
+    public function setGameKey(string $gameKey): void
+    {
+        $this->gameKey = $gameKey;
+        $this->touch();
+    }
+
+    public function getDisplayName(): string
+    {
+        return $this->displayName;
+    }
+
+    public function setDisplayName(string $displayName): void
+    {
+        $this->displayName = $displayName;
         $this->touch();
     }
 
@@ -109,6 +165,82 @@ class Template
     public function setRequiredPorts(array $requiredPorts): void
     {
         $this->requiredPorts = $requiredPorts;
+        $this->touch();
+    }
+
+    public function getRequiredPortLabels(): array
+    {
+        return array_map(static function (array $port): string {
+            $name = (string) ($port['name'] ?? 'port');
+            $protocol = (string) ($port['protocol'] ?? 'udp');
+
+            return sprintf('%s/%s', $name, $protocol);
+        }, $this->requiredPorts);
+    }
+
+    public function getSteamAppId(): ?int
+    {
+        return $this->steamAppId;
+    }
+
+    public function setSteamAppId(?int $steamAppId): void
+    {
+        $this->steamAppId = $steamAppId;
+        $this->touch();
+    }
+
+    public function getSniperProfile(): ?string
+    {
+        return $this->sniperProfile;
+    }
+
+    public function setSniperProfile(?string $sniperProfile): void
+    {
+        $this->sniperProfile = $sniperProfile;
+        $this->touch();
+    }
+
+    public function getEnvVars(): array
+    {
+        return $this->envVars;
+    }
+
+    public function setEnvVars(array $envVars): void
+    {
+        $this->envVars = $envVars;
+        $this->touch();
+    }
+
+    public function getConfigFiles(): array
+    {
+        return $this->configFiles;
+    }
+
+    public function setConfigFiles(array $configFiles): void
+    {
+        $this->configFiles = $configFiles;
+        $this->touch();
+    }
+
+    public function getPluginPaths(): array
+    {
+        return $this->pluginPaths;
+    }
+
+    public function setPluginPaths(array $pluginPaths): void
+    {
+        $this->pluginPaths = $pluginPaths;
+        $this->touch();
+    }
+
+    public function getFastdlSettings(): array
+    {
+        return $this->fastdlSettings;
+    }
+
+    public function setFastdlSettings(array $fastdlSettings): void
+    {
+        $this->fastdlSettings = $fastdlSettings;
         $this->touch();
     }
 

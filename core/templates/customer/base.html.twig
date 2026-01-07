@@ -31,6 +31,22 @@
                 </span>
                 <span class="text-sm font-medium">Tickets</span>
             </a>
+            <a href="/instances" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'instances' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'instances' ? 'bg-slate-700' : 'bg-slate-900' }}">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M4 3.5A1.5 1.5 0 0 1 5.5 2h9A1.5 1.5 0 0 1 16 3.5v13a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 16.5v-13Zm4 3.5a1 1 0 0 0 0 2h4a1 1 0 0 0 0-2H8Zm0 4a1 1 0 0 0 0 2h4a1 1 0 0 0 0-2H8Z"/>
+                    </svg>
+                </span>
+                <span class="text-sm font-medium">Instances</span>
+            </a>
+            <a href="/files" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'files' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'files' ? 'bg-slate-700' : 'bg-slate-900' }}">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M2 5.25A2.25 2.25 0 0 1 4.25 3h4.62a2.25 2.25 0 0 1 1.59.66l1.88 1.87c.42.42.66.99.66 1.59v7.63A2.25 2.25 0 0 1 10.75 17h-6.5A2.25 2.25 0 0 1 2 14.75v-9.5ZM4.25 4.5a.75.75 0 0 0-.75.75v9.5c0 .41.34.75.75.75h6.5a.75.75 0 0 0 .75-.75V7.12a.75.75 0 0 0-.22-.53L9.4 4.72a.75.75 0 0 0-.53-.22H4.25Z"/>
+                    </svg>
+                </span>
+                <span class="text-sm font-medium">File Manager</span>
+            </a>
             {% set extensionItems = extension_menu_items('customer') %}
             {% for item in extensionItems %}
                 <a href="{{ item.href }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-300 transition hover:bg-slate-800 hover:text-white">

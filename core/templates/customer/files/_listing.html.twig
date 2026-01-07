@@ -1,0 +1,72 @@
+{% set status = status|default('queued') %}
+
+{% if status in ['queued', 'running'] %}
+    <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600"
+         hx-get="/files/listing/{{ jobId }}"
+         hx-trigger="load, every 2s"
+         hx-target="this"
+         hx-swap="outerHTML">
+        <div class="flex flex-col items-center gap-3">
+            <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+                <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path>
+                </svg>
+            </span>
+            <div>
+                <p class="font-semibold text-slate-700">Listing in progress</p>
+                <p class="text-xs text-slate-500">Waiting for the agent to respond.</p>
+            </div>
+        </div>
+    </div>
+{% elseif status in ['failed', 'cancelled'] %}
+    <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-6 text-sm text-rose-700">
+        <p class="font-semibold">Listing failed</p>
+        <p class="mt-1 text-xs text-rose-600">{{ error|default('The agent could not retrieve the listing.') }}</p>
+    </div>
+{% else %}
+    <div class="space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
+            <div>
+                <span class="uppercase tracking-wide text-slate-400">Root</span>
+                <span class="ml-2 font-medium text-slate-700">{{ rootPath|default('') }}</span>
+            </div>
+            <div>
+                <span class="uppercase tracking-wide text-slate-400">Path</span>
+                <span class="ml-2 font-medium text-slate-700">{{ path|default('') ?: '/' }}</span>
+            </div>
+        </div>
+        <div class="overflow-hidden rounded-xl border border-slate-200">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                        <th class="px-4 py-3">Name</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3">Size</th>
+                        <th class="px-4 py-3">Permissions</th>
+                        <th class="px-4 py-3">Modified</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    {% for entry in entries %}
+                        <tr>
+                            <td class="px-4 py-3 font-medium text-slate-800">{{ entry.name }}</td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {{ entry.is_dir ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' }}">
+                                    {{ entry.is_dir ? 'Directory' : 'File' }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-slate-500">{{ entry.size_human }}</td>
+                            <td class="px-4 py-3 text-slate-500">{{ entry.mode }}</td>
+                            <td class="px-4 py-3 text-slate-500">{{ entry.modified_at }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">No files found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endif %}

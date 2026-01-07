@@ -7,13 +7,21 @@
                 <th class="px-5 py-3 text-left font-semibold">Start Params</th>
                 <th class="px-5 py-3 text-left font-semibold">Commands</th>
                 <th class="px-5 py-3 text-left font-semibold">Switch Flags</th>
+                <th class="px-5 py-3 text-left font-semibold">Preview</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-200 bg-white">
             {% for template in templates %}
                 <tr class="hover:bg-slate-50">
                     <td class="px-5 py-4">
-                        <div class="font-semibold text-slate-900">{{ template.name }}</div>
+                        <div class="font-semibold text-slate-900">{{ template.display_name }}</div>
+                        <div class="text-xs text-slate-500 mt-1">Key: {{ template.game_key }}</div>
+                        {% if template.steam_app_id %}
+                            <div class="text-xs text-slate-500 mt-1">Steam App ID: {{ template.steam_app_id }}</div>
+                        {% endif %}
+                        {% if template.sniper_profile %}
+                            <div class="text-xs text-slate-500 mt-1">Sniper: {{ template.sniper_profile }}</div>
+                        {% endif %}
                         {% if template.description %}
                             <div class="text-xs text-slate-500 mt-1">{{ template.description }}</div>
                         {% endif %}
@@ -22,7 +30,9 @@
                     <td class="px-5 py-4">
                         <div class="flex flex-wrap gap-2">
                             {% for port in template.required_ports %}
-                                <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">{{ port }}</span>
+                                <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                                    {{ port.label ?? port.name }} · {{ port.protocol|upper }}
+                                </span>
                             {% else %}
                                 <span class="text-xs text-slate-400">No ports</span>
                             {% endfor %}
@@ -46,10 +56,18 @@
                             {% endfor %}
                         </div>
                     </td>
+                    <td class="px-5 py-4">
+                        <button
+                            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
+                            hx-get="/admin/templates/preview?id={{ template.id }}"
+                            hx-target="#template-preview"
+                            hx-swap="outerHTML"
+                        >Preview</button>
+                    </td>
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="5" class="px-5 py-10 text-center text-sm text-slate-500">No templates yet. Add one to provision instances.</td>
+                    <td colspan="6" class="px-5 py-10 text-center text-sm text-slate-500">No templates yet. Add one to provision instances.</td>
                 </tr>
             {% endfor %}
         </tbody>

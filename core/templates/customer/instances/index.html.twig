@@ -1,0 +1,24 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}Instances · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold">Instances</h1>
+            <p class="text-sm text-slate-500">Manage updates, version locks, and rollback targets for your game instances.</p>
+        </div>
+    </div>
+
+    <div class="mt-6 space-y-6">
+        {% for instance in instances %}
+            <div id="instance-card-{{ instance.id }}">
+                {% include 'customer/instances/_card.html.twig' with { instance: instance } %}
+            </div>
+        {% else %}
+            <div class="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
+                No instances yet. Ask an admin to provision your first server.
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

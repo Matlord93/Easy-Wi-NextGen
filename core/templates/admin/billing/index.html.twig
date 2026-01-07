@@ -80,5 +80,61 @@
                 </table>
             </div>
         </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Credit notes</h2>
+                    <p class="text-sm text-slate-500">Issued credits linked to recent invoices.</p>
+                </div>
+                <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">Create credit</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-6 py-3 text-left">Credit note</th>
+                        <th class="px-6 py-3 text-left">Invoice</th>
+                        <th class="px-6 py-3 text-left">Customer</th>
+                        <th class="px-6 py-3 text-left">Issued</th>
+                        <th class="px-6 py-3 text-left">Amount</th>
+                        <th class="px-6 py-3 text-left">Status</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                    {% for credit in credit_notes %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4 font-medium text-slate-900">{{ credit.number }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ credit.invoice_number }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ credit.customer }}</td>
+                            <td class="px-6 py-4 text-slate-600">
+                                {% if credit.issued_at %}
+                                    {{ credit.issued_at|date('Y-m-d') }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-slate-600">{{ credit.amount / 100 }} {{ credit.currency }}</td>
+                            <td class="px-6 py-4">
+                                {% if credit.status == 'issued' %}
+                                    <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">Issued</span>
+                                {% elseif credit.status == 'applied' %}
+                                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Applied</span>
+                                {% elseif credit.status == 'voided' %}
+                                    <span class="inline-flex items-center rounded-full bg-rose-100 px-3 py-1 text-xs font-medium text-rose-700">Voided</span>
+                                {% else %}
+                                    <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">Draft</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-500">No credit notes issued yet.</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 {% endblock %}
