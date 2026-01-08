@@ -2,17 +2,17 @@
     <table class="min-w-full text-sm">
         <thead class="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
-                <th class="px-5 py-3 text-left font-semibold">Type</th>
-                <th class="px-5 py-3 text-left font-semibold">Version</th>
-                <th class="px-5 py-3 text-left font-semibold">Accepted at</th>
-                <th class="px-5 py-3 text-left font-semibold">IP</th>
-                <th class="px-5 py-3 text-left font-semibold">User Agent</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_type', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_version', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_accepted_at', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_ip', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_user_agent', page_locale()) }}</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-200">
             {% if logs is empty %}
                 <tr>
-                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-500">No consent entries recorded yet.</td>
+                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-500">{{ t('customer_gdpr_consents_empty', page_locale()) }}</td>
                 </tr>
             {% else %}
                 {% for log in logs %}

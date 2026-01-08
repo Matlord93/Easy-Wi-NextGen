@@ -1,41 +1,41 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Dashboard · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_nav_dashboard', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl font-semibold">Welcome back, Admin!</h1>
-            <p class="text-sm text-slate-500">Platform overview, operator activity, and system health at a glance.</p>
+            <h1 class="text-2xl font-semibold">{{ t('admin_dashboard_welcome', page_locale()) }}</h1>
+            <p class="text-sm text-slate-500">{{ t('admin_dashboard_intro', page_locale()) }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-            <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">Invite Operator</button>
-            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">Create Job</button>
+            <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_dashboard_invite_operator', page_locale()) }}</button>
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">{{ t('admin_dashboard_create_job', page_locale()) }}</button>
         </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div class="rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-white shadow-md">
-            <p class="text-xs uppercase text-slate-200/80">Total Jobs</p>
+            <p class="text-xs uppercase text-slate-200/80">{{ t('admin_dashboard_total_jobs', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold">{{ jobSummary.total }}</p>
-            <p class="mt-2 text-xs text-slate-200/80">{{ jobSummary.running }} running · {{ jobSummary.queued }} queued</p>
+            <p class="mt-2 text-xs text-slate-200/80">{{ t('admin_dashboard_running_queued', page_locale())|replace({'%running%': jobSummary.running, '%queued%': jobSummary.queued}) }}</p>
             <div class="mt-3 h-1 w-full rounded-full bg-slate-600">
                 <div class="h-1 w-2/3 rounded-full bg-emerald-400"></div>
             </div>
         </div>
         <div class="rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-800 p-4 text-white shadow-md">
-            <p class="text-xs uppercase text-indigo-200/90">Active Users</p>
+            <p class="text-xs uppercase text-indigo-200/90">{{ t('admin_dashboard_active_users', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold">{{ jobSummary.running + jobSummary.queued }}</p>
-            <p class="mt-2 text-xs text-indigo-200/90">Operators online · {{ jobSummary.failed }} alerts</p>
+            <p class="mt-2 text-xs text-indigo-200/90">{{ t('admin_dashboard_operators_online', page_locale())|replace({'%alerts%': jobSummary.failed}) }}</p>
             <div class="mt-3 h-1 w-full rounded-full bg-indigo-400/40">
                 <div class="h-1 w-3/4 rounded-full bg-white/80"></div>
             </div>
         </div>
         <div class="rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-white shadow-md">
-            <p class="text-xs uppercase text-slate-200/80">Running Jobs</p>
+            <p class="text-xs uppercase text-slate-200/80">{{ t('admin_dashboard_running_jobs', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold">{{ jobSummary.running }}</p>
-            <p class="mt-2 text-xs text-slate-200/80">{{ jobSummary.failed }} failed · {{ jobSummary.queued }} queued</p>
+            <p class="mt-2 text-xs text-slate-200/80">{{ t('admin_dashboard_failed_queued', page_locale())|replace({'%failed%': jobSummary.failed, '%queued%': jobSummary.queued}) }}</p>
             <div class="mt-3 flex gap-2">
                 <span class="h-1 w-10 rounded-full bg-emerald-400"></span>
                 <span class="h-1 w-6 rounded-full bg-amber-400"></span>
@@ -43,9 +43,9 @@
             </div>
         </div>
         <div class="rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-white shadow-md">
-            <p class="text-xs uppercase text-slate-200/80">System Load</p>
+            <p class="text-xs uppercase text-slate-200/80">{{ t('admin_dashboard_system_load', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold">{{ agentSummary.online }}</p>
-            <p class="mt-2 text-xs text-slate-200/80">{{ agentSummary.degraded }} degraded · {{ agentSummary.offline }} offline</p>
+            <p class="mt-2 text-xs text-slate-200/80">{{ t('admin_dashboard_degraded_offline', page_locale())|replace({'%degraded%': agentSummary.degraded, '%offline%': agentSummary.offline}) }}</p>
             <div class="mt-3 h-1 w-full rounded-full bg-slate-600">
                 <div class="h-1 w-1/2 rounded-full bg-sky-400"></div>
             </div>
@@ -61,8 +61,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Server Overview</p>
-                    <p class="text-xs text-slate-600">Manage all nodes</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_server_overview', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_manage_nodes', page_locale()) }}</p>
                 </div>
             </div>
         </div>
@@ -74,8 +74,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Client Management</p>
-                    <p class="text-xs text-slate-600">View &amp; manage users</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_client_management', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_manage_users', page_locale()) }}</p>
                 </div>
             </div>
         </div>
@@ -87,8 +87,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Game Servers</p>
-                    <p class="text-xs text-slate-600">{{ agentSummary.total }} instances active</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_game_servers', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_instances_active', page_locale())|replace({'%count%': agentSummary.total}) }}</p>
                 </div>
             </div>
         </div>
@@ -100,8 +100,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Web Hosting</p>
-                    <p class="text-xs text-slate-600">42 websites hosted</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_web_hosting', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_websites_hosted', page_locale()) }}</p>
                 </div>
             </div>
         </div>
@@ -113,8 +113,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Databases</p>
-                    <p class="text-xs text-slate-600">Database nodes</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_databases', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_database_nodes', page_locale()) }}</p>
                 </div>
             </div>
         </div>
@@ -126,8 +126,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Billing</p>
-                    <p class="text-xs text-slate-600">Invoices &amp; payments</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_billing', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_invoices_payments', page_locale()) }}</p>
                 </div>
             </div>
         </div>
@@ -139,8 +139,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Billing</p>
-                    <p class="text-xs text-slate-600">Invoices &amp; payments</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_billing', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_invoices_payments', page_locale()) }}</p>
                 </div>
             </div>
         </div>
@@ -152,8 +152,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Payments</p>
-                    <p class="text-xs text-slate-600">Settlement overview</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_payments', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_settlement_overview', page_locale()) }}</p>
                 </div>
             </div>
         </div>
@@ -163,23 +163,23 @@
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
             <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
-                    <h2 class="text-lg font-semibold">Recent Activity</h2>
-                    <p class="text-sm text-slate-500">Latest agent workloads and dispatch status.</p>
+                    <h2 class="text-lg font-semibold">{{ t('admin_dashboard_recent_activity', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-500">{{ t('admin_dashboard_recent_activity_description', page_locale()) }}</p>
                 </div>
                 <button
                     class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
                     hx-get="/admin/jobs/table"
                     hx-target="#jobs-table"
                     hx-swap="outerHTML"
-                >Refresh</button>
+                >{{ t('admin_dashboard_refresh', page_locale()) }}</button>
             </div>
             {% include 'admin/jobs/_table.html.twig' with { jobs: jobs } %}
         </div>
 
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
-                <h2 class="text-lg font-semibold">System Load</h2>
-                <p class="text-sm text-slate-500">Agent heartbeats and resource signals.</p>
+                <h2 class="text-lg font-semibold">{{ t('admin_dashboard_system_load', page_locale()) }}</h2>
+                <p class="text-sm text-slate-500">{{ t('admin_dashboard_system_load_description', page_locale()) }}</p>
             </div>
             <div class="divide-y divide-slate-200">
                 {% set statusStyles = {
@@ -193,7 +193,7 @@
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-sm font-semibold text-slate-900">{{ node.name }}</p>
-                                <p class="text-xs text-slate-400">ID {{ node.id }}</p>
+                                <p class="text-xs text-slate-400">{{ t('admin_dashboard_node_id', page_locale())|replace({'%id%': node.id}) }}</p>
                             </div>
                             <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ style }}">
                                 {{ node.status|title }}
@@ -201,21 +201,21 @@
                         </div>
                         <div class="mt-3 space-y-2 text-xs text-slate-500">
                             <div class="flex items-center justify-between">
-                                <span>CPU</span>
+                                <span>{{ t('admin_dashboard_cpu', page_locale()) }}</span>
                                 <span class="font-medium text-slate-700">{{ node.cpu ?? '—' }}</span>
                             </div>
                             <div class="h-1 w-full rounded-full bg-slate-100">
                                 <div class="h-1 w-2/3 rounded-full bg-indigo-500"></div>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span>Memory</span>
+                                <span>{{ t('admin_dashboard_memory', page_locale()) }}</span>
                                 <span class="font-medium text-slate-700">{{ node.memory ?? '—' }}</span>
                             </div>
                             <div class="h-1 w-full rounded-full bg-slate-100">
                                 <div class="h-1 w-1/2 rounded-full bg-emerald-500"></div>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span>Queue</span>
+                                <span>{{ t('admin_dashboard_queue', page_locale()) }}</span>
                                 <span class="font-medium text-slate-700">{{ node.queue ?? '—' }}</span>
                             </div>
                             <div class="h-1 w-full rounded-full bg-slate-100">
@@ -224,14 +224,14 @@
                         </div>
                         <div class="mt-3 text-xs text-slate-400">
                             {% if node.lastHeartbeatAt %}
-                                Seen {{ node.lastHeartbeatAt|date('Y-m-d H:i') }} · {{ node.lastHeartbeatIp ?? 'IP n/a' }}
+                                {{ t('admin_dashboard_last_seen', page_locale())|replace({'%time%': node.lastHeartbeatAt|date('Y-m-d H:i'), '%ip%': node.lastHeartbeatIp ?? t('admin_dashboard_ip_na', page_locale())}) }}
                             {% else %}
-                                No heartbeat reported yet.
+                                {{ t('admin_dashboard_no_heartbeat', page_locale()) }}
                             {% endif %}
                         </div>
                     </div>
                 {% else %}
-                    <div class="px-5 py-8 text-center text-sm text-slate-400">No agents registered yet.</div>
+                    <div class="px-5 py-8 text-center text-sm text-slate-400">{{ t('admin_dashboard_no_agents', page_locale()) }}</div>
                 {% endfor %}
             </div>
         </div>

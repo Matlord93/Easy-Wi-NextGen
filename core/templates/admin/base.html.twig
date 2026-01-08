@@ -37,7 +37,7 @@
                         <path d="M3 3.75A.75.75 0 0 1 3.75 3h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 3 8.25v-4.5Zm8 0a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-8.5Zm-8 8a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 3 16.25v-4.5Zm8 2a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75h-4.5a.75.75 0 0 1-.75-.75v-2.5Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Dashboard</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_dashboard', page_locale()) }}</span>
             </a>
             <a href="/admin/users" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'users' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'users' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -45,7 +45,7 @@
                         <path d="M10 10a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-6 7a6 6 0 0 1 12 0v.25a.75.75 0 0 1-.75.75h-10.5A.75.75 0 0 1 4 17.25Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Users</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_users', page_locale()) }}</span>
             </a>
             <a href="/admin/jobs" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'jobs' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'jobs' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -53,7 +53,7 @@
                         <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm3 2.75a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5H6Zm0 4a.75.75 0 0 0 0 1.5h5a.75.75 0 0 0 0-1.5H6Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Jobs</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_jobs', page_locale()) }}</span>
             </a>
             {% set nodesActive = activeNav == 'nodes' %}
             <a href="/admin/nodes" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ nodesActive ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
@@ -62,7 +62,7 @@
                         <path d="M9.5 3.75a.75.75 0 0 1 1.5 0v1.06a3.5 3.5 0 0 1 2.45 1.35.75.75 0 1 1-1.2.9A2 2 0 0 0 10.5 6.5h-1A2 2 0 0 0 7.7 7.06a.75.75 0 0 1-1.2-.9A3.5 3.5 0 0 1 9.5 4.81V3.75Zm-4.75 9a2.75 2.75 0 0 1 2.75-2.75h5a2.75 2.75 0 0 1 2.75 2.75v.75a2.75 2.75 0 0 1-2.75 2.75h-5A2.75 2.75 0 0 1 4.75 13.5v-.75Zm2.75-1.25a1.25 1.25 0 0 0-1.25 1.25v.75a1.25 1.25 0 0 0 1.25 1.25h5a1.25 1.25 0 0 0 1.25-1.25v-.75a1.25 1.25 0 0 0-1.25-1.25h-5Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Nodes</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_nodes', page_locale()) }}</span>
             </a>
             {% set metricsActive = activeNav == 'metrics' %}
             <a href="/admin/metrics" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ metricsActive ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
@@ -71,7 +71,7 @@
                         <path d="M2.5 3.75a.75.75 0 0 1 .75-.75h13.5a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75H3.25a.75.75 0 0 1-.75-.75V3.75Zm2.25 2.75a.75.75 0 0 0 0 1.5h2a.75.75 0 0 0 0-1.5h-2Zm4 3.5a.75.75 0 0 0 0 1.5h2a.75.75 0 0 0 0-1.5h-2Zm4-3.5a.75.75 0 0 0 0 1.5h2a.75.75 0 0 0 0-1.5h-2Zm-8 7a.75.75 0 0 0 0 1.5h10a.75.75 0 0 0 0-1.5h-10Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Metrics</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_metrics', page_locale()) }}</span>
             </a>
             <a href="/admin/templates" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'templates' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'templates' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -79,7 +79,7 @@
                         <path d="M3 5.75A2.75 2.75 0 0 1 5.75 3h8.5A2.75 2.75 0 0 1 17 5.75v8.5A2.75 2.75 0 0 1 14.25 17h-8.5A2.75 2.75 0 0 1 3 14.25v-8.5Zm2.75-1.25a1.25 1.25 0 0 0-1.25 1.25v8.5a1.25 1.25 0 0 0 1.25 1.25h8.5a1.25 1.25 0 0 0 1.25-1.25v-8.5a1.25 1.25 0 0 0-1.25-1.25h-8.5Zm1.75 2.25h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 4h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Templates</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_templates', page_locale()) }}</span>
             </a>
             <a href="/admin/plugins" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'plugins' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'plugins' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -87,7 +87,7 @@
                         <path d="M6.5 3.5a3 3 0 1 1 5.18 2.01l.82.82a3.5 3.5 0 1 1-2.47 2.12l-.8-.8A3 3 0 0 1 6.5 3.5Zm1.5 0a1.5 1.5 0 1 0 2.75.87l-.3-.3A1.5 1.5 0 0 0 8 3.5Zm6.5 5a2 2 0 1 0 1.41.59A2 2 0 0 0 14.5 8.5Zm-6.2 3.1.8.8a3.5 3.5 0 0 1-1.92 1.92l-.8-.8a2.5 2.5 0 0 0 1.92-1.92Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Plugins</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_plugins', page_locale()) }}</span>
             </a>
             <a href="/admin/cms/pages" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'cms-pages' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'cms-pages' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -103,7 +103,7 @@
                         <path d="M10 3a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3Zm-6 11.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H4.75a.75.75 0 0 1-.75-.75Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Downloads</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_downloads', page_locale()) }}</span>
             </a>
             <a href="/admin/changelog" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'changelog' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'changelog' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -111,7 +111,7 @@
                         <path d="M5.75 3A1.75 1.75 0 0 0 4 4.75v10.5C4 16.216 4.784 17 5.75 17h8.5A1.75 1.75 0 0 0 16 15.25V7.5a.75.75 0 0 0-.75-.75H11A1.25 1.25 0 0 1 9.75 5.5V3.75A.75.75 0 0 0 9 3H5.75Zm2 6.25a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H8.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H8.5a.75.75 0 0 1-.75-.75Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Changelog</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_changelog', page_locale()) }}</span>
             </a>
             <a href="/admin/docs" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'docs' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'docs' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -119,7 +119,7 @@
                         <path d="M6.5 3.75A1.75 1.75 0 0 0 4.75 5.5v9A1.75 1.75 0 0 0 6.5 16.25h7A1.75 1.75 0 0 0 15.25 14.5V7.414a1.75 1.75 0 0 0-.513-1.237l-1.664-1.664A1.75 1.75 0 0 0 11.836 4H6.5Zm1.25 4.25a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Docs</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_docs', page_locale()) }}</span>
             </a>
             <a href="/admin/servers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'public-servers' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'public-servers' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -127,7 +127,7 @@
                         <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm2.75 1.25a.75.75 0 0 0-.75.75v6a.75.75 0 0 0 .75.75h8.5a.75.75 0 0 0 .75-.75v-6a.75.75 0 0 0-.75-.75h-8.5Zm1.75 2.25h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Server Directory</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_server_directory', page_locale()) }}</span>
             </a>
             {% set statusActive = activeNav in ['status-components', 'status-maintenance', 'status-incidents'] %}
             <a href="/admin/status/components" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ statusActive ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
@@ -136,7 +136,7 @@
                         <path d="M4.75 3A1.75 1.75 0 0 0 3 4.75v10.5C3 16.216 3.784 17 4.75 17h10.5A1.75 1.75 0 0 0 17 15.25V9.5a.75.75 0 0 0-.75-.75h-4.5A1.25 1.25 0 0 1 10.5 7.5V3.75A.75.75 0 0 0 9.75 3h-5ZM6 12.75a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1-.75-.75Zm0-3.5a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4A.75.75 0 0 1 6 9.25Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Status</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_status', page_locale()) }}</span>
             </a>
             <a href="/admin/billing" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'billing' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'billing' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -144,7 +144,7 @@
                         <path d="M4 3.75A1.75 1.75 0 0 1 5.75 2h5.5A1.75 1.75 0 0 1 13 3.75v2h1.25A1.75 1.75 0 0 1 16 7.5v8.75A1.75 1.75 0 0 1 14.25 18H5.75A1.75 1.75 0 0 1 4 16.25V3.75Zm1.5 0V5.75H11V3.75a.25.25 0 0 0-.25-.25h-5a.25.25 0 0 0-.25.25Zm6.75 3.5H5.75a.25.25 0 0 0-.25.25v8.75c0 .14.11.25.25.25h8.5a.25.25 0 0 0 .25-.25V7.5a.25.25 0 0 0-.25-.25Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Billing</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_billing', page_locale()) }}</span>
             </a>
             <a href="/admin/modules" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'modules' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'modules' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -152,7 +152,7 @@
                         <path d="M7.5 2.75a.75.75 0 0 1 .75.75v1.04a3.5 3.5 0 0 1 2.5 3.36v.6a3.5 3.5 0 0 1-1.57 2.92l-.18.12v2.46a.75.75 0 0 1-1.5 0v-2.46l-.18-.12A3.5 3.5 0 0 1 5.75 8.5v-.6a3.5 3.5 0 0 1 2.5-3.36V3.5a.75.75 0 0 1 .75-.75Zm.75 3.46a2 2 0 0 0-1 1.74v.6a2 2 0 0 0 1 1.74l.5.33.5-.33a2 2 0 0 0 1-1.74v-.6a2 2 0 0 0-1-1.74l-.5-.33-.5.33Zm5 7.04a.75.75 0 0 1 .75.75v.75a1.75 1.75 0 0 1-1.75 1.75H4.75A1.75 1.75 0 0 1 3 15.75V15a.75.75 0 0 1 1.5 0v.75c0 .14.11.25.25.25h7.5a.25.25 0 0 0 .25-.25V15a.75.75 0 0 1 .75-.75Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Modules</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_modules', page_locale()) }}</span>
             </a>
             <a href="/admin/marketplace" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'marketplace' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'marketplace' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -160,7 +160,7 @@
                         <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm1.5 0v10.5c0 .14.11.25.25.25h10.5a.25.25 0 0 0 .25-.25V4.75a.25.25 0 0 0-.25-.25H4.75a.25.25 0 0 0-.25.25Zm2.25 2.25h6.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5Zm0 3.5h6.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Marketplace</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_marketplace', page_locale()) }}</span>
             </a>
             <a href="/admin/ts3/instances" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ts3-instances' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'ts3-instances' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -168,7 +168,7 @@
                         <path d="M4 3.75A1.75 1.75 0 0 1 5.75 2h8.5A1.75 1.75 0 0 1 16 3.75v12.5A1.75 1.75 0 0 1 14.25 18h-8.5A1.75 1.75 0 0 1 4 16.25V3.75Zm2.75.75a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 4.25a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 4.25a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">TS3 Instances</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_ts3_instances', page_locale()) }}</span>
             </a>
             <a href="/admin/dns/records" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'dns-records' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'dns-records' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -176,7 +176,7 @@
                         <path d="M4.75 4A1.75 1.75 0 0 1 6.5 2.25h7A1.75 1.75 0 0 1 15.25 4v2.25h-1.5V4a.25.25 0 0 0-.25-.25h-7A.25.25 0 0 0 6.25 4v2.25h-1.5V4Zm-1.5 5.25A1.75 1.75 0 0 1 5 7.5h10a1.75 1.75 0 0 1 1.75 1.75v4.5A1.75 1.75 0 0 1 15 15.5H5a1.75 1.75 0 0 1-1.75-1.75v-4.5Zm3.25.75a.75.75 0 0 0 0 1.5h5a.75.75 0 0 0 0-1.5h-5Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">DNS Records</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_dns_records', page_locale()) }}</span>
             </a>
             <a href="/admin/mailboxes" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'mailboxes' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'mailboxes' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -184,7 +184,7 @@
                         <path d="M3 5.75A2.75 2.75 0 0 1 5.75 3h8.5A2.75 2.75 0 0 1 17 5.75v8.5A2.75 2.75 0 0 1 14.25 17h-8.5A2.75 2.75 0 0 1 3 14.25v-8.5Zm2.75-1.25a1.25 1.25 0 0 0-1.25 1.25v.5l5.75 3.2 5.75-3.2v-.5a1.25 1.25 0 0 0-1.25-1.25h-8.5Zm9.75 3.3-4.85 2.7a1.5 1.5 0 0 1-1.3 0L4.5 7.8v6.45a1.25 1.25 0 0 0 1.25 1.25h8.5a1.25 1.25 0 0 0 1.25-1.25V7.8Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Mailboxes</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_mailboxes', page_locale()) }}</span>
             </a>
             <a href="/admin/mail-aliases" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'mail-aliases' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'mail-aliases' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -192,7 +192,7 @@
                         <path d="M2.5 6.75A2.75 2.75 0 0 1 5.25 4h9.5A2.75 2.75 0 0 1 17.5 6.75v5.5A2.75 2.75 0 0 1 14.75 15h-2.5v1.25a.75.75 0 0 1-1.5 0V15h-5.5A2.75 2.75 0 0 1 2.5 12.25v-5.5Zm2.75-1.25a1.25 1.25 0 0 0-1.25 1.25v.6l5.5 2.85 5.5-2.85v-.6a1.25 1.25 0 0 0-1.25-1.25h-9.5Zm11.25 3.8-4.65 2.4a1.5 1.5 0 0 1-1.4 0l-4.65-2.4v2.95A1.25 1.25 0 0 0 5.25 13.5h9.5A1.25 1.25 0 0 0 16 12.25V9.3Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Mail Aliases</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_mail_aliases', page_locale()) }}</span>
             </a>
             <a href="/admin/tickets" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'tickets' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'tickets' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -200,7 +200,7 @@
                         <path d="M4 4.75A.75.75 0 0 1 4.75 4h10.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75H4.75A.75.75 0 0 1 4 7.25v-2.5Zm0 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75H4.75a.75.75 0 0 1-.75-.75v-2.5Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Tickets</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_tickets', page_locale()) }}</span>
             </a>
             {% set extensionItems = extension_menu_items('admin') %}
             {% for item in extensionItems %}
@@ -223,7 +223,7 @@
                         <path d="M9.25 4.75a.75.75 0 0 1 .75-.75h4a2 2 0 0 1 2 2v6.5a.75.75 0 0 1-1.5 0V6a.5.5 0 0 0-.5-.5h-3.25V15a.75.75 0 0 1-1.5 0V4.75Zm-4 2A2.25 2.25 0 0 1 7.5 4.5h.25v1.5H7.5a.75.75 0 0 0-.75.75V16a.75.75 0 0 0 .75.75h5a.75.75 0 0 0 .75-.75v-1.25h1.5V16a2.25 2.25 0 0 1-2.25 2.25h-5A2.25 2.25 0 0 1 5.25 16V6.75Z"/>
                     </svg>
                 </span>
-                <span class="text-sm font-medium">Audit Logs</span>
+                <span class="text-sm font-medium">{{ t('admin_nav_audit_logs', page_locale()) }}</span>
             </a>
             <a href="/admin/activity" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'activity' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'activity' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
@@ -234,7 +234,7 @@
                 <span class="text-sm font-medium">{{ t('activity', page_locale()) }}</span>
             </a>
         </nav>
-        <div class="px-6 py-4 text-xs text-slate-300/70">Admin Panel · vNext</div>
+        <div class="px-6 py-4 text-xs text-slate-300/70">{{ t('admin_panel_tagline', page_locale()) }}</div>
     </aside>
 
     <main class="flex-1 flex flex-col lg:ml-0">
@@ -242,7 +242,7 @@
             <div class="flex items-center justify-between px-4 py-4 sm:px-6">
                 <div class="flex items-center gap-3 w-full">
                     <label for="sidebar-toggle" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-600 bg-slate-700/50 text-slate-200 transition hover:bg-slate-700 lg:hidden">
-                        <span class="sr-only">Toggle sidebar</span>
+                        <span class="sr-only">{{ t('admin_toggle_sidebar', page_locale()) }}</span>
                         <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path d="M3 5.75A.75.75 0 0 1 3.75 5h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 5.75Zm0 4A.75.75 0 0 1 3.75 9h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 9.75Zm0 4a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z"/>
                         </svg>
@@ -284,8 +284,8 @@
                     </a>
                     <div class="flex items-center gap-3">
                         <div class="text-right">
-                            <p class="text-sm font-semibold">Admin</p>
-                            <p class="text-xs text-slate-300">Operations</p>
+                            <p class="text-sm font-semibold">{{ t('admin_user_label', page_locale()) }}</p>
+                            <p class="text-xs text-slate-300">{{ t('admin_user_role', page_locale()) }}</p>
                         </div>
                         <div class="h-10 w-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold">A</div>
                     </div>

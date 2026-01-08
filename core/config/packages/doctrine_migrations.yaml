@@ -1,3 +1,4 @@
 doctrine_migrations:
+  transactional: false
   migrations_paths:
     DoctrineMigrations: '%kernel.project_dir%/migrations'

@@ -16,7 +16,11 @@ final class Version20250219140000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('CREATE TABLE game_template_plugins (id INT AUTO_INCREMENT NOT NULL, template_id INT NOT NULL, name VARCHAR(160) NOT NULL, version VARCHAR(80) NOT NULL, checksum VARCHAR(128) NOT NULL, download_url VARCHAR(255) NOT NULL, description LONGTEXT DEFAULT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, INDEX idx_game_template_plugins_template (template_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        if (!$schema->hasTable('game_templates')) {
+            $this->addSql('CREATE TABLE game_templates (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(120) NOT NULL, description LONGTEXT DEFAULT NULL, required_ports JSON NOT NULL, start_params LONGTEXT NOT NULL, install_command LONGTEXT NOT NULL, update_command LONGTEXT NOT NULL, allowed_switch_flags JSON NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+
+        $this->addSql('CREATE TABLE game_template_plugins (id INT AUTO_INCREMENT NOT NULL, template_id INT NOT NULL, name VARCHAR(160) NOT NULL, version VARCHAR(80) NOT NULL, checksum VARCHAR(128) NOT NULL, download_url VARCHAR(255) NOT NULL, description LONGTEXT DEFAULT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_game_template_plugins_template (template_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
         $this->addSql('ALTER TABLE game_template_plugins ADD CONSTRAINT FK_93368BF95DAF0FB7 FOREIGN KEY (template_id) REFERENCES game_templates (id)');
     }
 

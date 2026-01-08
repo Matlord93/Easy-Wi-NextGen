@@ -225,6 +225,9 @@ final class InstallController
 
                             $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
                             $this->installerService->runMigrations($entityManager);
+                            $entityManager->clear();
+                            $entityManager->getConnection()->close();
+                            $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
                             $this->installerService->createSiteAndAdmin($entityManager, $applicationState, $adminPassword);
 
                             $this->installerService->writeLock();

@@ -5,8 +5,8 @@
 {% block content %}
 <div class="flex items-center justify-between mb-6">
     <div>
-        <h1 class="text-2xl font-semibold">Mail Aliases</h1>
-        <p class="text-sm text-slate-500">Route incoming mail to forward destinations with alias rules.</p>
+        <h1 class="text-2xl font-semibold">{{ t('admin_mail_aliases_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-500">{{ t('admin_mail_aliases_intro', page_locale()) }}</p>
     </div>
     <div class="flex items-center gap-3">
         <button
@@ -14,31 +14,31 @@
             hx-get="/admin/mail-aliases/table"
             hx-target="#mail-aliases-table"
             hx-swap="outerHTML"
-        >Refresh</button>
+        >{{ t('refresh', page_locale()) }}</button>
         <button
             class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
             hx-get="/admin/mail-aliases/form"
             hx-target="#mail-alias-form"
             hx-swap="outerHTML"
-        >New Alias</button>
+        >{{ t('admin_mail_aliases_new', page_locale()) }}</button>
     </div>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Total Aliases</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_mail_aliases_total', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Enabled</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_status_enabled', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.enabled }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Disabled</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_status_disabled', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-rose-500">{{ summary.disabled }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Destinations</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_mail_aliases_destinations', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.destinations }}</p>
     </div>
 </div>

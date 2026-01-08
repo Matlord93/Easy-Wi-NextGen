@@ -1,26 +1,26 @@
 <div class="p-6 space-y-6" id="mail-aliases-table">
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="text-lg font-semibold">Alias Inventory</h2>
-            <p class="text-sm text-slate-500">Monitor forward rules, destinations, and delivery state.</p>
+            <h2 class="text-lg font-semibold">{{ t('admin_mail_aliases_inventory_title', page_locale()) }}</h2>
+            <p class="text-sm text-slate-500">{{ t('admin_mail_aliases_inventory_intro', page_locale()) }}</p>
         </div>
         <button
             class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
             hx-get="/admin/mail-aliases/table"
             hx-target="#mail-aliases-table"
             hx-swap="outerHTML"
-        >Refresh</button>
+        >{{ t('refresh', page_locale()) }}</button>
     </div>
 
     <div class="overflow-x-auto border border-slate-200 rounded-lg">
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
-                    <th class="px-5 py-3">Alias</th>
-                    <th class="px-5 py-3">Destinations</th>
-                    <th class="px-5 py-3">Status</th>
-                    <th class="px-5 py-3">Updated</th>
-                    <th class="px-5 py-3 text-right">Actions</th>
+                    <th class="px-5 py-3">{{ t('admin_mail_aliases_table_alias', page_locale()) }}</th>
+                    <th class="px-5 py-3">{{ t('admin_mail_aliases_table_destinations', page_locale()) }}</th>
+                    <th class="px-5 py-3">{{ t('status', page_locale()) }}</th>
+                    <th class="px-5 py-3">{{ t('updated', page_locale()) }}</th>
+                    <th class="px-5 py-3 text-right">{{ t('actions', page_locale()) }}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-200">
@@ -38,14 +38,14 @@
                                     {% endfor %}
                                 </ul>
                             {% else %}
-                                <span class="text-xs text-slate-400">No destinations</span>
+                                <span class="text-xs text-slate-400">{{ t('admin_mail_aliases_no_destinations', page_locale()) }}</span>
                             {% endif %}
                         </td>
                         <td class="px-5 py-4">
                             {% if alias.enabled %}
-                                <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Enabled</span>
+                                <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">{{ t('admin_status_enabled', page_locale()) }}</span>
                             {% else %}
-                                <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700">Disabled</span>
+                                <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700">{{ t('admin_status_disabled', page_locale()) }}</span>
                             {% endif %}
                         </td>
                         <td class="px-5 py-4 text-xs text-slate-500">{{ alias.updatedAt|date('Y-m-d H:i') }}</td>
@@ -56,28 +56,28 @@
                                     hx-get="/admin/mail-aliases/{{ alias.id }}/edit"
                                     hx-target="#mail-alias-form"
                                     hx-swap="outerHTML"
-                                >Edit</button>
+                                >{{ t('edit', page_locale()) }}</button>
                                 {% if alias.enabled %}
                                     <button
                                         class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-600"
                                         hx-post="/admin/mail-aliases/{{ alias.id }}/disable"
                                         hx-target="#mail-aliases-table"
                                         hx-swap="outerHTML"
-                                    >Disable</button>
+                                    >{{ t('disable', page_locale()) }}</button>
                                 {% else %}
                                     <button
                                         class="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs text-emerald-600"
                                         hx-post="/admin/mail-aliases/{{ alias.id }}/enable"
                                         hx-target="#mail-aliases-table"
                                         hx-swap="outerHTML"
-                                    >Enable</button>
+                                    >{{ t('enable', page_locale()) }}</button>
                                 {% endif %}
                                 <button
                                     class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600"
                                     hx-post="/admin/mail-aliases/{{ alias.id }}/delete"
                                     hx-target="#mail-aliases-table"
                                     hx-swap="outerHTML"
-                                >Delete</button>
+                                >{{ t('delete', page_locale()) }}</button>
                             </div>
                         </td>
                     </tr>

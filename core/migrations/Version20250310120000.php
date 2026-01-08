@@ -1609,6 +1609,13 @@ final class Version20250310120000 extends AbstractMigration
 
     private function isSqlite(): bool
     {
-        return $this->connection->getDatabasePlatform()->getName() === 'sqlite';
+        $platform = $this->connection->getDatabasePlatform();
+
+        if (method_exists($platform, 'getName')) {
+            return in_array($platform->getName(), ['sqlite', 'sqlite3'], true);
+        }
+
+        return $platform instanceof \Doctrine\DBAL\Platforms\SqlitePlatform
+            || $platform instanceof \Doctrine\DBAL\Platforms\SQLitePlatform;
     }
 }

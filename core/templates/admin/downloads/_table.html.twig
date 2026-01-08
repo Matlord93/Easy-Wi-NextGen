@@ -2,12 +2,12 @@
     <table class="min-w-full text-sm">
         <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
             <tr>
-                <th class="px-5 py-3 text-left font-semibold">Title</th>
-                <th class="px-5 py-3 text-left font-semibold">Version</th>
-                <th class="px-5 py-3 text-left font-semibold">Size</th>
-                <th class="px-5 py-3 text-left font-semibold">Visibility</th>
-                <th class="px-5 py-3 text-left font-semibold">Updated</th>
-                <th class="px-5 py-3 text-right font-semibold">Actions</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('title', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('version', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('size', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('visibility', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('updated', page_locale()) }}</th>
+                <th class="px-5 py-3 text-right font-semibold">{{ t('actions', page_locale()) }}</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
@@ -21,9 +21,9 @@
                     <td class="px-5 py-4 text-slate-600">{{ item.file_size ?: '—' }}</td>
                     <td class="px-5 py-4 text-slate-600">
                         {% if item.visible_public %}
-                            <span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">Public</span>
+                            <span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ t('public', page_locale()) }}</span>
                         {% else %}
-                            <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Hidden</span>
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ t('hidden', page_locale()) }}</span>
                         {% endif %}
                     </td>
                     <td class="px-5 py-4 text-slate-500">{{ item.updated_at ? item.updated_at|date('Y-m-d H:i') : '—' }}</td>
@@ -47,7 +47,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="6" class="px-5 py-6 text-center text-sm text-slate-500">No downloads configured yet.</td>
+                    <td colspan="6" class="px-5 py-6 text-center text-sm text-slate-500">{{ t('admin_downloads_empty', page_locale()) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

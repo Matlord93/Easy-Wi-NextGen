@@ -1,7 +1,7 @@
 <div class="rounded-xl bg-white border border-slate-200" id="template-import">
     <div class="px-5 py-4 border-b border-slate-200">
-        <h2 class="text-lg font-semibold">Import Templates</h2>
-        <p class="text-sm text-slate-500">Paste JSON to create templates without manual entry.</p>
+        <h2 class="text-lg font-semibold">{{ t('admin_templates_import_title', page_locale()) }}</h2>
+        <p class="text-sm text-slate-500">{{ t('admin_templates_import_intro', page_locale()) }}</p>
     </div>
     <div class="p-5 space-y-4">
         {% if import.success_message is not empty %}
@@ -11,7 +11,7 @@
         {% endif %}
         {% if import.errors is not empty %}
             <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                <p class="font-semibold mb-1">Import failed:</p>
+                <p class="font-semibold mb-1">{{ t('admin_templates_import_failed', page_locale()) }}</p>
                 <ul class="list-disc list-inside space-y-1">
                     {% for error in import.errors %}
                         <li>{{ error }}</li>
@@ -26,11 +26,11 @@
             hx-swap="outerHTML"
         >
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase">Import JSON</label>
+                <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_import_label', page_locale()) }}</label>
                 <textarea name="payload" rows="8" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono" placeholder='[{"game_key":"cs2","display_name":"Counter-Strike 2","description":"...","steam_app_id":730,"required_ports":["game","query"],"start_params":"-game cs2","install_command":"...","update_command":"...","env_vars":["SERVER_NAME=My Server"],"config_files":[{"path":"game/csgo/cfg/server.cfg","description":"Default"}],"plugin_paths":["game/csgo/addons/metamod"],"fastdl_settings":{"enabled":false,"base_url":"","root_path":""},"allowed_switch_flags":["+map","+maxplayers"]}]'>{{ import.payload }}</textarea>
             </div>
-            <p class="text-xs text-slate-500">Required: game_key, display_name, required_ports (must include game), start_params, install_command, update_command.</p>
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Import Templates</button>
+            <p class="text-xs text-slate-500">{{ t('admin_templates_import_hint', page_locale()) }}</p>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_templates_import_submit', page_locale()) }}</button>
         </form>
     </div>
 </div>

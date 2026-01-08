@@ -355,12 +355,22 @@ final class InstallerService
             'migrations_paths' => [
                 'DoctrineMigrations' => $this->projectDir . '/migrations',
             ],
+            'transactional' => false,
+            'all_or_nothing' => false,
         ]);
 
         $dependencyFactory = DependencyFactory::fromEntityManager(
             $config,
             new ExistingEntityManager($entityManager),
         );
+
+        $migrationConfiguration = $dependencyFactory->getConfiguration();
+        if (method_exists($migrationConfiguration, 'setTransactional')) {
+            $migrationConfiguration->setTransactional(false);
+        }
+        if (method_exists($migrationConfiguration, 'setAllOrNothing')) {
+            $migrationConfiguration->setAllOrNothing(false);
+        }
 
         $dependencyFactory->getMetadataStorage()->ensureInitialized();
         $planCalculator = $dependencyFactory->getMigrationPlanCalculator();
@@ -369,11 +379,7 @@ final class InstallerService
         $plan = $planCalculator->getPlanUntilVersion($targetVersion);
 
         $migratorConfiguration = new MigratorConfiguration();
-        $platform = $entityManager->getConnection()->getDatabasePlatform();
-        $supportsTransactionalDdl = method_exists($platform, 'supportsTransactionalDDL')
-            ? $platform->supportsTransactionalDDL()
-            : false;
-        $migratorConfiguration->setAllOrNothing($supportsTransactionalDdl);
+        $migratorConfiguration->setAllOrNothing(false);
 
         try {
             $dependencyFactory->getMigrator()->migrate($plan, $migratorConfiguration);

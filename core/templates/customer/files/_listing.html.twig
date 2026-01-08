@@ -14,25 +14,25 @@
                 </svg>
             </span>
             <div>
-                <p class="font-semibold text-slate-700">Listing in progress</p>
-                <p class="text-xs text-slate-500">Waiting for the agent to respond.</p>
+                <p class="font-semibold text-slate-700">{{ t('customer_files_listing_in_progress', page_locale()) }}</p>
+                <p class="text-xs text-slate-500">{{ t('customer_files_listing_waiting', page_locale()) }}</p>
             </div>
         </div>
     </div>
 {% elseif status in ['failed', 'cancelled'] %}
     <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-6 text-sm text-rose-700">
-        <p class="font-semibold">Listing failed</p>
-        <p class="mt-1 text-xs text-rose-600">{{ error|default('The agent could not retrieve the listing.') }}</p>
+        <p class="font-semibold">{{ t('customer_files_listing_failed', page_locale()) }}</p>
+        <p class="mt-1 text-xs text-rose-600">{{ error|default(t('customer_files_listing_failed_default', page_locale())) }}</p>
     </div>
 {% else %}
     <div class="space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
             <div>
-                <span class="uppercase tracking-wide text-slate-400">Root</span>
+                <span class="uppercase tracking-wide text-slate-400">{{ t('customer_files_root', page_locale()) }}</span>
                 <span class="ml-2 font-medium text-slate-700">{{ rootPath|default('') }}</span>
             </div>
             <div>
-                <span class="uppercase tracking-wide text-slate-400">Path</span>
+                <span class="uppercase tracking-wide text-slate-400">{{ t('customer_files_path', page_locale()) }}</span>
                 <span class="ml-2 font-medium text-slate-700">{{ path|default('') ?: '/' }}</span>
             </div>
         </div>
@@ -40,11 +40,11 @@
             <table class="min-w-full divide-y divide-slate-200 text-sm">
                 <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                     <tr>
-                        <th class="px-4 py-3">Name</th>
-                        <th class="px-4 py-3">Type</th>
-                        <th class="px-4 py-3">Size</th>
-                        <th class="px-4 py-3">Permissions</th>
-                        <th class="px-4 py-3">Modified</th>
+                        <th class="px-4 py-3">{{ t('customer_files_table_name', page_locale()) }}</th>
+                        <th class="px-4 py-3">{{ t('customer_files_table_type', page_locale()) }}</th>
+                        <th class="px-4 py-3">{{ t('customer_files_table_size', page_locale()) }}</th>
+                        <th class="px-4 py-3">{{ t('customer_files_table_permissions', page_locale()) }}</th>
+                        <th class="px-4 py-3">{{ t('customer_files_table_modified', page_locale()) }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 bg-white">
@@ -53,7 +53,7 @@
                             <td class="px-4 py-3 font-medium text-slate-800">{{ entry.name }}</td>
                             <td class="px-4 py-3">
                                 <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {{ entry.is_dir ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' }}">
-                                    {{ entry.is_dir ? 'Directory' : 'File' }}
+                                    {{ entry.is_dir ? t('customer_files_type_directory', page_locale()) : t('customer_files_type_file', page_locale()) }}
                                 </span>
                             </td>
                             <td class="px-4 py-3 text-slate-500">{{ entry.size_human }}</td>
@@ -62,7 +62,7 @@
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">No files found.</td>
+                            <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">{{ t('customer_files_empty', page_locale()) }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

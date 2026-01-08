@@ -2,10 +2,10 @@
     <table class="min-w-full divide-y divide-slate-200 text-sm">
         <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-                <th class="px-5 py-3">Ticket</th>
-                <th class="px-5 py-3">Priority</th>
-                <th class="px-5 py-3">Status</th>
-                <th class="px-5 py-3">Last Update</th>
+                <th class="px-5 py-3">{{ t('customer_ticket_table_ticket', page_locale()) }}</th>
+                <th class="px-5 py-3">{{ t('customer_ticket_table_priority', page_locale()) }}</th>
+                <th class="px-5 py-3">{{ t('customer_ticket_table_status', page_locale()) }}</th>
+                <th class="px-5 py-3">{{ t('customer_ticket_table_last_update', page_locale()) }}</th>
                 <th class="px-5 py-3"></th>
             </tr>
         </thead>
@@ -30,12 +30,12 @@
                         {{ ticket.last_message_at|date('d.m.Y H:i') }}
                     </td>
                     <td class="px-5 py-4 text-right">
-                        <a href="/tickets/{{ ticket.id }}" class="text-indigo-600 text-sm font-semibold">Open</a>
+                        <a href="/tickets/{{ ticket.id }}" class="text-indigo-600 text-sm font-semibold">{{ t('customer_ticket_table_open', page_locale()) }}</a>
                     </td>
                 </tr>
             {% else %}
                 <tr>
-                    <td class="px-5 py-8 text-center text-sm text-slate-500" colspan="5">No tickets yet.</td>
+                    <td class="px-5 py-8 text-center text-sm text-slate-500" colspan="5">{{ t('customer_ticket_table_empty', page_locale()) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

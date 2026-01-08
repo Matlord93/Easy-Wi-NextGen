@@ -1,11 +1,11 @@
 <div class="px-5 py-4 border-b border-slate-200">
-    <h2 class="text-lg font-semibold">Create Template</h2>
-    <p class="text-sm text-slate-500">Define immutable build params for admin provisioning.</p>
+    <h2 class="text-lg font-semibold">{{ t('admin_templates_create_title', page_locale()) }}</h2>
+    <p class="text-sm text-slate-500">{{ t('admin_templates_create_intro', page_locale()) }}</p>
 </div>
 <div class="p-5 space-y-4">
     {% if form.errors is not empty %}
         <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <p class="font-semibold mb-1">Please fix the following:</p>
+            <p class="font-semibold mb-1">{{ t('admin_form_fix_following', page_locale()) }}</p>
             <ul class="list-disc list-inside space-y-1">
                 {% for error in form.errors %}
                     <li>{{ error }}</li>
@@ -20,30 +20,30 @@
         hx-swap="outerHTML"
     >
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Game Key</label>
-            <input name="game_key" value="{{ form.game_key }}" placeholder="cs2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-            <p class="mt-1 text-xs text-slate-500">Stable identifier used by agents and automation.</p>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_game_key', page_locale()) }}</label>
+            <input name="game_key" value="{{ form.game_key }}" placeholder="{{ t('admin_templates_game_key_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <p class="mt-1 text-xs text-slate-500">{{ t('admin_templates_game_key_hint', page_locale()) }}</p>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Display Name</label>
-            <input name="display_name" value="{{ form.display_name }}" placeholder="Counter-Strike 2 Dedicated Server" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_display_name', page_locale()) }}</label>
+            <input name="display_name" value="{{ form.display_name }}" placeholder="{{ t('admin_templates_display_name_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Description</label>
-            <textarea name="description" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="Short summary for admins">{{ form.description }}</textarea>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('description', page_locale()) }}</label>
+            <textarea name="description" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_description_placeholder', page_locale()) }}">{{ form.description }}</textarea>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Steam App ID</label>
-            <input name="steam_app_id" value="{{ form.steam_app_id }}" placeholder="730" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-            <p class="mt-1 text-xs text-slate-500">Optional, used for SteamCMD installs.</p>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_steam_app_id', page_locale()) }}</label>
+            <input name="steam_app_id" value="{{ form.steam_app_id }}" placeholder="{{ t('admin_templates_steam_app_id_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <p class="mt-1 text-xs text-slate-500">{{ t('admin_templates_steam_app_id_hint', page_locale()) }}</p>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Sniper Profile</label>
-            <input name="sniper_profile" value="{{ form.sniper_profile }}" placeholder="steam" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-            <p class="mt-1 text-xs text-slate-500">Optional build profile for the Sniper provider.</p>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_sniper_profile', page_locale()) }}</label>
+            <input name="sniper_profile" value="{{ form.sniper_profile }}" placeholder="{{ t('admin_templates_sniper_profile_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <p class="mt-1 text-xs text-slate-500">{{ t('admin_templates_sniper_profile_hint', page_locale()) }}</p>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Required Ports</label>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_required_ports', page_locale()) }}</label>
             {% set selected_ports = form.required_ports is iterable ? form.required_ports : [] %}
             <div class="mt-2 grid grid-cols-2 gap-2 text-sm text-slate-600">
                 {% for port in ['game', 'query', 'rcon', 'tv'] %}
@@ -53,66 +53,66 @@
                     </label>
                 {% endfor %}
             </div>
-            <p class="mt-1 text-xs text-slate-500">Game port is required; other ports are optional.</p>
+            <p class="mt-1 text-xs text-slate-500">{{ t('admin_templates_ports_hint', page_locale()) }}</p>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Fixed Start Params</label>
-            <textarea name="start_params" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="-game cs2 -tickrate 128">{{ form.start_params }}</textarea>
-            <p class="mt-1 text-xs text-slate-500">Immutable command args enforced by the agent.</p>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_fixed_start_params', page_locale()) }}</label>
+            <textarea name="start_params" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_fixed_start_params_placeholder', page_locale()) }}">{{ form.start_params }}</textarea>
+            <p class="mt-1 text-xs text-slate-500">{{ t('admin_templates_fixed_start_params_hint', page_locale()) }}</p>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Environment Vars (one per line)</label>
-            <textarea name="env_vars" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="SERVER_NAME=My Server">{{ form.env_vars }}</textarea>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_env_vars', page_locale()) }}</label>
+            <textarea name="env_vars" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_env_vars_placeholder', page_locale()) }}">{{ form.env_vars }}</textarea>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Config Files (path | description)</label>
-            <textarea name="config_files" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="game/csgo/cfg/server.cfg | Default server.cfg">{{ form.config_files }}</textarea>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_config_files', page_locale()) }}</label>
+            <textarea name="config_files" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_config_files_placeholder', page_locale()) }}">{{ form.config_files }}</textarea>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Plugin Paths (one per line)</label>
-            <textarea name="plugin_paths" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="game/csgo/addons/metamod">{{ form.plugin_paths }}</textarea>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_plugin_paths', page_locale()) }}</label>
+            <textarea name="plugin_paths" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_plugin_paths_placeholder', page_locale()) }}">{{ form.plugin_paths }}</textarea>
         </div>
         <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <div class="flex items-center justify-between">
-                <label class="text-xs font-semibold text-slate-500 uppercase">FastDL Settings</label>
+                <label class="text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_fastdl_settings', page_locale()) }}</label>
                 <label class="flex items-center gap-2 text-xs font-medium text-slate-600">
                     <input type="checkbox" name="fastdl_enabled" value="1" {% if form.fastdl_enabled %}checked{% endif %} class="rounded border-slate-300 text-indigo-600">
-                    Enabled
+                    {{ t('admin_status_enabled', page_locale()) }}
                 </label>
             </div>
             <div class="mt-3 space-y-2">
-                <input name="fastdl_base_url" value="{{ form.fastdl_base_url }}" placeholder="https://fastdl.example.com" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                <input name="fastdl_root_path" value="{{ form.fastdl_root_path }}" placeholder="/srv/fastdl" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <input name="fastdl_base_url" value="{{ form.fastdl_base_url }}" placeholder="{{ t('admin_templates_fastdl_base_url_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <input name="fastdl_root_path" value="{{ form.fastdl_root_path }}" placeholder="{{ t('admin_templates_fastdl_root_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
             </div>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Install Command</label>
-            <textarea name="install_command" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="steamcmd +login anonymous +force_install_dir /srv/gs +app_update 740 validate +quit">{{ form.install_command }}</textarea>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_install_command', page_locale()) }}</label>
+            <textarea name="install_command" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_install_command_placeholder', page_locale()) }}">{{ form.install_command }}</textarea>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Update Command</label>
-            <textarea name="update_command" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="steamcmd +login anonymous +force_install_dir /srv/gs +app_update 740 +quit">{{ form.update_command }}</textarea>
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_update_command', page_locale()) }}</label>
+            <textarea name="update_command" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_update_command_placeholder', page_locale()) }}">{{ form.update_command }}</textarea>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">Allowed Game Switch Flags (comma separated)</label>
-            <input name="allowed_switch_flags" value="{{ form.allowed_switch_flags }}" placeholder="+map,+maxplayers" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_templates_switch_flags', page_locale()) }}</label>
+            <input name="allowed_switch_flags" value="{{ form.allowed_switch_flags }}" placeholder="{{ t('admin_templates_switch_flags_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
         </div>
         <div class="flex flex-wrap items-center gap-3">
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Create Template</button>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_templates_create_submit', page_locale()) }}</button>
             <button
                 type="button"
                 class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600"
                 hx-get="/admin/templates/form"
                 hx-target="#template-form"
                 hx-swap="outerHTML"
-            >Reset</button>
+            >{{ t('reset', page_locale()) }}</button>
             <button
                 type="button"
                 class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700"
                 hx-post="/admin/templates/preview"
                 hx-target="#template-preview"
                 hx-include="closest form"
-            >Preview & Dry Run</button>
+            >{{ t('admin_templates_preview_dry_run', page_locale()) }}</button>
         </div>
     </form>
 </div>

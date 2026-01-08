@@ -16,6 +16,11 @@ final class Version20250220100000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        if (!$schema->hasTable('invoices')) {
+            $this->addSql('CREATE TABLE invoices (id INT AUTO_INCREMENT NOT NULL, customer_id INT NOT NULL, number VARCHAR(40) NOT NULL, status VARCHAR(20) NOT NULL, currency VARCHAR(3) NOT NULL, amount_total_cents INT NOT NULL, amount_due_cents INT NOT NULL, due_date DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', paid_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_invoices_customer_id (customer_id), INDEX idx_invoices_status (status), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $this->addSql('ALTER TABLE invoices ADD CONSTRAINT FK_INVOICES_CUSTOMER FOREIGN KEY (customer_id) REFERENCES users (id)');
+        }
+
         $this->addSql('CREATE TABLE credit_notes (id INT AUTO_INCREMENT NOT NULL, invoice_id INT NOT NULL, number VARCHAR(40) NOT NULL, status VARCHAR(20) NOT NULL, currency VARCHAR(3) NOT NULL, amount_cents INT NOT NULL, reason VARCHAR(255) DEFAULT NULL, issued_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_credit_notes_invoice_id (invoice_id), INDEX idx_credit_notes_status (status), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
         $this->addSql('ALTER TABLE credit_notes ADD CONSTRAINT FK_CREDIT_NOTES_INVOICE FOREIGN KEY (invoice_id) REFERENCES invoices (id)');
     }

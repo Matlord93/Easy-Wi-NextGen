@@ -10,12 +10,12 @@
     <table class="min-w-full text-sm">
         <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
         <tr>
-            <th class="px-5 py-3 text-left font-medium">Job ID</th>
-            <th class="px-5 py-3 text-left font-medium">Type</th>
-            <th class="px-5 py-3 text-left font-medium">Status</th>
-            <th class="px-5 py-3 text-left font-medium">Locked By</th>
-            <th class="px-5 py-3 text-left font-medium">Created</th>
-            <th class="px-5 py-3 text-right font-medium">Actions</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('admin_jobs_table_id', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('type', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('status', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('admin_jobs_table_locked_by', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('created', page_locale()) }}</th>
+            <th class="px-5 py-3 text-right font-medium">{{ t('actions', page_locale()) }}</th>
         </tr>
         </thead>
         <tbody class="divide-y divide-slate-200">
@@ -34,17 +34,17 @@
                         <div class="text-sm font-medium text-slate-700">{{ job.lockedBy }}</div>
                         <div class="text-xs text-slate-400">{{ job.lockedAt ? job.lockedAt|date('Y-m-d H:i') : '' }}</div>
                     {% else %}
-                        <span class="text-xs text-slate-400">Unassigned</span>
+                        <span class="text-xs text-slate-400">{{ t('admin_jobs_unassigned', page_locale()) }}</span>
                     {% endif %}
                 </td>
                 <td class="px-5 py-4 text-slate-500">{{ job.createdAt|date('Y-m-d H:i') }}</td>
                 <td class="px-5 py-4 text-right">
-                    <a class="text-xs font-semibold text-indigo-600 hover:text-indigo-500" href="/admin/jobs/{{ job.id }}">View</a>
+                    <a class="text-xs font-semibold text-indigo-600 hover:text-indigo-500" href="/admin/jobs/{{ job.id }}">{{ t('view', page_locale()) }}</a>
                 </td>
             </tr>
         {% else %}
             <tr>
-                <td colspan="6" class="px-5 py-8 text-center text-slate-400">No jobs available yet.</td>
+                <td colspan="6" class="px-5 py-8 text-center text-slate-400">{{ t('admin_jobs_empty', page_locale()) }}</td>
             </tr>
         {% endfor %}
         </tbody>

@@ -5,8 +5,8 @@
 {% block content %}
 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
     <div>
-        <h1 class="text-2xl font-semibold">Your Tickets</h1>
-        <p class="text-sm text-slate-500">Track responses and updates from the support team.</p>
+        <h1 class="text-2xl font-semibold">{{ t('customer_tickets_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-500">{{ t('customer_tickets_intro', page_locale()) }}</p>
     </div>
     <div class="flex items-center gap-3">
         <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
@@ -17,25 +17,25 @@
             hx-get="/tickets/table"
             hx-target="#tickets-table"
             hx-swap="outerHTML"
-        >Refresh</button>
+        >{{ t('refresh', page_locale()) }}</button>
     </div>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Total Tickets</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('customer_tickets_total', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Open</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('customer_tickets_open', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.open }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Pending</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('customer_tickets_pending', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.pending }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Resolved</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('customer_tickets_resolved', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.resolved }}</p>
     </div>
 </div>
@@ -44,15 +44,15 @@
     <div class="rounded-xl bg-white border border-slate-200">
         <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
             <div>
-                <h2 class="text-lg font-semibold">Ticket List</h2>
-                <p class="text-sm text-slate-500">See recent conversations and status.</p>
+                <h2 class="text-lg font-semibold">{{ t('customer_tickets_list_title', page_locale()) }}</h2>
+                <p class="text-sm text-slate-500">{{ t('customer_tickets_list_intro', page_locale()) }}</p>
             </div>
             <button
                 class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
                 hx-get="/tickets/table"
                 hx-target="#tickets-table"
                 hx-swap="outerHTML"
-            >Refresh</button>
+            >{{ t('refresh', page_locale()) }}</button>
         </div>
         <div id="tickets-table" hx-get="/tickets/table" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
             {% include 'customer/tickets/_table.html.twig' with { tickets: tickets, statusStyles: statusStyles, priorityStyles: priorityStyles } %}
