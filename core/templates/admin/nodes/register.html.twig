@@ -1,0 +1,86 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Register Node · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Register Node</h1>
+        <p class="text-sm text-slate-500">Generate agent credentials and a ready-to-use config file.</p>
+    </div>
+    <a href="/admin/nodes" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">Back to Nodes</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 class="text-lg font-semibold text-slate-900">Agent Details</h2>
+        <p class="mt-1 text-sm text-slate-500">Define the node identifier that the agent will use when connecting.</p>
+
+        {% if form.errors is not empty %}
+            <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <ul class="list-disc pl-5">
+                    {% for error in form.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        <form method="post" class="mt-4 space-y-4">
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="agent_id">Agent ID</label>
+                <input
+                    id="agent_id"
+                    name="agent_id"
+                    type="text"
+                    value="{{ form.agent_id }}"
+                    placeholder="node-eu-01"
+                    class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                >
+                <p class="mt-1 text-xs text-slate-500">Leave empty to auto-generate an ID.</p>
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="name">Display name (optional)</label>
+                <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    value="{{ form.name }}"
+                    placeholder="Web Node Frankfurt"
+                    class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                >
+            </div>
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Create Agent</button>
+        </form>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 class="text-lg font-semibold text-slate-900">Agent Config</h2>
+        <p class="mt-1 text-sm text-slate-500">Copy this file to the server and start the agent process.</p>
+
+        {% if config %}
+            <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                Agent {{ config.agent_id }} was registered. Store the secret securely; it is shown only once.
+            </div>
+            <div class="mt-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">/etc/easywi/agent.conf</p>
+                <pre class="mt-2 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-900 px-4 py-3 text-xs text-slate-100">
+agent_id={{ config.agent_id }}
+secret={{ config.secret }}
+api_url={{ config.api_url }}
+heartbeat_interval=60s
+poll_interval=30s
+</pre>
+            </div>
+            <div class="mt-4 text-sm text-slate-600">
+                <p class="font-semibold text-slate-700">Start the agent</p>
+                <pre class="mt-2 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">./easywi-agent -config /etc/easywi/agent.conf</pre>
+            </div>
+        {% else %}
+            <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                The config file will appear here after you create the agent.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

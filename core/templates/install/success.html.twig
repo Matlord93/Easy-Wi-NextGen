@@ -1,0 +1,20 @@
+{% extends 'install/base.html.twig' %}
+{% trans_default_domain 'installer' %}
+
+{% block title %}{{ 'success.title'|trans }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<meta http-equiv="refresh" content="5;url={{ loginUrl }}">
+<div class="mx-auto max-w-4xl space-y-6">
+    {% include 'install/_language_switcher.html.twig' with { step: step } %}
+
+    <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-5 text-emerald-800">
+        <h2 class="text-lg font-semibold">{{ 'success.title'|trans }}</h2>
+        <p class="mt-2 text-sm">{{ 'success.lead'|trans }}</p>
+        <p class="mt-4 text-sm">{{ 'success.redirect_notice'|trans }}</p>
+        <a href="{{ loginUrl }}" class="mt-4 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500">
+            {{ 'success.login_link'|trans }}
+        </a>
+    </div>
+</div>
+{% endblock %}

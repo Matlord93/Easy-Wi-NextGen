@@ -1,0 +1,133 @@
+wizard:
+  title: "Installation Wizard"
+  subtitle: "Follow the steps to set up your Easy-Wi instance."
+
+language:
+  label: "Language"
+  de: "Deutsch"
+  en: "English"
+
+step1:
+  title: "Welcome"
+  lead: "This installer will configure your application and prepare the database."
+  points:
+    write_config: "Writes DATABASE_URL into .env.local."
+    run_migrations: "Runs Doctrine migrations to set up the database schema."
+    create_admin: "Creates the first admin account and the default site entry."
+    write_lock: "Writes var/install.lock to disable the installer after completion."
+    extensions: "Cannot install PHP extensions for you; enable them in Plesk if missing."
+    privileges: "Database user needs CREATE, ALTER, and INDEX privileges."
+    root_not_required: "Root database access is not required."
+    disable_installer: "After success, /install will be blocked."
+
+step2:
+  title: "System Requirements"
+  lead: "Verify that PHP and filesystem requirements are satisfied."
+
+requirements:
+  title: "Checks"
+  ok: "OK"
+  failed: "Missing"
+  optional: "Optional"
+  php_version: "PHP version %current% (minimum %required%)"
+  extension: "PHP extension: %extension%"
+  extension_optional: "PHP extension (optional): %extension%"
+  writable: "Writable path: %path%"
+  env_local: "Writable configuration target: %path%"
+  loaded_extensions: "Loaded PHP extensions"
+  php_version_detected: "Detected PHP version: %version%"
+  no_extensions: "No extensions detected."
+
+hints:
+  update_php: "Update your PHP version in Plesk → PHP Settings."
+  enable_extension: "Enable %extension% in Plesk → PHP Extensions."
+  writable_var: "Grant write access to var/ (e.g. chmod 775 var/ or adjust ownership)."
+  writable_cache: "Grant write access to var/cache/ (e.g. chmod 775 var/cache/ or adjust ownership)."
+  writable_env: "Ensure the webserver user can write %path% (adjust permissions or ownership)."
+
+step3:
+  title: "Database Configuration"
+  lead: "Provide database credentials and verify connectivity."
+
+database:
+  driver: "Database driver"
+  mysql: "MariaDB / MySQL"
+  sqlite: "SQLite"
+  name: "Database name"
+  name_placeholder: "easywi"
+  host: "Host"
+  host_placeholder: "127.0.0.1"
+  port: "Port"
+  port_placeholder: "3306"
+  user: "Username"
+  user_placeholder: "dbuser"
+  password: "Password"
+  password_placeholder: "Leave empty to keep current"
+  password_stored_hint: "A password is stored from a previous step. Leave this blank to keep it."
+  path: "SQLite file path"
+  path_placeholder: "/var/www/vhosts/example.com/httpdocs/var/data.db"
+  path_help: "Use an absolute path inside your hosting directory."
+  host_hint: "Tip: use 127.0.0.1 instead of localhost for best compatibility."
+  sqlite_hint: "SQLite stores data in a local file instead of a server."
+
+messages:
+  db_connection_success: "Database connection successful."
+  db_privileges_success: "Database privileges look good."
+  db_version: "Detected database version: %version%"
+
+errors:
+  requirements_not_met: "Please fix the missing requirements before continuing."
+  db_driver_invalid: "Select a supported database driver."
+  missing_extension: "The required PHP extension %extension% is not available."
+  db_missing_fields: "Please fill in host, database name, and username."
+  db_connection_failed: "Database connection failed. Please verify the credentials and host."
+  db_privileges_failed: "Database privilege test failed. Ensure CREATE, ALTER, and INDEX rights."
+  sqlite_path_required: "Provide a SQLite database path."
+  sqlite_file_not_writable: "SQLite database file is not writable."
+  sqlite_directory_missing: "SQLite directory does not exist."
+  sqlite_directory_not_writable: "SQLite directory is not writable."
+  sqlite_file_create_failed: "SQLite database file could not be created."
+  site_required: "Site name and host are required."
+  email_invalid: "Enter a valid admin email address."
+  password_length: "Admin password must be at least 8 characters long."
+  password_mismatch: "Admin passwords do not match."
+  install_failed: "Installation failed. Check logs for details and try again."
+
+step4:
+  title: "Application Setup"
+  lead: "Create the initial site settings and admin user."
+
+app:
+  site_section: "Site settings"
+  site_name: "Site name"
+  site_name_placeholder: "Easy-Wi"
+  site_host: "Site host"
+  site_host_placeholder: "example.com"
+  site_host_hint: "Use the domain you will access in the browser."
+  admin_section: "Admin account"
+  admin_email: "Admin email"
+  admin_email_placeholder: "admin@example.com"
+  admin_password: "Admin password"
+  admin_password_confirm: "Confirm password"
+  password_min: "Minimum 8 characters"
+  password_confirm_placeholder: "Repeat the password"
+
+actions:
+  continue: "Continue"
+  recheck: "Re-check"
+  back: "Back"
+  test_connection: "Test connection"
+  test_privileges: "Test privileges"
+  install: "Install"
+  download_debug: "Download debug report"
+
+success:
+  title: "Installation complete"
+  lead: "Your database has been prepared and the admin account was created."
+  redirect_notice: "You will be redirected to the login page shortly."
+  login_link: "Go to login"
+
+already_installed:
+  title: "Already installed"
+  lead: "This application has already been installed. The installer is disabled."
+  login_link: "Go to login"

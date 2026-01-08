@@ -379,7 +379,7 @@ final class Version20250221100000 extends AbstractMigration
 
     private function isSqlite(): bool
     {
-        return $this->connection->getDatabasePlatform()->getName() === 'sqlite';
+        return $this->connection->getDatabasePlatform() instanceof \Doctrine\DBAL\Platforms\SQLitePlatform;
     }
 
     private function currentTimestampExpression(): string

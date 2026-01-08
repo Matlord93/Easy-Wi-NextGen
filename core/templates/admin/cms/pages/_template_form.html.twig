@@ -63,7 +63,7 @@
                 </div>
                 <div class="mt-3 text-xs text-slate-500">
                     <span class="font-semibold text-slate-600">{{ t('cms_template_pages_included', page_locale()) }}</span>
-                    <span>{{ template.pages|map(attribute='title')|join(', ') }}</span>
+                    <span>{{ template.pages|map(page => page.title)|join(', ') }}</span>
                 </div>
             </div>
         {% endfor %}

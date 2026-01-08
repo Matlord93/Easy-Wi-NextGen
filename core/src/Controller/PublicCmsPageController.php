@@ -27,6 +27,15 @@ final class PublicCmsPageController
     }
 
     #[Route(path: '/pages/{slug}', name: 'public_cms_page', methods: ['GET'])]
+    #[Route(
+        path: '/{slug}',
+        name: 'public_cms_page_slug',
+        methods: ['GET'],
+        requirements: [
+            'slug' => '(?!admin|api|pages|docs|status|servers|downloads|register|login|install|changelog|notifications|files|dashboard|instances|databases|tickets|activity|profile|gdpr|agent|reseller)([a-z0-9-]+)',
+        ],
+        priority: -10
+    )]
     public function show(Request $request, string $slug): Response
     {
         $site = $this->siteResolver->resolve($request);

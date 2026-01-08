@@ -11,6 +11,7 @@ use App\Repository\AgentRepository;
 use App\Repository\JobRepository;
 use App\Service\AgentReleaseChecker;
 use App\Service\AuditLogger;
+use App\Service\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -29,6 +30,7 @@ final class AdminNodeController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly AgentReleaseChecker $releaseChecker,
+        private readonly EncryptionService $encryptionService,
     ) {
     }
 
@@ -50,6 +52,89 @@ final class AdminNodeController
             'roleOptions' => self::ROLE_OPTIONS,
             'updateChannel' => $this->releaseChecker->getChannel(),
             'activeNav' => 'nodes',
+        ]));
+    }
+
+    #[Route(path: '/register', name: 'admin_nodes_register', methods: ['GET'])]
+    public function registerForm(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response($this->twig->render('admin/nodes/register.html.twig', [
+            'activeNav' => 'nodes',
+            'form' => [
+                'agent_id' => '',
+                'name' => '',
+                'errors' => [],
+            ],
+            'config' => null,
+        ]));
+    }
+
+    #[Route(path: '/register', name: 'admin_nodes_register_create', methods: ['POST'])]
+    public function register(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $agentId = trim((string) $request->request->get('agent_id', ''));
+        $name = trim((string) $request->request->get('name', ''));
+        $errors = [];
+
+        if ($agentId === '') {
+            $agentId = sprintf('node-%s', bin2hex(random_bytes(4)));
+        }
+
+        if (mb_strlen($agentId) > 64) {
+            $errors[] = 'Agent ID must be 64 characters or less.';
+        }
+
+        if ($this->agentRepository->find($agentId) !== null) {
+            $errors[] = 'Agent ID is already registered.';
+        }
+
+        if ($errors !== []) {
+            return new Response($this->twig->render('admin/nodes/register.html.twig', [
+                'activeNav' => 'nodes',
+                'form' => [
+                    'agent_id' => $agentId,
+                    'name' => $name,
+                    'errors' => $errors,
+                ],
+                'config' => null,
+            ]), Response::HTTP_BAD_REQUEST);
+        }
+
+        $secret = bin2hex(random_bytes(32));
+        $secretPayload = $this->encryptionService->encrypt($secret);
+
+        $agent = new \App\Entity\Agent($agentId, $secretPayload, $name !== '' ? $name : null);
+        $this->entityManager->persist($agent);
+        $this->auditLogger->log($actor, 'node.registered', [
+            'agent_id' => $agentId,
+            'name' => $name !== '' ? $name : null,
+        ]);
+        $this->entityManager->flush();
+
+        $apiUrl = $request->getSchemeAndHttpHost();
+
+        return new Response($this->twig->render('admin/nodes/register.html.twig', [
+            'activeNav' => 'nodes',
+            'form' => [
+                'agent_id' => '',
+                'name' => '',
+                'errors' => [],
+            ],
+            'config' => [
+                'agent_id' => $agentId,
+                'name' => $name !== '' ? $name : null,
+                'secret' => $secret,
+                'api_url' => $apiUrl,
+            ],
         ]));
     }
 

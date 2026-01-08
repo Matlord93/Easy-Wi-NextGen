@@ -71,7 +71,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
     {
         return str_starts_with($path, '/api/auth/')
             || $path === '/'
-            || $path === '/install'
+            || str_starts_with($path, '/install')
             || $path === '/login'
             || $path === '/register'
             || $path === '/status'

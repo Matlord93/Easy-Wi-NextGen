@@ -1,0 +1,90 @@
+[
+  {
+    "template_game_key": "minecraft_java",
+    "name": "EssentialsX",
+    "version": "2.20.1",
+    "checksum": "sha256:3f1a4a7991e2457c8b5e5a7b5b3f0e59a2f266f2fd5a1d7f6b82bbf83cb5e6c2",
+    "download_url": "https://github.com/EssentialsX/Essentials/releases/download/2.20.1/EssentialsX-2.20.1.jar",
+    "description": "Core commands and moderation suite."
+  },
+  {
+    "template_game_key": "minecraft_java",
+    "name": "ViaVersion",
+    "version": "5.0.0",
+    "checksum": "sha256:2c3f1b6c6c8e4c7e3c1d6d5c8b9c7e7f7e0a2f3b4c5d6e7f8a9b0c1d2e3f4a5",
+    "download_url": "https://github.com/ViaVersion/ViaVersion/releases/download/5.0.0/ViaVersion-5.0.0.jar",
+    "description": "Protocol compatibility layer for mixed client versions."
+  },
+  {
+    "template_game_key": "minecraft_java",
+    "name": "LuckPerms",
+    "version": "5.4.138",
+    "checksum": "sha256:0fdc75f2603c9b975a5e1f9bfe1b6d2e1c0e43e2a4efb0d4c39d296f04a5e1d8",
+    "download_url": "https://github.com/LuckPerms/LuckPerms/releases/download/v5.4.138/LuckPerms-Bukkit-5.4.138.jar",
+    "description": "Permissions management plugin."
+  },
+  {
+    "template_game_key": "minecraft_java",
+    "name": "PlaceholderAPI",
+    "version": "2.11.6",
+    "checksum": "sha256:4d1c2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1",
+    "download_url": "https://github.com/PlaceholderAPI/PlaceholderAPI/releases/download/2.11.6/PlaceholderAPI-2.11.6.jar",
+    "description": "Placeholder support for chat and scoreboards."
+  },
+  {
+    "template_game_key": "minecraft_java",
+    "name": "WorldEdit",
+    "version": "7.3.4",
+    "checksum": "sha256:fbfc2c2a1f2f2a2d8b2e1846b3f6e0e6b8f2c6245a2f3c6a394e228bc41a786a",
+    "download_url": "https://github.com/EngineHub/WorldEdit/releases/download/7.3.4/worldedit-bukkit-7.3.4.jar",
+    "description": "In-game map editor and builder tools."
+  },
+  {
+    "template_game_key": "minecraft_java",
+    "name": "Vault",
+    "version": "1.7.3",
+    "checksum": "sha256:8f6b8b7bcd1fd6b2d9f9a16d637e9a3b61abdb928f8d410911a8b905c71e7021",
+    "download_url": "https://github.com/MilkBowl/Vault/releases/download/1.7.3/Vault.jar",
+    "description": "Economy and permissions bridge."
+  },
+  {
+    "template_game_key": "minecraft_java",
+    "name": "Geyser",
+    "version": "2.4.1",
+    "checksum": "sha256:8f0e1d2c3b4a59687766554433221100ffeeddccbbaa99887766554433221100",
+    "download_url": "https://github.com/GeyserMC/Geyser/releases/download/v2.4.1/Geyser-Spigot.jar",
+    "description": "Allow Bedrock clients to join Java servers."
+  },
+  {
+    "template_game_key": "minecraft_java",
+    "name": "Floodgate",
+    "version": "2.2.3",
+    "checksum": "sha256:1a2b3c4d5e6f7081928374655647382910ffeeddccbbaa998877665544332211",
+    "download_url": "https://github.com/GeyserMC/Floodgate/releases/download/v2.2.3/Floodgate-Spigot.jar",
+    "description": "Authentication bridge for Geyser Bedrock players."
+  },
+  {
+    "template_game_key": "cs2",
+    "name": "MetaMod:Source",
+    "version": "2.0.0",
+    "checksum": "sha256:2157a4a2a7a5b93e1d3e9c0a12a0b0b3f6b5f4d6f4e81375a944f9b6132f9b23",
+    "download_url": "https://mms.alliedmods.net/mmsdrop/2.0/mmsource-2.0.0-git1247-linux.tar.gz",
+    "description": "Core plugin loader for Source-based servers."
+  },
+  {
+    "template_game_key": "cs2",
+    "name": "CounterStrikeSharp",
+    "version": "1.0.197",
+    "checksum": "sha256:3c0a47f2e904d06a6ce7f2ad6a4c2969a9b76f513f3f067d09c8b4b9b9d7a14e",
+    "download_url": "https://github.com/roflmuffin/CounterStrikeSharp/releases/download/v1.0.197/counterstrikesharp-linux.zip",
+    "description": "Managed plugin framework for CS2."
+  },
+  {
+    "template_game_key": "rust",
+    "name": "uMod (Oxide)",
+    "version": "2.0.6334",
+    "checksum": "sha256:7b6f2c7b81e7a4c6f4868f0b2f3eb8d1a1b9c2b1c9d1a0d5a3e5f9b2e1c7f3a4",
+    "download_url": "https://umod.org/games/rust/download/develop",
+    "description": "Modding framework for Rust servers."
+  }
+]

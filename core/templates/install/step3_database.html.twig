@@ -1,0 +1,108 @@
+{% extends 'install/base.html.twig' %}
+{% trans_default_domain 'installer' %}
+
+{% block title %}{{ 'step3.title'|trans }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl space-y-6">
+    {% include 'install/_language_switcher.html.twig' with { step: step } %}
+    {% include 'install/_messages.html.twig' with { errors: errors, success: success } %}
+
+    <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+        <h2 class="text-lg font-semibold text-slate-900">{{ 'step3.title'|trans }}</h2>
+        <p class="mt-2 text-sm text-slate-600">{{ 'step3.lead'|trans }}</p>
+    </div>
+
+    <form method="post" action="{{ path('public_install', {'step': step}) }}" class="space-y-6">
+        <input type="hidden" name="step" value="{{ step }}">
+
+        <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="db_driver">{{ 'database.driver'|trans }}</label>
+                    <select id="db_driver" name="db_driver" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <option value="mysql" {% if database.driver == 'mysql' %}selected{% endif %}>{{ 'database.mysql'|trans }}</option>
+                        <option value="sqlite" {% if database.driver == 'sqlite' %}selected{% endif %}>{{ 'database.sqlite'|trans }}</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="db_name">{{ 'database.name'|trans }}</label>
+                    <input id="db_name" name="db_name" type="text" value="{{ database.name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.name_placeholder'|trans }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white px-6 py-5" data-driver-section="mysql">
+            <h3 class="text-sm font-semibold text-slate-900">{{ 'database.mysql'|trans }}</h3>
+            <p class="mt-2 text-sm text-slate-600">{{ 'database.host_hint'|trans }}</p>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="db_host">{{ 'database.host'|trans }}</label>
+                    <input id="db_host" name="db_host" type="text" value="{{ database.host }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.host_placeholder'|trans }}">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="db_port">{{ 'database.port'|trans }}</label>
+                    <input id="db_port" name="db_port" type="text" value="{{ database.port }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.port_placeholder'|trans }}">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="db_user">{{ 'database.user'|trans }}</label>
+                    <input id="db_user" name="db_user" type="text" value="{{ database.user }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.user_placeholder'|trans }}">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="db_password">{{ 'database.password'|trans }}</label>
+                    <input id="db_password" name="db_password" type="password" value="" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.password_placeholder'|trans }}">
+                    {% if hasStoredPassword %}
+                        <p class="mt-1 text-xs text-slate-500">{{ 'database.password_stored_hint'|trans }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white px-6 py-5" data-driver-section="sqlite">
+            <h3 class="text-sm font-semibold text-slate-900">{{ 'database.sqlite'|trans }}</h3>
+            <p class="mt-2 text-sm text-slate-600">{{ 'database.sqlite_hint'|trans }}</p>
+            <div class="mt-4">
+                <label class="text-sm font-medium text-slate-700" for="db_path">{{ 'database.path'|trans }}</label>
+                <input id="db_path" name="db_path" type="text" value="{{ database.path }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.path_placeholder'|trans }}">
+                <p class="mt-1 text-xs text-slate-500">{{ 'database.path_help'|trans }}</p>
+            </div>
+        </div>
+
+        {% if dbVersion %}
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm text-emerald-700">
+                {{ 'messages.db_version'|trans({'%version%': dbVersion}) }}
+            </div>
+        {% endif %}
+
+        <div class="flex flex-wrap gap-3">
+            <button type="submit" name="action" value="back" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
+                {{ 'actions.back'|trans }}
+            </button>
+            <button type="submit" name="action" value="test_connection" class="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100">
+                {{ 'actions.test_connection'|trans }}
+            </button>
+            <button type="submit" name="action" value="test_privileges" class="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100">
+                {{ 'actions.test_privileges'|trans }}
+            </button>
+            <button type="submit" name="action" value="continue" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
+                {{ 'actions.continue'|trans }}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    const driverSelect = document.getElementById('db_driver');
+    const sections = document.querySelectorAll('[data-driver-section]');
+
+    const toggleSections = () => {
+        const selected = driverSelect.value;
+        sections.forEach((section) => {
+            section.style.display = section.dataset.driverSection === selected ? 'block' : 'none';
+        });
+    };
+
+    driverSelect.addEventListener('change', toggleSections);
+    toggleSections();
+</script>
+{% endblock %}

@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -109,6 +111,10 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleDomainSSLIssue(job)
 	case "mail.domain.create":
 		return handleMailDomainCreate(job)
+	case "database.create":
+		return handleDatabaseCreate(job)
+	case "database.password.reset":
+		return handleDatabasePasswordReset(job)
 	case "mail.alias.create":
 		return handleMailAliasCreate(job)
 	case "mail.alias.update":
@@ -197,6 +203,8 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleTs3LogsExport(job)
 	case "gdpr.anonymize_user":
 		return handleGdprAnonymizeUser(job)
+	case "server.status.check":
+		return handleServerStatusCheck(job)
 	default:
 		return jobs.Result{
 			JobID:     job.ID,
@@ -247,11 +255,34 @@ func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 	}
 }
 
-func payloadValue(payload map[string]string, keys ...string) string {
+func payloadValue(payload map[string]any, keys ...string) string {
 	for _, key := range keys {
-		if value := payload[key]; value != "" {
-			return value
+		if value, ok := payload[key]; ok {
+			if stringValue := payloadString(value); stringValue != "" {
+				return stringValue
+			}
 		}
 	}
 	return ""
+}
+
+func payloadString(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return typed
+	case []byte:
+		return string(typed)
+	case fmt.Stringer:
+		return typed.String()
+	case float64, float32, int, int64, int32, uint, uint64, uint32, bool:
+		return fmt.Sprint(typed)
+	default:
+		encoded, err := json.Marshal(typed)
+		if err != nil {
+			return ""
+		}
+		return string(encoded)
+	}
 }

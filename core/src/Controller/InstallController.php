@@ -4,26 +4,19 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Entity\Site;
-use App\Entity\User;
-use App\Enum\UserType;
-use Doctrine\DBAL\DriverManager;
+use App\Service\Installer\InstallerService;
 use Doctrine\DBAL\Exception as DbalException;
-use Doctrine\ORM\EntityManager;
-use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Tools\SchemaTool;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
 final class InstallController
 {
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
-        private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly InstallerService $installerService,
         private readonly Environment $twig,
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
@@ -33,320 +26,309 @@ final class InstallController
     #[Route(path: '/install', name: 'public_install', methods: ['GET', 'POST'])]
     public function install(Request $request): Response
     {
+        $this->installerService->resolveInstallerLocale($request);
+
+        if ($this->installerService->isLocked()) {
+            return new Response($this->twig->render('install/already_installed.html.twig', [
+                'step' => 1,
+                'loginUrl' => '/login?lang=' . $request->getLocale(),
+            ]), Response::HTTP_FORBIDDEN);
+        }
+
+        $state = $this->installerService->readState();
+        $stepParam = $request->query->get('step');
+        $step = max(1, min(4, (int) ($stepParam ?? 1)));
         $errors = [];
         $success = [];
-        $completed = false;
-        $status = Response::HTTP_OK;
-        $hasAdmin = $this->hasAdminUser();
-        $step = max(1, min(3, (int) $request->query->get('step', 1)));
+        $dbVersion = $state['database']['version'] ?? null;
+        $requirements = $this->installerService->checkRequirements();
+        $requirementsOk = $this->installerService->requirementsSatisfied($requirements);
+        $debugAvailable = file_exists($this->installerService->getDebugReportPath());
 
-        $form = [
-            'db_driver' => 'mysql',
-            'db_host' => '127.0.0.1',
-            'db_port' => '3306',
-            'db_name' => 'easywi',
-            'db_user' => '',
-            'db_password' => '',
-            'db_path' => $this->projectDir . '/var/data.db',
+        $databaseDefaults = [
+            'driver' => 'mysql',
+            'host' => '127.0.0.1',
+            'port' => '3306',
+            'name' => 'easywi',
+            'user' => '',
+            'password' => '',
+            'path' => $this->projectDir . '/var/data.db',
+        ];
+        $applicationDefaults = [
             'site_name' => 'Default Site',
             'site_host' => $request->getHost() ?: 'localhost',
             'admin_email' => '',
         ];
 
+        $databaseState = array_merge($databaseDefaults, $state['database'] ?? []);
+        $applicationState = array_merge($applicationDefaults, $state['application'] ?? []);
+        $storedPassword = $databaseState['password'] ?? '';
+        $databaseState['password'] = '';
+
         if ($request->isMethod('POST')) {
             $payload = $request->request->all();
-            $form = array_merge($form, [
-                'db_driver' => (string) ($payload['db_driver'] ?? 'mysql'),
-                'db_host' => trim((string) ($payload['db_host'] ?? '')),
-                'db_port' => trim((string) ($payload['db_port'] ?? '')),
-                'db_name' => trim((string) ($payload['db_name'] ?? '')),
-                'db_user' => trim((string) ($payload['db_user'] ?? '')),
-                'db_password' => (string) ($payload['db_password'] ?? ''),
-                'db_path' => trim((string) ($payload['db_path'] ?? '')),
-                'site_name' => trim((string) ($payload['site_name'] ?? '')),
-                'site_host' => trim((string) ($payload['site_host'] ?? '')),
-                'admin_email' => trim((string) ($payload['admin_email'] ?? '')),
-            ]);
+            $action = (string) ($payload['action'] ?? '');
+            $postedStep = (int) ($payload['step'] ?? $step);
+            $step = max(1, min(4, $postedStep));
 
-            $adminPassword = (string) ($payload['admin_password'] ?? '');
-            $adminPasswordConfirm = (string) ($payload['admin_password_confirm'] ?? '');
-            $step = max(1, min(3, (int) ($payload['step'] ?? $step)));
-            $stepAction = (string) ($payload['step_action'] ?? '');
-
-            if ($hasAdmin) {
-                $errors[] = 'Installation is already completed.';
+            if ($step === 1 && $action === 'continue') {
+                $step = 2;
             }
 
-            if ($step === 1 || $stepAction === 'install' || $stepAction === 'test') {
-                if (!in_array($form['db_driver'], ['mysql', 'sqlite'], true)) {
-                    $errors[] = 'Select a supported database driver.';
+            elseif ($step === 2) {
+                $requirements = $this->installerService->checkRequirements();
+                $requirementsOk = $this->installerService->requirementsSatisfied($requirements);
+
+                if ($action === 'continue') {
+                    if ($requirementsOk) {
+                        $step = 3;
+                    } else {
+                        $errors[] = ['key' => 'errors.requirements_not_met'];
+                    }
+                }
+            }
+
+            elseif ($step === 3) {
+                $databaseState = array_merge($databaseState, [
+                    'driver' => (string) ($payload['db_driver'] ?? $databaseState['driver']),
+                    'host' => trim((string) ($payload['db_host'] ?? $databaseState['host'])),
+                    'port' => trim((string) ($payload['db_port'] ?? $databaseState['port'])),
+                    'name' => trim((string) ($payload['db_name'] ?? $databaseState['name'])),
+                    'user' => trim((string) ($payload['db_user'] ?? $databaseState['user'])),
+                    'password' => (string) ($payload['db_password'] ?? ''),
+                    'path' => trim((string) ($payload['db_path'] ?? $databaseState['path'])),
+                ]);
+
+                if ($databaseState['password'] === '' && $storedPassword !== '') {
+                    $databaseState['password'] = $storedPassword;
                 }
 
-                $requiredExtension = $form['db_driver'] === 'sqlite' ? 'pdo_sqlite' : 'pdo_mysql';
-                if (!extension_loaded($requiredExtension)) {
-                    $errors[] = sprintf('Database driver extension "%s" is not available on this server.', $requiredExtension);
+                $validationErrors = $this->installerService->validateDatabaseInput($databaseState);
+                foreach ($validationErrors as $validationError) {
+                    $errors[] = $validationError;
                 }
 
-                if ($form['db_driver'] === 'sqlite') {
-                    $sqlitePathError = $this->getSqlitePathError($form['db_path']);
-                    if ($sqlitePathError !== null) {
-                        $errors[] = $sqlitePathError;
+                if ($errors === [] && in_array($action, ['test_connection', 'test_privileges', 'continue'], true)) {
+                    $dbConfig = null;
+                    $dbVersion = null;
+                    $connectionOk = false;
+                    $attemptedHost = $databaseState['host'];
+                    $fallbackHost = null;
+
+                    if ($databaseState['driver'] === 'mysql') {
+                        if ($databaseState['host'] === '127.0.0.1') {
+                            $fallbackHost = 'localhost';
+                        } elseif ($databaseState['host'] === 'localhost') {
+                            $fallbackHost = '127.0.0.1';
+                        }
+                    }
+
+                    try {
+                        $dbConfig = $this->installerService->buildDatabaseConfig($databaseState);
+                        $dbVersion = $this->installerService->testDbConnection($dbConfig);
+                        $connectionOk = true;
+                    } catch (DbalException|\Throwable $exception) {
+                        if ($fallbackHost !== null) {
+                            $attemptedHost = $fallbackHost;
+                            $databaseState['host'] = $fallbackHost;
+                            $dbConfig = $this->installerService->buildDatabaseConfig($databaseState);
+
+                            try {
+                                $dbVersion = $this->installerService->testDbConnection($dbConfig);
+                                $connectionOk = true;
+                            } catch (DbalException|\Throwable $fallbackException) {
+                                $this->installerService->logException($fallbackException, 'Database connection failed during installer.');
+                                $errors[] = ['key' => 'errors.db_connection_failed'];
+                            }
+                        } else {
+                            $this->installerService->logException($exception, 'Database connection failed during installer.');
+                            $errors[] = ['key' => 'errors.db_connection_failed'];
+                        }
+                    }
+
+                    if ($errors === [] && $connectionOk) {
+                        $databaseState['version'] = $dbVersion ?? null;
+                        $databaseState['host'] = $attemptedHost;
+                        $success[] = ['key' => 'messages.db_connection_success'];
+
+                        if ($action === 'test_privileges') {
+                            try {
+                                $this->installerService->testDbPrivileges($dbConfig);
+                                $success[] = ['key' => 'messages.db_privileges_success'];
+                            } catch (DbalException $exception) {
+                                $this->installerService->logException($exception, 'Database privilege test failed during installer.');
+                                $errors[] = ['key' => 'errors.db_privileges_failed'];
+                            } catch (\Throwable $exception) {
+                                $this->installerService->logException($exception, 'Database privilege test failed during installer.');
+                                $errors[] = ['key' => 'errors.db_privileges_failed'];
+                            }
+                        }
+
+                        if ($action === 'continue' && $errors === []) {
+                            $step = 4;
+                        }
                     }
                 }
 
-                $databaseConfig = $this->buildDatabaseConfig($form);
-                if ($databaseConfig === null) {
-                    $errors[] = 'Database settings are incomplete.';
-                }
-            } else {
-                $databaseConfig = null;
-            }
-
-            if ($step === 2 || $stepAction === 'install') {
-                if ($form['site_name'] === '' || $form['site_host'] === '') {
-                    $errors[] = 'Site name and host are required.';
+                if ($action === 'back') {
+                    $step = 2;
                 }
             }
 
-            if ($step === 3 || $stepAction === 'install') {
-                if ($form['admin_email'] === '' || !filter_var($form['admin_email'], FILTER_VALIDATE_EMAIL)) {
-                    $errors[] = 'Enter a valid admin email.';
+            elseif ($step === 4) {
+                $applicationState = array_merge($applicationState, [
+                    'site_name' => trim((string) ($payload['site_name'] ?? $applicationState['site_name'])),
+                    'site_host' => trim((string) ($payload['site_host'] ?? $applicationState['site_host'])),
+                    'admin_email' => trim((string) ($payload['admin_email'] ?? $applicationState['admin_email'])),
+                ]);
+
+                if ($databaseState['password'] === '' && $storedPassword !== '') {
+                    $databaseState['password'] = $storedPassword;
+                }
+
+                $adminPassword = (string) ($payload['admin_password'] ?? '');
+                $adminPasswordConfirm = (string) ($payload['admin_password_confirm'] ?? '');
+
+                if ($applicationState['site_name'] === '' || $applicationState['site_host'] === '') {
+                    $errors[] = ['key' => 'errors.site_required'];
+                }
+
+                if ($applicationState['admin_email'] === '' || !filter_var($applicationState['admin_email'], FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = ['key' => 'errors.email_invalid'];
                 }
 
                 if (mb_strlen($adminPassword) < 8) {
-                    $errors[] = 'Admin password must be at least 8 characters long.';
+                    $errors[] = ['key' => 'errors.password_length'];
                 }
 
                 if ($adminPassword !== $adminPasswordConfirm) {
-                    $errors[] = 'Admin passwords do not match.';
+                    $errors[] = ['key' => 'errors.password_mismatch'];
+                }
+
+                if ($action === 'back') {
+                    $step = 3;
+                }
+
+                if ($errors === [] && $action === 'install') {
+                    $requirements = $this->installerService->checkRequirements();
+                    $requirementsOk = $this->installerService->requirementsSatisfied($requirements);
+
+                    if (!$requirementsOk) {
+                        $errors[] = ['key' => 'errors.requirements_not_met'];
+                    } else {
+                        try {
+                            $dbConfig = $this->installerService->buildDatabaseConfig($databaseState);
+                            $this->installerService->testDbConnection($dbConfig);
+                            $databaseUrl = $this->installerService->buildDatabaseUrl($databaseState);
+
+                            $this->installerService->updateEnvLocal($databaseUrl);
+
+                            $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
+                            $this->installerService->runMigrations($entityManager);
+                            $this->installerService->createSiteAndAdmin($entityManager, $applicationState, $adminPassword);
+
+                            $this->installerService->writeLock();
+                            $this->installerService->clearState();
+                            $this->installerService->clearDebugReport();
+
+                            $loginUrl = '/login?lang=' . $request->getLocale();
+
+                            return new Response($this->twig->render('install/success.html.twig', [
+                                'loginUrl' => $loginUrl,
+                                'step' => 4,
+                            ]));
+                        } catch (DbalException $exception) {
+                            $this->installerService->logException($exception, 'Database connection failed during installation.');
+                            $errors[] = ['key' => 'errors.db_connection_failed'];
+                        } catch (\Throwable $exception) {
+                            $this->installerService->logException($exception, 'Installer failed during install step.');
+                            $errors[] = ['key' => 'errors.install_failed'];
+                        }
+                    }
                 }
             }
 
-            if ($errors === [] && $stepAction === 'test' && $databaseConfig !== null) {
-                try {
-                    $this->testDatabaseConnection($databaseConfig['connection']);
-                    $success[] = 'Database connection successful.';
-                } catch (DbalException $exception) {
-                    $errors[] = 'Database connection failed: ' . $exception->getMessage();
-                } catch (\Throwable $exception) {
-                    $errors[] = 'Installation failed: ' . $exception->getMessage();
-                }
-            } elseif ($errors === [] && $stepAction === 'install' && $databaseConfig !== null) {
-                try {
-                    $installEntityManager = $this->createInstallEntityManager($databaseConfig['connection']);
-                    $this->ensureSchema($installEntityManager);
+            $databaseState['password'] = $databaseState['password'] ?? '';
+            $this->installerService->writeState([
+                'step' => $step,
+                'database' => $databaseState,
+                'application' => $applicationState,
+            ]);
 
-                    $siteRepository = $installEntityManager->getRepository(Site::class);
-                    $site = $siteRepository->findOneBy(['host' => $form['site_host']]);
-                    if ($site === null) {
-                        $site = new Site($form['site_name'], $form['site_host']);
-                        $installEntityManager->persist($site);
-                    }
-
-                    $userRepository = $installEntityManager->getRepository(User::class);
-                    $admin = $userRepository->findOneBy(['type' => UserType::Admin->value]);
-                    if ($admin === null) {
-                        $admin = new User($form['admin_email'], UserType::Admin);
-                        $admin->setPasswordHash($this->passwordHasher->hashPassword($admin, $adminPassword));
-                        $installEntityManager->persist($admin);
-                    }
-
-                    $installEntityManager->flush();
-
-                    $this->writeEnvLocal($databaseConfig['url']);
-
-                    $completed = true;
-                    $hasAdmin = true;
-                } catch (DbalException $exception) {
-                    $errors[] = 'Database connection failed: ' . $exception->getMessage();
-                } catch (\Throwable $exception) {
-                    $errors[] = 'Installation failed: ' . $exception->getMessage();
-                }
-            } elseif ($errors === [] && $stepAction === 'next') {
-                $step = min(3, $step + 1);
-            } elseif ($errors === [] && $stepAction === 'back') {
-                $step = max(1, $step - 1);
-            } elseif ($errors !== [] && $stepAction !== '') {
-                $status = Response::HTTP_BAD_REQUEST;
+            if ($errors !== []) {
+                $this->installerService->writeDebugReport($this->buildDebugReport(
+                    $requirements,
+                    $databaseState,
+                    $applicationState,
+                    $errors,
+                ));
+                $debugAvailable = true;
             }
         }
 
-        return new Response($this->twig->render('public/install/index.html.twig', [
+        $viewDatabase = $databaseState;
+        $viewDatabase['password'] = '';
+
+        $template = match ($step) {
+            1 => 'install/step1.html.twig',
+            2 => 'install/step2_requirements.html.twig',
+            3 => 'install/step3_database.html.twig',
+            default => 'install/step4_app.html.twig',
+        };
+
+        return new Response($this->twig->render($template, [
+            'step' => $step,
             'errors' => $errors,
             'success' => $success,
-            'form' => $form,
-            'completed' => $completed,
-            'hasAdmin' => $hasAdmin,
-            'step' => $step,
+            'database' => $viewDatabase,
+            'application' => $applicationState,
+            'requirements' => $requirements,
+            'requirementsOk' => $requirementsOk,
             'phpVersion' => PHP_VERSION,
-            'phpExtensions' => $this->getPhpExtensions(),
-        ]), $status);
+            'phpExtensions' => $this->installerService->getPhpExtensions(),
+            'dbVersion' => $dbVersion,
+            'hasStoredPassword' => $storedPassword !== '',
+            'debugAvailable' => $debugAvailable,
+        ]));
+    }
+
+    #[Route(path: '/install/debug', name: 'public_install_debug', methods: ['GET'])]
+    public function debugReport(Request $request): Response
+    {
+        $this->installerService->resolveInstallerLocale($request);
+
+        if ($this->installerService->isLocked()) {
+            return new Response('', Response::HTTP_FORBIDDEN);
+        }
+
+        $path = $this->installerService->getDebugReportPath();
+        if (!file_exists($path)) {
+            return new Response('', Response::HTTP_NOT_FOUND);
+        }
+
+        return new BinaryFileResponse($path);
     }
 
     /**
-     * @return list<string>
+     * @param array<int, array<string, mixed>> $requirements
+     * @param array<int, array<string, mixed>> $errors
+     * @param array<string, mixed> $databaseState
+     * @param array<string, mixed> $applicationState
+     *
+     * @return array<string, mixed>
      */
-    private function getPhpExtensions(): array
+    private function buildDebugReport(array $requirements, array $databaseState, array $applicationState, array $errors): array
     {
-        $extensions = get_loaded_extensions();
-        sort($extensions, SORT_NATURAL | SORT_FLAG_CASE);
+        $databaseState['password'] = '***';
 
-        return $extensions;
-    }
-
-    private function hasAdminUser(): bool
-    {
-        try {
-            $userRepository = $this->entityManager->getRepository(User::class);
-            $admin = $userRepository->findOneBy(['type' => UserType::Admin->value]);
-
-            return $admin !== null;
-        } catch (\Throwable) {
-            return false;
-        }
-    }
-
-    /**
-     * @throws DbalException
-     */
-    /**
-     * @param array<string, mixed> $databaseConfig
-     */
-    private function createInstallEntityManager(array $databaseConfig): EntityManagerInterface
-    {
-        $connection = DriverManager::getConnection($databaseConfig);
-
-        return new EntityManager($connection, $this->entityManager->getConfiguration(), $this->entityManager->getEventManager());
-    }
-
-    private function ensureSchema(EntityManagerInterface $installEntityManager): void
-    {
-        $schemaManager = $installEntityManager->getConnection()->createSchemaManager();
-        if ($schemaManager->tablesExist(['users'])) {
-            return;
-        }
-
-        $metadata = $this->entityManager->getMetadataFactory()->getAllMetadata();
-        if ($metadata === []) {
-            throw new \RuntimeException('No metadata found for schema creation.');
-        }
-
-        $schemaTool = new SchemaTool($installEntityManager);
-        $schemaTool->createSchema($metadata);
-    }
-
-    /**
-     * @return array{url: string, connection: array<string, mixed>}|null
-     */
-    private function buildDatabaseConfig(array $form): ?array
-    {
-        if ($form['db_driver'] === 'sqlite') {
-            if ($form['db_path'] === '') {
-                return null;
-            }
-
-            $path = $form['db_path'];
-            if (!str_starts_with($path, '/')) {
-                $path = $this->projectDir . '/' . $path;
-            }
-
-            return [
-                'url' => 'sqlite:///' . ltrim($path, '/'),
-                'connection' => [
-                    'driver' => 'pdo_sqlite',
-                    'path' => $path,
-                ],
-            ];
-        }
-
-        if ($form['db_driver'] === 'mysql') {
-            if ($form['db_host'] === '' || $form['db_name'] === '' || $form['db_user'] === '') {
-                return null;
-            }
-
-            $port = null;
-            if ($form['db_port'] !== '' && is_numeric($form['db_port'])) {
-                $port = (int) $form['db_port'];
-            }
-
-            $user = rawurlencode($form['db_user']);
-            $password = $form['db_password'] !== '' ? ':' . rawurlencode($form['db_password']) : '';
-            $host = $form['db_host'];
-            $database = rawurlencode($form['db_name']);
-            $portSuffix = $port !== null ? ':' . $port : '';
-
-            return [
-                'url' => sprintf(
-                    'mysql://%s%s@%s%s/%s?charset=utf8mb4',
-                    $user,
-                    $password,
-                    $host,
-                    $portSuffix,
-                    $database,
-                ),
-                'connection' => array_filter([
-                    'driver' => 'pdo_mysql',
-                    'host' => $form['db_host'],
-                    'port' => $port,
-                    'user' => $form['db_user'],
-                    'password' => $form['db_password'] !== '' ? $form['db_password'] : null,
-                    'dbname' => $form['db_name'],
-                    'charset' => 'utf8mb4',
-                ], static fn ($value) => $value !== null && $value !== ''),
-            ];
-        }
-
-        return null;
-    }
-
-    /**
-     * @throws DbalException
-     */
-    private function testDatabaseConnection(array $databaseConfig): void
-    {
-        $connection = DriverManager::getConnection($databaseConfig);
-        $connection->getNativeConnection();
-        $connection->executeQuery('SELECT 1');
-    }
-
-    private function getSqlitePathError(string $path): ?string
-    {
-        if ($path === '') {
-            return 'SQLite path is required.';
-        }
-
-        if (!str_starts_with($path, '/')) {
-            $path = $this->projectDir . '/' . $path;
-        }
-
-        if (file_exists($path)) {
-            return is_writable($path) ? null : 'SQLite database file is not writable.';
-        }
-
-        $directory = dirname($path);
-        if (!is_dir($directory)) {
-            return 'SQLite database directory does not exist.';
-        }
-
-        if (!is_writable($directory)) {
-            return 'SQLite database directory is not writable.';
-        }
-
-        $handle = @fopen($path, 'c');
-        if ($handle === false) {
-            return 'SQLite database file could not be created.';
-        }
-
-        fclose($handle);
-
-        return null;
-    }
-
-    private function writeEnvLocal(string $databaseUrl): void
-    {
-        $path = $this->projectDir . '/.env.local';
-        $contents = "DATABASE_URL=\"{$databaseUrl}\"\n";
-
-        file_put_contents($path, $contents);
+        return [
+            'timestamp' => (new \DateTimeImmutable())->format(DATE_ATOM),
+            'php_version' => PHP_VERSION,
+            'extensions' => $this->installerService->getPhpExtensions(),
+            'requirements' => $requirements,
+            'database' => $databaseState,
+            'application' => $applicationState,
+            'errors' => $errors,
+        ];
     }
 }
