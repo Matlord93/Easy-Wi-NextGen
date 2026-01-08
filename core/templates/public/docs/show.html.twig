@@ -1,11 +1,11 @@
 {% extends 'public/base.html.twig' %}
 
-{% block title %}{{ article.title }} · Docs · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ article.title }} · {{ t('docs', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
     <div>
-        <a href="/docs" class="text-xs font-semibold text-slate-500 hover:text-slate-700">← Back to Docs</a>
+        <a href="/docs" class="text-xs font-semibold text-slate-500 hover:text-slate-700">← {{ t('back_to_docs', page_locale()) }}</a>
         <h1 class="mt-2 text-2xl font-semibold">{{ article.title }}</h1>
         <p class="text-sm text-slate-500">{{ article.category }}</p>
     </div>

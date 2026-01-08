@@ -349,7 +349,7 @@ final class InstanceApiController
         ]);
     }
 
-    #[Route(path: '/instances', name: 'customer_instances', methods: ['GET'])]
+    #[Route(path: '/instances', name: 'customer_instances_api', methods: ['GET'])]
     public function listInstances(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');

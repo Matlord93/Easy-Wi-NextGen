@@ -55,8 +55,11 @@
         {% include 'admin/plugins/_table.html.twig' with { plugins: plugins } %}
     </div>
 
-    <div class="rounded-xl bg-white border border-slate-200" id="plugin-form" hx-trigger="plugins-changed from:body" hx-get="/admin/plugins/form" hx-swap="outerHTML">
-        {% include 'admin/plugins/_form.html.twig' with { form: form, templates: templates } %}
+    <div class="flex flex-col gap-6">
+        {% include 'admin/plugins/_import.html.twig' with { import: import } %}
+        <div class="rounded-xl bg-white border border-slate-200" id="plugin-form" hx-trigger="plugins-changed from:body" hx-get="/admin/plugins/form" hx-swap="outerHTML">
+            {% include 'admin/plugins/_form.html.twig' with { form: form, templates: templates } %}
+        </div>
     </div>
 </div>
 {% endblock %}

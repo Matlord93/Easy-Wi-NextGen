@@ -1,4 +1,4 @@
-<div id="templates-table" class="overflow-hidden">
+<div id="templates-table" class="overflow-hidden" hx-trigger="templates-changed from:body" hx-get="/admin/templates/table" hx-swap="outerHTML">
     <table class="min-w-full divide-y divide-slate-200 text-sm">
         <thead class="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>

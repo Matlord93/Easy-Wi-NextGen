@@ -1,0 +1,121 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controller;
+
+use App\Entity\Instance;
+use App\Entity\Ticket;
+use App\Entity\User;
+use App\Enum\InstanceStatus;
+use App\Enum\TicketStatus;
+use App\Enum\UserType;
+use App\Repository\DatabaseRepository;
+use App\Repository\InstanceRepository;
+use App\Repository\TicketRepository;
+use App\Repository\WebspaceRepository;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Attribute\Route;
+use Twig\Environment;
+
+#[Route(path: '/dashboard')]
+final class CustomerDashboardController
+{
+    public function __construct(
+        private readonly InstanceRepository $instanceRepository,
+        private readonly WebspaceRepository $webspaceRepository,
+        private readonly DatabaseRepository $databaseRepository,
+        private readonly TicketRepository $ticketRepository,
+        private readonly Environment $twig,
+    ) {
+    }
+
+    #[Route(path: '', name: 'customer_dashboard', methods: ['GET'])]
+    public function index(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instances = $this->instanceRepository->findByCustomer($customer);
+        $tickets = $this->ticketRepository->findByCustomer($customer);
+
+        $summary = [
+            'instances_total' => count($instances),
+            'instances_running' => $this->countInstancesByStatus($instances, InstanceStatus::Running),
+            'webspaces_total' => count($this->webspaceRepository->findByCustomer($customer)),
+            'databases_total' => count($this->databaseRepository->findByCustomer($customer)),
+            'tickets_total' => count($tickets),
+            'tickets_open' => $this->countTicketsByStatus($tickets, TicketStatus::Open),
+        ];
+
+        $resourceUsage = [
+            'cpu' => 32,
+            'ram' => 48,
+            'disk' => 72,
+        ];
+
+        return new Response($this->twig->render('customer/dashboard/index.html.twig', [
+            'activeNav' => 'dashboard',
+            'customerName' => $customer->getEmail(),
+            'summary' => $summary,
+            'instances' => $this->normalizeInstances(array_slice($instances, 0, 3)),
+            'tickets' => $this->normalizeTickets(array_slice($tickets, 0, 3)),
+            'resourceUsage' => $resourceUsage,
+        ]));
+    }
+
+    private function requireCustomer(Request $request): User
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+        }
+
+        return $actor;
+    }
+
+    /**
+     * @param Instance[] $instances
+     */
+    private function normalizeInstances(array $instances): array
+    {
+        return array_map(static function (Instance $instance): array {
+            return [
+                'id' => $instance->getId(),
+                'name' => $instance->getTemplate()->getName(),
+                'status' => $instance->getStatus()->value,
+                'status_label' => $instance->getStatus()->name,
+            ];
+        }, $instances);
+    }
+
+    /**
+     * @param Ticket[] $tickets
+     */
+    private function normalizeTickets(array $tickets): array
+    {
+        return array_map(static function (Ticket $ticket): array {
+            return [
+                'id' => $ticket->getId(),
+                'subject' => $ticket->getSubject(),
+                'status' => $ticket->getStatus()->value,
+                'status_label' => $ticket->getStatus()->name,
+            ];
+        }, $tickets);
+    }
+
+    /**
+     * @param Instance[] $instances
+     */
+    private function countInstancesByStatus(array $instances, InstanceStatus $status): int
+    {
+        return count(array_filter($instances, static fn (Instance $instance): bool => $instance->getStatus() === $status));
+    }
+
+    /**
+     * @param Ticket[] $tickets
+     */
+    private function countTicketsByStatus(array $tickets, TicketStatus $status): int
+    {
+        return count(array_filter($tickets, static fn (Ticket $ticket): bool => $ticket->getStatus() === $status));
+    }
+}

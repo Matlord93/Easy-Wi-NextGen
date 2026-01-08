@@ -81,7 +81,7 @@ final class PublicLoginController
                     $redirectPath = match ($user->getType()) {
                         UserType::Admin => '/admin',
                         UserType::Reseller => '/reseller/customers',
-                        default => '/profile',
+                        default => '/dashboard',
                     };
                     $response = new RedirectResponse($redirectPath);
                     $response->headers->setCookie(

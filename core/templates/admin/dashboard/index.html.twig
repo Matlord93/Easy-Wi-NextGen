@@ -6,43 +6,164 @@
 <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl font-semibold">Admin Dashboard</h1>
-            <p class="text-sm text-slate-500">Platform pulse, recent work, and node readiness at a glance.</p>
+            <h1 class="text-2xl font-semibold">Welcome back, Admin!</h1>
+            <p class="text-sm text-slate-500">Platform overview, operator activity, and system health at a glance.</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-            <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">Invite Operator</button>
-            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Create Job</button>
+            <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">Invite Operator</button>
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">Create Job</button>
         </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-            <p class="text-xs uppercase text-slate-500">Total Jobs</p>
+        <div class="rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-white shadow-md">
+            <p class="text-xs uppercase text-slate-200/80">Total Jobs</p>
             <p class="mt-3 text-2xl font-semibold">{{ jobSummary.total }}</p>
-            <p class="mt-2 text-xs text-slate-400">Latest 8 workloads in queue.</p>
+            <p class="mt-2 text-xs text-slate-200/80">{{ jobSummary.running }} running · {{ jobSummary.queued }} queued</p>
+            <div class="mt-3 h-1 w-full rounded-full bg-slate-600">
+                <div class="h-1 w-2/3 rounded-full bg-emerald-400"></div>
+            </div>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-            <p class="text-xs uppercase text-slate-500">Running Jobs</p>
-            <p class="mt-3 text-2xl font-semibold text-indigo-600">{{ jobSummary.running }}</p>
-            <p class="mt-2 text-xs text-slate-400">{{ jobSummary.queued }} queued · {{ jobSummary.failed }} failed</p>
+        <div class="rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-800 p-4 text-white shadow-md">
+            <p class="text-xs uppercase text-indigo-200/90">Active Users</p>
+            <p class="mt-3 text-2xl font-semibold">{{ jobSummary.running + jobSummary.queued }}</p>
+            <p class="mt-2 text-xs text-indigo-200/90">Operators online · {{ jobSummary.failed }} alerts</p>
+            <div class="mt-3 h-1 w-full rounded-full bg-indigo-400/40">
+                <div class="h-1 w-3/4 rounded-full bg-white/80"></div>
+            </div>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-            <p class="text-xs uppercase text-slate-500">Agents Online</p>
-            <p class="mt-3 text-2xl font-semibold text-emerald-600">{{ agentSummary.online }}</p>
-            <p class="mt-2 text-xs text-slate-400">{{ agentSummary.degraded }} degraded · {{ agentSummary.offline }} offline</p>
+        <div class="rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-white shadow-md">
+            <p class="text-xs uppercase text-slate-200/80">Running Jobs</p>
+            <p class="mt-3 text-2xl font-semibold">{{ jobSummary.running }}</p>
+            <p class="mt-2 text-xs text-slate-200/80">{{ jobSummary.failed }} failed · {{ jobSummary.queued }} queued</p>
+            <div class="mt-3 flex gap-2">
+                <span class="h-1 w-10 rounded-full bg-emerald-400"></span>
+                <span class="h-1 w-6 rounded-full bg-amber-400"></span>
+                <span class="h-1 w-4 rounded-full bg-rose-400"></span>
+            </div>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-            <p class="text-xs uppercase text-slate-500">Total Agents</p>
-            <p class="mt-3 text-2xl font-semibold">{{ agentSummary.total }}</p>
-            <p class="mt-2 text-xs text-slate-400">Heartbeat within last 5 minutes.</p>
+        <div class="rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-white shadow-md">
+            <p class="text-xs uppercase text-slate-200/80">System Load</p>
+            <p class="mt-3 text-2xl font-semibold">{{ agentSummary.online }}</p>
+            <p class="mt-2 text-xs text-slate-200/80">{{ agentSummary.degraded }} degraded · {{ agentSummary.offline }} offline</p>
+            <div class="mt-3 h-1 w-full rounded-full bg-slate-600">
+                <div class="h-1 w-1/2 rounded-full bg-sky-400"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M4 4.75A.75.75 0 0 1 4.75 4h10.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75H4.75A.75.75 0 0 1 4 7.25v-2.5Zm0 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75H4.75a.75.75 0 0 1-.75-.75v-2.5Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Server Overview</p>
+                    <p class="text-xs text-slate-600">Manage all nodes</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M10 10a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-6 7a6 6 0 0 1 12 0v.25a.75.75 0 0 1-.75.75h-10.5A.75.75 0 0 1 4 17.25Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Client Management</p>
+                    <p class="text-xs text-slate-600">View &amp; manage users</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Game Servers</p>
+                    <p class="text-xs text-slate-600">{{ agentSummary.total }} instances active</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M2.5 3.75a.75.75 0 0 1 .75-.75h13.5a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75H3.25a.75.75 0 0 1-.75-.75V3.75Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Web Hosting</p>
+                    <p class="text-xs text-slate-600">42 websites hosted</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M4 3.5A1.5 1.5 0 0 1 5.5 2h9A1.5 1.5 0 0 1 16 3.5v13a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 16.5v-13Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Databases</p>
+                    <p class="text-xs text-slate-600">Database nodes</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M4 3.75A1.75 1.75 0 0 1 5.75 2h5.5A1.75 1.75 0 0 1 13 3.75v2h1.25A1.75 1.75 0 0 1 16 7.5v8.75A1.75 1.75 0 0 1 14.25 18H5.75A1.75 1.75 0 0 1 4 16.25V3.75Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Billing</p>
+                    <p class="text-xs text-slate-600">Invoices &amp; payments</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M3 5.75A2.75 2.75 0 0 1 5.75 3h8.5A2.75 2.75 0 0 1 17 5.75v8.5A2.75 2.75 0 0 1 14.25 17h-8.5A2.75 2.75 0 0 1 3 14.25v-8.5Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Billing</p>
+                    <p class="text-xs text-slate-600">Invoices &amp; payments</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M10 3a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Payments</p>
+                    <p class="text-xs text-slate-600">Settlement overview</p>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="rounded-xl border border-slate-200 bg-white lg:col-span-2">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
             <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
-                    <h2 class="text-lg font-semibold">Recent Jobs</h2>
+                    <h2 class="text-lg font-semibold">Recent Activity</h2>
                     <p class="text-sm text-slate-500">Latest agent workloads and dispatch status.</p>
                 </div>
                 <button
@@ -55,9 +176,9 @@
             {% include 'admin/jobs/_table.html.twig' with { jobs: jobs } %}
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
-                <h2 class="text-lg font-semibold">Node Status</h2>
+                <h2 class="text-lg font-semibold">System Load</h2>
                 <p class="text-sm text-slate-500">Agent heartbeats and resource signals.</p>
             </div>
             <div class="divide-y divide-slate-200">
@@ -78,23 +199,32 @@
                                 {{ node.status|title }}
                             </span>
                         </div>
-                        <div class="mt-3 grid grid-cols-3 gap-3 text-xs text-slate-500">
-                            <div>
-                                <p class="font-medium text-slate-700">{{ node.cpu ?? '—' }}</p>
-                                <p>CPU</p>
+                        <div class="mt-3 space-y-2 text-xs text-slate-500">
+                            <div class="flex items-center justify-between">
+                                <span>CPU</span>
+                                <span class="font-medium text-slate-700">{{ node.cpu ?? '—' }}</span>
                             </div>
-                            <div>
-                                <p class="font-medium text-slate-700">{{ node.memory ?? '—' }}</p>
-                                <p>Memory</p>
+                            <div class="h-1 w-full rounded-full bg-slate-100">
+                                <div class="h-1 w-2/3 rounded-full bg-indigo-500"></div>
                             </div>
-                            <div>
-                                <p class="font-medium text-slate-700">{{ node.queue ?? '—' }}</p>
-                                <p>Queue</p>
+                            <div class="flex items-center justify-between">
+                                <span>Memory</span>
+                                <span class="font-medium text-slate-700">{{ node.memory ?? '—' }}</span>
+                            </div>
+                            <div class="h-1 w-full rounded-full bg-slate-100">
+                                <div class="h-1 w-1/2 rounded-full bg-emerald-500"></div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span>Queue</span>
+                                <span class="font-medium text-slate-700">{{ node.queue ?? '—' }}</span>
+                            </div>
+                            <div class="h-1 w-full rounded-full bg-slate-100">
+                                <div class="h-1 w-1/3 rounded-full bg-amber-500"></div>
                             </div>
                         </div>
                         <div class="mt-3 text-xs text-slate-400">
                             {% if node.lastHeartbeatAt %}
-                                Seen {{ node.lastHeartbeatAt|date('Y-m-d H:i') }} · {{ node.lastHeartbeatIp ?? 'IP n/a' }} · {{ node.lastHeartbeatVersion ?? 'version n/a' }}
+                                Seen {{ node.lastHeartbeatAt|date('Y-m-d H:i') }} · {{ node.lastHeartbeatIp ?? 'IP n/a' }}
                             {% else %}
                                 No heartbeat reported yet.
                             {% endif %}

@@ -1,8 +1,9 @@
 parameters:
   app.agent_signature_skew_seconds: '%env(int:AGENT_SIGNATURE_SKEW_SECONDS)%'
   app.agent_nonce_ttl_seconds: '%env(int:AGENT_NONCE_TTL_SECONDS)%'
+  app.agent_release_channel_default: 'stable'
   app.agent_release_repository: '%env(default::APP_AGENT_RELEASE_REPOSITORY)%'
-  app.agent_release_channel: '%env(default:stable:APP_AGENT_RELEASE_CHANNEL)%'
+  app.agent_release_channel: '%env(default:app.agent_release_channel_default:APP_AGENT_RELEASE_CHANNEL)%'
   app.changelog_repository: '%env(default::APP_CHANGELOG_REPOSITORY)%'
 
 services:

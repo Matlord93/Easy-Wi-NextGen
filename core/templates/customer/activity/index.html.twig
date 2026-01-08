@@ -4,27 +4,170 @@
 
 {% block content %}
 <div class="flex flex-col gap-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('activity_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-500">Recent actions and updates on your account.</p>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold">Welcome back!</h1>
+            <p class="text-sm text-slate-500">Your hosting overview, support updates, and usage metrics.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">New Ticket</button>
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">Upgrade Plan</button>
+        </div>
     </div>
-    <div class="space-y-4">
-        {% for entry in entries %}
-            <div class="rounded-xl border border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <p class="text-sm font-semibold">{{ entry.action }}</p>
-                        <p class="text-xs text-slate-500">{{ entry.actor }}</p>
-                    </div>
-                    <span class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">{{ entry.created_at|date('Y-m-d H:i') }}</span>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-white shadow-md">
+            <p class="text-xs uppercase text-slate-200/80">Game Servers</p>
+            <p class="mt-3 text-2xl font-semibold">3</p>
+            <p class="mt-2 text-xs text-slate-200/80">Active instances</p>
+            <div class="mt-3 h-1 w-full rounded-full bg-slate-600">
+                <div class="h-1 w-2/3 rounded-full bg-emerald-400"></div>
+            </div>
+        </div>
+        <div class="rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-800 p-4 text-white shadow-md">
+            <p class="text-xs uppercase text-indigo-200/90">Websites</p>
+            <p class="mt-3 text-2xl font-semibold">2</p>
+            <p class="mt-2 text-xs text-indigo-200/90">Hosted domains</p>
+            <div class="mt-3 flex gap-2">
+                <span class="h-1 w-10 rounded-full bg-white/80"></span>
+                <span class="h-1 w-6 rounded-full bg-white/50"></span>
+                <span class="h-1 w-4 rounded-full bg-white/30"></span>
+            </div>
+        </div>
+        <div class="rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-white shadow-md">
+            <p class="text-xs uppercase text-slate-200/80">Databases</p>
+            <p class="mt-3 text-2xl font-semibold">4</p>
+            <p class="mt-2 text-xs text-slate-200/80">Provisioned</p>
+            <div class="mt-3 h-1 w-full rounded-full bg-slate-600">
+                <div class="h-1 w-1/2 rounded-full bg-amber-400"></div>
+            </div>
+        </div>
+        <div class="rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 p-4 text-white shadow-md">
+            <p class="text-xs uppercase text-slate-200/80">Support Tickets</p>
+            <p class="mt-3 text-2xl font-semibold">{{ entries|length }}</p>
+            <p class="mt-2 text-xs text-slate-200/80">Open / total updates</p>
+            <div class="mt-3 h-1 w-full rounded-full bg-slate-600">
+                <div class="h-1 w-1/3 rounded-full bg-rose-400"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Z"/>
+                    </svg>
                 </div>
-                <pre class="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-950">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">My Game Servers</p>
+                    <p class="text-xs text-slate-600">Manage &amp; update</p>
+                </div>
             </div>
-        {% else %}
-            <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900">
-                {{ t('no_results', page_locale()) }}
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M2.5 3.75a.75.75 0 0 1 .75-.75h13.5a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75H3.25a.75.75 0 0 1-.75-.75V3.75Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">My Websites</p>
+                    <p class="text-xs text-slate-600">Domains &amp; files</p>
+                </div>
             </div>
-        {% endfor %}
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M4 3.5A1.5 1.5 0 0 1 5.5 2h9A1.5 1.5 0 0 1 16 3.5v13a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 16.5v-13Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">My Databases</p>
+                    <p class="text-xs text-slate-600">DB management</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M4 3.75A1.75 1.75 0 0 1 5.75 2h5.5A1.75 1.75 0 0 1 13 3.75v2h1.25A1.75 1.75 0 0 1 16 7.5v8.75A1.75 1.75 0 0 1 14.25 18H5.75A1.75 1.75 0 0 1 4 16.25V3.75Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Billing &amp; Invoices</p>
+                    <p class="text-xs text-slate-600">View &amp; pay bills</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h2 class="text-lg font-semibold">Recent Activity</h2>
+                <p class="text-sm text-slate-500">Account changes and support updates.</p>
+            </div>
+            <div class="space-y-4 px-5 py-4">
+                {% for entry in entries %}
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-semibold">{{ entry.action }}</p>
+                                <p class="text-xs text-slate-500">{{ entry.actor }}</p>
+                            </div>
+                            <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">{{ entry.created_at|date('Y-m-d H:i') }}</span>
+                        </div>
+                        <pre class="mt-3 rounded-lg bg-white p-3 text-xs text-slate-500">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+                    </div>
+                {% else %}
+                    <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-400">
+                        {{ t('no_results', page_locale()) }}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h2 class="text-lg font-semibold">Resource Usage</h2>
+                <p class="text-sm text-slate-500">Current service limits.</p>
+            </div>
+            <div class="space-y-4 px-5 py-4 text-sm text-slate-600">
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span>CPU Usage</span>
+                        <span class="font-semibold">32%</span>
+                    </div>
+                    <div class="mt-2 h-2 w-full rounded-full bg-slate-100">
+                        <div class="h-2 w-1/3 rounded-full bg-emerald-500"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span>RAM Usage</span>
+                        <span class="font-semibold">48%</span>
+                    </div>
+                    <div class="mt-2 h-2 w-full rounded-full bg-slate-100">
+                        <div class="h-2 w-1/2 rounded-full bg-sky-500"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span>Disk Usage</span>
+                        <span class="font-semibold">72%</span>
+                    </div>
+                    <div class="mt-2 h-2 w-full rounded-full bg-slate-100">
+                        <div class="h-2 w-3/4 rounded-full bg-amber-500"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

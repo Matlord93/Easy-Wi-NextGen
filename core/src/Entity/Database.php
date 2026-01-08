@@ -10,7 +10,7 @@ use App\Repository\DatabaseRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: DatabaseRepository::class)]
-#[ORM\Table(name: 'databases')]
+#[ORM\Table(name: '`databases`')]
 class Database implements ResourceEventSource
 {
     use ResourceEventSourceTrait;

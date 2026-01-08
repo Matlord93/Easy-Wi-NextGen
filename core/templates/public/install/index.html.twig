@@ -1,21 +1,21 @@
 {% extends 'public/base.html.twig' %}
 
-{% block title %}Install · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('install', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="mx-auto max-w-4xl space-y-6">
     <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
-        <h1 class="text-lg font-semibold">Installer</h1>
-        <p class="mt-1 text-sm text-slate-500">Connect a database and create the first admin account.</p>
+        <h1 class="text-lg font-semibold">{{ t('installer', page_locale()) }}</h1>
+        <p class="mt-1 text-sm text-slate-500">{{ t('installer_description', page_locale()) }}</p>
     </div>
 
     {% if completed %}
         <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm text-emerald-700">
-            Installation completed! You can now <a href="/login" class="font-semibold text-emerald-800">log in</a> with your admin account.
+            {{ t('installation_completed', page_locale()) }} <a href="/login" class="font-semibold text-emerald-800">{{ t('log_in_with_admin', page_locale()) }}</a> {{ t('with_admin_account', page_locale()) }}
         </div>
     {% elseif hasAdmin %}
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-700">
-            An admin account already exists. Installation is locked. You can proceed to <a href="/login" class="font-semibold text-amber-800">login</a>.
+            {{ t('admin_account_exists', page_locale()) }} <a href="/login" class="font-semibold text-amber-800">{{ t('login', page_locale()) }}</a>.
         </div>
     {% endif %}
 
@@ -60,85 +60,85 @@
             {% endif %}
 
             <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
-                <h2 class="text-sm font-semibold text-slate-900">Step {{ step }} of 3</h2>
+                <h2 class="text-sm font-semibold text-slate-900">{{ t('step_of', page_locale())|replace({'%current%': step, '%total%': 3}) }}</h2>
                 <p class="mt-1 text-sm text-slate-500">
                     {% if step == 1 %}
-                        Database settings
+                        {{ t('database_settings', page_locale()) }}
                     {% elseif step == 2 %}
-                        Site defaults
+                        {{ t('site_defaults', page_locale()) }}
                     {% else %}
-                        Admin account
+                        {{ t('admin_account', page_locale()) }}
                     {% endif %}
                 </p>
             </div>
 
             {% if step == 1 %}
                 <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
-                    <h2 class="text-sm font-semibold text-slate-900">Database settings</h2>
+                    <h2 class="text-sm font-semibold text-slate-900">{{ t('database_settings', page_locale()) }}</h2>
                     <div class="mt-4 grid gap-4 sm:grid-cols-2">
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="db_driver">Driver</label>
+                            <label class="text-sm font-medium text-slate-700" for="db_driver">{{ t('driver', page_locale()) }}</label>
                             <select id="db_driver" name="db_driver" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                 <option value="mysql" {% if form.db_driver == 'mysql' %}selected{% endif %}>MySQL / MariaDB</option>
                                 <option value="sqlite" {% if form.db_driver == 'sqlite' %}selected{% endif %}>SQLite (SQL)</option>
                             </select>
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="db_name">Database name</label>
+                            <label class="text-sm font-medium text-slate-700" for="db_name">{{ t('database_name', page_locale()) }}</label>
                             <input id="db_name" name="db_name" type="text" value="{{ form.db_name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="easywi">
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="db_host">Host</label>
+                            <label class="text-sm font-medium text-slate-700" for="db_host">{{ t('host', page_locale()) }}</label>
                             <input id="db_host" name="db_host" type="text" value="{{ form.db_host }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="127.0.0.1">
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="db_port">Port</label>
+                            <label class="text-sm font-medium text-slate-700" for="db_port">{{ t('port', page_locale()) }}</label>
                             <input id="db_port" name="db_port" type="text" value="{{ form.db_port }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="3306">
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="db_user">Username</label>
+                            <label class="text-sm font-medium text-slate-700" for="db_user">{{ t('username', page_locale()) }}</label>
                             <input id="db_user" name="db_user" type="text" value="{{ form.db_user }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="dbuser">
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="db_password">Password</label>
-                            <input id="db_password" name="db_password" type="password" value="{{ form.db_password }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Optional">
+                            <label class="text-sm font-medium text-slate-700" for="db_password">{{ t('password', page_locale()) }}</label>
+                            <input id="db_password" name="db_password" type="password" value="{{ form.db_password }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('optional', page_locale()) }}">
                         </div>
                         <div class="sm:col-span-2">
-                            <label class="text-sm font-medium text-slate-700" for="db_path">SQLite path</label>
+                            <label class="text-sm font-medium text-slate-700" for="db_path">{{ t('sqlite_path', page_locale()) }}</label>
                             <input id="db_path" name="db_path" type="text" value="{{ form.db_path }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="/path/to/data.db">
-                            <p class="mt-1 text-xs text-slate-500">Used only when SQLite is selected.</p>
+                            <p class="mt-1 text-xs text-slate-500">{{ t('sqlite_helper', page_locale()) }}</p>
                         </div>
                     </div>
                 </div>
             {% elseif step == 2 %}
                 <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
-                    <h2 class="text-sm font-semibold text-slate-900">Site defaults</h2>
+                    <h2 class="text-sm font-semibold text-slate-900">{{ t('site_defaults', page_locale()) }}</h2>
                     <div class="mt-4 grid gap-4 sm:grid-cols-2">
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="site_name">Site name</label>
+                            <label class="text-sm font-medium text-slate-700" for="site_name">{{ t('site_name', page_locale()) }}</label>
                             <input id="site_name" name="site_name" type="text" value="{{ form.site_name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Default Site">
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="site_host">Site host</label>
+                            <label class="text-sm font-medium text-slate-700" for="site_host">{{ t('site_host', page_locale()) }}</label>
                             <input id="site_host" name="site_host" type="text" value="{{ form.site_host }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="localhost">
                         </div>
                     </div>
                 </div>
             {% else %}
                 <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
-                    <h2 class="text-sm font-semibold text-slate-900">Admin account</h2>
+                    <h2 class="text-sm font-semibold text-slate-900">{{ t('admin_account', page_locale()) }}</h2>
                     <div class="mt-4 grid gap-4 sm:grid-cols-2">
                         <div class="sm:col-span-2">
-                            <label class="text-sm font-medium text-slate-700" for="admin_email">Admin email</label>
+                            <label class="text-sm font-medium text-slate-700" for="admin_email">{{ t('admin_email', page_locale()) }}</label>
                             <input id="admin_email" name="admin_email" type="email" value="{{ form.admin_email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="admin@example.com">
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="admin_password">Password</label>
-                            <input id="admin_password" name="admin_password" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Minimum 8 characters">
+                            <label class="text-sm font-medium text-slate-700" for="admin_password">{{ t('password', page_locale()) }}</label>
+                            <input id="admin_password" name="admin_password" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('password_minimum', page_locale()) }}">
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-slate-700" for="admin_password_confirm">Confirm password</label>
-                            <input id="admin_password_confirm" name="admin_password_confirm" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Repeat password">
+                            <label class="text-sm font-medium text-slate-700" for="admin_password_confirm">{{ t('confirm_password', page_locale()) }}</label>
+                            <input id="admin_password_confirm" name="admin_password_confirm" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('repeat_password_placeholder', page_locale()) }}">
                         </div>
                     </div>
                 </div>
@@ -146,30 +146,30 @@
 
             <div class="flex flex-wrap gap-3">
                 {% if step > 1 %}
-                    <button type="submit" name="step_action" value="back" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">Back</button>
+                    <button type="submit" name="step_action" value="back" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">{{ t('back', page_locale()) }}</button>
                 {% endif %}
                 {% if step == 1 %}
-                    <button type="submit" name="step_action" value="test" class="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100">Test MySQL/SQLite connection</button>
+                    <button type="submit" name="step_action" value="test" class="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100">{{ t('test_connection', page_locale()) }}</button>
                 {% endif %}
                 {% if step < 3 %}
-                    <button type="submit" name="step_action" value="next" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">Next</button>
+                    <button type="submit" name="step_action" value="next" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">{{ t('next', page_locale()) }}</button>
                 {% else %}
-                    <button type="submit" name="step_action" value="install" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">Run installer</button>
+                    <button type="submit" name="step_action" value="install" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">{{ t('run_installer', page_locale()) }}</button>
                 {% endif %}
             </div>
         </form>
     {% endif %}
 
     <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
-        <h2 class="text-sm font-semibold text-slate-900">Server requirements</h2>
-        <p class="mt-2 text-sm text-slate-600">PHP version: <span class="font-semibold text-slate-900">{{ phpVersion }}</span></p>
+        <h2 class="text-sm font-semibold text-slate-900">{{ t('server_requirements', page_locale()) }}</h2>
+        <p class="mt-2 text-sm text-slate-600">{{ t('php_version', page_locale()) }}: <span class="font-semibold text-slate-900">{{ phpVersion }}</span></p>
         <div class="mt-4">
-            <p class="text-sm font-medium text-slate-700">Loaded PHP extensions</p>
+            <p class="text-sm font-medium text-slate-700">{{ t('loaded_php_extensions', page_locale()) }}</p>
             <div class="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
                 {% for extension in phpExtensions %}
                     <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">{{ extension }}</span>
                 {% else %}
-                    <span class="text-sm text-slate-500">No PHP extensions detected.</span>
+                    <span class="text-sm text-slate-500">{{ t('no_php_extensions', page_locale()) }}</span>
                 {% endfor %}
             </div>
         </div>

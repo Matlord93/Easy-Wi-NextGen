@@ -39,6 +39,7 @@ final class AdminTemplateController
             'templates' => $this->normalizeTemplates($templates),
             'summary' => $this->buildSummary($templates),
             'form' => $this->buildFormContext(),
+            'import' => $this->buildImportContext(),
             'activeNav' => 'templates',
         ]));
     }
@@ -149,6 +150,91 @@ final class AdminTemplateController
         return $response;
     }
 
+    #[Route(path: '/import', name: 'admin_templates_import', methods: ['POST'])]
+    public function import(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $payload = trim((string) $request->request->get('payload', ''));
+        if ($payload === '') {
+            return $this->renderImportWithErrors($payload, ['Import payload is required.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $decoded = json_decode($payload, true);
+        if (!is_array($decoded)) {
+            return $this->renderImportWithErrors($payload, ['Import payload must be valid JSON.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $items = array_values($decoded);
+        if ($items === []) {
+            return $this->renderImportWithErrors($payload, ['Import payload must include at least one template.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $errors = [];
+        $parsedTemplates = [];
+        $seenGameKeys = [];
+
+        foreach ($items as $index => $item) {
+            if (!is_array($item)) {
+                $errors[] = $this->formatImportError($index, 'Template entry must be an object.');
+                continue;
+            }
+            $parsed = $this->parseImportEntry($item, $index, $seenGameKeys, $errors);
+            if ($parsed !== null) {
+                $parsedTemplates[] = $parsed;
+            }
+        }
+
+        if ($errors !== []) {
+            return $this->renderImportWithErrors($payload, $errors, Response::HTTP_BAD_REQUEST);
+        }
+
+        foreach ($parsedTemplates as $templateData) {
+            $template = new Template(
+                $templateData['game_key'],
+                $templateData['display_name'],
+                $templateData['description'],
+                $templateData['steam_app_id'],
+                $templateData['sniper_profile'],
+                $templateData['required_ports'],
+                $templateData['start_params'],
+                $templateData['env_vars'],
+                $templateData['config_files'],
+                $templateData['plugin_paths'],
+                $templateData['fastdl_settings'],
+                $templateData['install_command'],
+                $templateData['update_command'],
+                $templateData['allowed_switch_flags'],
+            );
+
+            $this->entityManager->persist($template);
+            $this->entityManager->flush();
+
+            $this->auditLogger->log($actor, 'template.created', [
+                'template_id' => $template->getId(),
+                'game_key' => $template->getGameKey(),
+                'display_name' => $template->getDisplayName(),
+                'required_ports' => $template->getRequiredPorts(),
+                'start_params' => $template->getStartParams(),
+                'source' => 'import',
+            ]);
+            $this->entityManager->flush();
+        }
+
+        $response = new Response($this->twig->render('admin/templates/_import.html.twig', [
+            'import' => $this->buildImportContext([
+                'success_message' => sprintf('Imported %d template(s).', count($parsedTemplates)),
+                'payload' => '',
+            ]),
+        ]));
+        $response->headers->set('HX-Trigger', 'templates-changed');
+
+        return $response;
+    }
+
     private function isAdmin(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
@@ -220,6 +306,17 @@ final class AdminTemplateController
         return array_merge($defaults, $overrides ?? []);
     }
 
+    private function buildImportContext(?array $overrides = null): array
+    {
+        $defaults = [
+            'errors' => [],
+            'payload' => '',
+            'success_message' => '',
+        ];
+
+        return array_merge($defaults, $overrides ?? []);
+    }
+
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -275,9 +372,13 @@ final class AdminTemplateController
             }
         }
 
-        $requiredPorts = $this->parseRequiredPorts($requiredPortsRaw, $errors);
-        $envVars = $this->parseEnvVars($envVarsRaw, $errors);
-        $configFiles = $this->parseConfigFiles($configFilesRaw, $errors);
+        $entryErrors = [];
+        $requiredPorts = $this->parseRequiredPorts($requiredPortsRaw, $entryErrors);
+        $envVars = $this->parseEnvVars($envVarsRaw, $entryErrors);
+        $configFiles = $this->parseConfigFiles($configFilesRaw, $entryErrors);
+        foreach ($entryErrors as $entryError) {
+            $errors[] = $this->formatImportError($index, $entryError);
+        }
         $pluginPaths = $this->parseLines($pluginPathsRaw);
         $allowedSwitchFlags = $this->parseList($allowedSwitchFlagsRaw);
         $fastdlSettings = [
@@ -314,6 +415,112 @@ final class AdminTemplateController
             'fastdl_enabled' => $fastdlEnabled,
             'fastdl_base_url' => $fastdlBaseUrl,
             'fastdl_root_path' => $fastdlRootPath,
+        ];
+    }
+
+    private function parseImportEntry(array $entry, int $index, array &$seenGameKeys, array &$errors): ?array
+    {
+        $gameKey = trim((string) ($entry['game_key'] ?? ''));
+        $displayName = trim((string) ($entry['display_name'] ?? ''));
+        $description = trim((string) ($entry['description'] ?? ''));
+        $steamAppIdRaw = trim((string) ($entry['steam_app_id'] ?? ''));
+        $sniperProfile = trim((string) ($entry['sniper_profile'] ?? ''));
+        $startParams = trim((string) ($entry['start_params'] ?? ''));
+        $requiredPortsRaw = $entry['required_ports'] ?? [];
+        $envVarsRaw = $this->normalizeEnvVarsInput($entry['env_vars'] ?? '');
+        $configFilesRaw = $this->normalizeConfigFilesInput($entry['config_files'] ?? '');
+        $pluginPathsRaw = $this->normalizeLinesInput($entry['plugin_paths'] ?? '');
+        $fastdlSettingsInput = $entry['fastdl_settings'] ?? [];
+        if (!is_array($fastdlSettingsInput)) {
+            $fastdlSettingsInput = [];
+        }
+        $fastdlEnabled = (bool) ($entry['fastdl_enabled'] ?? ($fastdlSettingsInput['enabled'] ?? false));
+        $fastdlBaseUrl = trim((string) ($entry['fastdl_base_url'] ?? ($fastdlSettingsInput['base_url'] ?? '')));
+        $fastdlRootPath = trim((string) ($entry['fastdl_root_path'] ?? ($fastdlSettingsInput['root_path'] ?? '')));
+        $installCommand = trim((string) ($entry['install_command'] ?? ''));
+        $updateCommand = trim((string) ($entry['update_command'] ?? ''));
+        $allowedSwitchFlagsRaw = $this->normalizeListInput($entry['allowed_switch_flags'] ?? '');
+
+        $entryErrors = [];
+        if ($gameKey === '') {
+            $entryErrors[] = 'Game key is required.';
+        } elseif (!preg_match('/^[a-z0-9][a-z0-9_.-]+$/', $gameKey)) {
+            $entryErrors[] = 'Game key must be lowercase and contain only letters, numbers, dots, dashes, or underscores.';
+        } elseif (isset($seenGameKeys[$gameKey])) {
+            $entryErrors[] = 'Game key must be unique inside the import.';
+        } elseif ($this->templateRepository->findOneBy(['gameKey' => $gameKey]) !== null) {
+            $entryErrors[] = 'Game key already exists.';
+        }
+        if ($displayName === '') {
+            $entryErrors[] = 'Display name is required.';
+        }
+        if ($startParams === '') {
+            $entryErrors[] = 'Start params are required.';
+        }
+        if ($installCommand === '') {
+            $entryErrors[] = 'Install command is required.';
+        }
+        if ($updateCommand === '') {
+            $entryErrors[] = 'Update command is required.';
+        }
+
+        $steamAppId = null;
+        if ($steamAppIdRaw !== '') {
+            if (!ctype_digit($steamAppIdRaw)) {
+                $entryErrors[] = 'Steam App ID must be numeric.';
+            } else {
+                $steamAppId = (int) $steamAppIdRaw;
+                if ($steamAppId <= 0) {
+                    $entryErrors[] = 'Steam App ID must be positive.';
+                }
+            }
+        }
+
+        if (is_string($requiredPortsRaw)) {
+            $requiredPortsRaw = preg_split('/[\s,]+/', $requiredPortsRaw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+        if (!is_array($requiredPortsRaw)) {
+            $requiredPortsRaw = [];
+        }
+        $requiredPorts = $this->parseRequiredPorts($requiredPortsRaw, $entryErrors);
+        $envVars = $this->parseEnvVars($envVarsRaw, $entryErrors);
+        $configFiles = $this->parseConfigFiles($configFilesRaw, $entryErrors);
+        $pluginPaths = $this->parseLines($pluginPathsRaw);
+        $allowedSwitchFlags = $this->parseList($allowedSwitchFlagsRaw);
+        $fastdlSettings = [
+            'enabled' => $fastdlEnabled,
+            'base_url' => $fastdlBaseUrl,
+            'root_path' => $fastdlRootPath,
+        ];
+        if ($fastdlEnabled && $fastdlBaseUrl === '') {
+            $entryErrors[] = 'FastDL base URL is required when FastDL is enabled.';
+        }
+
+        if ($entryErrors !== []) {
+            foreach ($entryErrors as $entryError) {
+                $errors[] = $this->formatImportError($index, $entryError);
+            }
+
+            return null;
+        }
+
+        $seenGameKeys[$gameKey] = true;
+
+        return [
+            'game_key' => $gameKey,
+            'display_name' => $displayName,
+            'description' => $description !== '' ? $description : null,
+            'steam_app_id' => $steamAppId,
+            'sniper_profile' => $sniperProfile !== '' ? $sniperProfile : null,
+            'start_params' => $startParams,
+            'required_ports' => $requiredPorts,
+            'env_vars' => $envVars,
+            'config_files' => $configFiles,
+            'plugin_paths' => $pluginPaths,
+            'fastdl_settings' => $fastdlSettings,
+            'install_command' => $installCommand,
+            'update_command' => $updateCommand,
+            'allowed_switch_flags' => $allowedSwitchFlags,
         ];
     }
 
@@ -420,6 +627,70 @@ final class AdminTemplateController
         $items = array_filter(array_map('trim', explode(',', $value)), static fn (string $item) => $item !== '');
 
         return array_values(array_unique($items));
+    }
+
+    private function normalizeLinesInput(mixed $value): string
+    {
+        if (is_array($value)) {
+            $lines = array_map(static fn ($entry): string => trim((string) $entry), $value);
+            $lines = array_filter($lines, static fn (string $line): bool => $line !== '');
+
+            return implode("\n", $lines);
+        }
+
+        return trim((string) $value);
+    }
+
+    private function normalizeListInput(mixed $value): string
+    {
+        if (is_array($value)) {
+            $items = array_map(static fn ($entry): string => trim((string) $entry), $value);
+            $items = array_filter($items, static fn (string $item): bool => $item !== '');
+
+            return implode(',', $items);
+        }
+
+        return trim((string) $value);
+    }
+
+    private function normalizeEnvVarsInput(mixed $value): string
+    {
+        if (is_array($value)) {
+            $lines = [];
+            foreach ($value as $entry) {
+                if (is_array($entry)) {
+                    $key = trim((string) ($entry['key'] ?? ''));
+                    $val = (string) ($entry['value'] ?? '');
+                    $lines[] = $key === '' ? '' : sprintf('%s=%s', $key, $val);
+                    continue;
+                }
+                $lines[] = (string) $entry;
+            }
+
+            return $this->normalizeLinesInput($lines);
+        }
+
+        return trim((string) $value);
+    }
+
+    private function normalizeConfigFilesInput(mixed $value): string
+    {
+        if (is_array($value)) {
+            $lines = [];
+            foreach ($value as $entry) {
+                if (is_array($entry)) {
+                    $path = trim((string) ($entry['path'] ?? ''));
+                    $description = trim((string) ($entry['description'] ?? ''));
+                    $lines[] = $description !== '' ? sprintf('%s | %s', $path, $description) : $path;
+                    continue;
+                }
+                $lines[] = (string) $entry;
+            }
+
+            return $this->normalizeLinesInput($lines);
+        }
+
+        return trim((string) $value);
     }
 
     private function buildPreviewFromTemplate(Template $template): array
@@ -533,5 +804,20 @@ final class AdminTemplateController
                 'allowed_switch_flags' => $formData['allowed_switch_flags_raw'],
             ]),
         ]), $status);
+    }
+
+    private function renderImportWithErrors(string $payload, array $errors, int $status): Response
+    {
+        return new Response($this->twig->render('admin/templates/_import.html.twig', [
+            'import' => $this->buildImportContext([
+                'errors' => $errors,
+                'payload' => $payload,
+            ]),
+        ]), $status);
+    }
+
+    private function formatImportError(int $index, string $message): string
+    {
+        return sprintf('Entry %d: %s', $index + 1, $message);
     }
 }

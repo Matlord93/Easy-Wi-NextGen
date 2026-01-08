@@ -1,12 +1,12 @@
 <div class="px-5 py-4">
     <div class="mb-4">
-        <h2 class="text-lg font-semibold">Create a CMS page</h2>
-        <p class="text-sm text-slate-500">Define a slug and publishing status for the new page.</p>
+        <h2 class="text-lg font-semibold">{{ t('create_cms_page', page_locale()) }}</h2>
+        <p class="text-sm text-slate-500">{{ t('create_cms_page_description', page_locale()) }}</p>
     </div>
 
     {% if form.errors is not empty %}
         <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <p class="font-semibold">Please fix the following:</p>
+            <p class="font-semibold">{{ t('please_fix_following', page_locale()) }}</p>
             <ul class="list-disc pl-5 mt-2">
                 {% for error in form.errors %}
                     <li>{{ error }}</li>
@@ -22,17 +22,17 @@
         hx-swap="outerHTML"
     >
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Title</label>
-            <input type="text" name="title" value="{{ form.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Homepage, Pricing, FAQ">
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('title', page_locale()) }}</label>
+            <input type="text" name="title" value="{{ form.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('cms_page_title_placeholder', page_locale()) }}">
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Slug</label>
-            <input type="text" name="slug" value="{{ form.slug }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="pricing">
+            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('slug', page_locale()) }}</label>
+            <input type="text" name="slug" value="{{ form.slug }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('cms_page_slug_placeholder', page_locale()) }}">
         </div>
         <label class="flex items-center gap-2 text-sm text-slate-600">
             <input type="checkbox" name="is_published" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" {% if form.is_published %}checked{% endif %}>
-            Publish immediately
+            {{ t('publish_immediately', page_locale()) }}
         </label>
-        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create page</button>
+        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ t('create_page', page_locale()) }}</button>
     </form>
 </div>

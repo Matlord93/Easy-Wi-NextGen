@@ -2,10 +2,10 @@
     <table class="min-w-full text-sm">
         <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
             <tr>
-                <th class="px-5 py-3 text-left font-semibold">Order</th>
-                <th class="px-5 py-3 text-left font-semibold">Type</th>
-                <th class="px-5 py-3 text-left font-semibold">Preview</th>
-                <th class="px-5 py-3 text-left font-semibold">Updated</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('order', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('type', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('preview', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('updated', page_locale()) }}</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
@@ -22,7 +22,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="4" class="px-5 py-6 text-center text-sm text-slate-500">No blocks yet. Add the first block for this page.</td>
+                    <td colspan="4" class="px-5 py-6 text-center text-sm text-slate-500">{{ t('no_blocks_yet', page_locale()) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

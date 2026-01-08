@@ -42,6 +42,7 @@ final class AdminPluginCatalogController
             'plugins' => $this->normalizePlugins($plugins),
             'summary' => $this->buildSummary($plugins),
             'form' => $this->buildFormContext(),
+            'import' => $this->buildImportContext(),
             'templates' => $this->normalizeTemplates($templates),
             'activeNav' => 'plugins',
         ]));
@@ -235,6 +236,83 @@ final class AdminPluginCatalogController
         return $response;
     }
 
+    #[Route(path: '/import', name: 'admin_plugins_import', methods: ['POST'])]
+    public function import(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $payload = trim((string) $request->request->get('payload', ''));
+        if ($payload === '') {
+            return $this->renderImportWithErrors($payload, ['Import payload is required.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $decoded = json_decode($payload, true);
+        if (!is_array($decoded)) {
+            return $this->renderImportWithErrors($payload, ['Import payload must be valid JSON.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $items = array_values($decoded);
+        if ($items === []) {
+            return $this->renderImportWithErrors($payload, ['Import payload must include at least one plugin.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $errors = [];
+        $parsedPlugins = [];
+
+        foreach ($items as $index => $item) {
+            if (!is_array($item)) {
+                $errors[] = $this->formatImportError($index, 'Plugin entry must be an object.');
+                continue;
+            }
+            $parsed = $this->parseImportEntry($item, $index, $errors);
+            if ($parsed !== null) {
+                $parsedPlugins[] = $parsed;
+            }
+        }
+
+        if ($errors !== []) {
+            return $this->renderImportWithErrors($payload, $errors, Response::HTTP_BAD_REQUEST);
+        }
+
+        foreach ($parsedPlugins as $pluginData) {
+            $plugin = new GamePlugin(
+                template: $pluginData['template'],
+                name: $pluginData['name'],
+                version: $pluginData['version'],
+                checksum: $pluginData['checksum'],
+                downloadUrl: $pluginData['download_url'],
+                description: $pluginData['description'],
+            );
+
+            $this->entityManager->persist($plugin);
+            $this->entityManager->flush();
+
+            $this->auditLogger->log($actor, 'plugin.created', [
+                'plugin_id' => $plugin->getId(),
+                'template_id' => $plugin->getTemplate()->getId(),
+                'name' => $plugin->getName(),
+                'version' => $plugin->getVersion(),
+                'checksum' => $plugin->getChecksum(),
+                'download_url' => $plugin->getDownloadUrl(),
+                'source' => 'import',
+            ]);
+            $this->entityManager->flush();
+        }
+
+        $response = new Response($this->twig->render('admin/plugins/_import.html.twig', [
+            'import' => $this->buildImportContext([
+                'success_message' => sprintf('Imported %d plugin(s).', count($parsedPlugins)),
+                'payload' => '',
+            ]),
+        ]));
+        $response->headers->set('HX-Trigger', 'plugins-changed');
+
+        return $response;
+    }
+
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -299,6 +377,17 @@ final class AdminPluginCatalogController
         return $data;
     }
 
+    private function buildImportContext(?array $overrides = null): array
+    {
+        $defaults = [
+            'errors' => [],
+            'payload' => '',
+            'success_message' => '',
+        ];
+
+        return array_merge($defaults, $overrides ?? []);
+    }
+
     private function renderFormWithErrors(array $formData, int $status, ?GamePlugin $plugin = null): Response
     {
         $formContext = $this->buildFormContext($plugin, [
@@ -315,6 +404,80 @@ final class AdminPluginCatalogController
             'form' => $formContext,
             'templates' => $this->normalizeTemplates($this->templateRepository->findBy([], ['name' => 'ASC'])),
         ]), $status);
+    }
+
+    private function renderImportWithErrors(string $payload, array $errors, int $status): Response
+    {
+        return new Response($this->twig->render('admin/plugins/_import.html.twig', [
+            'import' => $this->buildImportContext([
+                'errors' => $errors,
+                'payload' => $payload,
+            ]),
+        ]), $status);
+    }
+
+    private function parseImportEntry(array $entry, int $index, array &$errors): ?array
+    {
+        $templateId = (int) ($entry['template_id'] ?? 0);
+        $templateGameKey = trim((string) ($entry['template_game_key'] ?? ''));
+        $name = trim((string) ($entry['name'] ?? ''));
+        $version = trim((string) ($entry['version'] ?? ''));
+        $checksum = trim((string) ($entry['checksum'] ?? ''));
+        $downloadUrl = trim((string) ($entry['download_url'] ?? ''));
+        $description = trim((string) ($entry['description'] ?? ''));
+
+        $entryErrors = [];
+        $template = null;
+        if ($templateId > 0) {
+            $template = $this->templateRepository->find($templateId);
+            if ($template === null) {
+                $entryErrors[] = 'Template ID was not found.';
+            }
+        } elseif ($templateGameKey !== '') {
+            $template = $this->templateRepository->findOneBy(['gameKey' => $templateGameKey]);
+            if ($template === null) {
+                $entryErrors[] = 'Template game_key was not found.';
+            }
+        } else {
+            $entryErrors[] = 'Template reference is required (template_id or template_game_key).';
+        }
+
+        if ($name === '') {
+            $entryErrors[] = 'Name is required.';
+        }
+        if ($version === '') {
+            $entryErrors[] = 'Version is required.';
+        }
+        if ($checksum === '') {
+            $entryErrors[] = 'Checksum is required.';
+        }
+        if ($downloadUrl === '') {
+            $entryErrors[] = 'Download URL is required.';
+        } elseif (!filter_var($downloadUrl, FILTER_VALIDATE_URL)) {
+            $entryErrors[] = 'Download URL must be valid.';
+        }
+
+        if ($entryErrors !== []) {
+            foreach ($entryErrors as $entryError) {
+                $errors[] = $this->formatImportError($index, $entryError);
+            }
+
+            return null;
+        }
+
+        return [
+            'template' => $template,
+            'name' => $name,
+            'version' => $version,
+            'checksum' => $checksum,
+            'download_url' => $downloadUrl,
+            'description' => $description !== '' ? $description : null,
+        ];
+    }
+
+    private function formatImportError(int $index, string $message): string
+    {
+        return sprintf('Entry %d: %s', $index + 1, $message);
     }
 
     /**

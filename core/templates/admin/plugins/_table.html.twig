@@ -1,4 +1,4 @@
-<div id="plugins-table" class="overflow-x-auto">
+<div id="plugins-table" class="overflow-x-auto" hx-trigger="plugins-changed from:body" hx-get="/admin/plugins/table" hx-swap="outerHTML">
     <table class="min-w-full text-sm">
         <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
             <tr>

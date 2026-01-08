@@ -11,6 +11,7 @@ use App\Enum\UserType;
 use App\Repository\CmsBlockRepository;
 use App\Repository\CmsPageRepository;
 use App\Service\AuditLogger;
+use App\Service\CmsTemplateCatalog;
 use App\Service\SiteResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -27,6 +28,7 @@ final class AdminCmsPageController
         private readonly SiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly CmsTemplateCatalog $cmsTemplateCatalog,
         private readonly Environment $twig,
     ) {
     }
@@ -49,6 +51,8 @@ final class AdminCmsPageController
             'pages' => $this->normalizePages($pages),
             'summary' => $this->buildSummary($pages),
             'form' => $this->buildFormContext(),
+            'templateForm' => $this->buildTemplateFormContext($site->getCmsTemplateKey()),
+            'templates' => $this->cmsTemplateCatalog->listTemplates(),
             'activeNav' => 'cms-pages',
         ]));
     }
@@ -118,6 +122,59 @@ final class AdminCmsPageController
 
         $response = new Response($this->twig->render('admin/cms/pages/_form.html.twig', [
             'form' => $this->buildFormContext(),
+        ]));
+        $response->headers->set('HX-Trigger', 'cms-pages-changed');
+
+        return $response;
+    }
+
+    #[Route(path: '/template', name: 'admin_cms_pages_template', methods: ['POST'])]
+    public function updateTemplate(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $formData = $this->parseTemplatePayload($request);
+        if ($formData['errors'] !== []) {
+            return $this->renderTemplateFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+        }
+
+        $template = $this->cmsTemplateCatalog->getTemplate($formData['template_key']);
+        if ($template === null) {
+            return $this->renderTemplateFormWithErrors([
+                'errors' => ['Selected CMS template is invalid.'],
+                'template_key' => $formData['template_key'],
+                'apply_template' => $formData['apply_template'],
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $site->setCmsTemplateKey($formData['template_key']);
+
+        if ($formData['apply_template']) {
+            $this->applyTemplate($site, $template);
+        }
+
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($actor, 'cms.template.selected', [
+            'site_id' => $site->getId(),
+            'template_key' => $formData['template_key'],
+            'applied' => $formData['apply_template'],
+        ]);
+        $this->entityManager->flush();
+
+        $response = new Response($this->twig->render('admin/cms/pages/_template_form.html.twig', [
+            'templateForm' => $this->buildTemplateFormContext($site->getCmsTemplateKey(), [
+                'success' => true,
+            ]),
+            'templates' => $this->cmsTemplateCatalog->listTemplates(),
         ]));
         $response->headers->set('HX-Trigger', 'cms-pages-changed');
 
@@ -337,6 +394,18 @@ final class AdminCmsPageController
         return array_merge($defaults, $overrides ?? []);
     }
 
+    private function buildTemplateFormContext(?string $templateKey, ?array $overrides = null): array
+    {
+        $defaults = [
+            'errors' => [],
+            'template_key' => $templateKey ?? '',
+            'apply_template' => true,
+            'success' => false,
+        ];
+
+        return array_merge($defaults, $overrides ?? []);
+    }
+
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -411,6 +480,23 @@ final class AdminCmsPageController
         ];
     }
 
+    private function parseTemplatePayload(Request $request): array
+    {
+        $errors = [];
+        $templateKey = trim((string) $request->request->get('template_key', ''));
+        $applyTemplate = $request->request->get('apply_template') === 'on';
+
+        if ($templateKey === '') {
+            $errors[] = 'CMS template selection is required.';
+        }
+
+        return [
+            'errors' => $errors,
+            'template_key' => $templateKey,
+            'apply_template' => $applyTemplate,
+        ];
+    }
+
     private function renderFormWithErrors(array $formData, int $statusCode): Response
     {
         return new Response($this->twig->render('admin/cms/pages/_form.html.twig', [
@@ -424,6 +510,40 @@ final class AdminCmsPageController
             'blockForm' => $this->buildBlockFormContext($formData),
             'page' => $formData['page'],
         ]), $statusCode);
+    }
+
+    private function renderTemplateFormWithErrors(array $formData, int $statusCode): Response
+    {
+        return new Response($this->twig->render('admin/cms/pages/_template_form.html.twig', [
+            'templateForm' => $this->buildTemplateFormContext($formData['template_key'] ?? null, $formData),
+            'templates' => $this->cmsTemplateCatalog->listTemplates(),
+        ]), $statusCode);
+    }
+
+    /**
+     * @param array<string, mixed> $template
+     */
+    private function applyTemplate(\App\Entity\Site $site, array $template): void
+    {
+        $existingPages = $this->pageRepository->findBy(['site' => $site]);
+        $existingSlugs = array_map(static fn (CmsPage $page) => $page->getSlug(), $existingPages);
+
+        foreach ($template['pages'] as $pageData) {
+            if (in_array($pageData['slug'], $existingSlugs, true)) {
+                continue;
+            }
+
+            $page = new CmsPage($site, $pageData['title'], $pageData['slug'], (bool) $pageData['is_published']);
+            $this->entityManager->persist($page);
+
+            $sortOrder = 1;
+            foreach ($pageData['blocks'] as $blockData) {
+                $block = new CmsBlock($page, $blockData['type'], $blockData['content'], $sortOrder);
+                $page->addBlock($block);
+                $this->entityManager->persist($block);
+                $sortOrder++;
+            }
+        }
     }
 
     private function buildServerBlockPreview(string $content): string

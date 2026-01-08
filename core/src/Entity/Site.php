@@ -26,6 +26,9 @@ class Site
     #[ORM\Column]
     private bool $allowPrivateNetworkTargets = false;
 
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $cmsTemplateKey = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -82,6 +85,17 @@ class Site
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getCmsTemplateKey(): ?string
+    {
+        return $this->cmsTemplateKey;
+    }
+
+    public function setCmsTemplateKey(?string $cmsTemplateKey): void
+    {
+        $this->cmsTemplateKey = $cmsTemplateKey;
+        $this->touch();
     }
 
     public function getUpdatedAt(): \DateTimeImmutable
