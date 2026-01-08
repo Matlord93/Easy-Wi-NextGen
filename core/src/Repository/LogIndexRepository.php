@@ -31,4 +31,14 @@ final class LogIndexRepository extends ServiceEntityRepository
             'agent' => $agent,
         ]);
     }
+
+    public function deleteOlderThan(\DateTimeImmutable $cutoff): int
+    {
+        return $this->createQueryBuilder('log')
+            ->delete()
+            ->andWhere('log.updatedAt < :cutoff')
+            ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->execute();
+    }
 }

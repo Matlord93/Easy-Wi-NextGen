@@ -16,6 +16,10 @@ CHANNEL="${EASYWI_CHANNEL:-}"
 MAIL_HOSTNAME="${EASYWI_MAIL_HOSTNAME:-}"
 DB_BIND_ADDRESS="${EASYWI_DB_BIND_ADDRESS:-127.0.0.1}"
 DB_ALLOWED_SUBNET="${EASYWI_DB_SUBNET:-}"
+INTERACTIVE="${EASYWI_INTERACTIVE:-}"
+NON_INTERACTIVE="${EASYWI_NON_INTERACTIVE:-}"
+DIAGNOSTICS_MODE="${EASYWI_DIAGNOSTICS:-auto}"
+LOG_FILE="/var/log/easywi/installer.log"
 
 LOG_PREFIX="[easywi-installer]"
 
@@ -38,6 +42,9 @@ Options:
   --db-subnet <cidr>     Allowed subnet CIDR for database firewall/pg_hba
   --repo-owner <owner>   GitHub repo owner
   --repo-name <name>     GitHub repo name
+  --interactive          Prompt for missing values
+  --non-interactive      Disable prompts, fail if required values missing
+  --diagnostics <mode>   Diagnostics bundle: auto, always, never
   -h, --help             Show help
 
 Environment variables:
@@ -45,12 +52,17 @@ Environment variables:
   EASYWI_AGENT_VERSION, EASYWI_CHANNEL, EASYWI_MAIL_HOSTNAME,
   EASYWI_RUNNER_VERSION,
   EASYWI_BOOTSTRAP_TOKEN, EASYWI_ROLES, EASYWI_DB_BIND_ADDRESS,
-  EASYWI_DB_SUBNET
+  EASYWI_DB_SUBNET, EASYWI_INTERACTIVE, EASYWI_NON_INTERACTIVE,
+  EASYWI_DIAGNOSTICS
 USAGE
 }
 
 log() {
-  echo "${LOG_PREFIX} $*"
+  if [[ -d /var/log/easywi ]]; then
+    echo "${LOG_PREFIX} $*" | tee -a "${LOG_FILE}"
+  else
+    echo "${LOG_PREFIX} $*"
+  fi
 }
 
 fatal() {
@@ -80,6 +92,89 @@ preflight_tools() {
 
   command_exists sha256sum || fatal "Missing sha256sum"
   command_exists systemctl || fatal "systemd is required"
+}
+
+is_tty() {
+  [[ -t 0 ]]
+}
+
+normalize_bool() {
+  local value="${1:-}"
+  case "${value}" in
+    1|true|TRUE|yes|YES|y|Y)
+      echo "true"
+      ;;
+    *)
+      echo "false"
+      ;;
+  esac
+}
+
+prompt_value() {
+  local var_name="$1"
+  local prompt="$2"
+  local default="${3:-}"
+  local secret="${4:-false}"
+  local current="${!var_name:-}"
+  local value
+
+  if [[ -n "${current}" ]]; then
+    return
+  fi
+
+  if [[ "$(normalize_bool "${NON_INTERACTIVE}")" == "true" ]]; then
+    return
+  fi
+
+  if ! is_tty; then
+    return
+  fi
+
+  if [[ -n "${default}" ]]; then
+    prompt="${prompt} [${default}]"
+  fi
+
+  if [[ "${secret}" == "true" ]]; then
+    read -r -s -p "${prompt}: " value
+    echo
+  else
+    read -r -p "${prompt}: " value
+  fi
+
+  if [[ -z "${value}" ]]; then
+    value="${default}"
+  fi
+
+  printf -v "${var_name}" '%s' "${value}"
+}
+
+collect_inputs() {
+  local tty_active
+  tty_active="$(is_tty && echo true || echo false)"
+  if [[ "$(normalize_bool "${INTERACTIVE}")" == "false" && -n "${INTERACTIVE}" ]]; then
+    return
+  fi
+
+  if [[ "$(normalize_bool "${INTERACTIVE}")" == "true" ]]; then
+    :
+  elif [[ -z "${INTERACTIVE}" && -n "${NON_INTERACTIVE}" ]]; then
+    return
+  elif [[ -z "${INTERACTIVE}" && -z "${NON_INTERACTIVE}" && "$(normalize_bool "${tty_active}")" == "true" ]]; then
+    if [[ -z "${ROLE_LIST}" || -z "${BOOTSTRAP_TOKEN}" || -z "${CORE_URL}" ]]; then
+      INTERACTIVE="true"
+    fi
+  fi
+
+  if [[ "$(normalize_bool "${INTERACTIVE}")" == "true" ]]; then
+    prompt_value CORE_URL "Core API URL" "${CORE_URL}"
+    API_URL="${CORE_URL}"
+    prompt_value BOOTSTRAP_TOKEN "Bootstrap token" "" "true"
+    prompt_value ROLE_LIST "Roles (game,web,dns,mail,db)" "${ROLE_LIST}"
+    prompt_value CHANNEL "Update channel (stable/beta or tag)" "${CHANNEL}"
+    prompt_value MAIL_HOSTNAME "Mail hostname (optional)" "${MAIL_HOSTNAME}"
+    prompt_value DB_BIND_ADDRESS "DB bind address" "${DB_BIND_ADDRESS}"
+    prompt_value DB_ALLOWED_SUBNET "DB allowed subnet CIDR (optional)" "${DB_ALLOWED_SUBNET}"
+  fi
 }
 
 read_os_release() {
@@ -863,6 +958,54 @@ CONF
   done
 }
 
+collect_diagnostics() {
+  local timestamp
+  local target_dir
+  local archive_path
+
+  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  target_dir="$(mktemp -d)"
+  archive_path="/var/log/easywi/diagnostics-${timestamp}.tar.gz"
+
+  mkdir -p "${target_dir}/logs" "${target_dir}/config"
+  cp -a /var/log/easywi "${target_dir}/logs" 2>/dev/null || true
+  cp -a /etc/easywi "${target_dir}/config" 2>/dev/null || true
+
+  {
+    echo "Timestamp: ${timestamp}"
+    uname -a
+    echo
+    echo "[OS Release]"
+    cat /etc/os-release 2>/dev/null || true
+    echo
+    echo "[Versions]"
+    systemctl --version 2>/dev/null || true
+    /usr/local/bin/easywi-agent --version 2>/dev/null || true
+    /usr/local/bin/easywi-runner --version 2>/dev/null || true
+    nginx -v 2>&1 || true
+    php -v 2>/dev/null | head -n 2 || true
+    pdns_server --version 2>/dev/null || true
+    postfix -v 2>/dev/null || true
+    dovecot --version 2>/dev/null || true
+    mariadbd --version 2>/dev/null || true
+    mysqld --version 2>/dev/null || true
+    psql --version 2>/dev/null || true
+    echo
+    echo "[Services]"
+    systemctl list-units --type=service --state=running 2>/dev/null || true
+  } > "${target_dir}/versions.txt"
+
+  if command_exists ss; then
+    ss -tulpn > "${target_dir}/ports.txt" 2>/dev/null || true
+  elif command_exists netstat; then
+    netstat -tulpn > "${target_dir}/ports.txt" 2>/dev/null || true
+  fi
+
+  tar -czf "${archive_path}" -C "${target_dir}" .
+  rm -rf "${target_dir}"
+  log "Diagnostics bundle written to ${archive_path}"
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -916,6 +1059,18 @@ parse_args() {
         REPO_NAME="$2"
         shift 2
         ;;
+      --interactive)
+        INTERACTIVE="true"
+        shift
+        ;;
+      --non-interactive)
+        NON_INTERACTIVE="true"
+        shift
+        ;;
+      --diagnostics)
+        DIAGNOSTICS_MODE="$2"
+        shift 2
+        ;;
       -h|--help)
         usage
         exit 0
@@ -932,6 +1087,7 @@ main() {
   require_root
   preflight_tools
   read_os_release
+  collect_inputs
 
   if [[ -n "${CHANNEL}" && "${AGENT_VERSION}" == "latest" ]]; then
     AGENT_VERSION="${CHANNEL}"
@@ -958,6 +1114,14 @@ main() {
   systemctl start easywi-agent.service
 
   log "Installation complete."
+
+  local tty_active
+  tty_active="$(is_tty && echo true || echo false)"
+  if [[ "${DIAGNOSTICS_MODE}" == "always" || ("${DIAGNOSTICS_MODE}" == "auto" && "$(normalize_bool "${tty_active}")" == "true") ]]; then
+    collect_diagnostics
+  else
+    log "Diagnostics bundle skipped (mode: ${DIAGNOSTICS_MODE})."
+  fi
 }
 
 main "$@"

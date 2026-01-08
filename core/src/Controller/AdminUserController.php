@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\InvoicePreferences;
 use App\Entity\User;
 use App\Enum\UserType;
 use App\Repository\UserRepository;
@@ -52,6 +53,10 @@ final class AdminUserController
         $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
 
         $this->entityManager->persist($user);
+        if ($type !== UserType::Admin) {
+            $preferences = new InvoicePreferences($user, 'de_DE', true, true, 'manual', 'de');
+            $this->entityManager->persist($preferences);
+        }
         $this->entityManager->flush();
 
         $this->auditLogger->log($actor, 'user.created', [

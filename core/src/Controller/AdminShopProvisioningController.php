@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Entity\Instance;
 use App\Entity\Job;
+use App\Entity\InvoicePreferences;
 use App\Entity\User;
 use App\Enum\InstanceStatus;
 use App\Enum\InstanceUpdatePolicy;
@@ -84,6 +85,8 @@ final class AdminShopProvisioningController
             $customer->setPasswordHash($this->passwordHasher->hashPassword($customer, $password));
 
             $this->entityManager->persist($customer);
+            $preferences = new InvoicePreferences($customer, 'de_DE', true, true, 'manual', 'de');
+            $this->entityManager->persist($preferences);
             $this->entityManager->flush();
 
             $this->auditLogger->log($actor, 'user.created', [

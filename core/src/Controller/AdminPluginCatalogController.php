@@ -36,7 +36,7 @@ final class AdminPluginCatalogController
         }
 
         $plugins = $this->pluginRepository->findBy([], ['updatedAt' => 'DESC']);
-        $templates = $this->templateRepository->findBy([], ['name' => 'ASC']);
+        $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC']);
 
         return new Response($this->twig->render('admin/plugins/index.html.twig', [
             'plugins' => $this->normalizePlugins($plugins),

@@ -1,0 +1,100 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Invoice {{ invoice.number }} · Billing · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-semibold text-slate-900">Invoice {{ invoice.number }}</h1>
+                <p class="text-sm text-slate-500">{{ invoice.customer }} · Created {{ invoice.created_at|date('Y-m-d') }}</p>
+            </div>
+            <a href="/admin/billing" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">Back to billing</a>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-xs uppercase text-slate-400">Amount due</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ invoice.amount_due / 100 }} {{ invoice.currency }}</p>
+                <p class="mt-1 text-xs text-slate-500">Total {{ invoice.amount_total / 100 }} {{ invoice.currency }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-xs uppercase text-slate-400">Due date</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ invoice.due_date|date('Y-m-d') }}</p>
+                <p class="mt-1 text-xs text-slate-500">
+                    {% if invoice.paid_at %}
+                        Paid {{ invoice.paid_at|date('Y-m-d') }}
+                    {% else %}
+                        Awaiting payment
+                    {% endif %}
+                </p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-xs uppercase text-slate-400">Status</p>
+                <div class="mt-2">
+                    {% if invoice.status == 'paid' %}
+                        <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Paid</span>
+                    {% elseif invoice.status == 'past_due' %}
+                        <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">Past due</span>
+                    {% elseif invoice.status == 'open' %}
+                        <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">Open</span>
+                    {% else %}
+                        <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{{ invoice.status|replace({'_': ' '})|title }}</span>
+                    {% endif %}
+                </div>
+                <p class="mt-1 text-xs text-slate-500">Invoice ID #{{ invoice.id }}</p>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-6 py-4">
+                <h2 class="text-lg font-semibold text-slate-900">Archived PDF</h2>
+                <p class="text-sm text-slate-500">Store the immutable PDF copy for compliance and accounting.</p>
+            </div>
+            <div class="space-y-4 px-6 py-5">
+                {% if archive.is_archived %}
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <p class="text-sm font-medium text-slate-900">{{ archive.file_name }}</p>
+                            <p class="mt-1 text-xs text-slate-500">{{ archive.file_size }} bytes · {{ archive.content_type }}</p>
+                        </div>
+                        <a href="/admin/billing/invoices/{{ invoice.id }}/archive/download" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Download PDF</a>
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-3">
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-xs uppercase text-slate-400">Archived year</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-900">{{ archive.archived_year }}</p>
+                        </div>
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-xs uppercase text-slate-400">Archive hash</p>
+                            <p class="mt-1 text-xs font-mono text-slate-700 break-all">{{ archive.pdf_hash }}</p>
+                        </div>
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <p class="text-xs uppercase text-slate-400">Archived at</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-900">{{ archive.created_at|date('Y-m-d H:i') }}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500">Archive entries are immutable. Uploads are locked after the first PDF.</p>
+                {% else %}
+                    {% if archive_errors is not empty %}
+                        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                            <ul class="list-disc space-y-1 pl-4">
+                                {% for error in archive_errors %}
+                                    <li>{{ error }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                    <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/archive" enctype="multipart/form-data" class="space-y-4">
+                        <div>
+                            <label class="text-xs font-semibold uppercase text-slate-500">Invoice PDF</label>
+                            <input type="file" name="invoice_pdf" accept="application/pdf" class="mt-2 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                            <p class="mt-2 text-xs text-slate-500">Upload the final, signed PDF (max 10MB).</p>
+                        </div>
+                        <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Archive invoice</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock %}

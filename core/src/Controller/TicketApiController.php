@@ -15,6 +15,7 @@ use App\Repository\TicketMessageRepository;
 use App\Repository\TicketRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\NotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -29,6 +30,7 @@ final class TicketApiController
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly NotificationService $notificationService,
     ) {
     }
 
@@ -83,6 +85,24 @@ final class TicketApiController
             'message_id' => $message->getId(),
             'author_id' => $actor->getId(),
         ]);
+        if ($actor->getType() === UserType::Customer) {
+            $this->notificationService->notifyAdmins(
+                sprintf('ticket.created.%s', $ticket->getId()),
+                sprintf('New ticket · #%s', $ticket->getId()),
+                sprintf('%s · %s', $ticket->getCustomer()->getEmail(), $ticket->getSubject()),
+                'tickets',
+                '/admin/tickets',
+            );
+        } elseif ($actor->getType() === UserType::Admin) {
+            $this->notificationService->notify(
+                $ticket->getCustomer(),
+                sprintf('ticket.created.%s', $ticket->getId()),
+                sprintf('Ticket opened · #%s', $ticket->getId()),
+                $ticket->getSubject(),
+                'tickets',
+                '/tickets',
+            );
+        }
         $this->entityManager->flush();
 
         return new JsonResponse([
@@ -119,6 +139,24 @@ final class TicketApiController
             'message_id' => $message->getId(),
             'author_id' => $actor->getId(),
         ]);
+        if ($actor->getType() === UserType::Customer) {
+            $this->notificationService->notifyAdmins(
+                sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
+                sprintf('Ticket reply · #%s', $ticket->getId()),
+                sprintf('%s replied', $actor->getEmail()),
+                'tickets',
+                '/admin/tickets',
+            );
+        } elseif ($actor->getType() === UserType::Admin) {
+            $this->notificationService->notify(
+                $ticket->getCustomer(),
+                sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
+                sprintf('Reply on ticket · #%s', $ticket->getId()),
+                'An operator replied to your ticket.',
+                'tickets',
+                '/tickets',
+            );
+        }
         $this->entityManager->flush();
 
         return new JsonResponse([

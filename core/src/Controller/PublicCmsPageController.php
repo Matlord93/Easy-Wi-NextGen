@@ -29,14 +29,14 @@ final class PublicCmsPageController
     #[Route(path: '/pages/{slug}', name: 'public_cms_page', methods: ['GET'])]
     public function show(Request $request, string $slug): Response
     {
-        $page = $this->pageRepository->findOneBy(['slug' => $slug, 'isPublished' => true]);
-        if ($page === null) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
-        }
-
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $page = $this->pageRepository->findOneBy(['slug' => $slug, 'isPublished' => true, 'site' => $site]);
+        if ($page === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
         $blocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);

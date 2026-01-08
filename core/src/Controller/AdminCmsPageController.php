@@ -11,6 +11,7 @@ use App\Enum\UserType;
 use App\Repository\CmsBlockRepository;
 use App\Repository\CmsPageRepository;
 use App\Service\AuditLogger;
+use App\Service\SiteResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,6 +24,7 @@ final class AdminCmsPageController
     public function __construct(
         private readonly CmsPageRepository $pageRepository,
         private readonly CmsBlockRepository $blockRepository,
+        private readonly SiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
@@ -36,7 +38,12 @@ final class AdminCmsPageController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $pages = $this->pageRepository->findBy([], ['updatedAt' => 'DESC']);
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $pages = $this->pageRepository->findBy(['site' => $site], ['updatedAt' => 'DESC']);
 
         return new Response($this->twig->render('admin/cms/pages/index.html.twig', [
             'pages' => $this->normalizePages($pages),
@@ -53,7 +60,12 @@ final class AdminCmsPageController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $pages = $this->pageRepository->findBy([], ['updatedAt' => 'DESC']);
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $pages = $this->pageRepository->findBy(['site' => $site], ['updatedAt' => 'DESC']);
 
         return new Response($this->twig->render('admin/cms/pages/_table.html.twig', [
             'pages' => $this->normalizePages($pages),
@@ -80,18 +92,24 @@ final class AdminCmsPageController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
         $formData = $this->parsePayload($request);
 
         if ($formData['errors'] !== []) {
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
         }
 
-        $page = new CmsPage($formData['title'], $formData['slug'], $formData['is_published']);
+        $page = new CmsPage($site, $formData['title'], $formData['slug'], $formData['is_published']);
         $this->entityManager->persist($page);
         $this->entityManager->flush();
 
         $this->auditLogger->log($actor, 'cms.page.created', [
             'page_id' => $page->getId(),
+            'site_id' => $page->getSite()->getId(),
             'title' => $page->getTitle(),
             'slug' => $page->getSlug(),
             'is_published' => $page->isPublished(),
@@ -113,8 +131,13 @@ final class AdminCmsPageController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
         $page = $this->pageRepository->find($id);
-        if (!$page instanceof CmsPage) {
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
@@ -135,8 +158,13 @@ final class AdminCmsPageController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
         $page = $this->pageRepository->find($id);
-        if (!$page instanceof CmsPage) {
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
@@ -154,8 +182,13 @@ final class AdminCmsPageController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
         $page = $this->pageRepository->find($id);
-        if (!$page instanceof CmsPage) {
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
@@ -173,8 +206,13 @@ final class AdminCmsPageController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
         $page = $this->pageRepository->find($id);
-        if (!$page instanceof CmsPage) {
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
@@ -193,6 +231,7 @@ final class AdminCmsPageController
 
         $this->auditLogger->log($actor, 'cms.block.created', [
             'page_id' => $page->getId(),
+            'site_id' => $page->getSite()->getId(),
             'block_id' => $block->getId(),
             'type' => $block->getType(),
             'sort_order' => $block->getSortOrder(),

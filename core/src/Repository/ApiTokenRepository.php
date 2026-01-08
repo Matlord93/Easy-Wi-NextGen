@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\ApiToken;
+use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -29,5 +30,15 @@ final class ApiTokenRepository extends ServiceEntityRepository
             ->setMaxResults(1);
 
         return $qb->getQuery()->getOneOrNullResult();
+    }
+
+    public function deleteByCustomer(User $customer): int
+    {
+        return $this->createQueryBuilder('token')
+            ->delete()
+            ->andWhere('token.customer = :customer')
+            ->setParameter('customer', $customer)
+            ->getQuery()
+            ->execute();
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\InvoicePreferences;
 use App\Entity\User;
 use App\Enum\UserType;
 use App\Repository\UserRepository;
@@ -106,12 +107,18 @@ final class PublicRegistrationController
                     $user->recordConsents($ipAddress, $now);
 
                     $this->entityManager->persist($user);
+                    $preferences = new InvoicePreferences($user, 'de_DE', true, true, 'manual', 'de');
+                    $this->entityManager->persist($preferences);
                     $this->entityManager->flush();
 
                     $this->auditLogger->log($user, 'customer.registered', [
                         'user_id' => $user->getId(),
                         'email' => $user->getEmail(),
                         'ip_address' => $ipAddress,
+                        'site_id' => $site->getId(),
+                        'site_host' => $site->getHost(),
+                        'terms_accepted_at' => $user->getTermsAcceptedAt()?->format(DATE_ATOM),
+                        'privacy_accepted_at' => $user->getPrivacyAcceptedAt()?->format(DATE_ATOM),
                     ]);
 
                     $this->entityManager->flush();

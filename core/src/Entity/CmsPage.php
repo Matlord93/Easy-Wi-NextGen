@@ -11,12 +11,18 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: CmsPageRepository::class)]
 #[ORM\Table(name: 'cms_pages')]
+#[ORM\Index(name: 'idx_cms_pages_site_id', columns: ['site_id'])]
+#[ORM\UniqueConstraint(name: 'uniq_cms_pages_site_slug', columns: ['site_id', 'slug'])]
 class CmsPage
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
+
+    #[ORM\ManyToOne(targetEntity: Site::class)]
+    #[ORM\JoinColumn(nullable: false)]
+    private Site $site;
 
     #[ORM\Column(length: 160)]
     private string $title;
@@ -39,8 +45,9 @@ class CmsPage
     #[ORM\OneToMany(mappedBy: 'page', targetEntity: CmsBlock::class, cascade: ['persist'], orphanRemoval: true)]
     private Collection $blocks;
 
-    public function __construct(string $title, string $slug, bool $isPublished)
+    public function __construct(Site $site, string $title, string $slug, bool $isPublished)
     {
+        $this->site = $site;
         $this->title = $title;
         $this->slug = $slug;
         $this->isPublished = $isPublished;
@@ -52,6 +59,11 @@ class CmsPage
     public function getId(): ?int
     {
         return $this->id;
+    }
+
+    public function getSite(): Site
+    {
+        return $this->site;
     }
 
     public function getTitle(): string

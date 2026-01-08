@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\InvoicePreferences;
 use App\Entity\User;
 use App\Enum\UserType;
 use App\Repository\UserRepository;
@@ -78,6 +79,8 @@ final class ResellerCustomerController
         $customer->setResellerOwner($reseller);
 
         $this->entityManager->persist($customer);
+        $preferences = new InvoicePreferences($customer, 'de_DE', true, true, 'manual', 'de');
+        $this->entityManager->persist($preferences);
         $this->entityManager->flush();
 
         $this->auditLogger->log($reseller, 'user.created', [

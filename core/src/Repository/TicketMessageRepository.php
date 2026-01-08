@@ -6,6 +6,7 @@ namespace App\Repository;
 
 use App\Entity\Ticket;
 use App\Entity\TicketMessage;
+use App\Enum\TicketStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -22,5 +23,19 @@ final class TicketMessageRepository extends ServiceEntityRepository
     public function findByTicket(Ticket $ticket): array
     {
         return $this->findBy(['ticket' => $ticket], ['createdAt' => 'ASC']);
+    }
+
+    public function deleteForClosedTicketsBefore(\DateTimeImmutable $cutoff): int
+    {
+        return $this->createQueryBuilder('message')
+            ->delete()
+            ->andWhere('message.ticket IN (
+                SELECT t.id FROM App\\Entity\\Ticket t
+                WHERE t.status = :status AND t.updatedAt < :cutoff
+            )')
+            ->setParameter('status', TicketStatus::Closed)
+            ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->execute();
     }
 }

@@ -20,7 +20,7 @@ use Twig\Environment;
 #[Route(path: '/admin/nodes')]
 final class AdminNodeController
 {
-    private const ROLE_OPTIONS = ['Control', 'Worker', 'Edge', 'Storage', 'Gateway'];
+    private const ROLE_OPTIONS = ['Web', 'Mail', 'DNS', 'Game', 'DB'];
 
     public function __construct(
         private readonly AgentRepository $agentRepository,
@@ -48,6 +48,7 @@ final class AdminNodeController
             'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
             'summary' => $summary,
             'roleOptions' => self::ROLE_OPTIONS,
+            'updateChannel' => $this->releaseChecker->getChannel(),
             'activeNav' => 'nodes',
         ]));
     }
@@ -66,6 +67,7 @@ final class AdminNodeController
         return new Response($this->twig->render('admin/nodes/_table.html.twig', [
             'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
             'roleOptions' => self::ROLE_OPTIONS,
+            'updateChannel' => $this->releaseChecker->getChannel(),
         ]));
     }
 
@@ -116,6 +118,7 @@ final class AdminNodeController
         return new Response($this->twig->render('admin/nodes/_table.html.twig', [
             'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
             'roleOptions' => self::ROLE_OPTIONS,
+            'updateChannel' => $this->releaseChecker->getChannel(),
         ]));
     }
 
@@ -140,6 +143,7 @@ final class AdminNodeController
         return new Response($this->twig->render('admin/nodes/_table.html.twig', [
             'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
             'roleOptions' => self::ROLE_OPTIONS,
+            'updateChannel' => $this->releaseChecker->getChannel(),
         ]));
     }
 
@@ -167,6 +171,7 @@ final class AdminNodeController
         return new Response($this->twig->render('admin/nodes/_table.html.twig', [
             'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
             'roleOptions' => self::ROLE_OPTIONS,
+            'updateChannel' => $this->releaseChecker->getChannel(),
         ]));
     }
 
@@ -408,7 +413,7 @@ final class AdminNodeController
             return [$singleRole];
         }
 
-        return ['Worker'];
+        return ['Web'];
     }
 
     /**

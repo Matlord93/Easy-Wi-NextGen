@@ -11,7 +11,7 @@
     <div class="flex items-center gap-3">
         {% if summary.latestVersion %}
             <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                Latest agent release {{ summary.latestVersion }}
+                {{ updateChannel|upper }} channel · {{ summary.latestVersion }}
             </span>
             <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
                 {{ summary.updates }} update{{ summary.updates == 1 ? '' : 's' }} available
@@ -69,6 +69,6 @@
             hx-swap="outerHTML"
         >Refresh</button>
     </div>
-    {% include 'admin/nodes/_table.html.twig' with { nodes: nodes } %}
+    {% include 'admin/nodes/_table.html.twig' with { nodes: nodes, updateChannel: updateChannel } %}
 </div>
 {% endblock %}

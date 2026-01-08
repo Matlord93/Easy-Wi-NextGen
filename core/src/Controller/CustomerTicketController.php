@@ -14,6 +14,7 @@ use App\Enum\UserType;
 use App\Repository\TicketMessageRepository;
 use App\Repository\TicketRepository;
 use App\Service\AuditLogger;
+use App\Service\NotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -28,6 +29,7 @@ final class CustomerTicketController
         private readonly TicketMessageRepository $ticketMessageRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly NotificationService $notificationService,
         private readonly Environment $twig,
     ) {
     }
@@ -109,6 +111,13 @@ final class CustomerTicketController
             'message_id' => $message->getId(),
             'author_id' => $actor->getId(),
         ]);
+        $this->notificationService->notifyAdmins(
+            sprintf('ticket.created.%s', $ticket->getId()),
+            sprintf('New ticket · #%s', $ticket->getId()),
+            sprintf('%s · %s', $ticket->getCustomer()->getEmail(), $ticket->getSubject()),
+            'tickets',
+            '/admin/tickets',
+        );
         $this->entityManager->flush();
 
         $response = new Response($this->twig->render('customer/tickets/_form.html.twig', [
@@ -162,6 +171,13 @@ final class CustomerTicketController
             'message_id' => $message->getId(),
             'author_id' => $actor->getId(),
         ]);
+        $this->notificationService->notifyAdmins(
+            sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
+            sprintf('Ticket reply · #%s', $ticket->getId()),
+            sprintf('%s replied', $actor->getEmail()),
+            'tickets',
+            '/admin/tickets',
+        );
         $this->entityManager->flush();
 
         return new Response($this->twig->render('customer/tickets/_messages.html.twig', [

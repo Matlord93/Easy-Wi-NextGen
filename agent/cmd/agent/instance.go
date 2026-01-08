@@ -22,16 +22,24 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")
 	startParams := payloadValue(job.Payload, "start_params")
+	cpuLimitValue := payloadValue(job.Payload, "cpu_limit")
+	ramLimitValue := payloadValue(job.Payload, "ram_limit")
+	diskLimitValue := payloadValue(job.Payload, "disk_limit")
 	requiredPortsRaw := payloadValue(job.Payload, "required_ports")
 	portBlockPortsRaw := payloadValue(job.Payload, "port_block_ports", "ports")
 	baseDir := payloadValue(job.Payload, "base_dir")
 	startCommand := payloadValue(job.Payload, "exec_start", "start_command")
 	serviceName := payloadValue(job.Payload, "service_name")
+	quotaMount := payloadValue(job.Payload, "quota_mount", "quota_device")
+	autostart := parsePayloadBool(payloadValue(job.Payload, "autostart", "auto_start"), true)
 
 	missing := missingValues([]requiredValue{
 		{key: "instance_id", value: instanceID},
 		{key: "customer_id", value: customerID},
 		{key: "start_params", value: startParams},
+		{key: "cpu_limit", value: cpuLimitValue},
+		{key: "ram_limit", value: ramLimitValue},
+		{key: "disk_limit", value: diskLimitValue},
 	})
 	if len(missing) > 0 {
 		return jobs.Result{
@@ -50,6 +58,22 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 	if startCommand == "" {
 		startCommand = startParams
+	}
+
+	cpuLimit, err := parsePositiveInt(cpuLimitValue, "cpu_limit")
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	ramLimit, err := parsePositiveInt(ramLimitValue, "ram_limit")
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	diskLimit, err := parsePositiveInt(diskLimitValue, "disk_limit")
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	if quotaMount == "" {
+		quotaMount = os.Getenv("EASYWI_INSTANCE_QUOTA_MOUNT")
 	}
 
 	osUsername := buildInstanceUsername(customerID, instanceID)
@@ -84,6 +108,10 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 		}
 	}
 
+	if err := applyInstanceQuota(osUsername, diskLimit, quotaMount); err != nil {
+		return failureResult(job.ID, err)
+	}
+
 	allocatedPorts, err := parsePorts(portBlockPortsRaw)
 	if err != nil {
 		return failureResult(job.ID, err)
@@ -100,14 +128,23 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, startCommand, startParams)
+	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
 	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write systemd unit: %w", err))
 	}
 	if err := runCommand("systemctl", "daemon-reload"); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := runCommand("systemctl", "enable", "--now", serviceName); err != nil {
+	if autostart {
+		if err := runCommand("systemctl", "enable", "--now", serviceName); err != nil {
+			return failureResult(job.ID, err)
+		}
+	} else {
+		if err := runCommand("systemctl", "start", serviceName); err != nil {
+			return failureResult(job.ID, err)
+		}
+	}
+	if err := ensureServiceActive(serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
 
@@ -121,6 +158,11 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 			"logs_dir":        logsDir,
 			"config_dir":      configDir,
 			"service_name":    serviceName,
+			"cpu_limit":       strconv.Itoa(cpuLimit),
+			"ram_limit":       strconv.Itoa(ramLimit),
+			"disk_limit":      strconv.Itoa(diskLimit),
+			"quota_mount":     quotaMount,
+			"autostart":       strconv.FormatBool(autostart),
 			"allocated_ports": strings.Join(intSliceToStrings(allocatedPorts), ","),
 			"required_ports":  requiredPortsRaw,
 		},
@@ -148,6 +190,9 @@ func handleInstanceStart(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if err := runCommand("systemctl", "start", serviceName); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := ensureServiceActive(serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
 
@@ -218,6 +263,9 @@ func handleInstanceRestart(job jobs.Job) (jobs.Result, func() error) {
 	if err := runCommand("systemctl", "restart", serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
+	if err := ensureServiceActive(serviceName); err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
 	diagnostics["service_name"] = serviceName
@@ -238,11 +286,19 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	startParams := payloadValue(job.Payload, "start_params")
 	startCommand := payloadValue(job.Payload, "exec_start", "start_command")
 	installCommand := payloadValue(job.Payload, "install_command")
+	cpuLimitValue := payloadValue(job.Payload, "cpu_limit")
+	ramLimitValue := payloadValue(job.Payload, "ram_limit")
+	diskLimitValue := payloadValue(job.Payload, "disk_limit")
+	quotaMount := payloadValue(job.Payload, "quota_mount", "quota_device")
 	backupOld := strings.EqualFold(payloadValue(job.Payload, "backup_old", "backup"), "true")
+	autostart := parsePayloadBool(payloadValue(job.Payload, "autostart", "auto_start"), true)
 
 	missing := missingValues([]requiredValue{
 		{key: "instance_id", value: instanceID},
 		{key: "customer_id", value: customerID},
+		{key: "cpu_limit", value: cpuLimitValue},
+		{key: "ram_limit", value: ramLimitValue},
+		{key: "disk_limit", value: diskLimitValue},
 	})
 	if len(missing) > 0 {
 		return jobs.Result{
@@ -261,6 +317,22 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	}
 	if startCommand == "" {
 		startCommand = startParams
+	}
+
+	cpuLimit, err := parsePositiveInt(cpuLimitValue, "cpu_limit")
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	ramLimit, err := parsePositiveInt(ramLimitValue, "ram_limit")
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	diskLimit, err := parsePositiveInt(diskLimitValue, "disk_limit")
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	if quotaMount == "" {
+		quotaMount = os.Getenv("EASYWI_INSTANCE_QUOTA_MOUNT")
 	}
 
 	osUsername := buildInstanceUsername(customerID, instanceID)
@@ -339,8 +411,12 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
+	if err := applyInstanceQuota(osUsername, diskLimit, quotaMount); err != nil {
+		return failureResult(job.ID, err)
+	}
+
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, startCommand, startParams)
+	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
 	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write systemd unit: %w", err))
 	}
@@ -355,7 +431,13 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 		}
 	}
 
+	if autostart {
+		_ = runCommand("systemctl", "enable", serviceName)
+	}
 	if err := runCommand("systemctl", "start", serviceName); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := ensureServiceActive(serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
 
@@ -366,6 +448,11 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	diagnostics["logs_dir"] = logsDir
 	diagnostics["config_dir"] = configDir
 	diagnostics["backup_old"] = strconv.FormatBool(backupOld)
+	diagnostics["cpu_limit"] = strconv.Itoa(cpuLimit)
+	diagnostics["ram_limit"] = strconv.Itoa(ramLimit)
+	diagnostics["disk_limit"] = strconv.Itoa(diskLimit)
+	diagnostics["quota_mount"] = quotaMount
+	diagnostics["autostart"] = strconv.FormatBool(autostart)
 
 	return jobs.Result{
 		JobID:     job.ID,
@@ -423,11 +510,12 @@ func allocateCustomerPorts(customerID string) ([]int, error) {
 	return ports, nil
 }
 
-func systemdUnitTemplate(serviceName, user, workingDir, startCommand, startParams string) string {
+func systemdUnitTemplate(serviceName, user, workingDir, startCommand, startParams string, cpuLimit, ramLimit int) string {
 	command := strings.TrimSpace(startCommand)
 	if startParams != "" && !strings.Contains(startCommand, startParams) {
 		command = strings.TrimSpace(command + " " + startParams)
 	}
+	limits := buildSystemdLimits(cpuLimit, ramLimit)
 	return fmt.Sprintf(`[Unit]
 Description=Easy-Wi Instance %s
 After=network.target
@@ -436,13 +524,59 @@ After=network.target
 Type=simple
 User=%s
 WorkingDirectory=%s
+ExecStartPre=/usr/bin/test -d %s
 ExecStart=%s
 Restart=on-failure
-RestartSec=5
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RemoveIPC=true
+CapabilityBoundingSet=
+KillMode=mixed
+ReadWritePaths=%s
+%s
 
 [Install]
 WantedBy=multi-user.target
-`, serviceName, user, workingDir, command)
+`, serviceName, user, workingDir, workingDir, command, workingDir, limits)
+}
+
+func buildSystemdLimits(cpuLimit, ramLimit int) string {
+	lines := []string{
+		"Slice=easywi-instances.slice",
+		"TasksMax=512",
+	}
+	if cpuLimit > 0 {
+		lines = append(lines,
+			"CPUAccounting=true",
+			fmt.Sprintf("CPUQuota=%d%%", cpuLimit),
+		)
+	}
+	if ramLimit > 0 {
+		lines = append(lines,
+			"MemoryAccounting=true",
+			fmt.Sprintf("MemoryMax=%dM", ramLimit),
+			"MemorySwapMax=0",
+		)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func intSliceToStrings(values []int) []string {
@@ -486,6 +620,53 @@ func trimOutput(value string, max int) string {
 		return value
 	}
 	return value[len(value)-max:]
+}
+
+func parsePositiveInt(value, key string) (int, error) {
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+	return parsed, nil
+}
+
+func parsePayloadBool(value string, defaultValue bool) bool {
+	if value == "" {
+		return defaultValue
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultValue
+	}
+}
+
+func applyInstanceQuota(ownerUser string, quotaMB int, quotaMount string) error {
+	if quotaMB <= 0 {
+		return fmt.Errorf("disk_limit must be positive")
+	}
+	if quotaMount == "" {
+		return fmt.Errorf("quota_mount is required when disk_limit is set")
+	}
+	blocks := quotaMB * 1024
+	if err := runCommand("setquota", "-u", ownerUser, strconv.Itoa(blocks), strconv.Itoa(blocks), "0", "0", quotaMount); err != nil {
+		return fmt.Errorf("set quota for %s: %w", ownerUser, err)
+	}
+	return nil
+}
+
+func ensureServiceActive(serviceName string) error {
+	statusOutput, err := runCommandOutput("systemctl", "is-active", serviceName)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(statusOutput) != "active" {
+		return fmt.Errorf("service %s not active (%s)", serviceName, strings.TrimSpace(statusOutput))
+	}
+	return nil
 }
 
 func copyDir(source, target string) error {

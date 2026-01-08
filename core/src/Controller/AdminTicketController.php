@@ -15,6 +15,7 @@ use App\Repository\TicketMessageRepository;
 use App\Repository\TicketRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\NotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,6 +31,7 @@ final class AdminTicketController
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly NotificationService $notificationService,
         private readonly Environment $twig,
     ) {
     }
@@ -124,6 +126,14 @@ final class AdminTicketController
             'message_id' => $message->getId(),
             'author_id' => $actor->getId(),
         ]);
+        $this->notificationService->notify(
+            $ticket->getCustomer(),
+            sprintf('ticket.created.%s', $ticket->getId()),
+            sprintf('Ticket opened · #%s', $ticket->getId()),
+            $ticket->getSubject(),
+            'tickets',
+            '/tickets',
+        );
         $this->entityManager->flush();
 
         $response = new Response($this->twig->render('admin/tickets/_form.html.twig', [
@@ -185,6 +195,14 @@ final class AdminTicketController
             'message_id' => $message->getId(),
             'author_id' => $actor->getId(),
         ]);
+        $this->notificationService->notify(
+            $ticket->getCustomer(),
+            sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
+            sprintf('Reply on ticket · #%s', $ticket->getId()),
+            'An operator replied to your ticket.',
+            'tickets',
+            '/tickets',
+        );
         $this->entityManager->flush();
 
         return new Response($this->twig->render('admin/tickets/_messages.html.twig', [

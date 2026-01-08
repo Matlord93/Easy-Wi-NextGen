@@ -10,14 +10,18 @@ use App\Enum\JobResultStatus;
 use App\Enum\JobStatus;
 use App\Repository\AgentRepository;
 use App\Repository\DomainRepository;
+use App\Repository\GdprDeletionRequestRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Repository\PublicServerRepository;
 use App\Repository\Ts3InstanceRepository;
+use App\Repository\UserRepository;
 use App\Service\AgentSignatureVerifier;
 use App\Service\AuditLogger;
 use App\Service\EncryptionService;
 use App\Service\FirewallStateManager;
+use App\Service\GdprAnonymizer;
+use App\Service\NotificationService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -38,11 +42,15 @@ final class AgentApiController
         private readonly InstanceRepository $instanceRepository,
         private readonly PublicServerRepository $publicServerRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
+        private readonly UserRepository $userRepository,
+        private readonly GdprDeletionRequestRepository $gdprDeletionRequestRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
         private readonly AuditLogger $auditLogger,
         private readonly FirewallStateManager $firewallStateManager,
+        private readonly GdprAnonymizer $gdprAnonymizer,
+        private readonly NotificationService $notificationService,
         private readonly EventDispatcherInterface $eventDispatcher,
     ) {
     }
@@ -212,6 +220,7 @@ final class AgentApiController
         $this->applyTs3UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->applyInstanceUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyPublicServerUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
+        $this->applyGdprAnonymizationFromJob($job, $resultStatus, $agent->getId());
         $this->eventDispatcher->dispatch(
             new \App\Extension\Event\JobAfterResultEvent($job, $jobResult, $agent),
             'extension.job.after_result',
@@ -221,6 +230,13 @@ final class AgentApiController
             'job_id' => $job->getId(),
             'status' => $resultStatus->value,
         ]);
+        $this->notificationService->notifyAdmins(
+            sprintf('job.completed.%s', $job->getId()),
+            sprintf('Job %s completed', $job->getId()),
+            sprintf('%s · %s', $job->getType(), $resultStatus->value),
+            'jobs',
+            '/admin/jobs',
+        );
         $this->entityManager->flush();
 
         return new JsonResponse(['status' => 'ok']);
@@ -532,6 +548,42 @@ final class AgentApiController
             'job_id' => $job->getId(),
             'agent_id' => $agentId,
             'status' => $status,
+        ]);
+    }
+
+    private function applyGdprAnonymizationFromJob(\App\Entity\Job $job, JobResultStatus $resultStatus, string $agentId): void
+    {
+        if ($job->getType() !== 'gdpr.anonymize_user') {
+            return;
+        }
+
+        if ($resultStatus !== JobResultStatus::Succeeded) {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $userId = $payload['user_id'] ?? null;
+        if (!is_int($userId) && !is_string($userId)) {
+            return;
+        }
+
+        $user = $this->userRepository->find((int) $userId);
+        if ($user === null) {
+            return;
+        }
+
+        $this->gdprAnonymizer->anonymize($user);
+
+        $request = $this->gdprDeletionRequestRepository->findByJobId($job->getId());
+        if ($request !== null) {
+            $request->markCompleted();
+            $this->entityManager->persist($request);
+        }
+
+        $this->auditLogger->log(null, 'gdpr.user_anonymized', [
+            'user_id' => $user->getId(),
+            'job_id' => $job->getId(),
+            'agent_id' => $agentId,
         ]);
     }
 }

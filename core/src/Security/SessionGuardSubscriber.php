@@ -13,8 +13,10 @@ use Symfony\Component\HttpKernel\KernelEvents;
 
 final class SessionGuardSubscriber implements EventSubscriberInterface
 {
-    public function __construct(private readonly SessionAuthenticator $sessionAuthenticator)
-    {
+    public function __construct(
+        private readonly SessionAuthenticator $sessionAuthenticator,
+        private readonly PortalAccessPolicy $portalAccessPolicy,
+    ) {
     }
 
     public static function getSubscribedEvents(): array
@@ -49,6 +51,11 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         }
 
         $request->attributes->set('current_user', $user);
+
+        if (!$this->portalAccessPolicy->isAllowed($user, $path)) {
+            $event->setResponse($this->forbiddenResponse($request));
+            return;
+        }
     }
 
     private function requiresSession(string $path): bool
@@ -92,5 +99,14 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         }
 
         return new Response('Unauthorized.', Response::HTTP_UNAUTHORIZED);
+    }
+
+    private function forbiddenResponse(Request $request): Response
+    {
+        if (str_starts_with($request->getPathInfo(), '/api/')) {
+            return new JsonResponse(['error' => 'Forbidden.'], Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
     }
 }

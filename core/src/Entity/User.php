@@ -182,6 +182,19 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->privacyAcceptedIp = $ipAddress;
     }
 
+    public function anonymize(string $email, string $passwordHash): void
+    {
+        $this->email = strtolower($email);
+        $this->passwordHash = $passwordHash;
+        $this->emailVerifiedAt = null;
+        $this->emailVerificationTokenHash = null;
+        $this->emailVerificationExpiresAt = null;
+        $this->termsAcceptedAt = null;
+        $this->termsAcceptedIp = null;
+        $this->privacyAcceptedAt = null;
+        $this->privacyAcceptedIp = null;
+    }
+
     public function getResellerOwner(): ?self
     {
         return $this->resellerOwner;

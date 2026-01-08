@@ -8,9 +8,15 @@ use App\Entity\User;
 use App\Enum\InvoiceStatus;
 use App\Enum\UserType;
 use App\Repository\CreditNoteRepository;
+use App\Repository\InvoiceArchiveRepository;
 use App\Repository\InvoiceRepository;
+use App\Repository\PaymentRepository;
+use App\Service\Billing\AccountingExportService;
+use App\Service\Billing\InvoiceArchiveManager;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
@@ -20,6 +26,10 @@ final class AdminBillingController
     public function __construct(
         private readonly InvoiceRepository $invoiceRepository,
         private readonly CreditNoteRepository $creditNoteRepository,
+        private readonly PaymentRepository $paymentRepository,
+        private readonly InvoiceArchiveRepository $invoiceArchiveRepository,
+        private readonly InvoiceArchiveManager $invoiceArchiveManager,
+        private readonly AccountingExportService $accountingExportService,
         private readonly Environment $twig,
     ) {
     }
@@ -32,6 +42,8 @@ final class AdminBillingController
         }
 
         $recentInvoices = $this->invoiceRepository->findRecent();
+        $invoiceIds = array_map(static fn (\App\Entity\Invoice $invoice): int => $invoice->getId() ?? 0, $recentInvoices);
+        $archivedInvoiceIds = $this->invoiceArchiveRepository->findArchivedInvoiceIds($invoiceIds);
         $recentCreditNotes = $this->creditNoteRepository->findRecent();
         $summary = [
             'open' => $this->invoiceRepository->countByStatus(InvoiceStatus::Open),
@@ -42,9 +54,128 @@ final class AdminBillingController
         return new Response($this->twig->render('admin/billing/index.html.twig', [
             'activeNav' => 'billing',
             'summary' => $summary,
-            'invoices' => $this->normalizeInvoices($recentInvoices),
+            'invoices' => $this->normalizeInvoices($recentInvoices, $archivedInvoiceIds),
             'credit_notes' => $this->normalizeCreditNotes($recentCreditNotes),
         ]));
+    }
+
+    #[Route(path: '/invoices/{id}', name: 'admin_billing_invoice_show', methods: ['GET'])]
+    public function showInvoice(Request $request, int $id): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $invoice = $this->invoiceRepository->find($id);
+        if (!$invoice instanceof \App\Entity\Invoice) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
+
+        return new Response($this->twig->render('admin/billing/invoice.html.twig', [
+            'activeNav' => 'billing',
+            'invoice' => $this->normalizeInvoiceDetail($invoice),
+            'archive' => $this->normalizeArchive($archive),
+            'archive_errors' => [],
+        ]));
+    }
+
+    #[Route(path: '/invoices/{id}/archive', name: 'admin_billing_invoice_archive', methods: ['POST'])]
+    public function archiveInvoice(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $invoice = $this->invoiceRepository->find($id);
+        if (!$invoice instanceof \App\Entity\Invoice) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
+
+        $formData = $this->parseArchivePayload($request);
+        if ($archive !== null) {
+            $formData['errors'][] = 'Invoice is already archived and cannot be replaced.';
+        }
+
+        if ($formData['errors'] !== []) {
+            return new Response($this->twig->render('admin/billing/invoice.html.twig', [
+                'activeNav' => 'billing',
+                'invoice' => $this->normalizeInvoiceDetail($invoice),
+                'archive' => $this->normalizeArchive($archive),
+                'archive_errors' => $formData['errors'],
+            ]), Response::HTTP_BAD_REQUEST);
+        }
+
+        /** @var UploadedFile $file */
+        $file = $formData['file'];
+        $archive = $this->invoiceArchiveManager->archiveInvoice($invoice, $file, $actor);
+
+        return new Response($this->twig->render('admin/billing/invoice.html.twig', [
+            'activeNav' => 'billing',
+            'invoice' => $this->normalizeInvoiceDetail($invoice),
+            'archive' => $this->normalizeArchive($archive),
+            'archive_errors' => [],
+        ]));
+    }
+
+    #[Route(path: '/invoices/{id}/archive/download', name: 'admin_billing_invoice_archive_download', methods: ['GET'])]
+    public function downloadArchive(Request $request, int $id): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $invoice = $this->invoiceRepository->find($id);
+        if (!$invoice instanceof \App\Entity\Invoice) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
+        if ($archive === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $response = new Response($archive->getPdfContents());
+        $response->headers->set('Content-Type', $archive->getContentType());
+        $response->headers->set('Content-Disposition', sprintf('attachment; filename=\"%s\"', $archive->getFileName()));
+
+        return $response;
+    }
+
+    #[Route(path: '/export', name: 'admin_billing_export', methods: ['GET'])]
+    public function export(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $type = (string) $request->query->get('type', 'invoices');
+        $yearValue = $request->query->get('year');
+        $year = is_numeric($yearValue) ? (int) $yearValue : null;
+
+        if ($type === 'payments') {
+            $payments = $this->paymentRepository->findForExport($year);
+            $csv = $this->accountingExportService->exportPayments($payments);
+            $fileName = $year !== null ? sprintf('payments-%d.csv', $year) : 'payments.csv';
+        } else {
+            $invoices = $this->invoiceRepository->findForExport($year);
+            $invoiceIds = array_map(static fn (\App\Entity\Invoice $invoice): int => $invoice->getId() ?? 0, $invoices);
+            $archiveMeta = $this->invoiceArchiveRepository->findArchiveMetadataByInvoiceIds($invoiceIds);
+            $csv = $this->accountingExportService->exportInvoices($invoices, $archiveMeta);
+            $fileName = $year !== null ? sprintf('invoices-%d.csv', $year) : 'invoices.csv';
+        }
+
+        $response = new StreamedResponse(static function () use ($csv): void {
+            echo $csv;
+        });
+        $response->headers->set('Content-Type', 'text/csv; charset=utf-8');
+        $response->headers->set('Content-Disposition', sprintf('attachment; filename=\"%s\"', $fileName));
+
+        return $response;
     }
 
     private function isAdmin(Request $request): bool
@@ -53,9 +184,14 @@ final class AdminBillingController
         return $actor instanceof User && $actor->getType() === UserType::Admin;
     }
 
-    private function normalizeInvoices(array $invoices): array
+    /**
+     * @param int[] $archivedInvoiceIds
+     */
+    private function normalizeInvoices(array $invoices, array $archivedInvoiceIds): array
     {
-        return array_map(static function (\App\Entity\Invoice $invoice): array {
+        return array_map(static function (\App\Entity\Invoice $invoice) use ($archivedInvoiceIds): array {
+            $isArchived = in_array($invoice->getId(), $archivedInvoiceIds, true);
+
             return [
                 'id' => $invoice->getId(),
                 'number' => $invoice->getNumber(),
@@ -65,6 +201,7 @@ final class AdminBillingController
                 'currency' => $invoice->getCurrency(),
                 'due_date' => $invoice->getDueDate(),
                 'paid_at' => $invoice->getPaidAt(),
+                'is_archived' => $isArchived,
             ];
         }, $invoices);
     }
@@ -84,5 +221,77 @@ final class AdminBillingController
                 'reason' => $creditNote->getReason(),
             ];
         }, $creditNotes);
+    }
+
+    private function normalizeInvoiceDetail(\App\Entity\Invoice $invoice): array
+    {
+        return [
+            'id' => $invoice->getId(),
+            'number' => $invoice->getNumber(),
+            'status' => $invoice->getStatus()->value,
+            'customer' => $invoice->getCustomer()->getEmail(),
+            'currency' => $invoice->getCurrency(),
+            'amount_total' => $invoice->getAmountTotalCents(),
+            'amount_due' => $invoice->getAmountDueCents(),
+            'due_date' => $invoice->getDueDate(),
+            'paid_at' => $invoice->getPaidAt(),
+            'created_at' => $invoice->getCreatedAt(),
+        ];
+    }
+
+    private function normalizeArchive(?\App\Entity\InvoiceArchive $archive): array
+    {
+        if ($archive === null) {
+            return [
+                'is_archived' => false,
+            ];
+        }
+
+        return [
+            'is_archived' => true,
+            'id' => $archive->getId(),
+            'file_name' => $archive->getFileName(),
+            'content_type' => $archive->getContentType(),
+            'file_size' => $archive->getFileSize(),
+            'pdf_hash' => $archive->getPdfHash(),
+            'archived_year' => $archive->getArchivedYear(),
+            'created_at' => $archive->getCreatedAt(),
+        ];
+    }
+
+    private function parseArchivePayload(Request $request): array
+    {
+        $errors = [];
+        $file = $request->files->get('invoice_pdf');
+
+        if (!$file instanceof UploadedFile) {
+            $errors[] = 'Invoice PDF is required.';
+            return [
+                'errors' => $errors,
+                'file' => null,
+            ];
+        }
+
+        if (!$file->isValid()) {
+            $errors[] = 'PDF upload failed.';
+        }
+
+        $mimeType = $file->getMimeType();
+        if ($mimeType !== null && $mimeType !== 'application/pdf') {
+            $errors[] = 'Only PDF files are allowed.';
+        }
+
+        $size = $file->getSize() ?? 0;
+        if ($size === 0) {
+            $errors[] = 'PDF file is empty.';
+        }
+        if ($size > InvoiceArchiveManager::MAX_FILE_SIZE) {
+            $errors[] = 'PDF file exceeds the 10MB limit.';
+        }
+
+        return [
+            'errors' => $errors,
+            'file' => $file,
+        ];
     }
 }

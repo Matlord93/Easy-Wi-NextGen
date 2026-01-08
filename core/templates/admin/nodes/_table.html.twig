@@ -7,11 +7,11 @@
 } %}
 
 {% set roleStyles = {
-    'control': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    'worker': 'bg-slate-100 text-slate-600 border-slate-200',
-    'edge': 'bg-sky-50 text-sky-700 border-sky-200',
-    'storage': 'bg-purple-50 text-purple-700 border-purple-200',
-    'gateway': 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    'web': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'mail': 'bg-amber-50 text-amber-700 border-amber-200',
+    'dns': 'bg-sky-50 text-sky-700 border-sky-200',
+    'game': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'db': 'bg-purple-50 text-purple-700 border-purple-200'
 } %}
 
 {% set updateJobStyles = {
@@ -95,6 +95,11 @@
                 <td class="px-5 py-4 text-slate-500">
                     <div class="flex flex-col gap-1">
                         <span class="text-sm font-medium text-slate-700">{{ node.lastHeartbeatVersion ?? '—' }}</span>
+                        {% if updateChannel is defined %}
+                            <span class="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                                Channel: {{ updateChannel|upper }}
+                            </span>
+                        {% endif %}
                         {% if node.updateAvailable is same as(true) %}
                             <span class="inline-flex w-fit items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
                                 Update available

@@ -1,0 +1,41 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}Delete Account · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Delete &amp; Anonymize</h1>
+        <p class="text-sm text-slate-500">Request GDPR anonymization of your account data.</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
+    <div class="rounded-xl bg-white border border-slate-200">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+            <div>
+                <h2 class="text-lg font-semibold">Request status</h2>
+                <p class="text-sm text-slate-500">We queue a GDPR anonymization job for your account.</p>
+            </div>
+        </div>
+        <div id="gdpr-delete-status" hx-get="/gdpr/delete/status" hx-trigger="gdpr-delete-updated from:body" hx-swap="outerHTML">
+            {% include 'customer/gdpr/delete/_status.html.twig' with { request: request, statusStyles: statusStyles } %}
+        </div>
+    </div>
+
+    <div class="rounded-xl bg-white border border-slate-200 p-5 space-y-4">
+        <div>
+            <h2 class="text-lg font-semibold">What stays on file</h2>
+            <p class="text-sm text-slate-500">Invoices and payments must be retained for legal and tax compliance.</p>
+        </div>
+        <ul class="space-y-2 text-sm text-slate-600">
+            <li class="flex gap-2"><span class="text-emerald-500">•</span>Invoice PDFs and payment history.</li>
+            <li class="flex gap-2"><span class="text-emerald-500">•</span>Accounting references and tax fields on invoices.</li>
+            <li class="flex gap-2"><span class="text-emerald-500">•</span>Audit log records required for security.</li>
+        </ul>
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+            Support tickets and service resources are retained without personal identifiers after anonymization.
+        </div>
+    </div>
+</div>
+{% endblock %}

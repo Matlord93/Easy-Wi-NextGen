@@ -39,7 +39,10 @@
                     <h2 class="text-lg font-semibold text-slate-900">Recent invoices</h2>
                     <p class="text-sm text-slate-500">Latest billing activity across customers.</p>
                 </div>
-                <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">Export CSV</button>
+                <div class="flex flex-wrap gap-2">
+                    <a href="/admin/billing/export?type=invoices" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">Export invoices</a>
+                    <a href="/admin/billing/export?type=payments" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">Export payments</a>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -50,6 +53,8 @@
                         <th class="px-6 py-3 text-left">Due date</th>
                         <th class="px-6 py-3 text-left">Amount due</th>
                         <th class="px-6 py-3 text-left">Status</th>
+                        <th class="px-6 py-3 text-left">Archive</th>
+                        <th class="px-6 py-3 text-left">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-200">
@@ -70,10 +75,20 @@
                                     <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{{ invoice.status|replace({'_': ' '})|title }}</span>
                                 {% endif %}
                             </td>
+                            <td class="px-6 py-4">
+                                {% if invoice.is_archived %}
+                                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">Archived</span>
+                                {% else %}
+                                    <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                <a href="/admin/billing/invoices/{{ invoice.id }}" class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Details</a>
+                            </td>
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="5" class="px-6 py-8 text-center text-sm text-slate-500">No invoices available yet.</td>
+                            <td colspan="7" class="px-6 py-8 text-center text-sm text-slate-500">No invoices available yet.</td>
                         </tr>
                     {% endfor %}
                     </tbody>

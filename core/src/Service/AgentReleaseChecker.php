@@ -10,10 +10,14 @@ final class AgentReleaseChecker
 {
     private const CACHE_KEY = 'agent.latest_release_version';
 
+    private const CHANNEL_STABLE = 'stable';
+    private const CHANNEL_BETA = 'beta';
+
     public function __construct(
         private readonly CacheItemPoolInterface $cache,
         private readonly string $repository,
         private readonly int $cacheTtlSeconds = 300,
+        private readonly string $channel = self::CHANNEL_STABLE,
     ) {
     }
 
@@ -28,13 +32,16 @@ final class AgentReleaseChecker
             return null;
         }
 
-        $item = $this->cache->getItem(self::CACHE_KEY);
+        $channel = $this->normalizeChannel($this->channel);
+        $cacheKey = sprintf('%s.%s', self::CACHE_KEY, $channel);
+
+        $item = $this->cache->getItem($cacheKey);
         $cached = $item->get();
         if ($item->isHit() && is_string($cached) && $cached !== '') {
             return $cached;
         }
 
-        $latest = $this->fetchLatestVersion();
+        $latest = $this->fetchLatestVersion($channel);
         if ($latest !== null) {
             $item->set($latest);
             $item->expiresAfter($this->cacheTtlSeconds);
@@ -56,9 +63,45 @@ final class AgentReleaseChecker
         return version_compare($current, $latest, '<');
     }
 
-    private function fetchLatestVersion(): ?string
+    public function getChannel(): string
     {
-        $url = sprintf('https://api.github.com/repos/%s/releases/latest', $this->repository);
+        return $this->normalizeChannel($this->channel);
+    }
+
+    private function fetchLatestVersion(string $channel): ?string
+    {
+        $releases = $this->fetchReleases();
+        if ($releases === null) {
+            return null;
+        }
+
+        foreach ($releases as $release) {
+            if (!is_array($release)) {
+                continue;
+            }
+
+            $isPrerelease = $release['prerelease'] ?? false;
+            if ($channel === self::CHANNEL_STABLE && $isPrerelease) {
+                continue;
+            }
+            if ($channel === self::CHANNEL_BETA && !$isPrerelease) {
+                continue;
+            }
+
+            $tag = $release['tag_name'] ?? $release['name'] ?? null;
+            if (!is_string($tag) || $tag === '') {
+                continue;
+            }
+
+            return $tag;
+        }
+
+        return null;
+    }
+
+    private function fetchReleases(): ?array
+    {
+        $url = sprintf('https://api.github.com/repos/%s/releases?per_page=20', $this->repository);
         $context = stream_context_create([
             'http' => [
                 'method' => 'GET',
@@ -84,12 +127,7 @@ final class AgentReleaseChecker
             return null;
         }
 
-        $tag = $payload['tag_name'] ?? $payload['name'] ?? null;
-        if (!is_string($tag) || $tag === '') {
-            return null;
-        }
-
-        return $tag;
+        return $payload;
     }
 
     private function normalizeVersion(?string $version): ?string
@@ -111,5 +149,15 @@ final class AgentReleaseChecker
         }
 
         return $value;
+    }
+
+    private function normalizeChannel(string $channel): string
+    {
+        $value = strtolower(trim($channel));
+        if ($value === self::CHANNEL_BETA) {
+            return self::CHANNEL_BETA;
+        }
+
+        return self::CHANNEL_STABLE;
     }
 }

@@ -1,0 +1,84 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}User management · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div>
+        <h1 class="text-2xl font-semibold">User management</h1>
+        <p class="text-sm text-slate-500">Review users and adjust portal language preferences.</p>
+    </div>
+
+    {% if errors is not empty %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm text-rose-700">
+            <ul class="list-disc space-y-1 pl-5">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if success is not empty %}
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm text-emerald-700">
+            <ul class="list-disc space-y-1 pl-5">
+                {% for message in success %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div class="rounded-xl border border-slate-200 bg-white">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                        <th class="px-4 py-3">Email</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3">Created</th>
+                        <th class="px-4 py-3">Portal language</th>
+                        <th class="px-4 py-3">Invoice locale</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for user in users %}
+                        <tr>
+                            <td class="px-4 py-3 text-sm font-medium text-slate-900">{{ user.email }}</td>
+                            <td class="px-4 py-3 text-xs uppercase text-slate-500">{{ user.type }}</td>
+                            <td class="px-4 py-3 text-xs text-slate-500">{{ user.created_at|date('Y-m-d H:i') }}</td>
+                            <td class="px-4 py-3">
+                                <form method="post" action="/admin/users/{{ user.id }}/preferences" class="flex flex-wrap items-center gap-2">
+                                    <select name="portal_language" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
+                                        {% for code, label in portalLanguages %}
+                                            <option value="{{ code }}" {{ user.portal_language == code ? 'selected' : '' }}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                            </td>
+                            <td class="px-4 py-3">
+                                    <select name="locale" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
+                                        {% for code, label in locales %}
+                                            <option value="{{ code }}" {{ user.locale == code ? 'selected' : '' }}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                            </td>
+                            <td class="px-4 py-3">
+                                    <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-500">Save</button>
+                                    {% if not user.has_preferences %}
+                                        <span class="ml-2 text-xs text-amber-600">Defaults applied</span>
+                                    {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">No users found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

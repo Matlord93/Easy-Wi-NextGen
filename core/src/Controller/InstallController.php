@@ -277,7 +277,7 @@ final class InstallController
 
             return [
                 'url' => sprintf(
-                    'mysql://%s%s@%s%s/%s?serverVersion=8.0&charset=utf8mb4',
+                    'mysql://%s%s@%s%s/%s?charset=utf8mb4',
                     $user,
                     $password,
                     $host,
@@ -291,7 +291,6 @@ final class InstallController
                     'user' => $form['db_user'],
                     'password' => $form['db_password'] !== '' ? $form['db_password'] : null,
                     'dbname' => $form['db_name'],
-                    'serverVersion' => '8.0',
                     'charset' => 'utf8mb4',
                 ], static fn ($value) => $value !== null && $value !== ''),
             ];

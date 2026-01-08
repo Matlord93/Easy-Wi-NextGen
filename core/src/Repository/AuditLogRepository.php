@@ -30,4 +30,21 @@ final class AuditLogRepository extends ServiceEntityRepository
 
         return $result['hashCurrent'] ?? null;
     }
+
+    /**
+     * @return AuditLog[]
+     */
+    public function findRecent(int $limit = 30, ?\App\Entity\User $actor = null): array
+    {
+        $builder = $this->createQueryBuilder('audit')
+            ->orderBy('audit.createdAt', 'DESC')
+            ->setMaxResults($limit);
+
+        if ($actor !== null) {
+            $builder->andWhere('audit.actor = :actor')
+                ->setParameter('actor', $actor);
+        }
+
+        return $builder->getQuery()->getResult();
+    }
 }

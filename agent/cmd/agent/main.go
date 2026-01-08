@@ -99,6 +99,8 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 	switch job.Type {
 	case "agent.update":
 		return handleAgentUpdate(job)
+	case "role.ensure_base":
+		return handleRoleEnsureBase(job)
 	case "webspace.create":
 		return handleWebspaceCreate(job)
 	case "domain.add":
@@ -193,6 +195,8 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleTs3SlotsSet(job)
 	case "ts3.logs.export":
 		return handleTs3LogsExport(job)
+	case "gdpr.anonymize_user":
+		return handleGdprAnonymizeUser(job)
 	default:
 		return jobs.Result{
 			JobID:     job.ID,

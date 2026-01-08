@@ -131,6 +131,10 @@ final class CustomerProfileController
         $preferences = $this->invoicePreferencesRepository->findOneByCustomer($customer);
 
         $formData = $this->parseInvoicePreferencesPayload($request);
+        $profileErrors = $this->validateProfileForInvoices($profile);
+        if ($profileErrors !== []) {
+            $formData['errors'] = array_merge($formData['errors'], $profileErrors);
+        }
         if ($formData['errors'] !== []) {
             return $this->renderPage($customer, $profile, $preferences, [], $formData, Response::HTTP_BAD_REQUEST);
         }
@@ -312,6 +316,39 @@ final class CustomerProfileController
             'pdf_download_history' => $pdfDownloadHistory,
             'payment_method' => $paymentMethod !== '' ? $paymentMethod : 'manual',
         ];
+    }
+
+    private function validateProfileForInvoices(?CustomerProfile $profile): array
+    {
+        if ($profile === null) {
+            return ['Complete the customer profile before configuring invoice preferences.'];
+        }
+
+        $errors = [];
+        if (trim($profile->getFirstName()) === '') {
+            $errors[] = 'First name is required for invoices.';
+        }
+        if (trim($profile->getLastName()) === '') {
+            $errors[] = 'Last name is required for invoices.';
+        }
+        if (trim($profile->getAddress()) === '') {
+            $errors[] = 'Address is required for invoices.';
+        }
+        if (trim($profile->getPostal()) === '') {
+            $errors[] = 'Postal code is required for invoices.';
+        }
+        if (trim($profile->getCity()) === '') {
+            $errors[] = 'City is required for invoices.';
+        }
+        if (trim($profile->getCountry()) === '') {
+            $errors[] = 'Country is required for invoices.';
+        }
+
+        if ($profile->getVatId() !== null && $profile->getCompany() === null) {
+            $errors[] = 'Company is required when VAT ID is provided.';
+        }
+
+        return $errors;
     }
 
     private function requireCustomer(Request $request): User

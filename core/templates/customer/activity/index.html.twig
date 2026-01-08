@@ -1,0 +1,30 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}{{ t('activity_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ t('activity_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-500">Recent actions and updates on your account.</p>
+    </div>
+    <div class="space-y-4">
+        {% for entry in entries %}
+            <div class="rounded-xl border border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="text-sm font-semibold">{{ entry.action }}</p>
+                        <p class="text-xs text-slate-500">{{ entry.actor }}</p>
+                    </div>
+                    <span class="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500">{{ entry.created_at|date('Y-m-d H:i') }}</span>
+                </div>
+                <pre class="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-950">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+            </div>
+        {% else %}
+            <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900">
+                {{ t('no_results', page_locale()) }}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

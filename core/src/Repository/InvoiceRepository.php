@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\Invoice;
+use App\Entity\User;
 use App\Enum\InvoiceStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -41,6 +42,19 @@ final class InvoiceRepository extends ServiceEntityRepository
     /**
      * @return Invoice[]
      */
+    public function findByCustomer(User $customer): array
+    {
+        return $this->createQueryBuilder('invoice')
+            ->andWhere('invoice.customer = :customer')
+            ->setParameter('customer', $customer)
+            ->orderBy('invoice.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return Invoice[]
+     */
     public function findDunnable(\DateTimeImmutable $now): array
     {
         return $this->createQueryBuilder('invoice')
@@ -51,5 +65,26 @@ final class InvoiceRepository extends ServiceEntityRepository
             ->orderBy('invoice.dueDate', 'ASC')
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * @return Invoice[]
+     */
+    public function findForExport(?int $year = null): array
+    {
+        $queryBuilder = $this->createQueryBuilder('invoice')
+            ->orderBy('invoice.createdAt', 'ASC');
+
+        if ($year !== null) {
+            $start = new \DateTimeImmutable(sprintf('%d-01-01 00:00:00', $year));
+            $end = $start->modify('+1 year');
+            $queryBuilder
+                ->andWhere('invoice.createdAt >= :start')
+                ->andWhere('invoice.createdAt < :end')
+                ->setParameter('start', $start)
+                ->setParameter('end', $end);
+        }
+
+        return $queryBuilder->getQuery()->getResult();
     }
 }

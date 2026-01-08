@@ -23,4 +23,18 @@ final class ConsentLogRepository extends ServiceEntityRepository
     {
         return $this->findBy(['user' => $user], ['acceptedAt' => 'DESC']);
     }
+
+    public function redactByUser(User $user, string $ip, string $userAgent): int
+    {
+        return $this->createQueryBuilder('log')
+            ->update()
+            ->set('log.ip', ':ip')
+            ->set('log.userAgent', ':userAgent')
+            ->andWhere('log.user = :user')
+            ->setParameter('ip', $ip)
+            ->setParameter('userAgent', $userAgent)
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->execute();
+    }
 }

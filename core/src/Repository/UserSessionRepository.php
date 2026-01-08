@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\UserSession;
+use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -32,5 +33,26 @@ final class UserSessionRepository extends ServiceEntityRepository
         }
 
         return $session;
+    }
+
+    public function deleteExpiredBefore(\DateTimeImmutable $cutoff): int
+    {
+        return $this->createQueryBuilder('session')
+            ->delete()
+            ->andWhere('session.expiresAt IS NOT NULL')
+            ->andWhere('session.expiresAt < :cutoff')
+            ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->execute();
+    }
+
+    public function deleteByUser(User $user): int
+    {
+        return $this->createQueryBuilder('session')
+            ->delete()
+            ->andWhere('session.user = :user')
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->execute();
     }
 }
