@@ -30,8 +30,6 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	steamAppID := payloadValue(job.Payload, "steam_app_id")
 	installCommand := payloadValue(job.Payload, "install_command")
 	updateCommand := payloadValue(job.Payload, "update_command")
-	targetBuildID := payloadValue(job.Payload, "target_build_id", "locked_build_id")
-	targetVersion := payloadValue(job.Payload, "target_version", "locked_version")
 	baseDir := payloadValue(job.Payload, "base_dir")
 
 	missing := missingValues([]requiredValue{
