@@ -150,7 +150,7 @@ und externe Prozesse benötigt.
 
 1. **Installer herunterladen**
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/easywi/easywi/main/installer/easywi-installer-linux.sh -o easywi-installer-linux.sh
+   curl -fsSL https://raw.githubusercontent.com/Matlord93/Easy-Wi-NextGe/main/installer/easywi-installer-linux.sh -o easywi-installer-linux.sh
    chmod +x easywi-installer-linux.sh
    ```
 
@@ -172,7 +172,7 @@ und externe Prozesse benötigt.
 
 1. **Agent herunterladen** (Release-Binary):
    ```bash
-   curl -fsSL https://github.com/easywi/easywi/releases/latest/download/easywi-agent-linux-amd64 -o /usr/local/bin/easywi-agent
+   curl -fsSL https://github.com/Matlord93/Easy-Wi-NextGen/releases/latest/download/easywi-agent-linux-amd64 -o /usr/local/bin/easywi-agent
    chmod +x /usr/local/bin/easywi-agent
    ```
 
@@ -215,7 +215,7 @@ und externe Prozesse benötigt.
 
 1. **Runner herunterladen**
    ```bash
-   curl -fsSL https://github.com/easywi/easywi/releases/latest/download/easywi-runner-linux-amd64 -o /usr/local/bin/easywi-runner
+   curl -fsSL https://github.com/Matlord93/Easy-Wi-NextGen/releases/latest/download/easywi-runner-linux-amd64 -o /usr/local/bin/easywi-runner
    chmod +x /usr/local/bin/easywi-runner
    ```
 
