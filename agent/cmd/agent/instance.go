@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	baseDirMode      = 0o755
 	instanceDirMode  = 0o750
 	instanceFileMode = 0o640
 )
@@ -487,6 +488,16 @@ func sanitizeIdentifier(value string) string {
 func ensureInstanceDir(path string) error {
 	if err := os.MkdirAll(path, instanceDirMode); err != nil {
 		return fmt.Errorf("create dir %s: %w", path, err)
+	}
+	return nil
+}
+
+func ensureBaseDir(path string) error {
+	if err := os.MkdirAll(path, baseDirMode); err != nil {
+		return fmt.Errorf("create base dir %s: %w", path, err)
+	}
+	if err := os.Chmod(path, baseDirMode); err != nil {
+		return fmt.Errorf("chmod base dir %s: %w", path, err)
 	}
 	return nil
 }
