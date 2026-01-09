@@ -23,6 +23,20 @@
 } %}
 
 <div id="nodes-table" class="overflow-x-auto">
+    {% if notice is defined or error is defined %}
+        <div class="px-5 pt-4">
+            {% if notice is defined and notice %}
+                <div class="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+                    {{ notice }}
+                </div>
+            {% endif %}
+            {% if error %}
+                <div class="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
+                    {{ error }}
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
     <table class="min-w-full text-sm">
         <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
         <tr>

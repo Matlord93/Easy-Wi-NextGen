@@ -27,7 +27,6 @@ func handleSniperUpdate(job jobs.Job) (jobs.Result, func() error) {
 func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")
-	sniperProfile := payloadValue(job.Payload, "sniper_profile")
 	steamAppID := payloadValue(job.Payload, "steam_app_id")
 	installCommand := payloadValue(job.Payload, "install_command")
 	updateCommand := payloadValue(job.Payload, "update_command")
@@ -56,28 +55,21 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	instanceDir := fmt.Sprintf("%s/%s", strings.TrimRight(baseDir, "/"), osUsername)
 
 	var command string
-	if sniperProfile != "" {
-		commandParts := []string{"sniper", action, "--profile", sniperProfile, "--dir", instanceDir}
-		if steamAppID != "" {
-			commandParts = append(commandParts, "--app-id", steamAppID)
-		}
-		if targetBuildID != "" {
-			commandParts = append(commandParts, "--build-id", targetBuildID)
-		} else if targetVersion != "" {
-			commandParts = append(commandParts, "--version", targetVersion)
-		}
-		command = strings.Join(commandParts, " ")
-	} else if action == "install" {
+	if action == "install" {
 		command = installCommand
 	} else {
 		command = updateCommand
 	}
 
 	if command == "" {
+		command = buildSteamCmdCommand(instanceDir, steamAppID, action == "install")
+	}
+
+	if command == "" {
 		return jobs.Result{
 			JobID:     job.ID,
 			Status:    "failed",
-			Output:    map[string]string{"message": "no sniper profile or command configured"},
+			Output:    map[string]string{"message": "no install or update command configured"},
 			Completed: time.Now().UTC(),
 		}, nil
 	}
@@ -104,6 +96,23 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 		Output:    resultOutput,
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func buildSteamCmdCommand(instanceDir, steamAppID string, validate bool) string {
+	if steamAppID == "" {
+		return ""
+	}
+	parts := []string{
+		"steamcmd",
+		"+login", "anonymous",
+		"+force_install_dir", instanceDir,
+		"+app_update", steamAppID,
+	}
+	if validate {
+		parts = append(parts, "validate")
+	}
+	parts = append(parts, "+quit")
+	return strings.Join(parts, " ")
 }
 
 func extractBuildInfo(output string) (string, string) {

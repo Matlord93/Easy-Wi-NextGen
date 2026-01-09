@@ -40,7 +40,7 @@ final class InstanceApiController
     ) {
     }
 
-    #[Route(path: '/admin/instances', name: 'admin_instances_create', methods: ['POST'])]
+    #[Route(path: '/api/admin/instances', name: 'admin_instances_create', methods: ['POST'])]
     public function createInstance(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
@@ -157,7 +157,7 @@ final class InstanceApiController
         $this->entityManager->persist($job);
 
         $sniperInstallJob = null;
-        if ($template->getSniperProfile() !== null || $template->getInstallCommand() !== '') {
+        if ($template->getInstallCommand() !== '' || $template->getSteamAppId() !== null) {
             $sniperInstallJob = new Job('sniper.install', $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance));
             $this->entityManager->persist($sniperInstallJob);
         }

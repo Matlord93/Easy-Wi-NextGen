@@ -21,7 +21,7 @@
     </script>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <link rel="stylesheet" href="/admin-customer.css">
-    <script src="htmx.min.js"></script>
+    <script src="/htmx.min.js"></script>
 </head>
 <body class="admin-interface bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
 {% set activeNav = activeNav|default('') %}
@@ -170,6 +170,14 @@
                     </svg>
                 </span>
                 <span class="text-sm font-medium">{{ t('admin_nav_ts3_instances', page_locale()) }}</span>
+            </a>
+            <a href="/admin/instances" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'game-instances' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'game-instances' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M9 2.75a2.75 2.75 0 1 1 2 2.65v1.1h1.5a2.75 2.75 0 0 1 0 5.5H11v2.25a2.75 2.75 0 1 1-1.5 0V12H8a2.75 2.75 0 0 1 0-5.5h1.5V5.4A2.75 2.75 0 0 1 9 2.75Zm-1 7a1.25 1.25 0 0 0 0 2.5h4.5a1.25 1.25 0 0 0 0-2.5H8Z"/>
+                    </svg>
+                </span>
+                <span class="text-sm font-medium">{{ t('admin_nav_game_instances', page_locale()) }}</span>
             </a>
             <a href="/admin/dns/records" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'dns-records' ? 'bg-slate-700/80 text-white shadow-inner' : 'text-slate-200/80 transition hover:bg-slate-700/70 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'dns-records' ? 'bg-slate-600/80' : 'bg-slate-700/70' }}">

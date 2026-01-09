@@ -10,6 +10,7 @@ use App\Service\AgentSignatureVerifier;
 use App\Service\AuditLogger;
 use App\Service\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
+use RuntimeException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,6 +21,8 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class AgentRegistrationController
 {
+    private const ENCRYPTION_CONFIG_ERROR = 'Encryption key configuration is invalid: %s Set APP_ENCRYPTION_KEY_ID to match a key in APP_ENCRYPTION_KEYS (format: key_id:base64_32_byte_key). Example: APP_ENCRYPTION_KEY_ID=v1 and APP_ENCRYPTION_KEYS=v1:<base64 key>.';
+
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly EntityManagerInterface $entityManager,
@@ -58,7 +61,15 @@ final class AgentRegistrationController
         }
 
         $secret = bin2hex(random_bytes(32));
-        $secretPayload = $this->encryptionService->encrypt($secret);
+
+        try {
+            $secretPayload = $this->encryptionService->encrypt($secret);
+        } catch (RuntimeException $exception) {
+            throw new ServiceUnavailableHttpException(
+                null,
+                sprintf(self::ENCRYPTION_CONFIG_ERROR, $exception->getMessage() . '.'),
+            );
+        }
 
         $agent = new Agent($agentId, $secretPayload, $name);
         $this->entityManager->persist($agent);

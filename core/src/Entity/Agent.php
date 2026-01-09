@@ -182,7 +182,16 @@ class Agent
         $this->lastHeartbeatAt = $seenAt;
         $this->lastSeenAt = $seenAt;
         $this->lastHeartbeatStats = $stats;
-        $this->lastHeartbeatVersion = $version !== '' ? $version : null;
+        $resolvedVersion = $version;
+        if ($resolvedVersion === '') {
+            $statsVersion = $stats['version'] ?? null;
+            if (is_string($statsVersion)) {
+                $resolvedVersion = $statsVersion;
+            }
+        }
+        if ($resolvedVersion !== '') {
+            $this->lastHeartbeatVersion = $resolvedVersion;
+        }
         $this->lastHeartbeatIp = $ip;
 
         if ($roles !== []) {

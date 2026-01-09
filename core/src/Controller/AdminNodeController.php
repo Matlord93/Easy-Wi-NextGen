@@ -13,6 +13,7 @@ use App\Service\AgentReleaseChecker;
 use App\Service\AuditLogger;
 use App\Service\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -22,6 +23,7 @@ use Twig\Environment;
 final class AdminNodeController
 {
     private const ROLE_OPTIONS = ['Web', 'Mail', 'DNS', 'Game', 'DB'];
+    private const ENCRYPTION_CONFIG_ERROR = 'Encryption key configuration is invalid: %s Set APP_ENCRYPTION_KEY_ID to match a key in APP_ENCRYPTION_KEYS (format: key_id:base64_32_byte_key). Example: APP_ENCRYPTION_KEY_ID=v1 and APP_ENCRYPTION_KEYS=v1:<base64 key>.';
 
     public function __construct(
         private readonly AgentRepository $agentRepository,
@@ -110,7 +112,22 @@ final class AdminNodeController
         }
 
         $secret = bin2hex(random_bytes(32));
-        $secretPayload = $this->encryptionService->encrypt($secret);
+
+        try {
+            $secretPayload = $this->encryptionService->encrypt($secret);
+        } catch (RuntimeException $exception) {
+            $errors[] = sprintf(self::ENCRYPTION_CONFIG_ERROR, $exception->getMessage() . '.');
+
+            return new Response($this->twig->render('admin/nodes/register.html.twig', [
+                'activeNav' => 'nodes',
+                'form' => [
+                    'agent_id' => $agentId,
+                    'name' => $name,
+                    'errors' => $errors,
+                ],
+                'config' => null,
+            ]), Response::HTTP_SERVICE_UNAVAILABLE);
+        }
 
         $agent = new \App\Entity\Agent($agentId, $secretPayload, $name !== '' ? $name : null);
         $this->entityManager->persist($agent);
@@ -175,8 +192,14 @@ final class AdminNodeController
         $unknownRoles = $this->extractUnknownRoles($node->getRoles());
         $existingStoredRoles = array_values(array_merge($existingRoles, $unknownRoles));
         $rolesToStore = array_values(array_merge($normalizedRoles, $unknownRoles));
+        $notice = null;
+        $error = null;
 
-        if ($this->rolesChanged($existingStoredRoles, $rolesToStore)) {
+        if ($normalizedRoles === [] && $unknownRoles === []) {
+            $error = 'Select at least one role to assign.';
+        }
+
+        if ($error === null && $this->rolesChanged($existingStoredRoles, $rolesToStore)) {
             $node->setRoles($rolesToStore);
 
             foreach ($rolesToStore as $role) {
@@ -194,6 +217,9 @@ final class AdminNodeController
             ]);
 
             $this->entityManager->flush();
+            $notice = 'Roles updated. The agent will apply changes on its next job poll.';
+        } elseif ($error === null) {
+            $notice = 'Roles are already up to date.';
         }
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
@@ -204,6 +230,8 @@ final class AdminNodeController
             'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
             'roleOptions' => self::ROLE_OPTIONS,
             'updateChannel' => $this->releaseChecker->getChannel(),
+            'notice' => $notice,
+            'error' => $error,
         ]));
     }
 
@@ -330,6 +358,12 @@ final class AdminNodeController
             $roles = $node->getRoles();
             $normalizedRoles = $this->normalizeRoles($roles, $stats);
             $currentVersion = $node->getLastHeartbeatVersion();
+            if ($currentVersion === null || $currentVersion === '') {
+                $statsVersion = $stats['version'] ?? null;
+                if (is_string($statsVersion) && $statsVersion !== '') {
+                    $currentVersion = $statsVersion;
+                }
+            }
             $updateJob = $updateJobs[$node->getId()] ?? null;
 
             return [
@@ -498,7 +532,7 @@ final class AdminNodeController
             return [$singleRole];
         }
 
-        return ['Web'];
+        return [];
     }
 
     /**

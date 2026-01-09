@@ -180,7 +180,7 @@ final class AdminShopProvisioningController
         $this->entityManager->persist($job);
 
         $sniperInstallJob = null;
-        if ($template->getSniperProfile() !== null || $template->getInstallCommand() !== '') {
+        if ($template->getInstallCommand() !== '' || $template->getSteamAppId() !== null) {
             $sniperInstallJob = new Job('sniper.install', $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance));
             $this->entityManager->persist($sniperInstallJob);
         }
