@@ -10,7 +10,7 @@ import (
 	"easywi/agent/internal/jobs"
 )
 
-func handleFirewallOpen(jobID string, payload map[string]string) (jobs.Result, func() error) {
+func handleFirewallOpen(jobID string, payload map[string]any) (jobs.Result, func() error) {
 	ports, err := portsFromPayload(payload)
 	if err != nil {
 		return failureResult(jobID, err)
@@ -28,7 +28,7 @@ func handleFirewallOpen(jobID string, payload map[string]string) (jobs.Result, f
 	}, nil
 }
 
-func handleFirewallClose(jobID string, payload map[string]string) (jobs.Result, func() error) {
+func handleFirewallClose(jobID string, payload map[string]any) (jobs.Result, func() error) {
 	ports, err := portsFromPayload(payload)
 	if err != nil {
 		return failureResult(jobID, err)
@@ -46,7 +46,7 @@ func handleFirewallClose(jobID string, payload map[string]string) (jobs.Result, 
 	}, nil
 }
 
-func portsFromPayload(payload map[string]string) ([]int, error) {
+func portsFromPayload(payload map[string]any) ([]int, error) {
 	portsRaw := payloadValue(payload, "port_block_ports", "ports")
 	if portsRaw == "" {
 		return []int{}, nil

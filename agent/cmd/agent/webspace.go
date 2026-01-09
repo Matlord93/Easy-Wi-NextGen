@@ -255,7 +255,7 @@ location ~ \.php$ {
 `, webRoot, logsDir, logsDir, phpFpmListen)
 }
 
-func applyQuota(payload map[string]string, ownerUser string) error {
+func applyQuota(payload map[string]any, ownerUser string) error {
 	quotaValue := payloadValue(payload, "quota_mb", "quota")
 	if quotaValue == "" {
 		return nil
