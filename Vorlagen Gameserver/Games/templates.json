@@ -30,8 +30,8 @@
       "game/csgo/addons/counterstrikesharp"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 730 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 730 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 730 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 730 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -65,8 +65,8 @@
       "csgo/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 740 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 740 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 740 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 740 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -96,8 +96,8 @@
       "game/csgo/addons/counterstrikesharp"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 730 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 730 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 730 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 730 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -127,8 +127,8 @@
       "csgo/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 740 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 740 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 740 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 740 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -156,8 +156,8 @@
       "tf/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232250 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232250 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232250 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232250 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -185,8 +185,8 @@
       "tf/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 232250 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 232250 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232250 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232250 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -215,8 +215,8 @@
       "cstrike/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232330 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232330 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232330 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232330 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -245,8 +245,8 @@
       "cstrike/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 232330 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 232330 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232330 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232330 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -271,8 +271,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232370 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232370 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232370 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232370 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -297,8 +297,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 232370 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 232370 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232370 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232370 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -326,8 +326,8 @@
       "left4dead2/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 222860 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 222860 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222860 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222860 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -355,8 +355,8 @@
       "left4dead2/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 222860 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 222860 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222860 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222860 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -384,8 +384,8 @@
       "left4dead/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 222840 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 222840 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222840 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222840 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -413,8 +413,8 @@
       "left4dead/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 222840 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 222840 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222840 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222840 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -442,8 +442,8 @@
       "dod/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232290 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232290 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232290 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232290 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -471,8 +471,8 @@
       "dod/addons/sourcemod"
     ],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 232290 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 232290 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232290 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232290 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -499,8 +499,8 @@
     ],
     "plugin_paths": ["oxide/plugins"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 258550 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 258550 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 258550 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 258550 +quit",
     "allowed_switch_flags": ["+server.level", "+server.seed"]
   },
   {
@@ -525,8 +525,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 376030 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 376030 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 376030 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 376030 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -548,8 +548,8 @@
     "config_files": [],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 896660 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 896660 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 896660 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 896660 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -715,8 +715,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 1690800 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 1690800 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1690800 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1690800 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -739,8 +739,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 2394010 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 2394010 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2394010 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2394010 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -763,8 +763,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 2394010 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 2394010 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2394010 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2394010 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -786,8 +786,8 @@
     "config_files": [],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 896660 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 896660 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 896660 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 896660 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -809,8 +809,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 1690800 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 1690800 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1690800 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1690800 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -832,8 +832,8 @@
     ],
     "plugin_paths": ["mods"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 223350 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 223350 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 223350 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 223350 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -855,8 +855,8 @@
     ],
     "plugin_paths": ["mods"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 223350 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 223350 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 223350 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 223350 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -878,8 +878,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 1829350 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 1829350 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1829350 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1829350 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -901,8 +901,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 1829350 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 1829350 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1829350 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1829350 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -924,8 +924,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 2278520 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 2278520 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2278520 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2278520 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -949,8 +949,8 @@
     ],
     "plugin_paths": ["garrysmod/addons"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 4020 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 4020 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 4020 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 4020 +quit",
     "allowed_switch_flags": ["+map", "+maxplayers"]
   },
   {
@@ -973,8 +973,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 105600 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 105600 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 105600 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 105600 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -998,8 +998,8 @@
     ],
     "plugin_paths": ["Mods"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 294420 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 294420 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 294420 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 294420 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -1020,8 +1020,8 @@
     ],
     "plugin_paths": [],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 427520 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 427520 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 427520 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 427520 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -1044,8 +1044,8 @@
     ],
     "plugin_paths": ["Zomboid/mods"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 380870 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 380870 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 380870 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 380870 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -1068,8 +1068,8 @@
     ],
     "plugin_paths": ["Zomboid/mods"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 380870 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 380870 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 380870 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 380870 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -1091,8 +1091,8 @@
     ],
     "plugin_paths": ["ConanSandbox/Mods"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 443030 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 443030 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 443030 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 443030 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -1114,8 +1114,8 @@
     ],
     "plugin_paths": ["ConanSandbox/Mods"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 443030 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 443030 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 443030 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 443030 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -1137,8 +1137,8 @@
     ],
     "plugin_paths": ["mods"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 233780 validate +quit",
-    "update_command": "steamcmd +login anonymous +force_install_dir /srv/gs +app_update 233780 +quit",
+    "install_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 233780 validate +quit",
+    "update_command": "steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 233780 +quit",
     "allowed_switch_flags": []
   },
   {
@@ -1160,8 +1160,8 @@
     ],
     "plugin_paths": ["mods"],
     "fastdl_settings": {"enabled": false, "base_url": "", "root_path": ""},
-    "install_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 233780 validate +quit",
-    "update_command": "steamcmd.exe +login anonymous +force_install_dir C:\\\\easywi\\\\gs +app_update 233780 +quit",
+    "install_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 233780 validate +quit",
+    "update_command": "steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 233780 +quit",
     "allowed_switch_flags": []
   }
 ]
