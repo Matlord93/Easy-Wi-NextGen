@@ -51,9 +51,28 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	}
 
 	osUsername := buildInstanceUsername(customerID, instanceID)
+	if err := ensureGroup(osUsername); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := ensureUser(osUsername, osUsername, baseDir); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := ensureBaseDir(baseDir); err != nil {
+		return failureResult(job.ID, err)
+	}
 	instanceDir := fmt.Sprintf("%s/%s", strings.TrimRight(baseDir, "/"), osUsername)
-	if err := os.MkdirAll(instanceDir, instanceDirMode); err != nil {
-		return failureResult(job.ID, fmt.Errorf("create instance dir %s: %w", instanceDir, err))
+	if err := ensureInstanceDir(instanceDir); err != nil {
+		return failureResult(job.ID, err)
+	}
+	uid, gid, err := lookupIDs(osUsername, osUsername)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := os.Chown(instanceDir, uid, gid); err != nil {
+		return failureResult(job.ID, fmt.Errorf("chown %s: %w", instanceDir, err))
+	}
+	if err := os.Chmod(instanceDir, instanceDirMode); err != nil {
+		return failureResult(job.ID, fmt.Errorf("chmod %s: %w", instanceDir, err))
 	}
 
 	var command string
