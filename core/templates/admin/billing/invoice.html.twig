@@ -58,7 +58,7 @@
                             <p class="text-sm font-medium text-slate-900">{{ archive.file_name }}</p>
                             <p class="mt-1 text-xs text-slate-500">{{ archive.file_size }} bytes · {{ archive.content_type }}</p>
                         </div>
-                        <a href="/admin/billing/invoices/{{ invoice.id }}/archive/download" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Download PDF</a>
+                        <a href="/admin/billing/invoices/{{ invoice.id }}/archive/download" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white hover:bg-indigo-700">Download PDF</a>
                     </div>
                     <div class="grid gap-4 sm:grid-cols-3">
                         <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -91,7 +91,7 @@
                             <input type="file" name="invoice_pdf" accept="application/pdf" class="mt-2 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
                             <p class="mt-2 text-xs text-slate-500">Upload the final, signed PDF (max 10MB).</p>
                         </div>
-                        <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Archive invoice</button>
+                        <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white hover:bg-indigo-700">Archive invoice</button>
                     </form>
                 {% endif %}
             </div>

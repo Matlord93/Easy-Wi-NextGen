@@ -6,7 +6,7 @@
 
 <div class="flex flex-wrap gap-2">
     {% for item in items %}
-        <a href="{{ item.href }}" class="rounded-lg px-4 py-2 text-sm font-semibold {{ activeNav == item.key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50' }}">
+        <a href="{{ item.href }}" class="rounded-lg px-4 py-2 text-sm font-semibold text-slate-900 {{ activeNav == item.key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50' }}">
             {{ item.label }}
         </a>
     {% endfor %}

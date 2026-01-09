@@ -19,10 +19,11 @@
             }
         })();
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <link rel="stylesheet" href="/admin-customer.css">
+    <script src="htmx.min.js"></script>
 </head>
-<body class="bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+<body class="customer-interface bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
 {% set activeNav = activeNav|default('') %}
 <input id="sidebar-toggle" type="checkbox" class="peer sr-only">
 <div class="min-h-screen flex">
@@ -97,7 +98,7 @@
         <div class="px-6 py-4 text-xs text-slate-300/70">{{ t('customer_portal_tagline', page_locale()) }}</div>
     </aside>
 
-    <main class="flex-1 flex flex-col lg:ml-0">
+    <main class="portal-main flex-1 flex flex-col lg:ml-0">
         <header class="sticky top-0 z-20 bg-slate-800/95 text-white backdrop-blur border-b border-slate-700 shadow-sm">
             <div class="flex items-center justify-between px-4 py-4 sm:px-6">
                 <div class="flex items-center gap-3 w-full">
@@ -138,14 +139,14 @@
                     <button class="rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-slate-700">{{ t('customer_new_ticket', page_locale()) }}</button>
                     <div class="flex items-center gap-3">
                         <div class="text-right">
-                            <p class="text-sm font-semibold">{{ t('customer_user_label', page_locale()) }}</p>
+                            <p class="text-sm font-semibold text-slate-900">{{ t('customer_user_label', page_locale()) }}</p>
                             <p class="text-xs text-slate-300">{{ t('customer_user_role', page_locale()) }}</p>
                         </div>
                         <div class="h-10 w-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold">C</div>
                     </div>
                 </div>
                 <div class="flex items-center gap-3 sm:hidden">
-                    <div class="h-9 w-9 rounded-full bg-indigo-500 text-white flex items-center justify-center text-sm font-semibold">C</div>
+                    <div class="h-9 w-9 rounded-full bg-indigo-500 text-white flex items-center justify-center text-sm font-semibold text-slate-900">C</div>
                 </div>
             </div>
         </header>

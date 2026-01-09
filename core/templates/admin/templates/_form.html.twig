@@ -98,7 +98,7 @@
             <input name="allowed_switch_flags" value="{{ form.allowed_switch_flags }}" placeholder="{{ t('admin_templates_switch_flags_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
         </div>
         <div class="flex flex-wrap items-center gap-3">
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_templates_create_submit', page_locale()) }}</button>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ t('admin_templates_create_submit', page_locale()) }}</button>
             <button
                 type="button"
                 class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600"
@@ -108,7 +108,7 @@
             >{{ t('reset', page_locale()) }}</button>
             <button
                 type="button"
-                class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700"
+                class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-slate-900 text-indigo-700"
                 hx-post="/admin/templates/preview"
                 hx-target="#template-preview"
                 hx-include="closest form"

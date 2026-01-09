@@ -19,7 +19,7 @@
     <div class="grid gap-6 lg:grid-cols-3">
         <div class="space-y-6 lg:col-span-1">
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 class="text-sm font-semibold text-slate-700">{{ t('customer_files_selection_title', page_locale()) }}</h2>
+                <h2 class="text-sm font-semibold text-slate-900 text-slate-700">{{ t('customer_files_selection_title', page_locale()) }}</h2>
                 <p class="mt-1 text-xs text-slate-500">{{ t('customer_files_selection_intro', page_locale()) }}</p>
                 <form class="mt-4 space-y-4" hx-get="/files/listing" hx-target="#file-listing" hx-swap="innerHTML">
                     <div>
@@ -39,12 +39,12 @@
                         <input name="path" value="{{ path }}" placeholder="{{ t('customer_files_relative_path_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
                         <p class="mt-2 text-xs text-slate-400">{{ t('customer_files_relative_path_hint', page_locale()) }}</p>
                     </div>
-                    <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ t('customer_files_load_listing', page_locale()) }}</button>
+                    <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white hover:bg-indigo-700">{{ t('customer_files_load_listing', page_locale()) }}</button>
                 </form>
             </div>
 
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 class="text-sm font-semibold text-slate-700">{{ t('customer_files_details_title', page_locale()) }}</h2>
+                <h2 class="text-sm font-semibold text-slate-900 text-slate-700">{{ t('customer_files_details_title', page_locale()) }}</h2>
                 {% if selectedWebspace %}
                     <dl class="mt-4 space-y-3 text-sm text-slate-600">
                         <div class="flex items-center justify-between">
@@ -74,7 +74,7 @@
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h2 class="text-sm font-semibold text-slate-700">{{ t('customer_files_listing_title', page_locale()) }}</h2>
+                        <h2 class="text-sm font-semibold text-slate-900 text-slate-700">{{ t('customer_files_listing_title', page_locale()) }}</h2>
                         <p class="text-xs text-slate-500">{{ t('customer_files_listing_intro', page_locale()) }}</p>
                     </div>
                     {% if selectedWebspace %}

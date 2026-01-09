@@ -1,0 +1,46 @@
+/* Admin & customer interface styles
+   Centralizes overrides that were previously inline in templates. */
+
+html:not(.dark) .admin-interface .text-slate-500,
+html:not(.dark) .customer-interface .text-slate-500 {
+    color: #334155 !important;
+}
+
+html:not(.dark) .admin-interface .text-slate-400,
+html:not(.dark) .customer-interface .text-slate-400 {
+    color: #475569 !important;
+}
+
+html:not(.dark) .admin-interface .text-slate-300,
+html:not(.dark) .admin-interface .text-slate-300\/70,
+html:not(.dark) .customer-interface .text-slate-300,
+html:not(.dark) .customer-interface .text-slate-300\/70 {
+    color: #64748b !important;
+}
+
+html:not(.dark) .admin-interface .text-slate-200,
+html:not(.dark) .admin-interface .text-slate-200\/80,
+html:not(.dark) .customer-interface .text-slate-200,
+html:not(.dark) .customer-interface .text-slate-200\/80 {
+    color: #475569 !important;
+}
+
+html:not(.dark) .admin-interface .portal-main .text-slate-100,
+html:not(.dark) .customer-interface .portal-main .text-slate-100 {
+    color: #0f172a !important;
+}
+
+html:not(.dark) .admin-interface .dark\:text-slate-100,
+html:not(.dark) .customer-interface .dark\:text-slate-100 {
+    color: #0f172a !important;
+}
+
+html:not(.dark) .admin-interface .text-sm.font-semibold,
+html:not(.dark) .customer-interface .text-sm.font-semibold {
+    color: #0f172a !important;
+}
+
+  .dark\:text-slate-100 {
+    --tw-text-opacity: 1;
+    color: rgb(53, 114, 174)!important;
+  }
