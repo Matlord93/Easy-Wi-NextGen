@@ -1,14 +1,14 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Module Registry · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_modules_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
     <div class="space-y-6">
         <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 class="text-xl font-semibold text-slate-900">Module Registry</h1>
-                    <p class="text-sm text-slate-500">Enable or disable platform modules. Changes take effect on new jobs.</p>
+                    <h1 class="text-xl font-semibold text-slate-900">{{ t('admin_modules_heading', page_locale()) }}</h1>
+                    <p class="text-sm text-slate-500">{{ t('admin_modules_intro', page_locale()) }}</p>
                 </div>
             </div>
         </div>
@@ -18,11 +18,11 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50 text-slate-500">
                         <tr>
-                            <th class="px-6 py-3 text-left font-semibold">Module</th>
-                            <th class="px-6 py-3 text-left font-semibold">Version</th>
-                            <th class="px-6 py-3 text-left font-semibold">Status</th>
-                            <th class="px-6 py-3 text-left font-semibold">Last Updated</th>
-                            <th class="px-6 py-3 text-right font-semibold">Action</th>
+                            <th class="px-6 py-3 text-left font-semibold">{{ t('admin_modules_table_module', page_locale()) }}</th>
+                            <th class="px-6 py-3 text-left font-semibold">{{ t('admin_modules_table_version', page_locale()) }}</th>
+                            <th class="px-6 py-3 text-left font-semibold">{{ t('admin_modules_table_status', page_locale()) }}</th>
+                            <th class="px-6 py-3 text-left font-semibold">{{ t('admin_modules_table_last_updated', page_locale()) }}</th>
+                            <th class="px-6 py-3 text-right font-semibold">{{ t('admin_modules_table_action', page_locale()) }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -35,9 +35,9 @@
                                 <td class="px-6 py-4 text-slate-600">{{ module.version }}</td>
                                 <td class="px-6 py-4">
                                     {% if module.enabled %}
-                                        <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Enabled</span>
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">{{ t('admin_modules_enabled', page_locale()) }}</span>
                                     {% else %}
-                                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Disabled</span>
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ t('admin_modules_disabled', page_locale()) }}</span>
                                     {% endif %}
                                 </td>
                                 <td class="px-6 py-4 text-xs text-slate-500">
@@ -47,16 +47,16 @@
                                     <form method="post" action="/admin/modules/{{ module.key }}/toggle">
                                         <input type="hidden" name="enabled" value="{{ module.enabled ? 'false' : 'true' }}">
                                         {% if module.enabled %}
-                                            <button class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100">Disable</button>
+                                            <button class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100">{{ t('disable', page_locale()) }}</button>
                                         {% else %}
-                                            <button class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">Enable</button>
+                                            <button class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">{{ t('enable', page_locale()) }}</button>
                                         {% endif %}
                                     </form>
                                 </td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="5" class="px-6 py-6 text-center text-sm text-slate-500">No modules registered yet.</td>
+                                <td colspan="5" class="px-6 py-6 text-center text-sm text-slate-500">{{ t('admin_modules_no_modules', page_locale()) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>

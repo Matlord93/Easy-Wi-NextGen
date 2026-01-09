@@ -88,6 +88,28 @@ final class AdminCmsPageController
         ]));
     }
 
+    #[Route(path: '/{id}/edit', name: 'admin_cms_pages_edit', methods: ['GET'])]
+    public function edit(Request $request, int $id): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $page = $this->pageRepository->find($id);
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        return new Response($this->twig->render('admin/cms/pages/_form.html.twig', [
+            'form' => $this->buildFormContext($page),
+        ]));
+    }
+
     #[Route(path: '', name: 'admin_cms_pages_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
@@ -101,7 +123,7 @@ final class AdminCmsPageController
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
         }
 
-        $formData = $this->parsePayload($request);
+        $formData = $this->parsePayload($request, $site);
 
         if ($formData['errors'] !== []) {
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
@@ -123,6 +145,94 @@ final class AdminCmsPageController
         $response = new Response($this->twig->render('admin/cms/pages/_form.html.twig', [
             'form' => $this->buildFormContext(),
         ]));
+        $response->headers->set('HX-Trigger', 'cms-pages-changed');
+
+        return $response;
+    }
+
+    #[Route(path: '/{id}', name: 'admin_cms_pages_update', methods: ['POST'])]
+    public function update(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $page = $this->pageRepository->find($id);
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $formData = $this->parsePayload($request, $site, $page);
+        if ($formData['errors'] !== []) {
+            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST, $page);
+        }
+
+        $previous = [
+            'title' => $page->getTitle(),
+            'slug' => $page->getSlug(),
+            'is_published' => $page->isPublished(),
+        ];
+
+        $page->setTitle($formData['title']);
+        $page->setSlug($formData['slug']);
+        $page->setPublished($formData['is_published']);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($actor, 'cms.page.updated', [
+            'page_id' => $page->getId(),
+            'site_id' => $page->getSite()->getId(),
+            'previous' => $previous,
+            'current' => [
+                'title' => $page->getTitle(),
+                'slug' => $page->getSlug(),
+                'is_published' => $page->isPublished(),
+            ],
+        ]);
+        $this->entityManager->flush();
+
+        $response = new Response($this->twig->render('admin/cms/pages/_form.html.twig', [
+            'form' => $this->buildFormContext(),
+        ]));
+        $response->headers->set('HX-Trigger', 'cms-pages-changed');
+
+        return $response;
+    }
+
+    #[Route(path: '/{id}/delete', name: 'admin_cms_pages_delete', methods: ['POST'])]
+    public function delete(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $page = $this->pageRepository->find($id);
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $this->auditLogger->log($actor, 'cms.page.deleted', [
+            'page_id' => $page->getId(),
+            'site_id' => $page->getSite()->getId(),
+            'title' => $page->getTitle(),
+            'slug' => $page->getSlug(),
+        ]);
+
+        $this->entityManager->remove($page);
+        $this->entityManager->flush();
+
+        $response = new Response('', Response::HTTP_NO_CONTENT);
         $response->headers->set('HX-Trigger', 'cms-pages-changed');
 
         return $response;
@@ -229,6 +339,7 @@ final class AdminCmsPageController
 
         return new Response($this->twig->render('admin/cms/pages/_blocks_table.html.twig', [
             'blocks' => $this->normalizeBlocks($blocks),
+            'page' => $this->normalizePage($page),
         ]));
     }
 
@@ -251,6 +362,34 @@ final class AdminCmsPageController
 
         return new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
             'blockForm' => $this->buildBlockFormContext(),
+            'page' => $this->normalizePage($page),
+        ]));
+    }
+
+    #[Route(path: '/{id}/blocks/{blockId}/edit', name: 'admin_cms_pages_blocks_edit', methods: ['GET'])]
+    public function editBlock(Request $request, int $id, int $blockId): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $page = $this->pageRepository->find($id);
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $block = $this->blockRepository->find($blockId);
+        if (!$block instanceof CmsBlock || $block->getPage()->getId() !== $page->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        return new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
+            'blockForm' => $this->buildBlockFormContextFromBlock($block),
             'page' => $this->normalizePage($page),
         ]));
     }
@@ -299,6 +438,105 @@ final class AdminCmsPageController
             'blockForm' => $this->buildBlockFormContext(),
             'page' => $this->normalizePage($page),
         ]));
+        $response->headers->set('HX-Trigger', 'cms-blocks-changed');
+
+        return $response;
+    }
+
+    #[Route(path: '/{id}/blocks/{blockId}', name: 'admin_cms_pages_blocks_update', methods: ['POST'])]
+    public function updateBlock(Request $request, int $id, int $blockId): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $page = $this->pageRepository->find($id);
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $block = $this->blockRepository->find($blockId);
+        if (!$block instanceof CmsBlock || $block->getPage()->getId() !== $page->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $formData = $this->parseBlockPayload($request);
+        if ($formData['errors'] !== []) {
+            $formData['page'] = $this->normalizePage($page);
+            $formData['block_id'] = $blockId;
+            return $this->renderBlockFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+        }
+
+        $previous = [
+            'type' => $block->getType(),
+            'content' => $block->getContent(),
+        ];
+
+        $block->setType($formData['type']);
+        $block->setContent($formData['content']);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($actor, 'cms.block.updated', [
+            'page_id' => $page->getId(),
+            'site_id' => $page->getSite()->getId(),
+            'block_id' => $block->getId(),
+            'previous' => $previous,
+            'current' => [
+                'type' => $block->getType(),
+                'content' => $block->getContent(),
+            ],
+        ]);
+        $this->entityManager->flush();
+
+        $response = new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
+            'blockForm' => $this->buildBlockFormContext(),
+            'page' => $this->normalizePage($page),
+        ]));
+        $response->headers->set('HX-Trigger', 'cms-blocks-changed');
+
+        return $response;
+    }
+
+    #[Route(path: '/{id}/blocks/{blockId}/delete', name: 'admin_cms_pages_blocks_delete', methods: ['POST'])]
+    public function deleteBlock(Request $request, int $id, int $blockId): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $page = $this->pageRepository->find($id);
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $block = $this->blockRepository->find($blockId);
+        if (!$block instanceof CmsBlock || $block->getPage()->getId() !== $page->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $this->auditLogger->log($actor, 'cms.block.deleted', [
+            'page_id' => $page->getId(),
+            'site_id' => $page->getSite()->getId(),
+            'block_id' => $block->getId(),
+            'type' => $block->getType(),
+        ]);
+
+        $this->entityManager->remove($block);
+        $this->entityManager->flush();
+
+        $response = new Response('', Response::HTTP_NO_CONTENT);
         $response->headers->set('HX-Trigger', 'cms-blocks-changed');
 
         return $response;
@@ -365,21 +603,33 @@ final class AdminCmsPageController
         }, $blocks);
     }
 
-    private function buildFormContext(?array $overrides = null): array
+    private function buildFormContext(?CmsPage $page = null, ?array $overrides = null): array
     {
-        $defaults = [
+        $context = [
+            'id' => $page?->getId(),
+            'title' => $page?->getTitle() ?? '',
+            'slug' => $page?->getSlug() ?? '',
+            'is_published' => $page?->isPublished() ?? false,
             'errors' => [],
-            'title' => '',
-            'slug' => '',
-            'is_published' => false,
+            'action' => $page === null ? 'create' : 'update',
+            'submit_label' => $page === null ? 'create_page' : 'update_page',
+            'submit_color' => $page === null ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-amber-500 hover:bg-amber-600',
+            'action_url' => $page === null ? '/admin/cms/pages' : sprintf('/admin/cms/pages/%d', $page->getId()),
+            'header' => $page === null ? 'create_cms_page' : 'edit_cms_page',
+            'description' => $page === null ? 'create_cms_page_description' : 'edit_cms_page_description',
         ];
 
-        return array_merge($defaults, $overrides ?? []);
+        if ($overrides !== null) {
+            $context = array_merge($context, $overrides);
+        }
+
+        return $context;
     }
 
     private function buildBlockFormContext(?array $overrides = null): array
     {
         $defaults = [
+            'id' => null,
             'errors' => [],
             'type' => '',
             'content' => '',
@@ -389,9 +639,38 @@ final class AdminCmsPageController
                 'show_players' => true,
                 'show_join_button' => false,
             ],
+            'action' => 'create',
+            'submit_label' => 'add_block',
+            'submit_color' => 'bg-indigo-600 hover:bg-indigo-700',
         ];
 
         return array_merge($defaults, $overrides ?? []);
+    }
+
+    private function buildBlockFormContextFromBlock(CmsBlock $block): array
+    {
+        $settings = [
+            'game' => '',
+            'limit' => 5,
+            'show_players' => true,
+            'show_join_button' => false,
+        ];
+
+        $content = $block->getContent();
+        if (in_array($block->getType(), ['server_list', 'server_featured'], true)) {
+            $settings = $this->decodeBlockSettings($content);
+            $content = '';
+        }
+
+        return $this->buildBlockFormContext([
+            'id' => $block->getId(),
+            'type' => $block->getType(),
+            'content' => $content,
+            'settings' => $settings,
+            'action' => 'update',
+            'submit_label' => 'update_block',
+            'submit_color' => 'bg-amber-500 hover:bg-amber-600',
+        ]);
     }
 
     private function buildTemplateFormContext(?string $templateKey, ?array $overrides = null): array
@@ -406,7 +685,7 @@ final class AdminCmsPageController
         return array_merge($defaults, $overrides ?? []);
     }
 
-    private function parsePayload(Request $request): array
+    private function parsePayload(Request $request, \App\Entity\Site $site, ?CmsPage $existingPage = null): array
     {
         $errors = [];
         $title = trim((string) $request->request->get('title', ''));
@@ -418,6 +697,9 @@ final class AdminCmsPageController
         }
         if ($slug === '') {
             $errors[] = 'Slug is required.';
+        }
+        if ($slug !== '' && $this->isDuplicateSlug($site, $slug, $existingPage)) {
+            $errors[] = 'Slug is already in use for this site.';
         }
 
         return [
@@ -497,17 +779,29 @@ final class AdminCmsPageController
         ];
     }
 
-    private function renderFormWithErrors(array $formData, int $statusCode): Response
+    private function renderFormWithErrors(array $formData, int $statusCode, ?CmsPage $page = null): Response
     {
         return new Response($this->twig->render('admin/cms/pages/_form.html.twig', [
-            'form' => $this->buildFormContext($formData),
+            'form' => $this->buildFormContext($page, [
+                'title' => $formData['title'],
+                'slug' => $formData['slug'],
+                'is_published' => $formData['is_published'],
+                'errors' => $formData['errors'],
+            ]),
         ]), $statusCode);
     }
 
     private function renderBlockFormWithErrors(array $formData, int $statusCode): Response
     {
+        $isEdit = ($formData['block_id'] ?? null) !== null;
+
         return new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
-            'blockForm' => $this->buildBlockFormContext($formData),
+            'blockForm' => $this->buildBlockFormContext(array_merge([
+                'id' => $formData['block_id'] ?? null,
+                'action' => $isEdit ? 'update' : 'create',
+                'submit_label' => $isEdit ? 'update_block' : 'add_block',
+                'submit_color' => $isEdit ? 'bg-amber-500 hover:bg-amber-600' : 'bg-indigo-600 hover:bg-indigo-700',
+            ], $formData)),
             'page' => $formData['page'],
         ]), $statusCode);
     }
@@ -559,5 +853,43 @@ final class AdminCmsPageController
         $join = ($data['show_join_button'] ?? false) ? 'join enabled' : 'join hidden';
 
         return sprintf('Server list: %s · limit %d · %s · %s', $game, $limit, $players, $join);
+    }
+
+    private function decodeBlockSettings(string $content): array
+    {
+        $data = json_decode($content, true);
+        if (!is_array($data)) {
+            return [
+                'game' => '',
+                'limit' => 5,
+                'show_players' => true,
+                'show_join_button' => false,
+            ];
+        }
+
+        return [
+            'game' => is_string($data['game'] ?? null) ? $data['game'] : '',
+            'limit' => is_numeric($data['limit'] ?? null) ? (int) $data['limit'] : 5,
+            'show_players' => (bool) ($data['show_players'] ?? true),
+            'show_join_button' => (bool) ($data['show_join_button'] ?? false),
+        ];
+    }
+
+    private function isDuplicateSlug(\App\Entity\Site $site, string $slug, ?CmsPage $existingPage): bool
+    {
+        $existing = $this->pageRepository->findOneBy([
+            'site' => $site,
+            'slug' => $slug,
+        ]);
+
+        if (!$existing instanceof CmsPage) {
+            return false;
+        }
+
+        if ($existingPage === null) {
+            return true;
+        }
+
+        return $existing->getId() !== $existingPage->getId();
     }
 }

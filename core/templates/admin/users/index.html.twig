@@ -29,6 +29,36 @@
         </div>
     {% endif %}
 
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold">{{ t('user_management_create_title', page_locale()) }}</h2>
+        <p class="text-sm text-slate-500">{{ t('user_management_create_intro', page_locale()) }}</p>
+        <form method="post" action="/admin/users" class="mt-4 grid gap-4 md:grid-cols-4">
+            <div class="md:col-span-2">
+                <label class="text-xs font-semibold uppercase text-slate-500">{{ t('email', page_locale()) }}</label>
+                <input type="email" name="email" value="{{ createForm.email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            </div>
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-500">{{ t('type', page_locale()) }}</label>
+                <select name="type" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="customer" {{ createForm.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
+                    <option value="reseller" {{ createForm.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
+                    <option value="admin" {{ createForm.type == 'admin' ? 'selected' : '' }}>{{ t('user_type_admin', page_locale()) }}</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-500">{{ t('password', page_locale()) }}</label>
+                <input type="password" name="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            </div>
+            <div class="md:col-span-2">
+                <label class="text-xs font-semibold uppercase text-slate-500">{{ t('password_confirm', page_locale()) }}</label>
+                <input type="password" name="password_confirm" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            </div>
+            <div class="md:col-span-2 flex items-end">
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('user_management_create_action', page_locale()) }}</button>
+            </div>
+        </form>
+    </div>
+
     <div class="rounded-xl border border-slate-200 bg-white">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -44,7 +74,7 @@
                 </thead>
                 <tbody class="divide-y divide-slate-200">
                     {% for user in users %}
-                        <tr>
+                        <tr class="bg-white">
                             <td class="px-4 py-3 text-sm font-medium text-slate-900">{{ user.email }}</td>
                             <td class="px-4 py-3 text-xs uppercase text-slate-500">{{ user.type }}</td>
                             <td class="px-4 py-3 text-xs text-slate-500">{{ user.created_at|date('Y-m-d H:i') }}</td>
@@ -68,6 +98,35 @@
                                     {% if not user.has_preferences %}
                                         <span class="ml-2 text-xs text-amber-600">{{ t('defaults_applied', page_locale()) }}</span>
                                     {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                        <tr class="bg-slate-50/40">
+                            <td colspan="6" class="px-4 py-4">
+                                <form method="post" action="/admin/users/{{ user.id }}/details" class="grid gap-3 md:grid-cols-6">
+                                    <div class="md:col-span-2">
+                                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('email', page_locale()) }}</label>
+                                        <input type="email" name="email" value="{{ user.email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('type', page_locale()) }}</label>
+                                        <select name="type" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                            <option value="customer" {{ user.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
+                                            <option value="reseller" {{ user.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
+                                            <option value="admin" {{ user.type == 'admin' ? 'selected' : '' }}>{{ t('user_type_admin', page_locale()) }}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('new_password', page_locale()) }}</label>
+                                        <input type="password" name="password" placeholder="{{ t('password_optional', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('password_confirm', page_locale()) }}</label>
+                                        <input type="password" name="password_confirm" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">{{ t('user_management_update_action', page_locale()) }}</button>
+                                    </div>
                                 </form>
                             </td>
                         </tr>

@@ -1,7 +1,12 @@
 <div class="px-5 py-4">
     <div class="mb-4">
-        <h2 class="text-lg font-semibold">{{ t('add_content_block', page_locale()) }}</h2>
-        <p class="text-sm text-slate-500">{{ t('add_content_block_description', page_locale()) }}</p>
+        {% if blockForm.action == 'update' %}
+            <h2 class="text-lg font-semibold">{{ t('edit_content_block', page_locale()) }}</h2>
+            <p class="text-sm text-slate-500">{{ t('edit_content_block_description', page_locale()) }}</p>
+        {% else %}
+            <h2 class="text-lg font-semibold">{{ t('add_content_block', page_locale()) }}</h2>
+            <p class="text-sm text-slate-500">{{ t('add_content_block_description', page_locale()) }}</p>
+        {% endif %}
     </div>
 
     {% if blockForm.errors is not empty %}
@@ -17,7 +22,7 @@
 
     <form
         class="space-y-4"
-        hx-post="/admin/cms/pages/{{ page.id }}/blocks"
+        hx-post="/admin/cms/pages/{{ page.id }}/blocks{% if blockForm.action == 'update' %}/{{ blockForm.id }}{% endif %}"
         hx-target="#cms-block-form"
         hx-swap="outerHTML"
     >
@@ -57,6 +62,19 @@
             </div>
             <p class="text-xs text-slate-500">{{ t('server_block_settings_help', page_locale())|raw }}</p>
         </div>
-        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white hover:bg-indigo-700">{{ t('add_block', page_locale()) }}</button>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button type="submit" class="w-full rounded-lg px-4 py-2 text-sm font-semibold text-white {{ blockForm.submit_color }}">{{ t(blockForm.submit_label, page_locale()) }}</button>
+            {% if blockForm.action == 'update' %}
+                <button
+                    type="button"
+                    class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto"
+                    hx-get="/admin/cms/pages/{{ page.id }}/blocks/form"
+                    hx-target="#cms-block-form"
+                    hx-swap="outerHTML"
+                >
+                    {{ t('cancel', page_locale()) }}
+                </button>
+            {% endif %}
+        </div>
     </form>
 </div>

@@ -53,12 +53,35 @@ final class AdminInstanceController
 
         return new Response($this->twig->render('admin/instances/index.html.twig', [
             'instances' => $this->normalizeInstances($instances),
+            'summary' => $this->buildSummary($instances),
+            'activeNav' => 'game-instances',
+        ]));
+    }
+
+    #[Route(path: '/new', name: 'admin_instances_new', methods: ['GET'])]
+    public function new(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response($this->twig->render('admin/instances/new.html.twig', [
+            'activeNav' => 'game-instances',
+        ]));
+    }
+
+    #[Route(path: '/provision', name: 'admin_instances_provision', methods: ['GET'])]
+    public function provision(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response($this->twig->render('admin/instances/provision.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
             'templates' => $this->templateRepository->findBy([], ['displayName' => 'ASC']),
-            'summary' => $this->buildSummary($instances),
             'form' => $this->buildFormContext(),
-            'customerForm' => $this->buildCustomerFormContext(),
             'activeNav' => 'game-instances',
         ]));
     }

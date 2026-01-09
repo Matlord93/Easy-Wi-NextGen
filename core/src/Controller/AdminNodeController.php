@@ -222,17 +222,7 @@ final class AdminNodeController
             $notice = 'Roles are already up to date.';
         }
 
-        $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $latestVersion = $this->releaseChecker->getLatestVersion();
-        $updateJobs = $this->buildUpdateJobIndex($nodes);
-
-        return new Response($this->twig->render('admin/nodes/_table.html.twig', [
-            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
-            'roleOptions' => self::ROLE_OPTIONS,
-            'updateChannel' => $this->releaseChecker->getChannel(),
-            'notice' => $notice,
-            'error' => $error,
-        ]));
+        return $this->renderNodesTable($notice, $error);
     }
 
     #[Route(path: '/update', name: 'admin_nodes_update_all', methods: ['POST'])]
@@ -249,15 +239,7 @@ final class AdminNodeController
 
         $this->queueAgentUpdates($nodes, $latestVersion, $updateJobs, $actor);
 
-        $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $latestVersion = $this->releaseChecker->getLatestVersion();
-        $updateJobs = $this->buildUpdateJobIndex($nodes);
-
-        return new Response($this->twig->render('admin/nodes/_table.html.twig', [
-            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
-            'roleOptions' => self::ROLE_OPTIONS,
-            'updateChannel' => $this->releaseChecker->getChannel(),
-        ]));
+        return $this->renderNodesTable();
     }
 
     #[Route(path: '/{id}/update', name: 'admin_nodes_update_one', methods: ['POST'])]
@@ -277,15 +259,61 @@ final class AdminNodeController
         $updateJobs = $this->buildUpdateJobIndex([$node]);
         $this->queueAgentUpdates([$node], $latestVersion, $updateJobs, $actor);
 
-        $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $latestVersion = $this->releaseChecker->getLatestVersion();
-        $updateJobs = $this->buildUpdateJobIndex($nodes);
+        return $this->renderNodesTable();
+    }
 
-        return new Response($this->twig->render('admin/nodes/_table.html.twig', [
-            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
-            'roleOptions' => self::ROLE_OPTIONS,
-            'updateChannel' => $this->releaseChecker->getChannel(),
-        ]));
+    #[Route(path: '/provision', name: 'admin_nodes_provision_all', methods: ['POST'])]
+    public function provisionAll(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+        $queued = $this->queueProvisionJobs($nodes, $actor);
+
+        if ($queued['nodes'] === 0) {
+            return $this->renderNodesTable(null, 'No nodes with assigned roles to provision.');
+        }
+
+        $notice = sprintf(
+            'Provisioning queued for %d node%s (%d job%s).',
+            $queued['nodes'],
+            $queued['nodes'] === 1 ? '' : 's',
+            $queued['jobs'],
+            $queued['jobs'] === 1 ? '' : 's',
+        );
+
+        return $this->renderNodesTable($notice);
+    }
+
+    #[Route(path: '/{id}/provision', name: 'admin_nodes_provision_one', methods: ['POST'])]
+    public function provisionNode(Request $request, string $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $node = $this->agentRepository->find($id);
+        if ($node === null) {
+            return new Response('Node not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $queued = $this->queueProvisionJobs([$node], $actor);
+        if ($queued['nodes'] === 0) {
+            return $this->renderNodesTable(null, 'Assign at least one role before provisioning.');
+        }
+
+        $notice = sprintf(
+            'Provisioning queued for %s (%d job%s).',
+            $node->getName() ?? $node->getId(),
+            $queued['jobs'],
+            $queued['jobs'] === 1 ? '' : 's',
+        );
+
+        return $this->renderNodesTable($notice);
     }
 
     private function isAdmin(Request $request): bool
@@ -319,6 +347,62 @@ final class AdminNodeController
         }
 
         return $summary;
+    }
+
+    private function renderNodesTable(?string $notice = null, ?string $error = null): Response
+    {
+        $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $updateJobs = $this->buildUpdateJobIndex($nodes);
+
+        return new Response($this->twig->render('admin/nodes/_table.html.twig', [
+            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
+            'roleOptions' => self::ROLE_OPTIONS,
+            'updateChannel' => $this->releaseChecker->getChannel(),
+            'notice' => $notice,
+            'error' => $error,
+        ]));
+    }
+
+    /**
+     * @param \App\Entity\Agent[] $nodes
+     * @return array{nodes: int, jobs: int}
+     */
+    private function queueProvisionJobs(array $nodes, User $actor): array
+    {
+        $queuedNodes = 0;
+        $queuedJobs = 0;
+
+        foreach ($nodes as $node) {
+            $roles = $this->normalizeProvisionRoles($node->getRoles());
+            if ($roles === []) {
+                continue;
+            }
+
+            $queuedNodes++;
+            foreach ($roles as $role) {
+                $job = new Job('role.ensure_base', [
+                    'agent_id' => $node->getId(),
+                    'role' => $role,
+                ]);
+                $this->entityManager->persist($job);
+                $queuedJobs++;
+            }
+
+            $this->auditLogger->log($actor, 'node.provision_queued', [
+                'node_id' => $node->getId(),
+                'roles' => $roles,
+            ]);
+        }
+
+        if ($queuedJobs > 0) {
+            $this->entityManager->flush();
+        }
+
+        return [
+            'nodes' => $queuedNodes,
+            'jobs' => $queuedJobs,
+        ];
     }
 
     private function resolveStatus(?\DateTimeImmutable $lastHeartbeatAt): string
@@ -565,6 +649,24 @@ final class AdminNodeController
                 $normalized[] = $option;
             }
         }
+
+        return $normalized;
+    }
+
+    /**
+     * @param string[] $roles
+     * @return string[]
+     */
+    private function normalizeProvisionRoles(array $roles): array
+    {
+        $normalized = array_values(array_unique(array_filter(array_map(static function ($role): ?string {
+            if (!is_string($role)) {
+                return null;
+            }
+
+            $value = trim($role);
+            return $value !== '' ? $value : null;
+        }, $roles))));
 
         return $normalized;
     }

@@ -7,48 +7,48 @@
     <script src="/3.4.17"></script>
     <script src="/htmx.min.js"></script>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body class="bg-slate-100 text-slate-900">
 {% set activeNav = activeNav|default('') %}
 <input id="sidebar-toggle" type="checkbox" class="peer sr-only">
 <div class="min-h-screen flex">
-    <div class="fixed inset-0 z-30 hidden bg-slate-900/40 peer-checked:block lg:hidden"></div>
-    <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-slate-950 text-white transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
+    <label for="sidebar-toggle" class="fixed inset-0 z-30 hidden bg-slate-900/40 peer-checked:block lg:hidden" aria-label="{{ t('toggle_sidebar', page_locale()) }}"></label>
+    <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-gradient-to-b from-indigo-700 via-slate-900 to-slate-950 text-slate-100 shadow-xl transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
         <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
         <nav class="flex-1 px-4 space-y-2">
-            <a href="/status" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'status' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'status' ? 'bg-slate-700' : 'bg-slate-900' }}">
+            <a href="/status" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'status' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'status' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M3 3.75A.75.75 0 0 1 3.75 3h12.5a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75H3.75a.75.75 0 0 1-.75-.75V3.75Zm2.5 2a.75.75 0 0 0-.75.75v7a.75.75 0 0 0 .75.75h9a.75.75 0 0 0 .75-.75v-7a.75.75 0 0 0-.75-.75h-9Zm1.75 1.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75Z"/>
                     </svg>
                 </span>
                 <span class="text-sm font-medium">{{ t('status', page_locale()) }}</span>
             </a>
-            <a href="/servers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'servers' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'servers' ? 'bg-slate-700' : 'bg-slate-900' }}">
+            <a href="/servers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'servers' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'servers' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm2.75 1.25a.75.75 0 0 0-.75.75v6a.75.75 0 0 0 .75.75h8.5a.75.75 0 0 0 .75-.75v-6a.75.75 0 0 0-.75-.75h-8.5Zm1.75 2.25h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/>
                     </svg>
                 </span>
                 <span class="text-sm font-medium">{{ t('server_directory', page_locale()) }}</span>
             </a>
-            <a href="/downloads" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'downloads' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'downloads' ? 'bg-slate-700' : 'bg-slate-900' }}">
+            <a href="/downloads" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'downloads' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'downloads' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M10 3a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3Zm-6 11.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H4.75a.75.75 0 0 1-.75-.75Z"/>
                     </svg>
                 </span>
                 <span class="text-sm font-medium">{{ t('downloads', page_locale()) }}</span>
             </a>
-            <a href="/changelog" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'changelog' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'changelog' ? 'bg-slate-700' : 'bg-slate-900' }}">
+            <a href="/changelog" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'changelog' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'changelog' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.75 3A1.75 1.75 0 0 0 4 4.75v10.5C4 16.216 4.784 17 5.75 17h8.5A1.75 1.75 0 0 0 16 15.25V7.5a.75.75 0 0 0-.75-.75H11A1.25 1.25 0 0 1 9.75 5.5V3.75A.75.75 0 0 0 9 3H5.75Zm2 6.25a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H8.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H8.5a.75.75 0 0 1-.75-.75Z"/>
                     </svg>
                 </span>
                 <span class="text-sm font-medium">{{ t('changelog', page_locale()) }}</span>
             </a>
-            <a href="/docs" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'docs' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'docs' ? 'bg-slate-700' : 'bg-slate-900' }}">
+            <a href="/docs" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'docs' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'docs' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M6.5 3.75A1.75 1.75 0 0 0 4.75 5.5v9A1.75 1.75 0 0 0 6.5 16.25h7A1.75 1.75 0 0 0 15.25 14.5V7.414a1.75 1.75 0 0 0-.513-1.237l-1.664-1.664A1.75 1.75 0 0 0 11.836 4H6.5Zm1.25 4.25a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Z"/>
                     </svg>
@@ -56,14 +56,14 @@
                 <span class="text-sm font-medium">{{ t('docs', page_locale()) }}</span>
             </a>
         </nav>
-        <div class="px-6 py-4 text-xs text-slate-400">{{ t('public_portal_tagline', page_locale()) }}</div>
+        <div class="px-6 py-4 text-xs text-indigo-100/70">{{ t('public_portal_tagline', page_locale()) }}</div>
     </aside>
 
     <main class="flex-1 flex flex-col lg:ml-0">
-        <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
+        <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
             <div class="flex items-center justify-between px-4 py-4 sm:px-6">
                 <div class="flex items-center gap-3 w-full">
-                    <label for="sidebar-toggle" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500 lg:hidden">
+                    <label for="sidebar-toggle" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-indigo-200 text-indigo-600 transition hover:bg-indigo-50 lg:hidden">
                         <span class="sr-only">{{ t('toggle_sidebar', page_locale()) }}</span>
                         <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path d="M3 5.75A.75.75 0 0 1 3.75 5h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 5.75Zm0 4A.75.75 0 0 1 3.75 9h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 9.75Zm0 4a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z"/>
@@ -84,10 +84,233 @@
             </div>
         </header>
 
-        <section class="px-4 py-6 sm:px-6">
+        <section class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
             {% block content %}{% endblock %}
         </section>
+
+        <footer class="border-t border-slate-200 bg-white">
+            <div class="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div>Easy-Wi NextGen</div>
+                <div class="flex flex-wrap gap-4">
+                    <a href="/impressum" class="hover:text-slate-700">{{ t('imprint', page_locale()) }}</a>
+                    <a href="/agb" class="hover:text-slate-700">{{ t('terms_of_service', page_locale()) }}</a>
+                    <a href="/datenschutz" class="hover:text-slate-700">{{ t('privacy_policy', page_locale()) }}</a>
+                    <button type="button" class="hover:text-slate-700" data-cookie-open>{{ t('cookie_settings', page_locale()) }}</button>
+                </div>
+            </div>
+        </footer>
     </main>
 </div>
+
+<div id="cookie-banner" class="fixed inset-x-4 bottom-4 z-40 hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-lg sm:inset-x-auto sm:right-6 sm:max-w-lg">
+    <div class="flex flex-col gap-4">
+        <div>
+            <h2 class="text-sm font-semibold text-slate-900">{{ t('cookie_banner_title', page_locale()) }}</h2>
+            <p class="mt-2 text-xs text-slate-600">{{ t('cookie_banner_description', page_locale()) }}</p>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" data-cookie-reject>{{ t('cookie_reject_optional', page_locale()) }}</button>
+            <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" data-cookie-settings>{{ t('cookie_settings', page_locale()) }}</button>
+            <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800" data-cookie-accept>{{ t('cookie_accept_all', page_locale()) }}</button>
+        </div>
+    </div>
+</div>
+
+<div id="cookie-settings-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/40 px-4 py-6">
+    <div class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h2 class="text-lg font-semibold">{{ t('cookie_settings_title', page_locale()) }}</h2>
+                <p class="mt-2 text-sm text-slate-600">{{ t('cookie_settings_description', page_locale()) }}</p>
+            </div>
+            <button type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-700" data-cookie-close>{{ t('cookie_settings_close', page_locale()) }}</button>
+        </div>
+
+        <div class="mt-6 space-y-4">
+            <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div>
+                    <p class="text-sm font-semibold">{{ t('cookie_category_essential', page_locale()) }}</p>
+                    <p class="text-xs text-slate-500">{{ t('cookie_purpose_session', page_locale()) }}</p>
+                </div>
+                <input type="checkbox" checked disabled class="h-4 w-4 rounded border-slate-300 text-slate-700">
+            </div>
+            <label class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div>
+                    <p class="text-sm font-semibold">{{ t('cookie_category_functional', page_locale()) }}</p>
+                    <p class="text-xs text-slate-500">{{ t('cookie_purpose_language', page_locale()) }}</p>
+                </div>
+                <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="functional">
+            </label>
+            <label class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div>
+                    <p class="text-sm font-semibold">{{ t('cookie_category_analytics', page_locale()) }}</p>
+                    <p class="text-xs text-slate-500">—</p>
+                </div>
+                <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="analytics">
+            </label>
+            <label class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div>
+                    <p class="text-sm font-semibold">{{ t('cookie_category_marketing', page_locale()) }}</p>
+                    <p class="text-xs text-slate-500">—</p>
+                </div>
+                <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="marketing">
+            </label>
+        </div>
+
+        <div class="mt-6 overflow-hidden rounded-xl border border-slate-200">
+            <table class="min-w-full text-xs">
+                <thead class="bg-slate-50 text-left text-slate-500">
+                    <tr>
+                        <th class="px-4 py-2">{{ t('cookie_cookie_name', page_locale()) }}</th>
+                        <th class="px-4 py-2">{{ t('cookie_cookie_purpose', page_locale()) }}</th>
+                        <th class="px-4 py-2">{{ t('cookie_cookie_duration', page_locale()) }}</th>
+                        <th class="px-4 py-2">{{ t('cookie_cookie_type', page_locale()) }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    <tr>
+                        <td class="px-4 py-2">easywi_session</td>
+                        <td class="px-4 py-2">{{ t('cookie_purpose_session', page_locale()) }}</td>
+                        <td class="px-4 py-2">{{ t('cookie_duration_session', page_locale()) }}</td>
+                        <td class="px-4 py-2">{{ t('cookie_category_essential', page_locale()) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-2">portal_language</td>
+                        <td class="px-4 py-2">{{ t('cookie_purpose_language', page_locale()) }}</td>
+                        <td class="px-4 py-2">{{ t('cookie_duration_1year', page_locale()) }}</td>
+                        <td class="px-4 py-2">{{ t('cookie_category_functional', page_locale()) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-2">cookie_preferences</td>
+                        <td class="px-4 py-2">{{ t('cookie_purpose_preferences', page_locale()) }}</td>
+                        <td class="px-4 py-2">{{ t('cookie_duration_1year', page_locale()) }}</td>
+                        <td class="px-4 py-2">{{ t('cookie_category_functional', page_locale()) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" data-cookie-close>{{ t('cookie_settings_close', page_locale()) }}</button>
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700" data-cookie-save>{{ t('cookie_settings_save', page_locale()) }}</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const cookieKey = 'cookie_preferences';
+    const defaultPrefs = {
+        essential: true,
+        functional: true,
+        analytics: false,
+        marketing: false,
+    };
+
+    const banner = document.getElementById('cookie-banner');
+    const modal = document.getElementById('cookie-settings-modal');
+    const toggles = Array.from(document.querySelectorAll('[data-cookie-toggle]'));
+
+    const getCookie = (name) => {
+        return document.cookie
+            .split('; ')
+            .find((row) => row.startsWith(name + '='))
+            ?.split('=')[1];
+    };
+
+    const setCookie = (name, value) => {
+        const encodedValue = encodeURIComponent(value);
+        const secureFlag = window.location.protocol === 'https:' ? '; secure' : '';
+        document.cookie = `${name}=${encodedValue}; path=/; max-age=31536000; samesite=lax${secureFlag}`;
+    };
+
+    const readPreferences = () => {
+        const stored = getCookie(cookieKey);
+        if (!stored) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(decodeURIComponent(stored));
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const writePreferences = (prefs) => {
+        setCookie(cookieKey, JSON.stringify(prefs));
+    };
+
+    const applyPreferencesToForm = (prefs) => {
+        toggles.forEach((toggle) => {
+            const key = toggle.dataset.cookieToggle;
+            toggle.checked = Boolean(prefs?.[key]);
+        });
+    };
+
+    const showBannerIfNeeded = () => {
+        const prefs = readPreferences();
+        if (!prefs && banner) {
+            banner.classList.remove('hidden');
+        }
+    };
+
+    const openModal = () => {
+        const prefs = readPreferences() ?? defaultPrefs;
+        applyPreferencesToForm(prefs);
+        modal?.classList.remove('hidden');
+        modal?.classList.add('flex');
+    };
+
+    const closeModal = () => {
+        modal?.classList.add('hidden');
+        modal?.classList.remove('flex');
+    };
+
+    document.querySelectorAll('[data-cookie-open]').forEach((button) => {
+        button.addEventListener('click', openModal);
+    });
+
+    document.querySelectorAll('[data-cookie-settings]').forEach((button) => {
+        button.addEventListener('click', () => {
+            banner?.classList.add('hidden');
+            openModal();
+        });
+    });
+
+    document.querySelectorAll('[data-cookie-close]').forEach((button) => {
+        button.addEventListener('click', closeModal);
+    });
+
+    document.querySelectorAll('[data-cookie-accept]').forEach((button) => {
+        button.addEventListener('click', () => {
+            writePreferences({ ...defaultPrefs, functional: true, analytics: true, marketing: true });
+            banner?.classList.add('hidden');
+        });
+    });
+
+    document.querySelectorAll('[data-cookie-reject]').forEach((button) => {
+        button.addEventListener('click', () => {
+            writePreferences({ ...defaultPrefs, functional: false, analytics: false, marketing: false });
+            banner?.classList.add('hidden');
+        });
+    });
+
+    document.querySelectorAll('[data-cookie-save]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const prefs = {
+                essential: true,
+                functional: toggles.find((toggle) => toggle.dataset.cookieToggle === 'functional')?.checked ?? false,
+                analytics: toggles.find((toggle) => toggle.dataset.cookieToggle === 'analytics')?.checked ?? false,
+                marketing: toggles.find((toggle) => toggle.dataset.cookieToggle === 'marketing')?.checked ?? false,
+            };
+
+            writePreferences(prefs);
+            closeModal();
+            banner?.classList.add('hidden');
+        });
+    });
+
+    showBannerIfNeeded();
+</script>
 </body>
 </html>

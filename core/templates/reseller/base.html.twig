@@ -7,31 +7,41 @@
     <script src="/3.4.17"></script>
     <script src="/htmx.min.js"></script>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body class="bg-slate-100 text-slate-900">
 {% set activeNav = activeNav|default('') %}
 <input id="sidebar-toggle" type="checkbox" class="peer sr-only">
 <div class="min-h-screen flex">
-    <div class="fixed inset-0 z-30 hidden bg-slate-900/40 peer-checked:block lg:hidden"></div>
-    <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-slate-950 text-white transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
+    <label for="sidebar-toggle" class="fixed inset-0 z-30 hidden bg-slate-900/40 peer-checked:block lg:hidden" aria-label="Toggle sidebar"></label>
+    <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-gradient-to-b from-indigo-700 via-slate-900 to-slate-950 text-slate-100 shadow-xl transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
         <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
-        <nav class="flex-1 px-4 space-y-2">
-            <a href="/reseller/customers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'customers' ? 'bg-slate-800 text-white' : 'text-slate-300 transition hover:bg-slate-800 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'customers' ? 'bg-slate-700' : 'bg-slate-900' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M7 4.75A2.25 2.25 0 0 1 9.25 2.5h1.5A2.25 2.25 0 0 1 13 4.75v.5h.5A2.25 2.25 0 0 1 15.75 7.5v7a2.25 2.25 0 0 1-2.25 2.25h-7A2.25 2.25 0 0 1 4.25 14.5v-7A2.25 2.25 0 0 1 6.5 5.25H7v-.5Zm1.5 0v.5h3v-.5a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75Zm-2 2a.75.75 0 0 0-.75.75v7a.75.75 0 0 0 .75.75h7a.75.75 0 0 0 .75-.75v-7a.75.75 0 0 0-.75-.75h-7Z"/>
+        <nav class="flex-1 px-4 space-y-4">
+            <details class="nav-group group" open>
+                <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
+                    <span>Management</span>
+                    <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
-                </span>
-                <span class="text-sm font-medium">Customers</span>
-            </a>
+                </summary>
+                <div class="mt-2 space-y-1">
+                    <a href="/reseller/customers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'customers' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'customers' ? 'bg-white/15' : 'bg-white/10' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M7 4.75A2.25 2.25 0 0 1 9.25 2.5h1.5A2.25 2.25 0 0 1 13 4.75v.5h.5A2.25 2.25 0 0 1 15.75 7.5v7a2.25 2.25 0 0 1-2.25 2.25h-7A2.25 2.25 0 0 1 4.25 14.5v-7A2.25 2.25 0 0 1 6.5 5.25H7v-.5Zm1.5 0v.5h3v-.5a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75Zm-2 2a.75.75 0 0 0-.75.75v7a.75.75 0 0 0 .75.75h7a.75.75 0 0 0 .75-.75v-7a.75.75 0 0 0-.75-.75h-7Z"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm font-medium">Customers</span>
+                    </a>
+                </div>
+            </details>
         </nav>
-        <div class="px-6 py-4 text-xs text-slate-400">Reseller Portal · vNext</div>
+        <div class="px-6 py-4 text-xs text-indigo-100/70">Reseller Portal · vNext</div>
     </aside>
 
     <main class="flex-1 flex flex-col lg:ml-0">
-        <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
+        <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
             <div class="flex items-center justify-between px-4 py-4 sm:px-6">
                 <div class="flex items-center gap-3 w-full">
-                    <label for="sidebar-toggle" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500 lg:hidden">
+                    <label for="sidebar-toggle" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-indigo-200 text-indigo-600 transition hover:bg-indigo-50 lg:hidden">
                         <span class="sr-only">Toggle sidebar</span>
                         <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path d="M3 5.75A.75.75 0 0 1 3.75 5h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 5.75Zm0 4A.75.75 0 0 1 3.75 9h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 9.75Zm0 4a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z"/>
@@ -57,7 +67,7 @@
             </div>
         </header>
 
-        <section class="px-4 py-6 sm:px-6">
+        <section class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
             {% block content %}{% endblock %}
         </section>
     </main>

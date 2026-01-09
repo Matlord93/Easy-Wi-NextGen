@@ -10,6 +10,7 @@ use App\Entity\User;
 use App\Enum\InstanceStatus;
 use App\Enum\TicketStatus;
 use App\Enum\UserType;
+use App\Repository\CustomerProfileRepository;
 use App\Repository\DatabaseRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\TicketRepository;
@@ -27,6 +28,7 @@ final class CustomerDashboardController
         private readonly WebspaceRepository $webspaceRepository,
         private readonly DatabaseRepository $databaseRepository,
         private readonly TicketRepository $ticketRepository,
+        private readonly CustomerProfileRepository $profileRepository,
         private readonly Environment $twig,
     ) {
     }
@@ -47,15 +49,11 @@ final class CustomerDashboardController
             'tickets_open' => $this->countTicketsByStatus($tickets, TicketStatus::Open),
         ];
 
-        $resourceUsage = [
-            'cpu' => 32,
-            'ram' => 48,
-            'disk' => 72,
-        ];
+        $resourceUsage = $this->calculateResourceUsage($instances);
 
         return new Response($this->twig->render('customer/dashboard/index.html.twig', [
             'activeNav' => 'dashboard',
-            'customerName' => $customer->getEmail(),
+            'customerName' => $this->resolveCustomerDisplayName($customer),
             'summary' => $summary,
             'instances' => $this->normalizeInstances(array_slice($instances, 0, 3)),
             'tickets' => $this->normalizeTickets(array_slice($tickets, 0, 3)),
@@ -117,5 +115,70 @@ final class CustomerDashboardController
     private function countTicketsByStatus(array $tickets, TicketStatus $status): int
     {
         return count(array_filter($tickets, static fn (Ticket $ticket): bool => $ticket->getStatus() === $status));
+    }
+
+    private function resolveCustomerDisplayName(User $customer): string
+    {
+        $profile = $this->profileRepository->findOneByCustomer($customer);
+        if ($profile === null) {
+            return $customer->getEmail();
+        }
+
+        $name = trim(sprintf('%s %s', $profile->getFirstName(), $profile->getLastName()));
+        if ($name !== '') {
+            return $name;
+        }
+
+        $company = $profile->getCompany();
+        if ($company !== null && trim($company) !== '') {
+            return $company;
+        }
+
+        return $customer->getEmail();
+    }
+
+    /**
+     * @param Instance[] $instances
+     * @return array{cpu: int, ram: int, disk: int}
+     */
+    private function calculateResourceUsage(array $instances): array
+    {
+        $totals = [
+            'cpu' => 0,
+            'ram' => 0,
+            'disk' => 0,
+        ];
+        $running = [
+            'cpu' => 0,
+            'ram' => 0,
+            'disk' => 0,
+        ];
+
+        foreach ($instances as $instance) {
+            $totals['cpu'] += $instance->getCpuLimit();
+            $totals['ram'] += $instance->getRamLimit();
+            $totals['disk'] += $instance->getDiskLimit();
+
+            if ($instance->getStatus() === InstanceStatus::Running) {
+                $running['cpu'] += $instance->getCpuLimit();
+                $running['ram'] += $instance->getRamLimit();
+                $running['disk'] += $instance->getDiskLimit();
+            }
+        }
+
+        return [
+            'cpu' => $this->formatUsagePercent($running['cpu'], $totals['cpu']),
+            'ram' => $this->formatUsagePercent($running['ram'], $totals['ram']),
+            'disk' => $this->formatUsagePercent($running['disk'], $totals['disk']),
+        ];
+    }
+
+    private function formatUsagePercent(int $used, int $total): int
+    {
+        if ($total <= 0) {
+            return 0;
+        }
+
+        return (int) min(100, round(($used / $total) * 100));
     }
 }

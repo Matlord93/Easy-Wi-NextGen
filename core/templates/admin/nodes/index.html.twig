@@ -1,73 +1,79 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Nodes · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_nodes_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-6">
     <div>
-        <h1 class="text-2xl font-semibold">Nodes</h1>
-        <p class="text-sm text-slate-500">Monitor agent-backed infrastructure and capacity.</p>
+        <h1 class="text-2xl font-semibold">{{ t('admin_nodes_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-500">{{ t('admin_nodes_intro', page_locale()) }}</p>
     </div>
     <div class="flex items-center gap-3">
         {% if summary.latestVersion %}
             <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                {{ updateChannel|upper }} channel · {{ summary.latestVersion }}
+                {{ t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) }} · {{ summary.latestVersion }}
             </span>
             <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                {{ summary.updates }} update{{ summary.updates == 1 ? '' : 's' }} available
+                {{ t('admin_nodes_updates_available', page_locale())|replace({'%count%': summary.updates}) }}
             </span>
         {% else %}
             <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
-                Release check unavailable
+                {{ t('admin_nodes_release_unavailable', page_locale()) }}
             </span>
         {% endif %}
         <button
-            class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-slate-900 text-indigo-700"
+            class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700"
             hx-post="/admin/nodes/update"
             hx-target="#nodes-table"
             hx-swap="outerHTML"
-        >Update Agents</button>
-        <a href="/admin/nodes/register" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">Register Node</a>
-        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Provision Node</button>
+        >{{ t('admin_nodes_update_agents', page_locale()) }}</button>
+        <a href="/admin/nodes/register" class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Register Node</a>
+        <button
+            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
+            hx-post="/admin/nodes/provision"
+            hx-target="#nodes-table"
+            hx-swap="outerHTML"
+            hx-confirm="{{ t('admin_nodes_register', page_locale()) }}"
+        >{{ t('admin_nodes_provision', page_locale()) }}</button>
     </div>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Total Nodes</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_total', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Online</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_online', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.online }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Stale</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_stale', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.stale }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Offline</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_offline', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-rose-500">{{ summary.offline }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Updates Available</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_updates_label', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.updates }}</p>
-        <p class="mt-1 text-xs text-slate-400">{{ summary.latestVersion ?? 'Release check unavailable' }}</p>
+        <p class="mt-1 text-xs text-slate-400">{{ summary.latestVersion ?? t('admin_nodes_release_unavailable', page_locale()) }}</p>
     </div>
 </div>
 
 <div class="rounded-xl bg-white border border-slate-200">
     <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
         <div>
-            <h2 class="text-lg font-semibold">Node Fleet</h2>
-            <p class="text-sm text-slate-500">Provision, update, and monitor status in real time.</p>
+            <h2 class="text-lg font-semibold">{{ t('admin_nodes_fleet', page_locale()) }}</h2>
+            <p class="text-sm text-slate-500">{{ t('admin_nodes_fleet_intro', page_locale()) }}</p>
         </div>
         <button
             class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
             hx-get="/admin/nodes/table"
             hx-target="#nodes-table"
             hx-swap="outerHTML"
-        >Refresh</button>
+        >{{ t('refresh', page_locale()) }}</button>
     </div>
     {% include 'admin/nodes/_table.html.twig' with { nodes: nodes, updateChannel: updateChannel } %}
 </div>

@@ -82,8 +82,8 @@ final class Version20250221100000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 730 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 730 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 730 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 730 +quit',
             ['+map', '+maxplayers', '+game_type', '+game_mode']
         );
 
@@ -122,8 +122,8 @@ final class Version20250221100000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 740 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 740 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 740 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 740 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -157,8 +157,8 @@ final class Version20250221100000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 258550 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 258550 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 258550 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 258550 +quit',
             ['+server.level', '+server.seed']
         );
 
@@ -194,8 +194,8 @@ final class Version20250221100000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 376030 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 376030 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 376030 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 376030 +quit',
             []
         );
 
@@ -222,8 +222,8 @@ final class Version20250221100000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 896660 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 896660 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 896660 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 896660 +quit',
             []
         );
 
@@ -290,8 +290,8 @@ final class Version20250221100000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 1690800 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 1690800 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1690800 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1690800 +quit',
             []
         );
     }

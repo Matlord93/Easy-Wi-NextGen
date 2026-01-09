@@ -10,7 +10,7 @@
     </div>
     <div class="flex items-center gap-3">
         <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">{{ t('export', page_locale()) }}</button>
-        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">{{ t('admin_jobs_create', page_locale()) }}</button>
+        <a href="/admin/jobs/new" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">{{ t('admin_jobs_create', page_locale()) }}</a>
     </div>
 </div>
 
@@ -37,11 +37,11 @@
         </div>
         <button
             class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-            hx-get="/admin/jobs/table"
+            hx-get="/admin/jobs/table?page={{ pagination.page }}"
             hx-target="#jobs-table"
             hx-swap="outerHTML"
         >{{ t('refresh', page_locale()) }}</button>
     </div>
-    {% include 'admin/jobs/_table.html.twig' with { jobs: jobs } %}
+    {% include 'admin/jobs/_table.html.twig' with { jobs: jobs, pagination: pagination } %}
 </div>
 {% endblock %}

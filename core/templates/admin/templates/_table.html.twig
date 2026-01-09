@@ -7,7 +7,7 @@
                 <th class="px-5 py-3 text-left font-semibold">{{ t('admin_templates_table_start_params', page_locale()) }}</th>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('admin_templates_table_commands', page_locale()) }}</th>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('admin_templates_table_switch_flags', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('admin_templates_table_preview', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('admin_templates_table_actions', page_locale()) }}</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-slate-200 bg-white">
@@ -57,12 +57,16 @@
                         </div>
                     </td>
                     <td class="px-5 py-4">
-                        <button
-                            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
-                            hx-get="/admin/templates/preview?id={{ template.id }}"
-                            hx-target="#template-preview"
-                            hx-swap="outerHTML"
-                        >{{ t('admin_templates_preview', page_locale()) }}</button>
+                        <div class="flex flex-col gap-2">
+                            <a
+                                class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 text-center"
+                                href="/admin/templates/{{ template.id }}/preview"
+                            >{{ t('admin_templates_preview', page_locale()) }}</a>
+                            <a
+                                class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 text-center"
+                                href="/admin/templates/{{ template.id }}/edit"
+                            >{{ t('edit', page_locale()) }}</a>
+                        </div>
                     </td>
                 </tr>
             {% else %}

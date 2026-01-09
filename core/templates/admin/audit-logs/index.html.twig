@@ -1,12 +1,12 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Audit Logs · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_audit_logs_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-6">
     <div>
-        <h1 class="text-2xl font-semibold">Audit Logs</h1>
-        <p class="text-sm text-slate-500">Review administrative actions and system activity.</p>
+        <h1 class="text-2xl font-semibold">{{ t('admin_audit_logs_heading', page_locale()) }}</h1>
+        <p class="text-sm text-slate-500">{{ t('admin_audit_logs_intro', page_locale()) }}</p>
     </div>
     <div class="flex items-center gap-3">
         <button
@@ -14,37 +14,37 @@
             hx-get="/admin/audit-logs/table"
             hx-target="#audit-logs-table"
             hx-swap="outerHTML"
-        >Refresh</button>
+        >{{ t('refresh', page_locale()) }}</button>
     </div>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Total Entries</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_audit_logs_total_entries', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
-        <p class="mt-1 text-xs text-slate-400">Showing latest {{ summary.showing }}</p>
+        <p class="mt-1 text-xs text-slate-400">{{ t('admin_audit_logs_showing', page_locale())|replace({'%count%': summary.showing}) }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Latest Activity</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_audit_logs_latest_activity', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-indigo-600">
-            {{ summary.latest ? summary.latest|date('Y-m-d H:i') : 'No activity yet' }}
+            {{ summary.latest ? summary.latest|date('Y-m-d H:i') : t('admin_audit_logs_no_activity', page_locale()) }}
         </p>
         {% if summary.latest %}
-            <p class="mt-1 text-xs text-slate-400">Last recorded event timestamp</p>
+            <p class="mt-1 text-xs text-slate-400">{{ t('admin_audit_logs_last_event', page_locale()) }}</p>
         {% endif %}
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Retention</p>
-        <p class="mt-2 text-2xl font-semibold text-emerald-600">Latest 50</p>
-        <p class="mt-1 text-xs text-slate-400">Use database exports for full history</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_audit_logs_retention', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ t('admin_audit_logs_retention_value', page_locale()) }}</p>
+        <p class="mt-1 text-xs text-slate-400">{{ t('admin_audit_logs_retention_hint', page_locale()) }}</p>
     </div>
 </div>
 
 <div class="rounded-xl bg-white border border-slate-200">
     <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
         <div>
-            <h2 class="text-lg font-semibold">Recent Audit Entries</h2>
-            <p class="text-sm text-slate-500">Hash-linked events for administrative transparency.</p>
+            <h2 class="text-lg font-semibold">{{ t('admin_audit_logs_recent_entries', page_locale()) }}</h2>
+            <p class="text-sm text-slate-500">{{ t('admin_audit_logs_recent_entries_intro', page_locale()) }}</p>
         </div>
     </div>
     {% include 'admin/audit-logs/_table.html.twig' with { logs: logs } %}

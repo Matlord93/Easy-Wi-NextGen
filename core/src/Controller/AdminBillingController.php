@@ -11,9 +11,15 @@ use App\Repository\CreditNoteRepository;
 use App\Repository\InvoiceArchiveRepository;
 use App\Repository\InvoiceRepository;
 use App\Repository\PaymentRepository;
+use App\Repository\UserRepository;
 use App\Service\Billing\AccountingExportService;
+use App\Service\Billing\DunningWorkflow;
 use App\Service\Billing\InvoiceArchiveManager;
+use App\Service\Billing\InvoiceStatusUpdater;
+use App\Service\AuditLogger;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -30,6 +36,11 @@ final class AdminBillingController
         private readonly InvoiceArchiveRepository $invoiceArchiveRepository,
         private readonly InvoiceArchiveManager $invoiceArchiveManager,
         private readonly AccountingExportService $accountingExportService,
+        private readonly UserRepository $userRepository,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly AuditLogger $auditLogger,
+        private readonly DunningWorkflow $dunningWorkflow,
+        private readonly InvoiceStatusUpdater $invoiceStatusUpdater,
         private readonly Environment $twig,
     ) {
     }
@@ -59,7 +70,84 @@ final class AdminBillingController
         ]));
     }
 
-    #[Route(path: '/invoices/{id}', name: 'admin_billing_invoice_show', methods: ['GET'])]
+    #[Route(path: '/invoices/new', name: 'admin_billing_invoice_new', methods: ['GET'])]
+    public function newInvoice(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $customers = $this->userRepository->findCustomers();
+
+        return new Response($this->twig->render('admin/billing/create.html.twig', [
+            'activeNav' => 'billing',
+            'customers' => $customers,
+            'form' => $this->buildInvoiceFormContext(),
+        ]));
+    }
+
+    #[Route(path: '/invoices', name: 'admin_billing_invoice_create', methods: ['POST'])]
+    public function createInvoice(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $formData = $this->parseInvoicePayload($request);
+        $customers = $this->userRepository->findCustomers();
+
+        if ($formData['errors'] !== []) {
+            return new Response($this->twig->render('admin/billing/create.html.twig', [
+                'activeNav' => 'billing',
+                'customers' => $customers,
+                'form' => $formData,
+            ]), Response::HTTP_BAD_REQUEST);
+        }
+
+        $invoice = new \App\Entity\Invoice(
+            $formData['customer'],
+            $formData['number'],
+            $formData['amount_total_cents'],
+            $formData['currency'],
+            $formData['due_date'],
+        );
+
+        $this->entityManager->persist($invoice);
+        $this->auditLogger->log($actor, 'billing.invoice.created', [
+            'invoice_id' => $invoice->getId(),
+            'number' => $invoice->getNumber(),
+            'customer_id' => $invoice->getCustomer()->getId(),
+            'amount_total_cents' => $invoice->getAmountTotalCents(),
+            'currency' => $invoice->getCurrency(),
+        ]);
+        $this->entityManager->flush();
+
+        return new RedirectResponse(sprintf('/admin/billing/invoices/%d', $invoice->getId()));
+    }
+
+    #[Route(path: '/dunning', name: 'admin_billing_dunning_run', methods: ['POST'])]
+    public function runDunning(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $now = new \DateTimeImmutable();
+        $invoices = $this->invoiceRepository->findDunnable($now);
+
+        foreach ($invoices as $invoice) {
+            $this->invoiceStatusUpdater->syncStatus($invoice, $actor, $now);
+            $this->dunningWorkflow->apply($invoice, $actor, $now);
+        }
+
+        $this->entityManager->flush();
+
+        return new RedirectResponse('/admin/billing');
+    }
+
+    #[Route(path: '/invoices/{id}', name: 'admin_billing_invoice_show', methods: ['GET'], requirements: ['id' => '\\d+'])]
     public function showInvoice(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
@@ -81,7 +169,7 @@ final class AdminBillingController
         ]));
     }
 
-    #[Route(path: '/invoices/{id}/archive', name: 'admin_billing_invoice_archive', methods: ['POST'])]
+    #[Route(path: '/invoices/{id}/archive', name: 'admin_billing_invoice_archive', methods: ['POST'], requirements: ['id' => '\\d+'])]
     public function archiveInvoice(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
@@ -122,7 +210,7 @@ final class AdminBillingController
         ]));
     }
 
-    #[Route(path: '/invoices/{id}/archive/download', name: 'admin_billing_invoice_archive_download', methods: ['GET'])]
+    #[Route(path: '/invoices/{id}/archive/download', name: 'admin_billing_invoice_archive_download', methods: ['GET'], requirements: ['id' => '\\d+'])]
     public function downloadArchive(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
@@ -257,6 +345,93 @@ final class AdminBillingController
             'archived_year' => $archive->getArchivedYear(),
             'created_at' => $archive->getCreatedAt(),
         ];
+    }
+
+    private function buildInvoiceFormContext(
+        array $errors = [],
+        ?User $customer = null,
+        ?string $number = null,
+        ?string $amount = null,
+        ?string $currency = null,
+        ?string $dueDate = null,
+    ): array {
+        $defaultDueDate = (new \DateTimeImmutable('+14 days'))->format('Y-m-d');
+
+        return [
+            'errors' => $errors,
+            'customer_id' => $customer?->getId(),
+            'number' => $number ?? $this->generateInvoiceNumber(),
+            'amount' => $amount ?? '',
+            'currency' => $currency ?? 'EUR',
+            'due_date' => $dueDate ?? $defaultDueDate,
+            'due_date_raw' => $dueDate ?? $defaultDueDate,
+        ];
+    }
+
+    private function parseInvoicePayload(Request $request): array
+    {
+        $errors = [];
+        $customerId = (int) $request->request->get('customer_id', 0);
+        $number = trim((string) $request->request->get('number', ''));
+        $amountRaw = trim((string) $request->request->get('amount', ''));
+        $currency = strtoupper(trim((string) $request->request->get('currency', 'EUR')));
+        $dueDateRaw = trim((string) $request->request->get('due_date', ''));
+
+        $customer = $customerId > 0 ? $this->userRepository->find($customerId) : null;
+        if (!$customer instanceof User || $customer->getType() !== UserType::Customer) {
+            $errors[] = 'Customer is required.';
+        }
+
+        if ($number === '') {
+            $errors[] = 'Invoice number is required.';
+        }
+
+        $amountTotalCents = $this->parseAmountCents($amountRaw);
+        if ($amountTotalCents <= 0) {
+            $errors[] = 'Amount must be greater than zero.';
+        }
+
+        if ($currency === '' || strlen($currency) !== 3) {
+            $errors[] = 'Currency must be a 3-letter code.';
+        }
+
+        $dueDate = \DateTimeImmutable::createFromFormat('Y-m-d', $dueDateRaw) ?: null;
+        if ($dueDate === null) {
+            $errors[] = 'Due date is required.';
+        }
+
+        return [
+            'errors' => $errors,
+            'customer' => $customer instanceof User ? $customer : null,
+            'customer_id' => $customerId,
+            'number' => $number,
+            'amount' => $amountRaw,
+            'amount_total_cents' => $amountTotalCents,
+            'currency' => $currency,
+            'due_date' => $dueDate,
+            'due_date_raw' => $dueDateRaw,
+        ];
+    }
+
+    private function parseAmountCents(string $amount): int
+    {
+        if ($amount === '') {
+            return 0;
+        }
+
+        $normalized = str_replace(',', '.', $amount);
+        if (!is_numeric($normalized)) {
+            return 0;
+        }
+
+        return (int) round(((float) $normalized) * 100);
+    }
+
+    private function generateInvoiceNumber(): string
+    {
+        $date = (new \DateTimeImmutable())->format('Ymd');
+
+        return sprintf('INV-%s-%04d', $date, random_int(0, 9999));
     }
 
     private function parseArchivePayload(Request $request): array

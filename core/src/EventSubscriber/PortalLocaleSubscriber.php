@@ -40,6 +40,14 @@ final class PortalLocaleSubscriber implements EventSubscriberInterface
             return;
         }
 
+        $preferences = $request->cookies->get('cookie_preferences');
+        if (is_string($preferences)) {
+            $decoded = json_decode(rawurldecode($preferences), true);
+            if (is_array($decoded) && array_key_exists('functional', $decoded) && $decoded['functional'] === false) {
+                return;
+            }
+        }
+
         $cookie = Cookie::create(self::LOCALE_COOKIE)
             ->withValue($locale)
             ->withPath('/')

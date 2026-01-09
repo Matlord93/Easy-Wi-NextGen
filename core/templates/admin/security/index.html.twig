@@ -1,0 +1,124 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Security & DDoS · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Security & DDoS</h1>
+        <p class="text-sm text-slate-500">Manage firewall port rules and DDoS provider access for the control plane.</p>
+    </div>
+
+    {% if errors is not empty %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+            <ul class="list-disc space-y-1 pl-4">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if ddosUpdated %}
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
+            DDoS provider settings updated.
+        </div>
+    {% endif %}
+
+    <div class="grid gap-6 lg:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h2 class="text-lg font-semibold">DDoS provider access</h2>
+                <p class="text-sm text-slate-500">Store encrypted API keys for mitigation providers.</p>
+            </div>
+            <div class="px-5 py-5">
+                <form method="post" action="/admin/security/ddos" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500">Provider</label>
+                        <input
+                            name="provider"
+                            placeholder="e.g. cloudflare"
+                            class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500">API key</label>
+                        <input
+                            type="password"
+                            name="api_key"
+                            placeholder="Enter the provider API key"
+                            class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                        >
+                    </div>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Save credentials</button>
+                </form>
+                <div class="mt-6 space-y-2">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Configured providers</p>
+                    {% if credentials is empty %}
+                        <p class="text-sm text-slate-500">No providers configured yet.</p>
+                    {% else %}
+                        <ul class="space-y-2">
+                            {% for credential in credentials %}
+                                <li class="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">
+                                    <span class="font-medium text-slate-900">{{ credential.provider|title }}</span>
+                                    <span class="text-xs text-slate-400">Updated {{ credential.updatedAt|date('Y-m-d H:i') }}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h2 class="text-lg font-semibold">Firewall port rules</h2>
+                <p class="text-sm text-slate-500">Define which ports should stay open per node.</p>
+            </div>
+            <div class="divide-y divide-slate-200">
+                {% if firewallNodes is empty %}
+                    <div class="px-5 py-5 text-sm text-slate-500">No nodes available yet.</div>
+                {% else %}
+                    {% for node in firewallNodes %}
+                        <div class="px-5 py-5">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-900">{{ node.name }}</p>
+                                    <p class="text-xs text-slate-500">Node #{{ node.id }} · Last update {{ node.updatedAt|date('Y-m-d H:i') }}</p>
+                                </div>
+                                <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ node.status == 'online' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : (node.status == 'degraded' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-rose-200 bg-rose-50 text-rose-700') }}">
+                                    {{ node.status|title }}
+                                </span>
+                            </div>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                {% if node.ports is empty %}
+                                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">No open ports configured</span>
+                                {% else %}
+                                    {% for port in node.ports %}
+                                        <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">{{ port }}</span>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <form method="post" action="/admin/security/firewall/{{ node.id }}" class="mt-4 flex flex-col gap-3">
+                                <label class="text-xs font-semibold uppercase text-slate-500">Desired open ports (comma separated)</label>
+                                <input
+                                    name="ports"
+                                    value="{{ node.ports|join(', ') }}"
+                                    placeholder="22, 27015, 27016"
+                                    class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                >
+                                <div class="flex items-center gap-3">
+                                    <button type="submit" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">Update firewall</button>
+                                    {% if firewallUpdated == node.id %}
+                                        <span class="text-xs text-emerald-600">Saved.</span>
+                                    {% endif %}
+                                </div>
+                            </form>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

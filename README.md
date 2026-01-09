@@ -1,237 +1,250 @@
-# Easy-Wi NextGen (Core + Agent Platform)
+# EasyWI NextGen – Installation & Betrieb
 
-## 🚀 Überblick
+Willkommen bei **EasyWI NextGen**. Diese README liefert eine moderne, klare Schritt-für-Schritt-Anleitung
+für die Installation des Panels sowie die Inbetriebnahme von Agent/Runner.
 
-Dieses Projekt ist ein kompletter **Neuaufbau und Erweiterung** des bestehenden Webinterfaces **Easy-Wi V6.2.5**.
-Ziel ist eine moderne, sichere und modulare Hosting-Plattform für:
-
-- 🎮 **Gameserver (Steam / Steam Sniper / Templates)**
-- 🎧 **Teamspeak (TS3 voll, TS6 später)**
-- 🌐 **Webhosting (Webspaces + Domains + SSL)**
-- 📧 **Mailserver (voll verwaltbar über Panel)**
-- 🌍 **DNS-Server Verwaltung**
-- 🗄️ **Datenbank Verwaltung (MariaDB + PostgreSQL)**
-- 🔥 **Firewall / Fail2Ban / Updates / Monitoring**
-- 🎫 **Ticketsystem**
-- 💶 **rechtssichere Rechnungen (B2C, später Mahnungen)**
-
-Wichtig ist: **Keine Verwaltung mehr über Panel-SSH**.  
-Alle Aktionen laufen über **Agenten**, die auf den Servern installiert werden.
+## Inhalt
+1. [Systemvoraussetzungen](#systemvoraussetzungen)
+2. [Server vorbereiten](#server-vorbereiten)
+3. [Installation des Panels](#installation-des-panels)
+   - [Standalone / Manuell](#standalone--manuell)
+   - [Installation mit Plesk](#installation-mit-plesk)
+   - [Installation mit aaPanel](#installation-mit-aapanel)
+   - [Weitere gängige Setups](#weitere-gängige-setups)
+4. [Agent & Runner: Installation und Inbetriebnahme](#agent--runner-installation-und-inbetriebnahme)
+5. [Typische Fehler & Lösungen](#typische-fehler--lösungen)
 
 ---
 
-## 🎯 Ziele & Motivation
+## Systemvoraussetzungen
 
-Easy-Wi ist funktional, aber veraltet.
-Dieses NextGen-Projekt verfolgt folgende Ziele:
+**Panel (Core/Web):**
+- Linux-Server (Debian/Ubuntu, RHEL/Alma/Rocky, Arch)
+- PHP **>= 8.4** (siehe `core/composer.json`)
+- Nginx oder Apache
+- MariaDB/MySQL oder PostgreSQL
+- Composer
+- Git
 
-✅ PHP8.4 / PHP8.5 kompatibel  
-✅ Moderne UI (neues Panel als Primary)  
-✅ Agent-basierte Verwaltung (Linux + später Windows)  
-✅ Sichere Architektur (kein Backdoor / kein unkontrolliertes SSH)  
-✅ Strikte Rechteverwaltung (Customer/Admin, Quotas, Limits)  
-✅ Support von getrennten Servertypen (Game/Web/Mail/DNS/DB Nodes)  
-✅ GitHub-basierte Releases & Updates (Core + Agent)  
-✅ Modular und erweiterbar wie Plesk, aber fokussiert auf Gameserver
+**Agent/Runner:**
+- Linux-Server (systemd erforderlich)
+- Root-Zugriff
+- `curl` oder `wget`
+- `sha256sum`
 
----
-
-## 🏗️ Architektur
-
-### 🔥 Core (Symfony, PHP 8.4+)
-Der **Core** ist das Herzstück.
-Er bietet:
-
-- Auth & Roles (Admin / Customer)
-- API (REST v1)
-- DB Modell für Kunden, Instanzen, Domains, Webspaces etc.
-- Job Queue / Orchestration
-- Audit Logging (tamper-evident)
-- Billing / Tickets / Monitoring
-
-### 🤖 Agent System (Linux/Windows)
-Alle Server bekommen einen **Agent**, der:
-
-- Jobs vom Core abholt (Pull alle 2–3 Sekunden)
-- Whitelisted Aktionen ausführt (kein shell exec!)
-- Dienste installiert/konfiguriert (role-based)
-- Status/Monitoring zurückmeldet
-- sich selbst über GitHub aktualisieren kann
-
-### 🌐 UI (Neu)
-Das neue Panel wird direkt modern aufgebaut:
-
-- Symfony + Twig + Tailwind + HTMX
-- keine Abhängigkeit von alter UI
-- alte Easy-Wi UI wird optional später nachgezogen oder komplett ersetzt
+> Hinweis: Die automatische Installation nutzt systemd und lädt Agent/Runner aus GitHub Releases.
 
 ---
 
-## 🧩 Server Rollen / Node Types (separat!)
+## Server vorbereiten
 
-Das System unterstützt getrennte Servertypen:
+1. **System aktualisieren**
+   - Debian/Ubuntu: `apt update && apt -y upgrade`
+   - RHEL/Alma/Rocky: `dnf -y upgrade`
 
-- `game_node` → Gameserver/TS
-- `web_node` → Webhosting (nginx + php-fpm)
-- `mail_node` → Mailserver (Postfix + Dovecot)
-- `dns_node` → DNS (PowerDNS)
-- `db_node` → Datenbanken (MariaDB + PostgreSQL)
+2. **Basis-Pakete installieren**
+   - Debian/Ubuntu: `apt -y install curl git unzip`
+   - RHEL/Alma/Rocky: `dnf -y install curl git unzip`
 
-✅ Jeder Node wird über einen Installer provisioniert  
-✅ Jede Rolle hat eigene `ensure_base` / Provisioning Jobs  
-✅ Firewall/Fail2Ban/Updates sind role-aware
-
----
-
-## 🔐 Sicherheits-Design (kein Backdoor)
-
-Das Panel ist von Anfang an sicher aufgebaut:
-
-### SSH / SFTP Trennung
-- Admin SSH: **Port 22**, Key-only, IP Whitelist
-- Customer SFTP: **Port 2222**, Chroot, internal-sftp, Password+Key
-
-### Firewall
-- Default deny incoming
-- Ports werden nur explizit geöffnet
-- Instanz-Ports werden automatisch per Job geöffnet/geschlossen
-
-### Fail2Ban
-- sshd + sftp jails
-- mail auth jails
-
-### Secrets & Encryption
-- Sensitive DB Felder werden verschlüsselt (libsodium / AES-GCM)
-- Master-Key liegt außerhalb DB
-- Passwörter immer Argon2id
-
-### Audit Logging
-- Jede Aktion wird geloggt (Admin/Customer/Agent)
-- Hash-Chain gegen Manipulation
-- Jobs, Logs und Audit sind verknüpft
+3. **DNS & Firewall prüfen**
+   - Sicherstellen, dass der Server den Core API-Endpunkt erreichen kann.
+   - Firewall-Regeln für HTTP/HTTPS (Panel) sowie Agent-Verbindungen freigeben.
 
 ---
 
-## ✅ Features (Endzustand)
+## Installation des Panels
 
-### 🎮 Gameserver Plattform
-- Templates für feste Spiel-Profile
-- Steam / Steam Sniper Integration
-- Install, Start, Stop, Restart
-- Reinstall & GameSwitch (Port bleibt gleich)
-- Updates manuell durch Kunden + optional auto-update opt-in
-- Limits pro Instanz: CPU/RAM/Disk
-- Ports über Port Pool + Port Blocks pro Kunde (Standard: 5 Ports)
-- Addons/Plugins Upload via SFTP (z.B. CS2 Metamod, CounterStrikeSharp)
+### Standalone / Manuell
 
-### 🎧 Teamspeak
-- TS3: voll verwaltbar im Panel
-  - SQLite oder MySQL beim Erstellen
-  - Token reset, settings, logs, backup, update
-- TS6: später als Provider (CLI/SSH-based, modular)
+Diese Variante eignet sich für eigene Server oder VMs ohne Hosting-Panel.
 
-### 🌐 Webhosting
-- Webspaces (admin erstellt)
-- Nginx vHost + PHP-FPM Pool pro Webspace
-- PHP 8.4 / 8.5 auswählbar
-- Domains + Subdomains
-- SSL via Let’s Encrypt
-- Logs im Panel
-- Upload via SFTP (Web Node)
+1. **Quellcode bereitstellen**
+   ```bash
+   git clone <REPOSITORY_URL> easywi
+   cd easywi/core
+   ```
 
-### 🌍 DNS
-- PowerDNS mit API
-- DNS Zones + Records (A/AAAA/CNAME/TXT/MX/SRV)
-- Templates für SPF/DKIM/DMARC
+2. **Abhängigkeiten installieren**
+   ```bash
+   composer install --no-dev --optimize-autoloader
+   ```
 
-### 📧 Mail
-- Zentraler Mail Hostname (z.B. mail.yourdomain.tld)
-- Postfix + Dovecot
-- Domains + Mailboxes + Aliases
-- DKIM key generation + record output
-- Abuse protection (verification / DKIM check)
-- Logs im Panel
+3. **Umgebung konfigurieren**
+   - `.env` bzw. `.env.local` anlegen und Datenbankzugang eintragen.
+   - Beispielwerte:
+     - `DATABASE_URL=mysql://user:pass@127.0.0.1:3306/easywi`
+     - `APP_ENV=prod`
 
-### 🗄️ Datenbanken
-- MariaDB + PostgreSQL
-- DB + User + Grants (ALL / READ_ONLY)
-- Password reset
-- Internal only (DB Ports nicht öffentlich)
+4. **Datenbank initialisieren**
+   ```bash
+   php bin/console doctrine:migrations:migrate
+   ```
 
-### 🎫 Ticketsystem
-- Support Tickets (Billing/Tech/General)
-- Message Threads
-- Status Workflow (open / waiting / closed)
+5. **Webserver konfigurieren**
+   - Document Root auf `core/public` setzen.
+   - PHP-FPM aktivieren.
 
-### 💶 Billing
-- rechtssichere Rechnungen (EU B2C)
-- Immutable PDFs + Hash
-- Recurring plans
-- Payment tracking
-- später Mahnungen
-
-### 🔥 Server Management
-- Updates (multi OS provider)
-- Reboot handling
-- Monitoring + KPIs
-- role-aware firewall rules
-- fail2ban management (admin-only)
+6. **Ersten Login testen**
+   - Panel im Browser öffnen.
+   - Admin-Login prüfen.
 
 ---
 
-## 📦 Installer & Updates (GitHub Release Based)
+### Installation mit Plesk
 
-### Installer
-- Installiert Agent + Rollenmodule
-- Bootstrap Token Registrierung am Core
-- Security Baseline direkt beim Install
-- Multi OS Support (Linux MVP, Windows später)
-
-### Updates
-- Core Updates aus GitHub Releases (fertige Bundle inkl vendor)
-- Agent Updates aus GitHub Releases
-- SHA256 verification (optional GPG)
-- Rollback support
-
----
-
-## 🛣️ Roadmap (MVP Fokus)
-Das Projekt wird in klaren Phasen gebaut:
-
-1. Core Foundation (Auth, API, Jobs, Audit, Encryption)
-2. Installer + Agent (Linux)
-3. Node Roles + Security Baseline
-4. DB Node (MariaDB + Postgres)
-5. Webhosting + Domains + SSL
-6. DNS (PowerDNS)
-7. Mail (Postfix+Dovecot)
-8. Game Nodes + Templates + Steam Sniper
-9. Tickets + Billing + Dashboard
-10. Teamspeak TS3
-11. Neue UI komplett, Legacy optional später
+1. **Domain anlegen** (z. B. `panel.example.com`).
+2. **PHP-Version einstellen** (>= 8.4) und `composer` aktivieren.
+3. **Git-Repository verbinden** (Plesk Git Integration) oder manuell hochladen.
+4. **Document Root** auf `core/public` setzen.
+5. **Composer installieren**:
+   ```bash
+   cd core
+   composer install --no-dev --optimize-autoloader
+   ```
+6. **Datenbank erstellen** (MariaDB/PostgreSQL) und `.env` konfigurieren.
+7. **Migrationen ausführen**:
+   ```bash
+   php bin/console doctrine:migrations:migrate
+   ```
 
 ---
 
-## ✅ Status
-Dieses Repo enthält aktuell:
+### Installation mit aaPanel
 
-- ✅ MasterPlan / Architektur / Phasen
-- ✅ Taskliste (GitHub Issues Backlog)
-- ✅ Installer Design & Update Strategie
-- ✅ Definition aller Module (Gameserver, Hosting, DB, Mail, DNS, Billing)
+1. **Website hinzufügen** (z. B. `panel.example.com`).
+2. **PHP-Version** auf **8.4+** stellen.
+3. **Datenbank erstellen** (MariaDB/PostgreSQL).
+4. **Dateien hochladen** (Git oder Upload).
+5. **Document Root** auf `core/public` setzen.
+6. **Composer-Installation**:
+   ```bash
+   cd core
+   composer install --no-dev --optimize-autoloader
+   ```
+7. **Migrationen ausführen**:
+   ```bash
+   php bin/console doctrine:migrations:migrate
+   ```
 
 ---
 
-## 📌 Mitwirken / Entwicklung
-Dieses Projekt ist groß und modular.
-Empfohlenes Vorgehen:
+### Weitere gängige Setups
 
-- erst Core + Agent + Installer (Foundation)
-- danach Module Schritt für Schritt (MVP scope strikt einhalten)
+**Docker / Container:**
+- PHP-FPM + Nginx Container kombinieren.
+- `core/public` als Webroot.
+- Datenbank als separater Container.
+
+**Caddy / Apache:**
+- Webroot `core/public`.
+- PHP-FPM via Proxy/fastcgi einbinden.
 
 ---
 
-## ⚠️ Hinweis
-Dieses Projekt ist **nicht** das alte Easy-Wi selbst, sondern der neue Core und die neue Plattform.
-Legacy Easy-Wi kann später optional als UI nachgezogen werden.
+## Agent & Runner: Installation und Inbetriebnahme
 
+Der Agent verbindet den Server mit dem Panel und führt Aufgaben aus. Der Runner wird für Game-Server
+und externe Prozesse benötigt.
+
+### Automatische Installation (empfohlen)
+
+1. **Installer herunterladen**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/easywi/easywi/main/installer/easywi-installer-linux.sh -o easywi-installer-linux.sh
+   chmod +x easywi-installer-linux.sh
+   ```
+
+2. **Installer starten**
+   ```bash
+   sudo ./easywi-installer-linux.sh \
+     --core-url https://panel.example.com \
+     --bootstrap-token <TOKEN> \
+     --roles game,web,dns,mail,db
+   ```
+
+3. **Agent prüfen**
+   ```bash
+   systemctl status easywi-agent.service
+   journalctl -u easywi-agent.service -n 50 --no-pager
+   ```
+
+### Manuelle Agent-Installation
+
+1. **Agent herunterladen** (Release-Binary):
+   ```bash
+   curl -fsSL https://github.com/easywi/easywi/releases/latest/download/easywi-agent-linux-amd64 -o /usr/local/bin/easywi-agent
+   chmod +x /usr/local/bin/easywi-agent
+   ```
+
+2. **Agent konfigurieren**
+   ```bash
+   sudo tee /etc/easywi/agent.conf <<'CONF'
+   API_URL=https://panel.example.com
+   AGENT_TOKEN=<TOKEN>
+   CONF
+   sudo chmod 600 /etc/easywi/agent.conf
+   ```
+
+3. **Systemd Service anlegen**
+   ```bash
+   sudo tee /etc/systemd/system/easywi-agent.service <<'SERVICE'
+   [Unit]
+   Description=EasyWI Agent
+   After=network-online.target
+   Wants=network-online.target
+
+   [Service]
+   Type=simple
+   ExecStart=/usr/local/bin/easywi-agent --config /etc/easywi/agent.conf
+   Restart=on-failure
+
+   [Install]
+   WantedBy=multi-user.target
+   SERVICE
+
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now easywi-agent.service
+   ```
+
+4. **Test**
+   ```bash
+   easywi-agent --version
+   ```
+
+### Runner-Installation (optional, für Game-Role)
+
+1. **Runner herunterladen**
+   ```bash
+   curl -fsSL https://github.com/easywi/easywi/releases/latest/download/easywi-runner-linux-amd64 -o /usr/local/bin/easywi-runner
+   chmod +x /usr/local/bin/easywi-runner
+   ```
+
+2. **Funktion testen**
+   ```bash
+   easywi-runner --version
+   ```
+
+---
+
+## Typische Fehler & Lösungen
+
+- **„Bootstrap token missing“**
+  - Lösung: `--bootstrap-token` setzen oder `EASYWI_BOOTSTRAP_TOKEN` exportieren.
+
+- **„Unsupported distribution“**
+  - Lösung: Linux-Distribution prüfen oder manuelle Installation verwenden.
+
+- **Agent verbindet nicht**
+  - Firewall/Ports prüfen, `API_URL` korrekt setzen.
+  - `journalctl -u easywi-agent.service` prüfen.
+
+- **PHP/Composer Fehler**
+  - PHP-Version prüfen (>= 8.4).
+  - `composer install` erneut ausführen.
+
+---
+
+## Nächste Schritte
+
+- Panel einrichten, Rollen definieren, Agenten registrieren.
+- Bei Problemen Logs in `/var/log/easywi/` prüfen.

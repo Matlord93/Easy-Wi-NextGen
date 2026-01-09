@@ -47,9 +47,33 @@ final class AdminTs3InstanceController
 
         return new Response($this->twig->render('admin/ts3/instances/index.html.twig', [
             'instances' => $this->normalizeInstances($instances),
+            'summary' => $summary,
+            'activeNav' => 'ts3-instances',
+        ]));
+    }
+
+    #[Route(path: '/new', name: 'admin_ts3_instances_new', methods: ['GET'])]
+    public function new(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response($this->twig->render('admin/ts3/instances/new.html.twig', [
+            'activeNav' => 'ts3-instances',
+        ]));
+    }
+
+    #[Route(path: '/provision', name: 'admin_ts3_instances_provision', methods: ['GET'])]
+    public function provision(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response($this->twig->render('admin/ts3/instances/provision.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
-            'summary' => $summary,
             'form' => $this->buildFormContext(),
             'activeNav' => 'ts3-instances',
         ]));

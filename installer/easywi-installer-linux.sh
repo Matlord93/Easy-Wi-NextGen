@@ -22,6 +22,7 @@ DIAGNOSTICS_MODE="${EASYWI_DIAGNOSTICS:-auto}"
 LOG_FILE="/var/log/easywi/installer.log"
 
 LOG_PREFIX="[easywi-installer]"
+STEP_COUNTER=0
 
 usage() {
   cat <<USAGE
@@ -59,10 +60,15 @@ USAGE
 
 log() {
   if [[ -d /var/log/easywi ]]; then
-    echo "${LOG_PREFIX} $*" | tee -a "${LOG_FILE}"
+    echo "${LOG_PREFIX} $*" | tee -a "${LOG_FILE}" >&2
   else
-    echo "${LOG_PREFIX} $*"
+    echo "${LOG_PREFIX} $*" >&2
   fi
+}
+
+step() {
+  STEP_COUNTER=$((STEP_COUNTER + 1))
+  log "Step ${STEP_COUNTER}: $*"
 }
 
 fatal() {
@@ -110,6 +116,40 @@ normalize_bool() {
   esac
 }
 
+print_summary() {
+  cat <<SUMMARY
+
+================== EasyWI Install Summary ==================
+Core API URL:        ${CORE_URL}
+Roles:               ${ROLE_LIST:-none}
+Agent version:       ${AGENT_VERSION}
+Runner version:      ${RUNNER_VERSION}
+Channel override:    ${CHANNEL:-none}
+Mail hostname:       ${MAIL_HOSTNAME:-auto}
+DB bind address:     ${DB_BIND_ADDRESS}
+DB allowed subnet:   ${DB_ALLOWED_SUBNET:-none}
+============================================================
+SUMMARY
+}
+
+confirm_continue() {
+  local answer
+  if [[ "$(normalize_bool "${NON_INTERACTIVE}")" == "true" ]]; then
+    return
+  fi
+  if ! is_tty; then
+    return
+  fi
+  read -r -p "Continue with these settings? [y/N]: " answer
+  case "${answer}" in
+    y|Y|yes|YES)
+      ;;
+    *)
+      fatal "Installation cancelled by user"
+      ;;
+  esac
+}
+
 prompt_value() {
   local var_name="$1"
   local prompt="$2"
@@ -148,6 +188,45 @@ prompt_value() {
   printf -v "${var_name}" '%s' "${value}"
 }
 
+validate_role_list() {
+  local allowed_roles=("game" "web" "dns" "mail" "db")
+  local role
+  local ok
+  if [[ -z "${ROLE_LIST}" ]]; then
+    return 0
+  fi
+  IFS=',' read -r -a roles <<<"${ROLE_LIST}"
+  for role in "${roles[@]}"; do
+    role="$(echo "${role}" | xargs)"
+    if [[ -z "${role}" ]]; then
+      continue
+    fi
+    ok="false"
+    for allowed in "${allowed_roles[@]}"; do
+      if [[ "${role}" == "${allowed}" ]]; then
+        ok="true"
+        break
+      fi
+    done
+    if [[ "${ok}" != "true" ]]; then
+      fatal "Unknown role '${role}'. Allowed roles: game, web, dns, mail, db"
+    fi
+  done
+}
+
+validate_required_inputs() {
+  if [[ -z "${CORE_URL}" ]]; then
+    fatal "Core API URL missing. Provide --core-url or EASYWI_CORE_URL."
+  fi
+  if [[ -z "${BOOTSTRAP_TOKEN}" ]]; then
+    fatal "Bootstrap token missing. Provide --bootstrap-token or EASYWI_BOOTSTRAP_TOKEN."
+  fi
+  if [[ -n "${MAIL_HOSTNAME}" && "${ROLE_LIST}" != *"mail"* ]]; then
+    log "Mail hostname provided without mail role; ignoring."
+  fi
+  validate_role_list
+}
+
 collect_inputs() {
   local tty_active
   tty_active="$(is_tty && echo true || echo false)"
@@ -174,6 +253,8 @@ collect_inputs() {
     prompt_value MAIL_HOSTNAME "Mail hostname (optional)" "${MAIL_HOSTNAME}"
     prompt_value DB_BIND_ADDRESS "DB bind address" "${DB_BIND_ADDRESS}"
     prompt_value DB_ALLOWED_SUBNET "DB allowed subnet CIDR (optional)" "${DB_ALLOWED_SUBNET}"
+    print_summary
+    confirm_continue
   fi
 }
 
@@ -251,17 +332,17 @@ pkg_install() {
   fi
   case "${OS_FAMILY}" in
     debian)
-      apt-get install -y "${packages[@]}"
+      apt-get install -y "${packages[@]}" >&2
       ;;
     rhel)
       if command_exists dnf; then
-        dnf install -y "${packages[@]}"
+        dnf install -y "${packages[@]}" >&2
       else
-        yum install -y "${packages[@]}"
+        yum install -y "${packages[@]}" >&2
       fi
       ;;
     arch)
-      pacman -S --noconfirm "${packages[@]}"
+      pacman -S --noconfirm "${packages[@]}" >&2
       ;;
   esac
 }
@@ -276,9 +357,13 @@ download_file() {
   local dest="$2"
 
   if command_exists curl; then
-    curl -fsSL "${url}" -o "${dest}"
+    if ! curl -fsSL "${url}" -o "${dest}"; then
+      fatal "Failed to download ${url}"
+    fi
   else
-    wget -qO "${dest}" "${url}"
+    if ! wget -qO "${dest}" "${url}"; then
+      fatal "Failed to download ${url}"
+    fi
   fi
 }
 
@@ -310,7 +395,7 @@ download_agent() {
   fi
 
   log "Verifying checksum"
-  (cd "${tmp_dir}" && printf '%s\n' "${checksum_line}" | sha256sum -c -)
+  (cd "${tmp_dir}" && printf '%s\n' "${checksum_line}" | sha256sum -c - >&2)
 
   echo "${tmp_dir}/${asset_name}"
 }
@@ -343,7 +428,7 @@ download_runner() {
   fi
 
   log "Verifying runner checksum"
-  (cd "${tmp_dir}" && printf '%s\n' "${checksum_line}" | sha256sum -c -)
+  (cd "${tmp_dir}" && printf '%s\n' "${checksum_line}" | sha256sum -c - >&2)
 
   echo "${tmp_dir}/${asset_name}"
 }
@@ -460,7 +545,11 @@ SSHD
     chmod 755 /var/lib/easywi/sftp
     chown root:root /var/lib/easywi/sftp
 
-    systemctl restart sshd || systemctl restart ssh || true
+    if systemctl list-unit-files --type=service | awk '{print $1}' | grep -qx "sshd.service"; then
+      systemctl restart sshd
+    elif systemctl list-unit-files --type=service | awk '{print $1}' | grep -qx "ssh.service"; then
+      systemctl restart ssh
+    fi
   fi
 
   if command_exists ufw; then
@@ -943,8 +1032,8 @@ apply_roles() {
     fi
     log "Configuring role: ${role}"
     if [[ "${role}" != "web" ]]; then
-      packages=$(role_packages "${role}")
-      pkg_install "${packages}"
+      read -r -a packages <<<"$(role_packages "${role}")"
+      pkg_install "${packages[@]}"
     fi
     mkdir -p /etc/easywi/roles.d
     echo "role=${role}" > "/etc/easywi/roles.d/${role}.conf"
@@ -1083,11 +1172,18 @@ parse_args() {
 }
 
 main() {
+  step "Parse arguments"
   parse_args "$@"
+  step "Validate permissions"
   require_root
+  step "Check system prerequisites"
   preflight_tools
+  step "Detect OS"
   read_os_release
+  step "Collect input"
   collect_inputs
+  step "Validate input"
+  validate_required_inputs
 
   if [[ -n "${CHANNEL}" && "${AGENT_VERSION}" == "latest" ]]; then
     AGENT_VERSION="${CHANNEL}"
@@ -1101,16 +1197,22 @@ main() {
 
   log "Detected OS: ${ID} (${OS_FAMILY}), Arch: ${ARCH}"
 
+  step "Prepare directories"
   ensure_dirs
 
+  step "Download and install EasyWI agent"
   AGENT_PATH="$(download_agent "${ARCH}" "${AGENT_VERSION}")"
   install_agent "${AGENT_PATH}"
 
+  step "Apply security baseline"
   apply_security_baseline
+  step "Apply role-specific packages and services"
   apply_roles
 
+  step "Register agent with Core API"
   bootstrap_register
 
+  step "Start EasyWI agent service"
   systemctl start easywi-agent.service
 
   log "Installation complete."
@@ -1118,6 +1220,7 @@ main() {
   local tty_active
   tty_active="$(is_tty && echo true || echo false)"
   if [[ "${DIAGNOSTICS_MODE}" == "always" || ("${DIAGNOSTICS_MODE}" == "auto" && "$(normalize_bool "${tty_active}")" == "true") ]]; then
+    step "Collect diagnostics bundle"
     collect_diagnostics
   else
     log "Diagnostics bundle skipped (mode: ${DIAGNOSTICS_MODE})."

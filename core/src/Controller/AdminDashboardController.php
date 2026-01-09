@@ -6,9 +6,13 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Enum\JobStatus;
+use App\Enum\TicketStatus;
 use App\Enum\UserType;
 use App\Repository\AgentRepository;
+use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
+use App\Repository\TicketRepository;
+use App\Repository\UserRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -20,6 +24,9 @@ final class AdminDashboardController
     public function __construct(
         private readonly JobRepository $jobRepository,
         private readonly AgentRepository $agentRepository,
+        private readonly UserRepository $userRepository,
+        private readonly InstanceRepository $instanceRepository,
+        private readonly TicketRepository $ticketRepository,
         private readonly Environment $twig,
     ) {
     }
@@ -32,16 +39,27 @@ final class AdminDashboardController
         }
 
         $jobs = $this->jobRepository->findLatest(8);
-        $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC'], 6);
+        $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $agentSummary = $this->buildAgentSummary($agents);
-        $jobSummary = $this->buildJobSummary($jobs);
+        $jobSummary = [
+            'total' => $this->jobRepository->countAll(),
+            'running' => $this->jobRepository->countByStatus(JobStatus::Running),
+            'queued' => $this->jobRepository->countByStatus(JobStatus::Queued),
+            'failed' => $this->jobRepository->countByStatus(JobStatus::Failed),
+        ];
+        $overview = [
+            'customers' => $this->userRepository->count(['type' => UserType::Customer->value]),
+            'instances' => $this->instanceRepository->count([]),
+            'tickets_open' => $this->ticketRepository->count(['status' => TicketStatus::Open]),
+        ];
 
         return new Response($this->twig->render('admin/dashboard/index.html.twig', [
             'activeNav' => 'dashboard',
             'jobSummary' => $jobSummary,
             'agentSummary' => $agentSummary,
+            'overview' => $overview,
             'jobs' => $this->normalizeJobs($jobs),
-            'nodes' => $this->normalizeAgents($agents),
+            'nodes' => $this->normalizeAgents(array_slice($agents, 0, 6)),
         ]));
     }
 
@@ -49,34 +67,6 @@ final class AdminDashboardController
     {
         $actor = $request->attributes->get('current_user');
         return $actor instanceof User && $actor->getType() === UserType::Admin;
-    }
-
-    private function buildJobSummary(array $jobs): array
-    {
-        $summary = [
-            'total' => count($jobs),
-            'running' => 0,
-            'queued' => 0,
-            'failed' => 0,
-        ];
-
-        foreach ($jobs as $job) {
-            switch ($job->getStatus()) {
-                case JobStatus::Running:
-                    $summary['running']++;
-                    break;
-                case JobStatus::Queued:
-                    $summary['queued']++;
-                    break;
-                case JobStatus::Failed:
-                    $summary['failed']++;
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        return $summary;
     }
 
     private function buildAgentSummary(array $agents): array

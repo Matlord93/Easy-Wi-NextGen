@@ -1,12 +1,12 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}DNS Records · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_dns_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-6">
     <div>
-        <h1 class="text-2xl font-semibold">DNS Records</h1>
-        <p class="text-sm text-slate-500">Manage DNS records with agent-driven provisioning.</p>
+        <h1 class="text-2xl font-semibold">{{ t('admin_dns_heading', page_locale()) }}</h1>
+        <p class="text-sm text-slate-500">{{ t('admin_dns_intro', page_locale()) }}</p>
     </div>
     <div class="flex items-center gap-3">
         <button
@@ -14,31 +14,31 @@
             hx-get="/admin/dns/records/table"
             hx-target="#dns-records-table"
             hx-swap="outerHTML"
-        >Refresh</button>
+        >{{ t('refresh', page_locale()) }}</button>
         <button
             class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
             hx-get="/admin/dns/records/form"
             hx-target="#dns-record-form"
             hx-swap="outerHTML"
-        >New Record</button>
+        >{{ t('admin_dns_new_record', page_locale()) }}</button>
     </div>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">Total Records</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_dns_total_records', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">A Records</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_dns_a_records', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.byType.A ?? 0 }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">CNAME Records</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_dns_cname_records', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.byType.CNAME ?? 0 }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">MX Records</p>
+        <p class="text-xs uppercase text-slate-500">{{ t('admin_dns_mx_records', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.byType.MX ?? 0 }}</p>
     </div>
 </div>

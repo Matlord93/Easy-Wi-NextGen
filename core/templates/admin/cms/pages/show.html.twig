@@ -33,7 +33,7 @@
             >{{ t('refresh', page_locale()) }}</button>
         </div>
         <div id="cms-blocks-table" hx-trigger="cms-blocks-changed from:body" hx-get="/admin/cms/pages/{{ page.id }}/blocks/table" hx-swap="outerHTML">
-            {% include 'admin/cms/pages/_blocks_table.html.twig' with { blocks: blocks } %}
+            {% include 'admin/cms/pages/_blocks_table.html.twig' with { blocks: blocks, page: page } %}
         </div>
     </div>
 

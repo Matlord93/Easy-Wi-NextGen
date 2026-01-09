@@ -38,8 +38,69 @@ final class AdminTemplateController
         return new Response($this->twig->render('admin/templates/index.html.twig', [
             'templates' => $this->normalizeTemplates($templates),
             'summary' => $this->buildSummary($templates),
+            'activeNav' => 'templates',
+        ]));
+    }
+
+    #[Route(path: '/new', name: 'admin_templates_new', methods: ['GET'])]
+    public function createPage(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response($this->twig->render('admin/templates/create.html.twig', [
             'form' => $this->buildFormContext(),
+            'activeNav' => 'templates',
+        ]));
+    }
+
+    #[Route(path: '/{id}/edit', name: 'admin_templates_edit', methods: ['GET'])]
+    public function editPage(Request $request, int $id): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $template = $this->templateRepository->find($id);
+        if ($template === null) {
+            return new Response('Template not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        return new Response($this->twig->render('admin/templates/edit.html.twig', [
+            'form' => $this->buildFormContextFromTemplate($template),
+            'activeNav' => 'templates',
+        ]));
+    }
+
+    #[Route(path: '/import', name: 'admin_templates_import_page', methods: ['GET'])]
+    public function importPage(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response($this->twig->render('admin/templates/import.html.twig', [
             'import' => $this->buildImportContext(),
+            'activeNav' => 'templates',
+        ]));
+    }
+
+    #[Route(path: '/{id}/preview', name: 'admin_templates_preview_page', methods: ['GET'])]
+    public function previewPage(Request $request, int $id): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $template = $this->templateRepository->find($id);
+        if ($template === null) {
+            return new Response('Template not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        return new Response($this->twig->render('admin/templates/preview.html.twig', [
+            'preview' => $this->buildPreviewFromTemplate($template),
+            'template_id' => $template->getId(),
             'activeNav' => 'templates',
         ]));
     }
@@ -63,6 +124,22 @@ final class AdminTemplateController
     {
         if (!$this->isAdmin($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $templateId = (int) $request->query->get('id', 0);
+        if ($templateId > 0) {
+            $template = $this->templateRepository->find($templateId);
+            if ($template === null) {
+                return new Response($this->twig->render('admin/templates/_form.html.twig', [
+                    'form' => $this->buildFormContext([
+                        'errors' => ['Template not found.'],
+                    ]),
+                ]), Response::HTTP_NOT_FOUND);
+            }
+
+            return new Response($this->twig->render('admin/templates/_form.html.twig', [
+                'form' => $this->buildFormContextFromTemplate($template),
+            ]));
         }
 
         return new Response($this->twig->render('admin/templates/_form.html.twig', [
@@ -144,6 +221,57 @@ final class AdminTemplateController
 
         $response = new Response($this->twig->render('admin/templates/_form.html.twig', [
             'form' => $this->buildFormContext(),
+        ]));
+        $response->headers->set('HX-Trigger', 'templates-changed');
+
+        return $response;
+    }
+
+    #[Route(path: '/{id}', name: 'admin_templates_update', methods: ['POST'])]
+    public function update(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $template = $this->templateRepository->find($id);
+        if ($template === null) {
+            return new Response('Template not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $formData = $this->parsePayload($request, $template);
+        if ($formData['errors'] !== []) {
+            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+        }
+
+        $template->setGameKey($formData['game_key']);
+        $template->setDisplayName($formData['display_name']);
+        $template->setDescription($formData['description']);
+        $template->setSteamAppId($formData['steam_app_id']);
+        $template->setSniperProfile($formData['sniper_profile']);
+        $template->setRequiredPorts($formData['required_ports']);
+        $template->setStartParams($formData['start_params']);
+        $template->setEnvVars($formData['env_vars']);
+        $template->setConfigFiles($formData['config_files']);
+        $template->setPluginPaths($formData['plugin_paths']);
+        $template->setFastdlSettings($formData['fastdl_settings']);
+        $template->setInstallCommand($formData['install_command']);
+        $template->setUpdateCommand($formData['update_command']);
+        $template->setAllowedSwitchFlags($formData['allowed_switch_flags']);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($actor, 'template.updated', [
+            'template_id' => $template->getId(),
+            'game_key' => $template->getGameKey(),
+            'display_name' => $template->getDisplayName(),
+            'required_ports' => $template->getRequiredPorts(),
+            'start_params' => $template->getStartParams(),
+        ]);
+        $this->entityManager->flush();
+
+        $response = new Response($this->twig->render('admin/templates/_form.html.twig', [
+            'form' => $this->buildFormContextFromTemplate($template),
         ]));
         $response->headers->set('HX-Trigger', 'templates-changed');
 
@@ -285,6 +413,10 @@ final class AdminTemplateController
     {
         $defaults = [
             'errors' => [],
+            'template_id' => null,
+            'is_edit' => false,
+            'reset_url' => '/admin/templates/form',
+            'preview_url' => null,
             'game_key' => '',
             'display_name' => '',
             'description' => '',
@@ -306,6 +438,34 @@ final class AdminTemplateController
         return array_merge($defaults, $overrides ?? []);
     }
 
+    private function buildFormContextFromTemplate(Template $template): array
+    {
+        $fastdlSettings = $template->getFastdlSettings();
+
+        return $this->buildFormContext([
+            'template_id' => $template->getId(),
+            'is_edit' => true,
+            'reset_url' => sprintf('/admin/templates/form?id=%d', $template->getId()),
+            'preview_url' => sprintf('/admin/templates/%d/preview', $template->getId()),
+            'game_key' => $template->getGameKey(),
+            'display_name' => $template->getDisplayName(),
+            'description' => $template->getDescription() ?? '',
+            'steam_app_id' => $template->getSteamAppId() !== null ? (string) $template->getSteamAppId() : '',
+            'sniper_profile' => $template->getSniperProfile() ?? '',
+            'start_params' => $template->getStartParams(),
+            'required_ports' => array_map(static fn (array $port): string => (string) ($port['name'] ?? ''), $template->getRequiredPorts()),
+            'env_vars' => $this->normalizeEnvVarsInput($template->getEnvVars()),
+            'config_files' => $this->normalizeConfigFilesInput($template->getConfigFiles()),
+            'plugin_paths' => $this->normalizeLinesInput($template->getPluginPaths()),
+            'fastdl_enabled' => (bool) ($fastdlSettings['enabled'] ?? false),
+            'fastdl_base_url' => (string) ($fastdlSettings['base_url'] ?? ''),
+            'fastdl_root_path' => (string) ($fastdlSettings['root_path'] ?? ''),
+            'install_command' => $template->getInstallCommand(),
+            'update_command' => $template->getUpdateCommand(),
+            'allowed_switch_flags' => implode(',', $template->getAllowedSwitchFlags()),
+        ]);
+    }
+
     private function buildImportContext(?array $overrides = null): array
     {
         $defaults = [
@@ -317,7 +477,7 @@ final class AdminTemplateController
         return array_merge($defaults, $overrides ?? []);
     }
 
-    private function parsePayload(Request $request): array
+    private function parsePayload(Request $request, ?Template $existingTemplate = null): array
     {
         $errors = [];
         $gameKey = trim((string) $request->request->get('game_key', ''));
@@ -344,7 +504,7 @@ final class AdminTemplateController
             $errors[] = 'Game key is required.';
         } elseif (!preg_match('/^[a-z0-9][a-z0-9_.-]+$/', $gameKey)) {
             $errors[] = 'Game key must be lowercase and contain only letters, numbers, dots, dashes, or underscores.';
-        } elseif ($this->templateRepository->findOneBy(['gameKey' => $gameKey]) !== null) {
+        } elseif ($this->isDuplicateGameKey($gameKey, $existingTemplate)) {
             $errors[] = 'Game key must be unique.';
         }
         if ($displayName === '') {
@@ -377,7 +537,7 @@ final class AdminTemplateController
         $envVars = $this->parseEnvVars($envVarsRaw, $entryErrors);
         $configFiles = $this->parseConfigFiles($configFilesRaw, $entryErrors);
         foreach ($entryErrors as $entryError) {
-            $errors[] = $this->formatImportError($index, $entryError);
+            $errors[] = $entryError;
         }
         $pluginPaths = $this->parseLines($pluginPathsRaw);
         $allowedSwitchFlags = $this->parseList($allowedSwitchFlagsRaw);
@@ -392,6 +552,8 @@ final class AdminTemplateController
 
         return [
             'errors' => $errors,
+            'template_id' => $existingTemplate?->getId(),
+            'is_edit' => $existingTemplate !== null,
             'game_key' => $gameKey,
             'display_name' => $displayName,
             'description' => $description !== '' ? $description : null,
@@ -416,6 +578,20 @@ final class AdminTemplateController
             'fastdl_base_url' => $fastdlBaseUrl,
             'fastdl_root_path' => $fastdlRootPath,
         ];
+    }
+
+    private function isDuplicateGameKey(string $gameKey, ?Template $existingTemplate): bool
+    {
+        $existing = $this->templateRepository->findOneBy(['gameKey' => $gameKey]);
+        if ($existing === null) {
+            return false;
+        }
+
+        if ($existingTemplate !== null && $existing->getId() === $existingTemplate->getId()) {
+            return false;
+        }
+
+        return true;
     }
 
     private function parseImportEntry(array $entry, int $index, array &$seenGameKeys, array &$errors): ?array
@@ -786,6 +962,8 @@ final class AdminTemplateController
         return new Response($this->twig->render('admin/templates/_form.html.twig', [
             'form' => $this->buildFormContext([
                 'errors' => $formData['errors'],
+                'template_id' => $formData['template_id'] ?? null,
+                'is_edit' => $formData['is_edit'] ?? false,
                 'game_key' => $formData['game_key'],
                 'display_name' => $formData['display_name'],
                 'description' => $formData['description'] ?? '',

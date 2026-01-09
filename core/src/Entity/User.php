@@ -55,6 +55,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 45, nullable: true)]
     private ?string $privacyAcceptedIp = null;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $adminSignature = null;
+
     #[ORM\ManyToOne(targetEntity: self::class)]
     #[ORM\JoinColumn(name: 'reseller_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?self $resellerOwner = null;
@@ -180,6 +183,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->termsAcceptedIp = $ipAddress;
         $this->privacyAcceptedAt = $acceptedAt;
         $this->privacyAcceptedIp = $ipAddress;
+    }
+
+    public function getAdminSignature(): ?string
+    {
+        return $this->adminSignature;
+    }
+
+    public function setAdminSignature(?string $adminSignature): void
+    {
+        $this->adminSignature = $adminSignature === '' ? null : $adminSignature;
     }
 
     public function anonymize(string $email, string $passwordHash): void

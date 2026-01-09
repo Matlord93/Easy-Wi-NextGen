@@ -6,13 +6,17 @@ namespace App\Controller;
 
 use App\Entity\Ticket;
 use App\Entity\TicketMessage;
+use App\Entity\TicketQuickReply;
+use App\Entity\TicketTemplate;
 use App\Entity\User;
 use App\Enum\TicketCategory;
 use App\Enum\TicketPriority;
 use App\Enum\TicketStatus;
 use App\Enum\UserType;
 use App\Repository\TicketMessageRepository;
+use App\Repository\TicketQuickReplyRepository;
 use App\Repository\TicketRepository;
+use App\Repository\TicketTemplateRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
 use App\Service\NotificationService;
@@ -29,6 +33,8 @@ final class AdminTicketController
         private readonly TicketRepository $ticketRepository,
         private readonly TicketMessageRepository $ticketMessageRepository,
         private readonly UserRepository $userRepository,
+        private readonly TicketTemplateRepository $ticketTemplateRepository,
+        private readonly TicketQuickReplyRepository $ticketQuickReplyRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly NotificationService $notificationService,
@@ -39,27 +45,18 @@ final class AdminTicketController
     #[Route(path: '', name: 'admin_tickets', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        $admin = $this->requireAdmin($request);
+        if ($admin === null) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $tickets = $this->ticketRepository->findBy([], ['lastMessageAt' => 'DESC']);
-
-        return new Response($this->twig->render('admin/tickets/index.html.twig', [
-            'tickets' => $this->normalizeTickets($tickets),
-            'summary' => $this->buildSummary($tickets),
-            'form' => $this->buildFormContext(),
-            'customers' => $this->userRepository->findBy(['type' => UserType::Customer], ['email' => 'ASC']),
-            'statusStyles' => $this->statusStyles(),
-            'priorityStyles' => $this->priorityStyles(),
-            'activeNav' => 'tickets',
-        ]));
+        return $this->renderIndex($admin, $request);
     }
 
     #[Route(path: '/table', name: 'admin_tickets_table', methods: ['GET'])]
     public function table(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->requireAdmin($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -75,13 +72,16 @@ final class AdminTicketController
     #[Route(path: '/form', name: 'admin_tickets_form', methods: ['GET'])]
     public function form(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        $admin = $this->requireAdmin($request);
+        if ($admin === null) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
         return new Response($this->twig->render('admin/tickets/_form.html.twig', [
             'form' => $this->buildFormContext(),
             'customers' => $this->userRepository->findBy(['type' => UserType::Customer], ['email' => 'ASC']),
+            'templates' => $this->normalizeTemplates($this->ticketTemplateRepository->findByAdmin($admin)),
+            'adminSignature' => $admin->getAdminSignature(),
         ]));
     }
 
@@ -95,10 +95,14 @@ final class AdminTicketController
 
         $formData = $this->parsePayload($request);
         $customers = $this->userRepository->findBy(['type' => UserType::Customer], ['email' => 'ASC']);
+        $templates = $this->ticketTemplateRepository->findByAdmin($actor);
 
         if ($formData['errors'] !== []) {
-            return $this->renderFormWithErrors($formData, $customers, Response::HTTP_BAD_REQUEST);
+            return $this->renderFormWithErrors($formData, $customers, $templates, $actor, Response::HTTP_BAD_REQUEST);
         }
+
+        $includeSignature = $request->request->get('include_signature') === '1';
+        $messageBody = $this->applySignature($actor, $formData['message'], $includeSignature);
 
         $ticket = new Ticket(
             $formData['customer'],
@@ -107,7 +111,7 @@ final class AdminTicketController
             $formData['priority'],
         );
 
-        $message = new TicketMessage($ticket, $actor, $formData['message']);
+        $message = new TicketMessage($ticket, $actor, $messageBody);
         $ticket->noteMessage();
 
         $this->entityManager->persist($ticket);
@@ -139,6 +143,8 @@ final class AdminTicketController
         $response = new Response($this->twig->render('admin/tickets/_form.html.twig', [
             'form' => $this->buildFormContext(),
             'customers' => $customers,
+            'templates' => $this->normalizeTemplates($templates),
+            'adminSignature' => $actor->getAdminSignature(),
         ]));
         $response->headers->set('HX-Trigger', 'tickets-changed');
 
@@ -148,7 +154,8 @@ final class AdminTicketController
     #[Route(path: '/{id}', name: 'admin_ticket_show', methods: ['GET'])]
     public function show(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) {
+        $admin = $this->requireAdmin($request);
+        if ($admin === null) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -164,6 +171,8 @@ final class AdminTicketController
             'messages' => $this->normalizeMessages($messages),
             'statusStyles' => $this->statusStyles(),
             'priorityStyles' => $this->priorityStyles(),
+            'quickReplies' => $this->normalizeQuickReplies($this->ticketQuickReplyRepository->findByAdmin($admin)),
+            'adminSignature' => $admin->getAdminSignature(),
             'activeNav' => 'tickets',
         ]));
     }
@@ -185,6 +194,9 @@ final class AdminTicketController
         if ($messageBody === '') {
             return new Response('Message is required.', Response::HTTP_BAD_REQUEST);
         }
+
+        $includeSignature = $request->request->get('include_signature') === '1';
+        $messageBody = $this->applySignature($actor, $messageBody, $includeSignature);
 
         $message = new TicketMessage($ticket, $actor, $messageBody);
         $ticket->noteMessage();
@@ -245,11 +257,197 @@ final class AdminTicketController
         ]));
     }
 
-    private function isAdmin(Request $request): bool
+    #[Route(path: '/templates', name: 'admin_ticket_templates_create', methods: ['POST'])]
+    public function createTemplate(Request $request): Response
+    {
+        $admin = $this->requireAdmin($request);
+        if ($admin === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $payload = $this->parseTemplatePayload($request);
+        if ($payload['errors'] !== []) {
+            return $this->renderIndex($admin, $request, [
+                'templateErrors' => $payload['errors'],
+                'templateForm' => $payload['form'],
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $template = new TicketTemplate(
+            $admin,
+            $payload['form']['title'],
+            $payload['form']['subject'],
+            TicketCategory::from($payload['form']['category']),
+            TicketPriority::from($payload['form']['priority']),
+            $payload['form']['body'],
+        );
+        $this->entityManager->persist($template);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($admin, 'ticket.template.created', [
+            'template_id' => $template->getId(),
+            'title' => $template->getTitle(),
+        ]);
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?template_created=' . $template->getId()]);
+    }
+
+    #[Route(path: '/templates/{id}', name: 'admin_ticket_templates_update', methods: ['POST'])]
+    public function updateTemplate(Request $request, int $id): Response
+    {
+        $admin = $this->requireAdmin($request);
+        if ($admin === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $template = $this->ticketTemplateRepository->find($id);
+        if ($template === null || $template->getAdmin()->getId() !== $admin->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $payload = $this->parseTemplatePayload($request);
+        if ($payload['errors'] !== []) {
+            return $this->renderIndex($admin, $request, [
+                'templateErrors' => $payload['errors'],
+                'templateForm' => $payload['form'],
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $template->setTitle($payload['form']['title']);
+        $template->setSubject($payload['form']['subject']);
+        $template->setCategory(TicketCategory::from($payload['form']['category']));
+        $template->setPriority(TicketPriority::from($payload['form']['priority']));
+        $template->setBody($payload['form']['body']);
+
+        $this->auditLogger->log($admin, 'ticket.template.updated', [
+            'template_id' => $template->getId(),
+            'title' => $template->getTitle(),
+        ]);
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?template_updated=' . $template->getId()]);
+    }
+
+    #[Route(path: '/templates/{id}/delete', name: 'admin_ticket_templates_delete', methods: ['POST'])]
+    public function deleteTemplate(Request $request, int $id): Response
+    {
+        $admin = $this->requireAdmin($request);
+        if ($admin === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $template = $this->ticketTemplateRepository->find($id);
+        if ($template === null || $template->getAdmin()->getId() !== $admin->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $this->entityManager->remove($template);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($admin, 'ticket.template.deleted', [
+            'template_id' => $id,
+        ]);
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?template_deleted=' . $id]);
+    }
+
+    #[Route(path: '/quick-replies', name: 'admin_ticket_quick_replies_create', methods: ['POST'])]
+    public function createQuickReply(Request $request): Response
+    {
+        $admin = $this->requireAdmin($request);
+        if ($admin === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $payload = $this->parseQuickReplyPayload($request);
+        if ($payload['errors'] !== []) {
+            return $this->renderIndex($admin, $request, [
+                'quickReplyErrors' => $payload['errors'],
+                'quickReplyForm' => $payload['form'],
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $quickReply = new TicketQuickReply(
+            $admin,
+            $payload['form']['title'],
+            $payload['form']['body'],
+        );
+        $this->entityManager->persist($quickReply);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($admin, 'ticket.quick_reply.created', [
+            'quick_reply_id' => $quickReply->getId(),
+            'title' => $quickReply->getTitle(),
+        ]);
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?quick_reply_created=' . $quickReply->getId()]);
+    }
+
+    #[Route(path: '/quick-replies/{id}', name: 'admin_ticket_quick_replies_update', methods: ['POST'])]
+    public function updateQuickReply(Request $request, int $id): Response
+    {
+        $admin = $this->requireAdmin($request);
+        if ($admin === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $quickReply = $this->ticketQuickReplyRepository->find($id);
+        if ($quickReply === null || $quickReply->getAdmin()->getId() !== $admin->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $payload = $this->parseQuickReplyPayload($request);
+        if ($payload['errors'] !== []) {
+            return $this->renderIndex($admin, $request, [
+                'quickReplyErrors' => $payload['errors'],
+                'quickReplyForm' => $payload['form'],
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $quickReply->setTitle($payload['form']['title']);
+        $quickReply->setBody($payload['form']['body']);
+
+        $this->auditLogger->log($admin, 'ticket.quick_reply.updated', [
+            'quick_reply_id' => $quickReply->getId(),
+            'title' => $quickReply->getTitle(),
+        ]);
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?quick_reply_updated=' . $quickReply->getId()]);
+    }
+
+    #[Route(path: '/quick-replies/{id}/delete', name: 'admin_ticket_quick_replies_delete', methods: ['POST'])]
+    public function deleteQuickReply(Request $request, int $id): Response
+    {
+        $admin = $this->requireAdmin($request);
+        if ($admin === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $quickReply = $this->ticketQuickReplyRepository->find($id);
+        if ($quickReply === null || $quickReply->getAdmin()->getId() !== $admin->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $this->entityManager->remove($quickReply);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($admin, 'ticket.quick_reply.deleted', [
+            'quick_reply_id' => $id,
+        ]);
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/tickets?quick_reply_deleted=' . $id]);
+    }
+
+    private function requireAdmin(Request $request): ?User
     {
         $actor = $request->attributes->get('current_user');
 
-        return $actor instanceof User && $actor->getType() === UserType::Admin;
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return null;
+        }
+
+        return $actor;
     }
 
     private function buildSummary(array $tickets): array
@@ -313,6 +511,29 @@ final class AdminTicketController
         ], $messages);
     }
 
+    private function normalizeTemplates(array $templates): array
+    {
+        return array_map(static fn (TicketTemplate $template): array => [
+            'id' => $template->getId(),
+            'title' => $template->getTitle(),
+            'subject' => $template->getSubject(),
+            'category' => $template->getCategory()->value,
+            'priority' => $template->getPriority()->value,
+            'body' => $template->getBody(),
+            'updated_at' => $template->getUpdatedAt(),
+        ], $templates);
+    }
+
+    private function normalizeQuickReplies(array $quickReplies): array
+    {
+        return array_map(static fn (TicketQuickReply $quickReply): array => [
+            'id' => $quickReply->getId(),
+            'title' => $quickReply->getTitle(),
+            'body' => $quickReply->getBody(),
+            'updated_at' => $quickReply->getUpdatedAt(),
+        ], $quickReplies);
+    }
+
     private function buildFormContext(?array $overrides = null): array
     {
         $defaults = [
@@ -322,6 +543,7 @@ final class AdminTicketController
             'category' => TicketCategory::General->value,
             'priority' => TicketPriority::Normal->value,
             'message' => '',
+            'include_signature' => true,
         ];
 
         return array_merge($defaults, $overrides ?? []);
@@ -372,15 +594,139 @@ final class AdminTicketController
             'category' => $category ?? TicketCategory::General,
             'priority' => $priority ?? TicketPriority::Normal,
             'message' => $message,
+            'include_signature' => $request->request->get('include_signature') === '1',
         ];
     }
 
-    private function renderFormWithErrors(array $formData, array $customers, int $status): Response
+    private function renderFormWithErrors(array $formData, array $customers, array $templates, User $actor, int $status): Response
     {
         return new Response($this->twig->render('admin/tickets/_form.html.twig', [
             'form' => $this->buildFormContext($formData),
             'customers' => $customers,
+            'templates' => $this->normalizeTemplates($templates),
+            'adminSignature' => $actor->getAdminSignature(),
         ]), $status);
+    }
+
+    private function renderIndex(User $admin, Request $request, array $overrides = [], int $status = Response::HTTP_OK): Response
+    {
+        $tickets = $this->ticketRepository->findBy([], ['lastMessageAt' => 'DESC']);
+        $templates = $this->ticketTemplateRepository->findByAdmin($admin);
+        $quickReplies = $this->ticketQuickReplyRepository->findByAdmin($admin);
+
+        $success = [];
+        foreach (['template_created', 'template_updated', 'template_deleted', 'quick_reply_created', 'quick_reply_updated', 'quick_reply_deleted'] as $key) {
+            $value = $request->query->get($key);
+            if ($value !== null) {
+                $success[] = sprintf('%s %s.', str_replace('_', ' ', ucfirst($key)), $value);
+            }
+        }
+
+        return new Response($this->twig->render('admin/tickets/index.html.twig', array_merge([
+            'tickets' => $this->normalizeTickets($tickets),
+            'summary' => $this->buildSummary($tickets),
+            'form' => $this->buildFormContext(),
+            'customers' => $this->userRepository->findBy(['type' => UserType::Customer], ['email' => 'ASC']),
+            'statusStyles' => $this->statusStyles(),
+            'priorityStyles' => $this->priorityStyles(),
+            'templates' => $this->normalizeTemplates($templates),
+            'quickReplies' => $this->normalizeQuickReplies($quickReplies),
+            'templateForm' => [
+                'title' => '',
+                'subject' => '',
+                'category' => TicketCategory::General->value,
+                'priority' => TicketPriority::Normal->value,
+                'body' => '',
+            ],
+            'quickReplyForm' => [
+                'title' => '',
+                'body' => '',
+            ],
+            'templateErrors' => [],
+            'quickReplyErrors' => [],
+            'success' => $success,
+            'adminSignature' => $admin->getAdminSignature(),
+            'activeNav' => 'tickets',
+        ], $overrides)), $status);
+    }
+
+    private function parseTemplatePayload(Request $request): array
+    {
+        $title = trim((string) $request->request->get('title', ''));
+        $subject = trim((string) $request->request->get('subject', ''));
+        $categoryValue = strtolower(trim((string) $request->request->get('category', '')));
+        $priorityValue = strtolower(trim((string) $request->request->get('priority', '')));
+        $body = trim((string) $request->request->get('body', ''));
+
+        $errors = [];
+        if ($title === '') {
+            $errors[] = 'Template title is required.';
+        }
+        if ($subject === '') {
+            $errors[] = 'Template subject is required.';
+        }
+        if ($body === '') {
+            $errors[] = 'Template body is required.';
+        }
+
+        $category = TicketCategory::tryFrom($categoryValue);
+        if ($category === null) {
+            $errors[] = 'Template category is required.';
+            $category = TicketCategory::General;
+        }
+
+        $priority = TicketPriority::tryFrom($priorityValue);
+        if ($priority === null) {
+            $errors[] = 'Template priority is required.';
+            $priority = TicketPriority::Normal;
+        }
+
+        return [
+            'errors' => $errors,
+            'form' => [
+                'title' => $title,
+                'subject' => $subject,
+                'category' => $category->value,
+                'priority' => $priority->value,
+                'body' => $body,
+            ],
+        ];
+    }
+
+    private function parseQuickReplyPayload(Request $request): array
+    {
+        $title = trim((string) $request->request->get('title', ''));
+        $body = trim((string) $request->request->get('body', ''));
+
+        $errors = [];
+        if ($title === '') {
+            $errors[] = 'Quick reply title is required.';
+        }
+        if ($body === '') {
+            $errors[] = 'Quick reply body is required.';
+        }
+
+        return [
+            'errors' => $errors,
+            'form' => [
+                'title' => $title,
+                'body' => $body,
+            ],
+        ];
+    }
+
+    private function applySignature(User $admin, string $message, bool $includeSignature): string
+    {
+        if (!$includeSignature) {
+            return $message;
+        }
+
+        $signature = trim((string) $admin->getAdminSignature());
+        if ($signature === '') {
+            return $message;
+        }
+
+        return $message . "\n\n--\n" . $signature;
     }
 
     private function statusStyles(): array

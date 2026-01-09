@@ -41,9 +41,35 @@ final class AdminPluginCatalogController
         return new Response($this->twig->render('admin/plugins/index.html.twig', [
             'plugins' => $this->normalizePlugins($plugins),
             'summary' => $this->buildSummary($plugins),
+            'activeNav' => 'plugins',
+        ]));
+    }
+
+    #[Route(path: '/new', name: 'admin_plugins_new', methods: ['GET'])]
+    public function createPage(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $templates = $this->templateRepository->findBy([], ['name' => 'ASC']);
+
+        return new Response($this->twig->render('admin/plugins/create.html.twig', [
             'form' => $this->buildFormContext(),
-            'import' => $this->buildImportContext(),
             'templates' => $this->normalizeTemplates($templates),
+            'activeNav' => 'plugins',
+        ]));
+    }
+
+    #[Route(path: '/import', name: 'admin_plugins_import_page', methods: ['GET'])]
+    public function importPage(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response($this->twig->render('admin/plugins/import.html.twig', [
+            'import' => $this->buildImportContext(),
             'activeNav' => 'plugins',
         ]));
     }
@@ -78,7 +104,7 @@ final class AdminPluginCatalogController
     }
 
     #[Route(path: '/{id}/edit', name: 'admin_plugins_edit', methods: ['GET'])]
-    public function edit(Request $request, int $id): Response
+    public function editPage(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
@@ -91,9 +117,28 @@ final class AdminPluginCatalogController
 
         $templates = $this->templateRepository->findBy([], ['name' => 'ASC']);
 
-        return new Response($this->twig->render('admin/plugins/_form.html.twig', [
+        return new Response($this->twig->render('admin/plugins/edit.html.twig', [
             'form' => $this->buildFormContext($plugin),
             'templates' => $this->normalizeTemplates($templates),
+            'activeNav' => 'plugins',
+        ]));
+    }
+
+    #[Route(path: '/{id}/preview', name: 'admin_plugins_preview', methods: ['GET'])]
+    public function previewPage(Request $request, int $id): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $plugin = $this->pluginRepository->find($id);
+        if ($plugin === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        return new Response($this->twig->render('admin/plugins/preview.html.twig', [
+            'plugin' => $this->normalizePlugin($plugin),
+            'activeNav' => 'plugins',
         ]));
     }
 
@@ -523,6 +568,22 @@ final class AdminPluginCatalogController
                 'updated_at' => $plugin->getUpdatedAt(),
             ];
         }, $plugins);
+    }
+
+    private function normalizePlugin(GamePlugin $plugin): array
+    {
+        return [
+            'id' => $plugin->getId(),
+            'name' => $plugin->getName(),
+            'version' => $plugin->getVersion(),
+            'checksum' => $plugin->getChecksum(),
+            'download_url' => $plugin->getDownloadUrl(),
+            'description' => $plugin->getDescription(),
+            'template' => [
+                'id' => $plugin->getTemplate()->getId(),
+                'name' => $plugin->getTemplate()->getDisplayName(),
+            ],
+        ];
     }
 
     private function normalizeTemplates(array $templates): array

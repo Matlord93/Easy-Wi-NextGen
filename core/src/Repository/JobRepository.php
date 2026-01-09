@@ -7,6 +7,7 @@ namespace App\Repository;
 use App\Entity\Job;
 use App\Enum\JobStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\Persistence\ManagerRegistry;
 
 final class JobRepository extends ServiceEntityRepository
@@ -26,6 +27,43 @@ final class JobRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * @return array{jobs: Job[], total: int}
+     */
+    public function findPaginatedLatest(int $page, int $perPage = 25): array
+    {
+        $query = $this->createQueryBuilder('job')
+            ->orderBy('job.createdAt', 'DESC')
+            ->setFirstResult(max(0, ($page - 1) * $perPage))
+            ->setMaxResults($perPage)
+            ->getQuery();
+
+        $paginator = new Paginator($query);
+
+        return [
+            'jobs' => iterator_to_array($paginator->getIterator()),
+            'total' => count($paginator),
+        ];
+    }
+
+    public function countAll(): int
+    {
+        return (int) $this->createQueryBuilder('job')
+            ->select('COUNT(job.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function countByStatus(JobStatus $status): int
+    {
+        return (int) $this->createQueryBuilder('job')
+            ->select('COUNT(job.id)')
+            ->andWhere('job.status = :status')
+            ->setParameter('status', $status)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 
     /**

@@ -40,7 +40,10 @@ html:not(.dark) .customer-interface .text-sm.font-semibold {
     color: #0f172a !important;
 }
 
-  .dark\:text-slate-100 {
-    --tw-text-opacity: 1;
-    color: rgb(53, 114, 174)!important;
-  }
+.nav-group summary {
+    list-style: none;
+}
+
+.nav-group summary::-webkit-details-marker {
+    display: none;
+}

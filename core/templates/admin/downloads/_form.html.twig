@@ -1,6 +1,6 @@
 <div class="px-5 py-4">
     <div class="mb-4">
-        <h2 class="text-lg font-semibold">{{ form.action == 'create' ? 'Add download' : 'Edit download' }}</h2>
+        <h2 class="text-lg font-semibold">{{ form.action == 'create' ? t('admin_downloads_add_title', page_locale()) : t('admin_downloads_edit_title', page_locale()) }}</h2>
         <p class="text-sm text-slate-500">{{ t('admin_downloads_form_intro', page_locale()) }}</p>
     </div>
 
@@ -31,7 +31,7 @@
         </div>
         <div>
             <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('description', page_locale()) }}</label>
-            <textarea name="description" rows="3" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Short summary">{{ form.description }}</textarea>
+            <textarea name="description" rows="3" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('admin_downloads_description_placeholder', page_locale()) }}">{{ form.description }}</textarea>
         </div>
         <div class="grid gap-4 sm:grid-cols-3">
             <div>
@@ -50,7 +50,7 @@
         <div class="grid gap-3 sm:grid-cols-1">
             <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">
                 <input type="checkbox" name="visible_public" class="rounded border-slate-300 text-indigo-600" {% if form.visible_public %}checked{% endif %}>
-                Visible (Public)
+                {{ t('admin_downloads_visible_public', page_locale()) }}
             </label>
         </div>
         <button type="submit" class="w-full rounded-lg px-4 py-2 text-sm font-semibold text-slate-900 text-white {{ form.submit_color }} hover:opacity-90">{{ form.submit_label }}</button>

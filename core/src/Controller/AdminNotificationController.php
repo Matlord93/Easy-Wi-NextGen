@@ -61,7 +61,9 @@ final class AdminNotificationController
             $this->entityManager->flush();
         }
 
-        return new Response('', Response::HTTP_NO_CONTENT);
+        return new Response($this->twig->render('admin/notifications/_item.html.twig', [
+            'notification' => $this->normalizeNotification($notification),
+        ]));
     }
 
     private function requireAdmin(Request $request): User
@@ -76,16 +78,19 @@ final class AdminNotificationController
 
     private function normalizeNotifications(array $notifications): array
     {
-        return array_map(static function (Notification $notification): array {
-            return [
-                'id' => $notification->getId(),
-                'title' => $notification->getTitle(),
-                'body' => $notification->getBody(),
-                'category' => $notification->getCategory(),
-                'action_url' => $notification->getActionUrl(),
-                'created_at' => $notification->getCreatedAt(),
-                'read_at' => $notification->getReadAt(),
-            ];
-        }, $notifications);
+        return array_map([$this, 'normalizeNotification'], $notifications);
+    }
+
+    private function normalizeNotification(Notification $notification): array
+    {
+        return [
+            'id' => $notification->getId(),
+            'title' => $notification->getTitle(),
+            'body' => $notification->getBody(),
+            'category' => $notification->getCategory(),
+            'action_url' => $notification->getActionUrl(),
+            'created_at' => $notification->getCreatedAt(),
+            'read_at' => $notification->getReadAt(),
+        ];
     }
 }

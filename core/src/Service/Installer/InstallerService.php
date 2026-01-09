@@ -53,7 +53,7 @@ final class InstallerService
             'messageKey' => 'requirements.php_version',
             'messageParams' => [
                 '%current%' => PHP_VERSION,
-                '%required%' => '8.2',
+                '%required%' => '8.4',
             ],
             'fixHintKey' => PHP_VERSION_ID >= 80200 ? null : 'hints.update_php',
             'fixHintParams' => [],

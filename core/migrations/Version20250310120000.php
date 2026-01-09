@@ -43,8 +43,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 2394010 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 2394010 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2394010 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2394010 +quit',
             []
         );
 
@@ -75,8 +75,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 2394010 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 2394010 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2394010 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2394010 +quit',
             []
         );
 
@@ -103,8 +103,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 896660 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 896660 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 896660 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 896660 +quit',
             []
         );
 
@@ -134,8 +134,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 1690800 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 1690800 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1690800 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1690800 +quit',
             []
         );
 
@@ -167,8 +167,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 223350 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 223350 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 223350 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 223350 +quit',
             []
         );
 
@@ -200,8 +200,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 223350 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 223350 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 223350 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 223350 +quit',
             []
         );
 
@@ -231,8 +231,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 1829350 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 1829350 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1829350 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1829350 +quit',
             []
         );
 
@@ -262,8 +262,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 1829350 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 1829350 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1829350 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 1829350 +quit',
             []
         );
 
@@ -293,8 +293,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 2278520 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 2278520 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2278520 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 2278520 +quit',
             []
         );
 
@@ -329,8 +329,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 4020 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 4020 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 4020 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 4020 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -362,8 +362,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 105600 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 105600 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 105600 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 105600 +quit',
             []
         );
 
@@ -397,8 +397,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 294420 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 294420 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 294420 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 294420 +quit',
             []
         );
 
@@ -428,8 +428,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 427520 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 427520 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 427520 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 427520 +quit',
             []
         );
 
@@ -462,8 +462,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 380870 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 380870 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 380870 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 380870 +quit',
             []
         );
 
@@ -496,8 +496,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 380870 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 380870 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 380870 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 380870 +quit',
             []
         );
 
@@ -529,8 +529,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 443030 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 443030 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 443030 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 443030 +quit',
             []
         );
 
@@ -562,8 +562,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 443030 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 443030 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 443030 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 443030 +quit',
             []
         );
 
@@ -596,8 +596,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 233780 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 233780 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 233780 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 233780 +quit',
             []
         );
 
@@ -630,8 +630,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 233780 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 233780 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 233780 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 233780 +quit',
             []
         );
 
@@ -855,8 +855,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 730 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 730 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 730 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 730 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -895,8 +895,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 740 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 740 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 740 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 740 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -932,8 +932,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232250 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232250 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232250 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232250 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -969,8 +969,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 232250 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 232250 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232250 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232250 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1007,8 +1007,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232330 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232330 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232330 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232330 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1045,8 +1045,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 232330 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 232330 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232330 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232330 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1079,8 +1079,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232370 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232370 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232370 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232370 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1113,8 +1113,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 232370 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 232370 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232370 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232370 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1150,8 +1150,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 222860 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 222860 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222860 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222860 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1187,8 +1187,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 222860 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 222860 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222860 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222860 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1224,8 +1224,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 222840 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 222840 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222840 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222840 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1261,8 +1261,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 222840 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 222840 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222840 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 222840 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1298,8 +1298,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232290 validate +quit',
-            'steamcmd +login anonymous +force_install_dir /srv/gs +app_update 232290 +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232290 validate +quit',
+            'steamcmd +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232290 +quit',
             ['+map', '+maxplayers']
         );
 
@@ -1335,8 +1335,8 @@ final class Version20250310120000 extends AbstractMigration
                 'base_url' => '',
                 'root_path' => '',
             ],
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 232290 validate +quit',
-            'steamcmd.exe +login anonymous +force_install_dir C:\\easywi\\gs +app_update 232290 +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232290 validate +quit',
+            'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login anonymous +app_update 232290 +quit',
             ['+map', '+maxplayers']
         );
 

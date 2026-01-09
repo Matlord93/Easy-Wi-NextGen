@@ -22,7 +22,7 @@
     'cancelled': 'bg-amber-50 text-amber-700 border-amber-200'
 } %}
 
-<div id="nodes-table" class="overflow-x-auto">
+<div id="nodes-table" class="overflow-x-auto" hx-get="/admin/nodes/table" hx-trigger="every 15s" hx-swap="outerHTML">
     {% if notice is defined or error is defined %}
         <div class="px-5 pt-4">
             {% if notice is defined and notice %}
@@ -40,22 +40,22 @@
     <table class="min-w-full text-sm">
         <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
         <tr>
-            <th class="px-5 py-3 text-left font-medium">Node</th>
-            <th class="px-5 py-3 text-left font-medium">Role</th>
-            <th class="px-5 py-3 text-left font-medium">Status</th>
-            <th class="px-5 py-3 text-left font-medium">Last Seen</th>
-            <th class="px-5 py-3 text-left font-medium">Version</th>
-            <th class="px-5 py-3 text-left font-medium">Quick Actions</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('admin_nodes_table_node', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('admin_nodes_table_role', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('status', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('admin_nodes_table_last_seen', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('admin_nodes_table_version', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('admin_nodes_table_actions', page_locale()) }}</th>
         </tr>
         </thead>
         <tbody class="divide-y divide-slate-200">
         {% for node in nodes %}
             <tr class="hover:bg-slate-50">
                 <td class="px-5 py-4">
-                    <div class="font-medium">{{ node.name ?? 'Unnamed node' }}</div>
+                    <div class="font-medium">{{ node.name ?? t('admin_nodes_unnamed', page_locale()) }}</div>
                     <div class="text-xs text-slate-500">{{ node.id }}</div>
                     {% if node.lastHeartbeatIp %}
-                        <div class="text-xs text-slate-400">Last IP: {{ node.lastHeartbeatIp }}</div>
+                        <div class="text-xs text-slate-400">{{ t('admin_nodes_last_ip', page_locale())|replace({'%ip%': node.lastHeartbeatIp}) }}</div>
                     {% endif %}
                 </td>
                 <td class="px-5 py-4">
@@ -88,7 +88,7 @@
                                 </label>
                             {% endfor %}
                         </div>
-                        <button class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">Update Roles</button>
+                        <button class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">{{ t('admin_nodes_update_roles', page_locale()) }}</button>
                     </form>
                 </td>
                 <td class="px-5 py-4">
@@ -100,10 +100,10 @@
                 <td class="px-5 py-4 text-slate-500">
                     {% if node.lastSeenAt %}
                         <div class="text-sm font-medium text-slate-700">{{ node.lastSeenAt|date('Y-m-d H:i') }}</div>
-                        <div class="text-xs text-slate-400">Heartbeat {{ node.lastHeartbeatAt ? node.lastHeartbeatAt|date('Y-m-d H:i') : '—' }}</div>
-                        <div class="text-xs text-slate-400">Updated {{ node.updatedAt|date('Y-m-d H:i') }}</div>
+                        <div class="text-xs text-slate-400">{{ t('admin_nodes_heartbeat', page_locale())|replace({'%time%': node.lastHeartbeatAt ? node.lastHeartbeatAt|date('Y-m-d H:i') : '—'}) }}</div>
+                        <div class="text-xs text-slate-400">{{ t('admin_nodes_updated', page_locale())|replace({'%time%': node.updatedAt|date('Y-m-d H:i')}) }}</div>
                     {% else %}
-                        <span class="text-xs text-slate-400">Never reported</span>
+                        <span class="text-xs text-slate-400">{{ t('admin_nodes_never_reported', page_locale()) }}</span>
                     {% endif %}
                 </td>
                 <td class="px-5 py-4 text-slate-500">
@@ -111,51 +111,57 @@
                         <span class="text-sm font-medium text-slate-700">{{ node.lastHeartbeatVersion ?? '—' }}</span>
                         {% if updateChannel is defined %}
                             <span class="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
-                                Channel: {{ updateChannel|upper }}
+                                {{ t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) }}
                             </span>
                         {% endif %}
                         {% if node.updateAvailable is same as(true) %}
                             <span class="inline-flex w-fit items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                                Update available
+                                {{ t('admin_nodes_update_available', page_locale()) }}
                             </span>
                         {% elseif node.updateAvailable is same as(false) and node.lastHeartbeatVersion %}
                             <span class="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                                Up to date
+                                {{ t('admin_nodes_up_to_date', page_locale()) }}
                             </span>
                         {% else %}
                             <span class="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
-                                Unknown
+                                {{ t('admin_nodes_unknown', page_locale()) }}
                             </span>
                         {% endif %}
                         {% if node.updateJob %}
                             {% set updateStyle = updateJobStyles[node.updateJob.status] ?? 'bg-slate-100 text-slate-600 border-slate-200' %}
                             <span class="inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold {{ updateStyle }}">
-                                Update {{ node.updateJob.status|title }}
+                                {{ t('admin_nodes_update_status', page_locale())|replace({'%status%': node.updateJob.status|title}) }}
                             </span>
                             <span class="text-[11px] text-slate-400">
                                 {{ node.updateJob.updatedAt|date('Y-m-d H:i') }}
                                 {% if node.updateJob.resultMessage %}· {{ node.updateJob.resultMessage }}{% endif %}
                             </span>
                         {% else %}
-                            <span class="text-[11px] text-slate-400">No update job queued</span>
+                            <span class="text-[11px] text-slate-400">{{ t('admin_nodes_no_update_job', page_locale()) }}</span>
                         {% endif %}
                     </div>
                 </td>
                 <td class="px-5 py-4">
                     <div class="flex items-center gap-2">
-                        <button class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600">Provision</button>
+                        <button
+                            class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
+                            hx-post="/admin/nodes/{{ node.id }}/provision"
+                            hx-target="#nodes-table"
+                            hx-swap="outerHTML"
+                            hx-confirm="Provision {{ node.name ?? node.id }}?"
+                        >{{ t('admin_nodes_provision', page_locale()) }}</button>
                         <button
                             class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
                             hx-post="/admin/nodes/{{ node.id }}/update"
                             hx-target="#nodes-table"
                             hx-swap="outerHTML"
-                        >Update</button>
+                        >{{ t('update', page_locale()) }}</button>
                     </div>
                 </td>
             </tr>
         {% else %}
             <tr>
-                <td colspan="6" class="px-5 py-8 text-center text-slate-400">No nodes registered yet.</td>
+                <td colspan="6" class="px-5 py-8 text-center text-slate-400">{{ t('admin_nodes_empty', page_locale()) }}</td>
             </tr>
         {% endfor %}
         </tbody>

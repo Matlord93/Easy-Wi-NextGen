@@ -15,12 +15,10 @@
             hx-target="#instances-table"
             hx-swap="outerHTML"
         >{{ t('admin_instances_refresh', page_locale()) }}</button>
-        <button
+        <a
             class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
-            hx-get="/admin/instances/form"
-            hx-target="#instance-form"
-            hx-swap="outerHTML"
-        >{{ t('admin_instances_new', page_locale()) }}</button>
+            href="/admin/instances/new"
+        >{{ t('admin_instances_new', page_locale()) }}</a>
     </div>
 </div>
 
@@ -43,26 +41,10 @@
     </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="space-y-6">
-        <div id="instance-form"
-             class="rounded-xl bg-white border border-slate-200"
-             hx-get="/admin/instances/form"
-             hx-trigger="instances-form-refresh from:body"
-             hx-swap="outerHTML">
-            {% include 'admin/instances/_form.html.twig' with { customers: customers, nodes: nodes, templates: templates, form: form } %}
-        </div>
-        <div id="instance-customer-form" class="rounded-xl bg-white border border-slate-200">
-            {% include 'admin/instances/_customer_form.html.twig' with { customerForm: customerForm } %}
-        </div>
-    </div>
-    <div class="lg:col-span-2">
-        <div id="instances-table" class="rounded-xl bg-white border border-slate-200"
-             hx-get="/admin/instances/table"
-             hx-trigger="instances-changed from:body"
-             hx-swap="outerHTML">
-            {% include 'admin/instances/_table.html.twig' with { instances: instances } %}
-        </div>
-    </div>
+<div id="instances-table" class="rounded-xl bg-white border border-slate-200"
+     hx-get="/admin/instances/table"
+     hx-trigger="instances-changed from:body"
+     hx-swap="outerHTML">
+    {% include 'admin/instances/_table.html.twig' with { instances: instances } %}
 </div>
 {% endblock %}

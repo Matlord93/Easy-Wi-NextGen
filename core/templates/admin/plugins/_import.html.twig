@@ -1,7 +1,7 @@
 <div class="rounded-xl bg-white border border-slate-200" id="plugin-import">
     <div class="px-5 py-4 border-b border-slate-200">
-        <h2 class="text-lg font-semibold">Import Plugins</h2>
-        <p class="text-sm text-slate-500">Paste JSON to load plugin catalog entries.</p>
+        <h2 class="text-lg font-semibold">{{ t('admin_plugins_import_title', page_locale()) }}</h2>
+        <p class="text-sm text-slate-500">{{ t('admin_plugins_import_intro', page_locale()) }}</p>
     </div>
     <div class="p-5 space-y-4">
         {% if import.success_message is not empty %}
@@ -11,7 +11,7 @@
         {% endif %}
         {% if import.errors is not empty %}
             <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                <p class="font-semibold mb-1">Import failed:</p>
+                <p class="font-semibold mb-1">{{ t('admin_plugins_import_failed', page_locale()) }}</p>
                 <ul class="list-disc list-inside space-y-1">
                     {% for error in import.errors %}
                         <li>{{ error }}</li>
@@ -26,11 +26,11 @@
             hx-swap="outerHTML"
         >
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase">Import JSON</label>
+                <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_plugins_import_label', page_locale()) }}</label>
                 <textarea name="payload" rows="8" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono" placeholder='[{"template_game_key":"cs2","name":"Metamod:Source","version":"1.11.0","checksum":"b3c94b...","download_url":"https://example.com/metamod.zip","description":"..."}]'>{{ import.payload }}</textarea>
             </div>
-            <p class="text-xs text-slate-500">Required: template_id or template_game_key, name, version, checksum, download_url.</p>
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">Import Plugins</button>
+            <p class="text-xs text-slate-500">{{ t('admin_plugins_import_required', page_locale()) }}</p>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ t('admin_plugins_import_submit', page_locale()) }}</button>
         </form>
     </div>
 </div>

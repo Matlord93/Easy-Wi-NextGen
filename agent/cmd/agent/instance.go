@@ -129,7 +129,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
+	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
 	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write systemd unit: %w", err))
 	}
@@ -417,7 +417,7 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
+	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
 	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write systemd unit: %w", err))
 	}
@@ -521,7 +521,7 @@ func allocateCustomerPorts(customerID string) ([]int, error) {
 	return ports, nil
 }
 
-func systemdUnitTemplate(serviceName, user, workingDir, startCommand, startParams string, cpuLimit, ramLimit int) string {
+func systemdUnitTemplate(serviceName, user, workingDir, readWritePath, startCommand, startParams string, cpuLimit, ramLimit int) string {
 	command := strings.TrimSpace(startCommand)
 	if startParams != "" && !strings.Contains(startCommand, startParams) {
 		command = strings.TrimSpace(command + " " + startParams)
@@ -566,7 +566,7 @@ ReadWritePaths=%s
 
 [Install]
 WantedBy=multi-user.target
-`, serviceName, user, workingDir, workingDir, command, workingDir, limits)
+`, serviceName, user, workingDir, workingDir, command, readWritePath, limits)
 }
 
 func buildSystemdLimits(cpuLimit, ramLimit int) string {

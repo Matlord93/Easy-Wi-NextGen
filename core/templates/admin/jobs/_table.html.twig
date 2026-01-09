@@ -49,4 +49,27 @@
         {% endfor %}
         </tbody>
     </table>
+    {% if pagination is defined and pagination.totalPages > 1 %}
+        <div class="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-xs text-slate-500">
+            <div>
+                {{ t('admin_jobs_pagination_label', page_locale())|replace({'%page%': pagination.page, '%total%': pagination.totalPages}) }}
+            </div>
+            <div class="flex items-center gap-2">
+                <a
+                    href="/admin/jobs?page={{ pagination.previousPage }}"
+                    hx-get="/admin/jobs/table?page={{ pagination.previousPage }}"
+                    hx-target="#jobs-table"
+                    hx-swap="outerHTML"
+                    class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium {{ pagination.hasPrevious ? 'text-slate-600 hover:bg-slate-50' : 'text-slate-300 pointer-events-none' }}"
+                >{{ t('admin_jobs_pagination_previous', page_locale()) }}</a>
+                <a
+                    href="/admin/jobs?page={{ pagination.nextPage }}"
+                    hx-get="/admin/jobs/table?page={{ pagination.nextPage }}"
+                    hx-target="#jobs-table"
+                    hx-swap="outerHTML"
+                    class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium {{ pagination.hasNext ? 'text-slate-600 hover:bg-slate-50' : 'text-slate-300 pointer-events-none' }}"
+                >{{ t('admin_jobs_pagination_next', page_locale()) }}</a>
+            </div>
+        </div>
+    {% endif %}
 </div>

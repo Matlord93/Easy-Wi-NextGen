@@ -1,6 +1,11 @@
 <div class="px-5 py-4 border-b border-slate-200">
-    <h2 class="text-lg font-semibold">{{ t('admin_templates_create_title', page_locale()) }}</h2>
-    <p class="text-sm text-slate-500">{{ t('admin_templates_create_intro', page_locale()) }}</p>
+    {% if form.is_edit %}
+        <h2 class="text-lg font-semibold">{{ t('admin_templates_edit_title', page_locale()) }}</h2>
+        <p class="text-sm text-slate-500">{{ t('admin_templates_edit_intro', page_locale()) }}</p>
+    {% else %}
+        <h2 class="text-lg font-semibold">{{ t('admin_templates_create_title', page_locale()) }}</h2>
+        <p class="text-sm text-slate-500">{{ t('admin_templates_create_intro', page_locale()) }}</p>
+    {% endif %}
 </div>
 <div class="p-5 space-y-4">
     {% if form.errors is not empty %}
@@ -15,7 +20,7 @@
     {% endif %}
     <form
         class="space-y-4"
-        hx-post="/admin/templates"
+        hx-post="{{ form.is_edit ? '/admin/templates/' ~ form.template_id : '/admin/templates' }}"
         hx-target="#template-form"
         hx-swap="outerHTML"
     >
@@ -98,21 +103,22 @@
             <input name="allowed_switch_flags" value="{{ form.allowed_switch_flags }}" placeholder="{{ t('admin_templates_switch_flags_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
         </div>
         <div class="flex flex-wrap items-center gap-3">
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ t('admin_templates_create_submit', page_locale()) }}</button>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">
+                {{ form.is_edit ? t('admin_templates_update_submit', page_locale()) : t('admin_templates_create_submit', page_locale()) }}
+            </button>
             <button
                 type="button"
                 class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600"
-                hx-get="/admin/templates/form"
+                hx-get="{{ form.reset_url }}"
                 hx-target="#template-form"
                 hx-swap="outerHTML"
             >{{ t('reset', page_locale()) }}</button>
-            <button
-                type="button"
-                class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-slate-900 text-indigo-700"
-                hx-post="/admin/templates/preview"
-                hx-target="#template-preview"
-                hx-include="closest form"
-            >{{ t('admin_templates_preview_dry_run', page_locale()) }}</button>
+            {% if form.preview_url %}
+                <a
+                    class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-slate-900 text-indigo-700"
+                    href="{{ form.preview_url }}"
+                >{{ t('admin_templates_preview', page_locale()) }}</a>
+            {% endif %}
         </div>
     </form>
 </div>

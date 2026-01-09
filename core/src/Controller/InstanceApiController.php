@@ -40,7 +40,7 @@ final class InstanceApiController
     ) {
     }
 
-    #[Route(path: '/api/admin/instances', name: 'admin_instances_create', methods: ['POST'])]
+    #[Route(path: '/api/admin/instances', name: 'admin_instances_create_api', methods: ['POST'])]
     public function createInstance(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');

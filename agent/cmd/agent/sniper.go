@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	buildIDRegex  = regexp.MustCompile(`(?i)build(?:[_\s-]?id)?[:\s]+([0-9]+)`)
-	versionRegex  = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
-	jsonLineRegex = regexp.MustCompile(`\{.*\}`)
+	buildIDRegex         = regexp.MustCompile(`(?i)build(?:[_\s-]?id)?[:\s]+([0-9]+)`)
+	versionRegex         = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
+	jsonLineRegex        = regexp.MustCompile(`\{.*\}`)
+	forceInstallDirRegex = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\.(?:/)?|"\."|'\.'|"\./"|'\./')`)
 )
 
 func handleSniperInstall(job jobs.Job) (jobs.Result, func() error) {
@@ -95,6 +96,8 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 		}, nil
 	}
 
+	command = normalizeSteamCmdInstallDir(command, instanceDir)
+
 	output, err := runCommandOutput("su", "-s", "/bin/sh", "-c", fmt.Sprintf("cd %s && %s", instanceDir, command), osUsername)
 	if err != nil {
 		return failureResult(job.ID, err)
@@ -134,6 +137,18 @@ func buildSteamCmdCommand(instanceDir, steamAppID string, validate bool) string 
 	}
 	parts = append(parts, "+quit")
 	return strings.Join(parts, " ")
+}
+
+func normalizeSteamCmdInstallDir(command, instanceDir string) string {
+	if command == "" || instanceDir == "" {
+		return command
+	}
+
+	normalized := strings.ReplaceAll(command, "{{INSTANCE_DIR}}", instanceDir)
+	normalized = strings.ReplaceAll(normalized, "{{INSTALL_DIR}}", instanceDir)
+
+	escapedDir := strings.ReplaceAll(instanceDir, "$", "$$")
+	return forceInstallDirRegex.ReplaceAllString(normalized, "${1}"+escapedDir)
 }
 
 func extractBuildInfo(output string) (string, string) {

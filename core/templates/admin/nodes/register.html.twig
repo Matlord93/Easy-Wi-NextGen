@@ -1,20 +1,20 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Register Node · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_nodes_register_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="flex items-center justify-between mb-6">
     <div>
-        <h1 class="text-2xl font-semibold">Register Node</h1>
-        <p class="text-sm text-slate-500">Generate agent credentials and a ready-to-use config file.</p>
+        <h1 class="text-2xl font-semibold">{{ t('admin_nodes_register_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-500">{{ t('admin_nodes_register_intro', page_locale()) }}</p>
     </div>
-    <a href="/admin/nodes" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">Back to Nodes</a>
+    <a href="/admin/nodes" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">{{ t('admin_nodes_back', page_locale()) }}</a>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 class="text-lg font-semibold text-slate-900">Agent Details</h2>
-        <p class="mt-1 text-sm text-slate-500">Define the node identifier that the agent will use when connecting.</p>
+        <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_nodes_agent_details', page_locale()) }}</h2>
+        <p class="mt-1 text-sm text-slate-500">{{ t('admin_nodes_agent_details_intro', page_locale()) }}</p>
 
         {% if form.errors is not empty %}
             <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -28,7 +28,7 @@
 
         <form method="post" class="mt-4 space-y-4">
             <div>
-                <label class="text-sm font-medium text-slate-700" for="agent_id">Agent ID</label>
+                <label class="text-sm font-medium text-slate-700" for="agent_id">{{ t('admin_nodes_agent_id', page_locale()) }}</label>
                 <input
                     id="agent_id"
                     name="agent_id"
@@ -37,10 +37,10 @@
                     placeholder="node-eu-01"
                     class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                 >
-                <p class="mt-1 text-xs text-slate-500">Leave empty to auto-generate an ID.</p>
+                <p class="mt-1 text-xs text-slate-500">{{ t('admin_nodes_agent_id_hint', page_locale()) }}</p>
             </div>
             <div>
-                <label class="text-sm font-medium text-slate-700" for="name">Display name (optional)</label>
+                <label class="text-sm font-medium text-slate-700" for="name">{{ t('admin_nodes_display_name', page_locale()) }}</label>
                 <input
                     id="name"
                     name="name"
@@ -50,17 +50,17 @@
                     class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                 >
             </div>
-            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">Create Agent</button>
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ t('admin_nodes_create_agent', page_locale()) }}</button>
         </form>
     </div>
 
     <div class="rounded-xl border border-slate-200 bg-white p-6">
-        <h2 class="text-lg font-semibold text-slate-900">Agent Config</h2>
-        <p class="mt-1 text-sm text-slate-500">Copy this file to the server and start the agent process.</p>
+        <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_nodes_agent_config', page_locale()) }}</h2>
+        <p class="mt-1 text-sm text-slate-500">{{ t('admin_nodes_agent_config_intro', page_locale()) }}</p>
 
         {% if config %}
             <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                Agent {{ config.agent_id }} was registered. Store the secret securely; it is shown only once.
+                {{ t('admin_nodes_agent_registered', page_locale())|replace({'%id%': config.agent_id}) }}
             </div>
             <div class="mt-4">
                 <p class="text-xs font-semibold uppercase text-slate-500">/etc/easywi/agent.conf</p>
@@ -73,12 +73,12 @@ poll_interval=30s
 </pre>
             </div>
             <div class="mt-4 text-sm text-slate-600">
-                <p class="font-semibold text-slate-700">Start the agent</p>
+                <p class="font-semibold text-slate-700">{{ t('admin_nodes_start_agent', page_locale()) }}</p>
                 <pre class="mt-2 whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">./easywi-agent -config /etc/easywi/agent.conf</pre>
             </div>
         {% else %}
             <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                The config file will appear here after you create the agent.
+                {{ t('admin_nodes_config_pending', page_locale()) }}
             </div>
         {% endif %}
     </div>

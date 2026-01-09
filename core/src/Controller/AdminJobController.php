@@ -34,13 +34,19 @@ final class AdminJobController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $jobs = $this->jobRepository->findLatest();
-        $summary = $this->buildSummary($jobs);
+        $page = max(1, $request->query->getInt('page', 1));
+        $perPage = 25;
+        $total = $this->jobRepository->countAll();
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $totalPages);
+        $paginated = $this->jobRepository->findPaginatedLatest($page, $perPage);
+        $summary = $this->buildSummary();
 
         return new Response($this->twig->render('admin/jobs/index.html.twig', [
             'activeNav' => 'jobs',
-            'jobs' => $this->normalizeJobs($jobs),
+            'jobs' => $this->normalizeJobs($paginated['jobs']),
             'summary' => $summary,
+            'pagination' => $this->buildPagination($page, $perPage, $total),
             'activeNav' => 'jobs',
         ]));
     }
@@ -52,14 +58,60 @@ final class AdminJobController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $jobs = $this->jobRepository->findLatest();
+        $page = max(1, $request->query->getInt('page', 1));
+        $perPage = 25;
+        $total = $this->jobRepository->countAll();
+        $totalPages = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $totalPages);
+        $paginated = $this->jobRepository->findPaginatedLatest($page, $perPage);
 
         return new Response($this->twig->render('admin/jobs/_table.html.twig', [
-            'jobs' => $this->normalizeJobs($jobs),
+            'jobs' => $this->normalizeJobs($paginated['jobs']),
+            'pagination' => $this->buildPagination($page, $perPage, $total),
         ]));
     }
 
-    #[Route(path: '/{id}', name: 'admin_jobs_show', methods: ['GET'])]
+    #[Route(path: '/new', name: 'admin_jobs_new', methods: ['GET'])]
+    public function createForm(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response($this->twig->render('admin/jobs/create.html.twig', [
+            'activeNav' => 'jobs',
+            'form' => $this->buildJobFormContext(),
+        ]));
+    }
+
+    #[Route(path: '', name: 'admin_jobs_create', methods: ['POST'])]
+    public function create(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $formData = $this->parseJobPayload($request);
+        if ($formData['errors'] !== []) {
+            return new Response($this->twig->render('admin/jobs/create.html.twig', [
+                'activeNav' => 'jobs',
+                'form' => $formData,
+            ]), Response::HTTP_BAD_REQUEST);
+        }
+
+        $job = new \App\Entity\Job($formData['type'], $formData['payload']);
+        $this->entityManager->persist($job);
+        $this->auditLogger->log($actor, 'job.created', [
+            'job_id' => $job->getId(),
+            'type' => $job->getType(),
+        ]);
+        $this->entityManager->flush();
+
+        return new RedirectResponse(sprintf('/admin/jobs/%s', $job->getId()));
+    }
+
+    #[Route(path: '/{id}', name: 'admin_jobs_show', methods: ['GET'], requirements: ['id' => '[0-9a-f]{32}'])]
     public function show(Request $request, string $id): Response
     {
         if (!$this->isAdmin($request)) {
@@ -81,7 +133,7 @@ final class AdminJobController
         ]));
     }
 
-    #[Route(path: '/{id}/log', name: 'admin_jobs_log', methods: ['GET'])]
+    #[Route(path: '/{id}/log', name: 'admin_jobs_log', methods: ['GET'], requirements: ['id' => '[0-9a-f]{32}'])]
     public function log(Request $request, string $id): Response
     {
         if (!$this->isAdmin($request)) {
@@ -98,7 +150,7 @@ final class AdminJobController
         ]));
     }
 
-    #[Route(path: '/{id}/retry', name: 'admin_jobs_retry', methods: ['POST'])]
+    #[Route(path: '/{id}/retry', name: 'admin_jobs_retry', methods: ['POST'], requirements: ['id' => '[0-9a-f]{32}'])]
     public function retry(Request $request, string $id): Response
     {
         $actor = $request->attributes->get('current_user');
@@ -134,32 +186,14 @@ final class AdminJobController
         return $actor instanceof User && $actor->getType() === UserType::Admin;
     }
 
-    private function buildSummary(array $jobs): array
+    private function buildSummary(): array
     {
-        $summary = [
-            'total' => count($jobs),
-            'running' => 0,
-            'queued' => 0,
-            'failed' => 0,
+        return [
+            'total' => $this->jobRepository->countAll(),
+            'running' => $this->jobRepository->countByStatus(JobStatus::Running),
+            'queued' => $this->jobRepository->countByStatus(JobStatus::Queued),
+            'failed' => $this->jobRepository->countByStatus(JobStatus::Failed),
         ];
-
-        foreach ($jobs as $job) {
-            switch ($job->getStatus()) {
-                case JobStatus::Running:
-                    $summary['running']++;
-                    break;
-                case JobStatus::Queued:
-                    $summary['queued']++;
-                    break;
-                case JobStatus::Failed:
-                    $summary['failed']++;
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        return $summary;
     }
 
     private function normalizeJobs(array $jobs): array
@@ -229,6 +263,59 @@ final class AdminJobController
         $lines = array_values(array_filter(array_map('trim', $lines), static fn ($line) => $line !== ''));
 
         return array_slice($lines, -200);
+    }
+
+    private function buildPagination(int $page, int $perPage, int $total): array
+    {
+        $totalPages = max(1, (int) ceil($total / $perPage));
+
+        return [
+            'page' => $page,
+            'perPage' => $perPage,
+            'total' => $total,
+            'totalPages' => $totalPages,
+            'hasPrevious' => $page > 1,
+            'hasNext' => $page < $totalPages,
+            'previousPage' => max(1, $page - 1),
+            'nextPage' => min($totalPages, $page + 1),
+        ];
+    }
+
+    private function buildJobFormContext(array $errors = [], ?string $type = null, ?string $payload = null): array
+    {
+        return [
+            'errors' => $errors,
+            'type' => $type ?? '',
+            'payload' => $payload ?? '',
+            'payload_raw' => $payload ?? '',
+        ];
+    }
+
+    private function parseJobPayload(Request $request): array
+    {
+        $errors = [];
+        $type = trim((string) $request->request->get('type', ''));
+        $payloadRaw = trim((string) $request->request->get('payload', ''));
+
+        if ($type === '') {
+            $errors[] = 'Job type is required.';
+        }
+
+        $payload = [];
+        if ($payloadRaw !== '') {
+            $payload = json_decode($payloadRaw, true);
+            if (!is_array($payload)) {
+                $errors[] = 'Payload must be valid JSON.';
+                $payload = [];
+            }
+        }
+
+        return [
+            'errors' => $errors,
+            'type' => $type,
+            'payload' => $payload,
+            'payload_raw' => $payloadRaw,
+        ];
     }
 
     private function canRetry(JobStatus $status): bool

@@ -110,7 +110,7 @@ func handleTs3Create(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, startCommand, "", 0, 0)
+	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, "", 0, 0)
 	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write systemd unit: %w", err))
 	}

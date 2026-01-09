@@ -55,7 +55,10 @@ final class CustomerNotificationController
             $this->entityManager->flush();
         }
 
-        return new Response('', Response::HTTP_NO_CONTENT);
+        return new Response($this->twig->render('customer/notifications/_item_with_badge.html.twig', [
+            'notification' => $this->normalizeNotification($notification),
+            'unreadCount' => $this->notificationRepository->findUnreadCount($customer),
+        ]));
     }
 
     private function requireCustomer(Request $request): User
@@ -70,16 +73,19 @@ final class CustomerNotificationController
 
     private function normalizeNotifications(array $notifications): array
     {
-        return array_map(static function (Notification $notification): array {
-            return [
-                'id' => $notification->getId(),
-                'title' => $notification->getTitle(),
-                'body' => $notification->getBody(),
-                'category' => $notification->getCategory(),
-                'action_url' => $notification->getActionUrl(),
-                'created_at' => $notification->getCreatedAt(),
-                'read_at' => $notification->getReadAt(),
-            ];
-        }, $notifications);
+        return array_map([$this, 'normalizeNotification'], $notifications);
+    }
+
+    private function normalizeNotification(Notification $notification): array
+    {
+        return [
+            'id' => $notification->getId(),
+            'title' => $notification->getTitle(),
+            'body' => $notification->getBody(),
+            'category' => $notification->getCategory(),
+            'action_url' => $notification->getActionUrl(),
+            'created_at' => $notification->getCreatedAt(),
+            'read_at' => $notification->getReadAt(),
+        ];
     }
 }
