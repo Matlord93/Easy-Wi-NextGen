@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -51,6 +52,9 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 
 	osUsername := buildInstanceUsername(customerID, instanceID)
 	instanceDir := fmt.Sprintf("%s/%s", strings.TrimRight(baseDir, "/"), osUsername)
+	if err := os.MkdirAll(instanceDir, instanceDirMode); err != nil {
+		return failureResult(job.ID, fmt.Errorf("create instance dir %s: %w", instanceDir, err))
+	}
 
 	var command string
 	if action == "install" {
@@ -102,8 +106,8 @@ func buildSteamCmdCommand(instanceDir, steamAppID string, validate bool) string 
 	}
 	parts := []string{
 		"steamcmd",
-		"+login", "anonymous",
 		"+force_install_dir", instanceDir,
+		"+login", "anonymous",
 		"+app_update", steamAppID,
 	}
 	if validate {
