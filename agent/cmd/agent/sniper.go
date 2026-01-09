@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -30,8 +31,6 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	steamAppID := payloadValue(job.Payload, "steam_app_id")
 	installCommand := payloadValue(job.Payload, "install_command")
 	updateCommand := payloadValue(job.Payload, "update_command")
-	targetBuildID := payloadValue(job.Payload, "target_build_id", "locked_build_id")
-	targetVersion := payloadValue(job.Payload, "target_version", "locked_version")
 	baseDir := payloadValue(job.Payload, "base_dir")
 
 	missing := missingValues([]requiredValue{
@@ -53,6 +52,9 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 
 	osUsername := buildInstanceUsername(customerID, instanceID)
 	instanceDir := fmt.Sprintf("%s/%s", strings.TrimRight(baseDir, "/"), osUsername)
+	if err := os.MkdirAll(instanceDir, instanceDirMode); err != nil {
+		return failureResult(job.ID, fmt.Errorf("create instance dir %s: %w", instanceDir, err))
+	}
 
 	var command string
 	if action == "install" {
@@ -104,8 +106,8 @@ func buildSteamCmdCommand(instanceDir, steamAppID string, validate bool) string 
 	}
 	parts := []string{
 		"steamcmd",
-		"+login", "anonymous",
 		"+force_install_dir", instanceDir,
+		"+login", "anonymous",
 		"+app_update", steamAppID,
 	}
 	if validate {
