@@ -98,7 +98,19 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 
 	command = normalizeSteamCmdInstallDir(command, instanceDir)
 
-	output, err := runCommandOutput("su", "-s", "/bin/sh", "-c", fmt.Sprintf("cd %s && %s", instanceDir, command), osUsername)
+	shellCmd := fmt.Sprintf(
+	"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
+	"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
+	"cd %[1]s && %[2]s",
+	instanceDir, command,
+)
+
+output, err := runCommandOutput(
+	"su",
+	"-", osUsername,              // Login-Session => korrektes Umfeld
+	"-s", "/bin/sh",
+	"-c", shellCmd,
+)
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
