@@ -2,7 +2,7 @@ name: Agent CI (Go)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "Beta" ]
     tags: [ "v*.*.*" ]
   pull_request:
 
