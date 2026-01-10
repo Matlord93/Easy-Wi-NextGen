@@ -14,9 +14,9 @@ parameters:
   app.core_update_token: '%env(default::APP_GITHUB_TOKEN)%'
   app.core_update_install_dir: '%env(default::APP_CORE_UPDATE_INSTALL_DIR)%'
   app.core_update_manifest_url: '%env(default::APP_CORE_UPDATE_MANIFEST_URL)%'
-  app.core_update_releases_dir: '%env(default:/var/www/releases:APP_CORE_UPDATE_RELEASES_DIR)%'
-  app.core_update_current_symlink: '%env(default:/var/www/current:APP_CORE_UPDATE_CURRENT_SYMLINK)%'
-  app.core_update_lock_file: '%env(default:/tmp/webinterface_update.lock:APP_CORE_UPDATE_LOCK_FILE)%'
+  app.core_update_releases_dir: '%env(APP_CORE_UPDATE_RELEASES_DIR)%'
+  app.core_update_current_symlink: '%env(APP_CORE_UPDATE_CURRENT_SYMLINK)%'
+  app.core_update_lock_file: '%env(APP_CORE_UPDATE_LOCK_FILE)%'
   app.core_update_excludes_default: '.env,config/local*,var/,storage/,uploads/'
   app.core_update_excludes: '%env(default:app.core_update_excludes_default:APP_CORE_UPDATE_EXCLUDES)%'
 
