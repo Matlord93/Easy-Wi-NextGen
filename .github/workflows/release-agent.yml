@@ -1,4 +1,4 @@
-name: Runner Release Builder
+name: Agent Release Builder
 
 on:
   workflow_dispatch:
@@ -30,17 +30,17 @@ jobs:
         run: |
           mkdir -p ../dist
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-runner-linux-amd64 ./cmd/agent
+            -o ../dist/easywi-agent-linux-amd64 ./cmd/agent
 
       - name: Build windows-amd64
         run: |
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-runner-windows-amd64.exe ./cmd/agent
+            -o ../dist/easywi-agent-windows-amd64.exe ./cmd/agent
 
       - name: Generate checksums
         run: |
           cd ../dist
-          sha256sum easywi-runner-* > checksums-runner.txt
+          sha256sum easywi-agent-* > checksums-agent.txt
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
