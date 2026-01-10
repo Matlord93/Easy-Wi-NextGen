@@ -47,6 +47,9 @@ class InstanceSchedule implements ResourceEventSource
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastQueuedAt = null;
+
     public function __construct(
         Instance $instance,
         User $customer,
@@ -108,6 +111,17 @@ class InstanceSchedule implements ResourceEventSource
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getLastQueuedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastQueuedAt;
+    }
+
+    public function setLastQueuedAt(?\DateTimeImmutable $lastQueuedAt): void
+    {
+        $this->lastQueuedAt = $lastQueuedAt;
+        $this->touch();
     }
 
     public function update(

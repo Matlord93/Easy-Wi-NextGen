@@ -27,7 +27,8 @@
     "symfony/yaml": "^8.0",
     "symfony/cache": "^8.0",
     "twig/twig": "^3.0",
-    "symfony/flex": "^2.0"
+    "symfony/flex": "^2.0",
+    "phpseclib/phpseclib": "^3.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^12.5"

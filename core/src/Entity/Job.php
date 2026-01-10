@@ -33,6 +33,9 @@ class Job
     #[ORM\Column(enumType: JobStatus::class)]
     private JobStatus $status;
 
+    #[ORM\Column(nullable: true)]
+    private ?int $progress = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -60,6 +63,7 @@ class Job
         $this->type = $type;
         $this->payload = $payload;
         $this->status = JobStatus::Queued;
+        $this->progress = 0;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -82,6 +86,11 @@ class Job
     public function getStatus(): JobStatus
     {
         return $this->status;
+    }
+
+    public function getProgress(): ?int
+    {
+        return $this->progress;
     }
 
     public function getCreatedAt(): \DateTimeImmutable
@@ -127,6 +136,16 @@ class Job
         }
 
         $this->status = $newStatus;
+        $this->touch();
+    }
+
+    public function setProgress(?int $progress): void
+    {
+        if ($progress === null) {
+            return;
+        }
+
+        $this->progress = max(0, min(100, $progress));
         $this->touch();
     }
 

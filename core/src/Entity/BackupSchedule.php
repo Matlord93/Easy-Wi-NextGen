@@ -42,6 +42,9 @@ class BackupSchedule implements ResourceEventSource
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastQueuedAt = null;
+
     public function __construct(BackupDefinition $definition, string $cronExpression, int $retentionDays, int $retentionCount, bool $enabled)
     {
         $this->definition = $definition;
@@ -91,6 +94,17 @@ class BackupSchedule implements ResourceEventSource
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getLastQueuedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastQueuedAt;
+    }
+
+    public function setLastQueuedAt(?\DateTimeImmutable $lastQueuedAt): void
+    {
+        $this->lastQueuedAt = $lastQueuedAt;
+        $this->touch();
     }
 
     public function update(string $cronExpression, int $retentionDays, int $retentionCount, bool $enabled): void

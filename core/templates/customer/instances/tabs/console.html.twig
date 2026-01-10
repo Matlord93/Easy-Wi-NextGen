@@ -1,0 +1,23 @@
+<div class="space-y-6">
+    <div>
+        <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_console', page_locale()) }}</h2>
+        <p class="text-sm text-slate-700">{{ t('customer_instance_console_intro', page_locale()) }}</p>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-2">
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_console_start_command', page_locale()) }}</p>
+            <p class="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-700">{{ template.start_params }}</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_console_env_vars', page_locale()) }}</p>
+            <ul class="mt-3 space-y-2 text-xs text-slate-600">
+                {% for env in template.env_vars %}
+                    <li class="rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-700">{{ env }}</li>
+                {% else %}
+                    <li class="text-sm text-slate-500">{{ t('customer_instance_console_env_empty', page_locale()) }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>

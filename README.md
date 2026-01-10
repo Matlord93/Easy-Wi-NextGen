@@ -12,8 +12,10 @@ für die Installation des Panels sowie die Inbetriebnahme von Agent/Runner.
    - [Installation mit Plesk](#installation-mit-plesk)
    - [Installation mit aaPanel](#installation-mit-aapanel)
    - [Weitere gängige Setups](#weitere-gängige-setups)
-4. [Agent & Runner: Installation und Inbetriebnahme](#agent--runner-installation-und-inbetriebnahme)
-5. [Typische Fehler & Lösungen](#typische-fehler--lösungen)
+4. [Updates des Webinterfaces (GitHub Releases)](#updates-des-webinterfaces-github-releases)
+5. [Agent & Runner: Installation und Inbetriebnahme](#agent--runner-installation-und-inbetriebnahme)
+6. [Messenger Worker (Hintergrundjobs)](#messenger-worker-hintergrundjobs)
+7. [Typische Fehler & Lösungen](#typische-fehler--lösungen)
 
 ---
 
@@ -64,7 +66,7 @@ zwischen **Standalone**, **Plesk** und **aaPanel**.
 **Linux (mit Auswahl Plesk/aaPanel/Standalone):**
 
 ```bash
-curl -fsSL https://github.com/Matlord93/Easy-Wi-NextGen/blob/Beta/installer/easywi-installer-panel-linux.sh -o easywi-installer-panel-linux.sh
+curl -fsSL https://raw.githubusercontent.com/easywi/easywi/main/installer/easywi-installer-panel-linux.sh -o easywi-installer-panel-linux.sh
 chmod +x easywi-installer-panel-linux.sh
 sudo ./easywi-installer-panel-linux.sh \
   --mode standalone \
@@ -174,6 +176,51 @@ Diese Variante eignet sich für eigene Server oder VMs ohne Hosting-Panel.
 
 ---
 
+## Updates des Webinterfaces (GitHub Releases)
+
+Das Webinterface kann sich ohne Git im Installationsverzeichnis direkt über GitHub Releases aktualisieren.
+Updates werden über ein Manifest bereitgestellt, das auf eine Release-Datei (z. B. `.tar.gz`/`.zip`)
+und optional auf einen SHA256-Hash verweist.
+
+### Manifest
+
+Beispiel für `update/manifest.json` (z. B. raw GitHub URL):
+
+```json
+{
+  "latest": "1.4.2",
+  "asset_url": "https://github.com/<OWNER>/<REPO>/releases/download/v1.4.2/webinterface-1.4.2.tar.gz",
+  "sha256": "<sha256 des archives>",
+  "notes": "kurze release notes"
+}
+```
+
+### Konfiguration (Umgebungsvariablen)
+
+* `APP_CORE_UPDATE_MANIFEST_URL` – URL zum Manifest (Pflicht)
+* `APP_CORE_UPDATE_INSTALL_DIR` – Installationspfad (Standard: `/var/www/html`)
+* `APP_CORE_UPDATE_RELEASES_DIR` – Release-Verzeichnis für Symlink-Modus (Standard: `/var/www/releases`)
+* `APP_CORE_UPDATE_CURRENT_SYMLINK` – Symlink zur aktiven Version (Standard: `/var/www/current`)
+* `APP_CORE_UPDATE_EXCLUDES` – Kommagetrennte Exclude-Liste (Standard: `.env,config/local*,var/,storage/,uploads/`)
+* `APP_CORE_UPDATE_LOCK_FILE` – Lock-Datei (Standard: `/tmp/webinterface_update.lock`)
+
+Wenn der Symlink-Modus verwendet wird, sollte der Webroot auf `/var/www/current` (oder `/var/www/current/public`)
+zeigen. Falls der Symlink-Modus nicht verfügbar ist, wird ein In-Place-Update durchgeführt (erfordert `rsync`).
+
+### Update per CLI
+
+```bash
+php bin/console app:update:check
+php bin/console app:update:apply --yes
+```
+
+### Berechtigungen
+
+Der Webserver-User muss Schreibrechte auf das Installationsverzeichnis, das Release-Verzeichnis, die Log-Datei
+(`core/var/log/update.log`) sowie ggf. auf `/tmp` besitzen. Für In-Place-Updates wird zusätzlich `rsync` benötigt.
+
+---
+
 ## Agent & Runner: Installation und Inbetriebnahme
 
 Der Agent verbindet den Server mit dem Panel und führt Aufgaben aus. Der Runner wird für Game-Server
@@ -256,6 +303,24 @@ und externe Prozesse benötigt.
    ```bash
    easywi-runner --version
    ```
+
+---
+
+## Messenger Worker (Hintergrundjobs)
+
+Für asynchrone Tasks (z. B. Instance Actions und Job-Dispatch) wird Symfony Messenger genutzt.
+
+1. **Transport konfigurieren** (`.env`/`.env.local`)
+   - `MESSENGER_TRANSPORT_DSN` (z. B. `doctrine://default` oder `amqp://...`)
+   - Optional: `MESSENGER_PREFETCH_COUNT` für Backpressure
+
+2. **Worker starten**
+   ```bash
+   cd core
+   php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M --limit=100 -vv
+   ```
+
+> Tipp: Im Produktivbetrieb sollte der Worker über systemd, Supervisor oder einen Container-Scheduler laufen.
 
 ---
 

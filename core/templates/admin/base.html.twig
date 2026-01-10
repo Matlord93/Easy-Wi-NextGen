@@ -150,6 +150,15 @@
                         </span>
                         <span class="text-sm font-medium">{{ t('admin_nav_nodes', page_locale()) }}</span>
                     </a>
+                    {% set portBlocksActive = activeNav == 'port-blocks' %}
+                    <a href="/admin/port-blocks" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ portBlocksActive ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-md {{ portBlocksActive ? 'bg-white/15' : 'bg-white/10' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M5.75 3A1.75 1.75 0 0 0 4 4.75v6.5A1.75 1.75 0 0 0 5.75 13h1.5v1.25a.75.75 0 0 0 1.5 0V13h2v1.25a.75.75 0 0 0 1.5 0V13h1.5A1.75 1.75 0 0 0 15.5 11.25v-6.5A1.75 1.75 0 0 0 13.75 3h-8Zm0 1.5h8a.25.25 0 0 1 .25.25v6.5a.25.25 0 0 1-.25.25h-8a.25.25 0 0 1-.25-.25v-6.5a.25.25 0 0 1 .25-.25Zm2.25 2.25h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1 0-1.5Z"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm font-medium">{{ t('admin_nav_port_blocks', page_locale()) }}</span>
+                    </a>
                     <a href="/admin/security" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'security' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                         <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'security' ? 'bg-white/15' : 'bg-white/10' }}">
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

@@ -191,6 +191,8 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleInstanceFileDelete(job)
 	case "instance.files.mkdir":
 		return handleInstanceFileMkdir(job)
+	case "instance.sftp.credentials.reset":
+		return handleInstanceSftpCredentialsReset(job)
 	case "sniper.install":
 		return handleSniperInstall(job)
 	case "sniper.update":

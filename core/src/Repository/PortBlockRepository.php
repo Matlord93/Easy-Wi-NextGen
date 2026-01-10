@@ -27,6 +27,24 @@ final class PortBlockRepository extends ServiceEntityRepository
     }
 
     /**
+     * @param Instance[] $instances
+     *
+     * @return PortBlock[]
+     */
+    public function findByInstances(array $instances): array
+    {
+        if ($instances === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('block')
+            ->where('block.instance IN (:instances)')
+            ->setParameter('instances', $instances)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * @return PortBlock[]
      */
     public function findByPool(PortPool $pool): array

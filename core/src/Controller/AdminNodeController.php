@@ -50,17 +50,22 @@ final class AdminNodeController
         }
 
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+        $selectedNodeId = trim((string) $request->query->get('node', ''));
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $summary = $this->buildSummary($nodes, $latestVersion);
         $updateJobs = $this->buildUpdateJobIndex($nodes);
         $ddosStatuses = $this->buildDdosStatusIndex($nodes);
+        $normalizedNodes = $this->normalizeNodes($nodes, $latestVersion, $updateJobs, $ddosStatuses);
         $now = new \DateTimeImmutable();
         $diskProtectActive = array_filter($nodes, fn ($node) => $this->nodeDiskProtectionService->isProtectionActive($node, $now));
 
         return new Response($this->twig->render('admin/nodes/index.html.twig', [
-            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs, $ddosStatuses),
+            'nodes' => $normalizedNodes,
             'summary' => $summary,
             'roleOptions' => self::ROLE_OPTIONS,
+            'selectedNode' => $selectedNodeId !== ''
+                ? current(array_filter($normalizedNodes, static fn (array $node): bool => $node['id'] === $selectedNodeId)) ?: ($normalizedNodes[0] ?? null)
+                : ($normalizedNodes[0] ?? null),
             'updateChannel' => $this->releaseChecker->getChannel(),
             'diskProtectCount' => count($diskProtectActive),
             'activeNav' => 'nodes',

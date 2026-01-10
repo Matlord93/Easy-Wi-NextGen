@@ -11,9 +11,13 @@ use App\Entity\User;
 use App\Enum\InstanceScheduleAction;
 use App\Enum\InstanceUpdatePolicy;
 use App\Enum\InstanceStatus;
+use App\Enum\BackupTargetType;
 use App\Enum\UserType;
+use App\Repository\BackupDefinitionRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceScheduleRepository;
+use App\Repository\JobRepository;
+use App\Repository\PortBlockRepository;
 use App\Service\AuditLogger;
 use App\Service\DiskEnforcementService;
 use App\Service\DiskUsageFormatter;
@@ -34,6 +38,9 @@ final class CustomerInstanceController
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
+        private readonly PortBlockRepository $portBlockRepository,
+        private readonly BackupDefinitionRepository $backupDefinitionRepository,
+        private readonly JobRepository $jobRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
@@ -53,6 +60,140 @@ final class CustomerInstanceController
             'instances' => $this->normalizeInstances($instances),
             'activeNav' => 'instances',
         ]));
+    }
+
+    #[Route(path: '/{id}', name: 'customer_instance_detail', methods: ['GET'])]
+    public function show(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+        $activeTab = $this->resolveTab((string) $request->query->get('tab', 'overview'));
+
+        $updateSchedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Update);
+        $portBlock = $this->portBlockRepository->findByInstance($instance);
+        $instanceView = $this->normalizeInstance($instance, $updateSchedule, $portBlock);
+
+        $configFiles = $this->normalizeConfigFiles($instance->getTemplate()->getConfigFiles());
+        $restartSchedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Restart);
+        $restartScheduleView = $restartSchedule === null ? null : [
+            'cron_expression' => $restartSchedule->getCronExpression(),
+            'time_zone' => $restartSchedule->getTimeZone() ?? 'UTC',
+            'enabled' => $restartSchedule->isEnabled(),
+        ];
+
+        $tabs = $this->buildTabs($instance->getId());
+
+        return new Response($this->twig->render('customer/instances/show.html.twig', [
+            'instance' => $instanceView,
+            'template' => [
+                'start_params' => $instance->getTemplate()->getStartParams(),
+                'env_vars' => $instance->getTemplate()->getEnvVars(),
+            ],
+            'configFiles' => $configFiles,
+            'pluginPaths' => $instance->getTemplate()->getPluginPaths(),
+            'fastdl' => $this->normalizeFastdlSettings($instance->getTemplate()->getFastdlSettings()),
+            'restartSchedule' => $restartScheduleView,
+            'backups' => $this->normalizeBackupDefinitions($customer, $instance),
+            'jobs' => $this->normalizeJobsForInstance($instance),
+            'activeNav' => 'instances',
+            'tabs' => $tabs,
+            'activeTab' => $activeTab,
+            'tabTemplate' => sprintf('customer/instances/tabs/%s.html.twig', $activeTab),
+            'tabNotice' => $this->resolveNoticeKey((string) $request->query->get('notice', '')),
+            'tabError' => $this->resolveErrorKey((string) $request->query->get('error', '')),
+        ]));
+    }
+
+    #[Route(path: '/{id}/restart-planner', name: 'customer_instance_restart_planner', methods: ['POST'])]
+    public function updateRestartPlanner(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+
+        $cronExpression = trim((string) $request->request->get('cron_expression', ''));
+        $timeZone = trim((string) $request->request->get('time_zone', 'UTC'));
+        $enabled = $request->request->getBoolean('enabled');
+
+        if ($enabled && $cronExpression === '') {
+            return $this->redirectToTab($instance->getId(), 'restart_planner', null, 'customer_instance_restart_planner_error_cron_required');
+        }
+
+        if ($enabled && !CronExpression::isValidExpression($cronExpression)) {
+            return $this->redirectToTab($instance->getId(), 'restart_planner', null, 'customer_instance_restart_planner_error_cron_invalid');
+        }
+
+        $timeZone = $timeZone === '' ? 'UTC' : $timeZone;
+        try {
+            new \DateTimeZone($timeZone);
+        } catch (\Exception) {
+            return $this->redirectToTab($instance->getId(), 'restart_planner', null, 'customer_instance_restart_planner_error_timezone');
+        }
+
+        $schedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Restart);
+        if ($enabled) {
+            if ($schedule === null) {
+                $schedule = new InstanceSchedule(
+                    $instance,
+                    $customer,
+                    InstanceScheduleAction::Restart,
+                    $cronExpression,
+                    $timeZone,
+                    true,
+                );
+            } else {
+                $schedule->update(InstanceScheduleAction::Restart, $cronExpression, $timeZone, true);
+            }
+            $this->entityManager->persist($schedule);
+        } elseif ($schedule !== null) {
+            $schedule->update(InstanceScheduleAction::Restart, $schedule->getCronExpression(), $schedule->getTimeZone(), false);
+            $this->entityManager->persist($schedule);
+        }
+
+        $this->auditLogger->log($customer, 'instance.restart.schedule_updated', [
+            'instance_id' => $instance->getId(),
+            'customer_id' => $customer->getId(),
+            'cron_expression' => $schedule?->getCronExpression(),
+            'time_zone' => $schedule?->getTimeZone(),
+            'enabled' => $schedule?->isEnabled(),
+        ]);
+
+        $this->entityManager->flush();
+
+        return $this->redirectToTab($instance->getId(), 'restart_planner', 'customer_instance_restart_planner_saved', null);
+    }
+
+    #[Route(path: '/{id}/reinstall', name: 'customer_instance_reinstall', methods: ['POST'])]
+    public function reinstall(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+
+        if (!$request->request->getBoolean('confirm')) {
+            return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_confirm');
+        }
+
+        $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
+        if ($blockMessage !== null) {
+            return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_blocked');
+        }
+
+        $job = new Job('instance.reinstall', [
+            'instance_id' => (string) ($instance->getId() ?? ''),
+            'customer_id' => (string) $customer->getId(),
+            'node_id' => $instance->getNode()->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+        ]);
+        $this->entityManager->persist($job);
+
+        $this->auditLogger->log($customer, 'instance.reinstall.queued', [
+            'instance_id' => $instance->getId(),
+            'customer_id' => $customer->getId(),
+            'job_id' => $job->getId(),
+        ]);
+
+        $this->entityManager->flush();
+
+        return $this->redirectToTab($instance->getId(), 'reinstall', 'customer_instance_reinstall_queued', null);
     }
 
     #[Route(path: '/{id}/update', name: 'customer_instance_update', methods: ['POST'])]
@@ -98,6 +239,7 @@ final class CustomerInstanceController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        $detailMode = $request->query->getBoolean('detail');
 
         $policyRaw = (string) $request->request->get('update_policy', InstanceUpdatePolicy::Manual->value);
         $lockedBuildId = trim((string) $request->request->get('locked_build_id', ''));
@@ -107,14 +249,23 @@ final class CustomerInstanceController
 
         $policy = InstanceUpdatePolicy::tryFrom($policyRaw);
         if ($policy === null) {
+            if ($detailMode) {
+                return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+            }
             throw new BadRequestHttpException('Invalid update policy.');
         }
 
         if ($policy === InstanceUpdatePolicy::Auto && $cronExpression === '') {
+            if ($detailMode) {
+                return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+            }
             return $this->renderInstanceCard($instance, null, 'Auto updates require a cron schedule.');
         }
 
         if ($policy === InstanceUpdatePolicy::Auto && !CronExpression::isValidExpression($cronExpression)) {
+            if ($detailMode) {
+                return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+            }
             return $this->renderInstanceCard($instance, null, 'Cron expression is invalid.');
         }
 
@@ -122,6 +273,9 @@ final class CustomerInstanceController
         try {
             new \DateTimeZone($timeZone);
         } catch (\Exception) {
+            if ($detailMode) {
+                return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+            }
             return $this->renderInstanceCard($instance, null, 'Time zone is invalid.');
         }
 
@@ -162,6 +316,10 @@ final class CustomerInstanceController
         ]);
 
         $this->entityManager->flush();
+
+        if ($detailMode) {
+            return $this->redirectToTab($instance->getId(), 'settings', 'customer_instance_settings_saved', null);
+        }
 
         return $this->renderInstanceCard($instance, 'Update settings saved.', null);
     }
@@ -286,18 +444,29 @@ final class CustomerInstanceController
             $scheduleIndex[$schedule->getInstance()->getId()] = $schedule;
         }
 
-        return array_map(function (Instance $instance) use ($scheduleIndex): array {
-            $schedule = $scheduleIndex[$instance->getId()] ?? null;
+        $portBlocks = $this->portBlockRepository->findByInstances($instances);
+        $portBlockIndex = [];
+        foreach ($portBlocks as $portBlock) {
+            $assignedInstance = $portBlock->getInstance();
+            if ($assignedInstance !== null) {
+                $portBlockIndex[$assignedInstance->getId()] = $portBlock;
+            }
+        }
 
-            return $this->normalizeInstance($instance, $schedule);
+        return array_map(function (Instance $instance) use ($scheduleIndex, $portBlockIndex): array {
+            $schedule = $scheduleIndex[$instance->getId()] ?? null;
+            $portBlock = $portBlockIndex[$instance->getId()] ?? null;
+
+            return $this->normalizeInstance($instance, $schedule, $portBlock);
         }, $instances);
     }
 
-    private function normalizeInstance(Instance $instance, ?InstanceSchedule $schedule, ?string $notice = null, ?string $error = null): array
+    private function normalizeInstance(Instance $instance, ?InstanceSchedule $schedule, ?\App\Entity\PortBlock $portBlock, ?string $notice = null, ?string $error = null): array
     {
         $diskLimitBytes = $instance->getDiskLimitBytes();
         $diskUsedBytes = $instance->getDiskUsedBytes();
         $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
+        $connection = $this->buildConnectionData($instance, $portBlock);
 
         return [
             'id' => $instance->getId(),
@@ -326,6 +495,7 @@ final class CustomerInstanceController
             'disk_state' => $instance->getDiskState()->value,
             'disk_last_scanned_at' => $instance->getDiskLastScannedAt(),
             'disk_scan_error' => $instance->getDiskScanError(),
+            'connection' => $connection,
             'schedule' => $schedule === null ? null : [
                 'cron_expression' => $schedule->getCronExpression(),
                 'time_zone' => $schedule->getTimeZone() ?? 'UTC',
@@ -336,12 +506,254 @@ final class CustomerInstanceController
         ];
     }
 
+    private function normalizeConfigFiles(array $configFiles): array
+    {
+        $normalized = [];
+        foreach ($configFiles as $entry) {
+            $path = trim((string) ($entry['path'] ?? ''));
+            if ($path === '') {
+                continue;
+            }
+            $description = trim((string) ($entry['description'] ?? ''));
+            $name = basename($path);
+            $dir = dirname($path);
+            $normalized[] = [
+                'path' => $path,
+                'dir' => $dir === '.' ? '' : $dir,
+                'name' => $name,
+                'description' => $description,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeFastdlSettings(array $settings): array
+    {
+        return [
+            'enabled' => (bool) ($settings['enabled'] ?? false),
+            'base_url' => (string) ($settings['base_url'] ?? ''),
+            'root_path' => (string) ($settings['root_path'] ?? ''),
+        ];
+    }
+
+    private function normalizeBackupDefinitions(User $customer, Instance $instance): array
+    {
+        $definitions = $this->backupDefinitionRepository->findByCustomer($customer);
+
+        $results = [];
+        foreach ($definitions as $definition) {
+            if ($definition->getTargetType() !== BackupTargetType::Game) {
+                continue;
+            }
+            if ($definition->getTargetId() !== (string) $instance->getId()) {
+                continue;
+            }
+            $schedule = $definition->getSchedule();
+            $results[] = [
+                'id' => $definition->getId(),
+                'label' => $definition->getLabel(),
+                'schedule' => $schedule === null ? null : [
+                    'cron_expression' => $schedule->getCronExpression(),
+                    'retention_days' => $schedule->getRetentionDays(),
+                    'retention_count' => $schedule->getRetentionCount(),
+                    'enabled' => $schedule->isEnabled(),
+                ],
+            ];
+        }
+
+        return $results;
+    }
+
+    private function normalizeJobsForInstance(Instance $instance): array
+    {
+        $jobs = $this->jobRepository->findLatest(100);
+        $filtered = [];
+
+        foreach ($jobs as $job) {
+            $payload = $job->getPayload();
+            if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
+                continue;
+            }
+            $filtered[] = [
+                'id' => $job->getId(),
+                'type' => $job->getType(),
+                'status' => $job->getStatus()->value,
+                'created_at' => $job->getCreatedAt(),
+            ];
+        }
+
+        return array_slice($filtered, 0, 25);
+    }
+
+    private function buildTabs(int $instanceId): array
+    {
+        return [
+            [
+                'key' => 'overview',
+                'label' => 'customer_instance_tab_overview',
+                'href' => sprintf('/instances/%d?tab=overview', $instanceId),
+            ],
+            [
+                'key' => 'configs',
+                'label' => 'customer_instance_tab_configs',
+                'href' => sprintf('/instances/%d?tab=configs', $instanceId),
+            ],
+            [
+                'key' => 'files',
+                'label' => 'customer_instance_tab_files',
+                'href' => sprintf('/instances/%d?tab=files', $instanceId),
+            ],
+            [
+                'key' => 'addons',
+                'label' => 'customer_instance_tab_addons',
+                'href' => sprintf('/instances/%d?tab=addons', $instanceId),
+            ],
+            [
+                'key' => 'restart_planner',
+                'label' => 'customer_instance_tab_restart_planner',
+                'href' => sprintf('/instances/%d?tab=restart_planner', $instanceId),
+            ],
+            [
+                'key' => 'backups',
+                'label' => 'customer_instance_tab_backups',
+                'href' => sprintf('/instances/%d?tab=backups', $instanceId),
+            ],
+            [
+                'key' => 'console',
+                'label' => 'customer_instance_tab_console',
+                'href' => sprintf('/instances/%d?tab=console', $instanceId),
+            ],
+            [
+                'key' => 'settings',
+                'label' => 'customer_instance_tab_settings',
+                'href' => sprintf('/instances/%d?tab=settings', $instanceId),
+            ],
+            [
+                'key' => 'reinstall',
+                'label' => 'customer_instance_tab_reinstall',
+                'href' => sprintf('/instances/%d?tab=reinstall', $instanceId),
+            ],
+            [
+                'key' => 'tasks',
+                'label' => 'customer_instance_tab_tasks',
+                'href' => sprintf('/instances/%d?tab=tasks', $instanceId),
+            ],
+        ];
+    }
+
+    private function resolveTab(string $tab): string
+    {
+        $allowed = [
+            'overview',
+            'configs',
+            'files',
+            'addons',
+            'restart_planner',
+            'backups',
+            'console',
+            'settings',
+            'reinstall',
+            'tasks',
+        ];
+
+        $tab = strtolower(trim($tab));
+
+        return in_array($tab, $allowed, true) ? $tab : 'overview';
+    }
+
+    private function resolveNoticeKey(string $notice): ?string
+    {
+        return match ($notice) {
+            'customer_instance_restart_planner_saved',
+            'customer_instance_reinstall_queued',
+            'customer_instance_settings_saved',
+            'customer_instance_update_saved' => $notice,
+            default => null,
+        };
+    }
+
+    private function resolveErrorKey(string $error): ?string
+    {
+        return match ($error) {
+            'customer_instance_restart_planner_error_cron_required',
+            'customer_instance_restart_planner_error_cron_invalid',
+            'customer_instance_restart_planner_error_timezone',
+            'customer_instance_reinstall_error_confirm',
+            'customer_instance_reinstall_error_blocked',
+            'customer_instance_settings_error' => $error,
+            default => null,
+        };
+    }
+
+    private function redirectToTab(int $instanceId, string $tab, ?string $notice, ?string $error): Response
+    {
+        $params = ['tab' => $tab];
+        if ($notice !== null) {
+            $params['notice'] = $notice;
+        }
+        if ($error !== null) {
+            $params['error'] = $error;
+        }
+
+        $query = http_build_query($params);
+
+        return new Response('', Response::HTTP_FOUND, ['Location' => sprintf('/instances/%d?%s', $instanceId, $query)]);
+    }
+
     private function renderInstanceCard(Instance $instance, ?string $notice, ?string $error): Response
     {
         $schedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Update);
+        $portBlock = $this->portBlockRepository->findByInstance($instance);
 
         return new Response($this->twig->render('customer/instances/_card.html.twig', [
-            'instance' => $this->normalizeInstance($instance, $schedule, $notice, $error),
+            'instance' => $this->normalizeInstance($instance, $schedule, $portBlock, $notice, $error),
         ]));
+    }
+
+    private function buildConnectionData(Instance $instance, ?\App\Entity\PortBlock $portBlock): array
+    {
+        $host = $instance->getNode()->getLastHeartbeatIp();
+        $requiredPorts = $instance->getTemplate()->getRequiredPorts();
+        $assignedPorts = [];
+        $primaryPort = null;
+
+        if ($portBlock !== null) {
+            $ports = $portBlock->getPorts();
+
+            foreach ($requiredPorts as $index => $definition) {
+                if (!isset($ports[$index])) {
+                    continue;
+                }
+
+                $label = (string) ($definition['name'] ?? 'port');
+                $protocol = (string) ($definition['protocol'] ?? 'udp');
+                $assignedPorts[] = [
+                    'label' => sprintf('%s/%s', $label, $protocol),
+                    'port' => $ports[$index],
+                ];
+
+                if ($primaryPort === null) {
+                    $primaryPort = $ports[$index];
+                }
+            }
+
+            if ($primaryPort === null && isset($ports[0])) {
+                $primaryPort = $ports[0];
+            }
+        }
+
+        $address = $host !== null && $primaryPort !== null ? sprintf('%s:%d', $host, $primaryPort) : null;
+
+        return [
+            'host' => $host,
+            'address' => $address,
+            'quick_connect' => $address !== null ? sprintf('steam://connect/%s', $address) : null,
+            'port_block' => $portBlock === null ? null : [
+                'start' => $portBlock->getStartPort(),
+                'end' => $portBlock->getEndPort(),
+            ],
+            'assigned_ports' => $assignedPorts,
+        ];
     }
 }

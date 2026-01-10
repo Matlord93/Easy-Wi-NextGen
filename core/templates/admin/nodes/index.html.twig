@@ -3,7 +3,7 @@
 {% block title %}{{ t('admin_nodes_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
-{% set selectedNode = nodes|first %}
+{% set selectedNode = selectedNode ?? nodes|first %}
 {% set statusMap = {
     'online': 'badge--success',
     'stale': 'badge--warning',
@@ -97,6 +97,25 @@
         <aside class="nodes-card">
             <div class="nodes-detail">
                 {% if selectedNode %}
+                    <form class="nodes-section" method="get" action="/admin/nodes">
+                        <div class="nodes-section__title">Agent auswählen</div>
+                        <div class="nodes-form-grid">
+                            <div class="form-field">
+                                <label class="form-label" for="node-select">Node</label>
+                                <select id="node-select" name="node" class="form-input">
+                                    {% for node in nodes %}
+                                        <option value="{{ node.id }}" {% if node.id == selectedNode.id %}selected{% endif %}>
+                                            {{ node.name ?? t('admin_nodes_unnamed', page_locale()) }} ({{ node.id }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-field">
+                                <button class="btn btn--secondary" type="submit">Laden</button>
+                            </div>
+                        </div>
+                    </form>
+
                     {% set statusClass = statusMap[selectedNode.status] ?? 'badge--neutral' %}
                     <div class="nodes-detail__header">
                         <h3 class="nodes-detail__title">{{ selectedNode.name ?? t('admin_nodes_unnamed', page_locale()) }}</h3>
@@ -135,21 +154,18 @@
                     >
                         <div class="nodes-section__title">Rollen</div>
                         <div class="role-toggle-group">
-                            {% set roleChoices = ['web', 'dns', 'game', 'db'] %}
                             {% for roleOption in roleOptions %}
                                 {% set roleKey = roleOption|lower %}
-                                {% if roleKey in roleChoices %}
-                                    <label class="role-toggle">
-                                        <input
-                                            type="checkbox"
-                                            name="roles[]"
-                                            value="{{ roleOption }}"
-                                            {% if roleKey in selectedNode.roleKeys %}checked{% endif %}
-                                            aria-label="{{ roleOption }}"
-                                        >
-                                        <span>{{ roleOption }}</span>
-                                    </label>
-                                {% endif %}
+                                <label class="role-toggle">
+                                    <input
+                                        type="checkbox"
+                                        name="roles[]"
+                                        value="{{ roleOption }}"
+                                        {% if roleKey in selectedNode.roleKeys %}checked{% endif %}
+                                        aria-label="{{ roleOption }}"
+                                    >
+                                    <span>{{ roleOption }}</span>
+                                </label>
                             {% endfor %}
                         </div>
                     </form>

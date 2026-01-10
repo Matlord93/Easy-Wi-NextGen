@@ -8,10 +8,12 @@ use App\Entity\DdosPolicy;
 use App\Entity\DdosStatus;
 use App\Entity\JobResult;
 use App\Entity\MetricSample;
+use App\Enum\BackupStatus;
 use App\Enum\JobResultStatus;
 use App\Enum\JobStatus;
 use App\Enum\InstanceStatus;
 use App\Repository\AgentRepository;
+use App\Repository\BackupRepository;
 use App\Repository\DdosPolicyRepository;
 use App\Repository\DdosStatusRepository;
 use App\Repository\DomainRepository;
@@ -26,6 +28,7 @@ use App\Service\AuditLogger;
 use App\Service\EncryptionService;
 use App\Service\FirewallStateManager;
 use App\Service\GdprAnonymizer;
+use App\Service\JobLogger;
 use App\Service\NotificationService;
 use App\Service\NodeDiskProtectionService;
 use DateTimeImmutable;
@@ -50,6 +53,7 @@ final class AgentApiController
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly UserRepository $userRepository,
         private readonly GdprDeletionRequestRepository $gdprDeletionRequestRepository,
+        private readonly BackupRepository $backupRepository,
         private readonly DdosPolicyRepository $ddosPolicyRepository,
         private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly EntityManagerInterface $entityManager,
@@ -61,6 +65,7 @@ final class AgentApiController
         private readonly NotificationService $notificationService,
         private readonly NodeDiskProtectionService $nodeDiskProtectionService,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly JobLogger $jobLogger,
     ) {
     }
 
@@ -134,6 +139,7 @@ final class AgentApiController
             $lockToken = bin2hex(random_bytes(16));
             $job->lock($agent->getId(), $lockToken, $now->modify('+10 minutes'));
             $job->transitionTo(JobStatus::Running);
+            $this->jobLogger->log($job, 'Job started.', 10);
 
             $this->eventDispatcher->dispatch(
                 new \App\Extension\Event\JobBeforeDispatchEvent($job, $agent),
@@ -209,6 +215,7 @@ final class AgentApiController
             JobResultStatus::Failed => JobStatus::Failed,
             JobResultStatus::Cancelled => JobStatus::Cancelled,
         });
+        $this->jobLogger->log($job, sprintf('Job %s.', $resultStatus->value), 100);
 
         $lockToken = $job->getLockToken();
         if ($lockToken !== null) {
@@ -227,6 +234,7 @@ final class AgentApiController
         $this->applyDiskUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyPublicServerUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyGdprAnonymizationFromJob($job, $resultStatus, $agent->getId());
+        $this->applyBackupUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->eventDispatcher->dispatch(
             new \App\Extension\Event\JobAfterResultEvent($job, $jobResult, $agent),
             'extension.job.after_result',
@@ -938,6 +946,42 @@ final class AgentApiController
             'job_id' => $job->getId(),
             'agent_id' => $agentId,
             'status' => $status,
+        ]);
+    }
+
+    private function applyBackupUpdatesFromJob(
+        \App\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        string $agentId,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'instance.backup.create') {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $backupId = $payload['backup_id'] ?? null;
+        if (!is_int($backupId) && !is_string($backupId)) {
+            return;
+        }
+
+        $backup = $this->backupRepository->find((int) $backupId);
+        if ($backup === null) {
+            return;
+        }
+
+        $status = $resultStatus === JobResultStatus::Succeeded ? BackupStatus::Succeeded : BackupStatus::Failed;
+        $backup->markStatus($status, $completedAt);
+        $this->entityManager->persist($backup);
+
+        $this->auditLogger->log(null, 'instance.backup.completed', [
+            'backup_id' => $backup->getId(),
+            'definition_id' => $backup->getDefinition()->getId(),
+            'job_id' => $job->getId(),
+            'agent_id' => $agentId,
+            'status' => $status->value,
+            'output' => $output,
         ]);
     }
 

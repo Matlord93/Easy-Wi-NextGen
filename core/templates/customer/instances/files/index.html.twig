@@ -29,10 +29,9 @@
                             </p>
                             <button
                                 type="button"
-                                class="mt-3 rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
-                                hx-get="/instances/{{ instance.id }}/files/read?path={{ config.dir|url_encode }}&name={{ config.name|url_encode }}&description={{ config.description|url_encode }}"
-                                hx-target="#file-editor"
-                                hx-swap="outerHTML"
+                                class="mt-3 rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600 file-open-config"
+                                data-path="{{ config.dir }}"
+                                data-name="{{ config.name }}"
                             >
                                 {{ t('customer_instance_files_config_edit', page_locale()) }}
                             </button>
@@ -48,24 +47,436 @@
             <div class="rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2">
                 <h2 class="text-sm font-semibold text-slate-900">{{ t('customer_instance_files_listing_title', page_locale()) }}</h2>
                 <p class="mt-1 text-xs text-slate-600">{{ t('customer_instance_files_listing_intro', page_locale()) }}</p>
-                <form class="mt-4 space-y-4" hx-get="/instances/{{ instance.id }}/files/listing" hx-target="#file-listing" hx-swap="outerHTML">
+                <form class="mt-4 space-y-4" id="file-path-form">
                     <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_relative_path', page_locale()) }}</label>
-                    <input name="path" value="{{ path }}" placeholder="{{ t('customer_instance_files_relative_path_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                    <input id="file-path-input" name="path" value="{{ path }}" placeholder="{{ t('customer_instance_files_relative_path_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
                     <p class="text-xs text-slate-600">{{ t('customer_instance_files_relative_path_hint', page_locale()) }}</p>
                     <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_load_listing', page_locale()) }}</button>
                 </form>
 
-                <div class="mt-6" id="file-listing">
-                    <div
-                        class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-xs text-slate-600"
-                        hx-get="/instances/{{ instance.id }}/files/listing?path={{ path|url_encode }}"
-                        hx-trigger="load"
-                        hx-swap="outerHTML"
-                    >
-                        {{ t('customer_instance_files_loading_listing', page_locale()) }}
+                <div class="mt-6 space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+                        <div>
+                            <span class="uppercase tracking-wide text-slate-600">{{ t('customer_instance_files_root', page_locale()) }}</span>
+                            <span class="ml-2 font-medium text-slate-700" id="file-root-path">—</span>
+                        </div>
+                        <div>
+                            <span class="uppercase tracking-wide text-slate-600">{{ t('customer_instance_files_path', page_locale()) }}</span>
+                            <span class="ml-2 font-medium text-slate-700" id="file-current-path">/</span>
+                        </div>
+                        <button
+                            type="button"
+                            class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                            id="file-up-one-level"
+                        >
+                            {{ t('customer_instance_files_up_one_level', page_locale()) }}
+                        </button>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 bg-white p-4">
+                        <div class="grid gap-4 lg:grid-cols-3">
+                            <form class="space-y-2" id="file-upload-form" enctype="multipart/form-data">
+                                <input type="hidden" name="path" value="{{ path }}">
+                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_upload_label', page_locale()) }}</label>
+                                <input type="file" name="upload" class="w-full text-xs text-slate-600">
+                                <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_upload_action', page_locale()) }}</button>
+                            </form>
+                            <form class="space-y-2" id="file-mkdir-form">
+                                <input type="hidden" name="path" value="{{ path }}">
+                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_new_folder', page_locale()) }}</label>
+                                <input type="text" name="name" placeholder="{{ t('customer_instance_files_folder_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                                <button type="submit" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_files_create_folder', page_locale()) }}</button>
+                            </form>
+                            <form class="space-y-2" id="file-create-form">
+                                <input type="hidden" name="path" value="{{ path }}">
+                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_new_file', page_locale()) }}</label>
+                                <input type="text" name="name" placeholder="{{ t('customer_instance_files_file_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                                <button type="submit" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_files_create_file', page_locale()) }}</button>
+                            </form>
+                        </div>
+                        <div id="file-feedback" class="mt-4 text-xs text-slate-600"></div>
+                    </div>
+
+                    <div class="overflow-hidden rounded-xl border border-slate-200">
+                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-700">
+                                <tr>
+                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_name', page_locale()) }}</th>
+                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_type', page_locale()) }}</th>
+                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_size', page_locale()) }}</th>
+                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_permissions', page_locale()) }}</th>
+                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_modified', page_locale()) }}</th>
+                                    <th class="px-4 py-3">{{ t('customer_instance_files_table_actions', page_locale()) }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="file-listing-body" class="divide-y divide-slate-100 bg-white">
+                                <tr>
+                                    <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">{{ t('customer_instance_files_loading_listing', page_locale()) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="file-editor" class="rounded-xl border border-slate-200 bg-white p-4">
+                        <form class="space-y-3" id="file-editor-form">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_file_placeholder', page_locale()) }}</label>
+                                <input type="text" id="file-editor-name" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs" placeholder="{{ t('customer_instance_files_file_placeholder', page_locale()) }}">
+                                <input type="hidden" id="file-editor-path" value="{{ path }}">
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_config_edit', page_locale()) }}</label>
+                                <textarea id="file-editor-content" rows="10" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"></textarea>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_save', page_locale()) }}</button>
+                                <button type="button" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600" id="file-editor-clear">{{ t('customer_instance_files_editor_empty', page_locale()) }}</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script>
+        (() => {
+            const instanceId = {{ instance.id }};
+            const apiBase = `/api/instances/${instanceId}/files`;
+            const labels = {
+                loading: "{{ t('customer_instance_files_loading_listing', page_locale())|e('js') }}",
+                empty: "{{ t('customer_instance_files_empty', page_locale())|e('js') }}",
+                typeDirectory: "{{ t('customer_instance_files_type_directory', page_locale())|e('js') }}",
+                typeFile: "{{ t('customer_instance_files_type_file', page_locale())|e('js') }}",
+                open: "{{ t('customer_instance_files_open', page_locale())|e('js') }}",
+                edit: "{{ t('customer_instance_files_edit', page_locale())|e('js') }}",
+                download: "{{ t('customer_instance_files_download', page_locale())|e('js') }}",
+                delete: "{{ t('customer_instance_files_delete', page_locale())|e('js') }}",
+                deleteConfirm: "{{ t('customer_instance_files_delete_confirm', page_locale())|e('js') }}",
+                upload: "{{ t('customer_instance_files_upload_action', page_locale())|e('js') }}",
+                createFolder: "{{ t('customer_instance_files_create_folder', page_locale())|e('js') }}",
+                createFile: "{{ t('customer_instance_files_create_file', page_locale())|e('js') }}",
+                save: "{{ t('customer_instance_files_save', page_locale())|e('js') }}",
+                editorEmpty: "{{ t('customer_instance_files_editor_empty', page_locale())|e('js') }}",
+                configEdit: "{{ t('customer_instance_files_config_edit', page_locale())|e('js') }}",
+                folderPlaceholder: "{{ t('customer_instance_files_folder_placeholder', page_locale())|e('js') }}",
+                filePlaceholder: "{{ t('customer_instance_files_file_placeholder', page_locale())|e('js') }}",
+            };
+            const listingBody = document.getElementById('file-listing-body');
+            const rootPathEl = document.getElementById('file-root-path');
+            const currentPathEl = document.getElementById('file-current-path');
+            const pathInput = document.getElementById('file-path-input');
+            const feedbackEl = document.getElementById('file-feedback');
+            const uploadForm = document.getElementById('file-upload-form');
+            const mkdirForm = document.getElementById('file-mkdir-form');
+            const createForm = document.getElementById('file-create-form');
+            const editorForm = document.getElementById('file-editor-form');
+            const editorName = document.getElementById('file-editor-name');
+            const editorPath = document.getElementById('file-editor-path');
+            const editorContent = document.getElementById('file-editor-content');
+            const upButton = document.getElementById('file-up-one-level');
+            const clearButton = document.getElementById('file-editor-clear');
+
+            let currentPath = pathInput.value || '';
+
+            const setFeedback = (message, type = 'info') => {
+                if (!feedbackEl) {
+                    return;
+                }
+                const color = type === 'error' ? 'text-rose-600' : 'text-slate-600';
+                feedbackEl.className = `mt-4 text-xs ${color}`;
+                feedbackEl.textContent = message;
+            };
+
+            const buildQuery = (params) => {
+                const search = new URLSearchParams(params);
+                const query = search.toString();
+                return query ? `?${query}` : '';
+            };
+
+            const updatePathDisplay = (rootPath, path) => {
+                rootPathEl.textContent = rootPath || '—';
+                currentPathEl.textContent = path ? `/${path}` : '/';
+                pathInput.value = path || '';
+                currentPath = path || '';
+                if (uploadForm) {
+                    uploadForm.querySelector('input[name="path"]').value = currentPath;
+                }
+                if (mkdirForm) {
+                    mkdirForm.querySelector('input[name="path"]').value = currentPath;
+                }
+                if (createForm) {
+                    createForm.querySelector('input[name="path"]').value = currentPath;
+                }
+                editorPath.value = currentPath;
+            };
+
+            const renderEntries = (entries) => {
+                if (!entries.length) {
+                    listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">${labels.empty}</td></tr>`;
+                    return;
+                }
+
+                listingBody.innerHTML = entries.map((entry) => {
+                    const nextPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+                    const typeBadge = entry.is_dir
+                        ? `<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700">${labels.typeDirectory}</span>`
+                        : `<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-600">${labels.typeFile}</span>`;
+                    const actionButtons = entry.is_dir
+                        ? `<button type="button" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600" data-action="open" data-path="${nextPath}">${labels.open}</button>`
+                        : `
+                            <button type="button" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600" data-action="edit" data-name="${entry.name}">${labels.edit}</button>
+                            <button type="button" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600" data-action="download" data-name="${entry.name}">${labels.download}</button>
+                        `;
+                    const deleteButton = `<button type="button" class="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 hover:border-rose-300" data-action="delete" data-name="${entry.name}">${labels.delete}</button>`;
+
+                    return `
+                        <tr>
+                            <td class="px-4 py-3 font-medium text-slate-800">${entry.name}</td>
+                            <td class="px-4 py-3">${typeBadge}</td>
+                            <td class="px-4 py-3 text-slate-700">${entry.size_human}</td>
+                            <td class="px-4 py-3 text-slate-700">${entry.mode}</td>
+                            <td class="px-4 py-3 text-slate-700">${entry.modified_at}</td>
+                            <td class="px-4 py-3">
+                                <div class="flex flex-wrap gap-2">
+                                    ${actionButtons}
+                                    ${deleteButton}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            };
+
+            const loadListing = async (path) => {
+                setFeedback(labels.loading);
+                listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">${labels.loading}</td></tr>`;
+                try {
+                    const response = await fetch(`${apiBase}${buildQuery({ path })}`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Listing failed.');
+                    }
+                    updatePathDisplay(data.root_path, data.path);
+                    renderEntries(data.entries || []);
+                    setFeedback('');
+                } catch (error) {
+                    listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-rose-600">${error.message}</td></tr>`;
+                    setFeedback(error.message, 'error');
+                }
+            };
+
+            const downloadFile = (path, name) => {
+                const url = `${apiBase}/download${buildQuery({ path, name })}`;
+                window.location.assign(url);
+            };
+
+            const readFile = async (path, name) => {
+                try {
+                    const response = await fetch(`${apiBase}/download${buildQuery({ path, name })}`);
+                    if (!response.ok) {
+                        const data = await response.json().catch(() => ({}));
+                        throw new Error(data.error || 'Download failed.');
+                    }
+                    return await response.text();
+                } catch (error) {
+                    setFeedback(error.message, 'error');
+                    return null;
+                }
+            };
+
+            document.getElementById('file-path-form').addEventListener('submit', (event) => {
+                event.preventDefault();
+                loadListing(pathInput.value.trim());
+            });
+
+            upButton.addEventListener('click', () => {
+                if (!currentPath) {
+                    return;
+                }
+                const parts = currentPath.split('/').filter(Boolean);
+                parts.pop();
+                loadListing(parts.join('/'));
+            });
+
+            listingBody.addEventListener('click', async (event) => {
+                const target = event.target.closest('[data-action]');
+                if (!target) {
+                    return;
+                }
+                const action = target.dataset.action;
+                const name = target.dataset.name || '';
+                const path = target.dataset.path || currentPath;
+
+                if (action === 'open') {
+                    loadListing(path);
+                    return;
+                }
+
+                if (action === 'download') {
+                    downloadFile(currentPath, name);
+                    return;
+                }
+
+                if (action === 'edit') {
+                    const content = await readFile(currentPath, name);
+                    if (content === null) {
+                        return;
+                    }
+                    editorName.value = name;
+                    editorPath.value = currentPath;
+                    editorContent.value = content;
+                    setFeedback(labels.configEdit);
+                    return;
+                }
+
+                if (action === 'delete') {
+                    if (!confirm(labels.deleteConfirm)) {
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`${apiBase}/delete`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ path: currentPath, name }),
+                        });
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Delete failed.');
+                        }
+                        setFeedback(labels.delete);
+                        loadListing(currentPath);
+                    } catch (error) {
+                        setFeedback(error.message, 'error');
+                    }
+                }
+            });
+
+            uploadForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const formData = new FormData(uploadForm);
+                formData.set('path', currentPath);
+                try {
+                    const response = await fetch(`${apiBase}/upload`, {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Upload failed.');
+                    }
+                    uploadForm.reset();
+                    setFeedback(labels.upload);
+                    loadListing(currentPath);
+                } catch (error) {
+                    setFeedback(error.message, 'error');
+                }
+            });
+
+            mkdirForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const name = mkdirForm.querySelector('input[name="name"]').value.trim();
+                if (!name) {
+                    setFeedback(labels.folderPlaceholder, 'error');
+                    return;
+                }
+                try {
+                    const response = await fetch(`${apiBase}/mkdir`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: currentPath, name }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Folder creation failed.');
+                    }
+                    mkdirForm.reset();
+                    setFeedback(labels.createFolder);
+                    loadListing(currentPath);
+                } catch (error) {
+                    setFeedback(error.message, 'error');
+                }
+            });
+
+            createForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const name = createForm.querySelector('input[name="name"]').value.trim();
+                if (!name) {
+                    setFeedback(labels.filePlaceholder, 'error');
+                    return;
+                }
+                try {
+                    const response = await fetch(`${apiBase}/save`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: currentPath, name, content: '' }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'File creation failed.');
+                    }
+                    createForm.reset();
+                    setFeedback(labels.createFile);
+                    loadListing(currentPath);
+                } catch (error) {
+                    setFeedback(error.message, 'error');
+                }
+            });
+
+            editorForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const name = editorName.value.trim();
+                if (!name) {
+                    setFeedback(labels.filePlaceholder, 'error');
+                    return;
+                }
+                try {
+                    const response = await fetch(`${apiBase}/save`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            path: editorPath.value.trim(),
+                            name,
+                            content: editorContent.value,
+                        }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Save failed.');
+                    }
+                    setFeedback(labels.save);
+                    loadListing(editorPath.value.trim());
+                } catch (error) {
+                    setFeedback(error.message, 'error');
+                }
+            });
+
+            clearButton.addEventListener('click', () => {
+                editorName.value = '';
+                editorContent.value = '';
+                setFeedback(labels.editorEmpty);
+            });
+
+            document.querySelectorAll('.file-open-config').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const path = button.dataset.path || '';
+                    const name = button.dataset.name || '';
+                    const content = await readFile(path, name);
+                    if (content === null) {
+                        return;
+                    }
+                    editorName.value = name;
+                    editorPath.value = path;
+                    editorContent.value = content;
+                });
+            });
+
+            loadListing(currentPath);
+        })();
+    </script>
 {% endblock %}

@@ -24,3 +24,11 @@ framework:
             policy: 'fixed_window'
             limit: 10
             interval: '15 minutes'
+        instance_files_uploads:
+            policy: 'fixed_window'
+            limit: 30
+            interval: '1 minute'
+        instance_files_commands:
+            policy: 'fixed_window'
+            limit: 120
+            interval: '1 minute'
