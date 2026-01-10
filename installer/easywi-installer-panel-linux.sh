@@ -467,12 +467,7 @@ generate_app_secret() {
 urlencode() {
   local raw="$1"
   if command_exists python3; then
-    printf '%s' "${raw}" | python3 - <<'PY'
-import sys
-import urllib.parse
-value = sys.stdin.read()
-print(urllib.parse.quote(value))
-PY
+    printf '%s' "${raw}" | python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read()))'
   else
     echo "${raw}" | sed -e 's/%/%25/g' -e 's/ /%20/g' -e 's/:/%3A/g' -e 's/@/%40/g' -e 's/?/%3F/g' -e 's/#/%23/g' -e 's/&/%26/g' -e 's/=/%3D/g'
   fi
