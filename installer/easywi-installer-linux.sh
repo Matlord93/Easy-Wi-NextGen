@@ -409,8 +409,8 @@ download_runner() {
   local checksum_name
   local checksum_line
   tmp_dir="$(mktemp -d)"
-  asset_name="easywi-runner-linux-${arch}"
-  checksum_name="checksums-runner.txt"
+  asset_name="easywi-agent-linux-${arch}"
+  checksum_name="checksums-agent.txt"
 
   if [[ "${version}" == "latest" ]]; then
     release_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download"
