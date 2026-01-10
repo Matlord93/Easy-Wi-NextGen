@@ -79,6 +79,6 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: ShellCheck (bash installer)
-        uses: ludeeus/action-shellcheck@v2
+        uses: ludeeus/action-shellcheck@master
         with:
           scandir: installer
