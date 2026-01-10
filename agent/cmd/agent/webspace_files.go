@@ -23,7 +23,7 @@ type webspaceFileEntry struct {
 	isDir      bool
 }
 
-const webspaceFileMode = 0o640
+const webspaceFilesFileMode = 0o640
 
 func handleWebspaceFilesList(job jobs.Job) (jobs.Result, func() error) {
 	rootPath := payloadValue(job.Payload, "root_path", "web_root")
@@ -192,7 +192,7 @@ func handleWebspaceFileWrite(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, fmt.Errorf("decode content: %w", err))
 	}
 
-	if err := os.WriteFile(target, content, webspaceFileMode); err != nil {
+	if err := os.WriteFile(target, content, webspaceFilesFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write file %s: %w", target, err))
 	}
 
