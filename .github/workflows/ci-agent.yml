@@ -41,7 +41,7 @@ jobs:
           sha256sum easywi-agent-* > checksums-agent.txt
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: agent-binaries
           path: |
