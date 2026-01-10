@@ -53,7 +53,10 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 	defer heartbeatTicker.Stop()
 	defer pollTicker.Stop()
 
-	if err := client.SendHeartbeat(ctx, collectStats(cfg.Version)); err != nil {
+	roles := collectRoles()
+	metadata := collectMetadata()
+
+	if err := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); err != nil {
 		log.Printf("heartbeat failed: %v", err)
 	}
 
@@ -62,7 +65,9 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 		case <-ctx.Done():
 			return
 		case <-heartbeatTicker.C:
-			if err := client.SendHeartbeat(ctx, collectStats(cfg.Version)); err != nil {
+			roles = collectRoles()
+			metadata = collectMetadata()
+			if err := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); err != nil {
 				log.Printf("heartbeat failed: %v", err)
 			}
 		case <-pollTicker.C:
@@ -87,12 +92,13 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 	}
 }
 
-func collectStats(version string) map[string]any {
+func collectStats(version string, roles []string) map[string]any {
 	return map[string]any{
 		"version":    version,
 		"go_version": runtime.Version(),
 		"os":         runtime.GOOS,
 		"arch":       runtime.GOARCH,
+		"roles":      roles,
 		"metrics":    metrics.Collect(),
 	}
 }
@@ -169,6 +175,22 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleInstanceDiskScan(job)
 	case "instance.disk.top":
 		return handleInstanceDiskTop(job)
+	case "instance.files.list":
+		return handleInstanceFilesList(job)
+	case "instance.files.listing":
+		return handleInstanceFilesList(job)
+	case "instance.files.read":
+		return handleInstanceFileRead(job)
+	case "instance.files.download":
+		return handleInstanceFileRead(job)
+	case "instance.files.write":
+		return handleInstanceFileWrite(job)
+	case "instance.files.upload":
+		return handleInstanceFileWrite(job)
+	case "instance.files.delete":
+		return handleInstanceFileDelete(job)
+	case "instance.files.mkdir":
+		return handleInstanceFileMkdir(job)
 	case "sniper.install":
 		return handleSniperInstall(job)
 	case "sniper.update":
@@ -177,9 +199,15 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleNodeDiskStat(job)
 	case "webspace.files.list":
 		return handleWebspaceFilesList(job)
+	case "webspace.files.listing":
+		return handleWebspaceFilesList(job)
 	case "webspace.files.read":
 		return handleWebspaceFileRead(job)
+	case "webspace.files.download":
+		return handleWebspaceFileRead(job)
 	case "webspace.files.write":
+		return handleWebspaceFileWrite(job)
+	case "webspace.files.upload":
 		return handleWebspaceFileWrite(job)
 	case "webspace.files.delete":
 		return handleWebspaceFileDelete(job)

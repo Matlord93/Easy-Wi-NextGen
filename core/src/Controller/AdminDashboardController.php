@@ -13,9 +13,7 @@ use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Repository\TicketRepository;
 use App\Repository\UserRepository;
-use App\Service\CoreReleaseChecker;
-use App\Service\GithubWorkflowDispatcher;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use App\Service\WebinterfaceUpdateService;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
@@ -32,12 +30,7 @@ final class AdminDashboardController
         private readonly UserRepository $userRepository,
         private readonly InstanceRepository $instanceRepository,
         private readonly TicketRepository $ticketRepository,
-        private readonly CoreReleaseChecker $coreReleaseChecker,
-        private readonly GithubWorkflowDispatcher $workflowDispatcher,
-        #[Autowire('%app.core_version%')]
-        private readonly string $coreVersion,
-        #[Autowire('%app.core_update_install_dir%')]
-        private readonly string $coreUpdateInstallDir,
+        private readonly WebinterfaceUpdateService $updateService,
         private readonly Environment $twig,
     ) {
     }
@@ -82,26 +75,14 @@ final class AdminDashboardController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
+        $result = $this->updateService->applyUpdate();
         $summary = $this->buildCoreUpdateSummary();
-        if (!$this->workflowDispatcher->isConfigured()) {
-            $summary['error'] = 'GitHub dispatch is not configured.';
-            return $this->renderUpdateCard($summary);
+        if ($result->success) {
+            $summary['notice'] = $result->message;
+        } else {
+            $summary['error'] = $result->error ?? $result->message;
         }
-
-        if ($summary['latestVersion'] === null) {
-            $summary['error'] = 'Unable to resolve latest version.';
-            return $this->renderUpdateCard($summary);
-        }
-
-        try {
-            $this->workflowDispatcher->dispatch($summary['latestVersion'], [
-                'install_dir' => $this->coreUpdateInstallDir,
-                'ref' => $summary['latestVersion'],
-            ]);
-            $summary['notice'] = 'Update dispatched to GitHub.';
-        } catch (\RuntimeException $exception) {
-            $summary['error'] = $exception->getMessage();
-        }
+        $summary['logPath'] = $result->logPath;
 
         return $this->renderUpdateCard($summary);
     }
@@ -179,16 +160,15 @@ final class AdminDashboardController
 
     private function buildCoreUpdateSummary(): array
     {
-        $latestVersion = $this->coreReleaseChecker->getLatestVersion();
-        $updateAvailable = $this->coreReleaseChecker->isUpdateAvailable($this->coreVersion, $latestVersion);
+        $status = $this->updateService->checkForUpdate();
 
         return [
-            'currentVersion' => $this->coreVersion !== '' ? $this->coreVersion : null,
-            'latestVersion' => $latestVersion,
-            'updateAvailable' => $updateAvailable,
-            'channel' => $this->coreReleaseChecker->getChannel(),
-            'repository' => $this->coreReleaseChecker->getRepository(),
-            'workflowConfigured' => $this->workflowDispatcher->isConfigured(),
+            'currentVersion' => $status->installedVersion,
+            'latestVersion' => $status->latestVersion,
+            'updateAvailable' => $status->updateAvailable,
+            'notes' => $status->notes,
+            'manifestError' => $status->error,
+            'logPath' => null,
             'notice' => null,
             'error' => null,
         ];

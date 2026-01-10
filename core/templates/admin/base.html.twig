@@ -29,7 +29,7 @@
         <nav class="flex-1 px-4 space-y-4">
             <details class="nav-group group" data-nav-id="admin-overview" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Overview</span>
+                    <span>{{ t('admin_nav_group_overview', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -56,7 +56,7 @@
 
             <details class="nav-group group" data-nav-id="admin-accounts" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Accounts</span>
+                    <span>{{ t('admin_nav_group_accounts', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -68,7 +68,7 @@
                                 <path d="M10 11.5a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-6 6.5a6 6 0 0 1 12 0Z"/>
                             </svg>
                         </span>
-                        <span class="text-sm font-medium">Profile</span>
+                        <span class="text-sm font-medium">{{ t('admin_nav_profile', page_locale()) }}</span>
                     </a>
                     <a href="/admin/users" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'users' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                         <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'users' ? 'bg-white/15' : 'bg-white/10' }}">
@@ -91,7 +91,7 @@
 
             <details class="nav-group group" data-nav-id="admin-operations" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Operations</span>
+                    <span>{{ t('admin_nav_group_operations', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -135,7 +135,7 @@
             {% set infrastructureActive = activeNav in ['nodes', 'metrics', 'templates', 'plugins', 'modules', 'ddos'] %}
             <details class="nav-group group" data-nav-id="admin-infrastructure" {{ infrastructureActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Infrastructure</span>
+                    <span>{{ t('admin_nav_group_infrastructure', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -156,7 +156,7 @@
                                 <path d="M10 2.75a.75.75 0 0 1 .75.75v1.06a5.5 5.5 0 0 1 4 5.3v3.5a2.75 2.75 0 0 1-1.94 2.62l-2.64.88a.75.75 0 0 1-.47 0l-2.64-.88A2.75 2.75 0 0 1 5.25 13.36v-3.5a5.5 5.5 0 0 1 4-5.3V3.5a.75.75 0 0 1 .75-.75Zm-3.25 7.11v3.5c0 .54.34 1.03.86 1.2l2.39.8 2.39-.8c.52-.17.86-.66.86-1.2v-3.5a4 4 0 1 0-8 0Z"/>
                             </svg>
                         </span>
-                        <span class="text-sm font-medium">Security</span>
+                        <span class="text-sm font-medium">{{ t('admin_nav_security', page_locale()) }}</span>
                     </a>
                     <a href="/admin/ddos" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ddos' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                         <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'ddos' ? 'bg-white/15' : 'bg-white/10' }}">
@@ -164,7 +164,7 @@
                                 <path d="M9.25 3a.75.75 0 0 1 .75.75V5h3.5a2.75 2.75 0 0 1 0 5.5H13v.75a.75.75 0 0 1-1.5 0v-.75H8.5v.75a.75.75 0 0 1-1.5 0v-.75H6.5a2.75 2.75 0 0 1 0-5.5H8.5V3.75A.75.75 0 0 1 9.25 3Zm-2.75 4.5a1.25 1.25 0 0 0 0 2.5h7a1.25 1.25 0 0 0 0-2.5h-7Z"/>
                             </svg>
                         </span>
-                        <span class="text-sm font-medium">DDoS policy</span>
+                        <span class="text-sm font-medium">{{ t('admin_nav_ddos_policy', page_locale()) }}</span>
                     </a>
                     {% set metricsActive = activeNav == 'metrics' %}
                     <a href="/admin/metrics" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ metricsActive ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
@@ -205,7 +205,7 @@
             {% set publicPortalActive = activeNav in ['cms-pages', 'downloads', 'changelog', 'docs', 'public-servers', 'status-components', 'status-maintenance', 'status-incidents'] %}
             <details class="nav-group group" data-nav-id="admin-public-portal" {{ publicPortalActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Public portal</span>
+                    <span>{{ t('admin_nav_group_public_portal', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -266,7 +266,7 @@
             {% set servicesActive = activeNav in ['game-instances', 'ts3-instances'] %}
             <details class="nav-group group" data-nav-id="admin-services" {{ servicesActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Services</span>
+                    <span>{{ t('admin_nav_group_services', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -294,7 +294,7 @@
             {% set domainsActive = activeNav in ['dns-records', 'mailboxes', 'mail-aliases'] %}
             <details class="nav-group group" data-nav-id="admin-domains-mail" {{ domainsActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Domains & Mail</span>
+                    <span>{{ t('admin_nav_group_domains_mail', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -331,7 +331,7 @@
             {% if extensionItems is not empty %}
                 <details class="nav-group group" data-nav-id="admin-extensions" open>
                     <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                        <span>Extensions</span>
+                        <span>{{ t('admin_nav_group_extensions', page_locale()) }}</span>
                         <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                         </svg>

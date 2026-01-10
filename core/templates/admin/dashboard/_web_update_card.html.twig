@@ -4,19 +4,17 @@
             <h2 class="text-lg font-semibold">{{ t('admin_dashboard_core_updates_title', page_locale()) }}</h2>
             <p class="text-sm text-slate-700">{{ t('admin_dashboard_core_updates_intro', page_locale()) }}</p>
         </div>
-        {% if coreUpdate.workflowConfigured %}
-            <button
-                class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm"
-                hx-post="/admin/update/webinterface"
-                hx-target="#core-update-card"
-                hx-swap="outerHTML"
-                {% if coreUpdate.latestVersion is empty or coreUpdate.updateAvailable is same as(false) %}
-                    disabled
-                {% endif %}
-            >
-                {{ t('admin_dashboard_core_updates_action', page_locale()) }}
-            </button>
-        {% endif %}
+        <button
+            class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm"
+            hx-post="/admin/update/webinterface"
+            hx-target="#core-update-card"
+            hx-swap="outerHTML"
+            {% if coreUpdate.latestVersion is empty or coreUpdate.updateAvailable is same as(false) %}
+                disabled
+            {% endif %}
+        >
+            {{ t('admin_dashboard_core_updates_action', page_locale()) }}
+        </button>
     </div>
 
     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -42,17 +40,28 @@
         </div>
     </div>
 
+    {% if coreUpdate.notes %}
+        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_update_notes', page_locale()) }}</p>
+            <p class="mt-2 whitespace-pre-line">{{ coreUpdate.notes }}</p>
+        </div>
+    {% endif %}
+
+    {% if coreUpdate.manifestError %}
+        <div class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {{ coreUpdate.manifestError }}
+        </div>
+    {% endif %}
+
     {% if coreUpdate.notice or coreUpdate.error %}
         <div class="mt-4 rounded-xl border px-4 py-3 text-sm {{ coreUpdate.error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700' }}">
             {{ coreUpdate.error ?? coreUpdate.notice }}
         </div>
     {% endif %}
 
-    {% if not coreUpdate.workflowConfigured %}
-        <p class="mt-4 text-xs text-slate-500">{{ t('admin_dashboard_core_update_config_required', page_locale()) }}</p>
-    {% elseif coreUpdate.latestVersion %}
+    {% if coreUpdate.logPath %}
         <p class="mt-4 text-xs text-slate-500">
-            {{ t('admin_dashboard_core_update_workflow_note', page_locale())|replace({'%version%': coreUpdate.latestVersion}) }}
+            {{ t('admin_dashboard_core_update_log_path', page_locale())|replace({'%path%': coreUpdate.logPath}) }}
         </p>
     {% endif %}
 </div>

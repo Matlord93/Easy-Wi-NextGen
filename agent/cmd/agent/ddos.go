@@ -81,6 +81,7 @@ func handleDdosStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 	output := map[string]string{
 		"attack_active": strconv.FormatBool(attackActive),
 		"conn_count":    strconv.Itoa(connCount),
+		"pps":           strconv.Itoa(synRecv),
 		"syn_recv":      strconv.Itoa(synRecv),
 		"ports":         strings.Join(intSliceToStrings(ports), ","),
 		"protocols":     strings.Join(protocols, ","),

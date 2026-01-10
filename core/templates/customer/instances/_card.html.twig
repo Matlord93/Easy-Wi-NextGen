@@ -102,7 +102,7 @@
 
     <div class="mt-6 flex flex-wrap gap-3">
         <button type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instance_cleanup', page_locale()) }}</button>
-        <a href="/files" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_file_manager', page_locale()) }}</a>
+        <a href="/instances/{{ instance.id }}/files" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_file_manager', page_locale()) }}</a>
     </div>
 
     <form class="mt-6 space-y-4" hx-post="/instances/{{ instance.id }}/settings" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">

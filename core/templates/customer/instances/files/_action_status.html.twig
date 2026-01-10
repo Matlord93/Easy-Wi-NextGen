@@ -1,0 +1,7 @@
+{% set status = status|default('queued') %}
+
+{% if status in ['queued', 'running'] %}
+    {{ message|default(t('customer_instance_files_action_queued', page_locale())) }}
+{% else %}
+    {{ message|default(t('customer_instance_files_action_done', page_locale())) }}
+{% endif %}

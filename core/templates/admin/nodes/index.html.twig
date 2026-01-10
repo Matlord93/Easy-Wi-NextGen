@@ -3,84 +3,262 @@
 {% block title %}{{ t('admin_nodes_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('admin_nodes_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('admin_nodes_intro', page_locale()) }}</p>
-    </div>
-    <div class="flex items-center gap-3">
-        {% if summary.latestVersion %}
-            <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                {{ t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) }} · {{ summary.latestVersion }}
-            </span>
-            <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                {{ t('admin_nodes_updates_available', page_locale())|replace({'%count%': summary.updates}) }}
-            </span>
-        {% else %}
-            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                {{ t('admin_nodes_release_unavailable', page_locale()) }}
-            </span>
-        {% endif %}
-        <button
-            class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700"
-            hx-post="/admin/nodes/update"
-            hx-target="#nodes-table"
-            hx-swap="outerHTML"
-        >{{ t('admin_nodes_update_agents', page_locale()) }}</button>
-        <a href="/admin/nodes/register" class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700">Register Node</a>
-        <button
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
-            hx-post="/admin/nodes/provision"
-            hx-target="#nodes-table"
-            hx-swap="outerHTML"
-            hx-confirm="{{ t('admin_nodes_register', page_locale()) }}"
-        >{{ t('admin_nodes_provision', page_locale()) }}</button>
-    </div>
-</div>
-
-{% if diskProtectCount is defined and diskProtectCount > 0 %}
-    <div class="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
-        {{ t('admin_nodes_disk_protect_banner', page_locale())|replace({'%count%': diskProtectCount}) }}
-    </div>
-{% endif %}
-
-<div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_total', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_online', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.online }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_stale', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.stale }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_offline', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-rose-500">{{ summary.offline }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_updates_label', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.updates }}</p>
-        <p class="mt-1 text-xs text-slate-600">{{ summary.latestVersion ?? t('admin_nodes_release_unavailable', page_locale()) }}</p>
-    </div>
-</div>
-
-<div class="rounded-xl bg-white border border-slate-200">
-    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+{% set selectedNode = nodes|first %}
+{% set statusMap = {
+    'online': 'badge--success',
+    'stale': 'badge--warning',
+    'offline': 'badge--danger',
+    'provisioning': 'badge--primary',
+    'maintenance': 'badge--neutral'
+} %}
+<section class="nodes-page">
+    <header class="nodes-header">
         <div>
-            <h2 class="text-lg font-semibold">{{ t('admin_nodes_fleet', page_locale()) }}</h2>
-            <p class="text-sm text-slate-700">{{ t('admin_nodes_fleet_intro', page_locale()) }}</p>
+            <h1 class="nodes-title">{{ t('admin_nodes_title', page_locale()) }}</h1>
+            <p class="nodes-subtitle">{{ t('admin_nodes_intro', page_locale()) }}</p>
         </div>
-        <button
-            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-            hx-get="/admin/nodes/table"
-            hx-target="#nodes-table"
-            hx-swap="outerHTML"
-        >{{ t('refresh', page_locale()) }}</button>
+        <div class="nodes-actions">
+            {% if summary.latestVersion %}
+                <span class="badge badge--primary">
+                    {{ t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) }} · {{ summary.latestVersion }}
+                </span>
+                <span class="badge badge--warning">
+                    {{ t('admin_nodes_updates_available', page_locale())|replace({'%count%': summary.updates}) }}
+                </span>
+            {% else %}
+                <span class="badge badge--neutral">
+                    {{ t('admin_nodes_release_unavailable', page_locale()) }}
+                </span>
+            {% endif %}
+            <button
+                class="btn btn--secondary"
+                hx-post="/admin/nodes/update"
+                hx-target="#nodes-table"
+                hx-swap="outerHTML"
+            >{{ t('admin_nodes_update_agents', page_locale()) }}</button>
+            <a href="/admin/nodes/register" class="btn btn--secondary">Register Node</a>
+            <button
+                class="btn btn--primary"
+                hx-post="/admin/nodes/provision"
+                hx-target="#nodes-table"
+                hx-swap="outerHTML"
+                hx-confirm="{{ t('admin_nodes_register', page_locale()) }}"
+            >{{ t('admin_nodes_provision', page_locale()) }}</button>
+        </div>
+    </header>
+
+    {% if diskProtectCount is defined and diskProtectCount > 0 %}
+        <div class="nodes-alert nodes-alert--danger">
+            {{ t('admin_nodes_disk_protect_banner', page_locale())|replace({'%count%': diskProtectCount}) }}
+        </div>
+    {% endif %}
+
+    <div class="nodes-summary">
+        <div class="nodes-stat">
+            <div class="nodes-stat__label">{{ t('admin_nodes_total', page_locale()) }}</div>
+            <div class="nodes-stat__value">{{ summary.total }}</div>
+        </div>
+        <div class="nodes-stat">
+            <div class="nodes-stat__label">{{ t('admin_nodes_online', page_locale()) }}</div>
+            <div class="nodes-stat__value nodes-stat__value--success">{{ summary.online }}</div>
+        </div>
+        <div class="nodes-stat">
+            <div class="nodes-stat__label">{{ t('admin_nodes_stale', page_locale()) }}</div>
+            <div class="nodes-stat__value nodes-stat__value--warning">{{ summary.stale }}</div>
+        </div>
+        <div class="nodes-stat">
+            <div class="nodes-stat__label">{{ t('admin_nodes_offline', page_locale()) }}</div>
+            <div class="nodes-stat__value nodes-stat__value--danger">{{ summary.offline }}</div>
+        </div>
+        <div class="nodes-stat">
+            <div class="nodes-stat__label">{{ t('admin_nodes_updates_label', page_locale()) }}</div>
+            <div class="nodes-stat__value nodes-stat__value--warning">{{ summary.updates }}</div>
+            <div class="nodes-stat__label">{{ summary.latestVersion ?? t('admin_nodes_release_unavailable', page_locale()) }}</div>
+        </div>
     </div>
-    {% include 'admin/nodes/_table.html.twig' with { nodes: nodes, updateChannel: updateChannel } %}
-</div>
+
+    <div class="nodes-layout">
+        <div class="nodes-card">
+            <div class="nodes-card__header">
+                <div>
+                    <h2 class="nodes-card__title">{{ t('admin_nodes_fleet', page_locale()) }}</h2>
+                    <p class="nodes-card__subtitle">{{ t('admin_nodes_fleet_intro', page_locale()) }}</p>
+                </div>
+                <button
+                    class="btn btn--tertiary"
+                    hx-get="/admin/nodes/table"
+                    hx-target="#nodes-table"
+                    hx-swap="outerHTML"
+                >{{ t('refresh', page_locale()) }}</button>
+            </div>
+            {% include 'admin/nodes/_table.html.twig' with { nodes: nodes, updateChannel: updateChannel } %}
+        </div>
+
+        <aside class="nodes-card">
+            <div class="nodes-detail">
+                {% if selectedNode %}
+                    {% set statusClass = statusMap[selectedNode.status] ?? 'badge--neutral' %}
+                    <div class="nodes-detail__header">
+                        <h3 class="nodes-detail__title">{{ selectedNode.name ?? t('admin_nodes_unnamed', page_locale()) }}</h3>
+                        <div class="nodes-detail__subline">
+                            {{ selectedNode.lastHeartbeatIp ?? '—' }}
+                        </div>
+                        <div class="nodes-detail__badges">
+                            <span class="badge {{ statusClass }}">{{ selectedNode.status|title }}</span>
+                            {% if selectedNode.updateAvailable is same as(true) %}
+                                <span class="badge badge--warning">{{ t('admin_nodes_update_available', page_locale()) }}</span>
+                            {% elseif selectedNode.updateAvailable is same as(false) and selectedNode.lastHeartbeatVersion %}
+                                <span class="badge badge--success">{{ t('admin_nodes_up_to_date', page_locale()) }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="nodes-section">
+                        <div class="nodes-section__title">Status</div>
+                        <div class="nodes-metadata">
+                            <div>
+                                <div class="nodes-meta__label">{{ t('admin_nodes_table_last_seen', page_locale()) }}</div>
+                                <div class="nodes-meta__value">{{ selectedNode.lastSeenAt ? selectedNode.lastSeenAt|date('Y-m-d H:i') : '—' }}</div>
+                            </div>
+                            <div>
+                                <div class="nodes-meta__label">{{ t('admin_nodes_table_version', page_locale()) }}</div>
+                                <div class="nodes-meta__value">{{ selectedNode.lastHeartbeatVersion ?? '—' }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form
+                        class="nodes-section"
+                        hx-post="/admin/nodes/{{ selectedNode.id }}/roles"
+                        hx-target="#nodes-table"
+                        hx-swap="outerHTML"
+                    >
+                        <div class="nodes-section__title">Rollen</div>
+                        <div class="role-toggle-group">
+                            {% set roleChoices = ['web', 'dns', 'game', 'db'] %}
+                            {% for roleOption in roleOptions %}
+                                {% set roleKey = roleOption|lower %}
+                                {% if roleKey in roleChoices %}
+                                    <label class="role-toggle">
+                                        <input
+                                            type="checkbox"
+                                            name="roles[]"
+                                            value="{{ roleOption }}"
+                                            {% if roleKey in selectedNode.roleKeys %}checked{% endif %}
+                                            aria-label="{{ roleOption }}"
+                                        >
+                                        <span>{{ roleOption }}</span>
+                                    </label>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </form>
+
+                    <form
+                        id="node-settings-form"
+                        class="nodes-section"
+                        hx-post="/admin/nodes/{{ selectedNode.id }}/disk-settings"
+                        hx-target="#nodes-table"
+                        hx-swap="outerHTML"
+                    >
+                        <div class="nodes-section__title">Settings</div>
+                        <div class="nodes-form-grid">
+                            <div class="form-field">
+                                <label class="form-label" for="disk_scan_interval_seconds">Scan-Intervall (s)</label>
+                                <input
+                                    id="disk_scan_interval_seconds"
+                                    name="disk_scan_interval_seconds"
+                                    type="number"
+                                    min="60"
+                                    value="{{ selectedNode.disk.scan_interval }}"
+                                    class="form-input"
+                                >
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="disk_warning_percent">Warn %</label>
+                                <input
+                                    id="disk_warning_percent"
+                                    name="disk_warning_percent"
+                                    type="number"
+                                    min="1"
+                                    max="99"
+                                    value="{{ selectedNode.disk.warning_percent }}"
+                                    class="form-input"
+                                >
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="disk_hard_block_percent">Hard Block %</label>
+                                <input
+                                    id="disk_hard_block_percent"
+                                    name="disk_hard_block_percent"
+                                    type="number"
+                                    min="100"
+                                    value="{{ selectedNode.disk.hard_block_percent }}"
+                                    class="form-input"
+                                >
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="node_disk_protection_threshold_percent">Protect %</label>
+                                <input
+                                    id="node_disk_protection_threshold_percent"
+                                    name="node_disk_protection_threshold_percent"
+                                    type="number"
+                                    min="1"
+                                    max="20"
+                                    value="{{ selectedNode.disk.protect_threshold }}"
+                                    class="form-input"
+                                >
+                            </div>
+                        </div>
+                    </form>
+
+                    <form
+                        id="node-override-form"
+                        class="nodes-section"
+                        hx-post="/admin/nodes/{{ selectedNode.id }}/disk-protection-override"
+                        hx-target="#nodes-table"
+                        hx-swap="outerHTML"
+                    >
+                        <div class="nodes-section__title">Override</div>
+                        <div class="nodes-form-grid nodes-form-grid--single">
+                            <div class="form-field">
+                                <label class="form-label" for="override_minutes">{{ t('admin_nodes_disk_override_minutes', page_locale()) }}</label>
+                                <input
+                                    id="override_minutes"
+                                    name="override_minutes"
+                                    type="number"
+                                    min="0"
+                                    class="form-input"
+                                    placeholder="0"
+                                >
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="nodes-actions-row">
+                        <button
+                            class="btn btn--secondary"
+                            form="node-settings-form"
+                        >Speichern</button>
+                        <button
+                            class="btn btn--tertiary"
+                            form="node-override-form"
+                        >Override setzen</button>
+                        <button
+                            class="btn btn--primary"
+                            hx-post="/admin/nodes/{{ selectedNode.id }}/update"
+                            hx-target="#nodes-table"
+                            hx-swap="outerHTML"
+                        >Update</button>
+                    </div>
+                {% else %}
+                    <div class="nodes-detail__header">
+                        <h3 class="nodes-detail__title">{{ t('admin_nodes_empty', page_locale()) }}</h3>
+                        <div class="nodes-detail__subline">{{ t('admin_nodes_release_unavailable', page_locale()) }}</div>
+                    </div>
+                {% endif %}
+            </div>
+        </aside>
+    </div>
+</section>
 {% endblock %}

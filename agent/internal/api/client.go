@@ -43,15 +43,21 @@ func NewClient(baseURL, agentID, secret, version string) (*Client, error) {
 
 // HeartbeatPayload describes the heartbeat data sent to the API.
 type HeartbeatPayload struct {
-	Version string         `json:"version"`
-	Stats   map[string]any `json:"stats"`
+	Version  string         `json:"version"`
+	Stats    map[string]any `json:"stats"`
+	Roles    []string       `json:"roles,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
+	Status   string         `json:"status,omitempty"`
 }
 
 // SendHeartbeat posts a heartbeat event to the API.
-func (c *Client) SendHeartbeat(ctx context.Context, stats map[string]any) error {
+func (c *Client) SendHeartbeat(ctx context.Context, stats map[string]any, roles []string, metadata map[string]any, status string) error {
 	payload := HeartbeatPayload{
-		Version: c.Version,
-		Stats:   stats,
+		Version:  c.Version,
+		Stats:    stats,
+		Roles:    roles,
+		Metadata: metadata,
+		Status:   status,
 	}
 
 	_, err := c.doSignedJSON(ctx, http.MethodPost, "/agent/heartbeat", payload, nil)

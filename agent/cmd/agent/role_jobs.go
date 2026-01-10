@@ -133,6 +133,8 @@ func rolePackages(role, family string) []string {
 		}
 	case "web":
 		return []string{"nginx", "php-fpm"}
+	case "core":
+		return []string{"nginx", "php-fpm"}
 	case "dns":
 		if family == "debian" {
 			return []string{"pdns-server", "pdns-backend-bind"}
@@ -283,6 +285,8 @@ func enableRoleServices(role string, output *strings.Builder) error {
 
 	switch role {
 	case "web":
+		services = []string{"nginx", "php-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm"}
+	case "core":
 		services = []string{"nginx", "php-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm"}
 	case "dns":
 		services = []string{"pdns", "powerdns"}

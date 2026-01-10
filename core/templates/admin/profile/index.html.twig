@@ -1,12 +1,12 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Admin profile · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_profile_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
     <div>
-        <h1 class="text-2xl font-semibold">Admin profile</h1>
-        <p class="text-sm text-slate-700">Update your login email and password for this admin account.</p>
+        <h1 class="text-2xl font-semibold">{{ t('admin_profile_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_profile_description', page_locale()) }}</p>
     </div>
 
     {% if errors is not empty %}
@@ -19,14 +19,14 @@
         </div>
     {% elseif form.success %}
         <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
-            Profile updated successfully.
+            {{ t('admin_profile_success', page_locale()) }}
         </div>
     {% endif %}
 
     <form method="post" action="/admin/profile" class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="grid gap-5 lg:grid-cols-2">
             <div>
-                <label class="block text-xs font-semibold uppercase text-slate-700">Email address</label>
+                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('email_address', page_locale()) }}</label>
                 <input
                     type="email"
                     name="email"
@@ -36,36 +36,36 @@
                 >
             </div>
             <div>
-                <label class="block text-xs font-semibold uppercase text-slate-700">New password</label>
+                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_profile_password_label', page_locale()) }}</label>
                 <input
                     type="password"
                     name="password"
-                    placeholder="Leave blank to keep the current password"
+                    placeholder="{{ t('admin_profile_password_placeholder', page_locale()) }}"
                     class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 >
             </div>
             <div>
-                <label class="block text-xs font-semibold uppercase text-slate-700">Confirm new password</label>
+                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_profile_password_confirm_label', page_locale()) }}</label>
                 <input
                     type="password"
                     name="password_confirm"
-                    placeholder="Repeat the new password"
+                    placeholder="{{ t('admin_profile_password_confirm_placeholder', page_locale()) }}"
                     class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 >
             </div>
             <div class="lg:col-span-2">
-                <label class="block text-xs font-semibold uppercase text-slate-700">Ticket signature</label>
+                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_profile_signature_label', page_locale()) }}</label>
                 <textarea
                     name="signature"
                     rows="4"
-                    placeholder="Add a signature that will be appended to ticket replies."
+                    placeholder="{{ t('admin_profile_signature_placeholder', page_locale()) }}"
                     class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 >{{ form.signature }}</textarea>
             </div>
         </div>
         <div class="mt-6 flex flex-wrap items-center gap-3">
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Save changes</button>
-            <a href="/admin" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">Back to dashboard</a>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_profile_save_changes', page_locale()) }}</button>
+            <a href="/admin" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">{{ t('admin_profile_back_dashboard', page_locale()) }}</a>
         </div>
     </form>
 </div>

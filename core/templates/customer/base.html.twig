@@ -28,7 +28,7 @@
         <nav class="flex-1 px-4 space-y-4">
             <details class="nav-group group" data-nav-id="customer-account" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Account</span>
+                    <span>{{ t('customer_nav_group_account', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -63,7 +63,7 @@
 
             <details class="nav-group group" data-nav-id="customer-services" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Services</span>
+                    <span>{{ t('customer_nav_group_services', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -90,7 +90,7 @@
 
             <details class="nav-group group" data-nav-id="customer-support" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                    <span>Support</span>
+                    <span>{{ t('customer_nav_group_support', page_locale()) }}</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                     </svg>
@@ -111,7 +111,7 @@
             {% if extensionItems is not empty %}
                 <details class="nav-group group" data-nav-id="customer-extensions">
                     <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
-                        <span>Extensions</span>
+                        <span>{{ t('customer_nav_group_extensions', page_locale()) }}</span>
                         <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"/>
                         </svg>
@@ -152,8 +152,8 @@
                         <input
                             id="global-search-input"
                             type="search"
-                            placeholder="Search tickets"
-                            aria-label="Search tickets"
+                            placeholder="{{ t('customer_search_placeholder', page_locale()) }}"
+                            aria-label="{{ t('customer_search_placeholder', page_locale()) }}"
                             class="w-full rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm text-white placeholder-slate-300 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/40"
                         >
                         <div class="mt-1 text-xs text-slate-600">{{ t('search_help', page_locale()) }}</div>
