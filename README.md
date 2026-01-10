@@ -150,7 +150,7 @@ und externe Prozesse benötigt.
 
 1. **Installer herunterladen**
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Matlord93/Easy-Wi-NextGe/main/installer/easywi-installer-linux.sh -o easywi-installer-linux.sh
+   curl -fsSL https://github.com/Matlord93/Easy-Wi-NextGen/blob/Beta/installer/easywi-installer-linux.sh -o easywi-installer-linux.sh
    chmod +x easywi-installer-linux.sh
    ```
 
