@@ -17,12 +17,14 @@ DB_PORT="${EASYWI_DB_PORT:-}"
 DB_NAME="${EASYWI_DB_NAME:-easywi}"
 DB_USER="${EASYWI_DB_USER:-easywi}"
 DB_PASSWORD="${EASYWI_DB_PASSWORD:-}"
+PHP_VERSION="${EASYWI_PHP_VERSION:-}"
 RUN_MIGRATIONS="${EASYWI_RUN_MIGRATIONS:-true}"
 FORCE_OVERWRITE="${EASYWI_FORCE_OVERWRITE:-false}"
 NON_INTERACTIVE="${EASYWI_NON_INTERACTIVE:-}"
 INTERACTIVE="${EASYWI_INTERACTIVE:-}"
 WEB_HOSTNAME="${EASYWI_WEB_HOSTNAME:-_}"
 WEB_USER="${EASYWI_WEB_USER:-}"
+WEB_SERVER="${EASYWI_WEB_SERVER:-nginx}"
 
 LOG_PREFIX="[easywi-panel-installer]"
 STEP_COUNTER=0
@@ -45,8 +47,10 @@ Options:
   --db-name <name>       Database name
   --db-user <user>       Database user
   --db-password <pass>   Database password
-  --web-hostname <name>  Server name for standalone nginx config
+  --php-version <ver>    PHP version for standalone (8.4 or 8.5)
+  --web-hostname <name>  Server name for standalone web config
   --web-user <user>      Web server user for permissions (standalone)
+  --web-server <name>    Web server for standalone (nginx or apache)
   --run-migrations <y/n> Run doctrine migrations (default: true)
   --force               Overwrite existing install dir
   --interactive          Prompt for missing values
@@ -56,9 +60,9 @@ Options:
 Environment variables:
   EASYWI_INSTALL_MODE, EASYWI_INSTALL_DIR, EASYWI_REPO_URL, EASYWI_REPO_REF,
   EASYWI_DB_DRIVER, EASYWI_DB_HOST, EASYWI_DB_PORT, EASYWI_DB_NAME,
-  EASYWI_DB_USER, EASYWI_DB_PASSWORD, EASYWI_RUN_MIGRATIONS,
+  EASYWI_DB_USER, EASYWI_DB_PASSWORD, EASYWI_PHP_VERSION, EASYWI_RUN_MIGRATIONS,
   EASYWI_WEB_HOSTNAME, EASYWI_WEB_USER, EASYWI_APP_ENV, EASYWI_APP_SECRET,
-  EASYWI_FORCE_OVERWRITE, EASYWI_INTERACTIVE, EASYWI_NON_INTERACTIVE
+  EASYWI_WEB_SERVER, EASYWI_FORCE_OVERWRITE, EASYWI_INTERACTIVE, EASYWI_NON_INTERACTIVE
 USAGE
 }
 
@@ -148,6 +152,8 @@ Mode:               ${INSTALL_MODE}
 Install dir:        ${INSTALL_DIR}
 Repo:               ${REPO_URL} (${REPO_REF})
 DB:                 ${DB_DRIVER} @ ${DB_HOST}:${DB_PORT:-default} (${DB_NAME})
+Web server:         ${WEB_SERVER}
+PHP version:        ${PHP_VERSION:-auto}
 Web hostname:       ${WEB_HOSTNAME}
 Run migrations:     ${RUN_MIGRATIONS}
 ========================================================
@@ -201,6 +207,8 @@ collect_inputs() {
     prompt_value DB_USER "Database user" "${DB_USER}"
     prompt_value DB_PASSWORD "Database password" "" "true"
     if [[ "${INSTALL_MODE}" == "standalone" ]]; then
+      prompt_value WEB_SERVER "Web server (nginx/apache)" "${WEB_SERVER}"
+      prompt_value PHP_VERSION "PHP version (8.4/8.5)" "${PHP_VERSION}"
       prompt_value WEB_HOSTNAME "Web hostname (server_name)" "${WEB_HOSTNAME}"
       prompt_value WEB_USER "Web server user" "${WEB_USER:-www-data}"
     fi
@@ -229,6 +237,26 @@ validate_inputs() {
 
   if [[ -z "${DB_PASSWORD}" ]]; then
     fatal "Database password missing. Provide --db-password or EASYWI_DB_PASSWORD."
+  fi
+
+  if [[ "${INSTALL_MODE}" == "standalone" ]]; then
+    case "${WEB_SERVER}" in
+      nginx|apache)
+        ;;
+      *)
+        fatal "Invalid web server: ${WEB_SERVER}. Use nginx or apache."
+        ;;
+    esac
+
+    if [[ -n "${PHP_VERSION}" ]]; then
+      case "${PHP_VERSION}" in
+        8.4|8.5)
+          ;;
+        *)
+          fatal "Invalid PHP version: ${PHP_VERSION}. Use 8.4 or 8.5."
+          ;;
+      esac
+    fi
   fi
 
   if [[ -z "${INSTALL_DIR}" ]]; then
@@ -312,32 +340,79 @@ pkg_install() {
 install_php_stack() {
   local service=""
   local socket=""
+  local php_version="${PHP_VERSION}"
+  local web_packages=()
+  local php_packages=()
+  local success="false"
+
+  if [[ "${WEB_SERVER}" == "nginx" ]]; then
+    web_packages=(nginx)
+  else
+    web_packages=(apache2)
+  fi
+
   case "${OS_FAMILY}" in
     debian)
-      if pkg_install nginx php8.5-fpm php8.5-cli php8.5-mbstring php8.5-xml php8.5-curl php8.5-zip php8.5-intl php8.5-gd php8.5-mysql php8.5-pgsql git unzip composer; then
-        service="php8.5-fpm"
-        socket="/run/php/php8.5-fpm.sock"
-      elif pkg_install nginx php8.4-fpm php8.4-cli php8.4-mbstring php8.4-xml php8.4-curl php8.4-zip php8.4-intl php8.4-gd php8.4-mysql php8.4-pgsql git unzip composer; then
-        service="php8.4-fpm"
-        socket="/run/php/php8.4-fpm.sock"
-      else
-        fatal "Unable to install PHP 8.4+ and nginx for standalone mode."
+      if [[ "${php_version}" == "8.5" || -z "${php_version}" ]]; then
+        if [[ "${WEB_SERVER}" == "nginx" ]]; then
+          php_packages=(php8.5-fpm php8.5-cli php8.5-mbstring php8.5-xml php8.5-curl php8.5-zip php8.5-intl php8.5-gd php8.5-mysql php8.5-pgsql)
+        else
+          php_packages=(libapache2-mod-php8.5 php8.5-cli php8.5-mbstring php8.5-xml php8.5-curl php8.5-zip php8.5-intl php8.5-gd php8.5-mysql php8.5-pgsql)
+        fi
+        if pkg_install "${web_packages[@]}" "${php_packages[@]}" git unzip composer; then
+          service="php8.5-fpm"
+          socket="/run/php/php8.5-fpm.sock"
+          success="true"
+        elif [[ -n "${php_version}" ]]; then
+          fatal "Unable to install PHP ${php_version} for standalone mode."
+        fi
+      fi
+
+      if [[ "${success}" != "true" ]]; then
+        if [[ "${WEB_SERVER}" == "nginx" ]]; then
+          php_packages=(php8.4-fpm php8.4-cli php8.4-mbstring php8.4-xml php8.4-curl php8.4-zip php8.4-intl php8.4-gd php8.4-mysql php8.4-pgsql)
+        else
+          php_packages=(libapache2-mod-php8.4 php8.4-cli php8.4-mbstring php8.4-xml php8.4-curl php8.4-zip php8.4-intl php8.4-gd php8.4-mysql php8.4-pgsql)
+        fi
+        if pkg_install "${web_packages[@]}" "${php_packages[@]}" git unzip composer; then
+          service="php8.4-fpm"
+          socket="/run/php/php8.4-fpm.sock"
+          success="true"
+        else
+          fatal "Unable to install PHP 8.4+ and ${WEB_SERVER} for standalone mode."
+        fi
       fi
       ;;
     rhel)
-      if pkg_install nginx php php-cli php-fpm php-mbstring php-xml php-json php-curl php-zip php-intl php-gd php-mysqlnd php-pgsql git unzip composer; then
+      if [[ "${WEB_SERVER}" == "apache" ]]; then
+        fatal "Apache install is not supported for this distribution."
+      fi
+      if [[ "${WEB_SERVER}" == "nginx" ]]; then
+        web_packages=(nginx)
+      else
+        web_packages=(httpd)
+      fi
+      if pkg_install "${web_packages[@]}" php php-cli php-fpm php-mbstring php-xml php-json php-curl php-zip php-intl php-gd php-mysqlnd php-pgsql git unzip composer; then
         service="php-fpm"
         socket="/run/php-fpm/www.sock"
       else
-        fatal "Unable to install PHP and nginx for standalone mode."
+        fatal "Unable to install PHP and ${WEB_SERVER} for standalone mode."
       fi
       ;;
     arch)
-      if pkg_install nginx php php-fpm php-intl php-gd php-pgsql php-sqlite php-zip git unzip composer; then
+      if [[ "${WEB_SERVER}" == "apache" ]]; then
+        fatal "Apache install is not supported for this distribution."
+      fi
+      if [[ "${WEB_SERVER}" == "nginx" ]]; then
+        web_packages=(nginx)
+      else
+        web_packages=(apache)
+      fi
+      if pkg_install "${web_packages[@]}" php php-fpm php-intl php-gd php-pgsql php-sqlite php-zip git unzip composer; then
         service="php-fpm"
         socket="/run/php-fpm/php-fpm.sock"
       else
-        fatal "Unable to install PHP and nginx for standalone mode."
+        fatal "Unable to install PHP and ${WEB_SERVER} for standalone mode."
       fi
       ;;
   esac
@@ -350,7 +425,11 @@ ensure_web_user() {
     return
   fi
   if [[ "${INSTALL_MODE}" == "standalone" ]]; then
-    WEB_USER="www-data"
+    if [[ "${WEB_SERVER}" == "nginx" ]]; then
+      WEB_USER="www-data"
+    else
+      WEB_USER="www-data"
+    fi
   fi
 }
 
@@ -428,7 +507,9 @@ run_composer() {
   fi
 
   log "Installing PHP dependencies"
-  (cd "${INSTALL_DIR}/core" && composer install --no-dev --optimize-autoloader --no-interaction)
+  if ! (cd "${INSTALL_DIR}/core" && composer install --no-dev --optimize-autoloader --no-interaction); then
+    fatal "Composer install failed. Check network access/proxy settings and ensure required PHP extensions are available."
+  fi
 }
 
 run_migrations() {
@@ -483,13 +564,144 @@ CONF
   systemctl reload nginx
 }
 
+write_apache_config() {
+  local conf_path=""
+  case "${OS_FAMILY}" in
+    debian)
+      conf_path="/etc/apache2/sites-available/easywi.conf"
+      ;;
+    rhel|arch)
+      fatal "Apache config is not supported for this distribution."
+      ;;
+  esac
+
+  cat <<CONF >"${conf_path}"
+<VirtualHost *:80>
+    ServerName ${WEB_HOSTNAME}
+    DocumentRoot ${INSTALL_DIR}/core/public
+
+    <Directory ${INSTALL_DIR}/core/public>
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+CONF
+
+  a2enmod rewrite >/dev/null 2>&1 || true
+  a2ensite easywi.conf >/dev/null 2>&1 || true
+  systemctl enable --now apache2
+  systemctl reload apache2
+}
+
+is_local_db_host() {
+  case "${DB_HOST}" in
+    127.0.0.1|localhost|::1)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+escape_sql_string() {
+  printf '%s' "$1" | sed "s/'/''/g"
+}
+
+install_database_server() {
+  if ! is_local_db_host; then
+    log "Skipping local database install (DB host is remote)."
+    return
+  fi
+
+  case "${OS_FAMILY}" in
+    debian)
+      if [[ "${DB_DRIVER}" == "mysql" ]]; then
+        pkg_install mariadb-server
+        systemctl enable --now mariadb
+      else
+        pkg_install postgresql
+        systemctl enable --now postgresql
+      fi
+      ;;
+    rhel)
+      if [[ "${DB_DRIVER}" == "mysql" ]]; then
+        pkg_install mariadb-server
+        systemctl enable --now mariadb
+      else
+        pkg_install postgresql-server postgresql-contrib
+        if [[ ! -f /var/lib/pgsql/data/PG_VERSION ]]; then
+          postgresql-setup --initdb
+        fi
+        systemctl enable --now postgresql
+      fi
+      ;;
+    arch)
+      if [[ "${DB_DRIVER}" == "mysql" ]]; then
+        pkg_install mariadb
+        if [[ ! -d /var/lib/mysql/mysql ]]; then
+          mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
+        fi
+        systemctl enable --now mariadb
+      else
+        pkg_install postgresql
+        if [[ ! -f /var/lib/postgres/data/PG_VERSION ]]; then
+          su - postgres -c "initdb -D /var/lib/postgres/data"
+        fi
+        systemctl enable --now postgresql
+      fi
+      ;;
+  esac
+}
+
+configure_database() {
+  if ! is_local_db_host; then
+    log "Skipping database bootstrap (DB host is remote)."
+    return
+  fi
+
+  local db_user_escaped
+  local db_password_escaped
+  db_user_escaped="$(escape_sql_string "${DB_USER}")"
+  db_password_escaped="$(escape_sql_string "${DB_PASSWORD}")"
+
+  if [[ "${DB_DRIVER}" == "mysql" ]]; then
+    if ! command_exists mysql; then
+      fatal "mysql client is required to configure the database."
+    fi
+    mysql <<SQL
+CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
+CREATE USER IF NOT EXISTS '${db_user_escaped}'@'localhost' IDENTIFIED BY '${db_password_escaped}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${db_user_escaped}'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+  else
+    if ! command_exists psql; then
+      fatal "psql is required to configure the database."
+    fi
+    if ! id postgres >/dev/null 2>&1; then
+      fatal "PostgreSQL user not found."
+    fi
+    su - postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='${db_user_escaped}'\"" | grep -q 1 || \
+      su - postgres -c "psql -c \"CREATE ROLE ${db_user_escaped} LOGIN PASSWORD '${db_password_escaped}';\""
+    su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'\"" | grep -q 1 || \
+      su - postgres -c "psql -c \"CREATE DATABASE ${DB_NAME} OWNER ${db_user_escaped};\""
+  fi
+}
+
 install_standalone_stack() {
   local php_service
   local php_socket
   pkg_update
   IFS='|' read -r php_service php_socket < <(install_php_stack)
-  systemctl enable --now "${php_service}"
-  write_nginx_config "${php_socket}"
+  if [[ "${WEB_SERVER}" == "nginx" ]]; then
+    systemctl enable --now "${php_service}"
+    write_nginx_config "${php_socket}"
+  else
+    write_apache_config
+  fi
+  install_database_server
+  configure_database
 }
 
 parse_args() {
@@ -535,12 +747,20 @@ parse_args() {
         DB_PASSWORD="$2"
         shift 2
         ;;
+      --php-version)
+        PHP_VERSION="$2"
+        shift 2
+        ;;
       --web-hostname)
         WEB_HOSTNAME="$2"
         shift 2
         ;;
       --web-user)
         WEB_USER="$2"
+        shift 2
+        ;;
+      --web-server)
+        WEB_SERVER="$2"
         shift 2
         ;;
       --run-migrations)

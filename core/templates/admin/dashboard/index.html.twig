@@ -74,6 +74,8 @@
         </div>
     </div>
 
+    {% include 'admin/dashboard/_web_update_card.html.twig' with { coreUpdate: coreUpdate } %}
+
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <a href="/admin/users" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
             <p class="text-xs uppercase text-slate-600">Customers</p>

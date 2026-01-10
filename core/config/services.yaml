@@ -5,6 +5,14 @@ parameters:
   app.agent_release_repository: '%env(default::APP_AGENT_RELEASE_REPOSITORY)%'
   app.agent_release_channel: '%env(default:app.agent_release_channel_default:APP_AGENT_RELEASE_CHANNEL)%'
   app.changelog_repository: '%env(default::APP_CHANGELOG_REPOSITORY)%'
+  app.core_release_channel_default: 'beta'
+  app.core_release_repository: '%env(default::APP_CORE_RELEASE_REPOSITORY)%'
+  app.core_release_channel: '%env(default:app.core_release_channel_default:APP_CORE_RELEASE_CHANNEL)%'
+  app.core_version: '%env(default::APP_CORE_VERSION)%'
+  app.core_update_repository: '%env(default:app.core_release_repository:APP_CORE_UPDATE_REPOSITORY)%'
+  app.core_update_workflow: '%env(default::APP_CORE_UPDATE_WORKFLOW)%'
+  app.core_update_token: '%env(default::APP_GITHUB_TOKEN)%'
+  app.core_update_install_dir: '%env(default::APP_CORE_UPDATE_INSTALL_DIR)%'
 
 services:
   _defaults:
@@ -38,6 +46,18 @@ services:
     arguments:
       $repository: '%app.changelog_repository%'
       $cacheTtlSeconds: '%env(int:APP_CHANGELOG_CACHE_TTL)%'
+
+  App\Service\CoreReleaseChecker:
+    arguments:
+      $repository: '%app.core_release_repository%'
+      $cacheTtlSeconds: '%env(int:APP_CORE_RELEASE_CACHE_TTL)%'
+      $channel: '%app.core_release_channel%'
+
+  App\Service\GithubWorkflowDispatcher:
+    arguments:
+      $repository: '%app.core_update_repository%'
+      $workflowFile: '%app.core_update_workflow%'
+      $token: '%app.core_update_token%'
 
   App\Domain\Event\EventBusInterface: '@App\Domain\Event\SymfonyEventBus'
 

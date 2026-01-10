@@ -67,6 +67,12 @@ func ensureBaseForRole(role string) (string, error) {
 		return output.String(), err
 	}
 
+	if role == "game" {
+		if err := installSteamCmd(&output); err != nil {
+			return output.String(), err
+		}
+	}
+
 	if err := enableRoleServices(role, &output); err != nil {
 		return output.String(), err
 	}
@@ -135,7 +141,7 @@ func rolePackages(role, family string) []string {
 			return []string{"pdns", "pdns-backend-bind"}
 		}
 	case "mail":
-		return []string{"postfix", "dovecot"}
+		return append([]string{"postfix"}, mailDovecotPackages(family)...)
 	case "db":
 		if family == "debian" {
 			return []string{"mariadb-server", "postgresql"}
@@ -145,6 +151,23 @@ func rolePackages(role, family string) []string {
 		}
 	}
 	return nil
+}
+
+func mailDovecotPackages(family string) []string {
+	if family != "debian" {
+		return []string{"dovecot"}
+	}
+
+	if commandExists("apt-cache") {
+		if err := exec.Command("apt-cache", "show", "dovecot-core").Run(); err == nil {
+			return []string{"dovecot-core", "dovecot-imapd"}
+		}
+		if err := exec.Command("apt-cache", "show", "dovecot").Run(); err == nil {
+			return []string{"dovecot"}
+		}
+	}
+
+	return []string{"dovecot-core", "dovecot-imapd"}
 }
 
 func installPackages(family string, packages []string, output *strings.Builder) error {
@@ -176,6 +199,50 @@ func installPackages(family string, packages []string, output *strings.Builder) 
 	}
 	if err := runCommandWithOutput(installCmd[0], installCmd[1:], output); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func installSteamCmd(output *strings.Builder) error {
+	if commandExists("steamcmd") {
+		appendOutput(output, "steamcmd=already_installed")
+		return nil
+	}
+
+	const steamCmdURL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
+	steamCmdDir := "/var/lib/easywi/game/steamcmd"
+	archivePath := filepath.Join(steamCmdDir, "steamcmd_linux.tar.gz")
+
+	if err := os.MkdirAll(steamCmdDir, 0o750); err != nil {
+		return fmt.Errorf("create steamcmd dir: %w", err)
+	}
+
+	switch {
+	case commandExists("curl"):
+		if err := runCommandWithOutput("curl", []string{"-fsSL", steamCmdURL, "-o", archivePath}, output); err != nil {
+			return err
+		}
+	case commandExists("wget"):
+		if err := runCommandWithOutput("wget", []string{"-qO", archivePath, steamCmdURL}, output); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("steamcmd download failed: missing curl or wget")
+	}
+
+	if err := runCommandWithOutput("tar", []string{"-xzf", archivePath, "-C", steamCmdDir}, output); err != nil {
+		return err
+	}
+	if err := os.Remove(archivePath); err != nil {
+		appendOutput(output, "steamcmd_archive_cleanup_failed="+err.Error())
+	}
+
+	steamCmdPath := filepath.Join(steamCmdDir, "steamcmd.sh")
+	if _, err := os.Stat(steamCmdPath); err == nil {
+		if err := runCommandWithOutput("ln", []string{"-sf", steamCmdPath, "/usr/local/bin/steamcmd"}, output); err != nil {
+			return err
+		}
 	}
 
 	return nil

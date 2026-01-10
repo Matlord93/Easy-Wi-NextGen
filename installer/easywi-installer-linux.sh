@@ -10,6 +10,7 @@ CORE_URL="${EASYWI_CORE_URL:-${EASYWI_API_URL:-https://api.easywi.example}}"
 API_URL="${CORE_URL}"
 AGENT_VERSION="${EASYWI_AGENT_VERSION:-latest}"
 RUNNER_VERSION="${EASYWI_RUNNER_VERSION:-latest}"
+AGENT_VERSION_RESOLVED=""
 BOOTSTRAP_TOKEN="${EASYWI_BOOTSTRAP_TOKEN:-}"
 ROLE_LIST="${EASYWI_ROLES:-}"
 CHANNEL="${EASYWI_CHANNEL:-}"
@@ -367,6 +368,30 @@ download_file() {
   fi
 }
 
+resolve_latest_release() {
+  local repository="$1"
+  local version=""
+  local payload=""
+
+  if command_exists curl; then
+    payload="$(curl -fsSL "https://api.github.com/repos/${repository}/releases/latest" || true)"
+  else
+    payload="$(wget -qO- "https://api.github.com/repos/${repository}/releases/latest" || true)"
+  fi
+
+  if command_exists jq; then
+    version="$(echo "${payload}" | jq -r '.tag_name // empty')"
+  else
+    version="$(echo "${payload}" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  fi
+
+  if [[ -z "${version}" ]]; then
+    fatal "Unable to resolve latest release tag from ${repository}"
+  fi
+
+  echo "${version}"
+}
+
 download_agent() {
   local arch="$1"
   local version="$2"
@@ -375,17 +400,19 @@ download_agent() {
   local asset_name
   local checksum_name
   local checksum_line
+  local resolved_version="$version"
   tmp_dir="$(mktemp -d)"
   asset_name="easywi-agent-linux-${arch}"
   checksum_name="checksums-agent.txt"
 
   if [[ "${version}" == "latest" ]]; then
-    release_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download"
+    resolved_version="$(resolve_latest_release "${REPO_OWNER}/${REPO_NAME}")"
+    release_url="${GITHUB_BASE_URL}/${resolved_version}"
   else
     release_url="${GITHUB_BASE_URL}/${version}"
   fi
 
-  log "Downloading agent ${version} (${asset_name})"
+  log "Downloading agent ${resolved_version} (${asset_name})"
   download_file "${release_url}/${asset_name}" "${tmp_dir}/${asset_name}"
   download_file "${release_url}/${checksum_name}" "${tmp_dir}/${checksum_name}"
 
@@ -397,7 +424,7 @@ download_agent() {
   log "Verifying checksum"
   (cd "${tmp_dir}" && printf '%s\n' "${checksum_line}" | sha256sum -c - >&2)
 
-  echo "${tmp_dir}/${asset_name}"
+  echo "${tmp_dir}/${asset_name}|${resolved_version}"
 }
 
 download_runner() {
@@ -495,6 +522,7 @@ JSON
   cat <<CONF >/etc/easywi/agent.conf
 API_URL=${API_URL}
 AGENT_TOKEN=${token}
+version=${AGENT_VERSION_RESOLVED:-${AGENT_VERSION}}
 CONF
 
   chmod 600 /etc/easywi/agent.conf
@@ -618,7 +646,7 @@ role_packages() {
     mail)
       case "${OS_FAMILY}" in
         debian)
-          echo "postfix dovecot-core dovecot-imapd"
+          echo "postfix $(mail_dovecot_packages)"
           ;;
         rhel)
           echo "postfix dovecot"
@@ -642,6 +670,21 @@ role_packages() {
       esac
       ;;
   esac
+}
+
+mail_dovecot_packages() {
+  if command_exists apt-cache; then
+    if apt-cache show dovecot-core >/dev/null 2>&1; then
+      echo "dovecot-core dovecot-imapd"
+      return
+    fi
+    if apt-cache show dovecot >/dev/null 2>&1; then
+      echo "dovecot"
+      return
+    fi
+  fi
+
+  echo "dovecot-core dovecot-imapd"
 }
 
 setup_game_dirs() {
@@ -1211,7 +1254,10 @@ main() {
   ensure_dirs
 
   step "Download and install EasyWI agent"
-  AGENT_PATH="$(download_agent "${ARCH}" "${AGENT_VERSION}")"
+  IFS='|' read -r AGENT_PATH AGENT_VERSION_RESOLVED < <(download_agent "${ARCH}" "${AGENT_VERSION}")
+  if [[ -z "${AGENT_VERSION_RESOLVED}" ]]; then
+    AGENT_VERSION_RESOLVED="${AGENT_VERSION}"
+  fi
   install_agent "${AGENT_PATH}"
 
   step "Apply security baseline"

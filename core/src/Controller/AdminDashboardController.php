@@ -13,8 +13,13 @@ use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Repository\TicketRepository;
 use App\Repository\UserRepository;
+use App\Service\CoreReleaseChecker;
+use App\Service\GithubWorkflowDispatcher;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
@@ -27,6 +32,12 @@ final class AdminDashboardController
         private readonly UserRepository $userRepository,
         private readonly InstanceRepository $instanceRepository,
         private readonly TicketRepository $ticketRepository,
+        private readonly CoreReleaseChecker $coreReleaseChecker,
+        private readonly GithubWorkflowDispatcher $workflowDispatcher,
+        #[Autowire('%app.core_version%')]
+        private readonly string $coreVersion,
+        #[Autowire('%app.core_update_install_dir%')]
+        private readonly string $coreUpdateInstallDir,
         private readonly Environment $twig,
     ) {
     }
@@ -60,7 +71,39 @@ final class AdminDashboardController
             'overview' => $overview,
             'jobs' => $this->normalizeJobs($jobs),
             'nodes' => $this->normalizeAgents(array_slice($agents, 0, 6)),
+            'coreUpdate' => $this->buildCoreUpdateSummary(),
         ]));
+    }
+
+    #[Route(path: '/update/webinterface', name: 'admin_update_webinterface', methods: ['POST'])]
+    public function updateWebinterface(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $summary = $this->buildCoreUpdateSummary();
+        if (!$this->workflowDispatcher->isConfigured()) {
+            $summary['error'] = 'GitHub dispatch is not configured.';
+            return $this->renderUpdateCard($summary);
+        }
+
+        if ($summary['latestVersion'] === null) {
+            $summary['error'] = 'Unable to resolve latest version.';
+            return $this->renderUpdateCard($summary);
+        }
+
+        try {
+            $this->workflowDispatcher->dispatch($summary['latestVersion'], [
+                'install_dir' => $this->coreUpdateInstallDir,
+                'ref' => $summary['latestVersion'],
+            ]);
+            $summary['notice'] = 'Update dispatched to GitHub.';
+        } catch (\RuntimeException $exception) {
+            $summary['error'] = $exception->getMessage();
+        }
+
+        return $this->renderUpdateCard($summary);
     }
 
     private function isAdmin(Request $request): bool
@@ -132,6 +175,32 @@ final class AdminDashboardController
                 'queue' => $queue,
             ];
         }, $agents);
+    }
+
+    private function buildCoreUpdateSummary(): array
+    {
+        $latestVersion = $this->coreReleaseChecker->getLatestVersion();
+        $updateAvailable = $this->coreReleaseChecker->isUpdateAvailable($this->coreVersion, $latestVersion);
+
+        return [
+            'currentVersion' => $this->coreVersion !== '' ? $this->coreVersion : null,
+            'latestVersion' => $latestVersion,
+            'updateAvailable' => $updateAvailable,
+            'channel' => $this->coreReleaseChecker->getChannel(),
+            'repository' => $this->coreReleaseChecker->getRepository(),
+            'workflowConfigured' => $this->workflowDispatcher->isConfigured(),
+            'notice' => null,
+            'error' => null,
+        ];
+    }
+
+    private function renderUpdateCard(array $summary): Response
+    {
+        return new Response($this->twig->render('admin/dashboard/_web_update_card.html.twig', [
+            'coreUpdate' => $summary,
+        ]), HttpResponse::HTTP_OK, [
+            ResponseHeaderBag::CONTENT_TYPE => 'text/html; charset=UTF-8',
+        ]);
     }
 
     private function extractMetricPercent(array $metrics, string $key): ?float
