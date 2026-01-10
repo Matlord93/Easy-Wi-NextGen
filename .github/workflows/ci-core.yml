@@ -31,7 +31,7 @@ jobs:
           COMPOSER_ALLOW_PLUGINS: "symfony/runtime,symfony/flex"
 
       - name: Cache Composer
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.composer/cache/files
           key: ${{ runner.os }}-composer-${{ hashFiles('core/composer.lock') }}
