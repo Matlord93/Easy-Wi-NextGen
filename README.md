@@ -64,7 +64,7 @@ zwischen **Standalone**, **Plesk** und **aaPanel**.
 **Linux (mit Auswahl Plesk/aaPanel/Standalone):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/easywi/easywi/main/installer/easywi-installer-panel-linux.sh -o easywi-installer-panel-linux.sh
+curl -fsSL https://github.com/Matlord93/Easy-Wi-NextGen/blob/Beta/installer/easywi-installer-panel-linux.sh -o easywi-installer-panel-linux.sh
 chmod +x easywi-installer-panel-linux.sh
 sudo ./easywi-installer-panel-linux.sh \
   --mode standalone \
