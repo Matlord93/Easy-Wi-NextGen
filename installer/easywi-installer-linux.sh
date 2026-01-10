@@ -3,8 +3,8 @@ set -euo pipefail
 
 VERSION="0.1.0"
 
-REPO_OWNER="${EASYWI_REPO_OWNER:-easywi}"
-REPO_NAME="${EASYWI_REPO_NAME:-easywi}"
+REPO_OWNER="${EASYWI_REPO_OWNER:-Matlord93}"
+REPO_NAME="${EASYWI_REPO_NAME:-Easy-Wi-NextGen}"
 GITHUB_BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download"
 CORE_URL="${EASYWI_CORE_URL:-${EASYWI_API_URL:-https://api.easywi.example}}"
 API_URL="${CORE_URL}"
