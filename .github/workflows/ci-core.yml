@@ -17,7 +17,7 @@ jobs:
       run:
         working-directory: core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
@@ -61,7 +61,7 @@ jobs:
       run:
         working-directory: core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
