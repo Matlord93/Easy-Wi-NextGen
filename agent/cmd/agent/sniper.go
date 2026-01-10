@@ -48,7 +48,7 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	}
 
 	if baseDir == "" {
-		baseDir = "/srv/gameservers"
+		baseDir = "/home"
 	}
 
 	osUsername := buildInstanceUsername(customerID, instanceID)

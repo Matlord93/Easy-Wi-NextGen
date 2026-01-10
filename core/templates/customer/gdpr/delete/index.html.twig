@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ t('customer_gdpr_delete_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-500">{{ t('customer_gdpr_delete_intro', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('customer_gdpr_delete_intro', page_locale()) }}</p>
     </div>
 </div>
 
@@ -15,7 +15,7 @@
         <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
             <div>
                 <h2 class="text-lg font-semibold">{{ t('customer_gdpr_delete_status_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-500">{{ t('customer_gdpr_delete_status_intro', page_locale()) }}</p>
+                <p class="text-sm text-slate-700">{{ t('customer_gdpr_delete_status_intro', page_locale()) }}</p>
             </div>
         </div>
         <div id="gdpr-delete-status" hx-get="/gdpr/delete/status" hx-trigger="gdpr-delete-updated from:body" hx-swap="outerHTML">
@@ -26,7 +26,7 @@
     <div class="rounded-xl bg-white border border-slate-200 p-5 space-y-4">
         <div>
             <h2 class="text-lg font-semibold">{{ t('customer_gdpr_delete_retention_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-500">{{ t('customer_gdpr_delete_retention_intro', page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t('customer_gdpr_delete_retention_intro', page_locale()) }}</p>
         </div>
         <ul class="space-y-2 text-sm text-slate-600">
             <li class="flex gap-2"><span class="text-emerald-500">•</span>{{ t('customer_gdpr_delete_retention_item_invoices', page_locale()) }}</li>

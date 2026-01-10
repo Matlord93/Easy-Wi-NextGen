@@ -6,7 +6,7 @@
 <div class="flex items-center justify-between mb-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ t('admin_nodes_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-500">{{ t('admin_nodes_intro', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('admin_nodes_intro', page_locale()) }}</p>
     </div>
     <div class="flex items-center gap-3">
         {% if summary.latestVersion %}
@@ -17,7 +17,7 @@
                 {{ t('admin_nodes_updates_available', page_locale())|replace({'%count%': summary.updates}) }}
             </span>
         {% else %}
-            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
+            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
                 {{ t('admin_nodes_release_unavailable', page_locale()) }}
             </span>
         {% endif %}
@@ -38,27 +38,33 @@
     </div>
 </div>
 
+{% if diskProtectCount is defined and diskProtectCount > 0 %}
+    <div class="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        {{ t('admin_nodes_disk_protect_banner', page_locale())|replace({'%count%': diskProtectCount}) }}
+    </div>
+{% endif %}
+
 <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_total', page_locale()) }}</p>
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_total', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_online', page_locale()) }}</p>
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_online', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.online }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_stale', page_locale()) }}</p>
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_stale', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.stale }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_offline', page_locale()) }}</p>
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_offline', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-rose-500">{{ summary.offline }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">{{ t('admin_nodes_updates_label', page_locale()) }}</p>
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_nodes_updates_label', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.updates }}</p>
-        <p class="mt-1 text-xs text-slate-400">{{ summary.latestVersion ?? t('admin_nodes_release_unavailable', page_locale()) }}</p>
+        <p class="mt-1 text-xs text-slate-600">{{ summary.latestVersion ?? t('admin_nodes_release_unavailable', page_locale()) }}</p>
     </div>
 </div>
 
@@ -66,7 +72,7 @@
     <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
         <div>
             <h2 class="text-lg font-semibold">{{ t('admin_nodes_fleet', page_locale()) }}</h2>
-            <p class="text-sm text-slate-500">{{ t('admin_nodes_fleet_intro', page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t('admin_nodes_fleet_intro', page_locale()) }}</p>
         </div>
         <button
             class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"

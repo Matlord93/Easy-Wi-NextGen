@@ -2,7 +2,7 @@
     <div class="flex items-center justify-between">
         <div>
             <h2 class="text-lg font-semibold">Post Update</h2>
-            <p class="text-sm text-slate-500">Share progress and status changes.</p>
+            <p class="text-sm text-slate-700">Share progress and status changes.</p>
         </div>
     </div>
 
@@ -18,7 +18,7 @@
 
     <form class="mt-6 space-y-4" hx-post="{{ updateForm.action_url }}" hx-target="#incident-update-form" hx-swap="innerHTML">
         <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">Status</label>
+            <label class="text-xs font-semibold uppercase text-slate-700">Status</label>
             <select name="status" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                 {% for status in statuses %}
                     <option value="{{ status }}" {{ status == updateForm.status ? 'selected' : '' }}>{{ status|capitalize }}</option>
@@ -26,7 +26,7 @@
             </select>
         </div>
         <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">Message</label>
+            <label class="text-xs font-semibold uppercase text-slate-700">Message</label>
             <textarea name="message" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" rows="4" placeholder="Describe the update">{{ updateForm.message }}</textarea>
         </div>
         <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">Post Update</button>

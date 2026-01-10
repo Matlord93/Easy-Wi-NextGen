@@ -17,6 +17,8 @@ use App\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\DiskEnforcementService;
+use App\Service\DiskUsageFormatter;
 use App\Service\InstanceJobPayloadBuilder;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -38,6 +40,8 @@ final class AdminInstanceController
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly Environment $twig,
     ) {
     }
@@ -125,6 +129,12 @@ final class AdminInstanceController
 
         $formData = $this->parsePayload($request);
         if ($formData['errors'] !== []) {
+            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+        }
+
+        $blockMessage = $this->diskEnforcementService->guardNodeProvisioning($formData['node'], new \DateTimeImmutable());
+        if ($blockMessage !== null) {
+            $formData['errors'][] = $blockMessage;
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
         }
 
@@ -485,7 +495,11 @@ final class AdminInstanceController
      */
     private function normalizeInstances(array $instances): array
     {
-        return array_map(static function (Instance $instance): array {
+        return array_map(function (Instance $instance): array {
+            $diskLimitBytes = $instance->getDiskLimitBytes();
+            $diskUsedBytes = $instance->getDiskUsedBytes();
+            $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
+
             return [
                 'id' => $instance->getId(),
                 'customer_email' => $instance->getCustomer()->getEmail(),
@@ -495,6 +509,13 @@ final class AdminInstanceController
                 'cpu_limit' => $instance->getCpuLimit(),
                 'ram_limit' => $instance->getRamLimit(),
                 'disk_limit' => $instance->getDiskLimit(),
+                'disk_limit_bytes' => $diskLimitBytes,
+                'disk_used_bytes' => $diskUsedBytes,
+                'disk_limit_human' => $this->diskUsageFormatter->formatBytes($diskLimitBytes),
+                'disk_used_human' => $this->diskUsageFormatter->formatBytes($diskUsedBytes),
+                'disk_percent' => $diskPercent,
+                'disk_state' => $instance->getDiskState()->value,
+                'disk_last_scanned_at' => $instance->getDiskLastScannedAt(),
                 'status' => $instance->getStatus()->value,
                 'created_at' => $instance->getCreatedAt(),
                 'updated_at' => $instance->getUpdatedAt(),
@@ -511,6 +532,7 @@ final class AdminInstanceController
             'total' => count($instances),
             'running' => 0,
             'stopped' => 0,
+            'suspended' => 0,
             'provisioning' => 0,
             'error' => 0,
         ];
@@ -521,6 +543,8 @@ final class AdminInstanceController
                 $summary['running']++;
             } elseif ($status === InstanceStatus::Stopped) {
                 $summary['stopped']++;
+            } elseif ($status === InstanceStatus::Suspended) {
+                $summary['suspended'] = ($summary['suspended'] ?? 0) + 1;
             } elseif ($status === InstanceStatus::Provisioning) {
                 $summary['provisioning']++;
             } elseif ($status === InstanceStatus::Error) {

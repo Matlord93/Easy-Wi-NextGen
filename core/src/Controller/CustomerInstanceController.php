@@ -10,10 +10,13 @@ use App\Entity\Job;
 use App\Entity\User;
 use App\Enum\InstanceScheduleAction;
 use App\Enum\InstanceUpdatePolicy;
+use App\Enum\InstanceStatus;
 use App\Enum\UserType;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceScheduleRepository;
 use App\Service\AuditLogger;
+use App\Service\DiskEnforcementService;
+use App\Service\DiskUsageFormatter;
 use App\Service\InstanceJobPayloadBuilder;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
@@ -33,6 +36,8 @@ final class CustomerInstanceController
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly AuditLogger $auditLogger,
+        private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
     ) {
@@ -56,6 +61,11 @@ final class CustomerInstanceController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $template = $instance->getTemplate();
+
+        $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
+        if ($blockMessage !== null) {
+            return $this->renderInstanceCard($instance, null, $blockMessage);
+        }
 
         if ($template->getSniperProfile() === null && $template->getUpdateCommand() === '') {
             return $this->renderInstanceCard($instance, null, 'No update command configured for this template.');
@@ -166,6 +176,11 @@ final class CustomerInstanceController
             return $this->renderInstanceCard($instance, null, 'No previous build available for rollback.');
         }
 
+        $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
+        if ($blockMessage !== null) {
+            return $this->renderInstanceCard($instance, null, $blockMessage);
+        }
+
         $job = new Job('sniper.update', $this->instanceJobPayloadBuilder->buildSniperUpdatePayload(
             $instance,
             $instance->getPreviousBuildId(),
@@ -186,6 +201,54 @@ final class CustomerInstanceController
         $this->entityManager->flush();
 
         return $this->renderInstanceCard($instance, 'Rollback queued.', null);
+    }
+
+    #[Route(path: '/{id}/power', name: 'customer_instance_power', methods: ['POST'])]
+    public function power(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+        $action = trim((string) $request->request->get('action', ''));
+
+        if ($instance->getStatus() === InstanceStatus::Suspended) {
+            return $this->renderInstanceCard($instance, null, 'This instance is suspended.');
+        }
+
+        $jobType = match ($action) {
+            'start' => 'instance.start',
+            'stop' => 'instance.stop',
+            'restart' => 'instance.restart',
+            default => null,
+        };
+        if ($jobType === null) {
+            throw new BadRequestHttpException('Invalid action.');
+        }
+
+        $job = new Job($jobType, [
+            'instance_id' => (string) ($instance->getId() ?? ''),
+            'customer_id' => (string) $customer->getId(),
+            'node_id' => $instance->getNode()->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+        ]);
+        $this->entityManager->persist($job);
+
+        $this->auditLogger->log($customer, 'instance.power.queued', [
+            'instance_id' => $instance->getId(),
+            'customer_id' => $customer->getId(),
+            'job_id' => $job->getId(),
+            'action' => $action,
+        ]);
+
+        $this->entityManager->flush();
+
+        $notice = match ($action) {
+            'start' => 'Start queued.',
+            'stop' => 'Stop queued.',
+            'restart' => 'Restart queued.',
+            default => 'Action queued.',
+        };
+
+        return $this->renderInstanceCard($instance, $notice, null);
     }
 
     private function requireCustomer(Request $request): User
@@ -232,6 +295,10 @@ final class CustomerInstanceController
 
     private function normalizeInstance(Instance $instance, ?InstanceSchedule $schedule, ?string $notice = null, ?string $error = null): array
     {
+        $diskLimitBytes = $instance->getDiskLimitBytes();
+        $diskUsedBytes = $instance->getDiskUsedBytes();
+        $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
+
         return [
             'id' => $instance->getId(),
             'template' => [
@@ -251,6 +318,14 @@ final class CustomerInstanceController
             'locked_build_id' => $instance->getLockedBuildId(),
             'locked_version' => $instance->getLockedVersion(),
             'last_update_queued_at' => $instance->getLastUpdateQueuedAt(),
+            'disk_limit_bytes' => $diskLimitBytes,
+            'disk_used_bytes' => $diskUsedBytes,
+            'disk_limit_human' => $this->diskUsageFormatter->formatBytes($diskLimitBytes),
+            'disk_used_human' => $this->diskUsageFormatter->formatBytes($diskUsedBytes),
+            'disk_percent' => $diskPercent,
+            'disk_state' => $instance->getDiskState()->value,
+            'disk_last_scanned_at' => $instance->getDiskLastScannedAt(),
+            'disk_scan_error' => $instance->getDiskScanError(),
             'schedule' => $schedule === null ? null : [
                 'cron_expression' => $schedule->getCronExpression(),
                 'time_zone' => $schedule->getTimeZone() ?? 'UTC',

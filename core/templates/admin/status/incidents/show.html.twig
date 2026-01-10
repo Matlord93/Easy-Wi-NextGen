@@ -13,10 +13,10 @@
     {% include 'admin/status/_nav.html.twig' %}
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-            <a href="/admin/status/incidents" class="text-sm text-slate-500 hover:text-slate-700">&larr; Back to incidents</a>
+            <a href="/admin/status/incidents" class="text-sm text-slate-700 hover:text-slate-700">&larr; Back to incidents</a>
             <h1 class="mt-2 text-2xl font-semibold">{{ incident.title }}</h1>
             {% if incident.message %}
-                <p class="text-sm text-slate-500">{{ incident.message }}</p>
+                <p class="text-sm text-slate-700">{{ incident.message }}</p>
             {% endif %}
         </div>
         <div class="flex items-center gap-3">

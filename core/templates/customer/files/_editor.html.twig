@@ -1,0 +1,51 @@
+{% set status = status|default('queued') %}
+
+<div id="file-editor" class="rounded-xl border border-slate-200 bg-white p-4">
+    {% if status in ['queued', 'running'] %}
+        <div
+            class="flex items-center gap-3 text-sm text-slate-600"
+            hx-get="/files/read/{{ jobId }}"
+            hx-trigger="load, every 2s"
+            hx-swap="outerHTML"
+        >
+            <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+                <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path>
+                </svg>
+            </span>
+            <div>
+                <p class="font-semibold text-slate-700">{{ t('customer_files_editor_loading', page_locale()) }}</p>
+                <p class="text-xs text-slate-600">{{ name }}</p>
+            </div>
+        </div>
+    {% elseif status in ['failed', 'cancelled'] %}
+        <p class="text-sm font-semibold text-rose-700">{{ t('customer_files_editor_failed', page_locale()) }}</p>
+        <p class="mt-1 text-xs text-rose-600">{{ error|default(t('customer_files_editor_failed_default', page_locale())) }}</p>
+    {% else %}
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <p class="text-sm font-semibold text-slate-900">{{ t('customer_files_editor_title', page_locale()) }}</p>
+                <p class="text-xs text-slate-600">{{ name }}</p>
+            </div>
+            <button
+                type="button"
+                class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                hx-get="/files/listing?webspace_id={{ webspaceId }}&path={{ path|url_encode }}"
+                hx-target="#file-listing"
+                hx-swap="outerHTML"
+            >
+                {{ t('customer_files_back_to_listing', page_locale()) }}
+            </button>
+        </div>
+        <form class="mt-4 space-y-3" hx-post="/files/save" hx-target="#file-feedback" hx-swap="innerHTML">
+            <input type="hidden" name="webspace_id" value="{{ webspaceId }}">
+            <input type="hidden" name="path" value="{{ path }}">
+            <input type="hidden" name="name" value="{{ name }}">
+            <textarea name="content" rows="10" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">{{ content|default('') }}</textarea>
+            <div class="flex justify-end">
+                <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_files_save', page_locale()) }}</button>
+            </div>
+        </form>
+    {% endif %}
+</div>

@@ -9,6 +9,7 @@ use App\Enum\InstanceScheduleAction;
 use App\Enum\InstanceUpdatePolicy;
 use App\Repository\InstanceScheduleRepository;
 use App\Service\AuditLogger;
+use App\Service\DiskEnforcementService;
 use App\Service\InstanceJobPayloadBuilder;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
@@ -28,6 +29,7 @@ final class InstanceUpdateQueueCommand extends Command
     public function __construct(
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
+        private readonly DiskEnforcementService $diskEnforcementService,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {
@@ -63,6 +65,10 @@ final class InstanceUpdateQueueCommand extends Command
 
             $lastQueuedAt = $instance->getLastUpdateQueuedAt();
             if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZoneObj) >= $previousRun) {
+                continue;
+            }
+
+            if ($this->diskEnforcementService->guardInstanceAction($instance, $now) !== null) {
                 continue;
             }
 

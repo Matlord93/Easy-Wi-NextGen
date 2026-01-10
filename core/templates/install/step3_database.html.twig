@@ -52,7 +52,7 @@
                     <label class="text-sm font-medium text-slate-700" for="db_password">{{ 'database.password'|trans }}</label>
                     <input id="db_password" name="db_password" type="password" value="" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.password_placeholder'|trans }}">
                     {% if hasStoredPassword %}
-                        <p class="mt-1 text-xs text-slate-500">{{ 'database.password_stored_hint'|trans }}</p>
+                        <p class="mt-1 text-xs text-slate-700">{{ 'database.password_stored_hint'|trans }}</p>
                     {% endif %}
                 </div>
             </div>
@@ -64,7 +64,7 @@
             <div class="mt-4">
                 <label class="text-sm font-medium text-slate-700" for="db_path">{{ 'database.path'|trans }}</label>
                 <input id="db_path" name="db_path" type="text" value="{{ database.path }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.path_placeholder'|trans }}">
-                <p class="mt-1 text-xs text-slate-500">{{ 'database.path_help'|trans }}</p>
+                <p class="mt-1 text-xs text-slate-700">{{ 'database.path_help'|trans }}</p>
             </div>
         </div>
 

@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ t('search_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-500">{{ t('global_search_placeholder', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('global_search_placeholder', page_locale()) }}</p>
     </div>
     {% include 'admin/search/_results.html.twig' with { query: query, results: results } %}
 </div>

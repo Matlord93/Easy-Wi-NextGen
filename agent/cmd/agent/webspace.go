@@ -92,10 +92,6 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
-	if err := applyQuota(job.Payload, ownerUser); err != nil {
-		return failureResult(job.ID, err)
-	}
-
 	return jobs.Result{
 		JobID:  job.ID,
 		Status: "success",
@@ -253,29 +249,6 @@ location ~ \.php$ {
     fastcgi_pass %s;
 }
 `, webRoot, logsDir, logsDir, phpFpmListen)
-}
-
-func applyQuota(payload map[string]any, ownerUser string) error {
-	quotaValue := payloadValue(payload, "quota_mb", "quota")
-	if quotaValue == "" {
-		return nil
-	}
-	quotaMB, err := strconv.Atoi(quotaValue)
-	if err != nil {
-		return fmt.Errorf("parse quota: %w", err)
-	}
-	if quotaMB <= 0 {
-		return nil
-	}
-	quotaMount := payloadValue(payload, "quota_mount", "quota_device")
-	if quotaMount == "" {
-		return fmt.Errorf("quota_mount is required when quota is set")
-	}
-	blocks := quotaMB * 1024
-	if err := runCommand("setquota", "-u", ownerUser, strconv.Itoa(blocks), strconv.Itoa(blocks), "0", "0", quotaMount); err != nil {
-		return fmt.Errorf("set quota for %s: %w", ownerUser, err)
-	}
-	return nil
 }
 
 func runCommand(name string, args ...string) error {

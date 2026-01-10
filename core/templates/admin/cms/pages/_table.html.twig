@@ -1,6 +1,6 @@
 <div id="cms-pages-table" class="overflow-x-auto">
     <table class="min-w-full text-sm">
-        <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
+        <thead class="text-xs uppercase text-slate-700 border-b border-slate-200">
             <tr>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('page', page_locale()) }}</th>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('slug', page_locale()) }}</th>
@@ -15,7 +15,7 @@
                 <tr class="hover:bg-slate-50">
                     <td class="px-5 py-4">
                         <div class="font-semibold text-slate-900">{{ page.title }}</div>
-                        <div class="text-xs text-slate-500">ID #{{ page.id }}</div>
+                        <div class="text-xs text-slate-700">ID #{{ page.id }}</div>
                     </td>
                     <td class="px-5 py-4 text-slate-600">/{{ page.slug }}</td>
                     <td class="px-5 py-4">
@@ -26,7 +26,7 @@
                         {% endif %}
                     </td>
                     <td class="px-5 py-4 text-slate-600">{{ page.block_count }}</td>
-                    <td class="px-5 py-4 text-slate-500">{{ page.updated_at|date('Y-m-d H:i') }}</td>
+                    <td class="px-5 py-4 text-slate-700">{{ page.updated_at|date('Y-m-d H:i') }}</td>
                     <td class="px-5 py-4 text-right">
                         <div class="flex items-center justify-end gap-2">
                             <button
@@ -50,7 +50,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="6" class="px-5 py-6 text-center text-sm text-slate-500">{{ t('no_cms_pages', page_locale()) }}</td>
+                    <td colspan="6" class="px-5 py-6 text-center text-sm text-slate-700">{{ t('no_cms_pages', page_locale()) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

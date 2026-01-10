@@ -6,6 +6,7 @@ namespace App\Entity;
 
 use App\Domain\Event\ResourceEventSource;
 use App\Domain\Event\ResourceEventSourceTrait;
+use App\Enum\InstanceDiskState;
 use App\Enum\InstanceStatus;
 use App\Enum\InstanceUpdatePolicy;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -44,6 +45,21 @@ class Instance implements ResourceEventSource
 
     #[ORM\Column]
     private int $diskLimit;
+
+    #[ORM\Column(type: 'bigint')]
+    private int $diskLimitBytes;
+
+    #[ORM\Column(type: 'bigint')]
+    private int $diskUsedBytes = 0;
+
+    #[ORM\Column(enumType: InstanceDiskState::class)]
+    private InstanceDiskState $diskState = InstanceDiskState::Ok;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $diskLastScannedAt = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $diskScanError = null;
 
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $portBlockId = null;
@@ -104,6 +120,7 @@ class Instance implements ResourceEventSource
         $this->cpuLimit = $cpuLimit;
         $this->ramLimit = $ramLimit;
         $this->diskLimit = $diskLimit;
+        $this->diskLimitBytes = $this->toDiskLimitBytes($diskLimit);
         $this->portBlockId = $portBlockId;
         $this->status = $status;
         $this->updatePolicy = $updatePolicy;
@@ -162,6 +179,63 @@ class Instance implements ResourceEventSource
     public function setDiskLimit(int $diskLimit): void
     {
         $this->diskLimit = $diskLimit;
+        $this->diskLimitBytes = $this->toDiskLimitBytes($diskLimit);
+        $this->touch();
+    }
+
+    public function getDiskLimitBytes(): int
+    {
+        return $this->diskLimitBytes;
+    }
+
+    public function setDiskLimitBytes(int $diskLimitBytes): void
+    {
+        $this->diskLimitBytes = max(0, $diskLimitBytes);
+        $this->diskLimit = $this->diskLimitBytes > 0 ? (int) ceil($this->diskLimitBytes / (1024 * 1024)) : 0;
+        $this->touch();
+    }
+
+    public function getDiskUsedBytes(): int
+    {
+        return $this->diskUsedBytes;
+    }
+
+    public function setDiskUsedBytes(int $diskUsedBytes): void
+    {
+        $this->diskUsedBytes = max(0, $diskUsedBytes);
+        $this->touch();
+    }
+
+    public function getDiskState(): InstanceDiskState
+    {
+        return $this->diskState;
+    }
+
+    public function setDiskState(InstanceDiskState $diskState): void
+    {
+        $this->diskState = $diskState;
+        $this->touch();
+    }
+
+    public function getDiskLastScannedAt(): ?\DateTimeImmutable
+    {
+        return $this->diskLastScannedAt;
+    }
+
+    public function setDiskLastScannedAt(?\DateTimeImmutable $diskLastScannedAt): void
+    {
+        $this->diskLastScannedAt = $diskLastScannedAt;
+        $this->touch();
+    }
+
+    public function getDiskScanError(): ?string
+    {
+        return $this->diskScanError;
+    }
+
+    public function setDiskScanError(?string $diskScanError): void
+    {
+        $this->diskScanError = $diskScanError;
         $this->touch();
     }
 
@@ -296,5 +370,14 @@ class Instance implements ResourceEventSource
     private function touch(): void
     {
         $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    private function toDiskLimitBytes(int $diskLimit): int
+    {
+        if ($diskLimit <= 0) {
+            return 0;
+        }
+
+        return $diskLimit * 1024 * 1024;
     }
 }

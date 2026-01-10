@@ -1,6 +1,6 @@
 <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
-        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-700">
             <tr>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_exports_status', page_locale()) }}</th>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_exports_requested', page_locale()) }}</th>
@@ -12,7 +12,7 @@
         <tbody class="divide-y divide-slate-100">
             {% if exports is empty %}
                 <tr>
-                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-500">{{ t('customer_gdpr_exports_empty', page_locale()) }}</td>
+                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-700">{{ t('customer_gdpr_exports_empty', page_locale()) }}</td>
                 </tr>
             {% else %}
                 {% for export in exports %}
@@ -25,18 +25,18 @@
                         </td>
                         <td class="px-5 py-4 text-slate-600">
                             <div class="text-sm font-medium text-slate-700">{{ export.requestedAt|date('Y-m-d H:i') }}</div>
-                            <div class="text-xs text-slate-400">{{ t('customer_gdpr_exports_ready', page_locale()) }} {{ export.readyAt ? export.readyAt|date('Y-m-d H:i') : t('customer_gdpr_exports_pending', page_locale()) }}</div>
+                            <div class="text-xs text-slate-600">{{ t('customer_gdpr_exports_ready', page_locale()) }} {{ export.readyAt ? export.readyAt|date('Y-m-d H:i') : t('customer_gdpr_exports_pending', page_locale()) }}</div>
                         </td>
                         <td class="px-5 py-4 text-sm text-slate-600">{{ export.expiresAt|date('Y-m-d H:i') }}</td>
                         <td class="px-5 py-4 text-sm text-slate-600">
                             <div class="font-medium text-slate-700">{{ export.fileName }}</div>
-                            <div class="text-xs text-slate-400">{{ (export.fileSize / 1024)|number_format(1) }} KB</div>
+                            <div class="text-xs text-slate-600">{{ (export.fileSize / 1024)|number_format(1) }} KB</div>
                         </td>
                         <td class="px-5 py-4">
                             {% if export.status.value == 'ready' and not export.expired %}
                                 <a href="/gdpr/exports/{{ export.id }}/download" class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">{{ t('customer_gdpr_exports_download', page_locale()) }}</a>
                             {% else %}
-                                <span class="text-xs text-slate-400">{{ t('customer_gdpr_exports_unavailable', page_locale()) }}</span>
+                                <span class="text-xs text-slate-600">{{ t('customer_gdpr_exports_unavailable', page_locale()) }}</span>
                             {% endif %}
                         </td>
                     </tr>

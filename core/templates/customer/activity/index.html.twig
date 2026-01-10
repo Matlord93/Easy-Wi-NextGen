@@ -7,7 +7,7 @@
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-semibold">{{ t('customer_activity_welcome', page_locale()) }}</h1>
-            <p class="text-sm text-slate-500">{{ t('customer_activity_intro', page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t('customer_activity_intro', page_locale()) }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
             <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('customer_activity_new_ticket', page_locale()) }}</button>
@@ -18,7 +18,7 @@
     <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-5 py-4">
             <h2 class="text-lg font-semibold">{{ t('customer_activity_recent_activity', page_locale()) }}</h2>
-            <p class="text-sm text-slate-500">{{ t('customer_activity_recent_activity_description', page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t('customer_activity_recent_activity_description', page_locale()) }}</p>
         </div>
         <div class="space-y-4 px-5 py-4">
             {% for entry in entries %}
@@ -26,14 +26,14 @@
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <p class="text-sm font-semibold text-slate-900">{{ entry.action }}</p>
-                            <p class="text-xs text-slate-500">{{ entry.actor }}</p>
+                            <p class="text-xs text-slate-700">{{ entry.actor }}</p>
                         </div>
-                        <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">{{ entry.created_at|date('Y-m-d H:i') }}</span>
+                        <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700">{{ entry.created_at|date('Y-m-d H:i') }}</span>
                     </div>
-                    <pre class="mt-3 rounded-lg bg-white p-3 text-xs text-slate-500">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+                    <pre class="mt-3 rounded-lg bg-white p-3 text-xs text-slate-700">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
                 </div>
             {% else %}
-                <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-400">
+                <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-600">
                     {{ t('no_results', page_locale()) }}
                 </div>
             {% endfor %}

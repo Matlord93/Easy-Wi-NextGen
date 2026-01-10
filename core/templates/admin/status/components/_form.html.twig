@@ -2,7 +2,7 @@
     <div class="flex items-center justify-between">
         <div>
             <h2 class="text-lg font-semibold">{{ form.action == 'create' ? 'New Component' : 'Edit Component' }}</h2>
-            <p class="text-sm text-slate-500">Define what should be visible on the public status page.</p>
+            <p class="text-sm text-slate-700">Define what should be visible on the public status page.</p>
         </div>
     </div>
 
@@ -18,12 +18,12 @@
 
     <form class="mt-6 space-y-4" hx-post="{{ form.action_url }}" hx-target="#status-component-form" hx-swap="outerHTML">
         <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">Name</label>
+            <label class="text-xs font-semibold uppercase text-slate-700">Name</label>
             <input type="text" name="name" value="{{ form.name }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Public status name">
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
-                <label class="text-xs font-semibold uppercase text-slate-500">Type</label>
+                <label class="text-xs font-semibold uppercase text-slate-700">Type</label>
                 <select name="type" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                     {% for type in types %}
                         <option value="{{ type }}" {{ type == form.type ? 'selected' : '' }}>{{ type|capitalize }}</option>
@@ -31,7 +31,7 @@
                 </select>
             </div>
             <div>
-                <label class="text-xs font-semibold uppercase text-slate-500">Status</label>
+                <label class="text-xs font-semibold uppercase text-slate-700">Status</label>
                 <select name="status" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                     {% for status in statuses %}
                         <option value="{{ status }}" {{ status == form.status ? 'selected' : '' }}>{{ status|capitalize }}</option>
@@ -40,11 +40,11 @@
             </div>
         </div>
         <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">Target Reference</label>
+            <label class="text-xs font-semibold uppercase text-slate-700">Target Reference</label>
             <input type="text" name="target_ref" value="{{ form.target_ref }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Node ID, service key, or URL">
         </div>
         <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">Last Checked</label>
+            <label class="text-xs font-semibold uppercase text-slate-700">Last Checked</label>
             <input type="datetime-local" name="last_checked_at" value="{{ form.last_checked_at }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
         </div>
         <label class="flex items-center gap-2 text-sm text-slate-600">

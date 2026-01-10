@@ -7,7 +7,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-2xl font-semibold text-slate-900">{{ t('admin_billing_heading', page_locale()) }}</h1>
-                <p class="text-sm text-slate-500">{{ t('admin_billing_intro', page_locale()) }}</p>
+                <p class="text-sm text-slate-700">{{ t('admin_billing_intro', page_locale()) }}</p>
             </div>
             <div class="flex gap-3">
             <a href="/admin/billing/invoices/new" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_billing_create_invoice', page_locale()) }}</a>
@@ -19,9 +19,9 @@
 
         <div class="grid gap-4 sm:grid-cols-3">
             <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p class="text-xs uppercase text-slate-400">{{ t('admin_billing_open_invoices', page_locale()) }}</p>
+                <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_open_invoices', page_locale()) }}</p>
                 <p class="mt-2 text-2xl font-semibold text-slate-900">{{ summary.open }}</p>
-                <p class="mt-1 text-xs text-slate-500">{{ t('admin_billing_awaiting_payment', page_locale()) }}</p>
+                <p class="mt-1 text-xs text-slate-700">{{ t('admin_billing_awaiting_payment', page_locale()) }}</p>
             </div>
             <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
                 <p class="text-xs uppercase text-amber-600">{{ t('admin_billing_past_due', page_locale()) }}</p>
@@ -39,7 +39,7 @@
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
                 <div>
                     <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_billing_recent_invoices', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-500">{{ t('admin_billing_recent_invoices_intro', page_locale()) }}</p>
+                    <p class="text-sm text-slate-700">{{ t('admin_billing_recent_invoices_intro', page_locale()) }}</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <a href="/admin/billing/export?type=invoices" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">{{ t('admin_billing_export_invoices', page_locale()) }}</a>
@@ -48,7 +48,7 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-700">
                     <tr>
                         <th class="px-6 py-3 text-left">{{ t('admin_billing_table_invoice', page_locale()) }}</th>
                         <th class="px-6 py-3 text-left">{{ t('admin_billing_table_customer', page_locale()) }}</th>
@@ -90,7 +90,7 @@
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="7" class="px-6 py-8 text-center text-sm text-slate-500">{{ t('admin_billing_no_invoices', page_locale()) }}</td>
+                            <td colspan="7" class="px-6 py-8 text-center text-sm text-slate-700">{{ t('admin_billing_no_invoices', page_locale()) }}</td>
                         </tr>
                     {% endfor %}
                     </tbody>
@@ -102,13 +102,13 @@
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
                 <div>
                     <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_billing_credit_notes', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-500">{{ t('admin_billing_credit_notes_intro', page_locale()) }}</p>
+                    <p class="text-sm text-slate-700">{{ t('admin_billing_credit_notes_intro', page_locale()) }}</p>
                 </div>
                 <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">{{ t('admin_billing_create_credit', page_locale()) }}</button>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-700">
                     <tr>
                         <th class="px-6 py-3 text-left">{{ t('admin_billing_credit_note', page_locale()) }}</th>
                         <th class="px-6 py-3 text-left">{{ t('admin_billing_credit_invoice', page_locale()) }}</th>
@@ -146,7 +146,7 @@
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-500">{{ t('admin_billing_no_credit_notes', page_locale()) }}</td>
+                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-700">{{ t('admin_billing_no_credit_notes', page_locale()) }}</td>
                         </tr>
                     {% endfor %}
                     </tbody>

@@ -1,6 +1,6 @@
 <div class="px-5 py-4 border-b border-slate-200">
     <h2 class="text-lg font-semibold">{{ t('admin_templates_preview_title', page_locale()) }}</h2>
-    <p class="text-sm text-slate-500">{{ t('admin_templates_preview_intro', page_locale()) }}</p>
+    <p class="text-sm text-slate-700">{{ t('admin_templates_preview_intro', page_locale()) }}</p>
 </div>
 <div class="p-5 space-y-4">
     {% if preview.errors is not empty %}
@@ -17,28 +17,28 @@
     {% endif %}
 
     {% if preview.identity is not defined %}
-        <div class="text-sm text-slate-500">
+        <div class="text-sm text-slate-700">
             {{ t('admin_templates_preview_empty', 'de') }} / {{ t('admin_templates_preview_empty', 'en') }}
         </div>
     {% else %}
         <div class="space-y-3">
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <p class="text-xs uppercase text-slate-500 font-semibold">
+                <p class="text-xs uppercase text-slate-700 font-semibold">
                     {{ t('admin_templates_preview_identity', 'de') }} / {{ t('admin_templates_preview_identity', 'en') }}
                 </p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">{{ preview.identity.display_name }}</p>
-                <p class="text-xs text-slate-500">
+                <p class="text-xs text-slate-700">
                     {{ t('admin_templates_preview_key', 'de') }} / {{ t('admin_templates_preview_key', 'en') }}:
                     {{ preview.identity.game_key }}
                 </p>
                 {% if preview.identity.steam_app_id %}
-                    <p class="text-xs text-slate-500">
+                    <p class="text-xs text-slate-700">
                         {{ t('admin_templates_preview_steam_app_id', 'de') }} / {{ t('admin_templates_preview_steam_app_id', 'en') }}:
                         {{ preview.identity.steam_app_id }}
                     </p>
                 {% endif %}
                 {% if preview.identity.sniper_profile %}
-                    <p class="text-xs text-slate-500">
+                    <p class="text-xs text-slate-700">
                         {{ t('admin_templates_preview_sniper_profile', 'de') }} / {{ t('admin_templates_preview_sniper_profile', 'en') }}:
                         {{ preview.identity.sniper_profile }}
                     </p>
@@ -46,7 +46,7 @@
             </div>
 
             <div class="rounded-lg border border-slate-200 p-4">
-                <p class="text-xs uppercase text-slate-500 font-semibold">
+                <p class="text-xs uppercase text-slate-700 font-semibold">
                     {{ t('admin_templates_preview_required_ports', 'de') }} / {{ t('admin_templates_preview_required_ports', 'en') }}
                 </p>
                 <div class="mt-2 flex flex-wrap gap-2">
@@ -55,7 +55,7 @@
                             {{ port.label ?? port.name }} · {{ port.protocol|upper }}
                         </span>
                     {% else %}
-                        <span class="text-xs text-slate-400">
+                        <span class="text-xs text-slate-600">
                             {{ t('admin_templates_preview_no_ports', 'de') }} / {{ t('admin_templates_preview_no_ports', 'en') }}
                         </span>
                     {% endfor %}
@@ -63,24 +63,24 @@
             </div>
 
             <div class="rounded-lg border border-slate-200 p-4">
-                <p class="text-xs uppercase text-slate-500 font-semibold">
+                <p class="text-xs uppercase text-slate-700 font-semibold">
                     {{ t('admin_templates_preview_start_params', 'de') }} / {{ t('admin_templates_preview_start_params', 'en') }}
                 </p>
                 <pre class="mt-2 whitespace-pre-wrap text-xs text-slate-600">{{ preview.start_params }}</pre>
             </div>
 
             <div class="rounded-lg border border-slate-200 p-4">
-                <p class="text-xs uppercase text-slate-500 font-semibold">
+                <p class="text-xs uppercase text-slate-700 font-semibold">
                     {{ t('admin_templates_preview_commands', 'de') }} / {{ t('admin_templates_preview_commands', 'en') }}
                 </p>
                 <p class="mt-2 text-xs text-slate-600">
-                    <span class="font-semibold text-slate-500">
+                    <span class="font-semibold text-slate-700">
                         {{ t('admin_templates_install_label', 'de') }} / {{ t('admin_templates_install_label', 'en') }}:
                     </span>
                     {{ preview.install_command }}
                 </p>
                 <p class="mt-2 text-xs text-slate-600">
-                    <span class="font-semibold text-slate-500">
+                    <span class="font-semibold text-slate-700">
                         {{ t('admin_templates_update_label', 'de') }} / {{ t('admin_templates_update_label', 'en') }}:
                     </span>
                     {{ preview.update_command }}
@@ -88,14 +88,14 @@
             </div>
 
             <div class="rounded-lg border border-slate-200 p-4">
-                <p class="text-xs uppercase text-slate-500 font-semibold">
+                <p class="text-xs uppercase text-slate-700 font-semibold">
                     {{ t('admin_templates_preview_env_vars', 'de') }} / {{ t('admin_templates_preview_env_vars', 'en') }}
                 </p>
                 <div class="mt-2 space-y-1 text-xs text-slate-600">
                     {% for entry in preview.env_vars %}
                         <div><span class="font-semibold">{{ entry.key }}</span>=<span>{{ entry.value }}</span></div>
                     {% else %}
-                        <div class="text-slate-400">
+                        <div class="text-slate-600">
                             {{ t('admin_templates_preview_no_env_vars', 'de') }} / {{ t('admin_templates_preview_no_env_vars', 'en') }}
                         </div>
                     {% endfor %}
@@ -103,7 +103,7 @@
             </div>
 
             <div class="rounded-lg border border-slate-200 p-4">
-                <p class="text-xs uppercase text-slate-500 font-semibold">
+                <p class="text-xs uppercase text-slate-700 font-semibold">
                     {{ t('admin_templates_preview_config_files', 'de') }} / {{ t('admin_templates_preview_config_files', 'en') }}
                 </p>
                 <div class="mt-2 space-y-2 text-xs text-slate-600">
@@ -111,11 +111,11 @@
                         <div>
                             <p class="font-semibold">{{ entry.path }}</p>
                             {% if entry.description %}
-                                <p class="text-slate-500">{{ entry.description }}</p>
+                                <p class="text-slate-700">{{ entry.description }}</p>
                             {% endif %}
                         </div>
                     {% else %}
-                        <div class="text-slate-400">
+                        <div class="text-slate-600">
                             {{ t('admin_templates_preview_no_config_files', 'de') }} / {{ t('admin_templates_preview_no_config_files', 'en') }}
                         </div>
                     {% endfor %}
@@ -123,14 +123,14 @@
             </div>
 
             <div class="rounded-lg border border-slate-200 p-4">
-                <p class="text-xs uppercase text-slate-500 font-semibold">
+                <p class="text-xs uppercase text-slate-700 font-semibold">
                     {{ t('admin_templates_preview_plugin_paths', 'de') }} / {{ t('admin_templates_preview_plugin_paths', 'en') }}
                 </p>
                 <div class="mt-2 space-y-1 text-xs text-slate-600">
                     {% for entry in preview.plugin_paths %}
                         <div>{{ entry }}</div>
                     {% else %}
-                        <div class="text-slate-400">
+                        <div class="text-slate-600">
                             {{ t('admin_templates_preview_no_plugin_paths', 'de') }} / {{ t('admin_templates_preview_no_plugin_paths', 'en') }}
                         </div>
                     {% endfor %}
@@ -138,7 +138,7 @@
             </div>
 
             <div class="rounded-lg border border-slate-200 p-4">
-                <p class="text-xs uppercase text-slate-500 font-semibold">
+                <p class="text-xs uppercase text-slate-700 font-semibold">
                     {{ t('admin_templates_preview_fastdl', 'de') }} / {{ t('admin_templates_preview_fastdl', 'en') }}
                 </p>
                 <p class="mt-2 text-xs text-slate-600">
@@ -160,14 +160,14 @@
             </div>
 
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <p class="text-xs uppercase text-slate-500 font-semibold">
+                <p class="text-xs uppercase text-slate-700 font-semibold">
                     {{ t('admin_templates_preview_dry_run', 'de') }} / {{ t('admin_templates_preview_dry_run', 'en') }}
                 </p>
                 <ul class="mt-2 list-disc list-inside text-xs text-slate-600 space-y-1">
                     {% for step in preview.dry_run_steps %}
                         <li>{{ step }}</li>
                     {% else %}
-                        <li class="text-slate-400">
+                        <li class="text-slate-600">
                             {{ t('admin_templates_preview_no_actions', 'de') }} / {{ t('admin_templates_preview_no_actions', 'en') }}
                         </li>
                     {% endfor %}

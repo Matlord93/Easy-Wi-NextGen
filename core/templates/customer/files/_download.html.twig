@@ -1,0 +1,27 @@
+{% set status = status|default('queued') %}
+
+<div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+    {% if status in ['queued', 'running'] %}
+        <div
+            class="flex items-center gap-2"
+            hx-get="/files/download/{{ jobId }}"
+            hx-trigger="load, every 2s"
+            hx-swap="outerHTML"
+        >
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+                <svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path>
+                </svg>
+            </span>
+            <span>{{ t('customer_files_download_preparing', page_locale()) }} {{ name }}</span>
+        </div>
+    {% elseif status in ['failed', 'cancelled'] %}
+        <span class="text-rose-600">{{ error|default(t('customer_files_download_failed', page_locale())) }}</span>
+    {% else %}
+        <div class="flex items-center justify-between gap-2">
+            <span class="text-emerald-700">{{ t('customer_files_download_ready', page_locale()) }} {{ name }}</span>
+            <a href="/files/download/{{ jobId }}/file" class="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_files_download_now', page_locale()) }}</a>
+        </div>
+    {% endif %}
+</div>

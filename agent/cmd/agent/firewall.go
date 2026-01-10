@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -23,7 +24,7 @@ func handleFirewallOpen(jobID string, payload map[string]any) (jobs.Result, func
 	return jobs.Result{
 		JobID:     jobID,
 		Status:    "success",
-		Output:    map[string]string{"ports": strings.Join(intSliceToStrings(ports), ",")},
+		Output:    firewallRuleOutput(ports, "open"),
 		Completed: time.Now().UTC(),
 	}, nil
 }
@@ -41,9 +42,37 @@ func handleFirewallClose(jobID string, payload map[string]any) (jobs.Result, fun
 	return jobs.Result{
 		JobID:     jobID,
 		Status:    "success",
-		Output:    map[string]string{"ports": strings.Join(intSliceToStrings(ports), ",")},
+		Output:    firewallRuleOutput(ports, "closed"),
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+type firewallRule struct {
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"`
+	Status   string `json:"status"`
+}
+
+func firewallRuleOutput(ports []int, status string) map[string]string {
+	output := map[string]string{
+		"ports": strings.Join(intSliceToStrings(ports), ","),
+	}
+	if len(ports) == 0 {
+		return output
+	}
+
+	rules := make([]firewallRule, 0, len(ports)*2)
+	for _, port := range ports {
+		rules = append(rules, firewallRule{Port: port, Protocol: "tcp", Status: status})
+		rules = append(rules, firewallRule{Port: port, Protocol: "udp", Status: status})
+	}
+
+	encoded, err := json.Marshal(rules)
+	if err != nil {
+		return output
+	}
+	output["rules"] = string(encoded)
+	return output
 }
 
 func portsFromPayload(payload map[string]any) ([]int, error) {

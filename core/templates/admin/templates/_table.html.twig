@@ -1,6 +1,6 @@
 <div id="templates-table" class="overflow-hidden" hx-trigger="templates-changed from:body" hx-get="/admin/templates/table" hx-swap="outerHTML">
     <table class="min-w-full divide-y divide-slate-200 text-sm">
-        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-700">
             <tr>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('admin_templates_table_template', page_locale()) }}</th>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('admin_templates_table_ports', page_locale()) }}</th>
@@ -15,17 +15,17 @@
                 <tr class="hover:bg-slate-50">
                     <td class="px-5 py-4">
                         <div class="font-semibold text-slate-900">{{ template.display_name }}</div>
-                        <div class="text-xs text-slate-500 mt-1">Key: {{ template.game_key }}</div>
+                        <div class="text-xs text-slate-700 mt-1">Key: {{ template.game_key }}</div>
                         {% if template.steam_app_id %}
-                            <div class="text-xs text-slate-500 mt-1">Steam App ID: {{ template.steam_app_id }}</div>
+                            <div class="text-xs text-slate-700 mt-1">Steam App ID: {{ template.steam_app_id }}</div>
                         {% endif %}
                         {% if template.sniper_profile %}
-                            <div class="text-xs text-slate-500 mt-1">Sniper: {{ template.sniper_profile }}</div>
+                            <div class="text-xs text-slate-700 mt-1">Sniper: {{ template.sniper_profile }}</div>
                         {% endif %}
                         {% if template.description %}
-                            <div class="text-xs text-slate-500 mt-1">{{ template.description }}</div>
+                            <div class="text-xs text-slate-700 mt-1">{{ template.description }}</div>
                         {% endif %}
-                        <div class="text-xs text-slate-400 mt-2">Updated {{ template.updated_at|date('Y-m-d H:i') }}</div>
+                        <div class="text-xs text-slate-600 mt-2">Updated {{ template.updated_at|date('Y-m-d H:i') }}</div>
                     </td>
                     <td class="px-5 py-4">
                         <div class="flex flex-wrap gap-2">
@@ -34,7 +34,7 @@
                                     {{ port.label ?? port.name }} · {{ port.protocol|upper }}
                                 </span>
                             {% else %}
-                                <span class="text-xs text-slate-400">{{ t('admin_templates_no_ports', page_locale()) }}</span>
+                                <span class="text-xs text-slate-600">{{ t('admin_templates_no_ports', page_locale()) }}</span>
                             {% endfor %}
                         </div>
                     </td>
@@ -43,8 +43,8 @@
                     </td>
                     <td class="px-5 py-4">
                         <div class="text-xs text-slate-600">
-                            <p><span class="font-semibold text-slate-500">{{ t('admin_templates_install_label', page_locale()) }}:</span> {{ template.install_command }}</p>
-                            <p class="mt-2"><span class="font-semibold text-slate-500">{{ t('admin_templates_update_label', page_locale()) }}:</span> {{ template.update_command }}</p>
+                            <p><span class="font-semibold text-slate-700">{{ t('admin_templates_install_label', page_locale()) }}:</span> {{ template.install_command }}</p>
+                            <p class="mt-2"><span class="font-semibold text-slate-700">{{ t('admin_templates_update_label', page_locale()) }}:</span> {{ template.update_command }}</p>
                         </div>
                     </td>
                     <td class="px-5 py-4">
@@ -52,7 +52,7 @@
                             {% for flag in template.allowed_switch_flags %}
                                 <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">{{ flag }}</span>
                             {% else %}
-                                <span class="text-xs text-slate-400">{{ t('admin_templates_no_flags', page_locale()) }}</span>
+                                <span class="text-xs text-slate-600">{{ t('admin_templates_no_flags', page_locale()) }}</span>
                             {% endfor %}
                         </div>
                     </td>
@@ -71,7 +71,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="6" class="px-5 py-10 text-center text-sm text-slate-500">{{ t('admin_templates_empty', page_locale()) }}</td>
+                    <td colspan="6" class="px-5 py-10 text-center text-sm text-slate-700">{{ t('admin_templates_empty', page_locale()) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

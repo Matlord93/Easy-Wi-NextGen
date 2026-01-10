@@ -3,27 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
-    <script>
-        tailwind = {
-            config: {
-                darkMode: 'class',
-            },
-        };
-    </script>
     <script>
         (function () {
-            const stored = localStorage.getItem('theme');
-            if (stored === 'dark') {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+            } else {
                 document.documentElement.classList.add('dark');
             }
         })();
     </script>
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
+    <link rel="stylesheet" href="/ui.css">
     <link rel="stylesheet" href="/admin-customer.css">
     <script src="/htmx.min.js"></script>
 </head>
-<body class="admin-interface bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+<body class="admin-interface bg-slate-100 text-slate-900">
 {% set activeNav = activeNav|default('') %}
 <input id="sidebar-toggle" type="checkbox" class="peer sr-only">
 <div class="min-h-screen flex">
@@ -32,7 +27,7 @@
         {% set activeNav = activeNav|default('') %}
         <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
         <nav class="flex-1 px-4 space-y-4">
-            <details class="nav-group group" open>
+            <details class="nav-group group" data-nav-id="admin-overview" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Overview</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -59,7 +54,7 @@
                 </div>
             </details>
 
-            <details class="nav-group group" open>
+            <details class="nav-group group" data-nav-id="admin-accounts" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Accounts</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -94,7 +89,7 @@
                 </div>
             </details>
 
-            <details class="nav-group group" open>
+            <details class="nav-group group" data-nav-id="admin-operations" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Operations</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -137,8 +132,8 @@
                 </div>
             </details>
 
-            {% set infrastructureActive = activeNav in ['nodes', 'metrics', 'templates', 'plugins', 'modules'] %}
-            <details class="nav-group group" {{ infrastructureActive ? 'open' : '' }}>
+            {% set infrastructureActive = activeNav in ['nodes', 'metrics', 'templates', 'plugins', 'modules', 'ddos'] %}
+            <details class="nav-group group" data-nav-id="admin-infrastructure" {{ infrastructureActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Infrastructure</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -162,6 +157,14 @@
                             </svg>
                         </span>
                         <span class="text-sm font-medium">Security</span>
+                    </a>
+                    <a href="/admin/ddos" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ddos' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'ddos' ? 'bg-white/15' : 'bg-white/10' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M9.25 3a.75.75 0 0 1 .75.75V5h3.5a2.75 2.75 0 0 1 0 5.5H13v.75a.75.75 0 0 1-1.5 0v-.75H8.5v.75a.75.75 0 0 1-1.5 0v-.75H6.5a2.75 2.75 0 0 1 0-5.5H8.5V3.75A.75.75 0 0 1 9.25 3Zm-2.75 4.5a1.25 1.25 0 0 0 0 2.5h7a1.25 1.25 0 0 0 0-2.5h-7Z"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm font-medium">DDoS policy</span>
                     </a>
                     {% set metricsActive = activeNav == 'metrics' %}
                     <a href="/admin/metrics" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ metricsActive ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
@@ -200,7 +203,7 @@
             </details>
 
             {% set publicPortalActive = activeNav in ['cms-pages', 'downloads', 'changelog', 'docs', 'public-servers', 'status-components', 'status-maintenance', 'status-incidents'] %}
-            <details class="nav-group group" {{ publicPortalActive ? 'open' : '' }}>
+            <details class="nav-group group" data-nav-id="admin-public-portal" {{ publicPortalActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Public portal</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -261,7 +264,7 @@
             </details>
 
             {% set servicesActive = activeNav in ['game-instances', 'ts3-instances'] %}
-            <details class="nav-group group" {{ servicesActive ? 'open' : '' }}>
+            <details class="nav-group group" data-nav-id="admin-services" {{ servicesActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Services</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -289,7 +292,7 @@
             </details>
 
             {% set domainsActive = activeNav in ['dns-records', 'mailboxes', 'mail-aliases'] %}
-            <details class="nav-group group" {{ domainsActive ? 'open' : '' }}>
+            <details class="nav-group group" data-nav-id="admin-domains-mail" {{ domainsActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Domains & Mail</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -326,7 +329,7 @@
 
             {% set extensionItems = extension_menu_items('admin') %}
             {% if extensionItems is not empty %}
-                <details class="nav-group group" open>
+                <details class="nav-group group" data-nav-id="admin-extensions" open>
                     <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                         <span>Extensions</span>
                         <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -352,7 +355,7 @@
                 </details>
             {% endif %}
         </nav>
-        <div class="px-6 py-4 text-xs text-slate-300/70">{{ t('admin_panel_tagline', page_locale()) }}</div>
+        <div class="px-6 py-4 text-xs text-slate-600/70">{{ t('admin_panel_tagline', page_locale()) }}</div>
     </aside>
 
     <main class="portal-main flex-1 flex flex-col lg:ml-0">
@@ -379,7 +382,7 @@
                             hx-target="#global-search-results"
                             hx-swap="innerHTML"
                         >
-                        <div class="mt-1 text-xs text-slate-300">{{ t('search_help', page_locale()) }}</div>
+                        <div class="mt-1 text-xs text-slate-600">{{ t('search_help', page_locale()) }}</div>
                         <div id="global-search-results" class="absolute left-0 right-0 top-full z-30 mt-2 rounded-xl border border-slate-600 bg-white shadow-lg"></div>
                     </div>
                 </div>
@@ -391,7 +394,7 @@
                     >{{ t('toggle_theme', page_locale()) }}</button>
                     <a
                         href="/admin/notifications"
-                        class="relative rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-slate-700"
+                        class="btn relative rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-slate-700"
                         aria-label="{{ t('notifications', page_locale()) }}"
                     >
                         {{ t('notifications', page_locale()) }}
@@ -403,7 +406,7 @@
                     <div class="flex items-center gap-3">
                         <div class="text-right">
                             <p class="text-sm font-semibold text-slate-900">{{ t('admin_user_label', page_locale()) }}</p>
-                            <p class="text-xs text-slate-300">{{ t('admin_user_role', page_locale()) }}</p>
+                            <p class="text-xs text-slate-600">{{ t('admin_user_role', page_locale()) }}</p>
                         </div>
                         <div class="h-10 w-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold">A</div>
                     </div>
@@ -420,6 +423,18 @@
     </main>
 </div>
 <script>
+    const navGroups = document.querySelectorAll('details[data-nav-id]');
+    navGroups.forEach((group) => {
+        const key = `nav-group:${group.dataset.navId}`;
+        const stored = localStorage.getItem(key);
+        if (stored !== null) {
+            group.open = stored === 'open';
+        }
+        group.addEventListener('toggle', () => {
+            localStorage.setItem(key, group.open ? 'open' : 'closed');
+        });
+    });
+
     document.addEventListener('keydown', (event) => {
         if (event.key === '/' && document.activeElement?.tagName !== 'INPUT') {
             const search = document.getElementById('global-search-input');

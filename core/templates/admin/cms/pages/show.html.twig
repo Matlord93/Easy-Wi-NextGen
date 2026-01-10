@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ page.title }}</h1>
-        <p class="text-sm text-slate-500">{{ t('cms_page_manage_blocks_description', page_locale()) }} <span class="font-semibold text-slate-700">/{{ page.slug }}</span>.</p>
+        <p class="text-sm text-slate-700">{{ t('cms_page_manage_blocks_description', page_locale()) }} <span class="font-semibold text-slate-700">/{{ page.slug }}</span>.</p>
     </div>
     <div class="flex items-center gap-3">
         {% if page.is_published %}
@@ -23,7 +23,7 @@
         <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
             <div>
                 <h2 class="text-lg font-semibold">{{ t('content_blocks', page_locale()) }}</h2>
-                <p class="text-sm text-slate-500">{{ t('content_blocks_description', page_locale()) }}</p>
+                <p class="text-sm text-slate-700">{{ t('content_blocks_description', page_locale()) }}</p>
             </div>
             <button
                 class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"

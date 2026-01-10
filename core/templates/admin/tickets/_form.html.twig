@@ -1,6 +1,6 @@
 <div class="p-6 border-b border-slate-200">
     <h2 class="text-lg font-semibold">{{ t('admin_tickets_form_title', page_locale()) }}</h2>
-    <p class="text-sm text-slate-500">{{ t('admin_tickets_form_intro', page_locale()) }}</p>
+    <p class="text-sm text-slate-700">{{ t('admin_tickets_form_intro', page_locale()) }}</p>
 </div>
 <form class="p-6 space-y-4" method="post" action="/admin/tickets" hx-post="/admin/tickets" hx-target="#ticket-form" hx-swap="outerHTML">
     {% if form.errors is not empty %}
@@ -15,7 +15,7 @@
 
     {% if templates is not empty %}
         <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_template_label', page_locale()) }}</label>
+            <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_label', page_locale()) }}</label>
             <select id="admin-ticket-template-select" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                 <option value="">{{ t('admin_tickets_template_placeholder', page_locale()) }}</option>
                 {% for template in templates %}
@@ -34,7 +34,7 @@
     {% endif %}
 
     <div>
-        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_form_customer', page_locale()) }}</label>
+        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_customer', page_locale()) }}</label>
         <select name="customer_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
             <option value="">{{ t('admin_tickets_form_customer_select', page_locale()) }}</option>
             {% for customer in customers %}
@@ -44,13 +44,13 @@
     </div>
 
     <div>
-        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_form_subject', page_locale()) }}</label>
+        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_subject', page_locale()) }}</label>
         <input id="admin-ticket-subject" name="subject" value="{{ form.subject }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_tickets_form_subject_placeholder', page_locale()) }}" />
     </div>
 
     <div class="grid grid-cols-2 gap-4">
         <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_form_category', page_locale()) }}</label>
+            <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_category', page_locale()) }}</label>
             <select id="admin-ticket-category" name="category" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                 <option value="general" {{ form.category == 'general' ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
                 <option value="billing" {{ form.category == 'billing' ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
@@ -59,7 +59,7 @@
             </select>
         </div>
         <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_form_priority', page_locale()) }}</label>
+            <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_priority', page_locale()) }}</label>
             <select id="admin-ticket-priority" name="priority" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                 <option value="low" {{ form.priority == 'low' ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
                 <option value="normal" {{ form.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', page_locale()) }}</option>
@@ -70,12 +70,12 @@
     </div>
 
     <div>
-        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_form_message', page_locale()) }}</label>
+        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_message', page_locale()) }}</label>
         <textarea id="admin-ticket-message" name="message" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_tickets_form_message_placeholder', page_locale()) }}">{{ form.message }}</textarea>
     </div>
 
     {% if adminSignature %}
-        <label class="flex items-center gap-2 text-xs text-slate-500">
+        <label class="flex items-center gap-2 text-xs text-slate-700">
             <input type="checkbox" name="include_signature" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ form.include_signature ? 'checked' : '' }}>
             {{ t('admin_tickets_signature_toggle', page_locale()) }}
         </label>

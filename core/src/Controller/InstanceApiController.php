@@ -17,6 +17,7 @@ use App\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\DiskEnforcementService;
 use App\Service\InstanceJobPayloadBuilder;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
@@ -36,6 +37,7 @@ final class InstanceApiController
         private readonly PortBlockRepository $portBlockRepository,
         private readonly AuditLogger $auditLogger,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
+        private readonly DiskEnforcementService $diskEnforcementService,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -86,6 +88,11 @@ final class InstanceApiController
         $node = $this->agentRepository->find($nodeId);
         if ($node === null) {
             return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $blockMessage = $this->diskEnforcementService->guardNodeProvisioning($node, new \DateTimeImmutable());
+        if ($blockMessage !== null) {
+            return new JsonResponse(['error' => $blockMessage], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $portBlock = null;

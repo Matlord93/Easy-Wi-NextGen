@@ -1,12 +1,12 @@
 <div class="p-6 border-b border-slate-200 flex items-center justify-between">
     <div>
         <h2 class="text-lg font-semibold">{{ t('admin_ts3_instances_title', page_locale()) }}</h2>
-        <p class="text-sm text-slate-500">{{ t('admin_ts3_instances_intro', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('admin_ts3_instances_intro', page_locale()) }}</p>
     </div>
 </div>
 <div class="overflow-x-auto">
     <table class="min-w-full divide-y divide-slate-200 text-sm">
-        <thead class="bg-slate-50 text-slate-500">
+        <thead class="bg-slate-50 text-slate-700">
         <tr>
             <th class="px-6 py-3 text-left font-medium">{{ t('admin_ts3_table_instance', page_locale()) }}</th>
             <th class="px-6 py-3 text-left font-medium">{{ t('admin_ts3_table_customer', page_locale()) }}</th>
@@ -22,15 +22,15 @@
             <tr class="hover:bg-slate-50">
                 <td class="px-6 py-4">
                     <p class="font-semibold text-slate-900">{{ instance.name }}</p>
-                    <p class="text-xs text-slate-500">{{ t('admin_label_id', page_locale()) }} {{ instance.id }}</p>
+                    <p class="text-xs text-slate-700">{{ t('admin_label_id', page_locale()) }} {{ instance.id }}</p>
                 </td>
                 <td class="px-6 py-4">
                     <p class="text-slate-900">{{ instance.customer.email }}</p>
-                    <p class="text-xs text-slate-500">#{{ instance.customer.id }}</p>
+                    <p class="text-xs text-slate-700">#{{ instance.customer.id }}</p>
                 </td>
                 <td class="px-6 py-4">
                     <p class="text-slate-900">{{ instance.node.name }}</p>
-                    <p class="text-xs text-slate-500">{{ instance.node.id }}</p>
+                    <p class="text-xs text-slate-700">{{ instance.node.id }}</p>
                 </td>
                 <td class="px-6 py-4 text-slate-700">
                     V {{ instance.voice_port }} · Q {{ instance.query_port }} · F {{ instance.file_port }}
@@ -111,7 +111,7 @@
             </tr>
         {% else %}
             <tr>
-                <td class="px-6 py-8 text-center text-sm text-slate-500" colspan="7">{{ t('admin_ts3_empty', page_locale()) }}</td>
+                <td class="px-6 py-8 text-center text-sm text-slate-700" colspan="7">{{ t('admin_ts3_empty', page_locale()) }}</td>
             </tr>
         {% endfor %}
         </tbody>

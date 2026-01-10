@@ -45,6 +45,21 @@ class Agent
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $metadata = null;
 
+    #[ORM\Column]
+    private int $diskScanIntervalSeconds = 180;
+
+    #[ORM\Column]
+    private int $diskWarningPercent = 85;
+
+    #[ORM\Column]
+    private int $diskHardBlockPercent = 120;
+
+    #[ORM\Column]
+    private int $nodeDiskProtectionThresholdPercent = 5;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $nodeDiskProtectionOverrideUntil = null;
+
     #[ORM\Column(type: 'json')]
     private array $roles = [];
 
@@ -133,6 +148,61 @@ class Agent
     public function setMetadata(?array $metadata): void
     {
         $this->metadata = $metadata === [] ? null : $metadata;
+        $this->touch();
+    }
+
+    public function getDiskScanIntervalSeconds(): int
+    {
+        return $this->diskScanIntervalSeconds;
+    }
+
+    public function setDiskScanIntervalSeconds(int $diskScanIntervalSeconds): void
+    {
+        $this->diskScanIntervalSeconds = max(30, $diskScanIntervalSeconds);
+        $this->touch();
+    }
+
+    public function getDiskWarningPercent(): int
+    {
+        return $this->diskWarningPercent;
+    }
+
+    public function setDiskWarningPercent(int $diskWarningPercent): void
+    {
+        $this->diskWarningPercent = max(1, $diskWarningPercent);
+        $this->touch();
+    }
+
+    public function getDiskHardBlockPercent(): int
+    {
+        return $this->diskHardBlockPercent;
+    }
+
+    public function setDiskHardBlockPercent(int $diskHardBlockPercent): void
+    {
+        $this->diskHardBlockPercent = max(100, $diskHardBlockPercent);
+        $this->touch();
+    }
+
+    public function getNodeDiskProtectionThresholdPercent(): int
+    {
+        return $this->nodeDiskProtectionThresholdPercent;
+    }
+
+    public function setNodeDiskProtectionThresholdPercent(int $nodeDiskProtectionThresholdPercent): void
+    {
+        $this->nodeDiskProtectionThresholdPercent = max(1, $nodeDiskProtectionThresholdPercent);
+        $this->touch();
+    }
+
+    public function getNodeDiskProtectionOverrideUntil(): ?\DateTimeImmutable
+    {
+        return $this->nodeDiskProtectionOverrideUntil;
+    }
+
+    public function setNodeDiskProtectionOverrideUntil(?\DateTimeImmutable $nodeDiskProtectionOverrideUntil): void
+    {
+        $this->nodeDiskProtectionOverrideUntil = $nodeDiskProtectionOverrideUntil;
         $this->touch();
     }
 

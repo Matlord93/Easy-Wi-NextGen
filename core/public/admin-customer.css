@@ -47,3 +47,108 @@ html:not(.dark) .customer-interface .text-sm.font-semibold {
 .nav-group summary::-webkit-details-marker {
     display: none;
 }
+
+html.dark {
+    color-scheme: dark;
+    background-color: #0b1120;
+}
+
+html.dark body {
+    background-color: #0b1120;
+    color: #e2e8f0;
+}
+
+html.dark .bg-white {
+    background-color: #0f172a !important;
+}
+
+html.dark .bg-white\/95 {
+    background-color: rgba(15, 23, 42, 0.95) !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/40 {
+    background-color: #0b1220 !important;
+}
+
+html.dark .bg-slate-100 {
+    background-color: #0f172a !important;
+}
+
+html.dark .bg-slate-900\/40 {
+    background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+html.dark .border,
+html.dark .border-b,
+html.dark .border-t,
+html.dark .border-slate-100,
+html.dark .border-slate-200 {
+    border-color: #1e293b !important;
+}
+
+html.dark .border-slate-300 {
+    border-color: #334155 !important;
+}
+
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+    border-top-color: #1e293b !important;
+}
+
+html.dark .text-slate-900 {
+    color: #f8fafc !important;
+}
+
+html.dark .text-slate-800 {
+    color: #e2e8f0 !important;
+}
+
+html.dark .text-slate-700 {
+    color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-600\/70 {
+    color: #94a3b8 !important;
+}
+
+html.dark .text-slate-500,
+html.dark .text-slate-400 {
+    color: #94a3b8 !important;
+}
+
+html.dark .text-slate-300,
+html.dark .text-slate-300\/70,
+html.dark .text-slate-200,
+html.dark .text-slate-200\/80 {
+    color: #cbd5e1 !important;
+}
+
+html.dark .placeholder-slate-300::placeholder,
+html.dark .placeholder-slate-400::placeholder {
+    color: #64748b;
+}
+
+html.dark .shadow-sm,
+html.dark .shadow-md,
+html.dark .shadow-lg,
+html.dark .shadow-xl,
+html.dark .shadow-inner {
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.35);
+}
+
+:where(button, input[type="button"], input[type="submit"], a.btn, .btn) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+html.dark :where(button, input[type="button"], input[type="submit"], a.btn, .btn) {
+    border-color: #334155;
+}

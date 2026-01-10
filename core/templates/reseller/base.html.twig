@@ -3,8 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+            } else {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
     <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
-    <script src="/3.4.17"></script>
+    <link rel="stylesheet" href="/ui.css">
+    <link rel="stylesheet" href="/admin-customer.css">
     <script src="/htmx.min.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-900">
@@ -15,7 +26,7 @@
     <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-gradient-to-b from-indigo-700 via-slate-900 to-slate-950 text-slate-100 shadow-xl transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
         <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
         <nav class="flex-1 px-4 space-y-4">
-            <details class="nav-group group" open>
+            <details class="nav-group group" data-nav-id="reseller-management" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Management</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -56,7 +67,7 @@
                     <div class="flex items-center gap-3">
                         <div class="text-right">
                             <p class="text-sm font-semibold">Reseller</p>
-                            <p class="text-xs text-slate-500">Partner Console</p>
+                            <p class="text-xs text-slate-700">Partner Console</p>
                         </div>
                         <div class="h-10 w-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold">R</div>
                     </div>
@@ -72,5 +83,18 @@
         </section>
     </main>
 </div>
+<script>
+    const navGroups = document.querySelectorAll('details[data-nav-id]');
+    navGroups.forEach((group) => {
+        const key = `nav-group:${group.dataset.navId}`;
+        const stored = localStorage.getItem(key);
+        if (stored !== null) {
+            group.open = stored === 'open';
+        }
+        group.addEventListener('toggle', () => {
+            localStorage.setItem(key, group.open ? 'open' : 'closed');
+        });
+    });
+</script>
 </body>
 </html>

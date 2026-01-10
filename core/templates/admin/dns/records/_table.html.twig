@@ -1,7 +1,7 @@
 <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
     <div>
         <h2 class="text-lg font-semibold">{{ t('admin_dns_inventory_title', page_locale()) }}</h2>
-        <p class="text-sm text-slate-500">{{ t('admin_dns_inventory_intro', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('admin_dns_inventory_intro', page_locale()) }}</p>
     </div>
     <button
         class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
@@ -12,7 +12,7 @@
 </div>
 <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
-        <thead class="bg-slate-50 text-slate-500">
+        <thead class="bg-slate-50 text-slate-700">
         <tr>
             <th class="px-5 py-3 text-left text-xs font-semibold uppercase">{{ t('admin_dns_table_domain', page_locale()) }}</th>
             <th class="px-5 py-3 text-left text-xs font-semibold uppercase">{{ t('admin_dns_table_name', page_locale()) }}</th>
@@ -29,7 +29,7 @@
             <tr class="text-slate-700">
                 <td class="px-5 py-4">
                     <div class="font-semibold">{{ record.domain.name }}</div>
-                    <div class="text-xs text-slate-500">{{ t('admin_label_id', page_locale()) }} {{ record.domain.id }}</div>
+                    <div class="text-xs text-slate-700">{{ t('admin_label_id', page_locale()) }} {{ record.domain.id }}</div>
                 </td>
                 <td class="px-5 py-4 font-semibold">{{ record.name }}</td>
                 <td class="px-5 py-4">
@@ -40,7 +40,7 @@
                 <td class="px-5 py-4 text-slate-600">{{ record.content }}</td>
                 <td class="px-5 py-4 text-slate-600">{{ record.ttl }}</td>
                 <td class="px-5 py-4 text-slate-600">{{ record.priority ?? '—' }}</td>
-                <td class="px-5 py-4 text-xs text-slate-500">{{ record.updatedAt|date('Y-m-d H:i') }}</td>
+                <td class="px-5 py-4 text-xs text-slate-700">{{ record.updatedAt|date('Y-m-d H:i') }}</td>
                 <td class="px-5 py-4 text-right">
                     <div class="flex items-center justify-end gap-2">
                         <button
@@ -59,7 +59,7 @@
             </tr>
         {% else %}
             <tr>
-                <td colspan="8" class="px-5 py-8 text-center text-sm text-slate-500">
+                <td colspan="8" class="px-5 py-8 text-center text-sm text-slate-700">
                     {{ t('admin_dns_empty', page_locale()) }}
                 </td>
             </tr>

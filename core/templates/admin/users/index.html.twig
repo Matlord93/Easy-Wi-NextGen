@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ t('user_management_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-500">{{ t('user_management_description', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('user_management_description', page_locale()) }}</p>
     </div>
 
     {% if errors is not empty %}
@@ -31,14 +31,14 @@
 
     <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-lg font-semibold">{{ t('user_management_create_title', page_locale()) }}</h2>
-        <p class="text-sm text-slate-500">{{ t('user_management_create_intro', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('user_management_create_intro', page_locale()) }}</p>
         <form method="post" action="/admin/users" class="mt-4 grid gap-4 md:grid-cols-4">
             <div class="md:col-span-2">
-                <label class="text-xs font-semibold uppercase text-slate-500">{{ t('email', page_locale()) }}</label>
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('email', page_locale()) }}</label>
                 <input type="email" name="email" value="{{ createForm.email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
             </div>
             <div>
-                <label class="text-xs font-semibold uppercase text-slate-500">{{ t('type', page_locale()) }}</label>
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('type', page_locale()) }}</label>
                 <select name="type" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                     <option value="customer" {{ createForm.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
                     <option value="reseller" {{ createForm.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
@@ -46,11 +46,11 @@
                 </select>
             </div>
             <div>
-                <label class="text-xs font-semibold uppercase text-slate-500">{{ t('password', page_locale()) }}</label>
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password', page_locale()) }}</label>
                 <input type="password" name="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
             </div>
             <div class="md:col-span-2">
-                <label class="text-xs font-semibold uppercase text-slate-500">{{ t('password_confirm', page_locale()) }}</label>
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password_confirm', page_locale()) }}</label>
                 <input type="password" name="password_confirm" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
             </div>
             <div class="md:col-span-2 flex items-end">
@@ -62,7 +62,7 @@
     <div class="rounded-xl border border-slate-200 bg-white">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200 text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">
                     <tr>
                         <th class="px-4 py-3">{{ t('email', page_locale()) }}</th>
                         <th class="px-4 py-3">{{ t('type', page_locale()) }}</th>
@@ -76,8 +76,8 @@
                     {% for user in users %}
                         <tr class="bg-white">
                             <td class="px-4 py-3 text-sm font-medium text-slate-900">{{ user.email }}</td>
-                            <td class="px-4 py-3 text-xs uppercase text-slate-500">{{ user.type }}</td>
-                            <td class="px-4 py-3 text-xs text-slate-500">{{ user.created_at|date('Y-m-d H:i') }}</td>
+                            <td class="px-4 py-3 text-xs uppercase text-slate-700">{{ user.type }}</td>
+                            <td class="px-4 py-3 text-xs text-slate-700">{{ user.created_at|date('Y-m-d H:i') }}</td>
                             <td class="px-4 py-3">
                                 <form method="post" action="/admin/users/{{ user.id }}/preferences" class="flex flex-wrap items-center gap-2">
                                     <select name="portal_language" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
@@ -105,11 +105,11 @@
                             <td colspan="6" class="px-4 py-4">
                                 <form method="post" action="/admin/users/{{ user.id }}/details" class="grid gap-3 md:grid-cols-6">
                                     <div class="md:col-span-2">
-                                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('email', page_locale()) }}</label>
+                                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('email', page_locale()) }}</label>
                                         <input type="email" name="email" value="{{ user.email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                     </div>
                                     <div>
-                                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('type', page_locale()) }}</label>
+                                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('type', page_locale()) }}</label>
                                         <select name="type" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                             <option value="customer" {{ user.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
                                             <option value="reseller" {{ user.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
@@ -117,11 +117,11 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('new_password', page_locale()) }}</label>
+                                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('new_password', page_locale()) }}</label>
                                         <input type="password" name="password" placeholder="{{ t('password_optional', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                     </div>
                                     <div>
-                                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('password_confirm', page_locale()) }}</label>
+                                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password_confirm', page_locale()) }}</label>
                                         <input type="password" name="password_confirm" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                     </div>
                                     <div class="flex items-end">
@@ -132,7 +132,7 @@
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">{{ t('no_users_found', page_locale()) }}</td>
+                            <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-600">{{ t('no_users_found', page_locale()) }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>
