@@ -1,47 +1,49 @@
-name: Update Webinterface
+name: Webinterface Release Bundle
 
 on:
-  workflow_dispatch:
-    inputs:
-      install_dir:
-        description: "Install directory on the target host"
-        required: false
-        default: "/var/www/easywi"
-      ref:
-        description: "Git ref or tag to deploy"
-        required: false
-        default: "Beta"
+  push:
+    tags: [ "v*.*.*" ]
+
+permissions:
+  contents: write
 
 jobs:
-  deploy:
+  release:
+    name: Build webinterface bundle
     runs-on: ubuntu-latest
     steps:
-      - name: Update web interface
-        shell: bash
+      - uses: actions/checkout@v6
+
+      - name: Prepare bundle
         run: |
-          set -euo pipefail
-          install_dir="${{ inputs.install_dir }}"
-          ref="${{ inputs.ref }}"
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          tar -czf "dist/webinterface-${VERSION}.tar.gz" \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="core/var/cache" \
+            --exclude="core/var/log" \
+            --exclude="core/.env.local" \
+            --exclude="core/node_modules" \
+            .
+          zip -r "dist/webinterface-${VERSION}.zip" . \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "core/var/cache/*" \
+            -x "core/var/log/*" \
+            -x "core/.env.local" \
+            -x "core/node_modules/*"
 
-          if [[ ! -d "${install_dir}" ]]; then
-            echo "Install directory ${install_dir} not found." >&2
-            exit 1
-          fi
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum webinterface-* > checksums-webinterface.txt
 
-          cd "${install_dir}"
-          git fetch --all --tags
-          git checkout "${ref}"
-          git pull --ff-only origin "${ref}"
-
-          if [[ -d core ]]; then
-            cd core
-          fi
-
-          if command -v composer >/dev/null 2>&1; then
-            composer install --no-dev --optimize-autoloader --no-interaction
-          fi
-
-          if command -v php >/dev/null 2>&1 && [[ -f bin/console ]]; then
-            php bin/console doctrine:migrations:migrate --no-interaction || true
-            php bin/console cache:clear || true
-          fi
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/webinterface-*.tar.gz
+            dist/webinterface-*.zip
+            dist/checksums-webinterface.txt
+          generate_release_notes: true
