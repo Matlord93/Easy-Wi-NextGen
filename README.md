@@ -7,6 +7,7 @@ für die Installation des Panels sowie die Inbetriebnahme von Agent/Runner.
 1. [Systemvoraussetzungen](#systemvoraussetzungen)
 2. [Server vorbereiten](#server-vorbereiten)
 3. [Installation des Panels](#installation-des-panels)
+   - [Automatischer Installer (Linux/Windows)](#automatischer-installer-linuxwindows)
    - [Standalone / Manuell](#standalone--manuell)
    - [Installation mit Plesk](#installation-mit-plesk)
    - [Installation mit aaPanel](#installation-mit-aapanel)
@@ -53,6 +54,38 @@ für die Installation des Panels sowie die Inbetriebnahme von Agent/Runner.
 ---
 
 ## Installation des Panels
+
+### Automatischer Installer (Linux/Windows)
+
+Der Panel-Installer übernimmt das Herunterladen des Webinterfaces, die `.env.local`-Konfiguration,
+Composer-Installation sowie optional die Migrationen. Für Linux gibt es zusätzlich eine Auswahl
+zwischen **Standalone**, **Plesk** und **aaPanel**.
+
+**Linux (mit Auswahl Plesk/aaPanel/Standalone):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/easywi/easywi/main/installer/easywi-installer-panel-linux.sh -o easywi-installer-panel-linux.sh
+chmod +x easywi-installer-panel-linux.sh
+sudo ./easywi-installer-panel-linux.sh \
+  --mode standalone \
+  --install-dir /var/www/easywi \
+  --db-driver mysql \
+  --db-host 127.0.0.1 \
+  --db-name easywi \
+  --db-user easywi \
+  --db-password <PASSWORT> \
+  --web-hostname panel.example.com
+```
+
+**Windows (Standalone):**
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/easywi/easywi/main/installer/easywi-installer-panel-windows.ps1 -OutFile easywi-installer-panel-windows.ps1
+.\easywi-installer-panel-windows.ps1 -InstallDir C:\easywi -DbPassword "<PASSWORT>"
+```
+
+Nach dem Abschluss öffnet ihr `/install` im Browser, um das erste Admin-Konto anzulegen.
 
 ### Standalone / Manuell
 
@@ -150,7 +183,7 @@ und externe Prozesse benötigt.
 
 1. **Installer herunterladen**
    ```bash
-   curl -fsSL https://github.com/Matlord93/Easy-Wi-NextGen/blob/Beta/installer/easywi-installer-linux.sh -o easywi-installer-linux.sh
+   curl -fsSL https://raw.githubusercontent.com/easywi/easywi/main/installer/easywi-installer-linux.sh -o easywi-installer-linux.sh
    chmod +x easywi-installer-linux.sh
    ```
 
@@ -172,7 +205,7 @@ und externe Prozesse benötigt.
 
 1. **Agent herunterladen** (Release-Binary):
    ```bash
-   curl -fsSL https://github.com/Matlord93/Easy-Wi-NextGen/releases/latest/download/easywi-agent-linux-amd64 -o /usr/local/bin/easywi-agent
+   curl -fsSL https://github.com/easywi/easywi/releases/latest/download/easywi-agent-linux-amd64 -o /usr/local/bin/easywi-agent
    chmod +x /usr/local/bin/easywi-agent
    ```
 
@@ -215,7 +248,7 @@ und externe Prozesse benötigt.
 
 1. **Runner herunterladen**
    ```bash
-   curl -fsSL https://github.com/Matlord93/Easy-Wi-NextGen/releases/latest/download/easywi-runner-linux-amd64 -o /usr/local/bin/easywi-runner
+   curl -fsSL https://github.com/easywi/easywi/releases/latest/download/easywi-runner-linux-amd64 -o /usr/local/bin/easywi-runner
    chmod +x /usr/local/bin/easywi-runner
    ```
 
