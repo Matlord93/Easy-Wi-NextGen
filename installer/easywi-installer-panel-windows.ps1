@@ -2,8 +2,8 @@ param(
     [ValidateSet('Standalone')]
     [string]$Mode = 'Standalone',
     [string]$InstallDir = 'C:\easywi',
-    [string]$RepoUrl = 'https://github.com/easywi/easywi',
-    [string]$RepoRef = 'main',
+    [string]$RepoUrl = 'https://github.com/Matlord93/Easy-Wi-NextGen',
+    [string]$RepoRef = 'Beta',
     [string]$DbDriver = 'mysql',
     [string]$DbHost = '127.0.0.1',
     [string]$DbPort = '',
