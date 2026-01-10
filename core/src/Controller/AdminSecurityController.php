@@ -9,8 +9,9 @@ use App\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\DdosProviderCredentialRepository;
 use App\Repository\FirewallStateRepository;
+use App\Repository\JobRepository;
+use App\Service\AuditLogger;
 use App\Service\Ddos\DdosCredentialManager;
-use App\Service\FirewallStateManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -24,11 +25,12 @@ final class AdminSecurityController
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly FirewallStateRepository $firewallStateRepository,
-        private readonly FirewallStateManager $firewallStateManager,
+        private readonly JobRepository $jobRepository,
         private readonly DdosProviderCredentialRepository $credentialRepository,
         private readonly DdosCredentialManager $credentialManager,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
+        private readonly AuditLogger $auditLogger,
     ) {
     }
 
@@ -84,12 +86,38 @@ final class AdminSecurityController
         $toOpen = array_values(array_diff($desiredPorts, $currentPorts));
         $toClose = array_values(array_diff($currentPorts, $desiredPorts));
 
+        $existingJobs = $this->buildFirewallJobIndex([$agent]);
+        $latestJob = $existingJobs[$agent->getId()] ?? null;
+        $hasPending = $latestJob !== null && in_array($latestJob->getStatus()->value, ['queued', 'running'], true);
+
         if ($toOpen !== []) {
-            $this->firewallStateManager->applyOpenPorts($agent, $toOpen);
+            if (!$hasPending) {
+                $job = new \App\Entity\Job('firewall.open_ports', [
+                    'agent_id' => $agent->getId(),
+                    'ports' => implode(',', array_map('strval', $toOpen)),
+                ]);
+                $this->entityManager->persist($job);
+                $this->auditLogger->log($admin, 'firewall.open_ports_queued', [
+                    'agent_id' => $agent->getId(),
+                    'ports' => $toOpen,
+                    'job_id' => $job->getId(),
+                ]);
+            }
         }
 
         if ($toClose !== []) {
-            $this->firewallStateManager->applyClosePorts($agent, $toClose);
+            if (!$hasPending) {
+                $job = new \App\Entity\Job('firewall.close_ports', [
+                    'agent_id' => $agent->getId(),
+                    'ports' => implode(',', array_map('strval', $toClose)),
+                ]);
+                $this->entityManager->persist($job);
+                $this->auditLogger->log($admin, 'firewall.close_ports_queued', [
+                    'agent_id' => $agent->getId(),
+                    'ports' => $toClose,
+                    'job_id' => $job->getId(),
+                ]);
+            }
         }
 
         $this->entityManager->flush();
@@ -100,10 +128,14 @@ final class AdminSecurityController
     private function renderPage(User $admin, Request $request, array $errors = [], int $status = Response::HTTP_OK): Response
     {
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $firewallNodes = array_map(function ($agent): array {
+        $firewallJobs = $this->buildFirewallJobIndex($agents);
+        $firewallNodes = array_map(function ($agent) use ($firewallJobs): array {
             $state = $this->firewallStateRepository->findOneBy(['node' => $agent]);
             $ports = $state?->getPorts() ?? [];
+            $rules = $state?->getRules() ?? [];
             sort($ports);
+            $rules = $this->normalizeRules($rules);
+            $job = $firewallJobs[$agent->getId()] ?? null;
 
             return [
                 'id' => $agent->getId(),
@@ -111,7 +143,17 @@ final class AdminSecurityController
                 'updatedAt' => $agent->getUpdatedAt(),
                 'lastHeartbeatAt' => $agent->getLastHeartbeatAt(),
                 'ports' => $ports,
+                'rules' => $rules,
                 'status' => $this->resolveAgentStatus($agent->getLastHeartbeatAt()),
+                'job' => $job === null ? null : [
+                    'id' => $job->getId(),
+                    'type' => $job->getType(),
+                    'status' => $job->getStatus()->value,
+                    'createdAt' => $job->getCreatedAt(),
+                    'updatedAt' => $job->getUpdatedAt(),
+                    'resultStatus' => $job->getResult()?->getStatus()->value,
+                    'resultMessage' => $job->getResult()?->getOutput()['message'] ?? null,
+                ],
             ];
         }, $agents);
 
@@ -125,6 +167,94 @@ final class AdminSecurityController
             'ddosUpdated' => $request->query->get('ddos') === 'updated',
             'firewallUpdated' => $request->query->get('firewall'),
         ]), $status);
+    }
+
+    /**
+     * @param \App\Entity\Agent[] $agents
+     * @return array<string, \App\Entity\Job>
+     */
+    private function buildFirewallJobIndex(array $agents): array
+    {
+        if ($agents === []) {
+            return [];
+        }
+
+        $agentIds = array_map(static fn ($agent): string => $agent->getId(), $agents);
+        $jobs = array_merge(
+            $this->jobRepository->findLatestByType('firewall.open_ports', max(50, count($agents) * 4)),
+            $this->jobRepository->findLatestByType('firewall.close_ports', max(50, count($agents) * 4)),
+        );
+
+        usort($jobs, static fn (\App\Entity\Job $left, \App\Entity\Job $right): int => $right->getCreatedAt() <=> $left->getCreatedAt());
+
+        $index = [];
+        foreach ($jobs as $job) {
+            $payload = $job->getPayload();
+            $agentId = is_string($payload['agent_id'] ?? null) ? $payload['agent_id'] : null;
+            if ($agentId === null || $agentId === '') {
+                continue;
+            }
+
+            if (!in_array($agentId, $agentIds, true)) {
+                continue;
+            }
+
+            if (!array_key_exists($agentId, $index)) {
+                $index[$agentId] = $job;
+            }
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rules
+     * @return array<int, array{port: int, protocol: string, status: string}>
+     */
+    private function normalizeRules(array $rules): array
+    {
+        $normalized = [];
+        foreach ($rules as $rule) {
+            if (!is_array($rule)) {
+                continue;
+            }
+            $port = $rule['port'] ?? null;
+            $protocol = is_string($rule['protocol'] ?? null) ? strtolower($rule['protocol']) : '';
+            $status = is_string($rule['status'] ?? null) ? strtolower($rule['status']) : '';
+
+            if (!is_int($port) && !is_numeric($port)) {
+                continue;
+            }
+
+            $port = (int) $port;
+            if ($port <= 0 || $port > 65535) {
+                continue;
+            }
+
+            if (!in_array($protocol, ['tcp', 'udp'], true)) {
+                continue;
+            }
+
+            if (!in_array($status, ['open', 'closed'], true)) {
+                continue;
+            }
+
+            $normalized[] = [
+                'port' => $port,
+                'protocol' => $protocol,
+                'status' => $status,
+            ];
+        }
+
+        usort($normalized, function (array $left, array $right): int {
+            $portCompare = $left['port'] <=> $right['port'];
+            if ($portCompare !== 0) {
+                return $portCompare;
+            }
+            return $left['protocol'] <=> $right['protocol'];
+        });
+
+        return $normalized;
     }
 
     private function parsePorts(string $raw): array

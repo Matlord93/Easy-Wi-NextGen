@@ -7,35 +7,93 @@
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
             <h1 class="text-2xl font-semibold">{{ t('admin_dashboard_welcome', page_locale()) }}</h1>
-            <p class="text-sm text-slate-500">{{ t('admin_dashboard_intro', page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t('admin_dashboard_intro', page_locale()) }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-            <a href="/admin/jobs/new" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">{{ t('admin_dashboard_create_job', page_locale()) }}</a>
-            <a href="/admin/users" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_dashboard_invite_operator', page_locale()) }}</a>
-            <a href="/admin/security" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">Security center</a>
+            <a href="/admin/jobs/new" class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">{{ t('admin_dashboard_create_job', page_locale()) }}</a>
+            <a href="/admin/users" class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_dashboard_invite_operator', page_locale()) }}</a>
+            <a href="/admin/security" class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">Security center</a>
+        </div>
+    </div>
+
+    {% set healthStyles = {
+        'healthy': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        'degraded': 'bg-amber-50 text-amber-700 border-amber-200',
+        'critical': 'bg-rose-50 text-rose-700 border-rose-200'
+    } %}
+    {% set nodeState = agentSummary.offline > 0 ? 'critical' : (agentSummary.degraded > 0 ? 'degraded' : 'healthy') %}
+    {% set jobState = jobSummary.failed > 0 ? 'degraded' : 'healthy' %}
+    {% set ticketState = overview.tickets_open > 0 ? 'degraded' : 'healthy' %}
+    {% set incidentState = overview.tickets_open > 8 or agentSummary.offline > 0 ? 'critical' : 'healthy' %}
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="text-lg font-semibold">System health</h2>
+                <p class="text-sm text-slate-700">Live signals for nodes, jobs, and support.</p>
+            </div>
+            <a href="/admin/status/incidents" class="btn rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">
+                View status page
+            </a>
+        </div>
+        <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Nodes</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ agentSummary.online }}</p>
+                <p class="mt-1 text-xs text-slate-600">{{ agentSummary.degraded }} degraded · {{ agentSummary.offline }} offline</p>
+                <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[nodeState] }}">
+                    {{ nodeState|title }}
+                </span>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Jobs</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ jobSummary.running + jobSummary.queued }}</p>
+                <p class="mt-1 text-xs text-slate-600">{{ jobSummary.failed }} failed · {{ jobSummary.total }} total</p>
+                <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[jobState] }}">
+                    {{ jobState|title }}
+                </span>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Support</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ overview.tickets_open }}</p>
+                <p class="mt-1 text-xs text-slate-600">Open tickets</p>
+                <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[ticketState] }}">
+                    {{ ticketState|title }}
+                </span>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+                <p class="text-xs font-semibold uppercase text-slate-500">Incidents</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">
+                    {{ incidentState == 'healthy' ? 'All clear' : 'Attention needed' }}
+                </p>
+                <p class="mt-1 text-xs text-slate-600">Fast check for urgent issues.</p>
+                <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[incidentState] }}">
+                    {{ incidentState|title }}
+                </span>
+            </div>
         </div>
     </div>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <a href="/admin/users" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-400">Customers</p>
+            <p class="text-xs uppercase text-slate-600">Customers</p>
             <p class="mt-3 text-2xl font-semibold text-slate-900">{{ overview.customers }}</p>
-            <p class="mt-2 text-xs text-slate-500">Active accounts in the platform.</p>
+            <p class="mt-2 text-xs text-slate-700">Active accounts in the platform.</p>
         </a>
         <a href="/admin/instances" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-400">Game instances</p>
+            <p class="text-xs uppercase text-slate-600">Game instances</p>
             <p class="mt-3 text-2xl font-semibold text-slate-900">{{ overview.instances }}</p>
-            <p class="mt-2 text-xs text-slate-500">Provisioned services across nodes.</p>
+            <p class="mt-2 text-xs text-slate-700">Provisioned services across nodes.</p>
         </a>
         <a href="/admin/tickets" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-400">Open tickets</p>
+            <p class="text-xs uppercase text-slate-600">Open tickets</p>
             <p class="mt-3 text-2xl font-semibold text-slate-900">{{ overview.tickets_open }}</p>
-            <p class="mt-2 text-xs text-slate-500">Support requests awaiting action.</p>
+            <p class="mt-2 text-xs text-slate-700">Support requests awaiting action.</p>
         </a>
         <a href="/admin/jobs" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-400">Jobs in progress</p>
+            <p class="text-xs uppercase text-slate-600">Jobs in progress</p>
             <p class="mt-3 text-2xl font-semibold text-slate-900">{{ jobSummary.running + jobSummary.queued }}</p>
-            <p class="mt-2 text-xs text-slate-500">{{ jobSummary.failed }} failed · {{ jobSummary.total }} total</p>
+            <p class="mt-2 text-xs text-slate-700">{{ jobSummary.failed }} failed · {{ jobSummary.total }} total</p>
         </a>
     </div>
 
@@ -169,7 +227,7 @@
             <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
                     <h2 class="text-lg font-semibold">{{ t('admin_dashboard_recent_activity', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-500">{{ t('admin_dashboard_recent_activity_description', page_locale()) }}</p>
+                    <p class="text-sm text-slate-700">{{ t('admin_dashboard_recent_activity_description', page_locale()) }}</p>
                 </div>
                 <button
                     class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
@@ -184,7 +242,7 @@
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
                 <h2 class="text-lg font-semibold">{{ t('admin_dashboard_system_load', page_locale()) }}</h2>
-                <p class="text-sm text-slate-500">{{ t('admin_dashboard_system_load_description', page_locale()) }}</p>
+                <p class="text-sm text-slate-700">{{ t('admin_dashboard_system_load_description', page_locale()) }}</p>
             </div>
             <div class="divide-y divide-slate-200">
                 {% set statusStyles = {
@@ -198,13 +256,13 @@
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-sm font-semibold text-slate-900">{{ node.name }}</p>
-                                <p class="text-xs text-slate-400">{{ t('admin_dashboard_node_id', page_locale())|replace({'%id%': node.id}) }}</p>
+                                <p class="text-xs text-slate-600">{{ t('admin_dashboard_node_id', page_locale())|replace({'%id%': node.id}) }}</p>
                             </div>
                             <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ style }}">
                                 {{ node.status|title }}
                             </span>
                         </div>
-                        <div class="mt-3 space-y-2 text-xs text-slate-500">
+                        <div class="mt-3 space-y-2 text-xs text-slate-700">
                             <div class="flex items-center justify-between">
                                 <span>{{ t('admin_dashboard_cpu', page_locale()) }}</span>
                                 <span class="font-medium text-slate-700">{{ node.cpu ?? '—' }}</span>
@@ -227,7 +285,7 @@
                                 <div class="h-1 w-1/3 rounded-full bg-amber-500"></div>
                             </div>
                         </div>
-                        <div class="mt-3 text-xs text-slate-400">
+                        <div class="mt-3 text-xs text-slate-600">
                             {% if node.lastHeartbeatAt %}
                                 {{ t('admin_dashboard_last_seen', page_locale())|replace({'%time%': node.lastHeartbeatAt|date('Y-m-d H:i'), '%ip%': node.lastHeartbeatIp ?? t('admin_dashboard_ip_na', page_locale())}) }}
                             {% else %}
@@ -236,7 +294,7 @@
                         </div>
                     </div>
                 {% else %}
-                    <div class="px-5 py-8 text-center text-sm text-slate-400">{{ t('admin_dashboard_no_agents', page_locale()) }}</div>
+                    <div class="px-5 py-8 text-center text-sm text-slate-600">{{ t('admin_dashboard_no_agents', page_locale()) }}</div>
                 {% endfor %}
             </div>
         </div>

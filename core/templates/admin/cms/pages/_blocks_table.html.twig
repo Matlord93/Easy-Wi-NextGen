@@ -1,6 +1,6 @@
 <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
-        <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
+        <thead class="text-xs uppercase text-slate-700 border-b border-slate-200">
             <tr>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('order', page_locale()) }}</th>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('type', page_locale()) }}</th>
@@ -19,7 +19,7 @@
                     <td class="px-5 py-4 text-slate-600">
                         <span class="line-clamp-2">{{ block.preview|slice(0, 120) }}{% if block.preview|length > 120 %}…{% endif %}</span>
                     </td>
-                    <td class="px-5 py-4 text-slate-500">{{ block.updated_at|date('Y-m-d H:i') }}</td>
+                    <td class="px-5 py-4 text-slate-700">{{ block.updated_at|date('Y-m-d H:i') }}</td>
                     <td class="px-5 py-4 text-right space-x-2">
                         <button
                             class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -40,7 +40,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-500">{{ t('no_blocks_yet', page_locale()) }}</td>
+                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-700">{{ t('no_blocks_yet', page_locale()) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

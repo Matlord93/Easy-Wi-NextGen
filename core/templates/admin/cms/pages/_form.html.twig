@@ -2,7 +2,7 @@
     <summary class="flex items-center justify-between gap-4 px-5 py-4">
         <div>
             <h2 class="text-lg font-semibold">{{ t(form.header, page_locale()) }}</h2>
-            <p class="text-sm text-slate-500">{{ t(form.description, page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t(form.description, page_locale()) }}</p>
         </div>
         <span class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
             {{ t(form.submit_label, page_locale()) }}
@@ -28,11 +28,11 @@
             hx-swap="outerHTML"
         >
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('title', page_locale()) }}</label>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('title', page_locale()) }}</label>
                 <input type="text" name="title" value="{{ form.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('cms_page_title_placeholder', page_locale()) }}">
             </div>
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('slug', page_locale()) }}</label>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('slug', page_locale()) }}</label>
                 <input type="text" name="slug" value="{{ form.slug }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('cms_page_slug_placeholder', page_locale()) }}">
             </div>
             <label class="flex items-center gap-2 text-sm text-slate-600">

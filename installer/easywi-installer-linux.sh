@@ -3,8 +3,8 @@ set -euo pipefail
 
 VERSION="0.1.0"
 
-REPO_OWNER="${EASYWI_REPO_OWNER:-Matlord93}"
-REPO_NAME="${EASYWI_REPO_NAME:-Easy-Wi-NextGen}"
+REPO_OWNER="${EASYWI_REPO_OWNER:-easywi}"
+REPO_NAME="${EASYWI_REPO_NAME:-easywi}"
 GITHUB_BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download"
 CORE_URL="${EASYWI_CORE_URL:-${EASYWI_API_URL:-https://api.easywi.example}}"
 API_URL="${CORE_URL}"
@@ -616,7 +616,17 @@ role_packages() {
       esac
       ;;
     mail)
-      echo "postfix dovecot"
+      case "${OS_FAMILY}" in
+        debian)
+          echo "postfix dovecot-core dovecot-imapd"
+          ;;
+        rhel)
+          echo "postfix dovecot"
+          ;;
+        arch)
+          echo "postfix dovecot"
+          ;;
+      esac
       ;;
     db)
       case "${OS_FAMILY}" in

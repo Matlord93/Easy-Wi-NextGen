@@ -7,7 +7,7 @@
 
 <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
-        <thead class="text-xs uppercase text-slate-500 border-b border-slate-200">
+        <thead class="text-xs uppercase text-slate-700 border-b border-slate-200">
             <tr>
                 <th class="px-5 py-3 text-left font-semibold">Name</th>
                 <th class="px-5 py-3 text-left font-semibold">Type</th>
@@ -36,7 +36,7 @@
                             <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Hidden</span>
                         {% endif %}
                     </td>
-                    <td class="px-5 py-4 text-slate-500">{{ component.last_checked_at ? component.last_checked_at|date('Y-m-d H:i') : '—' }}</td>
+                    <td class="px-5 py-4 text-slate-700">{{ component.last_checked_at ? component.last_checked_at|date('Y-m-d H:i') : '—' }}</td>
                     <td class="px-5 py-4 text-right space-x-2">
                         <button
                             class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
@@ -57,7 +57,7 @@
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="7" class="px-5 py-6 text-center text-sm text-slate-500">No components yet. Add the first component for the status page.</td>
+                    <td colspan="7" class="px-5 py-6 text-center text-sm text-slate-700">No components yet. Add the first component for the status page.</td>
                 </tr>
             {% endfor %}
         </tbody>

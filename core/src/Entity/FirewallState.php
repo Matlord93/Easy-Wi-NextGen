@@ -23,13 +23,17 @@ class FirewallState
     #[ORM\Column(type: 'json')]
     private array $ports;
 
+    #[ORM\Column(type: 'json')]
+    private array $rules;
+
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
-    public function __construct(Agent $node, array $ports = [])
+    public function __construct(Agent $node, array $ports = [], array $rules = [])
     {
         $this->node = $node;
         $this->ports = $ports;
+        $this->rules = $rules;
         $this->updatedAt = new \DateTimeImmutable();
     }
 
@@ -57,6 +61,17 @@ class FirewallState
     public function setPorts(array $ports): void
     {
         $this->ports = $ports;
+        $this->touch();
+    }
+
+    public function getRules(): array
+    {
+        return $this->rules;
+    }
+
+    public function setRules(array $rules): void
+    {
+        $this->rules = $rules;
         $this->touch();
     }
 

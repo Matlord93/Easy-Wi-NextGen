@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\DdosPolicy;
+use App\Entity\DdosStatus;
 use App\Entity\JobResult;
 use App\Entity\MetricSample;
 use App\Enum\JobResultStatus;
 use App\Enum\JobStatus;
+use App\Enum\InstanceStatus;
 use App\Repository\AgentRepository;
+use App\Repository\DdosPolicyRepository;
+use App\Repository\DdosStatusRepository;
 use App\Repository\DomainRepository;
 use App\Repository\GdprDeletionRequestRepository;
 use App\Repository\InstanceRepository;
@@ -22,6 +27,7 @@ use App\Service\EncryptionService;
 use App\Service\FirewallStateManager;
 use App\Service\GdprAnonymizer;
 use App\Service\NotificationService;
+use App\Service\NodeDiskProtectionService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -44,6 +50,8 @@ final class AgentApiController
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly UserRepository $userRepository,
         private readonly GdprDeletionRequestRepository $gdprDeletionRequestRepository,
+        private readonly DdosPolicyRepository $ddosPolicyRepository,
+        private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
@@ -51,6 +59,7 @@ final class AgentApiController
         private readonly FirewallStateManager $firewallStateManager,
         private readonly GdprAnonymizer $gdprAnonymizer,
         private readonly NotificationService $notificationService,
+        private readonly NodeDiskProtectionService $nodeDiskProtectionService,
         private readonly EventDispatcherInterface $eventDispatcher,
     ) {
     }
@@ -209,16 +218,13 @@ final class AgentApiController
         $this->entityManager->persist($jobResult);
         $this->applyDomainUpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         if ($resultStatus === JobResultStatus::Succeeded) {
-            $ports = $this->firewallStateManager->portsFromJob($job);
-            if ($job->getType() === 'firewall.open_ports') {
-                $this->firewallStateManager->applyOpenPorts($agent, $ports);
-            }
-            if ($job->getType() === 'firewall.close_ports') {
-                $this->firewallStateManager->applyClosePorts($agent, $ports);
-            }
+            $this->firewallStateManager->applyFirewallJobResult($job, $agent, $output);
         }
+        $this->applyDdosStatusFromJob($job, $resultStatus, $agent, $output, $completedAt);
+        $this->applyDdosPolicyFromJob($job, $resultStatus, $agent, $output, $completedAt);
         $this->applyTs3UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->applyInstanceUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
+        $this->applyDiskUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyPublicServerUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyGdprAnonymizationFromJob($job, $resultStatus, $agent->getId());
         $this->eventDispatcher->dispatch(
@@ -338,6 +344,243 @@ final class AgentApiController
         return (int) $cursor;
     }
 
+    private function applyDdosStatusFromJob(
+        \App\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        \App\Entity\Agent $agent,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'ddos.status.check') {
+            return;
+        }
+
+        if ($resultStatus !== JobResultStatus::Succeeded) {
+            return;
+        }
+
+        $attackActive = $this->parseDdosBool($output['attack_active'] ?? null) ?? false;
+        $packetsPerSecond = $this->parseDdosInt($output['pps'] ?? null);
+        $connectionCount = $this->parseDdosInt($output['conn_count'] ?? null);
+        $ports = $this->parseDdosPorts($output['ports'] ?? null);
+        $protocols = $this->parseDdosProtocols($output['protocols'] ?? null);
+
+        $mode = is_string($output['mode'] ?? null) ? trim((string) $output['mode']) : null;
+        if ($mode === '') {
+            $mode = null;
+        }
+
+        $reportedAt = $this->parseDdosTimestamp($output['reported_at'] ?? $output['checked_at'] ?? null, $completedAt);
+
+        $status = $this->ddosStatusRepository->findOneBy(['node' => $agent]);
+        if ($status === null) {
+            $status = new DdosStatus(
+                $agent,
+                $attackActive,
+                $packetsPerSecond,
+                $connectionCount,
+                $ports,
+                $protocols,
+                $mode,
+                $reportedAt,
+            );
+        } else {
+            $status->updateStatus(
+                $attackActive,
+                $packetsPerSecond,
+                $connectionCount,
+                $ports,
+                $protocols,
+                $mode,
+                $reportedAt,
+            );
+        }
+
+        $this->entityManager->persist($status);
+        $this->auditLogger->log(null, 'ddos.status.reported', [
+            'agent_id' => $agent->getId(),
+            'attack_active' => $attackActive,
+            'pps' => $packetsPerSecond,
+            'conn_count' => $connectionCount,
+            'ports' => $ports,
+            'protocols' => $protocols,
+            'mode' => $mode,
+            'reported_at' => $reportedAt->format(DATE_RFC3339),
+        ]);
+    }
+
+    private function applyDdosPolicyFromJob(
+        \App\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        \App\Entity\Agent $agent,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'ddos.policy.apply') {
+            return;
+        }
+
+        if ($resultStatus !== JobResultStatus::Succeeded) {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $ports = $this->parseDdosPorts($output['ports'] ?? $payload['ports'] ?? null);
+        $protocols = $this->parseDdosProtocols($output['protocols'] ?? $payload['protocols'] ?? null);
+
+        $mode = is_string($output['mode'] ?? null) ? trim((string) $output['mode']) : null;
+        if ($mode === null || $mode === '') {
+            $mode = is_string($payload['mode'] ?? null) ? trim((string) $payload['mode']) : null;
+        }
+        if ($mode === '') {
+            $mode = null;
+        }
+
+        $enabled = $this->parseDdosBool($output['enabled'] ?? $output['active'] ?? null);
+        if ($enabled === null) {
+            $enabled = $mode !== 'off';
+        }
+
+        $appliedAt = $this->parseDdosTimestamp($output['applied_at'] ?? null, $completedAt);
+
+        $policy = $this->ddosPolicyRepository->findOneBy(['node' => $agent]);
+        if ($policy === null) {
+            $policy = new DdosPolicy($agent, $ports, $protocols, $mode, $enabled, $appliedAt);
+        } else {
+            $policy->updatePolicy($ports, $protocols, $mode, $enabled, $appliedAt);
+        }
+
+        $this->entityManager->persist($policy);
+        $this->auditLogger->log(null, 'ddos.policy.applied', [
+            'agent_id' => $agent->getId(),
+            'mode' => $mode,
+            'enabled' => $enabled,
+            'ports' => $ports,
+            'protocols' => $protocols,
+            'applied_at' => $appliedAt->format(DATE_RFC3339),
+        ]);
+    }
+
+    private function parseDdosTimestamp(mixed $value, DateTimeImmutable $fallback): DateTimeImmutable
+    {
+        if (is_string($value) && $value !== '') {
+            try {
+                return new DateTimeImmutable($value);
+            } catch (\Exception) {
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function parseDdosBool(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            return $value === 1;
+        }
+
+        if (is_string($value) || is_numeric($value)) {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        }
+
+        return null;
+    }
+
+    private function parseDdosInt(mixed $value): ?int
+    {
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    /**
+     * @return int[]
+     */
+    private function parseDdosPorts(mixed $value): array
+    {
+        if (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            } else {
+                $entries = array_map('trim', explode(',', $value));
+                $parsed = [];
+                foreach ($entries as $entry) {
+                    if ($entry === '' || !ctype_digit($entry)) {
+                        continue;
+                    }
+                    $parsed[] = (int) $entry;
+                }
+                $value = $parsed;
+            }
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $ports = [];
+        foreach ($value as $port) {
+            if (!is_numeric($port)) {
+                continue;
+            }
+
+            $portValue = (int) $port;
+            if ($portValue <= 0 || $portValue > 65535) {
+                continue;
+            }
+
+            $ports[] = $portValue;
+        }
+
+        $ports = array_values(array_unique($ports));
+        sort($ports);
+        return $ports;
+    }
+
+    /**
+     * @return string[]
+     */
+    private function parseDdosProtocols(mixed $value): array
+    {
+        if (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            } else {
+                $value = array_map('trim', explode(',', $value));
+            }
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $protocols = [];
+        foreach ($value as $protocol) {
+            if (!is_string($protocol)) {
+                continue;
+            }
+
+            $normalized = strtolower(trim($protocol));
+            if (!in_array($normalized, ['tcp', 'udp'], true)) {
+                continue;
+            }
+
+            $protocols[] = $normalized;
+        }
+
+        $protocols = array_values(array_unique($protocols));
+        sort($protocols);
+        return $protocols;
+    }
+
     private function applyDomainUpdatesFromJob(\App\Entity\Job $job, JobResultStatus $resultStatus, string $agentId, array $output): void
     {
         $payload = $job->getPayload();
@@ -446,14 +689,6 @@ final class AgentApiController
         array $output,
         DateTimeImmutable $completedAt,
     ): void {
-        if ($resultStatus !== JobResultStatus::Succeeded) {
-            return;
-        }
-
-        if (!in_array($job->getType(), ['sniper.install', 'sniper.update'], true)) {
-            return;
-        }
-
         $payload = $job->getPayload();
         $instanceId = $payload['instance_id'] ?? null;
         if (!is_int($instanceId) && !is_string($instanceId)) {
@@ -466,6 +701,45 @@ final class AgentApiController
         }
 
         if ($instance->getNode()->getId() !== $agentId) {
+            return;
+        }
+
+        if ($instance->getStatus() === InstanceStatus::Suspended) {
+            return;
+        }
+
+        $newStatus = null;
+        if ($resultStatus === JobResultStatus::Failed) {
+            if (in_array($job->getType(), ['instance.create', 'instance.start', 'instance.restart', 'instance.stop', 'instance.reinstall', 'sniper.install'], true)) {
+                $newStatus = \App\Enum\InstanceStatus::Error;
+            }
+        } elseif ($resultStatus === JobResultStatus::Succeeded) {
+            $newStatus = match ($job->getType()) {
+                'instance.create', 'instance.start', 'instance.restart', 'instance.reinstall', 'sniper.install' => \App\Enum\InstanceStatus::Running,
+                'instance.stop' => \App\Enum\InstanceStatus::Stopped,
+                default => null,
+            };
+        }
+
+        if ($newStatus !== null && $instance->getStatus() !== $newStatus) {
+            $previousStatus = $instance->getStatus()->value;
+            $instance->setStatus($newStatus);
+            $this->entityManager->persist($instance);
+            $this->auditLogger->log(null, 'instance.status_updated', [
+                'instance_id' => $instance->getId(),
+                'job_id' => $job->getId(),
+                'agent_id' => $agentId,
+                'previous_status' => $previousStatus,
+                'status' => $newStatus->value,
+                'output' => $output,
+            ]);
+        }
+
+        if ($resultStatus !== JobResultStatus::Succeeded) {
+            return;
+        }
+
+        if (!in_array($job->getType(), ['sniper.install', 'sniper.update'], true)) {
             return;
         }
 
@@ -489,6 +763,122 @@ final class AgentApiController
             'version' => $version,
             'completed_at' => $completedAt->format(DATE_RFC3339),
         ]);
+    }
+
+    private function applyDiskUpdatesFromJob(
+        \App\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        string $agentId,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() === 'instance.disk.scan') {
+            $payload = $job->getPayload();
+            $instanceId = $payload['instance_id'] ?? null;
+            if (!is_int($instanceId) && !is_string($instanceId)) {
+                return;
+            }
+
+            $instance = $this->instanceRepository->find((int) $instanceId);
+            if ($instance === null || $instance->getNode()->getId() !== $agentId) {
+                return;
+            }
+
+            if ($resultStatus === JobResultStatus::Succeeded) {
+                $usedBytes = is_numeric($output['used_bytes'] ?? null) ? (int) $output['used_bytes'] : null;
+                if ($usedBytes === null) {
+                    return;
+                }
+
+                $instance->setDiskUsedBytes($usedBytes);
+                $instance->setDiskLastScannedAt($completedAt);
+                $instance->setDiskScanError(null);
+                $this->entityManager->persist($instance);
+
+                $this->auditLogger->log(null, 'instance.disk.scanned', [
+                    'instance_id' => $instance->getId(),
+                    'node_id' => $instance->getNode()->getId(),
+                    'job_id' => $job->getId(),
+                    'disk_used_bytes' => $usedBytes,
+                    'inode_count' => is_numeric($output['inode_count'] ?? null) ? (int) $output['inode_count'] : null,
+                    'completed_at' => $completedAt->format(DATE_RFC3339),
+                ]);
+            } else {
+                $message = is_string($output['message'] ?? null) ? $output['message'] : 'Disk scan failed.';
+                $instance->setDiskLastScannedAt($completedAt);
+                $instance->setDiskScanError($message);
+                $this->entityManager->persist($instance);
+
+                $this->auditLogger->log(null, 'instance.disk.scan_failed', [
+                    'instance_id' => $instance->getId(),
+                    'node_id' => $instance->getNode()->getId(),
+                    'job_id' => $job->getId(),
+                    'message' => $message,
+                ]);
+            }
+
+            return;
+        }
+
+        if ($job->getType() !== 'node.disk.stat') {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $nodeId = $payload['node_id'] ?? $payload['agent_id'] ?? null;
+        if (!is_string($nodeId) || $nodeId === '') {
+            return;
+        }
+
+        $node = $this->agentRepository->find($nodeId);
+        if ($node === null) {
+            return;
+        }
+
+        if ($resultStatus !== JobResultStatus::Succeeded) {
+            $this->auditLogger->log(null, 'node.disk.stat_failed', [
+                'node_id' => $node->getId(),
+                'job_id' => $job->getId(),
+                'message' => $output['message'] ?? 'Disk stat failed.',
+            ]);
+            return;
+        }
+
+        $freeBytes = is_numeric($output['free_bytes'] ?? null) ? (int) $output['free_bytes'] : null;
+        $freePercent = is_numeric($output['free_percent'] ?? null) ? (float) $output['free_percent'] : null;
+        if ($freeBytes === null || $freePercent === null) {
+            return;
+        }
+
+        $states = $this->nodeDiskProtectionService->updateDiskStat($node, $freeBytes, $freePercent, $completedAt);
+        $this->entityManager->persist($node);
+
+        $this->auditLogger->log(null, 'node.disk.stat_updated', [
+            'node_id' => $node->getId(),
+            'job_id' => $job->getId(),
+            'free_bytes' => $freeBytes,
+            'free_percent' => $freePercent,
+            'checked_at' => $completedAt->format(DATE_RFC3339),
+        ]);
+
+        if ($node->getNodeDiskProtectionOverrideUntil() !== null && $freePercent >= $node->getNodeDiskProtectionThresholdPercent()) {
+            $node->setNodeDiskProtectionOverrideUntil(null);
+            $this->entityManager->persist($node);
+            $this->auditLogger->log(null, 'node.disk.protection_override_cleared', [
+                'node_id' => $node->getId(),
+                'free_percent' => $freePercent,
+            ]);
+        }
+
+        if ($states['previous'] !== $states['current']) {
+            $this->auditLogger->log(null, 'node.disk.protection_state_changed', [
+                'node_id' => $node->getId(),
+                'previous' => $states['previous'],
+                'current' => $states['current'],
+                'free_percent' => $freePercent,
+                'free_bytes' => $freeBytes,
+            ]);
+        }
     }
 
     private function parseSslExpiry(mixed $value): ?DateTimeImmutable

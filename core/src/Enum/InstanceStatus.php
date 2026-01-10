@@ -9,5 +9,6 @@ enum InstanceStatus: string
     case Provisioning = 'provisioning';
     case Running = 'running';
     case Stopped = 'stopped';
+    case Suspended = 'suspended';
     case Error = 'error';
 }

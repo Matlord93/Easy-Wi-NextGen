@@ -3,27 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
-    <script>
-        tailwind = {
-            config: {
-                darkMode: 'class',
-            },
-        };
-    </script>
     <script>
         (function () {
-            const stored = localStorage.getItem('theme');
-            if (stored === 'dark') {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+            } else {
                 document.documentElement.classList.add('dark');
             }
         })();
     </script>
-    <script src="/3.4.17"></script>
+    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
+    <link rel="stylesheet" href="/ui.css">
     <link rel="stylesheet" href="/admin-customer.css">
     <script src="/htmx.min.js"></script>
 </head>
-<body class="customer-interface bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+<body class="customer-interface bg-slate-100 text-slate-900">
 {% set activeNav = activeNav|default('') %}
 <input id="sidebar-toggle" type="checkbox" class="peer sr-only">
 <div class="min-h-screen flex">
@@ -31,7 +26,7 @@
     <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-gradient-to-b from-indigo-700 via-slate-900 to-slate-950 text-slate-100 shadow-xl transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
         <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
         <nav class="flex-1 px-4 space-y-4">
-            <details class="nav-group group" open>
+            <details class="nav-group group" data-nav-id="customer-account" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Account</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -66,7 +61,7 @@
                 </div>
             </details>
 
-            <details class="nav-group group" open>
+            <details class="nav-group group" data-nav-id="customer-services" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Services</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -93,7 +88,7 @@
                 </div>
             </details>
 
-            <details class="nav-group group" open>
+            <details class="nav-group group" data-nav-id="customer-support" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>Support</span>
                     <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -114,7 +109,7 @@
 
             {% set extensionItems = extension_menu_items('customer') %}
             {% if extensionItems is not empty %}
-                <details class="nav-group group">
+                <details class="nav-group group" data-nav-id="customer-extensions">
                     <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                         <span>Extensions</span>
                         <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -140,7 +135,7 @@
                 </details>
             {% endif %}
         </nav>
-        <div class="px-6 py-4 text-xs text-slate-300/70">{{ t('customer_portal_tagline', page_locale()) }}</div>
+        <div class="px-6 py-4 text-xs text-slate-600/70">{{ t('customer_portal_tagline', page_locale()) }}</div>
     </aside>
 
     <main class="portal-main flex-1 flex flex-col lg:ml-0">
@@ -161,7 +156,7 @@
                             aria-label="Search tickets"
                             class="w-full rounded-lg border border-slate-600 bg-slate-700 px-4 py-2 text-sm text-white placeholder-slate-300 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/40"
                         >
-                        <div class="mt-1 text-xs text-slate-300">{{ t('search_help', page_locale()) }}</div>
+                        <div class="mt-1 text-xs text-slate-600">{{ t('search_help', page_locale()) }}</div>
                     </div>
                 </div>
                 <div class="hidden items-center gap-4 sm:flex">
@@ -172,7 +167,7 @@
                     >{{ t('toggle_theme', page_locale()) }}</button>
                     <a
                         href="/notifications"
-                        class="relative rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-slate-700"
+                        class="btn relative rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-slate-700"
                         aria-label="{{ t('notifications', page_locale()) }}"
                     >
                         {{ t('notifications', page_locale()) }}
@@ -183,7 +178,7 @@
                     <div class="flex items-center gap-3">
                         <div class="text-right">
                             <p class="text-sm font-semibold text-slate-900">{{ t('customer_user_label', page_locale()) }}</p>
-                            <p class="text-xs text-slate-300">{{ t('customer_user_role', page_locale()) }}</p>
+                            <p class="text-xs text-slate-600">{{ t('customer_user_role', page_locale()) }}</p>
                         </div>
                         <div class="h-10 w-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold">C</div>
                     </div>
@@ -200,6 +195,18 @@
     </main>
 </div>
 <script>
+    const navGroups = document.querySelectorAll('details[data-nav-id]');
+    navGroups.forEach((group) => {
+        const key = `nav-group:${group.dataset.navId}`;
+        const stored = localStorage.getItem(key);
+        if (stored !== null) {
+            group.open = stored === 'open';
+        }
+        group.addEventListener('toggle', () => {
+            localStorage.setItem(key, group.open ? 'open' : 'closed');
+        });
+    });
+
     document.addEventListener('keydown', (event) => {
         if (event.key === '/' && document.activeElement?.tagName !== 'INPUT') {
             const search = document.getElementById('global-search-input');

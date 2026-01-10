@@ -1,7 +1,7 @@
 <div class="px-5 py-4">
     <div class="mb-4">
         <h2 class="text-lg font-semibold">{{ form.action == 'create' ? t('admin_plugins_add_title', page_locale()) : t('admin_plugins_edit_title', page_locale()) }}</h2>
-        <p class="text-sm text-slate-500">{{ t('admin_plugins_form_intro', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('admin_plugins_form_intro', page_locale()) }}</p>
     </div>
 
     {% if form.errors is not empty %}
@@ -22,7 +22,7 @@
         hx-swap="outerHTML"
     >
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('admin_plugins_template_label', page_locale()) }}</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('admin_plugins_template_label', page_locale()) }}</label>
             <select name="template_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
                 <option value="">{{ t('admin_plugins_template_select', page_locale()) }}</option>
                 {% for template in templates %}
@@ -31,25 +31,25 @@
             </select>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('admin_plugins_name_label', page_locale()) }}</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('admin_plugins_name_label', page_locale()) }}</label>
             <input type="text" name="name" value="{{ form.name }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Metamod:Source">
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('admin_plugins_version_label', page_locale()) }}</label>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('admin_plugins_version_label', page_locale()) }}</label>
                 <input type="text" name="version" value="{{ form.version }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="1.11.0">
             </div>
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('admin_plugins_checksum_label', page_locale()) }}</label>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('admin_plugins_checksum_label', page_locale()) }}</label>
                 <input type="text" name="checksum" value="{{ form.checksum }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="b3c94b...">
             </div>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('admin_plugins_download_url_label', page_locale()) }}</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('admin_plugins_download_url_label', page_locale()) }}</label>
             <input type="url" name="download_url" value="{{ form.download_url }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="https://example.com/plugins/metamod.zip">
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">{{ t('admin_plugins_description_label', page_locale()) }}</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('admin_plugins_description_label', page_locale()) }}</label>
             <textarea name="description" rows="3" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('admin_plugins_description_placeholder', page_locale()) }}">{{ form.description }}</textarea>
         </div>
         <button type="submit" class="w-full rounded-lg px-4 py-2 text-sm font-semibold text-slate-900 text-white {{ form.submit_color }} hover:opacity-90">{{ form.submit_label }}</button>

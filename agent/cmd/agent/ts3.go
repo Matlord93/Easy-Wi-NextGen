@@ -52,7 +52,7 @@ func handleTs3Create(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if baseDir == "" {
-		baseDir = "/srv/ts3"
+		baseDir = "/home"
 	}
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("ts3-%s", instanceID)
@@ -362,7 +362,7 @@ func buildTs3Username(customerID, instanceID string) string {
 func ts3InstanceDir(job jobs.Job) string {
 	baseDir := payloadValue(job.Payload, "base_dir")
 	if baseDir == "" {
-		baseDir = "/srv/ts3"
+		baseDir = "/home"
 	}
 	username := ts3Username(job)
 	if username == "" {

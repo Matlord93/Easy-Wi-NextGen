@@ -7,9 +7,9 @@
     <div class="rounded-xl border border-slate-200 bg-white p-6">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                <p class="text-xs uppercase text-slate-500">{{ t('admin_ticket_label', page_locale())|replace({'%id%': ticket.id}) }}</p>
+                <p class="text-xs uppercase text-slate-700">{{ t('admin_ticket_label', page_locale())|replace({'%id%': ticket.id}) }}</p>
                 <h1 class="text-2xl font-semibold text-slate-900">{{ ticket.subject }}</h1>
-                <p class="mt-2 text-sm text-slate-500">{{ t('admin_ticket_meta', page_locale())|replace({'%customer%': ticket.customer.email, '%category%': ticket.category|title}) }}</p>
+                <p class="mt-2 text-sm text-slate-700">{{ t('admin_ticket_meta', page_locale())|replace({'%customer%': ticket.customer.email, '%category%': ticket.category|title}) }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
                 <div id="ticket-status-badge">
@@ -21,11 +21,11 @@
             </div>
         </div>
         <div class="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div class="text-sm text-slate-500">
+            <div class="text-sm text-slate-700">
                 {{ t('admin_ticket_timestamps', page_locale())|replace({'%created%': ticket.created_at|date('d.m.Y H:i'), '%updated%': ticket.last_message_at|date('d.m.Y H:i')}) }}
             </div>
             <form class="flex items-center gap-3" method="post" action="/admin/tickets/{{ ticket.id }}/status" hx-post="/admin/tickets/{{ ticket.id }}/status" hx-target="#ticket-status-badge" hx-swap="outerHTML">
-                <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_table_status', page_locale()) }}</label>
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_table_status', page_locale()) }}</label>
                 <select name="status" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                     <option value="open" {{ ticket.status == 'open' ? 'selected' : '' }}>{{ t('admin_tickets_open', page_locale()) }}</option>
                     <option value="pending" {{ ticket.status == 'pending' ? 'selected' : '' }}>{{ t('admin_tickets_pending', page_locale()) }}</option>
@@ -41,7 +41,7 @@
         <div class="rounded-xl border border-slate-200 bg-white">
             <div class="border-b border-slate-200 px-6 py-4">
                 <h2 class="text-lg font-semibold">{{ t('admin_tickets_conversation_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-500">{{ t('admin_tickets_conversation_intro', page_locale()) }}</p>
+                <p class="text-sm text-slate-700">{{ t('admin_tickets_conversation_intro', page_locale()) }}</p>
             </div>
             <div id="ticket-messages">
                 {% include 'admin/tickets/_messages.html.twig' with { ticket: ticket, messages: messages, statusStyles: statusStyles, priorityStyles: priorityStyles } %}

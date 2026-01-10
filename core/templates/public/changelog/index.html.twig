@@ -6,7 +6,7 @@
 <div class="space-y-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ t('changelog', page_locale()) }}</h1>
-        <p class="text-sm text-slate-500">{{ t('changelog_description', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('changelog_description', page_locale()) }}</p>
     </div>
 
     {% if repository %}
@@ -21,7 +21,7 @@
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h2 class="text-lg font-semibold text-slate-900">{{ entry.title }}</h2>
-                        <p class="text-xs uppercase text-slate-500">{{ entry.published_at ? entry.published_at|date('Y-m-d') : t('unscheduled', page_locale()) }}</p>
+                        <p class="text-xs uppercase text-slate-700">{{ entry.published_at ? entry.published_at|date('Y-m-d') : t('unscheduled', page_locale()) }}</p>
                     </div>
                     <div class="flex items-center gap-2">
                         {% if entry.version %}
@@ -33,7 +33,7 @@
                 <div class="mt-3 text-sm text-slate-600 whitespace-pre-line">{{ entry.content ?: t('no_details_provided', page_locale()) }}</div>
             </div>
         {% else %}
-            <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-500">{{ t('no_changelog_entries', page_locale()) }}</div>
+            <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-700">{{ t('no_changelog_entries', page_locale()) }}</div>
         {% endfor %}
     </div>
 </div>

@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-6">
     <div>
         <h1 class="text-2xl font-semibold">Admin profile</h1>
-        <p class="text-sm text-slate-500">Update your login email and password for this admin account.</p>
+        <p class="text-sm text-slate-700">Update your login email and password for this admin account.</p>
     </div>
 
     {% if errors is not empty %}
@@ -26,7 +26,7 @@
     <form method="post" action="/admin/profile" class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="grid gap-5 lg:grid-cols-2">
             <div>
-                <label class="block text-xs font-semibold uppercase text-slate-500">Email address</label>
+                <label class="block text-xs font-semibold uppercase text-slate-700">Email address</label>
                 <input
                     type="email"
                     name="email"
@@ -36,7 +36,7 @@
                 >
             </div>
             <div>
-                <label class="block text-xs font-semibold uppercase text-slate-500">New password</label>
+                <label class="block text-xs font-semibold uppercase text-slate-700">New password</label>
                 <input
                     type="password"
                     name="password"
@@ -45,7 +45,7 @@
                 >
             </div>
             <div>
-                <label class="block text-xs font-semibold uppercase text-slate-500">Confirm new password</label>
+                <label class="block text-xs font-semibold uppercase text-slate-700">Confirm new password</label>
                 <input
                     type="password"
                     name="password_confirm"
@@ -54,7 +54,7 @@
                 >
             </div>
             <div class="lg:col-span-2">
-                <label class="block text-xs font-semibold uppercase text-slate-500">Ticket signature</label>
+                <label class="block text-xs font-semibold uppercase text-slate-700">Ticket signature</label>
                 <textarea
                     name="signature"
                     rows="4"

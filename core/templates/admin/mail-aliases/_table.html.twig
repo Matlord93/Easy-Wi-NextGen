@@ -2,7 +2,7 @@
     <div class="flex items-center justify-between">
         <div>
             <h2 class="text-lg font-semibold">{{ t('admin_mail_aliases_inventory_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-500">{{ t('admin_mail_aliases_inventory_intro', page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t('admin_mail_aliases_inventory_intro', page_locale()) }}</p>
         </div>
         <button
             class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
@@ -14,7 +14,7 @@
 
     <div class="overflow-x-auto border border-slate-200 rounded-lg">
         <table class="min-w-full text-sm">
-            <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <thead class="bg-slate-50 text-left text-xs uppercase text-slate-700">
                 <tr>
                     <th class="px-5 py-3">{{ t('admin_mail_aliases_table_alias', page_locale()) }}</th>
                     <th class="px-5 py-3">{{ t('admin_mail_aliases_table_destinations', page_locale()) }}</th>
@@ -28,7 +28,7 @@
                     <tr>
                         <td class="px-5 py-4">
                             <div class="font-semibold">{{ alias.address }}</div>
-                            <div class="text-xs text-slate-500">Domain {{ alias.domain.name }}</div>
+                            <div class="text-xs text-slate-700">Domain {{ alias.domain.name }}</div>
                         </td>
                         <td class="px-5 py-4 text-slate-600">
                             {% if alias.destinations is not empty %}
@@ -38,7 +38,7 @@
                                     {% endfor %}
                                 </ul>
                             {% else %}
-                                <span class="text-xs text-slate-400">{{ t('admin_mail_aliases_no_destinations', page_locale()) }}</span>
+                                <span class="text-xs text-slate-600">{{ t('admin_mail_aliases_no_destinations', page_locale()) }}</span>
                             {% endif %}
                         </td>
                         <td class="px-5 py-4">
@@ -48,7 +48,7 @@
                                 <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700">{{ t('admin_status_disabled', page_locale()) }}</span>
                             {% endif %}
                         </td>
-                        <td class="px-5 py-4 text-xs text-slate-500">{{ alias.updatedAt|date('Y-m-d H:i') }}</td>
+                        <td class="px-5 py-4 text-xs text-slate-700">{{ alias.updatedAt|date('Y-m-d H:i') }}</td>
                         <td class="px-5 py-4 text-right">
                             <div class="flex justify-end gap-2">
                                 <button
@@ -83,7 +83,7 @@
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-500">
+                        <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-700">
                             No aliases yet. Create one to start forwarding mail.
                         </td>
                     </tr>

@@ -1,6 +1,6 @@
 <div class="px-5 py-4 border-b border-slate-200">
     <h2 class="text-lg font-semibold">{{ form.action == 'create' ? t('admin_dns_create_title', page_locale()) : t('admin_dns_edit_title', page_locale()) }}</h2>
-    <p class="text-sm text-slate-500">{{ t('admin_dns_form_intro', page_locale()) }}</p>
+    <p class="text-sm text-slate-700">{{ t('admin_dns_form_intro', page_locale()) }}</p>
 </div>
 <div class="p-5 space-y-4">
     {% if form.errors is not empty %}
@@ -20,7 +20,7 @@
         hx-swap="outerHTML"
     >
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_dns_domain_label', page_locale()) }}</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_dns_domain_label', page_locale()) }}</label>
             <select name="domain_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                 {% for domain in domains %}
                     <option value="{{ domain.id }}" {{ domain.id == form.domain_id ? 'selected' : '' }}>{{ domain.name }}</option>
@@ -31,11 +31,11 @@
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_dns_name_label', page_locale()) }}</label>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_dns_name_label', page_locale()) }}</label>
                 <input name="name" value="{{ form.name }}" placeholder="@" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
             </div>
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_dns_type_label', page_locale()) }}</label>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_dns_type_label', page_locale()) }}</label>
                 <select name="type" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                     {% for type in recordTypes %}
                         <option value="{{ type }}" {{ type == form.type ? 'selected' : '' }}>{{ type }}</option>
@@ -44,16 +44,16 @@
             </div>
         </div>
         <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_dns_content_label', page_locale()) }}</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_dns_content_label', page_locale()) }}</label>
             <input name="content" value="{{ form.content }}" placeholder="192.0.2.10" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
         </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_dns_ttl_label', page_locale()) }}</label>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_dns_ttl_label', page_locale()) }}</label>
                 <input name="ttl" type="number" value="{{ form.ttl }}" min="60" max="86400" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
             </div>
             <div>
-                <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_dns_priority_label', page_locale()) }}</label>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_dns_priority_label', page_locale()) }}</label>
                 <input name="priority" type="number" value="{{ form.priority }}" placeholder="10" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
             </div>
         </div>

@@ -165,12 +165,26 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleInstanceRestart(job)
 	case "instance.reinstall":
 		return handleInstanceReinstall(job)
+	case "instance.disk.scan":
+		return handleInstanceDiskScan(job)
+	case "instance.disk.top":
+		return handleInstanceDiskTop(job)
 	case "sniper.install":
 		return handleSniperInstall(job)
 	case "sniper.update":
 		return handleSniperUpdate(job)
+	case "node.disk.stat":
+		return handleNodeDiskStat(job)
 	case "webspace.files.list":
 		return handleWebspaceFilesList(job)
+	case "webspace.files.read":
+		return handleWebspaceFileRead(job)
+	case "webspace.files.write":
+		return handleWebspaceFileWrite(job)
+	case "webspace.files.delete":
+		return handleWebspaceFileDelete(job)
+	case "webspace.files.mkdir":
+		return handleWebspaceFileMkdir(job)
 	case "windows.service.start":
 		return handleWindowsServiceStart(job)
 	case "windows.service.stop":
@@ -181,6 +195,10 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleFirewallOpen(job.ID, job.Payload)
 	case "firewall.close_ports":
 		return handleFirewallClose(job.ID, job.Payload)
+	case "ddos.policy.apply":
+		return handleDdosPolicyApply(job)
+	case "ddos.status.check":
+		return handleDdosStatusCheck(job)
 	case "ts3.create":
 		return handleTs3Create(job)
 	case "ts3.start":

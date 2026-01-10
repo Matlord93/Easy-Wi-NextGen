@@ -3,8 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        (function () {
+            const storedTheme = localStorage.getItem('theme');
+            if (storedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+            } else {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
     <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
-    <script src="/3.4.17"></script>
+    <link rel="stylesheet" href="/ui.css">
+    <link rel="stylesheet" href="/admin-customer.css">
     <script src="/htmx.min.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-900">
@@ -74,11 +85,11 @@
                 <div class="hidden items-center gap-4 sm:flex">
                     <div class="text-right">
                         <p class="text-sm font-semibold">{{ t('hosting_updates_title', page_locale()) }}</p>
-                        <p class="text-xs text-slate-500">{{ t('hosting_updates_subtitle', page_locale()) }}</p>
+                        <p class="text-xs text-slate-700">{{ t('hosting_updates_subtitle', page_locale()) }}</p>
                     </div>
                     <div class="flex items-center gap-2">
-                        <a href="/login" class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">{{ t('login', page_locale()) }}</a>
-                        <a href="/register" class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('register', page_locale()) }}</a>
+                        <a href="/login" class="btn rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">{{ t('login', page_locale()) }}</a>
+                        <a href="/register" class="btn rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('register', page_locale()) }}</a>
                     </div>
                 </div>
             </div>
@@ -89,7 +100,7 @@
         </section>
 
         <footer class="border-t border-slate-200 bg-white">
-            <div class="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div class="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div>Easy-Wi NextGen</div>
                 <div class="flex flex-wrap gap-4">
                     <a href="/impressum" class="hover:text-slate-700">{{ t('imprint', page_locale()) }}</a>
@@ -123,35 +134,35 @@
                 <h2 class="text-lg font-semibold">{{ t('cookie_settings_title', page_locale()) }}</h2>
                 <p class="mt-2 text-sm text-slate-600">{{ t('cookie_settings_description', page_locale()) }}</p>
             </div>
-            <button type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-700" data-cookie-close>{{ t('cookie_settings_close', page_locale()) }}</button>
+            <button type="button" class="text-xs font-semibold text-slate-700 hover:text-slate-700" data-cookie-close>{{ t('cookie_settings_close', page_locale()) }}</button>
         </div>
 
         <div class="mt-6 space-y-4">
             <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div>
                     <p class="text-sm font-semibold">{{ t('cookie_category_essential', page_locale()) }}</p>
-                    <p class="text-xs text-slate-500">{{ t('cookie_purpose_session', page_locale()) }}</p>
+                    <p class="text-xs text-slate-700">{{ t('cookie_purpose_session', page_locale()) }}</p>
                 </div>
                 <input type="checkbox" checked disabled class="h-4 w-4 rounded border-slate-300 text-slate-700">
             </div>
             <label class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <div>
                     <p class="text-sm font-semibold">{{ t('cookie_category_functional', page_locale()) }}</p>
-                    <p class="text-xs text-slate-500">{{ t('cookie_purpose_language', page_locale()) }}</p>
+                    <p class="text-xs text-slate-700">{{ t('cookie_purpose_language', page_locale()) }}</p>
                 </div>
                 <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="functional">
             </label>
             <label class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <div>
                     <p class="text-sm font-semibold">{{ t('cookie_category_analytics', page_locale()) }}</p>
-                    <p class="text-xs text-slate-500">—</p>
+                    <p class="text-xs text-slate-700">—</p>
                 </div>
                 <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="analytics">
             </label>
             <label class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <div>
                     <p class="text-sm font-semibold">{{ t('cookie_category_marketing', page_locale()) }}</p>
-                    <p class="text-xs text-slate-500">—</p>
+                    <p class="text-xs text-slate-700">—</p>
                 </div>
                 <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="marketing">
             </label>
@@ -159,7 +170,7 @@
 
         <div class="mt-6 overflow-hidden rounded-xl border border-slate-200">
             <table class="min-w-full text-xs">
-                <thead class="bg-slate-50 text-left text-slate-500">
+                <thead class="bg-slate-50 text-left text-slate-700">
                     <tr>
                         <th class="px-4 py-2">{{ t('cookie_cookie_name', page_locale()) }}</th>
                         <th class="px-4 py-2">{{ t('cookie_cookie_purpose', page_locale()) }}</th>

@@ -15,13 +15,13 @@
                 <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ style.badge }}">
                     {{ style.label }}
                 </span>
-                <div class="mt-2 text-sm text-slate-500">Requested {{ request.requestedAt|date('Y-m-d H:i') }}</div>
+                <div class="mt-2 text-sm text-slate-700">Requested {{ request.requestedAt|date('Y-m-d H:i') }}</div>
                 {% if request.processedAt %}
-                    <div class="text-xs text-slate-400">Completed {{ request.processedAt|date('Y-m-d H:i') }}</div>
+                    <div class="text-xs text-slate-600">Completed {{ request.processedAt|date('Y-m-d H:i') }}</div>
                 {% endif %}
             </div>
             {% if request.status.value != 'completed' %}
-                <span class="text-xs text-slate-400">Job ID {{ request.jobId }}</span>
+                <span class="text-xs text-slate-600">Job ID {{ request.jobId }}</span>
             {% endif %}
         </div>
         {% if request.status.value == 'completed' %}

@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ t('admin_tickets_heading', page_locale()) }}</h1>
-        <p class="text-sm text-slate-500">{{ t('admin_tickets_intro', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('admin_tickets_intro', page_locale()) }}</p>
     </div>
     <div class="flex items-center gap-3">
         <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
@@ -33,19 +33,19 @@
 
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">{{ t('admin_tickets_total_label', page_locale()) }}</p>
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_total_label', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">{{ t('admin_tickets_open', page_locale()) }}</p>
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_open', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.open }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">{{ t('admin_tickets_pending', page_locale()) }}</p>
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_pending', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.pending }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-500">{{ t('admin_tickets_resolved', page_locale()) }}</p>
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_resolved', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.resolved }}</p>
     </div>
 </div>
@@ -55,7 +55,7 @@
         <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
             <div>
                 <h2 class="text-lg font-semibold">{{ t('admin_tickets_inbox_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-500">{{ t('admin_tickets_inbox_intro', page_locale()) }}</p>
+                <p class="text-sm text-slate-700">{{ t('admin_tickets_inbox_intro', page_locale()) }}</p>
             </div>
             <button
                 class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
@@ -78,7 +78,7 @@
     <div class="rounded-xl border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-6 py-4">
             <h2 class="text-lg font-semibold">{{ t('admin_tickets_templates_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-500">{{ t('admin_tickets_templates_intro', page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t('admin_tickets_templates_intro', page_locale()) }}</p>
         </div>
         <div class="p-6 space-y-4">
             {% if templateErrors is not empty %}
@@ -92,16 +92,16 @@
             {% endif %}
             <form method="post" action="/admin/tickets/templates" class="space-y-4 rounded-lg border border-slate-200 p-4">
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_template_title', page_locale()) }}</label>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_title', page_locale()) }}</label>
                     <input name="title" value="{{ templateForm.title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                 </div>
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_template_subject', page_locale()) }}</label>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_subject', page_locale()) }}</label>
                     <input name="subject" value="{{ templateForm.subject }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_form_category', page_locale()) }}</label>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_category', page_locale()) }}</label>
                         <select name="category" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                             <option value="general" {{ templateForm.category == 'general' ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
                             <option value="billing" {{ templateForm.category == 'billing' ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
@@ -110,7 +110,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_form_priority', page_locale()) }}</label>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_priority', page_locale()) }}</label>
                         <select name="priority" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                             <option value="low" {{ templateForm.priority == 'low' ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
                             <option value="normal" {{ templateForm.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', page_locale()) }}</option>
@@ -120,14 +120,14 @@
                     </div>
                 </div>
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_template_body', page_locale()) }}</label>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_body', page_locale()) }}</label>
                     <textarea name="body" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ templateForm.body }}</textarea>
                 </div>
                 <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_tickets_template_create', page_locale()) }}</button>
             </form>
 
             {% if templates is empty %}
-                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
+                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-700">
                     {{ t('admin_tickets_templates_empty', page_locale()) }}
                 </div>
             {% else %}
@@ -136,7 +136,7 @@
                         <form method="post" action="/admin/tickets/templates/{{ template.id }}" class="rounded-lg border border-slate-200 p-4 space-y-3">
                             <div class="flex items-center justify-between gap-4">
                                 <h3 class="text-sm font-semibold text-slate-900">{{ template.title }}</h3>
-                                <span class="text-xs text-slate-400">{{ template.updated_at|date('d.m.Y H:i') }}</span>
+                                <span class="text-xs text-slate-600">{{ template.updated_at|date('d.m.Y H:i') }}</span>
                             </div>
                             <div class="grid gap-3">
                                 <input name="title" value="{{ template.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
@@ -171,7 +171,7 @@
     <div class="rounded-xl border border-slate-200 bg-white">
         <div class="border-b border-slate-200 px-6 py-4">
             <h2 class="text-lg font-semibold">{{ t('admin_tickets_quick_replies_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-500">{{ t('admin_tickets_quick_replies_intro', page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t('admin_tickets_quick_replies_intro', page_locale()) }}</p>
         </div>
         <div class="p-6 space-y-4">
             {% if quickReplyErrors is not empty %}
@@ -185,18 +185,18 @@
             {% endif %}
             <form method="post" action="/admin/tickets/quick-replies" class="space-y-4 rounded-lg border border-slate-200 p-4">
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_quick_reply_title', page_locale()) }}</label>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_quick_reply_title', page_locale()) }}</label>
                     <input name="title" value="{{ quickReplyForm.title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                 </div>
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_tickets_quick_reply_body', page_locale()) }}</label>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_quick_reply_body', page_locale()) }}</label>
                     <textarea name="body" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ quickReplyForm.body }}</textarea>
                 </div>
                 <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_tickets_quick_reply_create', page_locale()) }}</button>
             </form>
 
             {% if quickReplies is empty %}
-                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
+                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-700">
                     {{ t('admin_tickets_quick_replies_empty', page_locale()) }}
                 </div>
             {% else %}
@@ -205,7 +205,7 @@
                         <form method="post" action="/admin/tickets/quick-replies/{{ reply.id }}" class="rounded-lg border border-slate-200 p-4 space-y-3">
                             <div class="flex items-center justify-between gap-4">
                                 <h3 class="text-sm font-semibold text-slate-900">{{ reply.title }}</h3>
-                                <span class="text-xs text-slate-400">{{ reply.updated_at|date('d.m.Y H:i') }}</span>
+                                <span class="text-xs text-slate-600">{{ reply.updated_at|date('d.m.Y H:i') }}</span>
                             </div>
                             <input name="title" value="{{ reply.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                             <textarea name="body" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ reply.body }}</textarea>

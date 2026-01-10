@@ -8,10 +8,13 @@ use App\Entity\User;
 use App\Entity\Job;
 use App\Enum\UserType;
 use App\Repository\AgentRepository;
+use App\Repository\DdosStatusRepository;
 use App\Repository\JobRepository;
 use App\Service\AgentReleaseChecker;
 use App\Service\AuditLogger;
+use App\Service\DiskUsageFormatter;
 use App\Service\EncryptionService;
+use App\Service\NodeDiskProtectionService;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,11 +31,14 @@ final class AdminNodeController
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
+        private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly Environment $twig,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly AgentReleaseChecker $releaseChecker,
         private readonly EncryptionService $encryptionService,
+        private readonly NodeDiskProtectionService $nodeDiskProtectionService,
+        private readonly DiskUsageFormatter $diskUsageFormatter,
     ) {
     }
 
@@ -47,12 +53,16 @@ final class AdminNodeController
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $summary = $this->buildSummary($nodes, $latestVersion);
         $updateJobs = $this->buildUpdateJobIndex($nodes);
+        $ddosStatuses = $this->buildDdosStatusIndex($nodes);
+        $now = new \DateTimeImmutable();
+        $diskProtectActive = array_filter($nodes, fn ($node) => $this->nodeDiskProtectionService->isProtectionActive($node, $now));
 
         return new Response($this->twig->render('admin/nodes/index.html.twig', [
-            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
+            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs, $ddosStatuses),
             'summary' => $summary,
             'roleOptions' => self::ROLE_OPTIONS,
             'updateChannel' => $this->releaseChecker->getChannel(),
+            'diskProtectCount' => count($diskProtectActive),
             'activeNav' => 'nodes',
         ]));
     }
@@ -165,9 +175,10 @@ final class AdminNodeController
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $updateJobs = $this->buildUpdateJobIndex($nodes);
+        $ddosStatuses = $this->buildDdosStatusIndex($nodes);
 
         return new Response($this->twig->render('admin/nodes/_table.html.twig', [
-            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
+            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs, $ddosStatuses),
             'roleOptions' => self::ROLE_OPTIONS,
             'updateChannel' => $this->releaseChecker->getChannel(),
         ]));
@@ -223,6 +234,102 @@ final class AdminNodeController
         }
 
         return $this->renderNodesTable($notice, $error);
+    }
+
+    #[Route(path: '/{id}/disk-settings', name: 'admin_nodes_disk_settings', methods: ['POST'])]
+    public function updateDiskSettings(Request $request, string $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $node = $this->agentRepository->find($id);
+        if ($node === null) {
+            return new Response('Node not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $scanInterval = (int) $request->request->get('disk_scan_interval_seconds', $node->getDiskScanIntervalSeconds());
+        $warningPercent = (int) $request->request->get('disk_warning_percent', $node->getDiskWarningPercent());
+        $hardBlockPercent = (int) $request->request->get('disk_hard_block_percent', $node->getDiskHardBlockPercent());
+        $protectionThreshold = (int) $request->request->get('node_disk_protection_threshold_percent', $node->getNodeDiskProtectionThresholdPercent());
+
+        if ($scanInterval < 60) {
+            return $this->renderNodesTable(null, 'Scan interval must be at least 60 seconds.');
+        }
+        if ($warningPercent < 1 || $warningPercent > 99) {
+            return $this->renderNodesTable(null, 'Warning threshold must be between 1 and 99 percent.');
+        }
+        if ($hardBlockPercent < 100) {
+            return $this->renderNodesTable(null, 'Hard block threshold must be 100 percent or higher.');
+        }
+        if ($protectionThreshold < 1 || $protectionThreshold > 20) {
+            return $this->renderNodesTable(null, 'Protect mode threshold must be between 1 and 20 percent.');
+        }
+
+        $previous = [
+            'disk_scan_interval_seconds' => $node->getDiskScanIntervalSeconds(),
+            'disk_warning_percent' => $node->getDiskWarningPercent(),
+            'disk_hard_block_percent' => $node->getDiskHardBlockPercent(),
+            'node_disk_protection_threshold_percent' => $node->getNodeDiskProtectionThresholdPercent(),
+        ];
+
+        $node->setDiskScanIntervalSeconds($scanInterval);
+        $node->setDiskWarningPercent($warningPercent);
+        $node->setDiskHardBlockPercent($hardBlockPercent);
+        $node->setNodeDiskProtectionThresholdPercent($protectionThreshold);
+        $this->entityManager->persist($node);
+
+        $this->auditLogger->log($actor, 'node.disk.settings_updated', [
+            'node_id' => $node->getId(),
+            'previous' => $previous,
+            'settings' => [
+                'disk_scan_interval_seconds' => $node->getDiskScanIntervalSeconds(),
+                'disk_warning_percent' => $node->getDiskWarningPercent(),
+                'disk_hard_block_percent' => $node->getDiskHardBlockPercent(),
+                'node_disk_protection_threshold_percent' => $node->getNodeDiskProtectionThresholdPercent(),
+            ],
+        ]);
+
+        $this->entityManager->flush();
+
+        return $this->renderNodesTable('Disk settings updated.');
+    }
+
+    #[Route(path: '/{id}/disk-protection-override', name: 'admin_nodes_disk_protection_override', methods: ['POST'])]
+    public function updateDiskProtectionOverride(Request $request, string $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $node = $this->agentRepository->find($id);
+        if ($node === null) {
+            return new Response('Node not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $minutes = (int) $request->request->get('override_minutes', 0);
+        $previousOverride = $node->getNodeDiskProtectionOverrideUntil();
+        $overrideUntil = null;
+        $notice = 'Disk protection override cleared.';
+
+        if ($minutes > 0) {
+            $overrideUntil = (new \DateTimeImmutable())->modify(sprintf('+%d minutes', $minutes));
+            $notice = sprintf('Disk protection override active for %d minutes.', $minutes);
+        }
+
+        $node->setNodeDiskProtectionOverrideUntil($overrideUntil);
+        $this->entityManager->persist($node);
+        $this->auditLogger->log($actor, 'node.disk.protection_override_updated', [
+            'node_id' => $node->getId(),
+            'previous_override_until' => $previousOverride?->format(DATE_RFC3339),
+            'override_until' => $overrideUntil?->format(DATE_RFC3339),
+            'override_minutes' => $minutes,
+        ]);
+        $this->entityManager->flush();
+
+        return $this->renderNodesTable($notice);
     }
 
     #[Route(path: '/update', name: 'admin_nodes_update_all', methods: ['POST'])]
@@ -354,9 +461,10 @@ final class AdminNodeController
         $nodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $latestVersion = $this->releaseChecker->getLatestVersion();
         $updateJobs = $this->buildUpdateJobIndex($nodes);
+        $ddosStatuses = $this->buildDdosStatusIndex($nodes);
 
         return new Response($this->twig->render('admin/nodes/_table.html.twig', [
-            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs),
+            'nodes' => $this->normalizeNodes($nodes, $latestVersion, $updateJobs, $ddosStatuses),
             'roleOptions' => self::ROLE_OPTIONS,
             'updateChannel' => $this->releaseChecker->getChannel(),
             'notice' => $notice,
@@ -435,9 +543,16 @@ final class AdminNodeController
         return $this->resolveStatus($node->getLastHeartbeatAt());
     }
 
-    private function normalizeNodes(array $nodes, ?string $latestVersion, array $updateJobs = []): array
+    private function normalizeNodes(
+        array $nodes,
+        ?string $latestVersion,
+        array $updateJobs = [],
+        array $ddosStatuses = [],
+    ): array
     {
-        return array_map(function ($node) use ($latestVersion, $updateJobs): array {
+        $now = new \DateTimeImmutable();
+
+        return array_map(function ($node) use ($latestVersion, $updateJobs, $ddosStatuses, $now): array {
             $stats = $node->getLastHeartbeatStats() ?? [];
             $roles = $node->getRoles();
             $normalizedRoles = $this->normalizeRoles($roles, $stats);
@@ -450,6 +565,11 @@ final class AdminNodeController
             }
             $updateJob = $updateJobs[$node->getId()] ?? null;
 
+            $ddosStatus = $ddosStatuses[$node->getId()] ?? null;
+            $diskStat = $this->nodeDiskProtectionService->getDiskStat($node);
+            $diskProtectActive = $this->nodeDiskProtectionService->isProtectionActive($node, $now);
+            $diskOverrideActive = $this->nodeDiskProtectionService->isOverrideActive($node, $now);
+
             return [
                 'id' => $node->getId(),
                 'name' => $node->getName(),
@@ -460,9 +580,27 @@ final class AdminNodeController
                 'lastSeenAt' => $node->getLastSeenAt(),
                 'lastHeartbeatIp' => $node->getLastHeartbeatIp(),
                 'lastHeartbeatVersion' => $currentVersion,
+                'disk' => [
+                    'free_bytes' => $diskStat['free_bytes'] ?? null,
+                    'free_percent' => $diskStat['free_percent'] ?? null,
+                    'free_human' => isset($diskStat['free_bytes']) ? $this->diskUsageFormatter->formatBytes((int) $diskStat['free_bytes']) : null,
+                    'checked_at' => $diskStat['checked_at'] ?? null,
+                    'protect_active' => $diskProtectActive,
+                    'override_active' => $diskOverrideActive,
+                    'override_until' => $node->getNodeDiskProtectionOverrideUntil(),
+                    'scan_interval' => $node->getDiskScanIntervalSeconds(),
+                    'warning_percent' => $node->getDiskWarningPercent(),
+                    'hard_block_percent' => $node->getDiskHardBlockPercent(),
+                    'protect_threshold' => $node->getNodeDiskProtectionThresholdPercent(),
+                ],
                 'updateAvailable' => $this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion),
                 'latestVersion' => $latestVersion,
                 'updatedAt' => $node->getUpdatedAt(),
+                'ddos' => $ddosStatus === null ? null : [
+                    'attackActive' => $ddosStatus->isAttackActive(),
+                    'reportedAt' => $ddosStatus->getReportedAt(),
+                    'mode' => $ddosStatus->getMode(),
+                ],
                 'updateJob' => $updateJob === null ? null : [
                     'id' => $updateJob->getId(),
                     'status' => $updateJob->getStatus()->value,
@@ -473,6 +611,20 @@ final class AdminNodeController
                 ],
             ];
         }, $nodes);
+    }
+
+    /**
+     * @param \App\Entity\Agent[] $nodes
+     * @return array<string, \App\Entity\DdosStatus>
+     */
+    private function buildDdosStatusIndex(array $nodes): array
+    {
+        $statuses = $this->ddosStatusRepository->findByNodes($nodes);
+        $index = [];
+        foreach ($statuses as $status) {
+            $index[$status->getNode()->getId()] = $status;
+        }
+        return $index;
     }
 
     /**

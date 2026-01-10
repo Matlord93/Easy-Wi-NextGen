@@ -1,7 +1,7 @@
 <div class="p-6 space-y-6">
     <div>
         <h2 class="text-lg font-semibold">{{ form.action == 'create' ? t('admin_mail_aliases_create_title', page_locale()) : t('admin_mail_aliases_edit_title', page_locale()) }}</h2>
-        <p class="text-sm text-slate-500">{{ t('admin_mail_aliases_form_intro', page_locale()) }}</p>
+        <p class="text-sm text-slate-700">{{ t('admin_mail_aliases_form_intro', page_locale()) }}</p>
     </div>
 
     {% if form.errors is not empty %}
@@ -21,7 +21,7 @@
         hx-swap="outerHTML"
     >
         <div class="space-y-2">
-            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_mail_aliases_domain', page_locale()) }}</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_mail_aliases_domain', page_locale()) }}</label>
             <select name="domain_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" {{ form.action == 'update' ? 'disabled' : '' }}>
                 <option value="">{{ t('admin_mail_aliases_domain_select', page_locale()) }}</option>
                 {% for domain in domains %}
@@ -31,7 +31,7 @@
         </div>
 
         <div class="space-y-2">
-            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_mail_aliases_name', page_locale()) }}</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_mail_aliases_name', page_locale()) }}</label>
             <input
                 type="text"
                 name="local_part"
@@ -41,20 +41,20 @@
                 {{ form.action == 'update' ? 'disabled' : '' }}
             >
             {% if form.address %}
-                <p class="text-xs text-slate-500">{{ t('admin_mail_aliases_address_label', page_locale()) }}</p>
+                <p class="text-xs text-slate-700">{{ t('admin_mail_aliases_address_label', page_locale()) }}</p>
                 <p class="text-sm font-semibold text-slate-900 text-slate-700">{{ form.address }}</p>
             {% endif %}
         </div>
 
         <div class="space-y-2">
-            <label class="block text-xs font-semibold text-slate-500 uppercase">{{ t('admin_mail_aliases_destinations', page_locale()) }}</label>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_mail_aliases_destinations', page_locale()) }}</label>
             <textarea
                 name="destinations"
                 rows="3"
                 placeholder="{{ t('admin_mail_aliases_destinations_placeholder', page_locale()) }}"
                 class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
             >{{ form.destinations }}</textarea>
-            <p class="text-xs text-slate-500">{{ t('admin_mail_aliases_destinations_hint', page_locale()) }}</p>
+            <p class="text-xs text-slate-700">{{ t('admin_mail_aliases_destinations_hint', page_locale()) }}</p>
         </div>
 
         <div class="flex items-center gap-2">

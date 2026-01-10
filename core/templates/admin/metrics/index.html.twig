@@ -7,7 +7,7 @@
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-semibold">{{ t('admin_metrics_heading', page_locale()) }}</h1>
-            <p class="text-sm text-slate-500">{{ t('admin_metrics_intro', page_locale()) }}</p>
+            <p class="text-sm text-slate-700">{{ t('admin_metrics_intro', page_locale()) }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
             <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ t('admin_metrics_live_data', page_locale()) }}</span>
@@ -55,10 +55,10 @@
         <div class="rounded-xl border border-slate-200 bg-white p-5">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-xs uppercase text-slate-500">{{ t('admin_metrics_cpu_usage', page_locale()) }}</p>
+                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_cpu_usage', page_locale()) }}</p>
                     <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestCpu is not null ? latestCpu|number_format(1, '.', ',') ~ '%' : '—' }}</p>
                 </div>
-                <span class="text-xs text-slate-400">{{ t('admin_metrics_average', page_locale()) }}</span>
+                <span class="text-xs text-slate-600">{{ t('admin_metrics_average', page_locale()) }}</span>
             </div>
             <div class="mt-4">
                 <svg viewBox="0 0 240 60" class="h-16 w-full">
@@ -74,10 +74,10 @@
         <div class="rounded-xl border border-slate-200 bg-white p-5">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-xs uppercase text-slate-500">{{ t('admin_metrics_memory_usage', page_locale()) }}</p>
+                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_memory_usage', page_locale()) }}</p>
                     <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestMemory is not null ? latestMemory|number_format(1, '.', ',') ~ '%' : '—' }}</p>
                 </div>
-                <span class="text-xs text-slate-400">{{ t('admin_metrics_average', page_locale()) }}</span>
+                <span class="text-xs text-slate-600">{{ t('admin_metrics_average', page_locale()) }}</span>
             </div>
             <div class="mt-4">
                 <svg viewBox="0 0 240 60" class="h-16 w-full">
@@ -93,10 +93,10 @@
         <div class="rounded-xl border border-slate-200 bg-white p-5">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-xs uppercase text-slate-500">{{ t('admin_metrics_disk_usage', page_locale()) }}</p>
+                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_disk_usage', page_locale()) }}</p>
                     <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestDisk is not null ? latestDisk|number_format(1, '.', ',') ~ '%' : '—' }}</p>
                 </div>
-                <span class="text-xs text-slate-400">{{ t('admin_metrics_average', page_locale()) }}</span>
+                <span class="text-xs text-slate-600">{{ t('admin_metrics_average', page_locale()) }}</span>
             </div>
             <div class="mt-4">
                 <svg viewBox="0 0 240 60" class="h-16 w-full">
@@ -112,17 +112,17 @@
         <div class="rounded-xl border border-slate-200 bg-white p-5">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-xs uppercase text-slate-500">{{ t('admin_metrics_network_traffic', page_locale()) }}</p>
+                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_network_traffic', page_locale()) }}</p>
                     <p class="mt-2 text-2xl font-semibold text-slate-900">
                         {{ latestNetSent is not null ? latestNetSent|number_format(0, '.', ',') : '—' }}
-                        <span class="text-xs font-normal text-slate-400">{{ t('admin_metrics_sent', page_locale()) }}</span>
+                        <span class="text-xs font-normal text-slate-600">{{ t('admin_metrics_sent', page_locale()) }}</span>
                     </p>
-                    <p class="text-sm text-slate-500">
+                    <p class="text-sm text-slate-700">
                         {{ latestNetRecv is not null ? latestNetRecv|number_format(0, '.', ',') : '—' }}
-                        <span class="text-xs font-normal text-slate-400">{{ t('admin_metrics_received', page_locale()) }}</span>
+                        <span class="text-xs font-normal text-slate-600">{{ t('admin_metrics_received', page_locale()) }}</span>
                     </p>
                 </div>
-                <span class="text-xs text-slate-400">{{ t('admin_metrics_bytes', page_locale()) }}</span>
+                <span class="text-xs text-slate-600">{{ t('admin_metrics_bytes', page_locale()) }}</span>
             </div>
             <div class="mt-4">
                 <svg viewBox="0 0 240 60" class="h-16 w-full">
@@ -144,18 +144,18 @@
         <div class="flex items-center justify-between">
             <div>
                 <h2 class="text-lg font-semibold">{{ t('admin_metrics_instance_metrics_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-500">{{ t('admin_metrics_instance_metrics_intro', page_locale()) }}</p>
+                <p class="text-sm text-slate-700">{{ t('admin_metrics_instance_metrics_intro', page_locale()) }}</p>
             </div>
             <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{{ t('admin_metrics_planned', page_locale()) }}</span>
         </div>
         <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-400">
+            <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-600">
                 {{ t('admin_metrics_instance_card_cpu', page_locale()) }}
             </div>
-            <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-400">
+            <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-600">
                 {{ t('admin_metrics_instance_card_filter', page_locale()) }}
             </div>
-            <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-400">
+            <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-600">
                 {{ t('admin_metrics_instance_card_alerts', page_locale()) }}
             </div>
         </div>

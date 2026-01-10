@@ -7,9 +7,9 @@
     <div class="rounded-xl border border-slate-200 bg-white p-6">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-                <p class="text-xs uppercase text-slate-500">{{ t('customer_ticket_label', page_locale())|replace({'%id%': ticket.id}) }}</p>
+                <p class="text-xs uppercase text-slate-700">{{ t('customer_ticket_label', page_locale())|replace({'%id%': ticket.id}) }}</p>
                 <h1 class="text-2xl font-semibold text-slate-900">{{ ticket.subject }}</h1>
-                <p class="mt-2 text-sm text-slate-500">{{ t('customer_ticket_category_label', page_locale())|replace({'%category%': ticket.category|title}) }}</p>
+                <p class="mt-2 text-sm text-slate-700">{{ t('customer_ticket_category_label', page_locale())|replace({'%category%': ticket.category|title}) }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
                 <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ statusStyles[ticket.status] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
@@ -20,7 +20,7 @@
                 </span>
             </div>
         </div>
-        <div class="mt-6 text-sm text-slate-500">
+        <div class="mt-6 text-sm text-slate-700">
             {{ t('customer_ticket_created_update', page_locale())|replace({'%created%': ticket.created_at|date('d.m.Y H:i'), '%updated%': ticket.last_message_at|date('d.m.Y H:i')}) }}
         </div>
     </div>
@@ -29,7 +29,7 @@
         <div class="rounded-xl border border-slate-200 bg-white">
             <div class="border-b border-slate-200 px-6 py-4">
                 <h2 class="text-lg font-semibold">{{ t('customer_ticket_conversation_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-500">{{ t('customer_ticket_conversation_intro', page_locale()) }}</p>
+                <p class="text-sm text-slate-700">{{ t('customer_ticket_conversation_intro', page_locale()) }}</p>
             </div>
             <div id="ticket-messages">
                 {% include 'customer/tickets/_messages.html.twig' with { ticket: ticket, messages: messages } %}

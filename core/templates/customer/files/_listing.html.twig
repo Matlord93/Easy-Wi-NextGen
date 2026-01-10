@@ -1,72 +1,171 @@
 {% set status = status|default('queued') %}
+{% set currentPath = path|default('') %}
+{% set currentPathLabel = currentPath ?: '/' %}
+{% set webspaceId = webspaceId|default('') %}
+{% set parentParts = currentPath ? currentPath|split('/') : [] %}
+{% set parentPath = parentParts|length > 1 ? parentParts|slice(0, parentParts|length - 1)|join('/') : '' %}
 
-{% if status in ['queued', 'running'] %}
-    <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600"
-         hx-get="/files/listing/{{ jobId }}"
-         hx-trigger="load, every 2s"
-         hx-target="this"
-         hx-swap="outerHTML">
-        <div class="flex flex-col items-center gap-3">
-            <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
-                <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path>
-                </svg>
-            </span>
-            <div>
-                <p class="font-semibold text-slate-700">{{ t('customer_files_listing_in_progress', page_locale()) }}</p>
-                <p class="text-xs text-slate-500">{{ t('customer_files_listing_waiting', page_locale()) }}</p>
+<div
+    id="file-listing"
+    class="mt-4"
+    {% if status in ['queued', 'running'] %}
+        hx-get="/files/listing/{{ jobId }}"
+        hx-trigger="load, every 2s"
+        hx-swap="outerHTML"
+    {% else %}
+        hx-get="/files/listing?webspace_id={{ webspaceId }}&path={{ currentPath|url_encode }}"
+        hx-trigger="files-refresh from:body"
+        hx-swap="outerHTML"
+    {% endif %}
+>
+    {% if status in ['queued', 'running'] %}
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
+            <div class="flex flex-col items-center gap-3">
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+                    <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path>
+                    </svg>
+                </span>
+                <div>
+                    <p class="font-semibold text-slate-700">{{ t('customer_files_listing_in_progress', page_locale()) }}</p>
+                    <p class="text-xs text-slate-700">{{ t('customer_files_listing_waiting', page_locale()) }}</p>
+                </div>
             </div>
         </div>
-    </div>
-{% elseif status in ['failed', 'cancelled'] %}
-    <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-6 text-sm text-rose-700">
-        <p class="font-semibold">{{ t('customer_files_listing_failed', page_locale()) }}</p>
-        <p class="mt-1 text-xs text-rose-600">{{ error|default(t('customer_files_listing_failed_default', page_locale())) }}</p>
-    </div>
-{% else %}
-    <div class="space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
-            <div>
-                <span class="uppercase tracking-wide text-slate-400">{{ t('customer_files_root', page_locale()) }}</span>
-                <span class="ml-2 font-medium text-slate-700">{{ rootPath|default('') }}</span>
-            </div>
-            <div>
-                <span class="uppercase tracking-wide text-slate-400">{{ t('customer_files_path', page_locale()) }}</span>
-                <span class="ml-2 font-medium text-slate-700">{{ path|default('') ?: '/' }}</span>
-            </div>
+    {% elseif status in ['failed', 'cancelled'] %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-6 text-sm text-rose-700">
+            <p class="font-semibold">{{ t('customer_files_listing_failed', page_locale()) }}</p>
+            <p class="mt-1 text-xs text-rose-600">{{ error|default(t('customer_files_listing_failed_default', page_locale())) }}</p>
         </div>
-        <div class="overflow-hidden rounded-xl border border-slate-200">
-            <table class="min-w-full divide-y divide-slate-200 text-sm">
-                <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                        <th class="px-4 py-3">{{ t('customer_files_table_name', page_locale()) }}</th>
-                        <th class="px-4 py-3">{{ t('customer_files_table_type', page_locale()) }}</th>
-                        <th class="px-4 py-3">{{ t('customer_files_table_size', page_locale()) }}</th>
-                        <th class="px-4 py-3">{{ t('customer_files_table_permissions', page_locale()) }}</th>
-                        <th class="px-4 py-3">{{ t('customer_files_table_modified', page_locale()) }}</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 bg-white">
-                    {% for entry in entries %}
+    {% else %}
+        <div class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+                <div>
+                    <span class="uppercase tracking-wide text-slate-600">{{ t('customer_files_root', page_locale()) }}</span>
+                    <span class="ml-2 font-medium text-slate-700">{{ rootPath|default('') }}</span>
+                </div>
+                <div>
+                    <span class="uppercase tracking-wide text-slate-600">{{ t('customer_files_path', page_locale()) }}</span>
+                    <span class="ml-2 font-medium text-slate-700">{{ currentPathLabel }}</span>
+                </div>
+                {% if currentPath %}
+                    <button
+                        class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                        hx-get="/files/listing?webspace_id={{ webspaceId }}&path={{ parentPath|url_encode }}"
+                        hx-target="#file-listing"
+                        hx-swap="outerHTML"
+                    >
+                        {{ t('customer_files_up_one_level', page_locale()) }}
+                    </button>
+                {% endif %}
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="grid gap-4 lg:grid-cols-3">
+                    <form class="space-y-2" hx-post="/files/upload" hx-target="#file-feedback" hx-swap="innerHTML" enctype="multipart/form-data">
+                        <input type="hidden" name="webspace_id" value="{{ webspaceId }}">
+                        <input type="hidden" name="path" value="{{ currentPath }}">
+                        <label class="text-xs font-semibold text-slate-700">{{ t('customer_files_upload_label', page_locale()) }}</label>
+                        <input type="file" name="upload" class="w-full text-xs text-slate-600">
+                        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_files_upload_action', page_locale()) }}</button>
+                    </form>
+                    <form class="space-y-2" hx-post="/files/mkdir" hx-target="#file-feedback" hx-swap="innerHTML">
+                        <input type="hidden" name="webspace_id" value="{{ webspaceId }}">
+                        <input type="hidden" name="path" value="{{ currentPath }}">
+                        <label class="text-xs font-semibold text-slate-700">{{ t('customer_files_new_folder', page_locale()) }}</label>
+                        <input type="text" name="name" placeholder="{{ t('customer_files_folder_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                        <button type="submit" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_files_create_folder', page_locale()) }}</button>
+                    </form>
+                    <form class="space-y-2" hx-post="/files/save" hx-target="#file-feedback" hx-swap="innerHTML">
+                        <input type="hidden" name="webspace_id" value="{{ webspaceId }}">
+                        <input type="hidden" name="path" value="{{ currentPath }}">
+                        <label class="text-xs font-semibold text-slate-700">{{ t('customer_files_new_file', page_locale()) }}</label>
+                        <input type="text" name="name" placeholder="{{ t('customer_files_file_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                        <button type="submit" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_files_create_file', page_locale()) }}</button>
+                    </form>
+                </div>
+                <div id="file-feedback" class="mt-4 text-xs text-slate-600"></div>
+            </div>
+
+            <div class="overflow-hidden rounded-xl border border-slate-200">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-700">
                         <tr>
-                            <td class="px-4 py-3 font-medium text-slate-800">{{ entry.name }}</td>
-                            <td class="px-4 py-3">
-                                <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {{ entry.is_dir ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' }}">
-                                    {{ entry.is_dir ? t('customer_files_type_directory', page_locale()) : t('customer_files_type_file', page_locale()) }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-slate-500">{{ entry.size_human }}</td>
-                            <td class="px-4 py-3 text-slate-500">{{ entry.mode }}</td>
-                            <td class="px-4 py-3 text-slate-500">{{ entry.modified_at }}</td>
+                            <th class="px-4 py-3">{{ t('customer_files_table_name', page_locale()) }}</th>
+                            <th class="px-4 py-3">{{ t('customer_files_table_type', page_locale()) }}</th>
+                            <th class="px-4 py-3">{{ t('customer_files_table_size', page_locale()) }}</th>
+                            <th class="px-4 py-3">{{ t('customer_files_table_permissions', page_locale()) }}</th>
+                            <th class="px-4 py-3">{{ t('customer_files_table_modified', page_locale()) }}</th>
+                            <th class="px-4 py-3">{{ t('customer_files_table_actions', page_locale()) }}</th>
                         </tr>
-                    {% else %}
-                        <tr>
-                            <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">{{ t('customer_files_empty', page_locale()) }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                        {% for entry in entries %}
+                            {% set nextPath = currentPath ? currentPath ~ '/' ~ entry.name : entry.name %}
+                            <tr>
+                                <td class="px-4 py-3 font-medium text-slate-800">{{ entry.name }}</td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {{ entry.is_dir ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' }}">
+                                        {{ entry.is_dir ? t('customer_files_type_directory', page_locale()) : t('customer_files_type_file', page_locale()) }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-slate-700">{{ entry.size_human }}</td>
+                                <td class="px-4 py-3 text-slate-700">{{ entry.mode }}</td>
+                                <td class="px-4 py-3 text-slate-700">{{ entry.modified_at }}</td>
+                                <td class="px-4 py-3">
+                                    <div class="flex flex-wrap gap-2">
+                                        {% if entry.is_dir %}
+                                            <button
+                                                type="button"
+                                                class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                                                hx-get="/files/listing?webspace_id={{ webspaceId }}&path={{ nextPath|url_encode }}"
+                                                hx-target="#file-listing"
+                                                hx-swap="outerHTML"
+                                            >
+                                                {{ t('customer_files_open', page_locale()) }}
+                                            </button>
+                                        {% else %}
+                                            <button
+                                                type="button"
+                                                class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                                                hx-get="/files/read?webspace_id={{ webspaceId }}&path={{ currentPath|url_encode }}&name={{ entry.name|url_encode }}"
+                                                hx-target="#file-editor"
+                                                hx-swap="outerHTML"
+                                            >
+                                                {{ t('customer_files_edit', page_locale()) }}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                                                hx-get="/files/download?webspace_id={{ webspaceId }}&path={{ currentPath|url_encode }}&name={{ entry.name|url_encode }}"
+                                                hx-target="#file-feedback"
+                                                hx-swap="innerHTML"
+                                            >
+                                                {{ t('customer_files_download', page_locale()) }}
+                                            </button>
+                                        {% endif %}
+                                        <form hx-post="/files/delete" hx-target="#file-feedback" hx-swap="innerHTML" hx-confirm="{{ t('customer_files_delete_confirm', page_locale()) }}">
+                                            <input type="hidden" name="webspace_id" value="{{ webspaceId }}">
+                                            <input type="hidden" name="path" value="{{ currentPath }}">
+                                            <input type="hidden" name="name" value="{{ entry.name }}">
+                                            <button type="submit" class="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 hover:border-rose-300">{{ t('customer_files_delete', page_locale()) }}</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">{{ t('customer_files_empty', page_locale()) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="file-editor" class="rounded-xl border border-slate-200 bg-white p-4">
+                <p class="text-xs text-slate-600">{{ t('customer_files_editor_empty', page_locale()) }}</p>
+            </div>
         </div>
-    </div>
-{% endif %}
+    {% endif %}
+</div>

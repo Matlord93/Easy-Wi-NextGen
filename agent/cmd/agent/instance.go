@@ -31,7 +31,6 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	baseDir := payloadValue(job.Payload, "base_dir")
 	startCommand := payloadValue(job.Payload, "exec_start", "start_command")
 	serviceName := payloadValue(job.Payload, "service_name")
-	quotaMount := payloadValue(job.Payload, "quota_mount", "quota_device")
 	autostart := parsePayloadBool(payloadValue(job.Payload, "autostart", "auto_start"), true)
 
 	missing := missingValues([]requiredValue{
@@ -52,7 +51,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if baseDir == "" {
-		baseDir = "/srv/gameservers"
+		baseDir = "/home"
 	}
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)
@@ -73,10 +72,6 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	if quotaMount == "" {
-		quotaMount = os.Getenv("EASYWI_INSTANCE_QUOTA_MOUNT")
-	}
-
 	osUsername := buildInstanceUsername(customerID, instanceID)
 	if err := ensureGroup(osUsername); err != nil {
 		return failureResult(job.ID, err)
@@ -107,10 +102,6 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 		if err := os.Chmod(dir, instanceDirMode); err != nil {
 			return failureResult(job.ID, fmt.Errorf("chmod %s: %w", dir, err))
 		}
-	}
-
-	if err := applyInstanceQuota(osUsername, diskLimit, quotaMount); err != nil {
-		return failureResult(job.ID, err)
 	}
 
 	allocatedPorts, err := parsePorts(portBlockPortsRaw)
@@ -162,7 +153,6 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 			"cpu_limit":       strconv.Itoa(cpuLimit),
 			"ram_limit":       strconv.Itoa(ramLimit),
 			"disk_limit":      strconv.Itoa(diskLimit),
-			"quota_mount":     quotaMount,
 			"autostart":       strconv.FormatBool(autostart),
 			"allocated_ports": strings.Join(intSliceToStrings(allocatedPorts), ","),
 			"required_ports":  requiredPortsRaw,
@@ -290,7 +280,6 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	cpuLimitValue := payloadValue(job.Payload, "cpu_limit")
 	ramLimitValue := payloadValue(job.Payload, "ram_limit")
 	diskLimitValue := payloadValue(job.Payload, "disk_limit")
-	quotaMount := payloadValue(job.Payload, "quota_mount", "quota_device")
 	backupOld := strings.EqualFold(payloadValue(job.Payload, "backup_old", "backup"), "true")
 	autostart := parsePayloadBool(payloadValue(job.Payload, "autostart", "auto_start"), true)
 
@@ -311,7 +300,7 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if baseDir == "" {
-		baseDir = "/srv/gameservers"
+		baseDir = "/home"
 	}
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)
@@ -332,10 +321,6 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	if quotaMount == "" {
-		quotaMount = os.Getenv("EASYWI_INSTANCE_QUOTA_MOUNT")
-	}
-
 	osUsername := buildInstanceUsername(customerID, instanceID)
 	if err := ensureGroup(osUsername); err != nil {
 		return failureResult(job.ID, err)
@@ -412,10 +397,6 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
-	if err := applyInstanceQuota(osUsername, diskLimit, quotaMount); err != nil {
-		return failureResult(job.ID, err)
-	}
-
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
 	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
@@ -452,7 +433,6 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	diagnostics["cpu_limit"] = strconv.Itoa(cpuLimit)
 	diagnostics["ram_limit"] = strconv.Itoa(ramLimit)
 	diagnostics["disk_limit"] = strconv.Itoa(diskLimit)
-	diagnostics["quota_mount"] = quotaMount
 	diagnostics["autostart"] = strconv.FormatBool(autostart)
 
 	return jobs.Result{
@@ -653,20 +633,6 @@ func parsePayloadBool(value string, defaultValue bool) bool {
 	default:
 		return defaultValue
 	}
-}
-
-func applyInstanceQuota(ownerUser string, quotaMB int, quotaMount string) error {
-	if quotaMB <= 0 {
-		return fmt.Errorf("disk_limit must be positive")
-	}
-	if quotaMount == "" {
-		return fmt.Errorf("quota_mount is required when disk_limit is set")
-	}
-	blocks := quotaMB * 1024
-	if err := runCommand("setquota", "-u", ownerUser, strconv.Itoa(blocks), strconv.Itoa(blocks), "0", "0", quotaMount); err != nil {
-		return fmt.Errorf("set quota for %s: %w", ownerUser, err)
-	}
-	return nil
 }
 
 func ensureServiceActive(serviceName string) error {
