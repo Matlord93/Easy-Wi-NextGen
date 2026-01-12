@@ -53,9 +53,23 @@ final class AdminPortBlockController
         $poolId = (int) $request->request->get('pool_id', 0);
         $customerId = (int) $request->request->get('customer_id', 0);
         $size = (int) $request->request->get('size', 0);
+        $startPortValue = $request->request->get('start_port');
+        $endPortValue = $request->request->get('end_port');
 
-        if ($poolId <= 0 || $customerId <= 0 || $size <= 0) {
-            return $this->renderPage('Please select a pool, customer, and size.');
+        if ($poolId <= 0 || $customerId <= 0) {
+            if ($poolId <= 0 && $customerId <= 0) {
+                return $this->renderPage('Please select a pool and customer.');
+            }
+
+            if ($poolId <= 0) {
+                return $this->renderPage('Please select a pool.');
+            }
+
+            return $this->renderPage('Please select a customer.');
+        }
+
+        if ($size <= 0) {
+            return $this->renderPage('Please provide a valid block size.');
         }
 
         $pool = $this->portPoolRepository->find($poolId);
@@ -69,22 +83,40 @@ final class AdminPortBlockController
         }
 
         try {
-            $block = $this->portLeaseManager->allocateBlock($pool, $customer, $size);
+            if ($startPortValue !== null && $startPortValue !== '' && $endPortValue !== null && $endPortValue !== '') {
+                if (!is_numeric($startPortValue) || !is_numeric($endPortValue)) {
+                    return $this->renderPage('Please provide a valid port range.');
+                }
+
+                $blocks = $this->portLeaseManager->allocateBlocksInRange(
+                    $pool,
+                    $customer,
+                    (int) $startPortValue,
+                    (int) $endPortValue,
+                    $size,
+                );
+            } else {
+                $blocks = [$this->portLeaseManager->allocateBlock($pool, $customer, $size)];
+            }
         } catch (\RuntimeException | \InvalidArgumentException $exception) {
             return $this->renderPage($exception->getMessage());
         }
 
-        $this->entityManager->persist($block);
-        $this->auditLogger->log($actor, 'port_block.created', [
-            'port_block_id' => $block->getId(),
-            'port_pool_id' => $pool->getId(),
-            'customer_id' => $customer->getId(),
-            'start_port' => $block->getStartPort(),
-            'end_port' => $block->getEndPort(),
-        ]);
+        foreach ($blocks as $block) {
+            $this->entityManager->persist($block);
+            $this->auditLogger->log($actor, 'port_block.created', [
+                'port_block_id' => $block->getId(),
+                'port_pool_id' => $pool->getId(),
+                'customer_id' => $customer->getId(),
+                'start_port' => $block->getStartPort(),
+                'end_port' => $block->getEndPort(),
+            ]);
+        }
         $this->entityManager->flush();
 
-        return $this->renderPage(null, 'Port block allocated.');
+        $notice = count($blocks) > 1 ? 'Port blocks allocated.' : 'Port block allocated.';
+
+        return $this->renderPage(null, $notice);
     }
 
     private function renderPage(?string $error = null, ?string $notice = null): Response

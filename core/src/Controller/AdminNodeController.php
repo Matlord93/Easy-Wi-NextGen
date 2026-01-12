@@ -643,7 +643,14 @@ final class AdminNodeController
         }
 
         $agentIds = array_map(static fn ($node): string => $node->getId(), $nodes);
-        $jobs = $this->jobRepository->findLatestByType('agent.update', max(50, count($nodes) * 4));
+        $limit = max(50, count($nodes) * 4);
+        $jobs = array_merge(
+            $this->jobRepository->findLatestByType('agent.update', $limit),
+            $this->jobRepository->findLatestByType('agent.self_update', $limit),
+        );
+        usort($jobs, static function (Job $a, Job $b): int {
+            return $b->getCreatedAt() <=> $a->getCreatedAt();
+        });
         $index = [];
 
         foreach ($jobs as $job) {
@@ -682,7 +689,7 @@ final class AdminNodeController
                 continue;
             }
 
-            $job = new Job('agent.update', $payload);
+            $job = new Job($this->resolveAgentUpdateJobType($node), $payload);
             $this->entityManager->persist($job);
 
             $this->auditLogger->log($actor, 'node.agent_update_queued', [
@@ -744,6 +751,14 @@ final class AdminNodeController
         }
 
         return null;
+    }
+
+    private function resolveAgentUpdateJobType(\App\Entity\Agent $node): string
+    {
+        $stats = $node->getLastHeartbeatStats() ?? [];
+        $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
+
+        return $os === 'windows' ? 'agent.self_update' : 'agent.update';
     }
 
     private function normalizeRoles(array $roles, array $stats): array

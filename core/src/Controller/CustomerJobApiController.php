@@ -24,7 +24,6 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api/customer')]
 final class CustomerJobApiController
 {
     public function __construct(
@@ -38,7 +37,8 @@ final class CustomerJobApiController
     ) {
     }
 
-    #[Route(path: '/instances/{id}/actions', name: 'customer_instance_actions_api', methods: ['POST'])]
+    #[Route(path: '/api/customer/instances/{id}/actions', name: 'customer_instance_actions_api', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/actions', name: 'customer_instance_actions_api_v1', methods: ['POST'])]
     public function createAction(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -72,7 +72,8 @@ final class CustomerJobApiController
         ], JsonResponse::HTTP_ACCEPTED);
     }
 
-    #[Route(path: '/jobs/{jobId}', name: 'customer_job_api_show', methods: ['GET'])]
+    #[Route(path: '/api/customer/jobs/{jobId}', name: 'customer_job_api_show', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/jobs/{jobId}', name: 'customer_job_api_show_v1', methods: ['GET'])]
     public function showJob(Request $request, string $jobId): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -81,7 +82,8 @@ final class CustomerJobApiController
         return new JsonResponse($this->normalizeJob($job));
     }
 
-    #[Route(path: '/jobs/{jobId}/logs', name: 'customer_job_api_logs', methods: ['GET'])]
+    #[Route(path: '/api/customer/jobs/{jobId}/logs', name: 'customer_job_api_logs', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/jobs/{jobId}/logs', name: 'customer_job_api_logs_v1', methods: ['GET'])]
     public function listLogs(Request $request, string $jobId): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -101,7 +103,8 @@ final class CustomerJobApiController
         ]);
     }
 
-    #[Route(path: '/jobs/{jobId}/cancel', name: 'customer_job_api_cancel', methods: ['POST'])]
+    #[Route(path: '/api/customer/jobs/{jobId}/cancel', name: 'customer_job_api_cancel', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/jobs/{jobId}/cancel', name: 'customer_job_api_cancel_v1', methods: ['POST'])]
     public function cancel(Request $request, string $jobId): JsonResponse
     {
         $customer = $this->requireCustomer($request);

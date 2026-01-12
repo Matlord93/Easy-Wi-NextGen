@@ -15,7 +15,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api/admin/port-pools')]
 final class PortPoolApiController
 {
     public function __construct(
@@ -26,7 +25,8 @@ final class PortPoolApiController
     ) {
     }
 
-    #[Route(path: '', name: 'admin_port_pools_list', methods: ['GET'])]
+    #[Route(path: '/api/admin/port-pools', name: 'admin_port_pools_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/admin/port-pools', name: 'admin_port_pools_list_v1', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
         $actor = $this->requireAdmin($request);
@@ -52,7 +52,8 @@ final class PortPoolApiController
         return new JsonResponse(['port_pools' => $payload]);
     }
 
-    #[Route(path: '', name: 'admin_port_pools_create', methods: ['POST'])]
+    #[Route(path: '/api/admin/port-pools', name: 'admin_port_pools_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/admin/port-pools', name: 'admin_port_pools_create_v1', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireAdmin($request);

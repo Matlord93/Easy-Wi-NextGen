@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Entity\Agent;
 use App\Repository\AgentRepository;
+use App\Repository\AgentRegistrationTokenRepository;
 use App\Service\AgentSignatureVerifier;
 use App\Service\AuditLogger;
 use App\Service\EncryptionService;
@@ -17,6 +18,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class AgentRegistrationController
@@ -25,6 +27,7 @@ final class AgentRegistrationController
 
     public function __construct(
         private readonly AgentRepository $agentRepository,
+        private readonly AgentRegistrationTokenRepository $registrationTokenRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
@@ -37,10 +40,6 @@ final class AgentRegistrationController
     #[Route(path: '/api/v1/agent/register', name: 'api_agent_register', methods: ['POST'])]
     public function register(Request $request): JsonResponse
     {
-        if ($this->registrationToken === '') {
-            throw new ServiceUnavailableHttpException(null, 'Agent registration token is not configured.');
-        }
-
         try {
             $payload = $request->toArray();
         } catch (\JsonException $exception) {
@@ -48,13 +47,41 @@ final class AgentRegistrationController
         }
 
         $agentId = (string) ($payload['agent_id'] ?? '');
-        $name = isset($payload['name']) ? (string) $payload['name'] : null;
+        $name = isset($payload['name']) ? trim((string) $payload['name']) : null;
+        if ($name === '') {
+            $name = null;
+        }
+        $registerToken = (string) ($payload['register_token'] ?? '');
+        $registrationToken = null;
+        $signatureSecret = '';
+
+        if ($registerToken !== '') {
+            $tokenHash = hash('sha256', $registerToken);
+            $registrationToken = $this->registrationTokenRepository->findActiveByHash($tokenHash);
+            if ($registrationToken === null) {
+                throw new UnauthorizedHttpException('hmac', 'Invalid or expired registration token.');
+            }
+
+            if ($agentId === '') {
+                $agentId = $registrationToken->getAgentId();
+            } elseif ($agentId !== $registrationToken->getAgentId()) {
+                throw new BadRequestHttpException('Agent ID does not match bootstrap registration token.');
+            }
+
+            $signatureSecret = $registerToken;
+        } else {
+            if ($this->registrationToken === '') {
+                throw new ServiceUnavailableHttpException(null, 'Agent registration token is not configured.');
+            }
+
+            $signatureSecret = $this->registrationToken;
+        }
 
         if ($agentId === '') {
             throw new BadRequestHttpException('Missing agent_id.');
         }
 
-        $this->signatureVerifier->verify($request, $agentId, $this->registrationToken);
+        $this->signatureVerifier->verify($request, $agentId, $signatureSecret);
 
         if ($this->agentRepository->find($agentId) !== null) {
             throw new ConflictHttpException('Agent already exists.');
@@ -77,6 +104,13 @@ final class AgentRegistrationController
             'agent_id' => $agentId,
             'name' => $name,
         ]);
+        if ($registrationToken !== null) {
+            $registrationToken->markUsed();
+            $this->auditLogger->log(null, 'agent.bootstrap_registration_token_used', [
+                'registration_token_prefix' => $registrationToken->getTokenPrefix(),
+                'agent_id' => $agentId,
+            ]);
+        }
         $this->entityManager->flush();
 
         return new JsonResponse([

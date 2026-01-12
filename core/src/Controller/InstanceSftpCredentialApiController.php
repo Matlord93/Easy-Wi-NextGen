@@ -18,7 +18,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api')]
 final class InstanceSftpCredentialApiController
 {
     public function __construct(
@@ -30,7 +29,8 @@ final class InstanceSftpCredentialApiController
     ) {
     }
 
-    #[Route(path: '/instances/{id}/sftp-credentials', name: 'instances_sftp_credentials_show', methods: ['GET'])]
+    #[Route(path: '/api/instances/{id}/sftp-credentials', name: 'instances_sftp_credentials_show', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/sftp-credentials', name: 'instances_sftp_credentials_show_v1', methods: ['GET'])]
     public function show(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -56,7 +56,8 @@ final class InstanceSftpCredentialApiController
         ]);
     }
 
-    #[Route(path: '/instances/{id}/sftp-credentials/reset', name: 'instances_sftp_credentials_reset', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/sftp-credentials/reset', name: 'instances_sftp_credentials_reset', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/sftp-credentials/reset', name: 'instances_sftp_credentials_reset_v1', methods: ['POST'])]
     public function reset(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);

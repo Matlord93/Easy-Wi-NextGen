@@ -17,7 +17,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api')]
 final class DnsRecordApiController
 {
     public function __construct(
@@ -29,7 +28,8 @@ final class DnsRecordApiController
     ) {
     }
 
-    #[Route(path: '/dns/records', name: 'dns_record_create', methods: ['POST'])]
+    #[Route(path: '/api/dns/records', name: 'dns_record_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/dns/records', name: 'dns_record_create_v1', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -83,7 +83,8 @@ final class DnsRecordApiController
         ], JsonResponse::HTTP_CREATED);
     }
 
-    #[Route(path: '/dns/records/{id}', name: 'dns_record_update', methods: ['PUT'])]
+    #[Route(path: '/api/dns/records/{id}', name: 'dns_record_update', methods: ['PUT'])]
+    #[Route(path: '/api/v1/customer/dns/records/{id}', name: 'dns_record_update_v1', methods: ['PUT'])]
     public function update(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -151,7 +152,8 @@ final class DnsRecordApiController
         ]);
     }
 
-    #[Route(path: '/dns/records/{id}', name: 'dns_record_delete', methods: ['DELETE'])]
+    #[Route(path: '/api/dns/records/{id}', name: 'dns_record_delete', methods: ['DELETE'])]
+    #[Route(path: '/api/v1/customer/dns/records/{id}', name: 'dns_record_delete_v1', methods: ['DELETE'])]
     public function delete(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);

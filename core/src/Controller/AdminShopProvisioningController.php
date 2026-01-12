@@ -24,7 +24,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api/admin/shop')]
 final class AdminShopProvisioningController
 {
     public function __construct(
@@ -40,7 +39,8 @@ final class AdminShopProvisioningController
     ) {
     }
 
-    #[Route(path: '/provision', name: 'admin_shop_provision', methods: ['POST'])]
+    #[Route(path: '/api/admin/shop/provision', name: 'admin_shop_provision', methods: ['POST'])]
+    #[Route(path: '/api/v1/admin/shop/provision', name: 'admin_shop_provision_v1', methods: ['POST'])]
     public function provision(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');

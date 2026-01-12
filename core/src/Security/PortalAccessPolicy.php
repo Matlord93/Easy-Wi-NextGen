@@ -24,11 +24,15 @@ final class PortalAccessPolicy
 
     private function isAdminPath(string $path): bool
     {
-        return str_starts_with($path, '/admin') || str_starts_with($path, '/api/admin');
+        return str_starts_with($path, '/admin')
+            || str_starts_with($path, '/api/admin')
+            || str_starts_with($path, '/api/v1/admin');
     }
 
     private function isResellerPath(string $path): bool
     {
-        return str_starts_with($path, '/reseller') || str_starts_with($path, '/api/reseller');
+        return str_starts_with($path, '/reseller')
+            || str_starts_with($path, '/api/reseller')
+            || str_starts_with($path, '/api/v1/reseller');
     }
 }

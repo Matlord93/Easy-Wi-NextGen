@@ -21,7 +21,6 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api/customer/instances/{id}/configs')]
 final class CustomerInstanceConfigApiController
 {
     public function __construct(
@@ -34,7 +33,8 @@ final class CustomerInstanceConfigApiController
     ) {
     }
 
-    #[Route(path: '', name: 'customer_instance_configs_api_list', methods: ['GET'])]
+    #[Route(path: '/api/customer/instances/{id}/configs', name: 'customer_instance_configs_api_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/configs', name: 'customer_instance_configs_api_list_v1', methods: ['GET'])]
     public function list(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -52,7 +52,8 @@ final class CustomerInstanceConfigApiController
         ]);
     }
 
-    #[Route(path: '/{configId}', name: 'customer_instance_configs_api_show', methods: ['GET'])]
+    #[Route(path: '/api/customer/instances/{id}/configs/{configId}', name: 'customer_instance_configs_api_show', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/configs/{configId}', name: 'customer_instance_configs_api_show_v1', methods: ['GET'])]
     public function show(Request $request, int $id, string $configId): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -71,7 +72,8 @@ final class CustomerInstanceConfigApiController
         ]);
     }
 
-    #[Route(path: '/{configId}/generate-save', name: 'customer_instance_configs_api_generate', methods: ['POST'])]
+    #[Route(path: '/api/customer/instances/{id}/configs/{configId}/generate-save', name: 'customer_instance_configs_api_generate', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/configs/{configId}/generate-save', name: 'customer_instance_configs_api_generate_v1', methods: ['POST'])]
     public function generateSave(Request $request, int $id, string $configId): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -104,7 +106,8 @@ final class CustomerInstanceConfigApiController
         ]);
     }
 
-    #[Route(path: '/{configId}', name: 'customer_instance_configs_api_update', methods: ['PUT'])]
+    #[Route(path: '/api/customer/instances/{id}/configs/{configId}', name: 'customer_instance_configs_api_update', methods: ['PUT'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/configs/{configId}', name: 'customer_instance_configs_api_update_v1', methods: ['PUT'])]
     public function update(Request $request, int $id, string $configId): JsonResponse
     {
         $customer = $this->requireCustomer($request);

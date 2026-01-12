@@ -14,7 +14,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api/auth')]
 final class AuthController
 {
     public function __construct(
@@ -26,7 +25,8 @@ final class AuthController
     ) {
     }
 
-    #[Route(path: '/login', name: 'auth_login', methods: ['POST'])]
+    #[Route(path: '/api/auth/login', name: 'auth_login', methods: ['POST'])]
+    #[Route(path: '/api/v1/auth/login', name: 'auth_login_v1', methods: ['POST'])]
     public function login(Request $request): JsonResponse
     {
         $payload = $request->toArray();

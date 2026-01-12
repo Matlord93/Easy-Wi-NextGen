@@ -46,6 +46,22 @@
             </div>
         </div>
 
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_invoice_payment_actions', page_locale()) }}</p>
+            <p class="mt-1 text-xs text-slate-700">{{ t('admin_billing_invoice_payment_actions_hint', page_locale()) }}</p>
+            <div class="mt-4 flex flex-wrap gap-3">
+                {% if invoice.status != 'paid' %}
+                    <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-paid">
+                        <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">{{ t('admin_billing_invoice_mark_paid', page_locale()) }}</button>
+                    </form>
+                {% else %}
+                    <form method="post" action="/admin/billing/invoices/{{ invoice.id }}/mark-unpaid">
+                        <button type="submit" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100">{{ t('admin_billing_invoice_mark_unpaid', page_locale()) }}</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-6 py-4">
                 <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_billing_archive_title', page_locale()) }}</h2>

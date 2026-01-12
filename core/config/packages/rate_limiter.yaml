@@ -24,6 +24,10 @@ framework:
             policy: 'fixed_window'
             limit: 10
             interval: '15 minutes'
+        agent_bootstrap:
+            policy: 'fixed_window'
+            limit: 10
+            interval: '5 minutes'
         instance_files_uploads:
             policy: 'fixed_window'
             limit: 30

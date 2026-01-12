@@ -28,7 +28,6 @@ use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api/instances/{id}')]
 final class CustomerInstanceActionApiController
 {
     public function __construct(
@@ -42,7 +41,8 @@ final class CustomerInstanceActionApiController
     ) {
     }
 
-    #[Route(path: '/addons/install', name: 'customer_instance_addons_install', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/addons/install', name: 'customer_instance_addons_install', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/addons/install', name: 'customer_instance_addons_install_v1', methods: ['POST'])]
     public function installAddon(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -79,7 +79,8 @@ final class CustomerInstanceActionApiController
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
     }
 
-    #[Route(path: '/addons/remove', name: 'customer_instance_addons_remove', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/addons/remove', name: 'customer_instance_addons_remove', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/addons/remove', name: 'customer_instance_addons_remove_v1', methods: ['POST'])]
     public function removeAddon(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -113,7 +114,8 @@ final class CustomerInstanceActionApiController
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
     }
 
-    #[Route(path: '/addons/update', name: 'customer_instance_addons_update', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/addons/update', name: 'customer_instance_addons_update', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/addons/update', name: 'customer_instance_addons_update_v1', methods: ['POST'])]
     public function updateAddon(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -150,7 +152,8 @@ final class CustomerInstanceActionApiController
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
     }
 
-    #[Route(path: '/backups', name: 'customer_instance_backups_list', methods: ['GET'])]
+    #[Route(path: '/api/instances/{id}/backups', name: 'customer_instance_backups_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/backups', name: 'customer_instance_backups_list_v1', methods: ['GET'])]
     public function listBackups(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -175,7 +178,8 @@ final class CustomerInstanceActionApiController
         ]);
     }
 
-    #[Route(path: '/backups', name: 'customer_instance_backups_create', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/backups', name: 'customer_instance_backups_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/backups', name: 'customer_instance_backups_create_v1', methods: ['POST'])]
     public function createBackup(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -203,7 +207,8 @@ final class CustomerInstanceActionApiController
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
     }
 
-    #[Route(path: '/backups/{backupId}/restore', name: 'customer_instance_backups_restore', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/backups/{backupId}/restore', name: 'customer_instance_backups_restore', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/backups/{backupId}/restore', name: 'customer_instance_backups_restore_v1', methods: ['POST'])]
     public function restoreBackup(Request $request, int $id, int $backupId): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -230,7 +235,8 @@ final class CustomerInstanceActionApiController
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
     }
 
-    #[Route(path: '/schedules/{action}', name: 'customer_instance_schedule_update', methods: ['PATCH'])]
+    #[Route(path: '/api/instances/{id}/schedules/{action}', name: 'customer_instance_schedule_update', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/schedules/{action}', name: 'customer_instance_schedule_update_v1', methods: ['PATCH'])]
     public function updateSchedule(Request $request, int $id, string $action): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -273,7 +279,8 @@ final class CustomerInstanceActionApiController
         return $this->dispatchJob($message);
     }
 
-    #[Route(path: '/console/commands', name: 'customer_instance_console_command', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/console/commands', name: 'customer_instance_console_command', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/console/commands', name: 'customer_instance_console_command_v1', methods: ['POST'])]
     public function sendConsoleCommand(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -301,7 +308,8 @@ final class CustomerInstanceActionApiController
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
     }
 
-    #[Route(path: '/console/logs', name: 'customer_instance_console_logs', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/console/logs', name: 'customer_instance_console_logs', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/console/logs', name: 'customer_instance_console_logs_v1', methods: ['POST'])]
     public function requestConsoleLogs(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -330,7 +338,8 @@ final class CustomerInstanceActionApiController
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
     }
 
-    #[Route(path: '/settings', name: 'customer_instance_settings_update', methods: ['PATCH'])]
+    #[Route(path: '/api/instances/{id}/settings', name: 'customer_instance_settings_update', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/settings', name: 'customer_instance_settings_update_v1', methods: ['PATCH'])]
     public function updateSettings(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -372,7 +381,8 @@ final class CustomerInstanceActionApiController
         return $this->dispatchJob($message);
     }
 
-    #[Route(path: '/reinstall', name: 'customer_instance_reinstall_api', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/reinstall', name: 'customer_instance_reinstall_api', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/reinstall', name: 'customer_instance_reinstall_api_v1', methods: ['POST'])]
     public function reinstall(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);

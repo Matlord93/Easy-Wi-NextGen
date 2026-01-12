@@ -17,7 +17,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api')]
 final class DatabaseApiController
 {
     public function __construct(
@@ -29,7 +28,8 @@ final class DatabaseApiController
     ) {
     }
 
-    #[Route(path: '/databases', name: 'databases_list', methods: ['GET'])]
+    #[Route(path: '/api/databases', name: 'databases_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/databases', name: 'databases_list_v1', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -43,7 +43,8 @@ final class DatabaseApiController
         ]);
     }
 
-    #[Route(path: '/databases', name: 'databases_create', methods: ['POST'])]
+    #[Route(path: '/api/databases', name: 'databases_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/databases', name: 'databases_create_v1', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -95,7 +96,8 @@ final class DatabaseApiController
         ], JsonResponse::HTTP_CREATED);
     }
 
-    #[Route(path: '/databases/{id}/password', name: 'databases_password_reset', methods: ['PATCH'])]
+    #[Route(path: '/api/databases/{id}/password', name: 'databases_password_reset', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/databases/{id}/password', name: 'databases_password_reset_v1', methods: ['PATCH'])]
     public function resetPassword(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);

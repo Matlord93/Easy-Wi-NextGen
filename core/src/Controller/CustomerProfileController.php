@@ -12,6 +12,7 @@ use App\Repository\CustomerProfileRepository;
 use App\Repository\InvoicePreferencesRepository;
 use App\Service\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -52,9 +53,9 @@ final class CustomerProfileController
         'en' => 'English',
     ];
 
-    private const PAYMENT_METHOD_OPTIONS = [
+    private const PAYMENT_METHOD_LABELS = [
         'manual' => 'Manual transfer',
-        'dummy' => 'Test payment',
+        'dummy' => 'Test payment (TEST ONLY)',
     ];
 
     public function __construct(
@@ -62,6 +63,10 @@ final class CustomerProfileController
         private readonly InvoicePreferencesRepository $invoicePreferencesRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        #[Autowire('%kernel.environment%')]
+        private readonly string $environment,
+        #[Autowire('%app.payment_dummy_enabled%')]
+        private readonly bool $allowDummyPayment,
         private readonly Environment $twig,
     ) {
     }
@@ -189,7 +194,7 @@ final class CustomerProfileController
             'countries' => self::COUNTRY_OPTIONS,
             'locales' => self::LOCALE_OPTIONS,
             'portalLanguages' => self::PORTAL_LANGUAGE_OPTIONS,
-            'paymentMethods' => self::PAYMENT_METHOD_OPTIONS,
+            'paymentMethods' => $this->getPaymentMethods(),
             'activeNav' => 'profile',
             'pageLocale' => $preferences?->getPortalLanguage() ?? 'de',
         ]), $status);
@@ -216,6 +221,11 @@ final class CustomerProfileController
 
     private function buildPreferencesFormContext(?InvoicePreferences $preferences, ?array $overrides = null): array
     {
+        $paymentMethod = $preferences?->getDefaultPaymentMethod() ?? 'manual';
+        if ($paymentMethod === 'dummy' && !$this->isDummyPaymentAllowed()) {
+            $paymentMethod = 'manual';
+        }
+
         $defaults = [
             'errors' => [],
             'success' => false,
@@ -223,7 +233,7 @@ final class CustomerProfileController
             'portal_language' => $preferences?->getPortalLanguage() ?? 'de',
             'email_delivery' => $preferences?->isEmailDelivery() ?? true,
             'pdf_download_history' => $preferences?->isPdfDownloadHistory() ?? true,
-            'payment_method' => $preferences?->getDefaultPaymentMethod() ?? 'manual',
+            'payment_method' => $paymentMethod,
         ];
 
         return array_merge($defaults, $overrides ?? []);
@@ -304,8 +314,11 @@ final class CustomerProfileController
             $errors[] = 'Portal language is required.';
         }
 
-        if ($paymentMethod === '' || !array_key_exists($paymentMethod, self::PAYMENT_METHOD_OPTIONS)) {
+        if ($paymentMethod === '' || !array_key_exists($paymentMethod, $this->getPaymentMethods())) {
             $errors[] = 'Payment method is required.';
+            if ($paymentMethod === 'dummy' && !$this->isDummyPaymentAllowed()) {
+                $errors[] = 'Test payment is disabled for production environments.';
+            }
         }
 
         return [
@@ -316,6 +329,24 @@ final class CustomerProfileController
             'pdf_download_history' => $pdfDownloadHistory,
             'payment_method' => $paymentMethod !== '' ? $paymentMethod : 'manual',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function getPaymentMethods(): array
+    {
+        $methods = self::PAYMENT_METHOD_LABELS;
+        if (!$this->isDummyPaymentAllowed()) {
+            unset($methods['dummy']);
+        }
+
+        return $methods;
+    }
+
+    private function isDummyPaymentAllowed(): bool
+    {
+        return $this->environment !== 'prod' || $this->allowDummyPayment;
     }
 
     private function validateProfileForInvoices(?CustomerProfile $profile): array

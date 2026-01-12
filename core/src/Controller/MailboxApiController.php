@@ -17,7 +17,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api')]
 final class MailboxApiController
 {
     public function __construct(
@@ -29,7 +28,8 @@ final class MailboxApiController
     ) {
     }
 
-    #[Route(path: '/mailboxes', name: 'mailboxes_list', methods: ['GET'])]
+    #[Route(path: '/api/mailboxes', name: 'mailboxes_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/mailboxes', name: 'mailboxes_list_v1', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -43,7 +43,8 @@ final class MailboxApiController
         ]);
     }
 
-    #[Route(path: '/mailboxes', name: 'mailboxes_create', methods: ['POST'])]
+    #[Route(path: '/api/mailboxes', name: 'mailboxes_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/mailboxes', name: 'mailboxes_create_v1', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -97,7 +98,8 @@ final class MailboxApiController
         ], JsonResponse::HTTP_CREATED);
     }
 
-    #[Route(path: '/mailboxes/{id}/quota', name: 'mailboxes_quota_update', methods: ['PATCH'])]
+    #[Route(path: '/api/mailboxes/{id}/quota', name: 'mailboxes_quota_update', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/mailboxes/{id}/quota', name: 'mailboxes_quota_update_v1', methods: ['PATCH'])]
     public function updateQuota(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -147,7 +149,8 @@ final class MailboxApiController
         ]);
     }
 
-    #[Route(path: '/mailboxes/{id}/status', name: 'mailboxes_status_update', methods: ['PATCH'])]
+    #[Route(path: '/api/mailboxes/{id}/status', name: 'mailboxes_status_update', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/mailboxes/{id}/status', name: 'mailboxes_status_update_v1', methods: ['PATCH'])]
     public function updateStatus(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -198,7 +201,8 @@ final class MailboxApiController
         ]);
     }
 
-    #[Route(path: '/mailboxes/{id}/password', name: 'mailboxes_password_reset', methods: ['PATCH'])]
+    #[Route(path: '/api/mailboxes/{id}/password', name: 'mailboxes_password_reset', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/mailboxes/{id}/password', name: 'mailboxes_password_reset_v1', methods: ['PATCH'])]
     public function resetPassword(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);

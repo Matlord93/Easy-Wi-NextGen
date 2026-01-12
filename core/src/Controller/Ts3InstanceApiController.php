@@ -20,7 +20,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api')]
 final class Ts3InstanceApiController
 {
     public function __construct(
@@ -33,7 +32,8 @@ final class Ts3InstanceApiController
     ) {
     }
 
-    #[Route(path: '/ts3/instances', name: 'ts3_instances_list', methods: ['GET'])]
+    #[Route(path: '/api/ts3/instances', name: 'ts3_instances_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/ts3/instances', name: 'ts3_instances_list_v1', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -47,7 +47,8 @@ final class Ts3InstanceApiController
         ]);
     }
 
-    #[Route(path: '/ts3/instances', name: 'ts3_instances_create', methods: ['POST'])]
+    #[Route(path: '/api/ts3/instances', name: 'ts3_instances_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/admin/ts3/instances', name: 'ts3_instances_create_v1', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -113,7 +114,8 @@ final class Ts3InstanceApiController
         ], JsonResponse::HTTP_CREATED);
     }
 
-    #[Route(path: '/ts3/instances/{id}/actions', name: 'ts3_instances_actions', methods: ['POST'])]
+    #[Route(path: '/api/ts3/instances/{id}/actions', name: 'ts3_instances_actions', methods: ['POST'])]
+    #[Route(path: '/api/v1/admin/ts3/instances/{id}/actions', name: 'ts3_instances_actions_v1', methods: ['POST'])]
     public function action(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);

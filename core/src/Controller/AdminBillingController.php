@@ -169,6 +169,66 @@ final class AdminBillingController
         ]));
     }
 
+    #[Route(path: '/invoices/{id}/mark-paid', name: 'admin_billing_invoice_mark_paid', methods: ['POST'], requirements: ['id' => '\\d+'])]
+    public function markInvoicePaid(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $invoice = $this->invoiceRepository->find($id);
+        if (!$invoice instanceof \App\Entity\Invoice) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $now = new \DateTimeImmutable();
+        $previousStatus = $invoice->getStatus();
+        $invoice->markPaid($now);
+
+        $this->auditLogger->log($actor, 'billing.invoice.manual_paid', [
+            'invoice_id' => $invoice->getId(),
+            'number' => $invoice->getNumber(),
+            'previous_status' => $previousStatus->value,
+            'paid_at' => $now->format(DATE_RFC3339),
+        ]);
+
+        $this->entityManager->flush();
+
+        return new RedirectResponse(sprintf('/admin/billing/invoices/%d', $invoice->getId()));
+    }
+
+    #[Route(path: '/invoices/{id}/mark-unpaid', name: 'admin_billing_invoice_mark_unpaid', methods: ['POST'], requirements: ['id' => '\\d+'])]
+    public function markInvoiceUnpaid(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $invoice = $this->invoiceRepository->find($id);
+        if (!$invoice instanceof \App\Entity\Invoice) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $now = new \DateTimeImmutable();
+        $previousStatus = $invoice->getStatus();
+        $nextStatus = $this->resolveUnpaidStatus($invoice, $now);
+        $invoice->setStatus($nextStatus);
+        $invoice->clearPaidAt();
+
+        $this->auditLogger->log($actor, 'billing.invoice.manual_unpaid', [
+            'invoice_id' => $invoice->getId(),
+            'number' => $invoice->getNumber(),
+            'previous_status' => $previousStatus->value,
+            'next_status' => $nextStatus->value,
+        ]);
+
+        $this->entityManager->flush();
+
+        return new RedirectResponse(sprintf('/admin/billing/invoices/%d', $invoice->getId()));
+    }
+
     #[Route(path: '/invoices/{id}/archive', name: 'admin_billing_invoice_archive', methods: ['POST'], requirements: ['id' => '\\d+'])]
     public function archiveInvoice(Request $request, int $id): Response
     {
@@ -325,6 +385,11 @@ final class AdminBillingController
             'paid_at' => $invoice->getPaidAt(),
             'created_at' => $invoice->getCreatedAt(),
         ];
+    }
+
+    private function resolveUnpaidStatus(\App\Entity\Invoice $invoice, \DateTimeImmutable $now): InvoiceStatus
+    {
+        return $invoice->getDueDate() <= $now ? InvoiceStatus::PastDue : InvoiceStatus::Open;
     }
 
     private function normalizeArchive(?\App\Entity\InvoiceArchive $archive): array

@@ -21,6 +21,13 @@ final class WebspaceRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
+        return $this->createQueryBuilder('webspace')
+            ->andWhere('webspace.customer = :customer')
+            ->andWhere('webspace.status != :deletedStatus')
+            ->setParameter('customer', $customer)
+            ->setParameter('deletedStatus', Webspace::STATUS_DELETED)
+            ->orderBy('webspace.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
     }
 }

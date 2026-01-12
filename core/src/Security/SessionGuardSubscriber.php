@@ -70,7 +70,9 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
     private function isPublicPath(string $path): bool
     {
         return str_starts_with($path, '/api/auth/')
+            || str_starts_with($path, '/api/v1/auth/')
             || str_starts_with($path, '/agent/')
+            || str_starts_with($path, '/api/v1/agent/')
             || $path === '/'
             || str_starts_with($path, '/install')
             || $path === '/login'

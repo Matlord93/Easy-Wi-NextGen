@@ -13,7 +13,7 @@ use Doctrine\ORM\EntityManagerInterface;
 final class ModuleRegistry
 {
     /**
-     * @var array<string, array{label: string, version: string, description: string}>
+     * @var array<string, array{label: string, version: string, description: string, default_enabled?: bool}>
      */
     private const DEFINITIONS = [
         ModuleKey::Web->value => [
@@ -40,6 +40,18 @@ final class ModuleRegistry
             'label' => 'Teamspeak',
             'version' => '1.0.0',
             'description' => 'TS3 instances and voice service orchestration.',
+        ],
+        ModuleKey::Ts6->value => [
+            'label' => 'Teamspeak 6 (Experimental)',
+            'version' => '0.1.0',
+            'description' => 'Planned TS6 lifecycle management (feature flagged).',
+            'default_enabled' => false,
+        ],
+        ModuleKey::TsVirtual->value => [
+            'label' => 'TS Virtual Servers (Experimental)',
+            'version' => '0.1.0',
+            'description' => 'Virtual server hosting on top of a TS6 node (feature flagged).',
+            'default_enabled' => false,
         ],
         ModuleKey::Billing->value => [
             'label' => 'Billing',
@@ -69,12 +81,13 @@ final class ModuleRegistry
         $modules = [];
         foreach (self::DEFINITIONS as $key => $definition) {
             $setting = $indexed[$key] ?? null;
+            $defaultEnabled = $definition['default_enabled'] ?? true;
             $modules[] = [
                 'key' => $key,
                 'label' => $definition['label'],
                 'version' => $definition['version'],
                 'description' => $definition['description'],
-                'enabled' => $setting?->isEnabled() ?? true,
+                'enabled' => $setting?->isEnabled() ?? $defaultEnabled,
                 'updatedAt' => $setting?->getUpdatedAt(),
             ];
         }
@@ -109,5 +122,21 @@ final class ModuleRegistry
         ]);
 
         return $setting;
+    }
+
+    public function isEnabled(string $moduleKey): bool
+    {
+        if (!array_key_exists($moduleKey, self::DEFINITIONS)) {
+            return false;
+        }
+
+        $definition = self::DEFINITIONS[$moduleKey];
+        $setting = $this->moduleSettingRepository->find($moduleKey);
+
+        if ($setting !== null) {
+            return $setting->isEnabled();
+        }
+
+        return $definition['default_enabled'] ?? true;
     }
 }

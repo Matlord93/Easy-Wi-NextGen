@@ -25,7 +25,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api')]
 final class InstanceApiController
 {
     public function __construct(
@@ -43,6 +42,7 @@ final class InstanceApiController
     }
 
     #[Route(path: '/api/admin/instances', name: 'admin_instances_create_api', methods: ['POST'])]
+    #[Route(path: '/api/v1/admin/instances', name: 'admin_instances_create_api_v1', methods: ['POST'])]
     public function createInstance(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
@@ -209,7 +209,8 @@ final class InstanceApiController
         ], JsonResponse::HTTP_CREATED);
     }
 
-    #[Route(path: '/admin/instances/{id}', name: 'admin_instances_delete', methods: ['DELETE'])]
+    #[Route(path: '/api/admin/instances/{id}', name: 'admin_instances_delete', methods: ['DELETE'])]
+    #[Route(path: '/api/v1/admin/instances/{id}', name: 'admin_instances_delete_v1', methods: ['DELETE'])]
     public function deleteInstance(Request $request, int $id): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
@@ -266,7 +267,8 @@ final class InstanceApiController
         return new JsonResponse(['status' => 'deleted']);
     }
 
-    #[Route(path: '/admin/instances/{id}/update-settings', name: 'admin_instances_update_settings', methods: ['POST'])]
+    #[Route(path: '/api/admin/instances/{id}/update-settings', name: 'admin_instances_update_settings', methods: ['POST'])]
+    #[Route(path: '/api/v1/admin/instances/{id}/update-settings', name: 'admin_instances_update_settings_v1', methods: ['POST'])]
     public function updateInstanceSettings(Request $request, int $id): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
@@ -356,7 +358,8 @@ final class InstanceApiController
         ]);
     }
 
-    #[Route(path: '/instances', name: 'customer_instances_api', methods: ['GET'])]
+    #[Route(path: '/api/instances', name: 'customer_instances_api', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances', name: 'customer_instances_api_v1', methods: ['GET'])]
     public function listInstances(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');

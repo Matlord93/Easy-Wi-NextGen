@@ -15,7 +15,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api/admin')]
 final class AdminUserController
 {
     public function __construct(
@@ -26,7 +25,8 @@ final class AdminUserController
     ) {
     }
 
-    #[Route(path: '/users', name: 'admin_create_user', methods: ['POST'])]
+    #[Route(path: '/api/admin/users', name: 'admin_create_user', methods: ['POST'])]
+    #[Route(path: '/api/v1/admin/users', name: 'admin_create_user_v1', methods: ['POST'])]
     public function createUser(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');

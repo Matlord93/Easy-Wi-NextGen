@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Service\Billing;
 
 use App\Entity\Invoice;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 final class DummyPaymentProvider implements PaymentProviderInterface
 {
@@ -13,7 +15,12 @@ final class DummyPaymentProvider implements PaymentProviderInterface
         return 'dummy';
     }
 
-    public function createPaymentInstruction(Invoice $invoice, int $amountCents): PaymentInstruction
+    public function supportedMethods(): array
+    {
+        return ['test_card', 'test_transfer'];
+    }
+
+    public function createPaymentIntent(Invoice $invoice, int $amountCents): PaymentInstruction
     {
         return new PaymentInstruction(
             $this->getName(),
@@ -25,5 +32,14 @@ final class DummyPaymentProvider implements PaymentProviderInterface
             ],
             '/payments/dummy',
         );
+    }
+
+    public function webhookHandle(Request $request): ?Response
+    {
+        return new Response('Dummy provider has no webhooks.', Response::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function reconcile(?\DateTimeImmutable $since = null): void
+    {
     }
 }

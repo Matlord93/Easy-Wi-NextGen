@@ -421,8 +421,13 @@ final class CustomerFileManagerController
                 'name' => $webspace->getNode()->getName(),
             ],
             'path' => $webspace->getPath(),
+            'docroot' => $webspace->getDocroot(),
             'php_version' => $webspace->getPhpVersion(),
             'quota' => $webspace->getQuota(),
+            'disk_limit_bytes' => $webspace->getDiskLimitBytes(),
+            'ftp_enabled' => $webspace->isFtpEnabled(),
+            'sftp_enabled' => $webspace->isSftpEnabled(),
+            'status' => $webspace->getStatus(),
         ];
     }
 

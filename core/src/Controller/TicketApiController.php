@@ -21,7 +21,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api')]
 final class TicketApiController
 {
     public function __construct(
@@ -34,7 +33,8 @@ final class TicketApiController
     ) {
     }
 
-    #[Route(path: '/tickets', name: 'tickets_list', methods: ['GET'])]
+    #[Route(path: '/api/tickets', name: 'tickets_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/tickets', name: 'tickets_list_v1', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -48,7 +48,8 @@ final class TicketApiController
         ]);
     }
 
-    #[Route(path: '/tickets', name: 'tickets_create', methods: ['POST'])]
+    #[Route(path: '/api/tickets', name: 'tickets_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/tickets', name: 'tickets_create_v1', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -111,7 +112,8 @@ final class TicketApiController
         ], JsonResponse::HTTP_CREATED);
     }
 
-    #[Route(path: '/tickets/{id}/messages', name: 'tickets_messages_create', methods: ['POST'])]
+    #[Route(path: '/api/tickets/{id}/messages', name: 'tickets_messages_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/tickets/{id}/messages', name: 'tickets_messages_create_v1', methods: ['POST'])]
     public function addMessage(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -165,7 +167,8 @@ final class TicketApiController
         ]);
     }
 
-    #[Route(path: '/tickets/{id}/status', name: 'tickets_status_update', methods: ['PATCH'])]
+    #[Route(path: '/api/tickets/{id}/status', name: 'tickets_status_update', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/tickets/{id}/status', name: 'tickets_status_update_v1', methods: ['PATCH'])]
     public function updateStatus(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -198,7 +201,8 @@ final class TicketApiController
         ]);
     }
 
-    #[Route(path: '/tickets/{id}/messages', name: 'tickets_messages_list', methods: ['GET'])]
+    #[Route(path: '/api/tickets/{id}/messages', name: 'tickets_messages_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/tickets/{id}/messages', name: 'tickets_messages_list_v1', methods: ['GET'])]
     public function listMessages(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);

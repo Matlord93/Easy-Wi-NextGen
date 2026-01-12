@@ -22,6 +22,7 @@ use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Repository\PublicServerRepository;
 use App\Repository\Ts3InstanceRepository;
+use App\Repository\Ts6InstanceRepository;
 use App\Repository\UserRepository;
 use App\Service\AgentSignatureVerifier;
 use App\Service\AuditLogger;
@@ -39,11 +40,18 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class AgentApiController
 {
+    private const WINDOWS_SAFE_JOB_TYPES = [
+        'agent.update',
+        'agent.self_update',
+        'agent.diagnostics',
+    ];
+
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
@@ -51,6 +59,7 @@ final class AgentApiController
         private readonly InstanceRepository $instanceRepository,
         private readonly PublicServerRepository $publicServerRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
+        private readonly Ts6InstanceRepository $ts6InstanceRepository,
         private readonly UserRepository $userRepository,
         private readonly GdprDeletionRequestRepository $gdprDeletionRequestRepository,
         private readonly BackupRepository $backupRepository,
@@ -66,10 +75,13 @@ final class AgentApiController
         private readonly NodeDiskProtectionService $nodeDiskProtectionService,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly JobLogger $jobLogger,
+        #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%app.windows_nodes_enabled%')]
+        private readonly bool $windowsNodesEnabled,
     ) {
     }
 
     #[Route(path: '/agent/heartbeat', name: 'agent_heartbeat', methods: ['POST'])]
+    #[Route(path: '/api/v1/agent/heartbeat', name: 'agent_heartbeat_v1', methods: ['POST'])]
     public function heartbeat(Request $request): JsonResponse
     {
         $agent = $this->requireAgent($request);
@@ -86,6 +98,10 @@ final class AgentApiController
         $metadata = is_array($payload['metadata'] ?? null) ? $payload['metadata'] : null;
         $status = isset($payload['status']) ? (string) $payload['status'] : null;
         $ip = $request->getClientIp();
+
+        if ($this->isWindowsStats($stats) && !$this->windowsNodesEnabled) {
+            throw new ServiceUnavailableHttpException(null, 'Windows nodes are currently disabled.');
+        }
 
         $agent->recordHeartbeat($stats, $version, $ip, $roles, $metadata, $status);
         $this->entityManager->persist($agent);
@@ -110,6 +126,7 @@ final class AgentApiController
     }
 
     #[Route(path: '/agent/jobs', name: 'agent_jobs', methods: ['GET'])]
+    #[Route(path: '/api/v1/agent/jobs', name: 'agent_jobs_v1', methods: ['GET'])]
     public function jobs(Request $request): JsonResponse
     {
         $agent = $this->requireAgent($request);
@@ -117,9 +134,14 @@ final class AgentApiController
 
         $jobs = $this->jobRepository->findQueuedForDispatch(20);
         $jobPayloads = [];
-        $updateJobTypes = ['sniper.update'];
+        $updateJobTypes = ['sniper.update', 'agent.update', 'agent.self_update'];
         $maxUpdateJobsPerAgent = 2;
         $runningUpdateJobs = $this->jobRepository->countRunningByAgentAndTypes($agent->getId(), $updateJobTypes);
+        $isWindowsAgent = $this->isWindowsAgent($agent);
+
+        if ($isWindowsAgent && !$this->windowsNodesEnabled) {
+            throw new ServiceUnavailableHttpException(null, 'Windows nodes are currently disabled.');
+        }
 
         foreach ($jobs as $job) {
             if ($job->getStatus() !== JobStatus::Queued) {
@@ -133,6 +155,10 @@ final class AgentApiController
             }
 
             if (in_array($job->getType(), $updateJobTypes, true) && $runningUpdateJobs >= $maxUpdateJobsPerAgent) {
+                continue;
+            }
+
+            if ($isWindowsAgent && !in_array($job->getType(), self::WINDOWS_SAFE_JOB_TYPES, true)) {
                 continue;
             }
 
@@ -169,6 +195,7 @@ final class AgentApiController
     }
 
     #[Route(path: '/agent/jobs/{id}/result', name: 'agent_job_result', methods: ['POST'])]
+    #[Route(path: '/api/v1/agent/jobs/{id}/result', name: 'agent_job_result_v1', methods: ['POST'])]
     public function jobResult(Request $request, string $id): JsonResponse
     {
         $agent = $this->requireAgent($request);
@@ -230,6 +257,7 @@ final class AgentApiController
         $this->applyDdosStatusFromJob($job, $resultStatus, $agent, $output, $completedAt);
         $this->applyDdosPolicyFromJob($job, $resultStatus, $agent, $output, $completedAt);
         $this->applyTs3UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
+        $this->applyTs6UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->applyInstanceUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyDiskUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyPublicServerUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
@@ -272,6 +300,24 @@ final class AgentApiController
         $this->signatureVerifier->verify($request, $agentId, $secret);
 
         return $agent;
+    }
+
+    private function isWindowsStats(array $stats): bool
+    {
+        $os = $stats['os'] ?? null;
+        if (!is_string($os)) {
+            return false;
+        }
+        return strtolower($os) === 'windows';
+    }
+
+    private function isWindowsAgent(\App\Entity\Agent $agent): bool
+    {
+        $stats = $agent->getLastHeartbeatStats();
+        if (!is_array($stats)) {
+            return false;
+        }
+        return $this->isWindowsStats($stats);
     }
 
     private function parseCompletedAt(mixed $value): DateTimeImmutable
@@ -681,6 +727,51 @@ final class AgentApiController
         $instance->setStatus($newStatus);
         $this->entityManager->persist($instance);
         $this->auditLogger->log(null, 'ts3.instance_status_updated', [
+            'instance_id' => $instance->getId(),
+            'job_id' => $job->getId(),
+            'agent_id' => $agentId,
+            'previous_status' => $previousStatus,
+            'status' => $newStatus->value,
+            'output' => $output,
+        ]);
+    }
+
+    private function applyTs6UpdatesFromJob(\App\Entity\Job $job, JobResultStatus $resultStatus, string $agentId, array $output): void
+    {
+        $payload = $job->getPayload();
+        $instanceId = $payload['ts6_instance_id'] ?? $payload['instance_id'] ?? null;
+        if (!is_int($instanceId) && !is_string($instanceId)) {
+            return;
+        }
+
+        $instance = $this->ts6InstanceRepository->find((int) $instanceId);
+        if ($instance === null) {
+            return;
+        }
+
+        $newStatus = null;
+        if ($resultStatus === JobResultStatus::Failed) {
+            $newStatus = \App\Enum\Ts6InstanceStatus::Error;
+        } elseif ($resultStatus === JobResultStatus::Succeeded) {
+            $newStatus = match ($job->getType()) {
+                'ts6.instance.create',
+                'ts6.instance.start',
+                'ts6.instance.restart',
+                'ts6.instance.update',
+                'ts6.instance.restore' => \App\Enum\Ts6InstanceStatus::Running,
+                'ts6.instance.stop' => \App\Enum\Ts6InstanceStatus::Stopped,
+                default => null,
+            };
+        }
+
+        if ($newStatus === null || $instance->getStatus() === $newStatus) {
+            return;
+        }
+
+        $previousStatus = $instance->getStatus()->value;
+        $instance->setStatus($newStatus);
+        $this->entityManager->persist($instance);
+        $this->auditLogger->log(null, 'ts6.instance_status_updated', [
             'instance_id' => $instance->getId(),
             'job_id' => $job->getId(),
             'agent_id' => $agentId,

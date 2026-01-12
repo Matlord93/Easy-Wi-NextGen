@@ -7,6 +7,7 @@ namespace App\Enum;
 enum UserType: string
 {
     case Admin = 'admin';
+    case Superadmin = 'superadmin';
     case Reseller = 'reseller';
     case Customer = 'customer';
 }

@@ -19,11 +19,17 @@ parameters:
   app.core_update_lock_file: '%env(APP_CORE_UPDATE_LOCK_FILE)%'
   app.core_update_excludes_default: '.env,config/local*,var/,storage/,uploads/'
   app.core_update_excludes: '%env(default:app.core_update_excludes_default:APP_CORE_UPDATE_EXCLUDES)%'
+  app.windows_nodes_enabled_default: '0'
+  app.windows_nodes_enabled: '%env(bool:default:app.windows_nodes_enabled_default:APP_WINDOWS_NODES_ENABLED)%'
+  app.payment_dummy_enabled_default: '0'
+  app.payment_dummy_enabled: '%env(bool:default:app.payment_dummy_enabled_default:APP_PAYMENT_DUMMY_ENABLED)%'
 
 services:
   _defaults:
     autowire: true
     autoconfigure: true
+    bind:
+      string $projectDir: '%kernel.project_dir%'
 
   App\:
     resource: '../src/'

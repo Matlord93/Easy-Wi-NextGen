@@ -23,13 +23,19 @@
                     {{ t('admin_ts3_option_ts3_action', page_locale()) }}
                 </a>
             </div>
-            <div class="rounded-xl border border-dashed border-slate-200 bg-white p-6">
-                <h2 class="text-base font-semibold text-slate-700">{{ t('admin_ts3_option_virtual_title', page_locale()) }}</h2>
-                <p class="mt-2 text-sm text-slate-600">{{ t('admin_ts3_option_virtual_intro', page_locale()) }}</p>
-                <span class="mt-4 inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                    {{ t('admin_ts3_option_virtual_action', page_locale()) }}
-                </span>
-            </div>
+            {% if module_enabled('ts_virtual') %}
+                <div class="rounded-xl border border-dashed border-purple-200 bg-white p-6">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="text-base font-semibold text-slate-700">{{ t('admin_ts3_option_virtual_title', page_locale()) }}</h2>
+                        <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">{{ t('admin_ts3_option_virtual_badge_planned', page_locale()) }}</span>
+                        <span class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">{{ t('admin_ts3_option_virtual_badge_experimental', page_locale()) }}</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-600">{{ t('admin_ts3_option_virtual_intro', page_locale()) }}</p>
+                    <span class="mt-4 inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                        {{ t('admin_ts3_option_virtual_action', page_locale()) }}
+                    </span>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>

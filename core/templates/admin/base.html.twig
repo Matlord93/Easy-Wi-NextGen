@@ -105,6 +105,14 @@
                         </span>
                         <span class="text-sm font-medium">{{ t('admin_nav_jobs', page_locale()) }}</span>
                     </a>
+                    <a href="/admin/webspaces" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'webspaces' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'webspaces' ? 'bg-white/15' : 'bg-white/10' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm2.25 1.75a.75.75 0 0 0 0 1.5h9.5a.75.75 0 0 0 0-1.5h-9.5Zm0 4a.75.75 0 0 0 0 1.5h9.5a.75.75 0 0 0 0-1.5h-9.5Zm0 4a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5h-6Z"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm font-medium">{{ t('admin_nav_webspaces', page_locale()) }}</span>
+                    </a>
                     <a href="/admin/billing" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'billing' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                         <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'billing' ? 'bg-white/15' : 'bg-white/10' }}">
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -132,7 +140,7 @@
                 </div>
             </details>
 
-            {% set infrastructureActive = activeNav in ['nodes', 'metrics', 'templates', 'plugins', 'modules', 'ddos'] %}
+            {% set infrastructureActive = activeNav in ['nodes', 'bootstrap-tokens', 'metrics', 'templates', 'plugins', 'modules', 'ddos', 'port-pools', 'port-blocks'] %}
             <details class="nav-group group" data-nav-id="admin-infrastructure" {{ infrastructureActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>{{ t('admin_nav_group_infrastructure', page_locale()) }}</span>
@@ -150,6 +158,15 @@
                         </span>
                         <span class="text-sm font-medium">{{ t('admin_nav_nodes', page_locale()) }}</span>
                     </a>
+                    {% set bootstrapTokensActive = activeNav == 'bootstrap-tokens' %}
+                    <a href="/admin/agent-bootstrap-tokens" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ bootstrapTokensActive ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-md {{ bootstrapTokensActive ? 'bg-white/15' : 'bg-white/10' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M10 2.75a.75.75 0 0 1 .75.75v1.1a4.5 4.5 0 0 1 3.4 3.4h1.1a.75.75 0 0 1 0 1.5h-1.1a4.5 4.5 0 0 1-3.4 3.4v1.1a.75.75 0 0 1-1.5 0v-1.1a4.5 4.5 0 0 1-3.4-3.4H3.75a.75.75 0 0 1 0-1.5h1.1a4.5 4.5 0 0 1 3.4-3.4v-1.1a.75.75 0 0 1 .75-.75Zm0 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm font-medium">{{ t('admin_nav_bootstrap_tokens', page_locale()) }}</span>
+                    </a>
                     {% set portBlocksActive = activeNav == 'port-blocks' %}
                     <a href="/admin/port-blocks" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ portBlocksActive ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                         <span class="flex h-8 w-8 items-center justify-center rounded-md {{ portBlocksActive ? 'bg-white/15' : 'bg-white/10' }}">
@@ -158,6 +175,15 @@
                             </svg>
                         </span>
                         <span class="text-sm font-medium">{{ t('admin_nav_port_blocks', page_locale()) }}</span>
+                    </a>
+                    {% set portPoolsActive = activeNav == 'port-pools' %}
+                    <a href="/admin/port-pools" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ portPoolsActive ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-md {{ portPoolsActive ? 'bg-white/15' : 'bg-white/10' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M9.25 3a.75.75 0 0 1 .75.75V5h3.5a2.75 2.75 0 0 1 0 5.5H13v.75a.75.75 0 0 1-1.5 0v-.75H8.5v.75a.75.75 0 0 1-1.5 0v-.75H6.5a2.75 2.75 0 0 1 0-5.5H8.5V3.75A.75.75 0 0 1 9.25 3Z"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm font-medium">{{ t('admin_nav_port_pools', page_locale()) }}</span>
                     </a>
                     <a href="/admin/security" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'security' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                         <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'security' ? 'bg-white/15' : 'bg-white/10' }}">
@@ -272,7 +298,7 @@
                 </div>
             </details>
 
-            {% set servicesActive = activeNav in ['game-instances', 'ts3-instances'] %}
+            {% set servicesActive = activeNav in ['game-instances', 'ts3-instances', 'ts6'] %}
             <details class="nav-group group" data-nav-id="admin-services" {{ servicesActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>{{ t('admin_nav_group_services', page_locale()) }}</span>
@@ -297,6 +323,16 @@
                         </span>
                         <span class="text-sm font-medium">{{ t('admin_nav_ts3_instances', page_locale()) }}</span>
                     </a>
+                    {% if module_enabled('ts6') %}
+                        <a href="/admin/ts6" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ts6' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                            <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'ts6' ? 'bg-white/15' : 'bg-white/10' }}">
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm2.75 1.25a.75.75 0 0 0-.75.75v6a.75.75 0 0 0 .75.75h8.5a.75.75 0 0 0 .75-.75v-6a.75.75 0 0 0-.75-.75h-8.5Zm1.75 2.25h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/>
+                                </svg>
+                            </span>
+                            <span class="text-sm font-medium">{{ t('admin_nav_ts6', page_locale()) }}</span>
+                        </a>
+                    {% endif %}
                 </div>
             </details>
 

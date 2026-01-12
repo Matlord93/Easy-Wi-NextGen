@@ -15,6 +15,10 @@ class Webspace implements ResourceEventSource
 {
     use ResourceEventSourceTrait;
 
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_SUSPENDED = 'suspended';
+    public const STATUS_DELETED = 'deleted';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -31,11 +35,32 @@ class Webspace implements ResourceEventSource
     #[ORM\Column(length: 255)]
     private string $path;
 
+    #[ORM\Column(length: 255)]
+    private string $docroot;
+
     #[ORM\Column(length: 20)]
     private string $phpVersion;
 
     #[ORM\Column]
     private int $quota;
+
+    #[ORM\Column(length: 20)]
+    private string $status;
+
+    #[ORM\Column]
+    private int $diskLimitBytes;
+
+    #[ORM\Column]
+    private bool $ftpEnabled;
+
+    #[ORM\Column]
+    private bool $sftpEnabled;
+
+    #[ORM\Column(length: 64)]
+    private string $systemUsername;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $deletedAt = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -43,13 +68,31 @@ class Webspace implements ResourceEventSource
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
-    public function __construct(User $customer, Agent $node, string $path, string $phpVersion, int $quota)
+    public function __construct(
+        User $customer,
+        Agent $node,
+        string $path,
+        string $docroot,
+        string $phpVersion,
+        int $quota,
+        string $status = self::STATUS_ACTIVE,
+        int $diskLimitBytes = 0,
+        bool $ftpEnabled = false,
+        bool $sftpEnabled = false,
+        string $systemUsername = '',
+    )
     {
         $this->customer = $customer;
         $this->node = $node;
         $this->path = $path;
+        $this->docroot = $docroot;
         $this->phpVersion = $phpVersion;
         $this->quota = $quota;
+        $this->status = $status;
+        $this->diskLimitBytes = $diskLimitBytes;
+        $this->ftpEnabled = $ftpEnabled;
+        $this->sftpEnabled = $sftpEnabled;
+        $this->systemUsername = $systemUsername;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -74,6 +117,11 @@ class Webspace implements ResourceEventSource
         return $this->path;
     }
 
+    public function getDocroot(): string
+    {
+        return $this->docroot;
+    }
+
     public function getPhpVersion(): string
     {
         return $this->phpVersion;
@@ -84,9 +132,45 @@ class Webspace implements ResourceEventSource
         return $this->quota;
     }
 
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+
+    public function getDiskLimitBytes(): int
+    {
+        return $this->diskLimitBytes;
+    }
+
+    public function isFtpEnabled(): bool
+    {
+        return $this->ftpEnabled;
+    }
+
+    public function isSftpEnabled(): bool
+    {
+        return $this->sftpEnabled;
+    }
+
+    public function getSystemUsername(): string
+    {
+        return $this->systemUsername;
+    }
+
+    public function getDeletedAt(): ?\DateTimeImmutable
+    {
+        return $this->deletedAt;
+    }
+
     public function setPath(string $path): void
     {
         $this->path = $path;
+        $this->touch();
+    }
+
+    public function setDocroot(string $docroot): void
+    {
+        $this->docroot = $docroot;
         $this->touch();
     }
 
@@ -99,6 +183,42 @@ class Webspace implements ResourceEventSource
     public function setQuota(int $quota): void
     {
         $this->quota = $quota;
+        $this->touch();
+    }
+
+    public function setStatus(string $status): void
+    {
+        $this->status = $status;
+        $this->touch();
+    }
+
+    public function setDiskLimitBytes(int $diskLimitBytes): void
+    {
+        $this->diskLimitBytes = $diskLimitBytes;
+        $this->touch();
+    }
+
+    public function setFtpEnabled(bool $ftpEnabled): void
+    {
+        $this->ftpEnabled = $ftpEnabled;
+        $this->touch();
+    }
+
+    public function setSftpEnabled(bool $sftpEnabled): void
+    {
+        $this->sftpEnabled = $sftpEnabled;
+        $this->touch();
+    }
+
+    public function setSystemUsername(string $systemUsername): void
+    {
+        $this->systemUsername = $systemUsername;
+        $this->touch();
+    }
+
+    public function setDeletedAt(?\DateTimeImmutable $deletedAt): void
+    {
+        $this->deletedAt = $deletedAt;
         $this->touch();
     }
 

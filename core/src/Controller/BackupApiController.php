@@ -17,7 +17,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 
-#[Route(path: '/api')]
 final class BackupApiController
 {
     public function __construct(
@@ -28,7 +27,8 @@ final class BackupApiController
     ) {
     }
 
-    #[Route(path: '/backups', name: 'backups_list', methods: ['GET'])]
+    #[Route(path: '/api/backups', name: 'backups_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/backups', name: 'backups_list_v1', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -42,7 +42,8 @@ final class BackupApiController
         ]);
     }
 
-    #[Route(path: '/backups', name: 'backups_create', methods: ['POST'])]
+    #[Route(path: '/api/backups', name: 'backups_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/backups', name: 'backups_create_v1', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
@@ -97,7 +98,8 @@ final class BackupApiController
         ], JsonResponse::HTTP_CREATED);
     }
 
-    #[Route(path: '/backups/{id}/schedule', name: 'backups_schedule_upsert', methods: ['PATCH'])]
+    #[Route(path: '/api/backups/{id}/schedule', name: 'backups_schedule_upsert', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/backups/{id}/schedule', name: 'backups_schedule_upsert_v1', methods: ['PATCH'])]
     public function upsertSchedule(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);

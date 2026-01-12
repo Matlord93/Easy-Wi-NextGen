@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Service\Billing;
 
 use App\Entity\Invoice;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 final class ManualPaymentProvider implements PaymentProviderInterface
 {
@@ -13,7 +15,12 @@ final class ManualPaymentProvider implements PaymentProviderInterface
         return 'manual';
     }
 
-    public function createPaymentInstruction(Invoice $invoice, int $amountCents): PaymentInstruction
+    public function supportedMethods(): array
+    {
+        return ['bank_transfer'];
+    }
+
+    public function createPaymentIntent(Invoice $invoice, int $amountCents): PaymentInstruction
     {
         return new PaymentInstruction(
             $this->getName(),
@@ -24,5 +31,14 @@ final class ManualPaymentProvider implements PaymentProviderInterface
                 'currency' => $invoice->getCurrency(),
             ],
         );
+    }
+
+    public function webhookHandle(Request $request): ?Response
+    {
+        return null;
+    }
+
+    public function reconcile(?\DateTimeImmutable $since = null): void
+    {
     }
 }

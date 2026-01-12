@@ -21,7 +21,6 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 
-#[Route(path: '/api/instances/{id}/files')]
 final class CustomerInstanceFileApiController
 {
     public function __construct(
@@ -35,7 +34,8 @@ final class CustomerInstanceFileApiController
     ) {
     }
 
-    #[Route(path: '', name: 'customer_instance_files_api_list', methods: ['GET'])]
+    #[Route(path: '/api/instances/{id}/files', name: 'customer_instance_files_api_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files', name: 'customer_instance_files_api_list_v1', methods: ['GET'])]
     public function list(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -55,7 +55,8 @@ final class CustomerInstanceFileApiController
         ]);
     }
 
-    #[Route(path: '/download', name: 'customer_instance_files_api_download', methods: ['GET'])]
+    #[Route(path: '/api/instances/{id}/files/download', name: 'customer_instance_files_api_download', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/download', name: 'customer_instance_files_api_download_v1', methods: ['GET'])]
     public function download(Request $request, int $id): Response
     {
         $customer = $this->requireCustomer($request);
@@ -81,7 +82,8 @@ final class CustomerInstanceFileApiController
         return $response;
     }
 
-    #[Route(path: '/upload', name: 'customer_instance_files_api_upload', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/files/upload', name: 'customer_instance_files_api_upload', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/upload', name: 'customer_instance_files_api_upload_v1', methods: ['POST'])]
     public function upload(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -118,7 +120,8 @@ final class CustomerInstanceFileApiController
         return new JsonResponse(['status' => 'ok'], JsonResponse::HTTP_CREATED);
     }
 
-    #[Route(path: '/save', name: 'customer_instance_files_api_save', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/files/save', name: 'customer_instance_files_api_save', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/save', name: 'customer_instance_files_api_save_v1', methods: ['POST'])]
     public function save(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -152,7 +155,8 @@ final class CustomerInstanceFileApiController
         return new JsonResponse(['status' => 'ok']);
     }
 
-    #[Route(path: '/mkdir', name: 'customer_instance_files_api_mkdir', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/files/mkdir', name: 'customer_instance_files_api_mkdir', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/mkdir', name: 'customer_instance_files_api_mkdir_v1', methods: ['POST'])]
     public function mkdir(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -185,7 +189,8 @@ final class CustomerInstanceFileApiController
         return new JsonResponse(['status' => 'ok']);
     }
 
-    #[Route(path: '/rename', name: 'customer_instance_files_api_rename', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/files/rename', name: 'customer_instance_files_api_rename', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/rename', name: 'customer_instance_files_api_rename_v1', methods: ['POST'])]
     public function rename(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -220,7 +225,8 @@ final class CustomerInstanceFileApiController
         return new JsonResponse(['status' => 'ok']);
     }
 
-    #[Route(path: '/delete', name: 'customer_instance_files_api_delete', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/files/delete', name: 'customer_instance_files_api_delete', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/delete', name: 'customer_instance_files_api_delete_v1', methods: ['POST'])]
     public function delete(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -253,7 +259,8 @@ final class CustomerInstanceFileApiController
         return new JsonResponse(['status' => 'ok']);
     }
 
-    #[Route(path: '/chmod', name: 'customer_instance_files_api_chmod', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/files/chmod', name: 'customer_instance_files_api_chmod', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/chmod', name: 'customer_instance_files_api_chmod_v1', methods: ['POST'])]
     public function chmod(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
@@ -293,7 +300,8 @@ final class CustomerInstanceFileApiController
         return new JsonResponse(['status' => 'ok']);
     }
 
-    #[Route(path: '/extract', name: 'customer_instance_files_api_extract', methods: ['POST'])]
+    #[Route(path: '/api/instances/{id}/files/extract', name: 'customer_instance_files_api_extract', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/extract', name: 'customer_instance_files_api_extract_v1', methods: ['POST'])]
     public function extract(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);

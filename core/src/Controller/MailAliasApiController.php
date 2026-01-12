@@ -30,6 +30,7 @@ final class MailAliasApiController
     }
 
     #[Route(path: '/mail-aliases', name: 'mail_aliases_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/mail-aliases', name: 'mail_aliases_list_v1', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
@@ -47,6 +48,7 @@ final class MailAliasApiController
     }
 
     #[Route(path: '/mail-aliases', name: 'mail_aliases_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/mail-aliases', name: 'mail_aliases_create_v1', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
@@ -113,6 +115,7 @@ final class MailAliasApiController
     }
 
     #[Route(path: '/mail-aliases/{id}', name: 'mail_aliases_update', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/mail-aliases/{id}', name: 'mail_aliases_update_v1', methods: ['PATCH'])]
     public function update(Request $request, int $id): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
@@ -170,6 +173,7 @@ final class MailAliasApiController
     }
 
     #[Route(path: '/mail-aliases/{id}', name: 'mail_aliases_delete', methods: ['DELETE'])]
+    #[Route(path: '/api/v1/customer/mail-aliases/{id}', name: 'mail_aliases_delete_v1', methods: ['DELETE'])]
     public function delete(Request $request, int $id): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
