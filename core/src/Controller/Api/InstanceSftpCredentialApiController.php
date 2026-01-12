@@ -42,8 +42,9 @@ final class InstanceSftpCredentialApiController
         }
 
         $includePassword = filter_var($request->query->get('include_password', false), FILTER_VALIDATE_BOOLEAN);
+        $allowPassword = $includePassword && in_array($actor->getType(), [UserType::Admin, UserType::Customer], true);
         $password = null;
-        if ($includePassword && $actor->getType() === UserType::Admin) {
+        if ($allowPassword) {
             try {
                 $password = $this->encryptionService->decrypt($credential->getEncryptedPassword());
             } catch (\RuntimeException $exception) {
@@ -140,9 +141,12 @@ final class InstanceSftpCredentialApiController
 
     private function normalizeCredential(InstanceSftpCredential $credential, ?string $password = null): array
     {
+        $instance = $credential->getInstance();
         $data = [
             'instance_id' => $credential->getInstance()->getId(),
             'username' => $credential->getUsername(),
+            'host' => $this->resolveHost($instance),
+            'port' => $this->resolvePort($instance),
             'password_masked' => $password === null ? $this->maskPassword() : $this->maskPassword($password),
             'updated_at' => $credential->getUpdatedAt()->format(DATE_RFC3339),
         ];
@@ -159,5 +163,42 @@ final class InstanceSftpCredentialApiController
         $length = $password !== '' ? max(8, min(12, mb_strlen($password))) : 8;
 
         return str_repeat('*', $length);
+    }
+
+    private function resolveHost(Instance $instance): ?string
+    {
+        $metadata = $instance->getNode()->getMetadata();
+        $host = is_array($metadata) ? ($metadata['sftp_host'] ?? null) : null;
+        if (is_string($host) && $host !== '') {
+            return $host;
+        }
+
+        $lastIp = $instance->getNode()->getLastHeartbeatIp();
+        if ($lastIp !== null && $lastIp !== '') {
+            return $lastIp;
+        }
+
+        $env = $_ENV['EASYWI_SFTP_HOST'] ?? $_SERVER['EASYWI_SFTP_HOST'] ?? null;
+        if (is_string($env) && $env !== '') {
+            return $env;
+        }
+
+        return null;
+    }
+
+    private function resolvePort(Instance $instance): int
+    {
+        $metadata = $instance->getNode()->getMetadata();
+        $port = is_array($metadata) ? ($metadata['sftp_port'] ?? null) : null;
+        if (is_numeric($port)) {
+            return max(1, (int) $port);
+        }
+
+        $env = $_ENV['EASYWI_SFTP_PORT'] ?? $_SERVER['EASYWI_SFTP_PORT'] ?? null;
+        if (is_numeric($env)) {
+            return max(1, (int) $env);
+        }
+
+        return 22;
     }
 }

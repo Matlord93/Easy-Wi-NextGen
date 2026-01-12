@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ var (
 	versionRegex         = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
 	jsonLineRegex        = regexp.MustCompile(`\{.*\}`)
 	forceInstallDirRegex = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\.(?:/)?|"\."|'\.'|"\./"|'\./')`)
+	steamcmdCommandRegex = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
+	steamcmdArchiveURL   = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
 )
 
 func handleSniperInstall(job jobs.Job) (jobs.Result, func() error) {
@@ -83,8 +86,10 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 		command = updateCommand
 	}
 
+	usesSteamCmd := false
 	if command == "" {
-		command = buildSteamCmdCommand(instanceDir, steamAppID, action == "install")
+		command = buildSteamCmdCommand(instanceDirSteamCmdPath(instanceDir), instanceDir, steamAppID, action == "install")
+		usesSteamCmd = true
 	}
 
 	if command == "" {
@@ -98,11 +103,23 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 
 	command = normalizeSteamCmdInstallDir(command, instanceDir)
 
+	steamCmdPath := instanceDirSteamCmdPath(instanceDir)
+	if !usesSteamCmd && steamcmdCommandRegex.MatchString(command) {
+		usesSteamCmd = true
+		command = replaceSteamCmdExecutable(command, steamCmdPath)
+	}
+
+	installSnippet := ""
+	if usesSteamCmd {
+		installSnippet = steamCmdInstallSnippet(instanceDirSteamCmdDir(instanceDir), steamCmdPath)
+	}
+
 	shellCmd := fmt.Sprintf(
 		"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
 			"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
+			"%[3]s"+
 			"cd %[1]s && %[2]s",
-		instanceDir, command,
+		instanceDir, command, installSnippet,
 	)
 
 	output, err := runCommandOutputAsUser(osUsername, shellCmd)
@@ -129,12 +146,12 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	}, nil
 }
 
-func buildSteamCmdCommand(instanceDir, steamAppID string, validate bool) string {
+func buildSteamCmdCommand(steamCmdPath, instanceDir, steamAppID string, validate bool) string {
 	if steamAppID == "" {
 		return ""
 	}
 	parts := []string{
-		steamCmdExecutable(),
+		steamCmdPath,
 		"+force_install_dir", instanceDir,
 		"+login", "anonymous",
 		"+app_update", steamAppID,
@@ -146,18 +163,45 @@ func buildSteamCmdCommand(instanceDir, steamAppID string, validate bool) string 
 	return strings.Join(parts, " ")
 }
 
-func steamCmdExecutable() string {
-	candidates := []string{
-		"/var/lib/easywi/game/steamcmd/steamcmd.sh",
-		"/usr/local/bin/steamcmd",
-		"steamcmd",
+func instanceDirSteamCmdDir(instanceDir string) string {
+	return filepath.Join(instanceDir, ".steamcmd")
+}
+
+func instanceDirSteamCmdPath(instanceDir string) string {
+	return filepath.Join(instanceDirSteamCmdDir(instanceDir), "steamcmd.sh")
+}
+
+func steamCmdInstallSnippet(steamCmdDir, steamCmdPath string) string {
+	escapedDir := strings.ReplaceAll(steamCmdDir, "$", "$$")
+	escapedPath := strings.ReplaceAll(steamCmdPath, "$", "$$")
+	return fmt.Sprintf(
+		"if [ ! -x %[2]s ]; then "+
+			"mkdir -p %[1]s; "+
+			"archive=%[1]s/steamcmd_linux.tar.gz; "+
+			"if command -v curl >/dev/null 2>&1; then "+
+			"curl -fsSL %q -o $archive; "+
+			"elif command -v wget >/dev/null 2>&1; then "+
+			"wget -qO $archive %q; "+
+			"else "+
+			"echo \"steamcmd download failed: missing curl or wget\" >&2; exit 1; "+
+			"fi; "+
+			"tar -xzf $archive -C %[1]s; "+
+			"rm -f $archive; "+
+			"chmod 755 %[2]s; "+
+			"fi; ",
+		escapedDir,
+		escapedPath,
+		steamcmdArchiveURL,
+		steamcmdArchiveURL,
+	)
+}
+
+func replaceSteamCmdExecutable(command, steamCmdPath string) string {
+	if command == "" {
+		return ""
 	}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-	return "steamcmd"
+	escapedPath := strings.ReplaceAll(steamCmdPath, "$", "$$")
+	return steamcmdCommandRegex.ReplaceAllString(command, "${1}"+escapedPath+"${3}")
 }
 
 func normalizeSteamCmdInstallDir(command, instanceDir string) string {
