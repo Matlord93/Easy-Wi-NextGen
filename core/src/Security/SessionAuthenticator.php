@@ -7,6 +7,7 @@ namespace App\Security;
 use App\Entity\User;
 use App\Repository\UserSessionRepository;
 use App\Service\AuditLogger;
+use Doctrine\DBAL\Exception\TableNotFoundException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -27,7 +28,11 @@ final class SessionAuthenticator
         }
 
         $tokenHash = hash('sha256', $token);
-        $session = $this->sessionRepository->findActiveByTokenHash($tokenHash);
+        try {
+            $session = $this->sessionRepository->findActiveByTokenHash($tokenHash);
+        } catch (TableNotFoundException) {
+            return null;
+        }
         if ($session === null) {
             return null;
         }

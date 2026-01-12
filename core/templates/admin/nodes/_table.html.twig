@@ -24,19 +24,34 @@
 } %}
 
 <div id="nodes-table" class="overflow-x-auto" hx-get="/admin/nodes/table" hx-trigger="every 15s" hx-swap="outerHTML">
-    {% if notice is defined or error is defined %}
-        <div class="nodes-detail">
-            {% if notice is defined and notice %}
-                <div class="nodes-alert nodes-alert--success">
-                    {{ notice }}
-                </div>
-            {% endif %}
-            {% if error %}
-                <div class="nodes-alert nodes-alert--danger">
-                    {{ error }}
-                </div>
-            {% endif %}
-        </div>
+    {% if notice is defined and notice or error %}
+        {% if app.request.headers.get('HX-Request') %}
+            <div id="nodes-feedback" class="nodes-feedback" hx-swap-oob="true">
+                {% if notice is defined and notice %}
+                    <div class="nodes-alert nodes-alert--success">
+                        {{ notice }}
+                    </div>
+                {% endif %}
+                {% if error %}
+                    <div class="nodes-alert nodes-alert--danger">
+                        {{ error }}
+                    </div>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="nodes-detail">
+                {% if notice is defined and notice %}
+                    <div class="nodes-alert nodes-alert--success">
+                        {{ notice }}
+                    </div>
+                {% endif %}
+                {% if error %}
+                    <div class="nodes-alert nodes-alert--danger">
+                        {{ error }}
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
     {% endif %}
     <table class="nodes-table">
         <thead>
@@ -44,7 +59,7 @@
             <th>{{ t('admin_nodes_table_node', page_locale()) }}</th>
             <th>{{ t('admin_nodes_table_role', page_locale()) }}</th>
             <th>{{ t('status', page_locale()) }}</th>
-            <th>DDoS</th>
+            <th>{{ t('admin_nodes_table_ddos', page_locale()) }}</th>
             <th>{{ t('admin_nodes_table_last_seen', page_locale()) }}</th>
             <th>{{ t('admin_nodes_table_version', page_locale()) }}</th>
         </tr>
@@ -73,10 +88,10 @@
                 <td>
                     {% if node.ddos %}
                         <span class="badge {{ node.ddos.attackActive ? 'badge--danger' : 'badge--success' }}">
-                            {{ node.ddos.attackActive ? 'Attack active' : 'Idle' }}
+                            {{ node.ddos.attackActive ? t('admin_nodes_ddos_attack_active', page_locale()) : t('admin_nodes_ddos_idle', page_locale()) }}
                         </span>
                     {% else %}
-                        <span class="badge badge--neutral">No data</span>
+                        <span class="badge badge--neutral">{{ t('admin_nodes_ddos_no_data', page_locale()) }}</span>
                     {% endif %}
                 </td>
                 <td>

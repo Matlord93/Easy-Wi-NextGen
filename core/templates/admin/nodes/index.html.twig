@@ -33,15 +33,15 @@
             <button
                 class="btn btn--secondary"
                 hx-post="/admin/nodes/update"
-                hx-target="#nodes-table"
-                hx-swap="outerHTML"
+                hx-target="#nodes-table-wrap"
+                hx-swap="innerHTML"
             >{{ t('admin_nodes_update_agents', page_locale()) }}</button>
-            <a href="/admin/nodes/register" class="btn btn--secondary">Register Node</a>
+            <a href="/admin/nodes/register" class="btn btn--secondary">{{ t('admin_nodes_register_button', page_locale()) }}</a>
             <button
                 class="btn btn--primary"
                 hx-post="/admin/nodes/provision"
-                hx-target="#nodes-table"
-                hx-swap="outerHTML"
+                hx-target="#nodes-table-wrap"
+                hx-swap="innerHTML"
                 hx-confirm="{{ t('admin_nodes_register', page_locale()) }}"
             >{{ t('admin_nodes_provision', page_locale()) }}</button>
         </div>
@@ -87,21 +87,26 @@
                 <button
                     class="btn btn--tertiary"
                     hx-get="/admin/nodes/table"
-                    hx-target="#nodes-table"
-                    hx-swap="outerHTML"
+                    hx-target="#nodes-table-wrap"
+                    hx-swap="innerHTML"
                 >{{ t('refresh', page_locale()) }}</button>
             </div>
-            {% include 'admin/nodes/_table.html.twig' with { nodes: nodes, updateChannel: updateChannel } %}
+            <div id="nodes-feedback" class="nodes-feedback"></div>
+            <div id="nodes-table-wrap">
+                {% include 'admin/nodes/_table.html.twig' with { nodes: nodes, updateChannel: updateChannel } %}
+            </div>
         </div>
 
         <aside class="nodes-card">
             <div class="nodes-detail">
                 {% if selectedNode %}
-                    <form class="nodes-section" method="get" action="/admin/nodes">
-                        <div class="nodes-section__title">Agent auswählen</div>
+                    <form class="nodes-detail-card" method="get" action="/admin/nodes">
+                        <div class="nodes-detail-card__header">
+                            <div class="nodes-detail-card__title">{{ t('admin_nodes_select_agent', page_locale()) }}</div>
+                        </div>
                         <div class="nodes-form-grid">
                             <div class="form-field">
-                                <label class="form-label" for="node-select">Node</label>
+                                <label class="form-label" for="node-select">{{ t('admin_nodes_select_node_label', page_locale()) }}</label>
                                 <select id="node-select" name="node" class="form-input">
                                     {% for node in nodes %}
                                         <option value="{{ node.id }}" {% if node.id == selectedNode.id %}selected{% endif %}>
@@ -111,7 +116,7 @@
                                 </select>
                             </div>
                             <div class="form-field">
-                                <button class="btn btn--secondary" type="submit">Laden</button>
+                                <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_load_button', page_locale()) }}</button>
                             </div>
                         </div>
                     </form>
@@ -137,9 +142,15 @@
                         </div>
                     </div>
 
-                    <div class="nodes-section">
-                        <div class="nodes-section__title">Status</div>
-                        <div class="nodes-metadata">
+                    <div class="nodes-detail-grid">
+                        <div class="nodes-detail-card">
+                            <div class="nodes-detail-card__header">
+                                <div class="nodes-detail-card__title">{{ t('status', page_locale()) }}</div>
+                                {% if selectedNode.rebootRequired is same as(true) %}
+                                    <span class="badge badge--warning">{{ t('admin_nodes_reboot_required', page_locale()) }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="nodes-metadata">
                             <div>
                                 <div class="nodes-meta__label">{{ t('admin_nodes_table_last_seen', page_locale()) }}</div>
                                 <div class="nodes-meta__value">{{ selectedNode.lastSeenAt ? selectedNode.lastSeenAt|date('Y-m-d H:i') : '—' }}</div>
@@ -165,78 +176,78 @@
                                     <div class="nodes-meta__value">—</div>
                                 {% endif %}
                             </div>
-                        </div>
-                        {% if selectedNode.rebootRequired is same as(true) %}
-                            <div class="mt-3">
-                                <span class="badge badge--warning">{{ t('admin_nodes_reboot_required', page_locale()) }}</span>
                             </div>
-                        {% endif %}
-                        <div class="mt-3">
-                            <button
-                                class="btn btn--tertiary"
-                                hx-post="/admin/nodes/{{ selectedNode.id }}/reboot-check"
-                                hx-target="#nodes-table"
-                                hx-swap="outerHTML"
-                            >{{ t('admin_nodes_reboot_check', page_locale()) }}</button>
+                            <div class="nodes-inline-actions">
+                                <button
+                                    class="btn btn--tertiary"
+                                    hx-post="/admin/nodes/{{ selectedNode.id }}/reboot-check"
+                                    hx-target="#nodes-table-wrap"
+                                    hx-swap="innerHTML"
+                                >{{ t('admin_nodes_reboot_check', page_locale()) }}</button>
+                                <button
+                                    class="btn btn--tertiary"
+                                    hx-post="/admin/nodes/{{ selectedNode.id }}/update-check"
+                                    hx-target="#nodes-table-wrap"
+                                    hx-swap="innerHTML"
+                                >{{ t('admin_nodes_update_check', page_locale()) }}</button>
+                            </div>
                         </div>
-                        <div class="mt-3">
-                            <button
-                                class="btn btn--tertiary"
-                                hx-post="/admin/nodes/{{ selectedNode.id }}/update-check"
-                                hx-target="#nodes-table"
-                                hx-swap="outerHTML"
-                            >{{ t('admin_nodes_update_check', page_locale()) }}</button>
-                        </div>
-                    </div>
 
-                    <div class="nodes-section">
-                        <div class="nodes-section__title">{{ t('admin_nodes_services', page_locale()) }}</div>
-                        <div class="role-toggle-group">
-                            {% if selectedNode.services is empty %}
-                                <span class="text-xs text-slate-500">{{ t('admin_nodes_services_empty', page_locale()) }}</span>
-                            {% else %}
-                                {% for service, state in selectedNode.services %}
-                                    <span class="role-chip {{ state == 'active' ? 'role-chip--active' : '' }}">{{ service }} · {{ state }}</span>
+                        <div class="nodes-detail-card">
+                            <div class="nodes-detail-card__header">
+                                <div class="nodes-detail-card__title">{{ t('admin_nodes_services', page_locale()) }}</div>
+                            </div>
+                            <div class="role-toggle-group">
+                                {% if selectedNode.services is empty %}
+                                    <span class="text-xs text-slate-500">{{ t('admin_nodes_services_empty', page_locale()) }}</span>
+                                {% else %}
+                                    {% for service, state in selectedNode.services %}
+                                        <span class="role-chip {{ state == 'active' ? 'role-chip--active' : '' }}">{{ service }} · {{ state }}</span>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <form
+                            class="nodes-detail-card"
+                            hx-post="/admin/nodes/{{ selectedNode.id }}/roles"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                        >
+                            <div class="nodes-detail-card__header">
+                                <div class="nodes-detail-card__title">{{ t('admin_nodes_roles_section', page_locale()) }}</div>
+                                <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_update_roles', page_locale()) }}</button>
+                            </div>
+                            <div class="role-toggle-group">
+                                {% for roleOption in roleOptions %}
+                                    {% set roleKey = roleOption|lower %}
+                                    <label class="role-toggle">
+                                        <input
+                                            type="checkbox"
+                                            name="roles[]"
+                                            value="{{ roleOption }}"
+                                            {% if roleKey in selectedNode.roleKeys %}checked{% endif %}
+                                            aria-label="{{ roleOption }}"
+                                        >
+                                        <span>{{ roleOption }}</span>
+                                    </label>
                                 {% endfor %}
-                            {% endif %}
-                        </div>
-                    </div>
+                            </div>
+                        </form>
 
-                    <form
-                        class="nodes-section"
-                        hx-post="/admin/nodes/{{ selectedNode.id }}/roles"
-                        hx-target="#nodes-table"
-                        hx-swap="outerHTML"
-                    >
-                        <div class="nodes-section__title">Rollen</div>
-                        <div class="role-toggle-group">
-                            {% for roleOption in roleOptions %}
-                                {% set roleKey = roleOption|lower %}
-                                <label class="role-toggle">
-                                    <input
-                                        type="checkbox"
-                                        name="roles[]"
-                                        value="{{ roleOption }}"
-                                        {% if roleKey in selectedNode.roleKeys %}checked{% endif %}
-                                        aria-label="{{ roleOption }}"
-                                    >
-                                    <span>{{ roleOption }}</span>
-                                </label>
-                            {% endfor %}
-                        </div>
-                    </form>
-
-                    <form
-                        id="node-settings-form"
-                        class="nodes-section"
-                        hx-post="/admin/nodes/{{ selectedNode.id }}/disk-settings"
-                        hx-target="#nodes-table"
-                        hx-swap="outerHTML"
-                    >
-                        <div class="nodes-section__title">Settings</div>
-                        <div class="nodes-form-grid">
+                        <form
+                            id="node-settings-form"
+                            class="nodes-detail-card"
+                            hx-post="/admin/nodes/{{ selectedNode.id }}/disk-settings"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                        >
+                            <div class="nodes-detail-card__header">
+                                <div class="nodes-detail-card__title">{{ t('admin_nodes_settings_section', page_locale()) }}</div>
+                            </div>
+                            <div class="nodes-form-grid">
                             <div class="form-field">
-                                <label class="form-label" for="disk_scan_interval_seconds">Scan-Intervall (s)</label>
+                                <label class="form-label" for="disk_scan_interval_seconds">{{ t('admin_nodes_disk_scan_interval', page_locale()) }}</label>
                                 <input
                                     id="disk_scan_interval_seconds"
                                     name="disk_scan_interval_seconds"
@@ -247,7 +258,7 @@
                                 >
                             </div>
                             <div class="form-field">
-                                <label class="form-label" for="disk_warning_percent">Warn %</label>
+                                <label class="form-label" for="disk_warning_percent">{{ t('admin_nodes_disk_warning_percent', page_locale()) }}</label>
                                 <input
                                     id="disk_warning_percent"
                                     name="disk_warning_percent"
@@ -259,7 +270,7 @@
                                 >
                             </div>
                             <div class="form-field">
-                                <label class="form-label" for="disk_hard_block_percent">Hard Block %</label>
+                                <label class="form-label" for="disk_hard_block_percent">{{ t('admin_nodes_disk_hard_block_percent', page_locale()) }}</label>
                                 <input
                                     id="disk_hard_block_percent"
                                     name="disk_hard_block_percent"
@@ -270,7 +281,7 @@
                                 >
                             </div>
                             <div class="form-field">
-                                <label class="form-label" for="node_disk_protection_threshold_percent">Protect %</label>
+                                <label class="form-label" for="node_disk_protection_threshold_percent">{{ t('admin_nodes_disk_protect_threshold', page_locale()) }}</label>
                                 <input
                                     id="node_disk_protection_threshold_percent"
                                     name="node_disk_protection_threshold_percent"
@@ -281,58 +292,55 @@
                                     class="form-input"
                                 >
                             </div>
-                        </div>
-                    </form>
-
-                    <form
-                        id="node-override-form"
-                        class="nodes-section"
-                        hx-post="/admin/nodes/{{ selectedNode.id }}/disk-protection-override"
-                        hx-target="#nodes-table"
-                        hx-swap="outerHTML"
-                    >
-                        <div class="nodes-section__title">Override</div>
-                        <div class="nodes-form-grid nodes-form-grid--single">
-                            <div class="form-field">
-                                <label class="form-label" for="override_minutes">{{ t('admin_nodes_disk_override_minutes', page_locale()) }}</label>
-                                <input
-                                    id="override_minutes"
-                                    name="override_minutes"
-                                    type="number"
-                                    min="0"
-                                    class="form-input"
-                                    placeholder="0"
-                                >
                             </div>
-                        </div>
-                    </form>
+                            <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_disk_save', page_locale()) }}</button>
+                        </form>
+
+                        <form
+                            id="node-override-form"
+                            class="nodes-detail-card"
+                            hx-post="/admin/nodes/{{ selectedNode.id }}/disk-protection-override"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                        >
+                            <div class="nodes-detail-card__header">
+                                <div class="nodes-detail-card__title">{{ t('admin_nodes_override_section', page_locale()) }}</div>
+                                <button class="btn btn--tertiary" type="submit">{{ t('admin_nodes_disk_override_apply', page_locale()) }}</button>
+                            </div>
+                            <div class="nodes-form-grid nodes-form-grid--single">
+                                <div class="form-field">
+                                    <label class="form-label" for="override_minutes">{{ t('admin_nodes_disk_override_minutes', page_locale()) }}</label>
+                                    <input
+                                        id="override_minutes"
+                                        name="override_minutes"
+                                        type="number"
+                                        min="0"
+                                        class="form-input"
+                                        placeholder="0"
+                                    >
+                                </div>
+                            </div>
+                        </form>
+                    </div>
 
                     <div class="nodes-actions-row">
                         <button
-                            class="btn btn--secondary"
-                            form="node-settings-form"
-                        >Speichern</button>
-                        <button
-                            class="btn btn--tertiary"
-                            form="node-override-form"
-                        >Override setzen</button>
-                        <button
                             class="btn btn--primary"
                             hx-post="/admin/nodes/{{ selectedNode.id }}/update"
-                            hx-target="#nodes-table"
-                            hx-swap="outerHTML"
-                        >Update</button>
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                        >{{ t('admin_nodes_update_agent', page_locale()) }}</button>
                         <button
                             class="btn btn--secondary"
                             hx-post="/admin/nodes/{{ selectedNode.id }}/update-run"
-                            hx-target="#nodes-table"
-                            hx-swap="outerHTML"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
                         >{{ t('admin_nodes_server_update_run', page_locale()) }}</button>
                         <button
                             class="btn btn--danger"
                             hx-post="/admin/nodes/{{ selectedNode.id }}/reboot"
-                            hx-target="#nodes-table"
-                            hx-swap="outerHTML"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
                             hx-confirm="{{ t('admin_nodes_reboot_confirm', page_locale()) }}"
                         >{{ t('admin_nodes_reboot', page_locale()) }}</button>
                     </div>

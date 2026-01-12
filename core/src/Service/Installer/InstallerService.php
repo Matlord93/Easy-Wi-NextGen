@@ -383,6 +383,7 @@ final class InstallerService
 
         try {
             $dependencyFactory->getMigrator()->migrate($plan, $migratorConfiguration);
+            $this->ensureSchemaExists($entityManager);
         } catch (TableExistsException $exception) {
             $this->logException($exception, 'Installer migrations skipped because tables already exist.');
             $this->ensureSchemaExists($entityManager);

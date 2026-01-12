@@ -52,7 +52,7 @@ final class AdminPluginCatalogController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $templates = $this->templateRepository->findBy([], ['name' => 'ASC']);
+        $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC']);
 
         return new Response($this->twig->render('admin/plugins/create.html.twig', [
             'form' => $this->buildFormContext(),
@@ -95,7 +95,7 @@ final class AdminPluginCatalogController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $templates = $this->templateRepository->findBy([], ['name' => 'ASC']);
+        $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC']);
 
         return new Response($this->twig->render('admin/plugins/_form.html.twig', [
             'form' => $this->buildFormContext(),
@@ -115,7 +115,7 @@ final class AdminPluginCatalogController
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
-        $templates = $this->templateRepository->findBy([], ['name' => 'ASC']);
+        $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC']);
 
         return new Response($this->twig->render('admin/plugins/edit.html.twig', [
             'form' => $this->buildFormContext($plugin),
@@ -184,7 +184,7 @@ final class AdminPluginCatalogController
 
         $response = new Response($this->twig->render('admin/plugins/_form.html.twig', [
             'form' => $this->buildFormContext(),
-            'templates' => $this->normalizeTemplates($this->templateRepository->findBy([], ['name' => 'ASC'])),
+            'templates' => $this->normalizeTemplates($this->templateRepository->findBy([], ['displayName' => 'ASC'])),
         ]));
         $response->headers->set('HX-Trigger', 'plugins-changed');
 
@@ -245,7 +245,7 @@ final class AdminPluginCatalogController
 
         $response = new Response($this->twig->render('admin/plugins/_form.html.twig', [
             'form' => $this->buildFormContext(),
-            'templates' => $this->normalizeTemplates($this->templateRepository->findBy([], ['name' => 'ASC'])),
+            'templates' => $this->normalizeTemplates($this->templateRepository->findBy([], ['displayName' => 'ASC'])),
         ]));
         $response->headers->set('HX-Trigger', 'plugins-changed');
 
@@ -410,7 +410,7 @@ final class AdminPluginCatalogController
             'description' => $plugin?->getDescription() ?? '',
             'errors' => [],
             'action' => $plugin === null ? 'create' : 'update',
-            'submit_label' => $plugin === null ? 'Add Plugin' : 'Update Plugin',
+            'submit_label' => $plugin === null ? 'admin_plugins_create_button' : 'admin_plugins_update_button',
             'submit_color' => $plugin === null ? 'bg-indigo-600' : 'bg-amber-500',
             'action_url' => $plugin === null ? '/admin/plugins' : sprintf('/admin/plugins/%d', $plugin->getId()),
         ];
@@ -447,7 +447,7 @@ final class AdminPluginCatalogController
 
         return new Response($this->twig->render('admin/plugins/_form.html.twig', [
             'form' => $formContext,
-            'templates' => $this->normalizeTemplates($this->templateRepository->findBy([], ['name' => 'ASC'])),
+            'templates' => $this->normalizeTemplates($this->templateRepository->findBy([], ['displayName' => 'ASC'])),
         ]), $status);
     }
 

@@ -51,6 +51,62 @@ final class AgentReleaseChecker
         return $latest;
     }
 
+    public function getReleaseAssetUrls(string $assetName): ?array
+    {
+        if ($this->repository === '') {
+            return null;
+        }
+
+        $channel = $this->normalizeChannel($this->channel);
+        $releases = $this->fetchReleases();
+        if ($releases === null) {
+            return null;
+        }
+
+        foreach ($releases as $release) {
+            if (!is_array($release)) {
+                continue;
+            }
+
+            $isPrerelease = $release['prerelease'] ?? false;
+            if ($channel === self::CHANNEL_STABLE && $isPrerelease) {
+                continue;
+            }
+            if ($channel === self::CHANNEL_BETA && !$isPrerelease) {
+                continue;
+            }
+
+            $assets = $release['assets'] ?? null;
+            if (!is_array($assets)) {
+                continue;
+            }
+
+            $downloadUrl = $this->findAssetDownloadUrl($assets, $assetName);
+            if ($downloadUrl === null) {
+                continue;
+            }
+
+            $checksumsUrl = $this->findAssetDownloadUrl($assets, 'checksums-agent.txt');
+            if ($checksumsUrl === null) {
+                continue;
+            }
+
+            $tag = $release['tag_name'] ?? $release['name'] ?? null;
+            if (!is_string($tag) || $tag === '') {
+                continue;
+            }
+
+            return [
+                'version' => $tag,
+                'download_url' => $downloadUrl,
+                'checksums_url' => $checksumsUrl,
+                'asset_name' => $assetName,
+            ];
+        }
+
+        return null;
+    }
+
     public function isUpdateAvailable(?string $currentVersion, ?string $latestVersion = null): ?bool
     {
         $current = $this->normalizeVersion($currentVersion);
@@ -159,5 +215,26 @@ final class AgentReleaseChecker
         }
 
         return self::CHANNEL_STABLE;
+    }
+
+    private function findAssetDownloadUrl(array $assets, string $assetName): ?string
+    {
+        foreach ($assets as $asset) {
+            if (!is_array($asset)) {
+                continue;
+            }
+
+            $name = $asset['name'] ?? null;
+            if (!is_string($name) || $name !== $assetName) {
+                continue;
+            }
+
+            $url = $asset['browser_download_url'] ?? null;
+            if (is_string($url) && $url !== '') {
+                return $url;
+            }
+        }
+
+        return null;
     }
 }

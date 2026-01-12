@@ -15,17 +15,25 @@
                 <tr class="hover:bg-slate-50">
                     <td class="px-5 py-4">
                         <div class="font-semibold text-slate-900">{{ template.display_name }}</div>
-                        <div class="text-xs text-slate-700 mt-1">Key: {{ template.game_key }}</div>
+                        <div class="text-xs text-slate-700 mt-1">
+                            {{ t('admin_templates_game_key_label', page_locale()) }}: {{ template.game_key }}
+                        </div>
                         {% if template.steam_app_id %}
-                            <div class="text-xs text-slate-700 mt-1">Steam App ID: {{ template.steam_app_id }}</div>
+                            <div class="text-xs text-slate-700 mt-1">
+                                {{ t('admin_templates_steam_app_id_label', page_locale()) }}: {{ template.steam_app_id }}
+                            </div>
                         {% endif %}
                         {% if template.sniper_profile %}
-                            <div class="text-xs text-slate-700 mt-1">Sniper: {{ template.sniper_profile }}</div>
+                            <div class="text-xs text-slate-700 mt-1">
+                                {{ t('admin_templates_sniper_profile_label', page_locale()) }}: {{ template.sniper_profile }}
+                            </div>
                         {% endif %}
                         {% if template.description %}
                             <div class="text-xs text-slate-700 mt-1">{{ template.description }}</div>
                         {% endif %}
-                        <div class="text-xs text-slate-600 mt-2">Updated {{ template.updated_at|date('Y-m-d H:i') }}</div>
+                        <div class="text-xs text-slate-600 mt-2">
+                            {{ t('updated', page_locale()) }} {{ template.updated_at|date('Y-m-d H:i') }}
+                        </div>
                     </td>
                     <td class="px-5 py-4">
                         <div class="flex flex-wrap gap-2">

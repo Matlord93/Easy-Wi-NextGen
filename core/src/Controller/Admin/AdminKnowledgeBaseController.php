@@ -309,7 +309,7 @@ final class AdminKnowledgeBaseController
             'visible_public' => $article?->isVisiblePublic() ?? false,
             'errors' => [],
             'action' => $article === null ? 'create' : 'update',
-            'submit_label' => $article === null ? 'Create Article' : 'Update Article',
+            'submit_label' => $article === null ? 'admin_docs_create_submit' : 'admin_docs_update_submit',
             'submit_color' => $article === null ? 'bg-indigo-600' : 'bg-amber-500',
             'action_url' => $article === null ? '/admin/docs' : sprintf('/admin/docs/%d', $article->getId()),
         ];

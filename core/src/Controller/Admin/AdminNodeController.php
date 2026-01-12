@@ -883,14 +883,7 @@ final class AdminNodeController
 
     private function buildAgentUpdatePayload(\App\Entity\Agent $node, ?string $latestVersion): ?array
     {
-        if ($latestVersion === null || $latestVersion === '') {
-            return null;
-        }
-
         $currentVersion = $node->getLastHeartbeatVersion();
-        if ($this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion) !== true) {
-            return null;
-        }
 
         $stats = $node->getLastHeartbeatStats() ?? [];
         $os = is_string($stats['os'] ?? null) ? strtolower($stats['os']) : '';
@@ -901,20 +894,26 @@ final class AdminNodeController
             return null;
         }
 
-        $repository = $this->releaseChecker->getRepository();
-        if ($repository === '') {
+        $releaseInfo = $this->releaseChecker->getReleaseAssetUrls($assetName);
+        if ($releaseInfo === null) {
             return null;
         }
 
-        $downloadUrl = sprintf('https://github.com/%s/releases/download/%s/%s', $repository, $latestVersion, $assetName);
-        $checksumsUrl = sprintf('https://github.com/%s/releases/download/%s/checksums-agent.txt', $repository, $latestVersion);
+        $version = $releaseInfo['version'] ?? null;
+        if (!is_string($version) || $version === '') {
+            return null;
+        }
+
+        if ($this->releaseChecker->isUpdateAvailable($currentVersion, $version) !== true) {
+            return null;
+        }
 
         return [
             'agent_id' => $node->getId(),
-            'download_url' => $downloadUrl,
-            'checksums_url' => $checksumsUrl,
-            'asset_name' => $assetName,
-            'version' => $latestVersion,
+            'download_url' => $releaseInfo['download_url'],
+            'checksums_url' => $releaseInfo['checksums_url'],
+            'asset_name' => $releaseInfo['asset_name'],
+            'version' => $version,
         ];
     }
 
