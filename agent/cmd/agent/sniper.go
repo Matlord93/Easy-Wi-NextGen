@@ -134,7 +134,7 @@ func buildSteamCmdCommand(instanceDir, steamAppID string, validate bool) string 
 		return ""
 	}
 	parts := []string{
-		"steamcmd",
+		steamCmdExecutable(),
 		"+force_install_dir", instanceDir,
 		"+login", "anonymous",
 		"+app_update", steamAppID,
@@ -144,6 +144,20 @@ func buildSteamCmdCommand(instanceDir, steamAppID string, validate bool) string 
 	}
 	parts = append(parts, "+quit")
 	return strings.Join(parts, " ")
+}
+
+func steamCmdExecutable() string {
+	candidates := []string{
+		"/var/lib/easywi/game/steamcmd/steamcmd.sh",
+		"/usr/local/bin/steamcmd",
+		"steamcmd",
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return "steamcmd"
 }
 
 func normalizeSteamCmdInstallDir(command, instanceDir string) string {
