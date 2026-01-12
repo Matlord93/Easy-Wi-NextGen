@@ -42,6 +42,26 @@ jobs:
           cd ../dist
           sha256sum easywi-agent-* > checksums-agent.txt
 
+      - name: Sign checksums
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}
+        run: |
+          if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
+            echo "Missing GPG signing key (EASYWI_GPG_PRIVATE_KEY)." >&2
+            exit 1
+          fi
+          export GNUPGHOME
+          GNUPGHOME="$(mktemp -d)"
+          chmod 700 "${GNUPGHOME}"
+          printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
+            --armor --detach-sign --output ../dist/checksums-agent.txt.asc ../dist/checksums-agent.txt
+          if [[ ! -f ../dist/checksums-agent.txt.asc ]]; then
+            echo "Failed to create checksums-agent.txt.asc" >&2
+            exit 1
+          fi
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -50,4 +70,5 @@ jobs:
           files: |
             dist/easywi-agent-*
             dist/checksums-agent.txt
+            dist/checksums-agent.txt.asc
           generate_release_notes: true

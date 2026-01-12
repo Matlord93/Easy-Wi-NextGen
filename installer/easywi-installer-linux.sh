@@ -388,6 +388,21 @@ download_file() {
   fi
 }
 
+download_optional_file() {
+  local url="$1"
+  local dest="$2"
+
+  if command_exists curl; then
+    if ! curl -fsSL "${url}" -o "${dest}"; then
+      return 1
+    fi
+  else
+    if ! wget -qO "${dest}" "${url}"; then
+      return 1
+    fi
+  fi
+}
+
 verify_checksums_signature() {
   local checksums_path="$1"
   local signature_path="$2"
@@ -458,10 +473,13 @@ download_agent() {
   log "Downloading agent ${resolved_version} (${asset_name})"
   download_file "${release_url}/${asset_name}" "${tmp_dir}/${asset_name}"
   download_file "${release_url}/${checksum_name}" "${tmp_dir}/${checksum_name}"
-  download_file "${release_url}/${signature_name}" "${tmp_dir}/${signature_name}"
 
-  log "Verifying checksum signature"
-  verify_checksums_signature "${tmp_dir}/${checksum_name}" "${tmp_dir}/${signature_name}"
+  if download_optional_file "${release_url}/${signature_name}" "${tmp_dir}/${signature_name}"; then
+    log "Verifying checksum signature"
+    verify_checksums_signature "${tmp_dir}/${checksum_name}" "${tmp_dir}/${signature_name}"
+  else
+    log "Checksum signature not found; skipping signature verification"
+  fi
 
   checksum_line=$(awk -v asset="${asset_name}" '$2==asset {print}' "${tmp_dir}/${checksum_name}")
   if [[ -z "${checksum_line}" ]]; then
@@ -497,10 +515,13 @@ download_runner() {
   log "Downloading runner ${version} (${asset_name})"
   download_file "${release_url}/${asset_name}" "${tmp_dir}/${asset_name}"
   download_file "${release_url}/${checksum_name}" "${tmp_dir}/${checksum_name}"
-  download_file "${release_url}/${signature_name}" "${tmp_dir}/${signature_name}"
 
-  log "Verifying runner checksum signature"
-  verify_checksums_signature "${tmp_dir}/${checksum_name}" "${tmp_dir}/${signature_name}"
+  if download_optional_file "${release_url}/${signature_name}" "${tmp_dir}/${signature_name}"; then
+    log "Verifying runner checksum signature"
+    verify_checksums_signature "${tmp_dir}/${checksum_name}" "${tmp_dir}/${signature_name}"
+  else
+    log "Runner checksum signature not found; skipping signature verification"
+  fi
 
   checksum_line=$(awk -v asset="${asset_name}" '$2==asset {print}' "${tmp_dir}/${checksum_name}")
   if [[ -z "${checksum_line}" ]]; then
