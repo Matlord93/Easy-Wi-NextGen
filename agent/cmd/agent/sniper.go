@@ -179,9 +179,9 @@ func steamCmdInstallSnippet(steamCmdDir, steamCmdPath string) string {
 			"mkdir -p %[1]s; "+
 			"archive=%[1]s/steamcmd_linux.tar.gz; "+
 			"if command -v curl >/dev/null 2>&1; then "+
-			"curl -fsSL %q -o $archive; "+
+			"curl -fsSL %[3]q -o $archive; "+
 			"elif command -v wget >/dev/null 2>&1; then "+
-			"wget -qO $archive %q; "+
+			"wget -qO $archive %[4]q; "+
 			"else "+
 			"echo \"steamcmd download failed: missing curl or wget\" >&2; exit 1; "+
 			"fi; "+

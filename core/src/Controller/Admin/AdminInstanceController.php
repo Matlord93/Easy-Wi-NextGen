@@ -6,6 +6,7 @@ namespace App\Controller\Admin;
 
 use App\Entity\Instance;
 use App\Entity\InvoicePreferences;
+use App\Entity\InstanceSftpCredential;
 use App\Entity\Job;
 use App\Entity\User;
 use App\Enum\InstanceStatus;
@@ -13,12 +14,14 @@ use App\Enum\InstanceUpdatePolicy;
 use App\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\InstanceSftpCredentialRepository;
 use App\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
 use App\Service\DiskEnforcementService;
 use App\Service\DiskUsageFormatter;
+use App\Service\EncryptionService;
 use App\Service\InstanceJobPayloadBuilder;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -36,12 +39,14 @@ final class AdminInstanceController
         private readonly TemplateRepository $templateRepository,
         private readonly AgentRepository $agentRepository,
         private readonly PortBlockRepository $portBlockRepository,
+        private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
+        private readonly EncryptionService $encryptionService,
         private readonly Environment $twig,
     ) {
     }
@@ -56,7 +61,7 @@ final class AdminInstanceController
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
 
         return new Response($this->twig->render('admin/instances/index.html.twig', [
-            'instances' => $this->normalizeInstances($instances),
+            'instances' => $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances)),
             'summary' => $this->buildSummary($instances),
             'activeNav' => 'game-instances',
         ]));
@@ -100,7 +105,7 @@ final class AdminInstanceController
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
 
         return new Response($this->twig->render('admin/instances/_table.html.twig', [
-            'instances' => $this->normalizeInstances($instances),
+            'instances' => $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances)),
         ]));
     }
 
@@ -330,6 +335,52 @@ final class AdminInstanceController
         return $response;
     }
 
+    #[Route(path: '/{id}/sftp/provision', name: 'admin_instances_sftp_provision', methods: ['POST'])]
+    public function provisionSftp(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $instance = $this->instanceRepository->find($id);
+        if ($instance === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
+        if ($credential === null) {
+            $username = $this->buildSftpUsername($instance);
+            $password = $this->generateSftpPassword();
+            $encryptedPassword = $this->encryptionService->encrypt($password);
+
+            $credential = new InstanceSftpCredential($instance, $username, $encryptedPassword);
+            $this->entityManager->persist($credential);
+
+            $job = new Job('instance.sftp.credentials.reset', [
+                'instance_id' => (string) $instance->getId(),
+                'customer_id' => (string) $instance->getCustomer()->getId(),
+                'agent_id' => $instance->getNode()->getId(),
+                'username' => $username,
+                'password' => $password,
+            ]);
+            $this->entityManager->persist($job);
+
+            $this->auditLogger->log($actor, 'instance.sftp.credentials.reset_requested', [
+                'instance_id' => $instance->getId(),
+                'customer_id' => $instance->getCustomer()->getId(),
+                'job_id' => $job->getId(),
+                'username' => $username,
+            ]);
+            $this->entityManager->flush();
+        }
+
+        $response = new Response('', Response::HTTP_NO_CONTENT);
+        $response->headers->set('HX-Trigger', 'instances-changed');
+
+        return $response;
+    }
+
     private function parsePayload(Request $request): array
     {
         $errors = [];
@@ -493,12 +544,13 @@ final class AdminInstanceController
     /**
      * @param Instance[] $instances
      */
-    private function normalizeInstances(array $instances): array
+    private function normalizeInstances(array $instances, array $sftpCredentials): array
     {
-        return array_map(function (Instance $instance): array {
+        return array_map(function (Instance $instance) use ($sftpCredentials): array {
             $diskLimitBytes = $instance->getDiskLimitBytes();
             $diskUsedBytes = $instance->getDiskUsedBytes();
             $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
+            $credential = $sftpCredentials[$instance->getId()] ?? null;
 
             return [
                 'id' => $instance->getId(),
@@ -519,8 +571,40 @@ final class AdminInstanceController
                 'status' => $instance->getStatus()->value,
                 'created_at' => $instance->getCreatedAt(),
                 'updated_at' => $instance->getUpdatedAt(),
+                'sftp_username' => $credential?->getUsername(),
+                'sftp_ready' => $credential !== null,
             ];
         }, $instances);
+    }
+
+    /**
+     * @param Instance[] $instances
+     *
+     * @return array<int, InstanceSftpCredential>
+     */
+    private function buildSftpCredentialMap(array $instances): array
+    {
+        $credentials = $this->instanceSftpCredentialRepository->findByInstances($instances);
+        $map = [];
+
+        foreach ($credentials as $credential) {
+            $instanceId = $credential->getInstance()->getId();
+            if ($instanceId !== null) {
+                $map[$instanceId] = $credential;
+            }
+        }
+
+        return $map;
+    }
+
+    private function buildSftpUsername(Instance $instance): string
+    {
+        return sprintf('sftp%d', $instance->getId());
+    }
+
+    private function generateSftpPassword(): string
+    {
+        return bin2hex(random_bytes(12));
     }
 
     /**

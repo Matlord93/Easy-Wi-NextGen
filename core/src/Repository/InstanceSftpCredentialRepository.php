@@ -20,4 +20,22 @@ final class InstanceSftpCredentialRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['instance' => $instance]);
     }
+
+    /**
+     * @param Instance[] $instances
+     *
+     * @return InstanceSftpCredential[]
+     */
+    public function findByInstances(array $instances): array
+    {
+        if ($instances === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('credential')
+            ->where('credential.instance IN (:instances)')
+            ->setParameter('instances', $instances)
+            ->getQuery()
+            ->getResult();
+    }
 }

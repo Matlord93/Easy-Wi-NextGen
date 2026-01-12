@@ -37,14 +37,31 @@ final class InstanceSftpCredentialApiController
         $instance = $this->findInstance($actor, $id);
         $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
 
+        $includePassword = filter_var($request->query->get('include_password', false), FILTER_VALIDATE_BOOLEAN);
+        $allowedUserTypes = [UserType::Admin, UserType::Customer];
+        $canManageCredentials = in_array($actor->getType(), $allowedUserTypes, true);
+        $generatedPassword = null;
+        if ($credential === null && $canManageCredentials) {
+            $username = $this->buildUsername($instance);
+            $generatedPassword = $this->generatePassword();
+            $encryptedPassword = $this->encryptionService->encrypt($generatedPassword);
+
+            $credential = new InstanceSftpCredential($instance, $username, $encryptedPassword);
+            $this->entityManager->persist($credential);
+
+            $this->queueResetJob($actor, $instance, $username, $generatedPassword);
+            $this->entityManager->flush();
+        }
+
         if ($credential === null) {
             return new JsonResponse(['error' => 'SFTP credentials not found.'], JsonResponse::HTTP_NOT_FOUND);
         }
 
-        $includePassword = filter_var($request->query->get('include_password', false), FILTER_VALIDATE_BOOLEAN);
-        $allowPassword = $includePassword && in_array($actor->getType(), [UserType::Admin, UserType::Customer], true);
+        $allowPassword = $includePassword && $canManageCredentials;
         $password = null;
-        if ($allowPassword) {
+        if ($allowPassword && $generatedPassword !== null) {
+            $password = $generatedPassword;
+        } elseif ($allowPassword) {
             try {
                 $password = $this->encryptionService->decrypt($credential->getEncryptedPassword());
             } catch (\RuntimeException $exception) {
@@ -77,21 +94,7 @@ final class InstanceSftpCredentialApiController
 
         $this->entityManager->persist($credential);
 
-        $job = new Job('instance.sftp.credentials.reset', [
-            'instance_id' => (string) $instance->getId(),
-            'customer_id' => (string) $instance->getCustomer()->getId(),
-            'agent_id' => $instance->getNode()->getId(),
-            'username' => $username,
-            'password' => $password,
-        ]);
-        $this->entityManager->persist($job);
-
-        $this->auditLogger->log($actor, 'instance.sftp.credentials.reset_requested', [
-            'instance_id' => $instance->getId(),
-            'customer_id' => $instance->getCustomer()->getId(),
-            'job_id' => $job->getId(),
-            'username' => $username,
-        ]);
+        $job = $this->queueResetJob($actor, $instance, $username, $password);
 
         $this->entityManager->flush();
 
@@ -156,6 +159,27 @@ final class InstanceSftpCredentialApiController
         }
 
         return $data;
+    }
+
+    private function queueResetJob(User $actor, Instance $instance, string $username, string $password): Job
+    {
+        $job = new Job('instance.sftp.credentials.reset', [
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $instance->getCustomer()->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+            'username' => $username,
+            'password' => $password,
+        ]);
+        $this->entityManager->persist($job);
+
+        $this->auditLogger->log($actor, 'instance.sftp.credentials.reset_requested', [
+            'instance_id' => $instance->getId(),
+            'customer_id' => $instance->getCustomer()->getId(),
+            'job_id' => $job->getId(),
+            'username' => $username,
+        ]);
+
+        return $job;
     }
 
     private function maskPassword(string $password = ''): string
