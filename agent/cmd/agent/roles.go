@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -122,12 +123,22 @@ func canonicalRoleName(role string) string {
 }
 
 func collectMetadata() map[string]any {
-	metadata := map[string]any{}
+	metadata := map[string]any{
+		"ts6_supported": detectTS6Support(),
+	}
 	if hostname, err := os.Hostname(); err == nil && hostname != "" {
 		metadata["hostname"] = hostname
 	}
 	if release := readOSRelease(); release != nil {
 		metadata["os_release"] = release
+	}
+	if runtime.GOOS == "windows" {
+		metadata["capabilities"] = []string{
+			"heartbeat",
+			"job_polling",
+			"agent.self_update",
+			"agent.diagnostics",
+		}
 	}
 	if len(metadata) == 0 {
 		return nil
@@ -166,4 +177,27 @@ func readOSRelease() map[string]string {
 		return nil
 	}
 	return data
+}
+
+func detectTS6Support() bool {
+	if envValue := strings.TrimSpace(os.Getenv("EASYWI_TS6_SUPPORTED")); envValue != "" {
+		switch strings.ToLower(envValue) {
+		case "1", "true", "yes", "on":
+			return true
+		default:
+			return false
+		}
+	}
+
+	candidates := []string{
+		"/usr/local/bin/ts6server",
+		"/usr/bin/ts6server",
+		"/opt/teamspeak/ts6/tsserver",
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return true
+		}
+	}
+	return false
 }

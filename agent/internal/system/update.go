@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // UpdateOptions defines the parameters for a self-update operation.
@@ -28,6 +29,20 @@ type UpdateFromChecksumsOptions struct {
 	DownloadURL  string
 	ChecksumsURL string
 	AssetName    string
+}
+
+// UpdatePlan describes a prepared update for the agent.
+type UpdatePlan struct {
+	BinaryPath string
+	UpdatePath string
+}
+
+// ApplyWindowsUpdate finalizes a staged update on Windows and restarts the agent.
+func ApplyWindowsUpdate(plan UpdatePlan) error {
+	if plan.UpdatePath == "" {
+		return fmt.Errorf("missing staged update path")
+	}
+	return stageWindowsUpdate(plan.BinaryPath, plan.UpdatePath)
 }
 
 // SelfUpdate downloads a release binary, verifies it, swaps, and restarts.
@@ -51,6 +66,10 @@ func SelfUpdate(ctx context.Context, opts UpdateOptions) error {
 		return err
 	}
 
+	if runtime.GOOS == "windows" {
+		return stageWindowsUpdate(binaryPath, tempFile)
+	}
+
 	if err := atomicSwap(binaryPath, tempFile); err != nil {
 		return err
 	}
@@ -59,49 +78,56 @@ func SelfUpdate(ctx context.Context, opts UpdateOptions) error {
 }
 
 // ApplyUpdateFromChecksums downloads and swaps an update using a checksums file.
-func ApplyUpdateFromChecksums(ctx context.Context, opts UpdateFromChecksumsOptions) (string, error) {
+func ApplyUpdateFromChecksums(ctx context.Context, opts UpdateFromChecksumsOptions) (UpdatePlan, error) {
 	if opts.DownloadURL == "" || opts.ChecksumsURL == "" {
-		return "", fmt.Errorf("missing update parameters")
+		return UpdatePlan{}, fmt.Errorf("missing update parameters")
 	}
 
 	binaryPath, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("locate executable: %w", err)
+		return UpdatePlan{}, fmt.Errorf("locate executable: %w", err)
 	}
 
 	tempDir := filepath.Dir(binaryPath)
 	tempFile := filepath.Join(tempDir, "agent.update")
 	if err := downloadToFile(ctx, opts.DownloadURL, tempFile); err != nil {
-		return "", err
+		return UpdatePlan{}, err
 	}
 
 	checksumsFile := filepath.Join(tempDir, "agent.update.checksums")
 	if err := downloadToFile(ctx, opts.ChecksumsURL, checksumsFile); err != nil {
-		return "", err
+		return UpdatePlan{}, err
 	}
 
 	assetName := opts.AssetName
 	if assetName == "" {
 		assetName, err = assetNameFromURL(opts.DownloadURL)
 		if err != nil {
-			return "", err
+			return UpdatePlan{}, err
 		}
 	}
 
 	expectedSHA, err := checksumForAsset(checksumsFile, assetName)
 	if err != nil {
-		return "", err
+		return UpdatePlan{}, err
 	}
 
 	if err := verifySHA256(tempFile, expectedSHA); err != nil {
-		return "", err
+		return UpdatePlan{}, err
+	}
+
+	if runtime.GOOS == "windows" {
+		return UpdatePlan{
+			BinaryPath: binaryPath,
+			UpdatePath: tempFile,
+		}, nil
 	}
 
 	if err := atomicSwap(binaryPath, tempFile); err != nil {
-		return "", err
+		return UpdatePlan{}, err
 	}
 
-	return binaryPath, nil
+	return UpdatePlan{BinaryPath: binaryPath}, nil
 }
 
 func downloadToFile(ctx context.Context, downloadURL, target string) error {
@@ -168,6 +194,102 @@ func atomicSwap(binaryPath, updatePath string) error {
 	}
 	_ = os.Remove(backupPath)
 	return nil
+}
+
+func stageWindowsUpdate(binaryPath, updatePath string) error {
+	backupPath := binaryPath + ".bak"
+	argsPath, err := writeArgsFile()
+	if err != nil {
+		return err
+	}
+
+	scriptPath, err := writeWindowsUpdateScript()
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"-ExecutionPolicy",
+		"Bypass",
+		"-File",
+		scriptPath,
+		"-BinaryPath",
+		binaryPath,
+		"-UpdatePath",
+		updatePath,
+		"-BackupPath",
+		backupPath,
+		"-ArgsPath",
+		argsPath,
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start update script: %w", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	os.Exit(0)
+	return nil
+}
+
+func writeArgsFile() (string, error) {
+	file, err := os.CreateTemp("", "easywi-agent-args-*.txt")
+	if err != nil {
+		return "", fmt.Errorf("create args file: %w", err)
+	}
+	defer file.Close()
+
+	for _, arg := range os.Args[1:] {
+		if _, err := fmt.Fprintln(file, arg); err != nil {
+			return "", fmt.Errorf("write args file: %w", err)
+		}
+	}
+
+	return file.Name(), nil
+}
+
+func writeWindowsUpdateScript() (string, error) {
+	script := `param(
+  [string]$BinaryPath,
+  [string]$UpdatePath,
+  [string]$BackupPath,
+  [string]$ArgsPath
+)
+$ErrorActionPreference = "Stop"
+Start-Sleep -Seconds 1
+if (Test-Path $BackupPath) {
+  Remove-Item -Path $BackupPath -Force
+}
+try {
+  Rename-Item -Path $BinaryPath -NewName $BackupPath
+  Rename-Item -Path $UpdatePath -NewName $BinaryPath
+} catch {
+  if (Test-Path $BackupPath) {
+    Rename-Item -Path $BackupPath -NewName $BinaryPath -Force
+  }
+  throw
+}
+$argsList = @()
+if (Test-Path $ArgsPath) {
+  $argsList = Get-Content -Path $ArgsPath
+  Remove-Item -Path $ArgsPath -Force
+}
+Start-Process -FilePath $BinaryPath -ArgumentList $argsList
+`
+	file, err := os.CreateTemp("", "easywi-agent-update-*.ps1")
+	if err != nil {
+		return "", fmt.Errorf("create update script: %w", err)
+	}
+	if _, err := file.WriteString(script); err != nil {
+		file.Close()
+		return "", fmt.Errorf("write update script: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return "", fmt.Errorf("close update script: %w", err)
+	}
+	return file.Name(), nil
 }
 
 // RestartOrExit restarts the agent, or exits for supervisors to relaunch it.

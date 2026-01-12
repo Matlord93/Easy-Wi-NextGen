@@ -42,6 +42,9 @@ func handleRoleEnsureBase(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func ensureBaseForRole(role string) (string, error) {
+	if runtime.GOOS == "windows" {
+		return ensureBaseForRoleWindows(role)
+	}
 	if runtime.GOOS != "linux" {
 		return "", fmt.Errorf("role ensure is only supported on linux agents")
 	}
@@ -78,6 +81,191 @@ func ensureBaseForRole(role string) (string, error) {
 	}
 
 	return output.String(), nil
+}
+
+type windowsRolePlan struct {
+	features       []string
+	wingetPackages []string
+	services       []string
+}
+
+func ensureBaseForRoleWindows(role string) (string, error) {
+	var output strings.Builder
+	appendOutput(&output, "detected_os_family=windows")
+
+	plan := windowsRoleInstallPlan(role)
+	if plan == nil {
+		return output.String(), fmt.Errorf("unsupported role: %s", role)
+	}
+
+	if err := installWindowsFeatures(plan.features, &output); err != nil {
+		return output.String(), err
+	}
+	if err := installWindowsPackages(plan.wingetPackages, &output); err != nil {
+		return output.String(), err
+	}
+	if err := ensureRoleFilesWindows(role, &output); err != nil {
+		return output.String(), err
+	}
+	if role == "game" {
+		if err := installSteamCmdWindows(&output); err != nil {
+			return output.String(), err
+		}
+	}
+	if err := enableWindowsRoleServices(plan.services, &output); err != nil {
+		return output.String(), err
+	}
+
+	return output.String(), nil
+}
+
+func windowsRoleInstallPlan(role string) *windowsRolePlan {
+	switch role {
+	case "game":
+		return &windowsRolePlan{}
+	case "web", "core":
+		return &windowsRolePlan{
+			features: []string{
+				"Web-Server", "Web-WebServer", "Web-Common-Http", "Web-Default-Doc", "Web-Static-Content",
+				"Web-Http-Errors", "Web-App-Dev", "Web-CGI", "Web-FastCGI", "Web-ISAPI-Ext",
+				"Web-ISAPI-Filter", "Web-Asp-Net45", "Web-Mgmt-Tools", "Web-Mgmt-Console",
+			},
+			wingetPackages: []string{"PHP.PHP"},
+			services:       []string{"W3SVC"},
+		}
+	case "dns":
+		return &windowsRolePlan{features: []string{"DNS"}, services: []string{"DNS"}}
+	case "mail":
+		return &windowsRolePlan{features: []string{"SMTP-Server"}, services: []string{"SMTPSVC"}}
+	case "db":
+		return &windowsRolePlan{wingetPackages: []string{"MariaDB.Server", "PostgreSQL.PostgreSQL"}}
+	default:
+		return nil
+	}
+}
+
+func installWindowsFeatures(features []string, output *strings.Builder) error {
+	if len(features) == 0 {
+		return nil
+	}
+	shell := windowsPowerShellBinary()
+	if shell == "" {
+		return fmt.Errorf("powershell is required to install Windows features")
+	}
+
+	featureArray := powershellArrayLiteral(features)
+	script := fmt.Sprintf(`$features=%s; if (Get-Command Install-WindowsFeature -ErrorAction SilentlyContinue) { Install-WindowsFeature -Name $features -IncludeManagementTools } elseif (Get-Command Add-WindowsFeature -ErrorAction SilentlyContinue) { Add-WindowsFeature -Name $features } elseif (Get-Command Enable-WindowsOptionalFeature -ErrorAction SilentlyContinue) { foreach ($f in $features) { Enable-WindowsOptionalFeature -Online -FeatureName $f -All -NoRestart } } else { throw "no supported feature installer found" }`, featureArray)
+	return runCommandWithOutput(shell, []string{"-NoProfile", "-NonInteractive", "-Command", script}, output)
+}
+
+func installWindowsPackages(packages []string, output *strings.Builder) error {
+	if len(packages) == 0 {
+		return nil
+	}
+	if !commandExists("winget") {
+		return fmt.Errorf("winget is required to install packages: %s", strings.Join(packages, ", "))
+	}
+	for _, pkg := range packages {
+		if err := runCommandWithOutput("winget", []string{"install", "--id", pkg, "--silent", "--accept-source-agreements", "--accept-package-agreements"}, output); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureRoleFilesWindows(role string, output *strings.Builder) error {
+	baseDir := windowsEasyWiBaseDir()
+	rolesDir := filepath.Join(baseDir, "roles.d")
+	if err := os.MkdirAll(rolesDir, 0o755); err != nil {
+		return fmt.Errorf("create roles dir: %w", err)
+	}
+
+	roleConfig := filepath.Join(rolesDir, role+".conf")
+	if err := os.WriteFile(roleConfig, []byte("role="+role+"\n"), 0o600); err != nil {
+		return fmt.Errorf("write role config: %w", err)
+	}
+	appendOutput(output, "role_config_written="+roleConfig)
+
+	if role == "game" {
+		dirs := []string{
+			filepath.Join(baseDir, "game"),
+			filepath.Join(baseDir, "game", "steamcmd"),
+			filepath.Join(baseDir, "game", "runner"),
+			filepath.Join(baseDir, "game", "sniper"),
+			filepath.Join(baseDir, "game", "servers"),
+			filepath.Join(baseDir, "game", "logs"),
+		}
+		for _, dir := range dirs {
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				return fmt.Errorf("create game dir %s: %w", dir, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func enableWindowsRoleServices(services []string, output *strings.Builder) error {
+	if len(services) == 0 {
+		return nil
+	}
+	for _, service := range services {
+		if err := runCommandWithOutput("sc", []string{"start", service}, output); err != nil {
+			appendOutput(output, "service_failed="+service)
+		} else {
+			appendOutput(output, "service_started="+service)
+		}
+	}
+	return nil
+}
+
+func installSteamCmdWindows(output *strings.Builder) error {
+	if commandExists("steamcmd") {
+		appendOutput(output, "steamcmd=already_installed")
+		return nil
+	}
+
+	shell := windowsPowerShellBinary()
+	if shell == "" {
+		return fmt.Errorf("powershell is required to install steamcmd")
+	}
+
+	steamCmdDir := filepath.Join(windowsEasyWiBaseDir(), "game", "steamcmd")
+	archivePath := filepath.Join(steamCmdDir, "steamcmd.zip")
+	script := fmt.Sprintf(`$dir="%s"; New-Item -ItemType Directory -Path $dir -Force | Out-Null; Invoke-WebRequest -Uri "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip" -OutFile "%s"; Expand-Archive -Path "%s" -DestinationPath $dir -Force`, steamCmdDir, archivePath, archivePath)
+	if err := runCommandWithOutput(shell, []string{"-NoProfile", "-NonInteractive", "-Command", script}, output); err != nil {
+		return err
+	}
+	appendOutput(output, "steamcmd_path="+filepath.Join(steamCmdDir, "steamcmd.exe"))
+	return nil
+}
+
+func windowsEasyWiBaseDir() string {
+	if base := os.Getenv("ProgramData"); base != "" {
+		return filepath.Join(base, "EasyWi")
+	}
+	return filepath.Join("C:\\ProgramData", "EasyWi")
+}
+
+func windowsPowerShellBinary() string {
+	if commandExists("powershell") {
+		return "powershell"
+	}
+	if commandExists("pwsh") {
+		return "pwsh"
+	}
+	return ""
+}
+
+func powershellArrayLiteral(items []string) string {
+	if len(items) == 0 {
+		return "@()"
+	}
+	escaped := make([]string, 0, len(items))
+	for _, item := range items {
+		escaped = append(escaped, "'"+strings.ReplaceAll(item, "'", "''")+"'")
+	}
+	return "@(" + strings.Join(escaped, ",") + ")"
 }
 
 func detectOSFamily() (string, error) {

@@ -20,6 +20,7 @@ DB_ALLOWED_SUBNET="${EASYWI_DB_SUBNET:-}"
 INTERACTIVE="${EASYWI_INTERACTIVE:-}"
 NON_INTERACTIVE="${EASYWI_NON_INTERACTIVE:-}"
 DIAGNOSTICS_MODE="${EASYWI_DIAGNOSTICS:-auto}"
+DRY_RUN="${EASYWI_DRY_RUN:-}"
 LOG_FILE="/var/log/easywi/installer.log"
 
 LOG_PREFIX="[easywi-installer]"
@@ -38,6 +39,7 @@ Options:
   --core-url <url>       EasyWI Core API base URL
   --agent-version <v>    Agent release version (default: latest)
   --runner-version <v>   Runner release version (default: latest)
+  --dry-run              Print planned API calls without applying changes
   --channel <name>       Release channel/tag (overrides latest)
   --mail-hostname <name> Mail hostname for the mail role
   --db-bind-address <ip> Bind address for database services (default: 127.0.0.1)
@@ -88,7 +90,7 @@ command_exists() {
 }
 
 preflight_tools() {
-  local required=(uname awk sed grep cut)
+  local required=(uname awk sed grep cut openssl)
   for tool in "${required[@]}"; do
     command_exists "${tool}" || fatal "Missing required tool: ${tool}"
   done
@@ -129,6 +131,7 @@ Channel override:    ${CHANNEL:-none}
 Mail hostname:       ${MAIL_HOSTNAME:-auto}
 DB bind address:     ${DB_BIND_ADDRESS}
 DB allowed subnet:   ${DB_ALLOWED_SUBNET:-none}
+Dry run:             ${DRY_RUN:-false}
 ============================================================
 SUMMARY
 }
@@ -488,6 +491,25 @@ install_runner() {
   install -m 0755 "${runner_path}" /usr/local/bin/easywi-runner
 }
 
+json_value() {
+  local json="$1"
+  local key="$2"
+  if command_exists jq; then
+    echo "${json}" | jq -r --arg key "${key}" '.[$key] // empty'
+  else
+    echo "${json}" | sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p"
+  fi
+}
+
+mask_token() {
+  local token="$1"
+  if [[ -z "${token}" ]]; then
+    echo ""
+    return
+  fi
+  echo "${token:0:4}****"
+}
+
 bootstrap_register() {
   if [[ -z "${BOOTSTRAP_TOKEN}" ]]; then
     fatal "Bootstrap token missing. Provide --bootstrap-token or EASYWI_BOOTSTRAP_TOKEN."
@@ -496,33 +518,141 @@ bootstrap_register() {
   local hostname
   local payload
   local response
-  local token
+  local http_body
+  local http_status
+  local register_token
+  local register_url
+  local core_public_url
+  local polling_interval
+  local agent_id
+  local os_name
+  local agent_version
 
   hostname="$(hostname -f 2>/dev/null || hostname)"
+  os_name="${ID:-unknown}"
+  agent_version="${AGENT_VERSION_RESOLVED:-${AGENT_VERSION}}"
   payload=$(cat <<JSON
-{"bootstrap_token":"${BOOTSTRAP_TOKEN}","hostname":"${hostname}","roles":"${ROLE_LIST}"}
+{"bootstrap_token":"${BOOTSTRAP_TOKEN}","hostname":"${hostname}","os":"${os_name}","agent_version":"${agent_version}"}
 JSON
 )
 
-  log "Registering agent with API ${API_URL}"
-  response=$(curl -fsSL -X POST "${API_URL}/api/v1/agent/bootstrap" \
-    -H "Content-Type: application/json" \
-    -d "${payload}")
-
-  if command_exists jq; then
-    token=$(echo "${response}" | jq -r '.token // empty')
-  else
-    token=$(echo "${response}" | sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  if [[ "$(normalize_bool "${DRY_RUN}")" == "true" ]]; then
+    log "Dry run enabled. Planned API calls:"
+    log "POST ${API_URL}/api/v1/agent/bootstrap (bootstrap_token=$(mask_token "${BOOTSTRAP_TOKEN}"), hostname=${hostname}, os=${os_name}, agent_version=${agent_version})"
+    log "POST /api/v1/agent/register (register_token=<from bootstrap>, signed request)"
+    return
   fi
 
-  if [[ -z "${token}" ]]; then
-    fatal "Failed to parse agent token from response"
+  log "Bootstrapping agent with API ${API_URL}"
+  response=$(curl -sS -w $'\n%{http_code}' -X POST "${API_URL}/api/v1/agent/bootstrap" \
+    -H "Content-Type: application/json" \
+    -d "${payload}" || true)
+
+  if [[ -z "${response}" ]]; then
+    fatal "Bootstrap request failed. Check network connectivity."
+  fi
+
+  http_body="${response%$'\n'*}"
+  http_status="${response##*$'\n'}"
+
+  case "${http_status}" in
+    404)
+      fatal "Bootstrap endpoint not found. Update the Core API to include /api/v1/agent/bootstrap."
+      ;;
+    401|403)
+      fatal "Bootstrap token invalid or expired."
+      ;;
+  esac
+
+  if [[ "${http_status}" -ge 400 ]]; then
+    fatal "Bootstrap request failed with status ${http_status}: ${http_body}"
+  fi
+
+  register_token="$(json_value "${http_body}" "register_token")"
+  register_url="$(json_value "${http_body}" "register_url")"
+  core_public_url="$(json_value "${http_body}" "core_public_url")"
+  polling_interval="$(json_value "${http_body}" "polling_interval")"
+  agent_id="$(json_value "${http_body}" "agent_id")"
+
+  if [[ -z "${register_token}" ]]; then
+    fatal "Failed to parse registration token from bootstrap response."
+  fi
+
+  if [[ -z "${agent_id}" ]]; then
+    fatal "Failed to parse agent_id from bootstrap response."
+  fi
+
+  if [[ -z "${register_url}" ]]; then
+    register_url="${API_URL}/api/v1/agent/register"
+  fi
+
+  if [[ -n "${core_public_url}" ]]; then
+    API_URL="${core_public_url}"
+  fi
+
+  local register_payload
+  local register_response
+  local register_status
+  local register_body
+  local timestamp
+  local nonce
+  local body_hash
+  local signature_payload
+  local signature
+  local agent_secret
+
+  register_payload=$(cat <<JSON
+{"agent_id":"${agent_id}","name":"${hostname}","register_token":"${register_token}"}
+JSON
+)
+
+  body_hash="$(printf '%s' "${register_payload}" | sha256sum | awk '{print $1}')"
+  timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  nonce="$(openssl rand -hex 16)"
+  signature_payload="${agent_id}\nPOST\n/api/v1/agent/register\n${body_hash}\n${timestamp}\n${nonce}"
+  signature="$(printf '%s' "${signature_payload}" | openssl dgst -sha256 -hmac "${register_token}" | awk '{print $2}')"
+
+  log "Registering agent with API ${register_url}"
+  register_response=$(curl -sS -w $'\n%{http_code}' -X POST "${register_url}" \
+    -H "Content-Type: application/json" \
+    -H "X-Agent-ID: ${agent_id}" \
+    -H "X-Timestamp: ${timestamp}" \
+    -H "X-Nonce: ${nonce}" \
+    -H "X-Signature: ${signature}" \
+    -d "${register_payload}" || true)
+
+  if [[ -z "${register_response}" ]]; then
+    fatal "Register request failed. Check network connectivity."
+  fi
+
+  register_body="${register_response%$'\n'*}"
+  register_status="${register_response##*$'\n'}"
+
+  case "${register_status}" in
+    404)
+      fatal "Register endpoint not found. Update the Core API to include /api/v1/agent/register."
+      ;;
+    401|403)
+      fatal "Registration token invalid or expired."
+      ;;
+  esac
+
+  if [[ "${register_status}" -ge 400 ]]; then
+    fatal "Register request failed with status ${register_status}: ${register_body}"
+  fi
+
+  agent_secret="$(json_value "${register_body}" "secret")"
+
+  if [[ -z "${agent_secret}" ]]; then
+    fatal "Failed to parse agent secret from register response."
   fi
 
   cat <<CONF >/etc/easywi/agent.conf
-API_URL=${API_URL}
-AGENT_TOKEN=${token}
-version=${AGENT_VERSION_RESOLVED:-${AGENT_VERSION}}
+agent_id=${agent_id}
+secret=${agent_secret}
+api_url=${API_URL}
+poll_interval=${polling_interval:-30}s
+version=${agent_version}
 CONF
 
   chmod 600 /etc/easywi/agent.conf
@@ -1213,6 +1343,10 @@ parse_args() {
         DIAGNOSTICS_MODE="$2"
         shift 2
         ;;
+      --dry-run)
+        DRY_RUN="true"
+        shift
+        ;;
       -h|--help)
         usage
         exit 0
@@ -1237,6 +1371,13 @@ main() {
   collect_inputs
   step "Validate input"
   validate_required_inputs
+
+  if [[ "$(normalize_bool "${DRY_RUN}")" == "true" ]]; then
+    step "Dry run bootstrap"
+    bootstrap_register
+    log "Dry run complete."
+    return
+  fi
 
   if [[ -n "${CHANNEL}" && "${AGENT_VERSION}" == "latest" ]]; then
     AGENT_VERSION="${CHANNEL}"

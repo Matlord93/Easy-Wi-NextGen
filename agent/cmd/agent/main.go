@@ -104,11 +104,26 @@ func collectStats(version string, roles []string) map[string]any {
 }
 
 func handleJob(job jobs.Job) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" && !isWindowsSafeJob(job.Type) {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "job type is not permitted on Windows agents"},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
 	switch job.Type {
 	case "agent.update":
 		return handleAgentUpdate(job)
+	case "agent.self_update":
+		return handleAgentUpdate(job)
+	case "agent.diagnostics":
+		return handleAgentDiagnostics(job)
 	case "role.ensure_base":
 		return handleRoleEnsureBase(job)
+	case "web.ensure_base":
+		return handleWebEnsureBase(job)
 	case "webspace.create":
 		return handleWebspaceCreate(job)
 	case "domain.add":
@@ -263,6 +278,19 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 	}
 }
 
+func isWindowsSafeJob(jobType string) bool {
+	switch jobType {
+	case "agent.update", "agent.self_update", "agent.diagnostics":
+		return true
+	case "role.ensure_base", "web.ensure_base":
+		return true
+	case "ddos.policy.apply", "ddos.status.check":
+		return true
+	default:
+		return false
+	}
+}
+
 func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 	downloadURL := payloadValue(job.Payload, "download_url", "artifact_url", "url")
 	checksumsURL := payloadValue(job.Payload, "checksums_url", "checksum_url", "checksums")
@@ -277,7 +305,7 @@ func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 		}, nil
 	}
 
-	binaryPath, err := system.ApplyUpdateFromChecksums(context.Background(), system.UpdateFromChecksumsOptions{
+	updatePlan, err := system.ApplyUpdateFromChecksums(context.Background(), system.UpdateFromChecksumsOptions{
 		DownloadURL:  downloadURL,
 		ChecksumsURL: checksumsURL,
 		AssetName:    assetName,
@@ -299,7 +327,10 @@ func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	return result, func() error {
-		return system.RestartOrExit(binaryPath)
+		if runtime.GOOS == "windows" && updatePlan.UpdatePath != "" {
+			return system.ApplyWindowsUpdate(updatePlan)
+		}
+		return system.RestartOrExit(updatePlan.BinaryPath)
 	}
 }
 

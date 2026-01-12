@@ -20,6 +20,7 @@ const (
 
 func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 	webRoot := payloadValue(job.Payload, "web_root", "path")
+	docroot := payloadValue(job.Payload, "docroot", "document_root")
 	ownerUser := payloadValue(job.Payload, "owner_user", "user")
 	ownerGroup := payloadValue(job.Payload, "owner_group", "group")
 	phpFpmPoolPath := payloadValue(job.Payload, "php_fpm_pool_path", "fpm_pool_path")
@@ -28,15 +29,38 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 	phpVersion := payloadValue(job.Payload, "php_version")
 	poolName := payloadValue(job.Payload, "pool_name", "php_fpm_pool_name")
 
+	var cleanupPaths []string
+	rollback := func() error {
+		for i := len(cleanupPaths) - 1; i >= 0; i-- {
+			path := cleanupPaths[i]
+			if err := os.RemoveAll(path); err != nil {
+				return fmt.Errorf("rollback remove %s: %w", path, err)
+			}
+		}
+		return nil
+	}
+	failWithRollback := func(err error) (jobs.Result, func() error) {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": err.Error()},
+			Completed: time.Now().UTC(),
+		}, rollback
+	}
+
 	if ownerGroup == "" {
 		ownerGroup = ownerUser
 	}
 	if poolName == "" {
 		poolName = ownerUser
 	}
+	if docroot == "" {
+		docroot = filepath.Join(webRoot, "public")
+	}
 
 	missing := missingValues([]requiredValue{
 		{key: "web_root", value: webRoot},
+		{key: "docroot", value: docroot},
 		{key: "owner_user", value: ownerUser},
 		{key: "php_fpm_pool_path", value: phpFpmPoolPath},
 		{key: "php_fpm_listen", value: phpFpmListen},
@@ -52,44 +76,55 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if err := ensureGroup(ownerGroup); err != nil {
-		return failureResult(job.ID, err)
+		return failWithRollback(err)
 	}
 	if err := ensureUser(ownerUser, ownerGroup, webRoot); err != nil {
-		return failureResult(job.ID, err)
+		return failWithRollback(err)
 	}
 
+	if !pathExists(webRoot) {
+		cleanupPaths = append(cleanupPaths, webRoot)
+	}
 	if err := ensureDir(webRoot); err != nil {
-		return failureResult(job.ID, err)
+		return failWithRollback(err)
 	}
 
-	publicDir := filepath.Join(webRoot, "public")
 	logsDir := filepath.Join(webRoot, "logs")
 	tmpDir := filepath.Join(webRoot, "tmp")
 
-	for _, dir := range []string{publicDir, logsDir, tmpDir} {
+	for _, dir := range []string{docroot, logsDir, tmpDir} {
+		if !pathExists(dir) {
+			cleanupPaths = append(cleanupPaths, dir)
+		}
 		if err := ensureDir(dir); err != nil {
-			return failureResult(job.ID, err)
+			return failWithRollback(err)
 		}
 	}
 
 	uid, gid, err := lookupIDs(ownerUser, ownerGroup)
 	if err != nil {
-		return failureResult(job.ID, err)
+		return failWithRollback(err)
 	}
-	for _, dir := range []string{webRoot, publicDir, logsDir, tmpDir} {
+	for _, dir := range []string{webRoot, docroot, logsDir, tmpDir} {
 		if err := os.Chown(dir, uid, gid); err != nil {
-			return failureResult(job.ID, fmt.Errorf("chown %s: %w", dir, err))
+			return failWithRollback(fmt.Errorf("chown %s: %w", dir, err))
 		}
 		if err := os.Chmod(dir, webspaceDirMode); err != nil {
-			return failureResult(job.ID, fmt.Errorf("chmod %s: %w", dir, err))
+			return failWithRollback(fmt.Errorf("chmod %s: %w", dir, err))
 		}
 	}
 
-	if err := writePhpFpmPool(phpFpmPoolPath, poolName, ownerUser, ownerGroup, phpFpmListen, webRoot, logsDir, tmpDir, phpVersion); err != nil {
-		return failureResult(job.ID, err)
+	if phpFpmPoolPath != "" && !pathExists(phpFpmPoolPath) {
+		cleanupPaths = append(cleanupPaths, phpFpmPoolPath)
 	}
-	if err := writeNginxInclude(nginxIncludePath, webRoot, logsDir, phpFpmListen); err != nil {
-		return failureResult(job.ID, err)
+	if err := writePhpFpmPool(phpFpmPoolPath, poolName, ownerUser, ownerGroup, phpFpmListen, webRoot, logsDir, tmpDir, phpVersion); err != nil {
+		return failWithRollback(err)
+	}
+	if nginxIncludePath != "" && !pathExists(nginxIncludePath) {
+		cleanupPaths = append(cleanupPaths, nginxIncludePath)
+	}
+	if err := writeNginxInclude(nginxIncludePath, docroot, logsDir, phpFpmListen); err != nil {
+		return failWithRollback(err)
 	}
 
 	return jobs.Result{
@@ -97,7 +132,7 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 		Status: "success",
 		Output: map[string]string{
 			"web_root":          webRoot,
-			"public_dir":        publicDir,
+			"docroot":           docroot,
 			"logs_dir":          logsDir,
 			"tmp_dir":           tmpDir,
 			"php_fpm_pool_path": phpFpmPoolPath,
@@ -194,11 +229,11 @@ func writePhpFpmPool(path, pool, user, group, listen, webRoot, logsDir, tmpDir, 
 	return nil
 }
 
-func writeNginxInclude(path, webRoot, logsDir, phpFpmListen string) error {
+func writeNginxInclude(path, docroot, logsDir, phpFpmListen string) error {
 	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
-	content := nginxIncludeTemplate(webRoot, logsDir, phpFpmListen)
+	content := nginxIncludeTemplate(docroot, logsDir, phpFpmListen)
 	if err := os.WriteFile(path, []byte(content), webspaceFileMode); err != nil {
 		return fmt.Errorf("write nginx include %s: %w", path, err)
 	}
@@ -231,9 +266,9 @@ func phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, php
 	return buffer.String()
 }
 
-func nginxIncludeTemplate(webRoot, logsDir, phpFpmListen string) string {
+func nginxIncludeTemplate(docroot, logsDir, phpFpmListen string) string {
 	return fmt.Sprintf(`## Managed by Easy-Wi agent
-root %s/public;
+root %s;
 index index.php index.html;
 
 access_log %s/access.log;
@@ -258,6 +293,11 @@ func runCommand(name string, args ...string) error {
 		return fmt.Errorf("%s %s failed: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func failureResult(jobID string, err error) (jobs.Result, func() error) {
