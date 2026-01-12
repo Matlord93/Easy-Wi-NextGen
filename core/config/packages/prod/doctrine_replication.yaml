@@ -1,0 +1,6 @@
+doctrine:
+  dbal:
+    replicas:
+      read_1:
+        url: '%env(resolve:DATABASE_REPLICA_URL)%'
+    keep_replica: true

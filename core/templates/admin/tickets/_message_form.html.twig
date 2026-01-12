@@ -1,0 +1,49 @@
+<div class="border-b border-slate-200 px-6 py-4">
+    <h3 class="text-lg font-semibold">{{ t('admin_tickets_reply_title', page_locale()) }}</h3>
+    <p class="text-sm text-slate-700">{{ t('admin_tickets_reply_intro', page_locale()) }}</p>
+</div>
+<form class="p-6 space-y-4" method="post" action="/admin/tickets/{{ ticket.id }}/messages" hx-post="/admin/tickets/{{ ticket.id }}/messages" hx-target="#ticket-messages" hx-swap="outerHTML">
+    {% if quickReplies is not empty %}
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_quick_reply_label', page_locale()) }}</label>
+            <select id="admin-ticket-quick-reply" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="">{{ t('admin_tickets_quick_reply_placeholder', page_locale()) }}</option>
+                {% for reply in quickReplies %}
+                    <option value="{{ reply.id }}" data-body="{{ reply.body|e('html_attr') }}">{{ reply.title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    {% endif %}
+    <div>
+        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_reply_message', page_locale()) }}</label>
+        <textarea id="admin-ticket-reply-message" name="message" rows="6" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_tickets_reply_placeholder', page_locale()) }}"></textarea>
+    </div>
+    {% if adminSignature %}
+        <label class="flex items-center gap-2 text-xs text-slate-700">
+            <input type="checkbox" name="include_signature" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" checked>
+            {{ t('admin_tickets_signature_toggle', page_locale()) }}
+        </label>
+    {% endif %}
+    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ t('admin_tickets_reply_submit', page_locale()) }}</button>
+</form>
+
+{% if quickReplies is not empty %}
+    <script>
+        (() => {
+            const replySelect = document.getElementById('admin-ticket-quick-reply');
+            const messageTextarea = document.getElementById('admin-ticket-reply-message');
+
+            if (!replySelect || !messageTextarea) {
+                return;
+            }
+
+            replySelect.addEventListener('change', () => {
+                const option = replySelect.selectedOptions[0];
+                if (!option || !option.dataset.body) {
+                    return;
+                }
+                messageTextarea.value = option.dataset.body || '';
+            });
+        })();
+    </script>
+{% endif %}

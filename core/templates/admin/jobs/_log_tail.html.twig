@@ -1,0 +1,10 @@
+{% if logLines is empty %}
+    <div class="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600">
+        Logs will appear here when the job is running.
+    </div>
+{% else %}
+    <div class="rounded-lg border border-slate-200 bg-slate-950 text-slate-100">
+        <div class="border-b border-slate-800 px-4 py-2 text-xs uppercase tracking-wide text-slate-600">{{ t('admin_jobs_live_log_tail', page_locale()) }}</div>
+        <pre class="max-h-72 overflow-y-auto whitespace-pre-wrap break-all px-4 py-3 text-xs leading-relaxed">{% for line in logLines %}{{ line }}{% if not loop.last %}\n{% endif %}{% endfor %}</pre>
+    </div>
+{% endif %}

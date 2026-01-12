@@ -1,0 +1,94 @@
+<div id="core-update-card" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h2 class="text-lg font-semibold">{{ t('admin_dashboard_core_updates_title', page_locale()) }}</h2>
+            <p class="text-sm text-slate-700">{{ t('admin_dashboard_core_updates_intro', page_locale()) }}</p>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button
+                class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm"
+                hx-post="/admin/update/webinterface"
+                hx-target="#core-update-card"
+                hx-swap="outerHTML"
+                {% if coreUpdate.latestVersion is empty or coreUpdate.updateAvailable is same as(false) %}
+                    disabled
+                {% endif %}
+            >
+                {{ t('admin_dashboard_core_updates_action', page_locale()) }}
+            </button>
+            <button
+                class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
+                hx-post="/admin/update/webinterface/auto"
+                hx-vals='{"enabled": {{ coreUpdate.autoEnabled ? "false" : "true" }} }'
+                hx-target="#core-update-card"
+                hx-swap="outerHTML"
+            >
+                {{ coreUpdate.autoEnabled ? t('admin_dashboard_core_updates_auto_disable', page_locale()) : t('admin_dashboard_core_updates_auto_enable', page_locale()) }}
+            </button>
+        </div>
+    </div>
+
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_current_version', page_locale()) }}</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900">{{ coreUpdate.currentVersion ?? '—' }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_latest_version', page_locale()) }}</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900">{{ coreUpdate.latestVersion ?? '—' }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_update_status', page_locale()) }}</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900">
+                {% if coreUpdate.updateAvailable is same as(true) %}
+                    {{ t('admin_dashboard_core_update_available', page_locale()) }}
+                {% elseif coreUpdate.updateAvailable is same as(false) %}
+                    {{ t('admin_dashboard_core_update_up_to_date', page_locale()) }}
+                {% else %}
+                    {{ t('admin_dashboard_core_update_unknown', page_locale()) }}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+        <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_updates_mode', page_locale()) }}</p>
+        <p class="mt-2">
+            {{ coreUpdate.autoEnabled ? t('admin_dashboard_core_updates_mode_auto', page_locale()) : t('admin_dashboard_core_updates_mode_manual', page_locale()) }}
+        </p>
+    </div>
+
+    {% if coreUpdate.autoEnabled and coreUpdate.notesList is not empty %}
+        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_update_changes', page_locale()) }}</p>
+            <ul class="mt-2 list-disc space-y-1 pl-5">
+                {% for item in coreUpdate.notesList %}
+                    <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% elseif coreUpdate.notes %}
+        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_update_notes', page_locale()) }}</p>
+            <p class="mt-2 whitespace-pre-line">{{ coreUpdate.notes }}</p>
+        </div>
+    {% endif %}
+
+    {% if coreUpdate.manifestError %}
+        <div class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {{ coreUpdate.manifestError }}
+        </div>
+    {% endif %}
+
+    {% if coreUpdate.notice or coreUpdate.error %}
+        <div class="mt-4 rounded-xl border px-4 py-3 text-sm {{ coreUpdate.error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700' }}">
+            {{ coreUpdate.error ?? coreUpdate.notice }}
+        </div>
+    {% endif %}
+
+    {% if coreUpdate.logPath %}
+        <p class="mt-4 text-xs text-slate-500">
+            {{ t('admin_dashboard_core_update_log_path', page_locale())|replace({'%path%': coreUpdate.logPath}) }}
+        </p>
+    {% endif %}
+</div>

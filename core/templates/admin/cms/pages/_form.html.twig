@@ -1,0 +1,58 @@
+<details class="group" {{ form.errors is not empty or form.action == 'update' ? 'open' : '' }}>
+    <summary class="flex items-center justify-between gap-4 px-5 py-4">
+        <div>
+            <h2 class="text-lg font-semibold">{{ t(form.header, page_locale()) }}</h2>
+            <p class="text-sm text-slate-700">{{ t(form.description, page_locale()) }}</p>
+        </div>
+        <span class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+            {{ t(form.submit_label, page_locale()) }}
+        </span>
+    </summary>
+
+    <div class="border-t border-slate-200 px-5 py-4">
+        {% if form.errors is not empty %}
+            <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <p class="font-semibold">{{ t('please_fix_following', page_locale()) }}</p>
+                <ul class="list-disc pl-5 mt-2">
+                    {% for error in form.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        <form
+            class="space-y-4"
+            hx-post="{{ form.action_url }}"
+            hx-target="#cms-page-form"
+            hx-swap="outerHTML"
+        >
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('title', page_locale()) }}</label>
+                <input type="text" name="title" value="{{ form.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('cms_page_title_placeholder', page_locale()) }}">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('slug', page_locale()) }}</label>
+                <input type="text" name="slug" value="{{ form.slug }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('cms_page_slug_placeholder', page_locale()) }}">
+            </div>
+            <label class="flex items-center gap-2 text-sm text-slate-600">
+                <input type="checkbox" name="is_published" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" {% if form.is_published %}checked{% endif %}>
+                {{ t('publish_immediately', page_locale()) }}
+            </label>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button type="submit" class="w-full rounded-lg px-4 py-2 text-sm font-semibold text-white {{ form.submit_color }}">{{ t(form.submit_label, page_locale()) }}</button>
+                {% if form.action == 'update' %}
+                    <button
+                        type="button"
+                        class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto"
+                        hx-get="/admin/cms/pages/form"
+                        hx-target="#cms-page-form"
+                        hx-swap="outerHTML"
+                    >
+                        {{ t('cancel', page_locale()) }}
+                    </button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</details>

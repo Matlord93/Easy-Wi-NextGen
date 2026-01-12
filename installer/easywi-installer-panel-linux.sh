@@ -11,6 +11,9 @@ INSTALL_MODE="${EASYWI_INSTALL_MODE:-}"
 INSTALL_DIR="${EASYWI_INSTALL_DIR:-/var/www/easywi}"
 APP_ENV="${EASYWI_APP_ENV:-prod}"
 APP_SECRET="${EASYWI_APP_SECRET:-}"
+APP_ENCRYPTION_KEYS="${EASYWI_APP_ENCRYPTION_KEYS:-}"
+AGENT_REGISTRATION_TOKEN="${EASYWI_AGENT_REGISTRATION_TOKEN:-}"
+APP_GITHUB_TOKEN="${EASYWI_APP_GITHUB_TOKEN:-}"
 DB_DRIVER="${EASYWI_DB_DRIVER:-mysql}"
 DB_HOST="${EASYWI_DB_HOST:-127.0.0.1}"
 DB_PORT="${EASYWI_DB_PORT:-}"
@@ -47,6 +50,13 @@ Options:
   --db-name <name>       Database name
   --db-user <user>       Database user
   --db-password <pass>   Database password
+  --app-secret <value>   APP_SECRET value (leave empty to auto-generate)
+  --app-encryption-keys <value>
+                         APP_ENCRYPTION_KEYS value
+  --agent-registration-token <value>
+                         AGENT_REGISTRATION_TOKEN value
+  --app-github-token <value>
+                         Optional GitHub token for update checks
   --php-version <ver>    PHP version for standalone (8.4 or 8.5)
   --web-hostname <name>  Server name for standalone web config
   --web-user <user>      Web server user for permissions (standalone)
@@ -62,6 +72,7 @@ Environment variables:
   EASYWI_DB_DRIVER, EASYWI_DB_HOST, EASYWI_DB_PORT, EASYWI_DB_NAME,
   EASYWI_DB_USER, EASYWI_DB_PASSWORD, EASYWI_PHP_VERSION, EASYWI_RUN_MIGRATIONS,
   EASYWI_WEB_HOSTNAME, EASYWI_WEB_USER, EASYWI_APP_ENV, EASYWI_APP_SECRET,
+  EASYWI_APP_ENCRYPTION_KEYS, EASYWI_AGENT_REGISTRATION_TOKEN, EASYWI_APP_GITHUB_TOKEN,
   EASYWI_WEB_SERVER, EASYWI_FORCE_OVERWRITE, EASYWI_INTERACTIVE, EASYWI_NON_INTERACTIVE
 USAGE
 }
@@ -156,6 +167,10 @@ Web server:         ${WEB_SERVER}
 PHP version:        ${PHP_VERSION:-auto}
 Web hostname:       ${WEB_HOSTNAME}
 Run migrations:     ${RUN_MIGRATIONS}
+APP_SECRET:         ${APP_SECRET:+provided}${APP_SECRET:+" "}${APP_SECRET:-auto-generate}
+APP_ENCRYPTION_KEYS:${APP_ENCRYPTION_KEYS:+provided}${APP_ENCRYPTION_KEYS:+" "}${APP_ENCRYPTION_KEYS:-auto-generate}
+AGENT_REG_TOKEN:    ${AGENT_REGISTRATION_TOKEN:+provided}${AGENT_REGISTRATION_TOKEN:+" "}${AGENT_REGISTRATION_TOKEN:-auto-generate}
+APP_GITHUB_TOKEN:   ${APP_GITHUB_TOKEN:+provided}${APP_GITHUB_TOKEN:+" "}${APP_GITHUB_TOKEN:-optional}
 ========================================================
 SUMMARY
 }
@@ -212,6 +227,18 @@ collect_inputs() {
       prompt_value WEB_HOSTNAME "Web hostname (server_name)" "${WEB_HOSTNAME}"
       prompt_value WEB_USER "Web server user" "${WEB_USER:-www-data}"
     fi
+    cat <<'SECRETS'
+
+Security settings:
+  APP_SECRET                Used to sign sessions and secure application data.
+  APP_ENCRYPTION_KEYS       Used to encrypt agent bootstrap data (format: key_id:base64_key).
+  AGENT_REGISTRATION_TOKEN  Shared token for registering new agents.
+  APP_GITHUB_TOKEN          Optional GitHub token for update checks; leave empty to skip.
+SECRETS
+    prompt_value APP_SECRET "APP_SECRET (leave empty to auto-generate)" "" "true"
+    prompt_value APP_ENCRYPTION_KEYS "APP_ENCRYPTION_KEYS (leave empty to auto-generate)" "" "true"
+    prompt_value AGENT_REGISTRATION_TOKEN "AGENT_REGISTRATION_TOKEN (leave empty to auto-generate)" "" "true"
+    prompt_value APP_GITHUB_TOKEN "APP_GITHUB_TOKEN (optional)" "" "true"
     prompt_value RUN_MIGRATIONS "Run migrations? (true/false)" "${RUN_MIGRATIONS}"
     print_summary
     confirm_continue
@@ -464,6 +491,42 @@ generate_app_secret() {
   fi
 }
 
+generate_encryption_keys() {
+  if [[ -n "${APP_ENCRYPTION_KEYS}" ]]; then
+    return
+  fi
+
+  local key_material=""
+  if command_exists openssl; then
+    key_material="$(openssl rand -base64 32)"
+  elif command_exists python3; then
+    key_material="$(python3 -c 'import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())')"
+  else
+    key_material="$(head -c 32 /dev/urandom | base64)"
+  fi
+
+  APP_ENCRYPTION_KEYS="v1:${key_material}"
+}
+
+generate_agent_registration_token() {
+  if [[ -n "${AGENT_REGISTRATION_TOKEN}" ]]; then
+    return
+  fi
+
+  if command_exists openssl; then
+    AGENT_REGISTRATION_TOKEN="$(openssl rand -hex 16)"
+  else
+    AGENT_REGISTRATION_TOKEN="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)"
+  fi
+}
+
+escape_env_value() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '%s' "${value}"
+}
+
 urlencode() {
   local raw="$1"
   if command_exists python3; then
@@ -488,12 +551,28 @@ write_env_local() {
   db_password_encoded="$(urlencode "${DB_PASSWORD}")"
 
   generate_app_secret
+  generate_encryption_keys
+  generate_agent_registration_token
+
+  local encryption_keys_escaped
+  local agent_token_escaped
+  local github_token_escaped
+  encryption_keys_escaped="$(escape_env_value "${APP_ENCRYPTION_KEYS}")"
+  agent_token_escaped="$(escape_env_value "${AGENT_REGISTRATION_TOKEN}")"
+  github_token_escaped="$(escape_env_value "${APP_GITHUB_TOKEN}")"
 
   cat <<EOF >"${INSTALL_DIR}/core/.env.local"
 APP_ENV=${APP_ENV}
 APP_SECRET=${APP_SECRET}
+APP_ENCRYPTION_KEY_ID=v1
+APP_ENCRYPTION_KEYS="${encryption_keys_escaped}"
+AGENT_REGISTRATION_TOKEN="${agent_token_escaped}"
 DATABASE_URL=${DB_DRIVER}://${DB_USER}:${db_password_encoded}@${DB_HOST}:${db_port}/${DB_NAME}
 EOF
+
+  if [[ -n "${APP_GITHUB_TOKEN}" ]]; then
+    echo "APP_GITHUB_TOKEN=\"${github_token_escaped}\"" >>"${INSTALL_DIR}/core/.env.local"
+  fi
 }
 
 run_composer() {
@@ -508,6 +587,8 @@ run_composer() {
 }
 
 run_migrations() {
+  local answer
+  local attempt=1
   if [[ "$(normalize_bool "${RUN_MIGRATIONS}")" != "true" ]]; then
     log "Skipping migrations"
     return
@@ -515,8 +596,28 @@ run_migrations() {
   if ! command_exists php; then
     fatal "php is required to run migrations."
   fi
-  log "Running database migrations"
-  (cd "${INSTALL_DIR}/core" && php bin/console doctrine:migrations:migrate --no-interaction)
+  while true; do
+    log "Running database migrations (attempt ${attempt})"
+    if (cd "${INSTALL_DIR}/core" && php bin/console doctrine:migrations:migrate --no-interaction); then
+      log "Database migrations completed successfully."
+      return
+    fi
+
+    log "Database migrations failed."
+    if [[ "$(normalize_bool "${NON_INTERACTIVE}")" == "true" ]] || ! is_tty; then
+      fatal "Migrations failed. Re-run: cd ${INSTALL_DIR}/core && php bin/console doctrine:migrations:migrate"
+    fi
+
+    read -r -p "Retry migrations? [y/N]: " answer
+    case "${answer}" in
+      y|Y|yes|YES)
+        attempt=$((attempt + 1))
+        ;;
+      *)
+        fatal "Migrations failed. Re-run: cd ${INSTALL_DIR}/core && php bin/console doctrine:migrations:migrate"
+        ;;
+    esac
+  done
 }
 
 set_permissions() {
@@ -682,6 +783,8 @@ SQL
     su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'\"" | grep -q 1 || \
       su - postgres -c "psql -c \"CREATE DATABASE ${DB_NAME} OWNER ${db_user_escaped};\""
   fi
+
+  log "Database configuration completed."
 }
 
 install_standalone_stack() {
@@ -740,6 +843,22 @@ parse_args() {
         ;;
       --db-password)
         DB_PASSWORD="$2"
+        shift 2
+        ;;
+      --app-secret)
+        APP_SECRET="$2"
+        shift 2
+        ;;
+      --app-encryption-keys)
+        APP_ENCRYPTION_KEYS="$2"
+        shift 2
+        ;;
+      --agent-registration-token)
+        AGENT_REGISTRATION_TOKEN="$2"
+        shift 2
+        ;;
+      --app-github-token)
+        APP_GITHUB_TOKEN="$2"
         shift 2
         ;;
       --php-version)

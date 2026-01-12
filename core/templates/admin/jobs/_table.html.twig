@@ -1,0 +1,75 @@
+{% set statusStyles = {
+    'queued': 'bg-amber-50 text-amber-700 border-amber-200',
+    'running': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'succeeded': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'failed': 'bg-rose-50 text-rose-700 border-rose-200',
+    'cancelled': 'bg-slate-100 text-slate-600 border-slate-200'
+} %}
+
+<div id="jobs-table" class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-slate-700 uppercase text-xs">
+        <tr>
+            <th class="px-5 py-3 text-left font-medium">{{ t('admin_jobs_table_id', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('type', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('status', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('admin_jobs_table_locked_by', page_locale()) }}</th>
+            <th class="px-5 py-3 text-left font-medium">{{ t('created', page_locale()) }}</th>
+            <th class="px-5 py-3 text-right font-medium">{{ t('actions', page_locale()) }}</th>
+        </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+        {% for job in jobs %}
+            <tr class="hover:bg-slate-50">
+                <td class="px-5 py-4 font-mono text-xs text-slate-600">{{ job.id }}</td>
+                <td class="px-5 py-4 font-medium">{{ job.type }}</td>
+                <td class="px-5 py-4">
+                    {% set style = statusStyles[job.status] ?? 'bg-slate-100 text-slate-600 border-slate-200' %}
+                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ style }}">
+                        {{ job.status|title }}
+                    </span>
+                </td>
+                <td class="px-5 py-4 text-slate-700">
+                    {% if job.lockedBy %}
+                        <div class="text-sm font-medium text-slate-700">{{ job.lockedBy }}</div>
+                        <div class="text-xs text-slate-600">{{ job.lockedAt ? job.lockedAt|date('Y-m-d H:i') : '' }}</div>
+                    {% else %}
+                        <span class="text-xs text-slate-600">{{ t('admin_jobs_unassigned', page_locale()) }}</span>
+                    {% endif %}
+                </td>
+                <td class="px-5 py-4 text-slate-700">{{ job.createdAt|date('Y-m-d H:i') }}</td>
+                <td class="px-5 py-4 text-right">
+                    <a class="text-xs font-semibold text-indigo-600 hover:text-indigo-500" href="/admin/jobs/{{ job.id }}">{{ t('view', page_locale()) }}</a>
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="6" class="px-5 py-8 text-center text-slate-600">{{ t('admin_jobs_empty', page_locale()) }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% if pagination is defined and pagination.totalPages > 1 %}
+        <div class="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-xs text-slate-700">
+            <div>
+                {{ t('admin_jobs_pagination_label', page_locale())|replace({'%page%': pagination.page, '%total%': pagination.totalPages}) }}
+            </div>
+            <div class="flex items-center gap-2">
+                <a
+                    href="/admin/jobs?page={{ pagination.previousPage }}"
+                    hx-get="/admin/jobs/table?page={{ pagination.previousPage }}"
+                    hx-target="#jobs-table"
+                    hx-swap="outerHTML"
+                    class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium {{ pagination.hasPrevious ? 'text-slate-600 hover:bg-slate-50' : 'text-slate-600 pointer-events-none' }}"
+                >{{ t('admin_jobs_pagination_previous', page_locale()) }}</a>
+                <a
+                    href="/admin/jobs?page={{ pagination.nextPage }}"
+                    hx-get="/admin/jobs/table?page={{ pagination.nextPage }}"
+                    hx-target="#jobs-table"
+                    hx-swap="outerHTML"
+                    class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium {{ pagination.hasNext ? 'text-slate-600 hover:bg-slate-50' : 'text-slate-600 pointer-events-none' }}"
+                >{{ t('admin_jobs_pagination_next', page_locale()) }}</a>
+            </div>
+        </div>
+    {% endif %}
+</div>

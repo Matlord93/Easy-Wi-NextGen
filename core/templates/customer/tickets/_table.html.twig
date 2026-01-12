@@ -1,0 +1,43 @@
+<div class="overflow-hidden">
+    <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-700">
+            <tr>
+                <th class="px-5 py-3">{{ t('customer_ticket_table_ticket', page_locale()) }}</th>
+                <th class="px-5 py-3">{{ t('customer_ticket_table_priority', page_locale()) }}</th>
+                <th class="px-5 py-3">{{ t('customer_ticket_table_status', page_locale()) }}</th>
+                <th class="px-5 py-3">{{ t('customer_ticket_table_last_update', page_locale()) }}</th>
+                <th class="px-5 py-3"></th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 bg-white">
+            {% for ticket in tickets %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-5 py-4">
+                        <div class="font-semibold text-slate-900">{{ ticket.subject }}</div>
+                        <div class="text-xs text-slate-700">{{ ticket.category|title }} · #{{ ticket.id }}</div>
+                    </td>
+                    <td class="px-5 py-4">
+                        <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold {{ priorityStyles[ticket.priority] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
+                            {{ ticket.priority|title }}
+                        </span>
+                    </td>
+                    <td class="px-5 py-4">
+                        <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold {{ statusStyles[ticket.status] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
+                            {{ ticket.status|title }}
+                        </span>
+                    </td>
+                    <td class="px-5 py-4 text-sm text-slate-700">
+                        {{ ticket.last_message_at|date('d.m.Y H:i') }}
+                    </td>
+                    <td class="px-5 py-4 text-right">
+                        <a href="/tickets/{{ ticket.id }}" class="text-indigo-600 text-sm font-semibold text-slate-900">{{ t('customer_ticket_table_open', page_locale()) }}</a>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td class="px-5 py-8 text-center text-sm text-slate-700" colspan="5">{{ t('customer_ticket_table_empty', page_locale()) }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

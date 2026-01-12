@@ -1,0 +1,143 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ t('user_management_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ t('user_management_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('user_management_description', page_locale()) }}</p>
+    </div>
+
+    {% if errors is not empty %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm text-rose-700">
+            <ul class="list-disc space-y-1 pl-5">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if success is not empty %}
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm text-emerald-700">
+            <ul class="list-disc space-y-1 pl-5">
+                {% for message in success %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold">{{ t('user_management_create_title', page_locale()) }}</h2>
+        <p class="text-sm text-slate-700">{{ t('user_management_create_intro', page_locale()) }}</p>
+        <form method="post" action="/admin/users" class="mt-4 grid gap-4 md:grid-cols-4">
+            <div class="md:col-span-2">
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('email', page_locale()) }}</label>
+                <input type="email" name="email" value="{{ createForm.email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            </div>
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('type', page_locale()) }}</label>
+                <select name="type" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="customer" {{ createForm.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
+                    <option value="reseller" {{ createForm.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
+                    <option value="admin" {{ createForm.type == 'admin' ? 'selected' : '' }}>{{ t('user_type_admin', page_locale()) }}</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password', page_locale()) }}</label>
+                <input type="password" name="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            </div>
+            <div class="md:col-span-2">
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password_confirm', page_locale()) }}</label>
+                <input type="password" name="password_confirm" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            </div>
+            <div class="md:col-span-2 flex items-end">
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('user_management_create_action', page_locale()) }}</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">
+                    <tr>
+                        <th class="px-4 py-3">{{ t('email', page_locale()) }}</th>
+                        <th class="px-4 py-3">{{ t('type', page_locale()) }}</th>
+                        <th class="px-4 py-3">{{ t('created', page_locale()) }}</th>
+                        <th class="px-4 py-3">{{ t('portal_language', page_locale()) }}</th>
+                        <th class="px-4 py-3">{{ t('invoice_locale', page_locale()) }}</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for user in users %}
+                        <tr class="bg-white">
+                            <td class="px-4 py-3 text-sm font-medium text-slate-900">{{ user.email }}</td>
+                            <td class="px-4 py-3 text-xs uppercase text-slate-700">{{ user.type }}</td>
+                            <td class="px-4 py-3 text-xs text-slate-700">{{ user.created_at|date('Y-m-d H:i') }}</td>
+                            <td class="px-4 py-3">
+                                <form method="post" action="/admin/users/{{ user.id }}/preferences" class="flex flex-wrap items-center gap-2">
+                                    <select name="portal_language" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
+                                        {% for code, label in portalLanguages %}
+                                            <option value="{{ code }}" {{ user.portal_language == code ? 'selected' : '' }}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                            </td>
+                            <td class="px-4 py-3">
+                                    <select name="locale" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
+                                        {% for code, label in locales %}
+                                            <option value="{{ code }}" {{ user.locale == code ? 'selected' : '' }}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                            </td>
+                            <td class="px-4 py-3">
+                                    <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-500">{{ t('save', page_locale()) }}</button>
+                                    {% if not user.has_preferences %}
+                                        <span class="ml-2 text-xs text-amber-600">{{ t('defaults_applied', page_locale()) }}</span>
+                                    {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                        <tr class="bg-slate-50/40">
+                            <td colspan="6" class="px-4 py-4">
+                                <form method="post" action="/admin/users/{{ user.id }}/details" class="grid gap-3 md:grid-cols-6">
+                                    <div class="md:col-span-2">
+                                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('email', page_locale()) }}</label>
+                                        <input type="email" name="email" value="{{ user.email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('type', page_locale()) }}</label>
+                                        <select name="type" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                            <option value="customer" {{ user.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
+                                            <option value="reseller" {{ user.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
+                                            <option value="admin" {{ user.type == 'admin' ? 'selected' : '' }}>{{ t('user_type_admin', page_locale()) }}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('new_password', page_locale()) }}</label>
+                                        <input type="password" name="password" placeholder="{{ t('password_optional', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password_confirm', page_locale()) }}</label>
+                                        <input type="password" name="password_confirm" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">{{ t('user_management_update_action', page_locale()) }}</button>
+                                    </div>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-600">{{ t('no_users_found', page_locale()) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

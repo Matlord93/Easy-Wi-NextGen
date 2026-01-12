@@ -3,7 +3,7 @@
 ## Overview
 Stage 1 enables a minimal Windows control-plane agent:
 - Heartbeats include `os=windows` and minimal capabilities.
-- Job polling is restricted to safe jobs only (`agent.self_update`, `agent.diagnostics`).
+- Job polling is restricted to safe jobs only (`agent.self_update`).
 - Windows nodes are disabled by default via `APP_WINDOWS_NODES_ENABLED=0`.
 
 Stage 2 adds Windows service wrapper scripts plus a safer update swap.

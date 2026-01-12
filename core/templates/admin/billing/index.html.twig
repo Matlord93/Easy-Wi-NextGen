@@ -1,0 +1,157 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ t('admin_billing_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="space-y-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold text-slate-900">{{ t('admin_billing_heading', page_locale()) }}</h1>
+                <p class="text-sm text-slate-700">{{ t('admin_billing_intro', page_locale()) }}</p>
+            </div>
+            <div class="flex gap-3">
+            <a href="/admin/billing/invoices/new" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_billing_create_invoice', page_locale()) }}</a>
+            <form method="post" action="/admin/billing/dunning">
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">{{ t('admin_billing_run_dunning', page_locale()) }}</button>
+            </form>
+        </div>
+    </div>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-xs uppercase text-slate-600">{{ t('admin_billing_open_invoices', page_locale()) }}</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ summary.open }}</p>
+                <p class="mt-1 text-xs text-slate-700">{{ t('admin_billing_awaiting_payment', page_locale()) }}</p>
+            </div>
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+                <p class="text-xs uppercase text-amber-600">{{ t('admin_billing_past_due', page_locale()) }}</p>
+                <p class="mt-2 text-2xl font-semibold text-amber-900">{{ summary.past_due }}</p>
+                <p class="mt-1 text-xs text-amber-700">{{ t('admin_billing_requires_dunning', page_locale()) }}</p>
+            </div>
+            <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+                <p class="text-xs uppercase text-emerald-600">{{ t('admin_billing_paid', page_locale()) }}</p>
+                <p class="mt-2 text-2xl font-semibold text-emerald-900">{{ summary.paid }}</p>
+                <p class="mt-1 text-xs text-emerald-700">{{ t('admin_billing_last_30_days', page_locale()) }}</p>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_billing_recent_invoices', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('admin_billing_recent_invoices_intro', page_locale()) }}</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <a href="/admin/billing/export?type=invoices" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">{{ t('admin_billing_export_invoices', page_locale()) }}</a>
+                    <a href="/admin/billing/export?type=payments" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">{{ t('admin_billing_export_payments', page_locale()) }}</a>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_table_invoice', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_table_customer', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_table_due_date', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_table_amount_due', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_table_status', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_table_archive', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_table_actions', page_locale()) }}</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                    {% for invoice in invoices %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4 font-medium text-slate-900">{{ invoice.number }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ invoice.customer }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ invoice.due_date|date('Y-m-d') }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ invoice.amount_due / 100 }} {{ invoice.currency }}</td>
+                            <td class="px-6 py-4">
+                                {% if invoice.status == 'paid' %}
+                                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">{{ t('admin_billing_status_paid', page_locale()) }}</span>
+                                {% elseif invoice.status == 'past_due' %}
+                                    <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">{{ t('admin_billing_status_past_due', page_locale()) }}</span>
+                                {% elseif invoice.status == 'open' %}
+                                    <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">{{ t('admin_billing_status_open', page_locale()) }}</span>
+                                {% else %}
+                                    <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{{ invoice.status|replace({'_': ' '})|title }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if invoice.is_archived %}
+                                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">{{ t('admin_billing_status_archived', page_locale()) }}</span>
+                                {% else %}
+                                    <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{{ t('admin_billing_status_pending', page_locale()) }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                <a href="/admin/billing/invoices/{{ invoice.id }}" class="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">{{ t('admin_billing_details', page_locale()) }}</a>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="px-6 py-8 text-center text-sm text-slate-700">{{ t('admin_billing_no_invoices', page_locale()) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_billing_credit_notes', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('admin_billing_credit_notes_intro', page_locale()) }}</p>
+                </div>
+                <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">{{ t('admin_billing_create_credit', page_locale()) }}</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_credit_note', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_credit_invoice', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_credit_customer', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_credit_issued', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_credit_amount', page_locale()) }}</th>
+                        <th class="px-6 py-3 text-left">{{ t('admin_billing_credit_status', page_locale()) }}</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                    {% for credit in credit_notes %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4 font-medium text-slate-900">{{ credit.number }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ credit.invoice_number }}</td>
+                            <td class="px-6 py-4 text-slate-600">{{ credit.customer }}</td>
+                            <td class="px-6 py-4 text-slate-600">
+                                {% if credit.issued_at %}
+                                    {{ credit.issued_at|date('Y-m-d') }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-slate-600">{{ credit.amount / 100 }} {{ credit.currency }}</td>
+                            <td class="px-6 py-4">
+                                {% if credit.status == 'issued' %}
+                                    <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">{{ t('admin_billing_credit_status_issued', page_locale()) }}</span>
+                                {% elseif credit.status == 'applied' %}
+                                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">{{ t('admin_billing_credit_status_applied', page_locale()) }}</span>
+                                {% elseif credit.status == 'voided' %}
+                                    <span class="inline-flex items-center rounded-full bg-rose-100 px-3 py-1 text-xs font-medium text-rose-700">{{ t('admin_billing_credit_status_voided', page_locale()) }}</span>
+                                {% else %}
+                                    <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{{ t('admin_billing_credit_status_draft', page_locale()) }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-8 text-center text-sm text-slate-700">{{ t('admin_billing_no_credit_notes', page_locale()) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}

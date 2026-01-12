@@ -1,0 +1,77 @@
+<div class="px-5 py-4 border-b border-slate-200">
+    <h2 class="text-lg font-semibold">{{ form.action == 'create' ? t('admin_mailboxes_create_title', page_locale()) : t('admin_mailboxes_edit_title', page_locale()) }}</h2>
+    <p class="text-sm text-slate-700">{{ t('admin_mailboxes_form_intro', page_locale()) }}</p>
+</div>
+<div class="p-5 space-y-4">
+    {% if form.errors is not empty %}
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <p class="font-semibold mb-1">{{ t('admin_form_fix_following', page_locale()) }}</p>
+            <ul class="list-disc list-inside space-y-1">
+                {% for error in form.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+    <form
+        class="space-y-4"
+        hx-post="{{ form.action_url }}"
+        hx-target="#mailbox-form"
+        hx-swap="outerHTML"
+    >
+        {% if form.action == 'create' %}
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_mailboxes_domain', page_locale()) }}</label>
+                <select name="domain_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                    {% for domain in domains %}
+                        <option value="{{ domain.id }}" {{ domain.id == form.domain_id ? 'selected' : '' }}>{{ domain.name }}</option>
+                    {% else %}
+                        <option value="">{{ t('admin_mailboxes_no_domains', page_locale()) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_mailboxes_name', page_locale()) }}</label>
+                <div class="mt-2 flex items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                    <input name="local_part" value="{{ form.local_part }}" placeholder="{{ t('admin_mailboxes_name_placeholder', page_locale()) }}" class="flex-1 bg-transparent focus:outline-none">
+                    <span class="text-slate-600">@</span>
+                    <span class="ml-1 text-slate-600">{{ form.domain_name ?? t('admin_mailboxes_domain_placeholder', page_locale()) }}</span>
+                </div>
+            </div>
+        {% else %}
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                <p class="text-xs uppercase text-slate-700">{{ t('admin_mailboxes_address_label', page_locale()) }}</p>
+                <p class="mt-1 text-sm font-semibold text-slate-900 text-slate-700">{{ form.address }}</p>
+            </div>
+        {% endif %}
+        <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_mailboxes_password', page_locale()) }}</label>
+            <input name="password" type="password" placeholder="{{ form.action == 'create' ? t('admin_mailboxes_password_required', page_locale()) : t('admin_mailboxes_password_optional', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <p class="mt-1 text-xs text-slate-700">{{ t('admin_mailboxes_password_hint', page_locale()) }}</p>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_mailboxes_quota', page_locale()) }}</label>
+                <input name="quota" type="number" min="0" value="{{ form.quota }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('status', page_locale()) }}</label>
+                <div class="mt-2 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                    <input type="hidden" name="enabled" value="0">
+                    <input id="mailbox-enabled" name="enabled" type="checkbox" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ form.enabled ? 'checked' : '' }}>
+                    <label for="mailbox-enabled" class="text-sm text-slate-600">{{ t('admin_mailboxes_enabled_delivery', page_locale()) }}</label>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button type="submit" class="rounded-lg {{ form.submit_color }} px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ form.submit_label }}</button>
+            <button
+                type="button"
+                class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600"
+                hx-get="/admin/mailboxes/form"
+                hx-target="#mailbox-form"
+                hx-swap="outerHTML"
+            >{{ t('reset', page_locale()) }}</button>
+        </div>
+    </form>
+</div>

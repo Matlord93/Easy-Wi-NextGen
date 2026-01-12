@@ -1,0 +1,34 @@
+<div class="overflow-hidden">
+    <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-700">
+            <tr>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_type', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_version', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_accepted_at', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_ip', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">{{ t('customer_gdpr_consents_user_agent', page_locale()) }}</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+            {% if logs is empty %}
+                <tr>
+                    <td colspan="5" class="px-5 py-6 text-center text-sm text-slate-700">{{ t('customer_gdpr_consents_empty', page_locale()) }}</td>
+                </tr>
+            {% else %}
+                {% for log in logs %}
+                    <tr class="bg-white">
+                        <td class="px-5 py-4">
+                            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ typeStyles[log.type.value].badge }}">
+                                {{ typeStyles[log.type.value].label }}
+                            </span>
+                        </td>
+                        <td class="px-5 py-4 text-slate-700">{{ log.version }}</td>
+                        <td class="px-5 py-4 text-slate-700">{{ log.acceptedAt|date('Y-m-d H:i') }}</td>
+                        <td class="px-5 py-4 text-slate-700">{{ log.ip }}</td>
+                        <td class="px-5 py-4 text-slate-700 truncate max-w-[220px]" title="{{ log.userAgent }}">{{ log.userAgent }}</td>
+                    </tr>
+                {% endfor %}
+            {% endif %}
+        </tbody>
+    </table>
+</div>

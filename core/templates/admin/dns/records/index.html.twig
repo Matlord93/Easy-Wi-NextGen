@@ -1,0 +1,59 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ t('admin_dns_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ t('admin_dns_heading', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_dns_intro', page_locale()) }}</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+            hx-get="/admin/dns/records/table"
+            hx-target="#dns-records-table"
+            hx-swap="outerHTML"
+        >{{ t('refresh', page_locale()) }}</button>
+        <button
+            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
+            hx-get="/admin/dns/records/form"
+            hx-target="#dns-record-form"
+            hx-swap="outerHTML"
+        >{{ t('admin_dns_new_record', page_locale()) }}</button>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_dns_total_records', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_dns_a_records', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.byType.A ?? 0 }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_dns_cname_records', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.byType.CNAME ?? 0 }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_dns_mx_records', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.byType.MX ?? 0 }}</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div id="dns-record-form" class="rounded-xl bg-white border border-slate-200">
+        {% include 'admin/dns/records/_form.html.twig' with { domains: domains, recordTypes: recordTypes, form: form } %}
+    </div>
+    <div class="lg:col-span-2">
+        <div id="dns-records-table" class="rounded-xl bg-white border border-slate-200"
+             hx-get="/admin/dns/records/table"
+             hx-trigger="dns-records-changed from:body"
+             hx-swap="outerHTML">
+            {% include 'admin/dns/records/_table.html.twig' with { records: records } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

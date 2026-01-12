@@ -1,0 +1,60 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ t('admin_billing_create_invoice', page_locale()) }} · {{ t('admin_billing_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold text-slate-900">{{ t('admin_billing_create_invoice', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_billing_create_invoice_intro', page_locale()) }}</p>
+    </div>
+
+    {% if form.errors is not empty %}
+        <div class="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <p class="font-semibold mb-1">{{ t('admin_form_fix_following', page_locale()) }}</p>
+            <ul class="list-disc list-inside space-y-1">
+                {% for error in form.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post" action="/admin/billing/invoices" class="space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_billing_customer', page_locale()) }}</label>
+            <select name="customer_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                {% for customer in customers %}
+                    <option value="{{ customer.id }}" {{ customer.id == form.customer_id ? 'selected' : '' }}>{{ customer.email }}</option>
+                {% else %}
+                    <option value="">{{ t('admin_billing_no_customers', page_locale()) }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_billing_invoice_number', page_locale()) }}</label>
+                <input name="number" value="{{ form.number }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_billing_invoice_due_date', page_locale()) }}</label>
+                <input name="due_date" type="date" value="{{ form.due_date_raw ?? form.due_date }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            </div>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_billing_amount_total', page_locale()) }}</label>
+                <input name="amount" value="{{ form.amount }}" placeholder="99.00" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_billing_currency', page_locale()) }}</label>
+                <input name="currency" value="{{ form.currency }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_billing_create_invoice_submit', page_locale()) }}</button>
+            <a href="/admin/billing" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600">{{ t('cancel', page_locale()) }}</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

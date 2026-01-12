@@ -1,0 +1,50 @@
+<div class="p-6 border-b border-slate-200">
+    <h2 class="text-lg font-semibold">{{ t('customer_ticket_new_title', page_locale()) }}</h2>
+    <p class="text-sm text-slate-700">{{ t('customer_ticket_new_intro', page_locale()) }}</p>
+</div>
+<form class="p-6 space-y-4" method="post" action="/tickets" hx-post="/tickets" hx-target="#ticket-form" hx-swap="outerHTML">
+    {% if form.errors is not empty %}
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <ul class="list-disc list-inside">
+                {% for error in form.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div>
+        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_ticket_subject', page_locale()) }}</label>
+        <input name="subject" value="{{ form.subject }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('customer_ticket_subject_placeholder', page_locale()) }}" />
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_ticket_category', page_locale()) }}</label>
+            <select name="category" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="general" {{ form.category == 'general' ? 'selected' : '' }}>{{ t('customer_ticket_category_general', page_locale()) }}</option>
+                <option value="billing" {{ form.category == 'billing' ? 'selected' : '' }}>{{ t('customer_ticket_category_billing', page_locale()) }}</option>
+                <option value="technical" {{ form.category == 'technical' ? 'selected' : '' }}>{{ t('customer_ticket_category_technical', page_locale()) }}</option>
+                <option value="abuse" {{ form.category == 'abuse' ? 'selected' : '' }}>{{ t('customer_ticket_category_abuse', page_locale()) }}</option>
+            </select>
+        </div>
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_ticket_priority', page_locale()) }}</label>
+            <select name="priority" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="low" {{ form.priority == 'low' ? 'selected' : '' }}>{{ t('customer_ticket_priority_low', page_locale()) }}</option>
+                <option value="normal" {{ form.priority == 'normal' ? 'selected' : '' }}>{{ t('customer_ticket_priority_normal', page_locale()) }}</option>
+                <option value="high" {{ form.priority == 'high' ? 'selected' : '' }}>{{ t('customer_ticket_priority_high', page_locale()) }}</option>
+                <option value="urgent" {{ form.priority == 'urgent' ? 'selected' : '' }}>{{ t('customer_ticket_priority_urgent', page_locale()) }}</option>
+            </select>
+        </div>
+    </div>
+
+    <div>
+        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_ticket_message', page_locale()) }}</label>
+        <textarea name="message" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('customer_ticket_message_placeholder', page_locale()) }}">{{ form.message }}</textarea>
+    </div>
+
+    <div class="flex items-center justify-end">
+        <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ t('customer_ticket_submit', page_locale()) }}</button>
+    </div>
+</form>

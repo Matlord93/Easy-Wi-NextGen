@@ -1,0 +1,59 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Mail Aliases · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ t('admin_mail_aliases_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_mail_aliases_intro', page_locale()) }}</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+            hx-get="/admin/mail-aliases/table"
+            hx-target="#mail-aliases-table"
+            hx-swap="outerHTML"
+        >{{ t('refresh', page_locale()) }}</button>
+        <button
+            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
+            hx-get="/admin/mail-aliases/form"
+            hx-target="#mail-alias-form"
+            hx-swap="outerHTML"
+        >{{ t('admin_mail_aliases_new', page_locale()) }}</button>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_mail_aliases_total', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_status_enabled', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.enabled }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_status_disabled', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-rose-500">{{ summary.disabled }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_mail_aliases_destinations', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.destinations }}</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div id="mail-alias-form" class="rounded-xl bg-white border border-slate-200">
+        {% include 'admin/mail-aliases/_form.html.twig' with { domains: domains, form: form } %}
+    </div>
+    <div class="lg:col-span-2">
+        <div id="mail-aliases-table" class="rounded-xl bg-white border border-slate-200"
+             hx-get="/admin/mail-aliases/table"
+             hx-trigger="mail-aliases-changed from:body"
+             hx-swap="outerHTML">
+            {% include 'admin/mail-aliases/_table.html.twig' with { aliases: aliases } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ t('admin_downloads_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold">{{ t('admin_downloads_heading', page_locale()) }}</h1>
+            <p class="text-sm text-slate-700">{{ t('admin_downloads_intro', page_locale()) }}</p>
+        </div>
+        <div class="grid grid-cols-3 gap-3 text-center">
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs uppercase text-slate-700">{{ t('admin_downloads_total_label', page_locale()) }}</p>
+                <p class="text-xl font-semibold text-slate-900">{{ summary.total }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs uppercase text-slate-700">{{ t('admin_downloads_public_label', page_locale()) }}</p>
+                <p class="text-xl font-semibold text-emerald-600">{{ summary.public }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p class="text-xs uppercase text-slate-700">{{ t('admin_downloads_hidden_label', page_locale()) }}</p>
+                <p class="text-xl font-semibold text-slate-700">{{ summary.hidden }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
+        <div class="rounded-xl border border-slate-200 bg-white" id="downloads-table" hx-trigger="downloads-changed from:body" hx-get="/admin/downloads/table" hx-swap="outerHTML">
+            {% include 'admin/downloads/_table.html.twig' with { items: items } %}
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white" id="download-form" hx-trigger="downloads-changed from:body" hx-get="/admin/downloads/form" hx-swap="outerHTML">
+            {% include 'admin/downloads/_form.html.twig' with { form: form } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

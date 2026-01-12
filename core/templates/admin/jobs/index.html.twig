@@ -1,0 +1,47 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Jobs · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ t('admin_jobs_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_jobs_intro', page_locale()) }}</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">{{ t('export', page_locale()) }}</button>
+        <a href="/admin/jobs/new" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">{{ t('admin_jobs_create', page_locale()) }}</a>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_jobs_total', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_jobs_running', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.running }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_jobs_queued', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.queued }}</p>
+    </div>
+</div>
+
+<div class="rounded-xl bg-white border border-slate-200">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+        <div>
+            <h2 class="text-lg font-semibold">{{ t('admin_jobs_recent_title', page_locale()) }}</h2>
+            <p class="text-sm text-slate-700">{{ t('admin_jobs_recent_intro', page_locale()) }}</p>
+        </div>
+        <button
+            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+            hx-get="/admin/jobs/table?page={{ pagination.page }}"
+            hx-target="#jobs-table"
+            hx-swap="outerHTML"
+        >{{ t('refresh', page_locale()) }}</button>
+    </div>
+    {% include 'admin/jobs/_table.html.twig' with { jobs: jobs, pagination: pagination } %}
+</div>
+{% endblock %}

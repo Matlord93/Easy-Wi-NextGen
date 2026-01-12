@@ -1,0 +1,223 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ t('admin_tickets_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ t('admin_tickets_heading', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_tickets_intro', page_locale()) }}</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+            {{ summary.total }} {{ summary.total == 1 ? t('admin_tickets_total_singular', page_locale()) : t('admin_tickets_total_plural', page_locale()) }}
+        </span>
+        <button
+            class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
+            hx-get="/admin/tickets/table"
+            hx-target="#tickets-table"
+            hx-swap="outerHTML"
+        >{{ t('refresh', page_locale()) }}</button>
+    </div>
+</div>
+
+{% if success is not empty %}
+    <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
+        <ul class="list-disc space-y-1 pl-4">
+            {% for message in success %}
+                <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+{% endif %}
+
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_total_label', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_open', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.open }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_pending', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.pending }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_resolved', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.resolved }}</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
+    <div class="rounded-xl bg-white border border-slate-200">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+            <div>
+                <h2 class="text-lg font-semibold">{{ t('admin_tickets_inbox_title', page_locale()) }}</h2>
+                <p class="text-sm text-slate-700">{{ t('admin_tickets_inbox_intro', page_locale()) }}</p>
+            </div>
+            <button
+                class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+                hx-get="/admin/tickets/table"
+                hx-target="#tickets-table"
+                hx-swap="outerHTML"
+            >{{ t('refresh', page_locale()) }}</button>
+        </div>
+        <div id="tickets-table" hx-get="/admin/tickets/table" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
+            {% include 'admin/tickets/_table.html.twig' with { tickets: tickets, statusStyles: statusStyles, priorityStyles: priorityStyles } %}
+        </div>
+    </div>
+
+    <div id="ticket-form" class="rounded-xl bg-white border border-slate-200" hx-trigger="tickets-changed from:body" hx-get="/admin/tickets/form" hx-swap="outerHTML">
+        {% include 'admin/tickets/_form.html.twig' with { form: form, customers: customers, templates: templates, adminSignature: adminSignature } %}
+    </div>
+</div>
+
+<div class="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="rounded-xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 px-6 py-4">
+            <h2 class="text-lg font-semibold">{{ t('admin_tickets_templates_title', page_locale()) }}</h2>
+            <p class="text-sm text-slate-700">{{ t('admin_tickets_templates_intro', page_locale()) }}</p>
+        </div>
+        <div class="p-6 space-y-4">
+            {% if templateErrors is not empty %}
+                <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    <ul class="list-disc list-inside">
+                        {% for error in templateErrors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            <form method="post" action="/admin/tickets/templates" class="space-y-4 rounded-lg border border-slate-200 p-4">
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_title', page_locale()) }}</label>
+                    <input name="title" value="{{ templateForm.title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_subject', page_locale()) }}</label>
+                    <input name="subject" value="{{ templateForm.subject }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_category', page_locale()) }}</label>
+                        <select name="category" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                            <option value="general" {{ templateForm.category == 'general' ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
+                            <option value="billing" {{ templateForm.category == 'billing' ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
+                            <option value="technical" {{ templateForm.category == 'technical' ? 'selected' : '' }}>{{ t('admin_tickets_category_technical', page_locale()) }}</option>
+                            <option value="abuse" {{ templateForm.category == 'abuse' ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', page_locale()) }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_priority', page_locale()) }}</label>
+                        <select name="priority" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                            <option value="low" {{ templateForm.priority == 'low' ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
+                            <option value="normal" {{ templateForm.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', page_locale()) }}</option>
+                            <option value="high" {{ templateForm.priority == 'high' ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', page_locale()) }}</option>
+                            <option value="urgent" {{ templateForm.priority == 'urgent' ? 'selected' : '' }}>{{ t('admin_tickets_priority_urgent', page_locale()) }}</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_body', page_locale()) }}</label>
+                    <textarea name="body" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ templateForm.body }}</textarea>
+                </div>
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_tickets_template_create', page_locale()) }}</button>
+            </form>
+
+            {% if templates is empty %}
+                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-700">
+                    {{ t('admin_tickets_templates_empty', page_locale()) }}
+                </div>
+            {% else %}
+                <div class="space-y-4">
+                    {% for template in templates %}
+                        <form method="post" action="/admin/tickets/templates/{{ template.id }}" class="rounded-lg border border-slate-200 p-4 space-y-3">
+                            <div class="flex items-center justify-between gap-4">
+                                <h3 class="text-sm font-semibold text-slate-900">{{ template.title }}</h3>
+                                <span class="text-xs text-slate-600">{{ template.updated_at|date('d.m.Y H:i') }}</span>
+                            </div>
+                            <div class="grid gap-3">
+                                <input name="title" value="{{ template.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <input name="subject" value="{{ template.subject }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <select name="category" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        <option value="general" {{ template.category == 'general' ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
+                                        <option value="billing" {{ template.category == 'billing' ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
+                                        <option value="technical" {{ template.category == 'technical' ? 'selected' : '' }}>{{ t('admin_tickets_category_technical', page_locale()) }}</option>
+                                        <option value="abuse" {{ template.category == 'abuse' ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', page_locale()) }}</option>
+                                    </select>
+                                    <select name="priority" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        <option value="low" {{ template.priority == 'low' ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
+                                        <option value="normal" {{ template.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', page_locale()) }}</option>
+                                        <option value="high" {{ template.priority == 'high' ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', page_locale()) }}</option>
+                                        <option value="urgent" {{ template.priority == 'urgent' ? 'selected' : '' }}>{{ t('admin_tickets_priority_urgent', page_locale()) }}</option>
+                                    </select>
+                                </div>
+                                <textarea name="body" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ template.body }}</textarea>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3">
+                                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">{{ t('admin_tickets_template_save', page_locale()) }}</button>
+                                <button type="submit" formmethod="post" formaction="/admin/tickets/templates/{{ template.id }}/delete" class="rounded-lg border border-rose-200 px-4 py-2 text-xs font-semibold text-rose-600">{{ t('admin_tickets_template_delete', page_locale()) }}</button>
+                            </div>
+                        </form>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 px-6 py-4">
+            <h2 class="text-lg font-semibold">{{ t('admin_tickets_quick_replies_title', page_locale()) }}</h2>
+            <p class="text-sm text-slate-700">{{ t('admin_tickets_quick_replies_intro', page_locale()) }}</p>
+        </div>
+        <div class="p-6 space-y-4">
+            {% if quickReplyErrors is not empty %}
+                <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    <ul class="list-disc list-inside">
+                        {% for error in quickReplyErrors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            <form method="post" action="/admin/tickets/quick-replies" class="space-y-4 rounded-lg border border-slate-200 p-4">
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_quick_reply_title', page_locale()) }}</label>
+                    <input name="title" value="{{ quickReplyForm.title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_quick_reply_body', page_locale()) }}</label>
+                    <textarea name="body" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ quickReplyForm.body }}</textarea>
+                </div>
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_tickets_quick_reply_create', page_locale()) }}</button>
+            </form>
+
+            {% if quickReplies is empty %}
+                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-700">
+                    {{ t('admin_tickets_quick_replies_empty', page_locale()) }}
+                </div>
+            {% else %}
+                <div class="space-y-4">
+                    {% for reply in quickReplies %}
+                        <form method="post" action="/admin/tickets/quick-replies/{{ reply.id }}" class="rounded-lg border border-slate-200 p-4 space-y-3">
+                            <div class="flex items-center justify-between gap-4">
+                                <h3 class="text-sm font-semibold text-slate-900">{{ reply.title }}</h3>
+                                <span class="text-xs text-slate-600">{{ reply.updated_at|date('d.m.Y H:i') }}</span>
+                            </div>
+                            <input name="title" value="{{ reply.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                            <textarea name="body" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ reply.body }}</textarea>
+                            <div class="flex flex-wrap items-center gap-3">
+                                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">{{ t('admin_tickets_quick_reply_save', page_locale()) }}</button>
+                                <button type="submit" formmethod="post" formaction="/admin/tickets/quick-replies/{{ reply.id }}/delete" class="rounded-lg border border-rose-200 px-4 py-2 text-xs font-semibold text-rose-600">{{ t('admin_tickets_quick_reply_delete', page_locale()) }}</button>
+                            </div>
+                        </form>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

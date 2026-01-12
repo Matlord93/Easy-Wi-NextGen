@@ -127,6 +127,10 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleOSUpdate(job)
 	case "os.reboot":
 		return handleOSReboot(job)
+	case "server.update.check":
+		return handleServerUpdateCheck(job)
+	case "server.update.run":
+		return handleServerUpdateRun(job)
 	case "role.ensure_base":
 		return handleRoleEnsureBase(job)
 	case "security.ensure_base":
@@ -301,15 +305,7 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 
 func isWindowsSafeJob(jobType string) bool {
 	switch jobType {
-	case "agent.update", "agent.self_update", "agent.diagnostics":
-		return true
-	case "role.ensure_base", "web.ensure_base":
-		return true
-	case "security.ensure_base", "game.ensure_base", "mail.ensure_base", "dns.ensure_base", "db.ensure_base":
-		return true
-	case "ddos.policy.apply", "ddos.status.check":
-		return true
-	case "server.reboot.check_required", "server.reboot.run":
+	case "agent.self_update":
 		return true
 	default:
 		return false
@@ -319,6 +315,7 @@ func isWindowsSafeJob(jobType string) bool {
 func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 	downloadURL := payloadValue(job.Payload, "download_url", "artifact_url", "url")
 	checksumsURL := payloadValue(job.Payload, "checksums_url", "checksum_url", "checksums")
+	signatureURL := payloadValue(job.Payload, "signature_url", "checksums_signature_url", "checksum_signature_url")
 	assetName := payloadValue(job.Payload, "asset_name")
 
 	if downloadURL == "" || checksumsURL == "" {
@@ -333,6 +330,7 @@ func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 	updatePlan, err := system.ApplyUpdateFromChecksums(context.Background(), system.UpdateFromChecksumsOptions{
 		DownloadURL:  downloadURL,
 		ChecksumsURL: checksumsURL,
+		SignatureURL: signatureURL,
 		AssetName:    assetName,
 	})
 	if err != nil {

@@ -25,6 +25,22 @@ LOG_FILE="/var/log/easywi/installer.log"
 
 LOG_PREFIX="[easywi-installer]"
 STEP_COUNTER=0
+RELEASE_PUBLIC_KEY="${EASYWI_RELEASE_PUBLIC_KEY:-$(cat <<'KEY'
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+
+mDMEaWTbehYJKwYBBAHaRw8BAQdAaRJmIoen1V9S7W0VIMtRyPHANpidDa3ZFGI4
+iL+0Itq0KkVhc3lXSSBSZWxlYXNlIChDSSkgPHJlbGVhc2VAZWFzeXdpLmxvY2Fs
+PoiTBBMWCgA7FiEENEv9uCvTSiHN1juBo5vGaohjrjgFAmlk23oCGwMFCwkIBwIC
+IgIGFQoJCAsCBBYCAwECHgcCF4AACgkQo5vGaohjrjjsVgEAv798sRczk7V3+JJx
+eIsDaLuoPNLnmgjJJBTeDTWi4BcBAIri1gp6vLUQPEvztlsR3C0TrA+AcM3wFybh
+TqhxmAUEuDgEaWTbehIKKwYBBAGXVQEFAQEHQN3j5y6phFmYpm7aSyzCyEDMv4hk
+fp0lazlpiLEVu+5fAwEIB4h4BBgWCgAgFiEENEv9uCvTSiHN1juBo5vGaohjrjgF
+Amlk23oCGwwACgkQo5vGaohjrjiJEgD/a6hao11MEXFSq0tViwKk47LDh+cbMlus
+AGv4kekSZQ4BAPNk4zhcPAn0y7b6Kq4D/a6ZP5ffUgw391Ce4Dtxm7EO
+=zglq
+-----END PGP PUBLIC KEY BLOCK-----
+KEY
+)}"
 
 usage() {
   cat <<USAGE
@@ -100,6 +116,7 @@ preflight_tools() {
   fi
 
   command_exists sha256sum || fatal "Missing sha256sum"
+  command_exists gpg || fatal "Missing gpg (required for release signature verification)"
   command_exists systemctl || fatal "systemd is required"
 }
 
@@ -371,6 +388,27 @@ download_file() {
   fi
 }
 
+verify_checksums_signature() {
+  local checksums_path="$1"
+  local signature_path="$2"
+  local gpg_home
+
+  gpg_home="$(mktemp -d)"
+  chmod 700 "${gpg_home}"
+
+  if ! printf '%s' "${RELEASE_PUBLIC_KEY}" | gpg --batch --homedir "${gpg_home}" --import >/dev/null 2>&1; then
+    rm -rf "${gpg_home}"
+    fatal "Failed to import release signing key"
+  fi
+
+  if ! gpg --batch --homedir "${gpg_home}" --verify "${signature_path}" "${checksums_path}" >/dev/null 2>&1; then
+    rm -rf "${gpg_home}"
+    fatal "Invalid checksum signature"
+  fi
+
+  rm -rf "${gpg_home}"
+}
+
 resolve_latest_release() {
   local repository="$1"
   local version=""
@@ -402,11 +440,13 @@ download_agent() {
   local tmp_dir
   local asset_name
   local checksum_name
+  local signature_name
   local checksum_line
   local resolved_version="$version"
   tmp_dir="$(mktemp -d)"
   asset_name="easywi-agent-linux-${arch}"
   checksum_name="checksums-agent.txt"
+  signature_name="${checksum_name}.asc"
 
   if [[ "${version}" == "latest" ]]; then
     resolved_version="$(resolve_latest_release "${REPO_OWNER}/${REPO_NAME}")"
@@ -418,6 +458,10 @@ download_agent() {
   log "Downloading agent ${resolved_version} (${asset_name})"
   download_file "${release_url}/${asset_name}" "${tmp_dir}/${asset_name}"
   download_file "${release_url}/${checksum_name}" "${tmp_dir}/${checksum_name}"
+  download_file "${release_url}/${signature_name}" "${tmp_dir}/${signature_name}"
+
+  log "Verifying checksum signature"
+  verify_checksums_signature "${tmp_dir}/${checksum_name}" "${tmp_dir}/${signature_name}"
 
   checksum_line=$(awk -v asset="${asset_name}" '$2==asset {print}' "${tmp_dir}/${checksum_name}")
   if [[ -z "${checksum_line}" ]]; then
@@ -437,10 +481,12 @@ download_runner() {
   local tmp_dir
   local asset_name
   local checksum_name
+  local signature_name
   local checksum_line
   tmp_dir="$(mktemp -d)"
   asset_name="easywi-agent-linux-${arch}"
   checksum_name="checksums-agent.txt"
+  signature_name="${checksum_name}.asc"
 
   if [[ "${version}" == "latest" ]]; then
     release_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download"
@@ -451,6 +497,10 @@ download_runner() {
   log "Downloading runner ${version} (${asset_name})"
   download_file "${release_url}/${asset_name}" "${tmp_dir}/${asset_name}"
   download_file "${release_url}/${checksum_name}" "${tmp_dir}/${checksum_name}"
+  download_file "${release_url}/${signature_name}" "${tmp_dir}/${signature_name}"
+
+  log "Verifying runner checksum signature"
+  verify_checksums_signature "${tmp_dir}/${checksum_name}" "${tmp_dir}/${signature_name}"
 
   checksum_line=$(awk -v asset="${asset_name}" '$2==asset {print}' "${tmp_dir}/${checksum_name}")
   if [[ -z "${checksum_line}" ]]; then

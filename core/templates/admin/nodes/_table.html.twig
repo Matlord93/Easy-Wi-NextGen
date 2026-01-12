@@ -1,0 +1,106 @@
+{% set statusStyles = {
+    'online': 'badge badge--success',
+    'stale': 'badge badge--warning',
+    'offline': 'badge badge--danger',
+    'provisioning': 'badge badge--primary',
+    'maintenance': 'badge badge--neutral'
+} %}
+
+{% set roleStyles = {
+    'core': 'bg-teal-50 text-teal-700 border-teal-200',
+    'web': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'mail': 'bg-amber-50 text-amber-700 border-amber-200',
+    'dns': 'bg-sky-50 text-sky-700 border-sky-200',
+    'game': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'db': 'bg-purple-50 text-purple-700 border-purple-200'
+} %}
+
+{% set updateJobStyles = {
+    'queued': 'bg-slate-100 text-slate-700 border-slate-200',
+    'running': 'bg-sky-50 text-sky-700 border-sky-200',
+    'succeeded': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'failed': 'bg-rose-50 text-rose-700 border-rose-200',
+    'cancelled': 'bg-amber-50 text-amber-700 border-amber-200'
+} %}
+
+<div id="nodes-table" class="overflow-x-auto" hx-get="/admin/nodes/table" hx-trigger="every 15s" hx-swap="outerHTML">
+    {% if notice is defined or error is defined %}
+        <div class="nodes-detail">
+            {% if notice is defined and notice %}
+                <div class="nodes-alert nodes-alert--success">
+                    {{ notice }}
+                </div>
+            {% endif %}
+            {% if error %}
+                <div class="nodes-alert nodes-alert--danger">
+                    {{ error }}
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+    <table class="nodes-table">
+        <thead>
+        <tr>
+            <th>{{ t('admin_nodes_table_node', page_locale()) }}</th>
+            <th>{{ t('admin_nodes_table_role', page_locale()) }}</th>
+            <th>{{ t('status', page_locale()) }}</th>
+            <th>DDoS</th>
+            <th>{{ t('admin_nodes_table_last_seen', page_locale()) }}</th>
+            <th>{{ t('admin_nodes_table_version', page_locale()) }}</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for node in nodes %}
+            <tr>
+                <td>
+                    <div class="nodes-node__name">{{ node.name ?? t('admin_nodes_unnamed', page_locale()) }}</div>
+                    <div class="nodes-node__meta">{{ node.id }}</div>
+                    {% if node.lastHeartbeatIp %}
+                        <div class="nodes-node__meta">{{ t('admin_nodes_last_ip', page_locale())|replace({'%ip%': node.lastHeartbeatIp}) }}</div>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="nodes-role-list">
+                        {% for role in node.roles %}
+                            <span class="role-chip role-chip--active">{{ role }}</span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td>
+                    {% set style = statusStyles[node.status] ?? 'badge badge--neutral' %}
+                    <span class="{{ style }}">{{ node.status|title }}</span>
+                </td>
+                <td>
+                    {% if node.ddos %}
+                        <span class="badge {{ node.ddos.attackActive ? 'badge--danger' : 'badge--success' }}">
+                            {{ node.ddos.attackActive ? 'Attack active' : 'Idle' }}
+                        </span>
+                    {% else %}
+                        <span class="badge badge--neutral">No data</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if node.lastSeenAt %}
+                        <div class="nodes-node__name">{{ node.lastSeenAt|date('Y-m-d H:i') }}</div>
+                        <div class="nodes-node__meta">
+                            {{ t('admin_nodes_heartbeat', page_locale())|replace({'%time%': node.lastHeartbeatAt ? node.lastHeartbeatAt|date('Y-m-d H:i') : '—'}) }}
+                        </div>
+                    {% else %}
+                        <span class="nodes-node__meta">{{ t('admin_nodes_never_reported', page_locale()) }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="nodes-node__name">{{ node.lastHeartbeatVersion ?? '—' }}</div>
+                    <div class="nodes-node__meta">
+                        {{ updateChannel is defined ? t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) : t('admin_nodes_unknown', page_locale()) }}
+                    </div>
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="6">{{ t('admin_nodes_empty', page_locale()) }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

@@ -28,6 +28,7 @@ type UpdateOptions struct {
 type UpdateFromChecksumsOptions struct {
 	DownloadURL  string
 	ChecksumsURL string
+	SignatureURL string
 	AssetName    string
 }
 
@@ -96,6 +97,20 @@ func ApplyUpdateFromChecksums(ctx context.Context, opts UpdateFromChecksumsOptio
 
 	checksumsFile := filepath.Join(tempDir, "agent.update.checksums")
 	if err := downloadToFile(ctx, opts.ChecksumsURL, checksumsFile); err != nil {
+		return UpdatePlan{}, err
+	}
+
+	signatureURL := opts.SignatureURL
+	if signatureURL == "" {
+		signatureURL = opts.ChecksumsURL + ".asc"
+	}
+
+	signatureFile := filepath.Join(tempDir, "agent.update.checksums.asc")
+	if err := downloadToFile(ctx, signatureURL, signatureFile); err != nil {
+		return UpdatePlan{}, err
+	}
+
+	if err := verifyChecksumsSignature(checksumsFile, signatureFile); err != nil {
 		return UpdatePlan{}, err
 	}
 

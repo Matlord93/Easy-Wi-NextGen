@@ -1,0 +1,16 @@
+framework:
+  secret: '%env(APP_SECRET)%'
+  csrf_protection: true
+  http_method_override: false
+  default_locale: 'en'
+  translator:
+    default_path: '%kernel.project_dir%/translations'
+    fallbacks:
+      - 'en'
+  session:
+    handler_id: null
+    save_path: '%env(default::SESSION_SAVE_PATH)%'
+    cookie_secure: auto
+    cookie_samesite: lax
+  php_errors:
+    log: true

@@ -1,0 +1,33 @@
+{% extends 'install/base.html.twig' %}
+{% trans_default_domain 'installer' %}
+
+{% block title %}{{ 'step1.title'|trans }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl space-y-6">
+    {% include 'install/_language_switcher.html.twig' with { step: step } %}
+    {% include 'install/_messages.html.twig' with { errors: errors, success: success } %}
+
+    <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+        <h2 class="text-lg font-semibold text-slate-900">{{ 'step1.title'|trans }}</h2>
+        <p class="mt-2 text-sm text-slate-600">{{ 'step1.lead'|trans }}</p>
+        <ul class="mt-4 list-disc space-y-2 pl-5 text-sm text-slate-600">
+            <li>{{ 'step1.points.write_config'|trans }}</li>
+            <li>{{ 'step1.points.run_migrations'|trans }}</li>
+            <li>{{ 'step1.points.create_admin'|trans }}</li>
+            <li>{{ 'step1.points.write_lock'|trans }}</li>
+            <li>{{ 'step1.points.extensions'|trans }}</li>
+            <li>{{ 'step1.points.privileges'|trans }}</li>
+            <li>{{ 'step1.points.root_not_required'|trans }}</li>
+            <li>{{ 'step1.points.disable_installer'|trans }}</li>
+        </ul>
+    </div>
+
+    <form method="post" action="{{ path('public_install', {'step': step}) }}" class="flex justify-end">
+        <input type="hidden" name="step" value="{{ step }}">
+        <button type="submit" name="action" value="continue" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
+            {{ 'actions.continue'|trans }}
+        </button>
+    </form>
+</div>
+{% endblock %}

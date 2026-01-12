@@ -1,0 +1,21 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}{{ t('notifications', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ t('notifications', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('customer_notifications_intro', page_locale()) }}</p>
+    </div>
+    <div class="space-y-4">
+        {% for notification in notifications %}
+            {% include 'customer/notifications/_item.html.twig' with { notification: notification } %}
+        {% else %}
+            <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-600">
+                {{ t('no_results', page_locale()) }}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

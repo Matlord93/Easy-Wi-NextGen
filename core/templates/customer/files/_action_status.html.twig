@@ -1,0 +1,9 @@
+{% if status == 'queued' %}
+    <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+        {{ message|default(t('customer_files_action_queued', page_locale())) }}
+    </div>
+{% else %}
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+        {{ message|default(t('customer_files_action_done', page_locale())) }}
+    </div>
+{% endif %}
