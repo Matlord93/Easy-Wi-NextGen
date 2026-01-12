@@ -283,7 +283,7 @@ location ~ \.php$ {
     fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     fastcgi_pass %s;
 }
-`, webRoot, logsDir, logsDir, phpFpmListen)
+`, docroot, logsDir, logsDir, phpFpmListen)
 }
 
 func runCommand(name string, args ...string) error {

@@ -94,12 +94,15 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 
 func collectStats(version string, roles []string) map[string]any {
 	return map[string]any{
-		"version":    version,
-		"go_version": runtime.Version(),
-		"os":         runtime.GOOS,
-		"arch":       runtime.GOARCH,
-		"roles":      roles,
-		"metrics":    metrics.Collect(),
+		"version":         version,
+		"go_version":      runtime.Version(),
+		"os":              runtime.GOOS,
+		"arch":            runtime.GOARCH,
+		"roles":           roles,
+		"os_provider":     detectOSProvider(),
+		"services":        collectServiceStatus(roles),
+		"reboot_required": isRebootRequired(),
+		"metrics":         metrics.Collect(),
 	}
 }
 
@@ -120,10 +123,24 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleAgentUpdate(job)
 	case "agent.diagnostics":
 		return handleAgentDiagnostics(job)
+	case "os.update":
+		return handleOSUpdate(job)
+	case "os.reboot":
+		return handleOSReboot(job)
 	case "role.ensure_base":
 		return handleRoleEnsureBase(job)
+	case "security.ensure_base":
+		return handleSecurityEnsureBase(job)
+	case "game.ensure_base":
+		return handleGameEnsureBase(job)
 	case "web.ensure_base":
 		return handleWebEnsureBase(job)
+	case "mail.ensure_base":
+		return handleMailEnsureBase(job)
+	case "dns.ensure_base":
+		return handleDnsEnsureBase(job)
+	case "db.ensure_base":
+		return handleDbEnsureBase(job)
 	case "webspace.create":
 		return handleWebspaceCreate(job)
 	case "domain.add":
@@ -264,6 +281,10 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 		return handleTs3SlotsSet(job)
 	case "ts3.logs.export":
 		return handleTs3LogsExport(job)
+	case "server.reboot.check_required":
+		return handleServerRebootCheckRequired(job)
+	case "server.reboot.run":
+		return handleServerRebootRun(job)
 	case "gdpr.anonymize_user":
 		return handleGdprAnonymizeUser(job)
 	case "server.status.check":
@@ -284,7 +305,11 @@ func isWindowsSafeJob(jobType string) bool {
 		return true
 	case "role.ensure_base", "web.ensure_base":
 		return true
+	case "security.ensure_base", "game.ensure_base", "mail.ensure_base", "dns.ensure_base", "db.ensure_base":
+		return true
 	case "ddos.policy.apply", "ddos.status.check":
+		return true
+	case "server.reboot.check_required", "server.reboot.run":
 		return true
 	default:
 		return false

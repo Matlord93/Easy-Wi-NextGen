@@ -73,14 +73,14 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 	osUsername := buildInstanceUsername(customerID, instanceID)
+	instanceDir := filepath.Join(baseDir, osUsername)
 	if err := ensureGroup(osUsername); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureUser(osUsername, osUsername, baseDir); err != nil {
+	if err := ensureUser(osUsername, osUsername, instanceDir); err != nil {
 		return failureResult(job.ID, err)
 	}
 
-	instanceDir := filepath.Join(baseDir, osUsername)
 	dataDir := filepath.Join(instanceDir, "data")
 	logsDir := filepath.Join(instanceDir, "logs")
 	configDir := filepath.Join(instanceDir, "config")
@@ -322,14 +322,14 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 	osUsername := buildInstanceUsername(customerID, instanceID)
+	instanceDir := filepath.Join(baseDir, osUsername)
 	if err := ensureGroup(osUsername); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureUser(osUsername, osUsername, baseDir); err != nil {
+	if err := ensureUser(osUsername, osUsername, instanceDir); err != nil {
 		return failureResult(job.ID, err)
 	}
 
-	instanceDir := filepath.Join(baseDir, osUsername)
 	dataDir := filepath.Join(instanceDir, "data")
 	logsDir := filepath.Join(instanceDir, "logs")
 	configDir := filepath.Join(instanceDir, "config")
@@ -408,7 +408,7 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 
 	if installCommand != "" {
 		installWithDir := fmt.Sprintf("cd %s && %s", instanceDir, installCommand)
-		if err := runCommand("su", "-s", "/bin/sh", "-c", installWithDir, osUsername); err != nil {
+		if err := runCommandAsUser(osUsername, installWithDir); err != nil {
 			return failureResult(job.ID, fmt.Errorf("install command failed: %w", err))
 		}
 	}
@@ -515,54 +515,35 @@ After=network.target
 Type=simple
 User=%s
 WorkingDirectory=%s
+Environment=HOME=%s
+Environment=XDG_CONFIG_HOME=%s/.config
+Environment=XDG_DATA_HOME=%s/.local/share
 ExecStartPre=/usr/bin/test -d %s
 ExecStart=%s
 Restart=on-failure
 RestartSec=10
-StartLimitIntervalSec=300
-StartLimitBurst=5
 UMask=0027
+LimitNOFILE=10240
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
-ProtectHome=read-only
-ProtectControlGroups=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectKernelLogs=true
-ProtectClock=true
-ProtectHostname=true
-LockPersonality=true
-MemoryDenyWriteExecute=true
-RestrictRealtime=true
-RestrictSUIDSGID=true
-RestrictNamespaces=true
-RemoveIPC=true
-CapabilityBoundingSet=
-KillMode=mixed
+ProtectHome=false
 ReadWritePaths=%s
 %s
 
 [Install]
 WantedBy=multi-user.target
-`, serviceName, user, workingDir, workingDir, command, readWritePath, limits)
+`, serviceName, user, workingDir, workingDir, workingDir, workingDir, workingDir, command, readWritePath, limits)
 }
 
 func buildSystemdLimits(cpuLimit, ramLimit int) string {
-	lines := []string{
-		"Slice=easywi-instances.slice",
-		"TasksMax=512",
-	}
+	lines := []string{}
 	if cpuLimit > 0 {
-		lines = append(lines,
-			"CPUAccounting=true",
-			fmt.Sprintf("CPUQuota=%d%%", cpuLimit),
-		)
+		lines = append(lines, fmt.Sprintf("CPUQuota=%d%%", cpuLimit))
 	}
 	if ramLimit > 0 {
 		lines = append(lines,
-			"MemoryAccounting=true",
 			fmt.Sprintf("MemoryMax=%dM", ramLimit),
 			"MemorySwapMax=0",
 		)
@@ -603,6 +584,14 @@ func runCommandOutput(name string, args ...string) (string, error) {
 		return string(output), fmt.Errorf("%s %s failed: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return string(output), nil
+}
+
+func runCommandAsUser(username, command string) error {
+	return runCommand("runuser", "-u", username, "--", "/bin/sh", "-c", command)
+}
+
+func runCommandOutputAsUser(username, command string) (string, error) {
+	return runCommandOutput("runuser", "-u", username, "--", "/bin/sh", "-c", command)
 }
 
 func trimOutput(value string, max int) string {

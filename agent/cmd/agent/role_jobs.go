@@ -23,6 +23,26 @@ func handleRoleEnsureBase(job jobs.Job) (jobs.Result, func() error) {
 		}, nil
 	}
 
+	return ensureBaseForRoleResult(role, job)
+}
+
+func handleGameEnsureBase(job jobs.Job) (jobs.Result, func() error) {
+	return ensureBaseForRoleResult("game", job)
+}
+
+func handleMailEnsureBase(job jobs.Job) (jobs.Result, func() error) {
+	return ensureBaseForRoleResult("mail", job)
+}
+
+func handleDnsEnsureBase(job jobs.Job) (jobs.Result, func() error) {
+	return ensureBaseForRoleResult("dns", job)
+}
+
+func handleDbEnsureBase(job jobs.Job) (jobs.Result, func() error) {
+	return ensureBaseForRoleResult("db", job)
+}
+
+func ensureBaseForRoleResult(role string, job jobs.Job) (jobs.Result, func() error) {
 	message, err := ensureBaseForRole(role)
 	if err != nil {
 		return jobs.Result{

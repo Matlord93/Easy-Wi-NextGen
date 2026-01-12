@@ -62,14 +62,14 @@ func handleTs3Create(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	osUsername := buildTs3Username(customerID, instanceID)
+	instanceDir := filepath.Join(baseDir, osUsername)
 	if err := ensureGroup(osUsername); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureUser(osUsername, osUsername, baseDir); err != nil {
+	if err := ensureUser(osUsername, osUsername, instanceDir); err != nil {
 		return failureResult(job.ID, err)
 	}
 
-	instanceDir := filepath.Join(baseDir, osUsername)
 	configPath := filepath.Join(instanceDir, ts3ConfigFile)
 	if err := ensureInstanceDir(instanceDir); err != nil {
 		return failureResult(job.ID, err)
@@ -77,7 +77,7 @@ func handleTs3Create(job jobs.Job) (jobs.Result, func() error) {
 
 	if installCommand != "" {
 		installWithDir := fmt.Sprintf("cd %s && %s", instanceDir, installCommand)
-		if err := runCommand("su", "-s", "/bin/sh", "-c", installWithDir, osUsername); err != nil {
+		if err := runCommandAsUser(osUsername, installWithDir); err != nil {
 			return failureResult(job.ID, fmt.Errorf("install command failed: %w", err))
 		}
 	}
@@ -156,7 +156,7 @@ func handleTs3Update(job jobs.Job) (jobs.Result, func() error) {
 			return failureResult(job.ID, fmt.Errorf("missing instance_dir or username for update"))
 		}
 		command := fmt.Sprintf("cd %s && %s", instanceDir, updateCommand)
-		if err := runCommand("su", "-s", "/bin/sh", "-c", command, username); err != nil {
+		if err := runCommandAsUser(username, command); err != nil {
 			return failureResult(job.ID, fmt.Errorf("update command failed: %w", err))
 		}
 	}

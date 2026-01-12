@@ -52,16 +52,16 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	}
 
 	osUsername := buildInstanceUsername(customerID, instanceID)
+	instanceDir := fmt.Sprintf("%s/%s", strings.TrimRight(baseDir, "/"), osUsername)
 	if err := ensureGroup(osUsername); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureUser(osUsername, osUsername, baseDir); err != nil {
+	if err := ensureUser(osUsername, osUsername, instanceDir); err != nil {
 		return failureResult(job.ID, err)
 	}
 	if err := ensureBaseDir(baseDir); err != nil {
 		return failureResult(job.ID, err)
 	}
-	instanceDir := fmt.Sprintf("%s/%s", strings.TrimRight(baseDir, "/"), osUsername)
 	if err := ensureInstanceDir(instanceDir); err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -99,18 +99,13 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	command = normalizeSteamCmdInstallDir(command, instanceDir)
 
 	shellCmd := fmt.Sprintf(
-	"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
-	"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
-	"cd %[1]s && %[2]s",
-	instanceDir, command,
-)
+		"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
+			"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
+			"cd %[1]s && %[2]s",
+		instanceDir, command,
+	)
 
-output, err := runCommandOutput(
-	"su",
-	"-", osUsername,              // Login-Session => korrektes Umfeld
-	"-s", "/bin/sh",
-	"-c", shellCmd,
-)
+	output, err := runCommandOutputAsUser(osUsername, shellCmd)
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
