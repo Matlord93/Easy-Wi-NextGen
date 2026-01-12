@@ -68,6 +68,11 @@ final class AgentReleaseChecker
                 continue;
             }
 
+            $isDraft = $release['draft'] ?? false;
+            if ($isDraft) {
+                continue;
+            }
+
             $isPrerelease = $release['prerelease'] ?? false;
             if ($channel === self::CHANNEL_STABLE && $isPrerelease) {
                 continue;
@@ -91,6 +96,11 @@ final class AgentReleaseChecker
                 continue;
             }
 
+            $signatureUrl = $this->findAssetDownloadUrl($assets, 'checksums-agent.txt.asc');
+            if ($signatureUrl === null) {
+                continue;
+            }
+
             $tag = $release['tag_name'] ?? $release['name'] ?? null;
             if (!is_string($tag) || $tag === '') {
                 continue;
@@ -100,6 +110,7 @@ final class AgentReleaseChecker
                 'version' => $tag,
                 'download_url' => $downloadUrl,
                 'checksums_url' => $checksumsUrl,
+                'signature_url' => $signatureUrl,
                 'asset_name' => $assetName,
             ];
         }
@@ -133,6 +144,11 @@ final class AgentReleaseChecker
 
         foreach ($releases as $release) {
             if (!is_array($release)) {
+                continue;
+            }
+
+            $isDraft = $release['draft'] ?? false;
+            if ($isDraft) {
                 continue;
             }
 

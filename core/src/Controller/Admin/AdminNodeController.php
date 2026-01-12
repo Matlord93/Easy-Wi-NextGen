@@ -912,6 +912,7 @@ final class AdminNodeController
             'agent_id' => $node->getId(),
             'download_url' => $releaseInfo['download_url'],
             'checksums_url' => $releaseInfo['checksums_url'],
+            'signature_url' => $releaseInfo['signature_url'] ?? null,
             'asset_name' => $releaseInfo['asset_name'],
             'version' => $version,
         ];

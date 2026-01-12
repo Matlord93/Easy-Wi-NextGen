@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Security;
 
+use App\Service\Installer\InstallerService;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,6 +17,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
     public function __construct(
         private readonly SessionAuthenticator $sessionAuthenticator,
         private readonly PortalAccessPolicy $portalAccessPolicy,
+        private readonly InstallerService $installerService,
     ) {
     }
 
@@ -34,6 +36,10 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         }
 
         if (!$event->isMainRequest()) {
+            return;
+        }
+
+        if (!$this->installerService->isLocked()) {
             return;
         }
 

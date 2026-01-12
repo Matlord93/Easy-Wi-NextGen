@@ -24,7 +24,7 @@
 } %}
 
 <div id="nodes-table" class="overflow-x-auto" hx-get="/admin/nodes/table" hx-trigger="every 15s" hx-swap="outerHTML">
-    {% if notice is defined and notice or error %}
+    {% if (notice is defined and notice) or (error is defined and error) %}
         {% if app.request.headers.get('HX-Request') %}
             <div id="nodes-feedback" class="nodes-feedback" hx-swap-oob="true">
                 {% if notice is defined and notice %}

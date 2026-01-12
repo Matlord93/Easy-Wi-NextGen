@@ -210,42 +210,51 @@ final class InstallController
                 }
 
                 if ($errors === [] && $action === 'install') {
-                    $requirements = $this->installerService->checkRequirements();
-                    $requirementsOk = $this->installerService->requirementsSatisfied($requirements);
+                    $validationErrors = $this->installerService->validateDatabaseInput($databaseState);
+                    foreach ($validationErrors as $validationError) {
+                        $errors[] = $validationError;
+                    }
 
-                    if (!$requirementsOk) {
-                        $errors[] = ['key' => 'errors.requirements_not_met'];
+                    if ($errors !== []) {
+                        $step = 3;
                     } else {
-                        try {
-                            $dbConfig = $this->installerService->buildDatabaseConfig($databaseState);
-                            $this->installerService->testDbConnection($dbConfig);
-                            $databaseUrl = $this->installerService->buildDatabaseUrl($databaseState);
+                        $requirements = $this->installerService->checkRequirements();
+                        $requirementsOk = $this->installerService->requirementsSatisfied($requirements);
 
-                            $this->installerService->updateEnvLocal($databaseUrl);
+                        if (!$requirementsOk) {
+                            $errors[] = ['key' => 'errors.requirements_not_met'];
+                        } else {
+                            try {
+                                $dbConfig = $this->installerService->buildDatabaseConfig($databaseState);
+                                $this->installerService->testDbConnection($dbConfig);
+                                $databaseUrl = $this->installerService->buildDatabaseUrl($databaseState);
 
-                            $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
-                            $this->installerService->runMigrations($entityManager);
-                            $entityManager->clear();
-                            $entityManager->getConnection()->close();
-                            $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
-                            $this->installerService->createSiteAndAdmin($entityManager, $applicationState, $adminPassword);
+                                $this->installerService->updateEnvLocal($databaseUrl);
 
-                            $this->installerService->writeLock();
-                            $this->installerService->clearState();
-                            $this->installerService->clearDebugReport();
+                                $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
+                                $this->installerService->runMigrations($entityManager);
+                                $entityManager->clear();
+                                $entityManager->getConnection()->close();
+                                $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
+                                $this->installerService->createSiteAndAdmin($entityManager, $applicationState, $adminPassword);
 
-                            $loginUrl = '/login?lang=' . $request->getLocale();
+                                $this->installerService->writeLock();
+                                $this->installerService->clearState();
+                                $this->installerService->clearDebugReport();
 
-                            return new Response($this->twig->render('install/success.html.twig', [
-                                'loginUrl' => $loginUrl,
-                                'step' => 4,
-                            ]));
-                        } catch (DbalException $exception) {
-                            $this->installerService->logException($exception, 'Database connection failed during installation.');
-                            $errors[] = ['key' => 'errors.db_connection_failed'];
-                        } catch (\Throwable $exception) {
-                            $this->installerService->logException($exception, 'Installer failed during install step.');
-                            $errors[] = ['key' => 'errors.install_failed'];
+                                $loginUrl = '/login?lang=' . $request->getLocale();
+
+                                return new Response($this->twig->render('install/success.html.twig', [
+                                    'loginUrl' => $loginUrl,
+                                    'step' => 4,
+                                ]));
+                            } catch (DbalException $exception) {
+                                $this->installerService->logException($exception, 'Database connection failed during installation.');
+                                $errors[] = ['key' => 'errors.db_connection_failed'];
+                            } catch (\Throwable $exception) {
+                                $this->installerService->logException($exception, 'Installer failed during install step.');
+                                $errors[] = ['key' => 'errors.install_failed'];
+                            }
                         }
                     }
                 }
