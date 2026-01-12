@@ -427,6 +427,9 @@ func installSteamCmd(output *strings.Builder) error {
 	if err := os.MkdirAll(steamCmdDir, 0o750); err != nil {
 		return fmt.Errorf("create steamcmd dir: %w", err)
 	}
+	if err := os.Chmod(steamCmdDir, 0o755); err != nil {
+		return fmt.Errorf("chmod steamcmd dir: %w", err)
+	}
 
 	switch {
 	case commandExists("curl"):
@@ -450,6 +453,9 @@ func installSteamCmd(output *strings.Builder) error {
 
 	steamCmdPath := filepath.Join(steamCmdDir, "steamcmd.sh")
 	if _, err := os.Stat(steamCmdPath); err == nil {
+		if err := os.Chmod(steamCmdPath, 0o755); err != nil {
+			return fmt.Errorf("chmod steamcmd: %w", err)
+		}
 		if err := runCommandWithOutput("ln", []string{"-sf", steamCmdPath, "/usr/local/bin/steamcmd"}, output); err != nil {
 			return err
 		}
@@ -472,6 +478,7 @@ func ensureRoleFiles(role string, output *strings.Builder) error {
 	if role == "game" {
 		dirs := []string{
 			"/etc/easywi/game",
+			"/var/lib/easywi/game",
 			"/var/lib/easywi/game/steamcmd",
 			"/var/lib/easywi/game/runner",
 			"/var/lib/easywi/game/sniper",
@@ -481,6 +488,16 @@ func ensureRoleFiles(role string, output *strings.Builder) error {
 		for _, dir := range dirs {
 			if err := os.MkdirAll(dir, 0o750); err != nil {
 				return fmt.Errorf("create game dir %s: %w", dir, err)
+			}
+			switch dir {
+			case "/var/lib/easywi/game":
+				if err := os.Chmod(dir, 0o711); err != nil {
+					return fmt.Errorf("chmod game dir %s: %w", dir, err)
+				}
+			case "/var/lib/easywi/game/steamcmd":
+				if err := os.Chmod(dir, 0o755); err != nil {
+					return fmt.Errorf("chmod steamcmd dir %s: %w", dir, err)
+				}
 			}
 		}
 	}

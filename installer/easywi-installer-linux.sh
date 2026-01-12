@@ -871,7 +871,8 @@ setup_game_dirs() {
   mkdir -p /etc/easywi/game
   mkdir -p /var/lib/easywi/game/{steamcmd,runner,sniper,servers}
   mkdir -p /var/log/easywi/game
-  chmod 750 /var/lib/easywi/game
+  chmod 711 /var/lib/easywi/game
+  chmod 755 /var/lib/easywi/game/steamcmd
 }
 
 install_steamcmd() {
@@ -888,6 +889,7 @@ install_steamcmd() {
   rm -f "${archive}"
 
   if [[ -x "${steamcmd_dir}/steamcmd.sh" ]]; then
+    chmod 755 "${steamcmd_dir}/steamcmd.sh"
     ln -sf "${steamcmd_dir}/steamcmd.sh" /usr/local/bin/steamcmd
   fi
 }
