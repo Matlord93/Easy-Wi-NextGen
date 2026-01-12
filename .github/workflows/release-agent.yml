@@ -15,6 +15,9 @@ jobs:
   build-and-release:
     name: Build agent + publish release
     runs-on: ubuntu-latest
+    env:
+      GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}
     defaults:
       run:
         working-directory: agent
@@ -43,10 +46,7 @@ jobs:
           sha256sum easywi-agent-* > checksums-agent.txt
 
       - name: Sign checksums
-        if: ${{ secrets.EASYWI_GPG_PRIVATE_KEY != '' }}
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
-          GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}
+        if: ${{ env.GPG_PRIVATE_KEY != '' }}
         run: |
           export GNUPGHOME
           GNUPGHOME="$(mktemp -d)"
