@@ -39,7 +39,7 @@ final class TicketApiController
     {
         $actor = $this->requireUser($request);
 
-        $tickets = $actor->getType() === UserType::Admin
+        $tickets = $actor->isAdmin()
             ? $this->ticketRepository->findBy([], ['lastMessageAt' => 'DESC'])
             : $this->ticketRepository->findByCustomer($actor);
 
@@ -94,7 +94,7 @@ final class TicketApiController
                 'tickets',
                 '/admin/tickets',
             );
-        } elseif ($actor->getType() === UserType::Admin) {
+        } elseif ($actor->isAdmin()) {
             $this->notificationService->notify(
                 $ticket->getCustomer(),
                 sprintf('ticket.created.%s', $ticket->getId()),
@@ -149,7 +149,7 @@ final class TicketApiController
                 'tickets',
                 '/admin/tickets',
             );
-        } elseif ($actor->getType() === UserType::Admin) {
+        } elseif ($actor->isAdmin()) {
             $this->notificationService->notify(
                 $ticket->getCustomer(),
                 sprintf('ticket.message.%s.%s', $ticket->getId(), $message->getId()),
@@ -172,7 +172,7 @@ final class TicketApiController
     public function updateStatus(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
-        if ($actor->getType() !== UserType::Admin) {
+        if (!$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
         }
 
@@ -269,7 +269,7 @@ final class TicketApiController
         }
 
         $customer = $actor;
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             if (!is_numeric($customerId)) {
                 return ['error' => new JsonResponse(['error' => 'Customer is required.'], JsonResponse::HTTP_BAD_REQUEST)];
             }
@@ -328,6 +328,6 @@ final class TicketApiController
 
     private function canAccessTicket(User $actor, Ticket $ticket): bool
     {
-        return $actor->getType() === UserType::Admin || $ticket->getCustomer()->getId() === $actor->getId();
+        return $actor->isAdmin() || $ticket->getCustomer()->getId() === $actor->getId();
     }
 }

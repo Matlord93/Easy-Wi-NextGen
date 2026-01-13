@@ -16,6 +16,7 @@ use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\PortBlockRepository;
 use App\Service\DiskEnforcementService;
 use Cron\CronExpression;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -35,6 +36,7 @@ final class CustomerInstanceActionApiController
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupRepository $backupRepository,
         private readonly GamePluginRepository $gamePluginRepository,
+        private readonly PortBlockRepository $portBlockRepository,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
@@ -398,11 +400,19 @@ final class CustomerInstanceActionApiController
             return new JsonResponse(['error' => $blockMessage], JsonResponse::HTTP_BAD_REQUEST);
         }
 
+        $portBlock = $this->portBlockRepository->findByInstance($instance);
         $message = new InstanceActionMessage('instance.reinstall', $customer->getId(), $instance->getId(), [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
             'agent_id' => $instance->getNode()->getId(),
+            'cpu_limit' => (string) $instance->getCpuLimit(),
+            'ram_limit' => (string) $instance->getRamLimit(),
+            'disk_limit' => (string) $instance->getDiskLimit(),
+            'start_params' => $instance->getTemplate()->getStartParams(),
+            'required_ports' => implode(',', $instance->getTemplate()->getRequiredPortLabels()),
+            'port_block_ports' => $portBlock ? implode(',', array_map('strval', $portBlock->getPorts())) : '',
+            'install_command' => $instance->getTemplate()->getInstallCommand(),
         ]);
 
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);

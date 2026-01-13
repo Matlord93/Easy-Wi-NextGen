@@ -111,7 +111,7 @@ final class AdminTs3InstanceController
     public function create(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -180,7 +180,7 @@ final class AdminTs3InstanceController
     public function action(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -227,7 +227,7 @@ final class AdminTs3InstanceController
     private function isAdmin(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
-        return $actor instanceof User && $actor->getType() === UserType::Admin;
+        return $actor instanceof User && $actor->isAdmin();
     }
 
     private function parsePayload(Request $request): array

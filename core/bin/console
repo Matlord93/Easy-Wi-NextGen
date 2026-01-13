@@ -4,12 +4,15 @@
 declare(strict_types=1);
 
 use App\Kernel;
+use App\Runtime\DatabaseConfig;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\ErrorHandler\Debug;
 
 require dirname(__DIR__).'/vendor/autoload.php';
+
+DatabaseConfig::boot(dirname(__DIR__));
 
 if (is_file(dirname(__DIR__).'/.env')) {
     (new Dotenv())->bootEnv(dirname(__DIR__).'/.env');

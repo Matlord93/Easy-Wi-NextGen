@@ -35,7 +35,7 @@ final class WebspaceApiController
     public function createWebspace(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -156,7 +156,7 @@ final class WebspaceApiController
     public function listAdminWebspaces(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -251,7 +251,7 @@ final class WebspaceApiController
     public function deleteWebspace(Request $request, string $id): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -281,7 +281,7 @@ final class WebspaceApiController
     private function updateWebspaceStatus(Request $request, string $id, string $status, string $auditEvent): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 

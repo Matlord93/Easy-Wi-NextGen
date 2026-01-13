@@ -117,7 +117,7 @@ final class PublicLoginController
                     $this->entityManager->flush();
 
                     $redirectPath = match ($user->getType()) {
-                        UserType::Admin => '/admin',
+                        UserType::Admin, UserType::Superadmin => '/admin',
                         UserType::Reseller => '/reseller/customers',
                         default => '/dashboard',
                     };

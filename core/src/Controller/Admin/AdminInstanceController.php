@@ -23,6 +23,7 @@ use App\Service\DiskEnforcementService;
 use App\Service\DiskUsageFormatter;
 use App\Service\EncryptionService;
 use App\Service\InstanceJobPayloadBuilder;
+use App\Service\InstanceSftpProvisioner;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -41,6 +42,7 @@ final class AdminInstanceController
         private readonly PortBlockRepository $portBlockRepository,
         private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
+        private readonly InstanceSftpProvisioner $instanceSftpProvisioner,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
@@ -128,7 +130,7 @@ final class AdminInstanceController
     public function create(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -200,6 +202,8 @@ final class AdminInstanceController
             $this->entityManager->persist($sniperInstallJob);
         }
 
+        $this->instanceSftpProvisioner->provision($actor, $instance);
+
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
             'customer_id' => $formData['customer']->getId(),
@@ -240,7 +244,7 @@ final class AdminInstanceController
     public function createCustomer(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -279,7 +283,7 @@ final class AdminInstanceController
     public function delete(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -339,7 +343,7 @@ final class AdminInstanceController
     public function provisionSftp(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -649,6 +653,6 @@ final class AdminInstanceController
     private function isAdmin(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
-        return $actor instanceof User && $actor->getType() === UserType::Admin;
+        return $actor instanceof User && $actor->isAdmin();
     }
 }

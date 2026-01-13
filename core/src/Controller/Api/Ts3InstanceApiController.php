@@ -38,7 +38,7 @@ final class Ts3InstanceApiController
     {
         $actor = $this->requireUser($request);
 
-        $instances = $actor->getType() === UserType::Admin
+        $instances = $actor->isAdmin()
             ? $this->ts3InstanceRepository->findBy([], ['updatedAt' => 'DESC'])
             : $this->ts3InstanceRepository->findByCustomer($actor);
 
@@ -52,7 +52,7 @@ final class Ts3InstanceApiController
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
-        if ($actor->getType() !== UserType::Admin) {
+        if (!$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -119,7 +119,7 @@ final class Ts3InstanceApiController
     public function action(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
-        if ($actor->getType() !== UserType::Admin) {
+        if (!$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 

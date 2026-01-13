@@ -55,7 +55,7 @@ final class AdminDatabaseController
     public function create(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -139,7 +139,7 @@ final class AdminDatabaseController
     public function resetPassword(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -191,7 +191,7 @@ final class AdminDatabaseController
     {
         $actor = $request->attributes->get('current_user');
 
-        return $actor instanceof User && $actor->getType() === UserType::Admin;
+        return $actor instanceof User && $actor->isAdmin();
     }
 
     private function queueDatabaseJob(string $type, Database $database, array $extraPayload): Job

@@ -37,7 +37,11 @@ final class NotificationService
 
     public function notifyAdmins(string $eventKey, string $title, string $body, string $category, ?string $actionUrl = null): void
     {
-        $admins = $this->userRepository->findBy(['type' => UserType::Admin->value]);
+        $admins = $this->userRepository->createQueryBuilder('user')
+            ->andWhere('user.type IN (:types)')
+            ->setParameter('types', [UserType::Admin->value, UserType::Superadmin->value])
+            ->getQuery()
+            ->getResult();
         foreach ($admins as $admin) {
             $this->notify($admin, $eventKey, $title, $body, $category, $actionUrl);
         }

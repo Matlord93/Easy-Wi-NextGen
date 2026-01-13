@@ -12,9 +12,11 @@ use App\Repository\InvoiceArchiveRepository;
 use App\Repository\InvoiceRepository;
 use App\Repository\PaymentRepository;
 use App\Repository\UserRepository;
+use App\Service\AppSettingsService;
 use App\Service\Billing\AccountingExportService;
 use App\Service\Billing\DunningWorkflow;
 use App\Service\Billing\InvoiceArchiveManager;
+use App\Service\Billing\InvoiceLayoutRenderer;
 use App\Service\Billing\InvoiceStatusUpdater;
 use App\Service\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
@@ -41,6 +43,8 @@ final class AdminBillingController
         private readonly AuditLogger $auditLogger,
         private readonly DunningWorkflow $dunningWorkflow,
         private readonly InvoiceStatusUpdater $invoiceStatusUpdater,
+        private readonly AppSettingsService $settingsService,
+        private readonly InvoiceLayoutRenderer $layoutRenderer,
         private readonly Environment $twig,
     ) {
     }
@@ -90,7 +94,7 @@ final class AdminBillingController
     public function createInvoice(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -130,7 +134,7 @@ final class AdminBillingController
     public function runDunning(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -160,12 +164,16 @@ final class AdminBillingController
         }
 
         $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
+        $layout = $this->settingsService->getInvoiceLayout();
+        $preview = $this->layoutRenderer->render($invoice, $request, $layout);
 
         return new Response($this->twig->render('admin/billing/invoice.html.twig', [
             'activeNav' => 'billing',
             'invoice' => $this->normalizeInvoiceDetail($invoice),
             'archive' => $this->normalizeArchive($archive),
             'archive_errors' => [],
+            'invoice_layout' => $layout,
+            'invoice_preview' => $preview,
         ]));
     }
 
@@ -173,7 +181,7 @@ final class AdminBillingController
     public function markInvoicePaid(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -202,7 +210,7 @@ final class AdminBillingController
     public function markInvoiceUnpaid(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -233,7 +241,7 @@ final class AdminBillingController
     public function archiveInvoice(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -255,6 +263,12 @@ final class AdminBillingController
                 'invoice' => $this->normalizeInvoiceDetail($invoice),
                 'archive' => $this->normalizeArchive($archive),
                 'archive_errors' => $formData['errors'],
+                'invoice_layout' => $this->settingsService->getInvoiceLayout(),
+                'invoice_preview' => $this->layoutRenderer->render(
+                    $invoice,
+                    $request,
+                    $this->settingsService->getInvoiceLayout()
+                ),
             ]), Response::HTTP_BAD_REQUEST);
         }
 
@@ -267,7 +281,78 @@ final class AdminBillingController
             'invoice' => $this->normalizeInvoiceDetail($invoice),
             'archive' => $this->normalizeArchive($archive),
             'archive_errors' => [],
+            'invoice_layout' => $this->settingsService->getInvoiceLayout(),
+            'invoice_preview' => $this->layoutRenderer->render(
+                $invoice,
+                $request,
+                $this->settingsService->getInvoiceLayout()
+            ),
         ]));
+    }
+
+    #[Route(path: '/invoices/{id}/archive/generate', name: 'admin_billing_invoice_archive_generate', methods: ['POST'], requirements: ['id' => '\\d+'])]
+    public function generateArchive(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $invoice = $this->invoiceRepository->find($id);
+        if (!$invoice instanceof \App\Entity\Invoice) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $archive = $this->invoiceArchiveRepository->findOneBy(['invoice' => $invoice]);
+        if ($archive !== null) {
+            return new Response('Invoice is already archived.', Response::HTTP_BAD_REQUEST);
+        }
+
+        $layout = $this->settingsService->getInvoiceLayout();
+        $contents = $this->layoutRenderer->render($invoice, $request, $layout);
+        $fileName = sprintf('%s.html', $invoice->getNumber());
+
+        $archive = $this->invoiceArchiveManager->archiveInvoiceContent(
+            $invoice,
+            $contents,
+            $fileName,
+            'text/html',
+            $actor,
+        );
+
+        return new Response($this->twig->render('admin/billing/invoice.html.twig', [
+            'activeNav' => 'billing',
+            'invoice' => $this->normalizeInvoiceDetail($invoice),
+            'archive' => $this->normalizeArchive($archive),
+            'archive_errors' => [],
+            'invoice_layout' => $layout,
+            'invoice_preview' => $contents,
+        ]));
+    }
+
+    #[Route(path: '/layout', name: 'admin_billing_layout_update', methods: ['POST'])]
+    public function updateLayout(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $layout = (string) $request->request->get('invoice_layout', '');
+        if (trim($layout) === '') {
+            return new Response('Invoice layout cannot be empty.', Response::HTTP_BAD_REQUEST);
+        }
+
+        $this->settingsService->updateSettings([
+            AppSettingsService::KEY_INVOICE_LAYOUT => $layout,
+        ]);
+
+        $redirect = $request->headers->get('referer');
+        if (!is_string($redirect) || $redirect === '') {
+            $redirect = '/admin/billing?layout_saved=1';
+        }
+
+        return new RedirectResponse($redirect);
     }
 
     #[Route(path: '/invoices/{id}/archive/download', name: 'admin_billing_invoice_archive_download', methods: ['GET'], requirements: ['id' => '\\d+'])]
@@ -329,7 +414,7 @@ final class AdminBillingController
     private function isAdmin(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
-        return $actor instanceof User && $actor->getType() === UserType::Admin;
+        return $actor instanceof User && $actor->isAdmin();
     }
 
     /**

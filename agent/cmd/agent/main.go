@@ -305,7 +305,21 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 
 func isWindowsSafeJob(jobType string) bool {
 	switch jobType {
+	case "agent.update":
 	case "agent.self_update":
+	case "agent.diagnostics":
+	case "role.ensure_base":
+	case "security.ensure_base":
+	case "web.ensure_base":
+	case "ddos.policy.apply":
+	case "ddos.status.check":
+	case "windows.service.start":
+	case "windows.service.stop":
+	case "windows.service.restart":
+	case "server.reboot.check_required":
+	case "server.reboot.run":
+	case "server.status.check":
+	case "instance.sftp.credentials.reset":
 		return true
 	default:
 		return false

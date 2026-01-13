@@ -39,7 +39,7 @@ final class AdminTs6Controller
     public function index(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof \App\Entity\User || !in_array($actor->getType(), [UserType::Admin, UserType::Superadmin], true)) {
+        if (!$actor instanceof \App\Entity\User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -78,7 +78,7 @@ final class AdminTs6Controller
     public function create(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof \App\Entity\User || !in_array($actor->getType(), [UserType::Admin, UserType::Superadmin], true)) {
+        if (!$actor instanceof \App\Entity\User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -128,7 +128,7 @@ final class AdminTs6Controller
     public function action(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof \App\Entity\User || !in_array($actor->getType(), [UserType::Admin, UserType::Superadmin], true)) {
+        if (!$actor instanceof \App\Entity\User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 

@@ -19,6 +19,7 @@ use App\Repository\UserRepository;
 use App\Service\AuditLogger;
 use App\Service\DiskEnforcementService;
 use App\Service\InstanceJobPayloadBuilder;
+use App\Service\InstanceSftpProvisioner;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -36,6 +37,7 @@ final class InstanceApiController
         private readonly PortBlockRepository $portBlockRepository,
         private readonly AuditLogger $auditLogger,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
+        private readonly InstanceSftpProvisioner $instanceSftpProvisioner,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly EntityManagerInterface $entityManager,
     ) {
@@ -46,7 +48,7 @@ final class InstanceApiController
     public function createInstance(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -169,6 +171,8 @@ final class InstanceApiController
             $this->entityManager->persist($sniperInstallJob);
         }
 
+        $this->instanceSftpProvisioner->provision($actor, $instance);
+
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
             'customer_id' => $customer->getId(),
@@ -214,7 +218,7 @@ final class InstanceApiController
     public function deleteInstance(Request $request, int $id): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -272,7 +276,7 @@ final class InstanceApiController
     public function updateInstanceSettings(Request $request, int $id): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 

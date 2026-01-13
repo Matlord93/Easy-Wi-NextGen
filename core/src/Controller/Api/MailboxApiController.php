@@ -34,7 +34,7 @@ final class MailboxApiController
     {
         $actor = $this->requireUser($request);
 
-        $mailboxes = $actor->getType() === UserType::Admin
+        $mailboxes = $actor->isAdmin()
             ? $this->mailboxRepository->findBy([], ['updatedAt' => 'DESC'])
             : $this->mailboxRepository->findByCustomer($actor);
 
@@ -321,7 +321,7 @@ final class MailboxApiController
 
     private function canAccessDomain(User $actor, \App\Entity\Domain $domain): bool
     {
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             return true;
         }
 
@@ -330,7 +330,7 @@ final class MailboxApiController
 
     private function canAccessMailbox(User $actor, Mailbox $mailbox): bool
     {
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             return true;
         }
 

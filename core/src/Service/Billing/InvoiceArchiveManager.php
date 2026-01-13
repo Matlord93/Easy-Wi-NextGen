@@ -36,11 +36,58 @@ final class InvoiceArchiveManager
         }
 
         $hash = hash('sha256', $contents);
-        $archive = new InvoiceArchive(
+        $archive = $this->persistArchive(
             $invoice,
+            $contents,
             $file->getClientOriginalName() ?: sprintf('%s.pdf', $invoice->getNumber()),
             $file->getMimeType() ?? 'application/pdf',
             $file->getSize() ?? strlen($contents),
+            $hash,
+            $actor,
+        );
+
+        return $archive;
+    }
+
+    public function archiveInvoiceContent(
+        Invoice $invoice,
+        string $contents,
+        string $fileName,
+        string $contentType,
+        ?User $actor = null,
+    ): InvoiceArchive {
+        $existing = $this->archiveRepository->findOneBy(['invoice' => $invoice]);
+        if ($existing instanceof InvoiceArchive) {
+            throw new \RuntimeException('Invoice is already archived.');
+        }
+
+        $hash = hash('sha256', $contents);
+
+        return $this->persistArchive(
+            $invoice,
+            $contents,
+            $fileName,
+            $contentType,
+            strlen($contents),
+            $hash,
+            $actor,
+        );
+    }
+
+    private function persistArchive(
+        Invoice $invoice,
+        string $contents,
+        string $fileName,
+        string $contentType,
+        int $fileSize,
+        string $hash,
+        ?User $actor,
+    ): InvoiceArchive {
+        $archive = new InvoiceArchive(
+            $invoice,
+            $fileName,
+            $contentType,
+            $fileSize,
             $hash,
             (int) $invoice->getCreatedAt()->format('Y'),
             $contents,

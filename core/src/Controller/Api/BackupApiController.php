@@ -33,7 +33,7 @@ final class BackupApiController
     {
         $actor = $this->requireUser($request);
 
-        $definitions = $actor->getType() === UserType::Admin
+        $definitions = $actor->isAdmin()
             ? $this->backupDefinitionRepository->findBy([], ['updatedAt' => 'DESC'])
             : $this->backupDefinitionRepository->findByCustomer($actor);
 
@@ -177,14 +177,14 @@ final class BackupApiController
         $label = trim((string) ($payload['label'] ?? ''));
         $label = $label === '' ? null : $label;
 
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             if (!is_numeric($customerId)) {
                 return ['error' => new JsonResponse(['error' => 'Customer is required.'], JsonResponse::HTTP_BAD_REQUEST)];
             }
         }
 
         $customer = $actor;
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             $customer = $this->userRepository->find((int) $customerId);
             if ($customer === null || $customer->getType() !== UserType::Customer) {
                 return ['error' => new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND)];
@@ -287,7 +287,7 @@ final class BackupApiController
 
     private function canAccessDefinition(User $actor, BackupDefinition $definition): bool
     {
-        return $actor->getType() === UserType::Admin || $definition->getCustomer()->getId() === $actor->getId();
+        return $actor->isAdmin() || $definition->getCustomer()->getId() === $actor->getId();
     }
 
     private function normalizeDefinition(BackupDefinition $definition): array

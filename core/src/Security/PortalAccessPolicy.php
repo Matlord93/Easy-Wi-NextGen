@@ -12,7 +12,7 @@ final class PortalAccessPolicy
     public function isAllowed(User $actor, string $path): bool
     {
         if ($this->isAdminPath($path)) {
-            return $actor->getType() === UserType::Admin;
+            return $actor->isAdmin();
         }
 
         if ($this->isResellerPath($path)) {

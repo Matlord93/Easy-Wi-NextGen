@@ -39,7 +39,7 @@ final class AdminActivityController
     private function isAdmin(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
-        return $actor instanceof User && $actor->getType() === UserType::Admin;
+        return $actor instanceof User && $actor->isAdmin();
     }
 
     private function normalizeEntries(array $entries): array

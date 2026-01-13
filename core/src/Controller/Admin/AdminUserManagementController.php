@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Controller\Admin;
 
 use App\Entity\InvoicePreferences;
+use App\Entity\UserSession;
 use App\Entity\User;
 use App\Enum\UserType;
 use App\Repository\InvoicePreferencesRepository;
 use App\Repository\UserRepository;
+use App\Security\SessionAuthenticator;
+use App\Security\SessionTokenGenerator;
 use App\Service\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -38,6 +42,7 @@ final class AdminUserManagementController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly SessionTokenGenerator $tokenGenerator,
         private readonly Environment $twig,
     ) {
     }
@@ -81,7 +86,7 @@ final class AdminUserManagementController
         $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
 
         $this->entityManager->persist($user);
-        if ($type !== UserType::Admin) {
+        if (!$type->isAdmin()) {
             $preferences = new InvoicePreferences($user, 'de_DE', true, true, 'manual', 'de');
             $this->entityManager->persist($preferences);
         }
@@ -188,10 +193,57 @@ final class AdminUserManagementController
         return new RedirectResponse('/admin/users?preferences_updated=' . $user->getId());
     }
 
+    #[Route(path: '/{id}/impersonate', name: 'admin_users_impersonate', methods: ['POST'])]
+    public function impersonate(Request $request, int $id): Response
+    {
+        $actor = $this->requireSuperadmin($request);
+        if ($actor === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $customer = $this->userRepository->find($id);
+        if ($customer === null || $customer->getType() !== UserType::Customer) {
+            return new Response('User not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $token = $this->tokenGenerator->generateToken();
+        $session = new UserSession($customer, $this->tokenGenerator->hashToken($token));
+        $session->setExpiresAt((new \DateTimeImmutable())->modify('+1 day'));
+
+        $this->entityManager->persist($session);
+        $this->auditLogger->log($actor, 'admin.customer.impersonated', [
+            'actor_id' => $actor->getId(),
+            'customer_id' => $customer->getId(),
+        ]);
+        $this->entityManager->flush();
+
+        $response = new RedirectResponse('/dashboard');
+        $response->headers->setCookie(
+            Cookie::create(SessionAuthenticator::CUSTOMER_SESSION_COOKIE, $token)
+                ->withPath('/')
+                ->withSecure($request->isSecure())
+                ->withHttpOnly(true)
+                ->withSameSite('lax')
+                ->withExpires((new \DateTimeImmutable())->modify('+1 day'))
+        );
+
+        return $response;
+    }
+
     private function requireAdmin(Request $request): ?User
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return null;
+        }
+
+        return $actor;
+    }
+
+    private function requireSuperadmin(Request $request): ?User
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Superadmin) {
             return null;
         }
 
@@ -237,11 +289,18 @@ final class AdminUserManagementController
             'success' => $success,
             'locales' => self::LOCALE_OPTIONS,
             'portalLanguages' => self::PORTAL_LANGUAGE_OPTIONS,
+            'canImpersonate' => $this->canImpersonate($request),
             'createForm' => [
                 'email' => '',
                 'type' => UserType::Customer->value,
             ],
         ] + $overrides);
+    }
+
+    private function canImpersonate(Request $request): bool
+    {
+        $actor = $request->attributes->get('current_user');
+        return $actor instanceof User && $actor->getType() === UserType::Superadmin;
     }
 
     private function validateUserPayload(

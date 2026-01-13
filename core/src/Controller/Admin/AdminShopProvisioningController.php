@@ -18,6 +18,7 @@ use App\Repository\UserRepository;
 use App\Service\AuditLogger;
 use App\Service\DiskEnforcementService;
 use App\Service\InstanceJobPayloadBuilder;
+use App\Service\InstanceSftpProvisioner;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -34,6 +35,7 @@ final class AdminShopProvisioningController
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly AuditLogger $auditLogger,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
+        private readonly InstanceSftpProvisioner $instanceSftpProvisioner,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly EntityManagerInterface $entityManager,
     ) {
@@ -44,7 +46,7 @@ final class AdminShopProvisioningController
     public function provision(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -191,6 +193,8 @@ final class AdminShopProvisioningController
             $sniperInstallJob = new Job('sniper.install', $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance));
             $this->entityManager->persist($sniperInstallJob);
         }
+
+        $this->instanceSftpProvisioner->provision($actor, $instance);
 
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),

@@ -12,6 +12,7 @@ final class SftpFileService
 {
     public function __construct(
         private readonly InstanceFilesystemResolver $filesystemResolver,
+        private readonly AppSettingsService $settingsService,
     ) {
     }
 
@@ -207,9 +208,9 @@ final class SftpFileService
             return $lastIp;
         }
 
-        $env = $_ENV['EASYWI_SFTP_HOST'] ?? $_SERVER['EASYWI_SFTP_HOST'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
+        $host = $this->settingsService->getSftpHost();
+        if (is_string($host) && $host !== '') {
+            return $host;
         }
 
         throw new \RuntimeException('SFTP host not configured.');
@@ -223,12 +224,7 @@ final class SftpFileService
             return max(1, (int) $port);
         }
 
-        $env = $_ENV['EASYWI_SFTP_PORT'] ?? $_SERVER['EASYWI_SFTP_PORT'] ?? null;
-        if (is_numeric($env)) {
-            return max(1, (int) $env);
-        }
-
-        return 22;
+        return $this->settingsService->getSftpPort();
     }
 
     private function resolveUsername(Instance $instance): string
@@ -239,9 +235,9 @@ final class SftpFileService
             return $username;
         }
 
-        $env = $_ENV['EASYWI_SFTP_USERNAME'] ?? $_SERVER['EASYWI_SFTP_USERNAME'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
+        $username = $this->settingsService->getSftpUsername();
+        if (is_string($username) && $username !== '') {
+            return $username;
         }
 
         return basename($this->filesystemResolver->resolveInstanceDir($instance));
@@ -249,9 +245,9 @@ final class SftpFileService
 
     private function resolvePassword(): string
     {
-        $env = $_ENV['EASYWI_SFTP_PASSWORD'] ?? $_SERVER['EASYWI_SFTP_PASSWORD'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
+        $password = $this->settingsService->getSftpPassword();
+        if (is_string($password) && $password !== '') {
+            return $password;
         }
 
         throw new \RuntimeException('SFTP password not configured.');
@@ -259,19 +255,17 @@ final class SftpFileService
 
     private function resolveAuthentication(): ?\phpseclib3\Crypt\PublicKey
     {
-        $key = $_ENV['EASYWI_SFTP_PRIVATE_KEY'] ?? $_SERVER['EASYWI_SFTP_PRIVATE_KEY'] ?? null;
-        if (!is_string($key) || $key === '') {
-            $path = $_ENV['EASYWI_SFTP_PRIVATE_KEY_PATH'] ?? $_SERVER['EASYWI_SFTP_PRIVATE_KEY_PATH'] ?? null;
-            if (is_string($path) && $path !== '' && is_file($path)) {
-                $key = (string) file_get_contents($path);
-            }
+        $key = $this->settingsService->getSftpPrivateKey();
+        $path = $this->settingsService->getSftpPrivateKeyPath();
+        if ((!is_string($key) || $key === '') && is_string($path) && $path !== '' && is_file($path)) {
+            $key = (string) file_get_contents($path);
         }
 
         if (!is_string($key) || $key === '') {
             return null;
         }
 
-        $passphrase = $_ENV['EASYWI_SFTP_PRIVATE_KEY_PASSPHRASE'] ?? $_SERVER['EASYWI_SFTP_PRIVATE_KEY_PASSPHRASE'] ?? null;
+        $passphrase = $this->settingsService->getSftpPrivateKeyPassphrase();
         if (is_string($passphrase) && $passphrase !== '') {
             return PublicKeyLoader::load($key, $passphrase);
         }

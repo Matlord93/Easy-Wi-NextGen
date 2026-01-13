@@ -57,11 +57,23 @@ final class InstallController
         $applicationDefaults = [
             'site_name' => 'Default Site',
             'site_host' => $request->getHost() ?: 'localhost',
+            'admin_name' => '',
             'admin_email' => '',
+        ];
+        $settingsDefaults = [
+            'instance_base_dir' => '/home',
+            'sftp_host' => '',
+            'sftp_port' => '22',
+            'sftp_username' => '',
+            'sftp_password' => '',
+            'sftp_private_key' => '',
+            'sftp_private_key_path' => '',
+            'sftp_private_key_passphrase' => '',
         ];
 
         $databaseState = array_merge($databaseDefaults, $state['database'] ?? []);
         $applicationState = array_merge($applicationDefaults, $state['application'] ?? []);
+        $settingsState = array_merge($settingsDefaults, $state['settings'] ?? []);
         $storedPassword = $databaseState['password'] ?? '';
         $databaseState['password'] = '';
 
@@ -179,7 +191,18 @@ final class InstallController
                 $applicationState = array_merge($applicationState, [
                     'site_name' => trim((string) ($payload['site_name'] ?? $applicationState['site_name'])),
                     'site_host' => trim((string) ($payload['site_host'] ?? $applicationState['site_host'])),
+                    'admin_name' => trim((string) ($payload['admin_name'] ?? $applicationState['admin_name'])),
                     'admin_email' => trim((string) ($payload['admin_email'] ?? $applicationState['admin_email'])),
+                ]);
+                $settingsState = array_merge($settingsState, [
+                    'instance_base_dir' => trim((string) ($payload['instance_base_dir'] ?? $settingsState['instance_base_dir'])),
+                    'sftp_host' => trim((string) ($payload['sftp_host'] ?? $settingsState['sftp_host'])),
+                    'sftp_port' => trim((string) ($payload['sftp_port'] ?? $settingsState['sftp_port'])),
+                    'sftp_username' => trim((string) ($payload['sftp_username'] ?? $settingsState['sftp_username'])),
+                    'sftp_password' => (string) ($payload['sftp_password'] ?? $settingsState['sftp_password']),
+                    'sftp_private_key' => (string) ($payload['sftp_private_key'] ?? $settingsState['sftp_private_key']),
+                    'sftp_private_key_path' => trim((string) ($payload['sftp_private_key_path'] ?? $settingsState['sftp_private_key_path'])),
+                    'sftp_private_key_passphrase' => (string) ($payload['sftp_private_key_passphrase'] ?? $settingsState['sftp_private_key_passphrase']),
                 ]);
 
                 if ($databaseState['password'] === '' && $storedPassword !== '') {
@@ -191,6 +214,10 @@ final class InstallController
 
                 if ($applicationState['site_name'] === '' || $applicationState['site_host'] === '') {
                     $errors[] = ['key' => 'errors.site_required'];
+                }
+
+                if ($applicationState['admin_name'] === '') {
+                    $errors[] = ['key' => 'errors.admin_name_required'];
                 }
 
                 if ($applicationState['admin_email'] === '' || !filter_var($applicationState['admin_email'], FILTER_VALIDATE_EMAIL)) {
@@ -229,7 +256,7 @@ final class InstallController
                                 $this->installerService->testDbConnection($dbConfig);
                                 $databaseUrl = $this->installerService->buildDatabaseUrl($databaseState);
 
-                                $this->installerService->updateEnvLocal($databaseUrl);
+                                $this->installerService->storeDatabaseConfig($databaseUrl, $databaseState);
 
                                 $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
                                 $this->installerService->runMigrations($entityManager);
@@ -237,6 +264,7 @@ final class InstallController
                                 $entityManager->getConnection()->close();
                                 $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
                                 $this->installerService->createSiteAndAdmin($entityManager, $applicationState, $adminPassword);
+                                $this->installerService->storeAppSettings($entityManager, $settingsState);
 
                                 $this->installerService->writeLock();
                                 $this->installerService->clearState();
@@ -265,6 +293,7 @@ final class InstallController
                 'step' => $step,
                 'database' => $databaseState,
                 'application' => $applicationState,
+                'settings' => $settingsState,
             ]);
 
             if ($errors !== []) {
@@ -272,6 +301,7 @@ final class InstallController
                     $requirements,
                     $databaseState,
                     $applicationState,
+                    $settingsState,
                     $errors,
                 ));
                 $debugAvailable = true;
@@ -294,6 +324,7 @@ final class InstallController
             'success' => $success,
             'database' => $viewDatabase,
             'application' => $applicationState,
+            'settings' => $settingsState,
             'requirements' => $requirements,
             'requirementsOk' => $requirementsOk,
             'phpVersion' => PHP_VERSION,
@@ -326,12 +357,28 @@ final class InstallController
      * @param array<int, array<string, mixed>> $errors
      * @param array<string, mixed> $databaseState
      * @param array<string, mixed> $applicationState
+     * @param array<string, mixed> $settingsState
      *
      * @return array<string, mixed>
      */
-    private function buildDebugReport(array $requirements, array $databaseState, array $applicationState, array $errors): array
+    private function buildDebugReport(
+        array $requirements,
+        array $databaseState,
+        array $applicationState,
+        array $settingsState,
+        array $errors,
+    ): array
     {
         $databaseState['password'] = '***';
+        if (array_key_exists('sftp_password', $settingsState)) {
+            $settingsState['sftp_password'] = '***';
+        }
+        if (array_key_exists('sftp_private_key', $settingsState)) {
+            $settingsState['sftp_private_key'] = '***';
+        }
+        if (array_key_exists('sftp_private_key_passphrase', $settingsState)) {
+            $settingsState['sftp_private_key_passphrase'] = '***';
+        }
 
         return [
             'timestamp' => (new \DateTimeImmutable())->format(DATE_ATOM),
@@ -340,6 +387,7 @@ final class InstallController
             'requirements' => $requirements,
             'database' => $databaseState,
             'application' => $applicationState,
+            'settings' => $settingsState,
             'errors' => $errors,
         ];
     }

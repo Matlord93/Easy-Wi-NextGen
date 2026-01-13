@@ -35,6 +35,10 @@
             <h3 class="text-sm font-semibold text-slate-900">{{ 'app.admin_section'|trans }}</h3>
             <div class="mt-4 grid gap-4 sm:grid-cols-2">
                 <div class="sm:col-span-2">
+                    <label class="text-sm font-medium text-slate-700" for="admin_name">{{ 'app.admin_name'|trans }}</label>
+                    <input id="admin_name" name="admin_name" type="text" value="{{ application.admin_name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.admin_name_placeholder'|trans }}">
+                </div>
+                <div class="sm:col-span-2">
                     <label class="text-sm font-medium text-slate-700" for="admin_email">{{ 'app.admin_email'|trans }}</label>
                     <input id="admin_email" name="admin_email" type="email" value="{{ application.admin_email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.admin_email_placeholder'|trans }}">
                 </div>
@@ -45,6 +49,51 @@
                 <div>
                     <label class="text-sm font-medium text-slate-700" for="admin_password_confirm">{{ 'app.admin_password_confirm'|trans }}</label>
                     <input id="admin_password_confirm" name="admin_password_confirm" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.password_confirm_placeholder'|trans }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+            <h3 class="text-sm font-semibold text-slate-900">{{ 'app.system_section'|trans }}</h3>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                    <label class="text-sm font-medium text-slate-700" for="instance_base_dir">{{ 'app.instance_base_dir'|trans }}</label>
+                    <input id="instance_base_dir" name="instance_base_dir" type="text" value="{{ settings.instance_base_dir }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.instance_base_dir_placeholder'|trans }}">
+                    <p class="mt-1 text-xs text-slate-700">{{ 'app.instance_base_dir_hint'|trans }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+            <h3 class="text-sm font-semibold text-slate-900">{{ 'app.sftp_section'|trans }}</h3>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="sftp_host">{{ 'app.sftp_host'|trans }}</label>
+                    <input id="sftp_host" name="sftp_host" type="text" value="{{ settings.sftp_host }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.sftp_host_placeholder'|trans }}">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="sftp_port">{{ 'app.sftp_port'|trans }}</label>
+                    <input id="sftp_port" name="sftp_port" type="text" value="{{ settings.sftp_port }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.sftp_port_placeholder'|trans }}">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="sftp_username">{{ 'app.sftp_username'|trans }}</label>
+                    <input id="sftp_username" name="sftp_username" type="text" value="{{ settings.sftp_username }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.sftp_username_placeholder'|trans }}">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="sftp_password">{{ 'app.sftp_password'|trans }}</label>
+                    <input id="sftp_password" name="sftp_password" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.sftp_password_placeholder'|trans }}">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="text-sm font-medium text-slate-700" for="sftp_private_key">{{ 'app.sftp_private_key'|trans }}</label>
+                    <textarea id="sftp_private_key" name="sftp_private_key" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.sftp_private_key_placeholder'|trans }}">{{ settings.sftp_private_key }}</textarea>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="sftp_private_key_path">{{ 'app.sftp_private_key_path'|trans }}</label>
+                    <input id="sftp_private_key_path" name="sftp_private_key_path" type="text" value="{{ settings.sftp_private_key_path }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.sftp_private_key_path_placeholder'|trans }}">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="sftp_private_key_passphrase">{{ 'app.sftp_private_key_passphrase'|trans }}</label>
+                    <input id="sftp_private_key_passphrase" name="sftp_private_key_passphrase" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.sftp_private_key_passphrase_placeholder'|trans }}">
                 </div>
             </div>
         </div>

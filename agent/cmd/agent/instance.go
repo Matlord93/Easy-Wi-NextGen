@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -118,6 +119,10 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	if err := openPorts(allocatedPorts); err != nil {
 		return failureResult(job.ID, err)
 	}
+
+	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	startCommand = replaceInstanceTemplateTokens(startCommand, templateValues)
+	startParams = replaceInstanceTemplateTokens(startParams, templateValues)
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
@@ -277,6 +282,8 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	startParams := payloadValue(job.Payload, "start_params")
 	startCommand := payloadValue(job.Payload, "exec_start", "start_command")
 	installCommand := payloadValue(job.Payload, "install_command")
+	requiredPortsRaw := payloadValue(job.Payload, "required_ports")
+	portBlockPortsRaw := payloadValue(job.Payload, "port_block_ports", "ports")
 	cpuLimitValue := payloadValue(job.Payload, "cpu_limit")
 	ramLimitValue := payloadValue(job.Payload, "ram_limit")
 	diskLimitValue := payloadValue(job.Payload, "disk_limit")
@@ -307,6 +314,15 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	}
 	if startCommand == "" {
 		startCommand = startParams
+	}
+
+	var allocatedPorts []int
+	if portBlockPortsRaw != "" {
+		ports, err := parsePorts(portBlockPortsRaw)
+		if err != nil {
+			return failureResult(job.ID, err)
+		}
+		allocatedPorts = ports
 	}
 
 	cpuLimit, err := parsePositiveInt(cpuLimitValue, "cpu_limit")
@@ -396,6 +412,10 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	if err := chownRecursive(configDir, uid, gid); err != nil {
 		return failureResult(job.ID, err)
 	}
+
+	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	startCommand = replaceInstanceTemplateTokens(startCommand, templateValues)
+	startParams = replaceInstanceTemplateTokens(startParams, templateValues)
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
@@ -557,6 +577,172 @@ func intSliceToStrings(values []int) []string {
 		parts = append(parts, strconv.Itoa(value))
 	}
 	return parts
+}
+
+func buildInstanceTemplateValues(instanceDir, requiredPortsRaw string, allocatedPorts []int, payload map[string]any) map[string]string {
+	values := map[string]string{
+		"INSTANCE_DIR": instanceDir,
+		"INSTALL_DIR":  instanceDir,
+	}
+
+	for key, value := range parseEnvVars(payload) {
+		if value == "" {
+			continue
+		}
+		values[key] = value
+	}
+
+	portLabels := parsePortLabels(requiredPortsRaw)
+	for idx, label := range portLabels {
+		if idx >= len(allocatedPorts) {
+			break
+		}
+		placeholder := "PORT_" + strings.ToUpper(label)
+		values[placeholder] = strconv.Itoa(allocatedPorts[idx])
+	}
+
+	return values
+}
+
+func parseEnvVars(payload map[string]any) map[string]string {
+	raw, ok := payload["env_vars"]
+	if !ok || raw == nil {
+		return map[string]string{}
+	}
+
+	switch typed := raw.(type) {
+	case map[string]any:
+		values := map[string]string{}
+		for key, value := range typed {
+			if stringValue := payloadString(value); stringValue != "" {
+				values[key] = stringValue
+			}
+		}
+		return values
+	case []any:
+		return parseEnvVarEntries(typed)
+	case string:
+		if typed == "" {
+			return map[string]string{}
+		}
+		var entries []map[string]any
+		if err := json.Unmarshal([]byte(typed), &entries); err == nil {
+			return parseEnvVarEntries(entriesToAny(entries))
+		}
+		var list []string
+		if err := json.Unmarshal([]byte(typed), &list); err == nil {
+			return parseEnvVarStrings(list)
+		}
+		return parseEnvVarStrings(strings.FieldsFunc(typed, func(r rune) bool {
+			return r == '\n' || r == ',' || r == ';'
+		}))
+	default:
+		stringValue := payloadString(raw)
+		if stringValue == "" {
+			return map[string]string{}
+		}
+		return parseEnvVarStrings(strings.FieldsFunc(stringValue, func(r rune) bool {
+			return r == '\n' || r == ',' || r == ';'
+		}))
+	}
+}
+
+func parseEnvVarEntries(entries []any) map[string]string {
+	values := map[string]string{}
+	for _, entry := range entries {
+		switch typed := entry.(type) {
+		case map[string]any:
+			key := strings.TrimSpace(payloadString(typed["key"]))
+			value := payloadString(typed["value"])
+			if key == "" {
+				for k, v := range typed {
+					key = strings.TrimSpace(k)
+					value = payloadString(v)
+					break
+				}
+			}
+			if key != "" {
+				values[key] = value
+			}
+		case string:
+			for k, v := range parseEnvVarStrings([]string{typed}) {
+				values[k] = v
+			}
+		default:
+			if stringValue := payloadString(typed); stringValue != "" {
+				for k, v := range parseEnvVarStrings([]string{stringValue}) {
+					values[k] = v
+				}
+			}
+		}
+	}
+	return values
+}
+
+func entriesToAny(entries []map[string]any) []any {
+	values := make([]any, 0, len(entries))
+	for _, entry := range entries {
+		values = append(values, entry)
+	}
+	return values
+}
+
+func parseEnvVarStrings(values []string) map[string]string {
+	parsed := map[string]string{}
+	for _, entry := range values {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, "=", 2)
+		if len(parts) == 0 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		if key == "" {
+			continue
+		}
+		value := ""
+		if len(parts) > 1 {
+			value = strings.TrimSpace(parts[1])
+		}
+		parsed[key] = value
+	}
+	return parsed
+}
+
+func parsePortLabels(requiredPortsRaw string) []string {
+	if requiredPortsRaw == "" {
+		return []string{}
+	}
+	fields := strings.FieldsFunc(requiredPortsRaw, func(r rune) bool {
+		return r == ',' || r == ';' || r == ' ' || r == '\n' || r == '\t'
+	})
+	labels := make([]string, 0, len(fields))
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		label := strings.SplitN(field, "/", 2)[0]
+		label = strings.TrimSpace(label)
+		if label == "" {
+			continue
+		}
+		labels = append(labels, label)
+	}
+	return labels
+}
+
+func replaceInstanceTemplateTokens(value string, replacements map[string]string) string {
+	if value == "" || len(replacements) == 0 {
+		return value
+	}
+	replaced := value
+	for key, replacement := range replacements {
+		replaced = strings.ReplaceAll(replaced, "{{"+key+"}}", replacement)
+	}
+	return replaced
 }
 
 func collectServiceDiagnostics(serviceName string) map[string]string {

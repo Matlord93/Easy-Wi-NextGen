@@ -116,7 +116,7 @@ final class AdminProfileController
     private function requireAdmin(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             throw new \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException('Forbidden.');
         }
 

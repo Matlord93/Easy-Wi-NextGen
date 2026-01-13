@@ -30,7 +30,7 @@ final class AdminUserController
     public function createUser(Request $request): JsonResponse
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Admin) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -53,7 +53,7 @@ final class AdminUserController
         $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
 
         $this->entityManager->persist($user);
-        if ($type !== UserType::Admin) {
+        if (!$type->isAdmin()) {
             $preferences = new InvoicePreferences($user, 'de_DE', true, true, 'manual', 'de');
             $this->entityManager->persist($preferences);
         }

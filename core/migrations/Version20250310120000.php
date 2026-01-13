@@ -58,7 +58,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
             ],
-            'PalServer.exe -port {{PORT_GAME}} -queryport {{PORT_QUERY}} -servername "{{SERVER_NAME}}" -serverpassword "{{SERVER_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/PalServer.exe -port {{PORT_GAME}} -queryport {{PORT_QUERY}} -servername "{{SERVER_NAME}}" -serverpassword "{{SERVER_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Palworld'],
                 ['key' => 'SERVER_PASSWORD', 'value' => 'change-me'],
@@ -90,7 +90,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
             ],
-            'valheim_server.exe -name "{{SERVER_NAME}}" -port {{PORT_GAME}} -world "{{WORLD_NAME}}" -password "{{SERVER_PASSWORD}}" -public 1',
+            '{{INSTANCE_DIR}}/valheim_server.exe -name "{{SERVER_NAME}}" -port {{PORT_GAME}} -world "{{WORLD_NAME}}" -password "{{SERVER_PASSWORD}}" -public 1',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Valheim'],
                 ['key' => 'WORLD_NAME', 'value' => 'Dedicated'],
@@ -118,7 +118,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
             ],
-            'FactoryServer.exe -log -unattended',
+            '{{INSTANCE_DIR}}/FactoryServer.exe -log -unattended',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Satisfactory'],
             ],
@@ -182,7 +182,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
             ],
-            'DayZServer_x64.exe -config=serverDZ.cfg -port={{PORT_GAME}}',
+            '{{INSTANCE_DIR}}/DayZServer_x64.exe -config=serverDZ.cfg -port={{PORT_GAME}}',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi DayZ'],
             ],
@@ -246,7 +246,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
             ],
-            'VRisingServer.exe -persistentDataPath .\\save-data -serverName "{{SERVER_NAME}}"',
+            '{{INSTANCE_DIR}}/VRisingServer.exe -persistentDataPath .\\save-data -serverName "{{SERVER_NAME}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi V Rising'],
             ],
@@ -277,7 +277,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
             ],
-            'enshrouded_server.exe -log',
+            '{{INSTANCE_DIR}}/enshrouded_server.exe -log',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Enshrouded'],
             ],
@@ -309,7 +309,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
             ],
-            'srcds_run -game garrysmod -console +map gm_construct +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}"',
+            '{{INSTANCE_DIR}}/srcds_run -game garrysmod -console +map gm_construct +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Garry\'s Mod'],
                 ['key' => 'MAX_PLAYERS', 'value' => '24'],
@@ -477,7 +477,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
             ],
-            'StartServer64.bat -servername "{{SERVER_NAME}}" -adminpassword "{{ADMIN_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/StartServer64.bat -servername "{{SERVER_NAME}}" -adminpassword "{{ADMIN_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Zomboid'],
                 ['key' => 'ADMIN_PASSWORD', 'value' => 'change-me'],
@@ -544,7 +544,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
             ],
-            'ConanSandboxServer.exe -log -Port={{PORT_GAME}} -QueryPort={{PORT_QUERY}}',
+            '{{INSTANCE_DIR}}/ConanSandboxServer.exe -log -Port={{PORT_GAME}} -QueryPort={{PORT_QUERY}}',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Conan Exiles'],
             ],
@@ -611,7 +611,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
             ],
-            'arma3server_x64.exe -config=server.cfg -port={{PORT_GAME}} -name=server',
+            '{{INSTANCE_DIR}}/arma3server_x64.exe -config=server.cfg -port={{PORT_GAME}} -name=server',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Arma 3'],
             ],
@@ -644,7 +644,7 @@ final class Version20250310120000 extends AbstractMigration
             [
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
             ],
-            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar server.jar nogui',
+            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
             [
                 ['key' => 'JAVA_XMS', 'value' => '1G'],
                 ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -681,7 +681,7 @@ final class Version20250310120000 extends AbstractMigration
             [
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
             ],
-            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar server.jar nogui',
+            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
             [
                 ['key' => 'JAVA_XMS', 'value' => '1G'],
                 ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -718,7 +718,7 @@ final class Version20250310120000 extends AbstractMigration
             [
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
             ],
-            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar server.jar nogui',
+            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
             [
                 ['key' => 'JAVA_XMS', 'value' => '1G'],
                 ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -755,7 +755,7 @@ final class Version20250310120000 extends AbstractMigration
             [
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
             ],
-            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar server.jar nogui',
+            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
             [
                 ['key' => 'JAVA_XMS', 'value' => '1G'],
                 ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -792,7 +792,7 @@ final class Version20250310120000 extends AbstractMigration
             [
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
             ],
-            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar server.jar nogui',
+            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
             [
                 ['key' => 'JAVA_XMS', 'value' => '1G'],
                 ['key' => 'JAVA_XMX', 'value' => '2G'],
@@ -832,7 +832,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
             ],
-            'srcds.exe -game cs2 -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds.exe -game cs2 -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                 ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -872,7 +872,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
             ],
-            'srcds.exe -game csgo -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds.exe -game csgo -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CSGO'],
                 ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -911,7 +911,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds_run -game tf +map ctf_2fort +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds_run -game tf +map ctf_2fort +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi TF2'],
                 ['key' => 'MAX_PLAYERS', 'value' => '24'],
@@ -948,7 +948,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds.exe -game tf +map ctf_2fort +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds.exe -game tf +map ctf_2fort +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi TF2'],
                 ['key' => 'MAX_PLAYERS', 'value' => '24'],
@@ -986,7 +986,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
             ],
-            'srcds_run -game cstrike +map de_dust2 +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds_run -game cstrike +map de_dust2 +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CSS'],
                 ['key' => 'MAX_PLAYERS', 'value' => '24'],
@@ -1024,7 +1024,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
             ],
-            'srcds.exe -game cstrike +map de_dust2 +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds.exe -game cstrike +map de_dust2 +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CSS'],
                 ['key' => 'MAX_PLAYERS', 'value' => '24'],
@@ -1061,7 +1061,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds_run -game hl2mp +map dm_lockdown +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds_run -game hl2mp +map dm_lockdown +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi HL2DM'],
                 ['key' => 'MAX_PLAYERS', 'value' => '24'],
@@ -1095,7 +1095,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds.exe -game hl2mp +map dm_lockdown +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds.exe -game hl2mp +map dm_lockdown +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi HL2DM'],
                 ['key' => 'MAX_PLAYERS', 'value' => '24'],
@@ -1129,7 +1129,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds_run -game left4dead2 +map c1m1_hotel +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds_run -game left4dead2 +map c1m1_hotel +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi L4D2'],
                 ['key' => 'MAX_PLAYERS', 'value' => '8'],
@@ -1166,7 +1166,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds.exe -game left4dead2 +map c1m1_hotel +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds.exe -game left4dead2 +map c1m1_hotel +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi L4D2'],
                 ['key' => 'MAX_PLAYERS', 'value' => '8'],
@@ -1203,7 +1203,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds_run -game left4dead +map l4d_hospital01_apartment +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds_run -game left4dead +map l4d_hospital01_apartment +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi L4D'],
                 ['key' => 'MAX_PLAYERS', 'value' => '8'],
@@ -1240,7 +1240,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds.exe -game left4dead +map l4d_hospital01_apartment +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds.exe -game left4dead +map l4d_hospital01_apartment +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi L4D'],
                 ['key' => 'MAX_PLAYERS', 'value' => '8'],
@@ -1277,7 +1277,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds_run -game dod +map dod_anzio +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds_run -game dod +map dod_anzio +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi DoD:S'],
                 ['key' => 'MAX_PLAYERS', 'value' => '24'],
@@ -1314,7 +1314,7 @@ final class Version20250310120000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'srcds.exe -game dod +map dod_anzio +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds.exe -game dod +map dod_anzio +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi DoD:S'],
                 ['key' => 'MAX_PLAYERS', 'value' => '24'],

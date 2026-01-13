@@ -31,6 +31,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 20)]
     private string $type;
 
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $name = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -113,6 +116,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         return match ($this->getType()) {
             UserType::Admin => ['ROLE_ADMIN'],
+            UserType::Superadmin => ['ROLE_SUPERADMIN', 'ROLE_ADMIN'],
             UserType::Reseller => ['ROLE_RESELLER'],
             default => ['ROLE_CUSTOMER'],
         };
@@ -125,6 +129,22 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->getType()->isAdmin();
+    }
+
+    public function getName(): ?string
+    {
+        return $this->name;
+    }
+
+    public function setName(?string $name): void
+    {
+        $normalized = $name !== null ? trim($name) : null;
+        $this->name = $normalized === '' ? null : $normalized;
     }
 
     public function getEmailVerifiedAt(): ?\DateTimeImmutable
@@ -199,6 +219,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->email = strtolower($email);
         $this->passwordHash = $passwordHash;
+        $this->name = null;
         $this->emailVerifiedAt = null;
         $this->emailVerificationTokenHash = null;
         $this->emailVerificationExpiresAt = null;

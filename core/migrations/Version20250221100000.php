@@ -59,7 +59,7 @@ final class Version20250221100000 extends AbstractMigration
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
             ],
-            'srcds_run -game cs2 -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds_run -game cs2 -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                 ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -99,7 +99,7 @@ final class Version20250221100000 extends AbstractMigration
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
             ],
-            'srcds_run -game csgo -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+            '{{INSTANCE_DIR}}/srcds_run -game csgo -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CSGO'],
                 ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -173,7 +173,7 @@ final class Version20250221100000 extends AbstractMigration
                 ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                 ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
             ],
-            'ShooterGameServer TheIsland?SessionName={{SERVER_NAME}}?Port={{PORT_GAME}}?QueryPort={{PORT_QUERY}}?RCONPort={{PORT_RCON}}?MaxPlayers=70?listen -log',
+            '{{INSTANCE_DIR}}/ShooterGameServer TheIsland?SessionName={{SERVER_NAME}}?Port={{PORT_GAME}}?QueryPort={{PORT_QUERY}}?RCONPort={{PORT_RCON}}?MaxPlayers=70?listen -log',
             [
                 ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi ARK'],
                 ['key' => 'ADMIN_PASSWORD', 'value' => 'change-me'],
@@ -236,7 +236,7 @@ final class Version20250221100000 extends AbstractMigration
             [
                 ['name' => 'game', 'label' => 'Game', 'protocol' => 'tcp'],
             ],
-            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar server.jar nogui',
+            'java -Xms{{JAVA_XMS}} -Xmx{{JAVA_XMX}} -jar {{INSTANCE_DIR}}/server.jar nogui',
             [
                 ['key' => 'JAVA_XMS', 'value' => '1G'],
                 ['key' => 'JAVA_XMX', 'value' => '2G'],

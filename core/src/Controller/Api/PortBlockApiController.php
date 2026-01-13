@@ -36,7 +36,7 @@ final class PortBlockApiController
     {
         $actor = $this->requireUser($request);
 
-        $blocks = $actor->getType() === UserType::Admin
+        $blocks = $actor->isAdmin()
             ? $this->portBlockRepository->findBy([], ['createdAt' => 'DESC'])
             : $this->portBlockRepository->findByCustomer($actor);
 
@@ -157,7 +157,7 @@ final class PortBlockApiController
     private function requireAdmin(Request $request): User
     {
         $actor = $this->requireUser($request);
-        if ($actor->getType() !== UserType::Admin) {
+        if (!$actor->isAdmin()) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
         }
 

@@ -252,7 +252,7 @@ final class DnsRecordApiController
 
     private function canAccessDomain(User $actor, \App\Entity\Domain $domain): bool
     {
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             return true;
         }
 

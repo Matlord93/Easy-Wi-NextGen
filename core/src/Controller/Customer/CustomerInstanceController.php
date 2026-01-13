@@ -177,11 +177,19 @@ final class CustomerInstanceController
             return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_blocked');
         }
 
+        $portBlock = $this->portBlockRepository->findByInstance($instance);
         $job = new Job('instance.reinstall', [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
             'agent_id' => $instance->getNode()->getId(),
+            'cpu_limit' => (string) $instance->getCpuLimit(),
+            'ram_limit' => (string) $instance->getRamLimit(),
+            'disk_limit' => (string) $instance->getDiskLimit(),
+            'start_params' => $instance->getTemplate()->getStartParams(),
+            'required_ports' => implode(',', $instance->getTemplate()->getRequiredPortLabels()),
+            'port_block_ports' => $portBlock ? implode(',', array_map('strval', $portBlock->getPorts())) : '',
+            'install_command' => $instance->getTemplate()->getInstallCommand(),
         ]);
         $this->entityManager->persist($job);
 

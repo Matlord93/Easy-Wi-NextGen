@@ -38,7 +38,7 @@ final class MailAliasApiController
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
-        $aliases = $actor->getType() === UserType::Admin
+        $aliases = $actor->isAdmin()
             ? $this->aliasRepository->findBy([], ['updatedAt' => 'DESC'])
             : $this->aliasRepository->findByCustomer($actor);
 
@@ -71,7 +71,7 @@ final class MailAliasApiController
             return new JsonResponse(['error' => 'Domain not found.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        if ($actor->getType() !== UserType::Admin && $domain->getCustomer()->getId() !== $actor->getId()) {
+        if (!$actor->isAdmin() && $domain->getCustomer()->getId() !== $actor->getId()) {
             return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
         }
 
@@ -208,7 +208,7 @@ final class MailAliasApiController
 
     private function canAccessAlias(User $actor, MailAlias $alias): bool
     {
-        return $actor->getType() === UserType::Admin || $alias->getCustomer()->getId() === $actor->getId();
+        return $actor->isAdmin() || $alias->getCustomer()->getId() === $actor->getId();
     }
 
     private function queueAliasJob(string $type, MailAlias $alias, array $extraPayload): Job

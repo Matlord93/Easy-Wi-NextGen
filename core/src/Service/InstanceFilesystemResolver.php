@@ -8,6 +8,11 @@ use App\Entity\Instance;
 
 final class InstanceFilesystemResolver
 {
+    public function __construct(
+        private readonly AppSettingsService $settingsService,
+    ) {
+    }
+
     public function resolveInstanceDir(Instance $instance, ?string $baseDir = null): string
     {
         $baseDir = $baseDir !== null && $baseDir !== '' ? $baseDir : $this->getDefaultBaseDir();
@@ -18,12 +23,7 @@ final class InstanceFilesystemResolver
 
     private function getDefaultBaseDir(): string
     {
-        $env = $_ENV['EASYWI_INSTANCE_BASE_DIR'] ?? $_SERVER['EASYWI_INSTANCE_BASE_DIR'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
-        }
-
-        return '/home';
+        return $this->settingsService->getInstanceBaseDir();
     }
 
     private function buildInstanceUsername(string $customerId, string $instanceId): string

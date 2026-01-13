@@ -34,7 +34,7 @@ final class DatabaseApiController
     {
         $actor = $this->requireUser($request);
 
-        $databases = $actor->getType() === UserType::Admin
+        $databases = $actor->isAdmin()
             ? $this->databaseRepository->findBy([], ['updatedAt' => 'DESC'])
             : $this->databaseRepository->findByCustomer($actor);
 
@@ -171,7 +171,7 @@ final class DatabaseApiController
         $username = trim((string) ($payload['username'] ?? ''));
         $password = trim((string) ($payload['password'] ?? ''));
 
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             if (!is_numeric($customerId)) {
                 return ['error' => new JsonResponse(['error' => 'Customer is required.'], JsonResponse::HTTP_BAD_REQUEST)];
             }
@@ -211,7 +211,7 @@ final class DatabaseApiController
         }
 
         $customer = $actor;
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             $customer = $this->userRepository->find((int) $customerId);
             if ($customer === null || $customer->getType() !== UserType::Customer) {
                 return ['error' => new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND)];
@@ -236,7 +236,7 @@ final class DatabaseApiController
 
     private function canAccessDatabase(User $actor, Database $database): bool
     {
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             return true;
         }
 

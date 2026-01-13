@@ -13,6 +13,9 @@ use Symfony\Component\HttpFoundation\Request;
 
 final class SessionAuthenticator
 {
+    public const ADMIN_SESSION_COOKIE = 'easywi_session';
+    public const CUSTOMER_SESSION_COOKIE = 'easywi_customer_session';
+
     public function __construct(
         private readonly UserSessionRepository $sessionRepository,
         private readonly AuditLogger $auditLogger,
@@ -22,7 +25,17 @@ final class SessionAuthenticator
 
     public function authenticate(Request $request): ?User
     {
-        $token = $this->extractBearerToken($request) ?? $this->extractCookieToken($request);
+        $path = $request->getPathInfo();
+        $token = $this->extractBearerToken($request);
+        if ($token === null) {
+            if (!$this->isAdminPath($path) && !$this->isResellerPath($path)) {
+                $token = $this->extractCookieToken($request, self::CUSTOMER_SESSION_COOKIE);
+            }
+
+            if ($token === null) {
+                $token = $this->extractCookieToken($request, self::ADMIN_SESSION_COOKIE);
+            }
+        }
         if ($token === null) {
             return null;
         }
@@ -62,14 +75,28 @@ final class SessionAuthenticator
         return $token !== '' ? $token : null;
     }
 
-    private function extractCookieToken(Request $request): ?string
+    private function extractCookieToken(Request $request, string $cookieName): ?string
     {
-        $token = $request->cookies->get('easywi_session');
+        $token = $request->cookies->get($cookieName);
         if (!is_string($token)) {
             return null;
         }
 
         $token = trim($token);
         return $token !== '' ? $token : null;
+    }
+
+    private function isAdminPath(string $path): bool
+    {
+        return str_starts_with($path, '/admin')
+            || str_starts_with($path, '/api/admin')
+            || str_starts_with($path, '/api/v1/admin');
+    }
+
+    private function isResellerPath(string $path): bool
+    {
+        return str_starts_with($path, '/reseller')
+            || str_starts_with($path, '/api/reseller')
+            || str_starts_with($path, '/api/v1/reseller');
     }
 }

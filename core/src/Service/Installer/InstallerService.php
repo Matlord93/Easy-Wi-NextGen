@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Service\Installer;
 
+use App\Entity\AppSetting;
 use App\Entity\Site;
 use App\Entity\User;
 use App\Enum\UserType;
+use App\Runtime\DatabaseConfig;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\DBAL\Exception\TableExistsException;
@@ -84,22 +86,6 @@ final class InstallerService
 
         $requirements[] = $this->buildWritableRequirement('var', $this->projectDir . '/var', 'hints.writable_var');
         $requirements[] = $this->buildWritableRequirement('var_cache', $this->projectDir . '/var/cache', 'hints.writable_cache');
-
-        $envLocal = $this->projectDir . '/.env.local';
-        $envWritable = file_exists($envLocal) ? is_writable($envLocal) : is_writable($this->projectDir);
-        $requirements[] = [
-            'key' => 'env_local',
-            'ok' => $envWritable,
-            'required' => true,
-            'messageKey' => 'requirements.env_local',
-            'messageParams' => [
-                '%path%' => file_exists($envLocal) ? '.env.local' : $this->projectDir,
-            ],
-            'fixHintKey' => $envWritable ? null : 'hints.writable_env',
-            'fixHintParams' => [
-                '%path%' => file_exists($envLocal) ? '.env.local' : $this->projectDir,
-            ],
-        ];
 
         return $requirements;
     }
@@ -281,43 +267,21 @@ final class InstallerService
         }
     }
 
-    public function updateEnvLocal(string $databaseUrl): void
+    /**
+     * @param array<string, mixed> $databaseState
+     */
+    public function storeDatabaseConfig(string $databaseUrl, array $databaseState): void
     {
-        $path = $this->projectDir . '/.env.local';
-        $lines = [];
-
-        if (file_exists($path)) {
-            $lines = file($path, FILE_IGNORE_NEW_LINES);
-            if ($lines === false) {
-                $lines = [];
-            }
-        }
-
-        $databaseLine = sprintf('DATABASE_URL="%s"', addcslashes($databaseUrl, '"'));
-        $found = false;
-
-        foreach ($lines as $index => $line) {
-            if (str_starts_with($line, 'DATABASE_URL=')) {
-                $lines[$index] = $databaseLine;
-                $found = true;
-            }
-        }
-
-        if (!$found) {
-            $lines[] = $databaseLine;
-        }
-
-        $contents = implode("\n", $lines) . "\n";
-        $tempPath = $path . '.' . bin2hex(random_bytes(6)) . '.tmp';
-
-        if (file_put_contents($tempPath, $contents) === false) {
-            throw new \RuntimeException('Unable to write installer configuration.');
-        }
-
-        if (!@rename($tempPath, $path)) {
-            @unlink($tempPath);
-            throw new \RuntimeException('Unable to update installer configuration.');
-        }
+        DatabaseConfig::write($this->projectDir, [
+            'database_url' => $databaseUrl,
+            'driver' => $databaseState['driver'] ?? null,
+            'host' => $databaseState['host'] ?? null,
+            'port' => $databaseState['port'] ?? null,
+            'name' => $databaseState['name'] ?? null,
+            'user' => $databaseState['user'] ?? null,
+            'path' => $databaseState['path'] ?? null,
+            'stored_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
+        ]);
     }
 
     public function clearCache(): void
@@ -414,11 +378,37 @@ final class InstallerService
         }
 
         $userRepository = $entityManager->getRepository(User::class);
-        $admin = $userRepository->findOneBy(['type' => UserType::Admin->value]);
+        $admin = $userRepository->findOneBy(['type' => UserType::Superadmin->value]);
         if ($admin === null) {
-            $admin = new User((string) $data['admin_email'], UserType::Admin);
+            $admin = $userRepository->findOneBy(['type' => UserType::Admin->value]);
+        }
+        if ($admin === null) {
+            $admin = new User((string) $data['admin_email'], UserType::Superadmin);
+            $admin->setName((string) ($data['admin_name'] ?? ''));
             $admin->setPasswordHash($this->passwordHasher->hashPassword($admin, $adminPassword));
             $entityManager->persist($admin);
+        }
+
+        $entityManager->flush();
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     */
+    public function storeAppSettings(EntityManagerInterface $entityManager, array $settings): void
+    {
+        foreach ($settings as $key => $value) {
+            if (!is_string($key) || $key === '') {
+                continue;
+            }
+
+            $setting = $entityManager->find(AppSetting::class, $key);
+            if ($setting instanceof AppSetting) {
+                $setting->setValue($value);
+                continue;
+            }
+
+            $entityManager->persist(new AppSetting($key, $value));
         }
 
         $entityManager->flush();

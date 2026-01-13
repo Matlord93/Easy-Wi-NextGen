@@ -10,4 +10,9 @@ enum UserType: string
     case Superadmin = 'superadmin';
     case Reseller = 'reseller';
     case Customer = 'customer';
+
+    public function isAdmin(): bool
+    {
+        return in_array($this, [self::Admin, self::Superadmin], true);
+    }
 }

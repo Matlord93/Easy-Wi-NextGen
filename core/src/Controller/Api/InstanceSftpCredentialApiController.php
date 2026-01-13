@@ -13,6 +13,7 @@ use App\Repository\InstanceRepository;
 use App\Repository\InstanceSftpCredentialRepository;
 use App\Service\AuditLogger;
 use App\Service\EncryptionService;
+use App\Service\AppSettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -25,6 +26,7 @@ final class InstanceSftpCredentialApiController
         private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
+        private readonly AppSettingsService $settingsService,
         private readonly AuditLogger $auditLogger,
     ) {
     }
@@ -38,8 +40,7 @@ final class InstanceSftpCredentialApiController
         $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
 
         $includePassword = filter_var($request->query->get('include_password', false), FILTER_VALIDATE_BOOLEAN);
-        $allowedUserTypes = [UserType::Admin, UserType::Customer];
-        $canManageCredentials = in_array($actor->getType(), $allowedUserTypes, true);
+        $canManageCredentials = $actor->isAdmin() || $actor->getType() === UserType::Customer;
         $generatedPassword = null;
         if ($credential === null && $canManageCredentials) {
             $username = $this->buildUsername($instance);
@@ -121,7 +122,7 @@ final class InstanceSftpCredentialApiController
             throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException('Instance not found.');
         }
 
-        if ($actor->getType() === UserType::Admin) {
+        if ($actor->isAdmin()) {
             return $instance;
         }
 
@@ -202,9 +203,9 @@ final class InstanceSftpCredentialApiController
             return $lastIp;
         }
 
-        $env = $_ENV['EASYWI_SFTP_HOST'] ?? $_SERVER['EASYWI_SFTP_HOST'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
+        $host = $this->settingsService->getSftpHost();
+        if (is_string($host) && $host !== '') {
+            return $host;
         }
 
         return null;
@@ -218,11 +219,6 @@ final class InstanceSftpCredentialApiController
             return max(1, (int) $port);
         }
 
-        $env = $_ENV['EASYWI_SFTP_PORT'] ?? $_SERVER['EASYWI_SFTP_PORT'] ?? null;
-        if (is_numeric($env)) {
-            return max(1, (int) $env);
-        }
-
-        return 22;
+        return $this->settingsService->getSftpPort();
     }
 }
