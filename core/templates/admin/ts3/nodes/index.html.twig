@@ -1,0 +1,57 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}TS3 Nodes · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>TS3 Nodes</h1>
+                <p>Verwalte Agent Nodes für TeamSpeak 3.</p>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-button" href="/admin/ts3/nodes/new">Node hinzufügen</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts3-card">
+            <table class="ts3-table">
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Agent URL</th>
+                    <th>Status</th>
+                    <th>Version</th>
+                    <th>Aktualisiert</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for node in nodes %}
+                    <tr>
+                        <td>
+                            <div>{{ node.name }}</div>
+                            <div class="ts3-muted">#{{ node.id }}</div>
+                        </td>
+                        <td>{{ node.agentBaseUrl }}</td>
+                        <td><span class="ts3-pill">{{ node.installStatus }}</span></td>
+                        <td>{{ node.installedVersion ?? '—' }}</td>
+                        <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
+                        <td class="ts3-align-right">
+                            <a class="ts3-link" href="/admin/ts3/nodes/{{ node.id }}">Details</a>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="ts3-empty">Keine TS3 Nodes vorhanden.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

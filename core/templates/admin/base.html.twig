@@ -16,6 +16,9 @@
     <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
     <link rel="stylesheet" href="/ui.css">
     <link rel="stylesheet" href="/admin-customer.css">
+    <link rel="stylesheet" href="/ts6.css">
+    <link rel="stylesheet" href="/sinusbot.css">
+    <link rel="stylesheet" href="/ts3.css">
     <script src="/htmx.min.js"></script>
 </head>
 <body class="admin-interface bg-slate-100 text-slate-900">
@@ -290,7 +293,7 @@
                 </div>
             </details>
 
-            {% set servicesActive = activeNav in ['game-instances', 'ts3-instances', 'ts6', 'webspaces', 'databases'] %}
+            {% set servicesActive = activeNav in ['game-instances', 'ts3', 'ts3-instances', 'ts6', 'sinusbot', 'webspaces', 'databases'] %}
             <details class="nav-group group" data-nav-id="admin-services" {{ servicesActive ? 'open' : '' }}>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
                     <span>{{ t('admin_nav_group_services', page_locale()) }}</span>
@@ -331,8 +334,26 @@
                         </span>
                         <span class="text-sm font-medium">{{ t('admin_nav_ts3_instances', page_locale()) }}</span>
                     </a>
+                    <a href="/admin/sinusbot/nodes" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'sinusbot' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'sinusbot' ? 'bg-white/15' : 'bg-white/10' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm2.75 1.25a.75.75 0 0 0-.75.75v6a.75.75 0 0 0 .75.75h8.5a.75.75 0 0 0 .75-.75v-6a.75.75 0 0 0-.75-.75h-8.5Zm1.75 2.25h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm font-medium">SinusBot</span>
+                    </a>
+                    {% if module_enabled('ts') %}
+                        <a href="/admin/ts3/nodes" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ts3' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                            <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'ts3' ? 'bg-white/15' : 'bg-white/10' }}">
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path d="M4.75 3A1.75 1.75 0 0 0 3 4.75v10.5C3 16.216 3.784 17 4.75 17h10.5A1.75 1.75 0 0 0 17 15.25V9.5a.75.75 0 0 0-.75-.75h-4.5A1.25 1.25 0 0 1 10.5 7.5V3.75A.75.75 0 0 0 9.75 3h-5Zm1.5 4.75a.75.75 0 0 0 .75.75h6.5a.75.75 0 0 0 0-1.5h-6.5a.75.75 0 0 0-.75.75Zm0 4a.75.75 0 0 0 .75.75h4.5a.75.75 0 0 0 0-1.5h-4.5a.75.75 0 0 0-.75.75Z"/>
+                                </svg>
+                            </span>
+                            <span class="text-sm font-medium">{{ t('admin_nav_ts3_virtual', page_locale()) }}</span>
+                        </a>
+                    {% endif %}
                     {% if module_enabled('ts6') %}
-                        <a href="/admin/ts6" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ts6' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <a href="/admin/ts6/nodes" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ts6' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                             <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'ts6' ? 'bg-white/15' : 'bg-white/10' }}">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                     <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm2.75 1.25a.75.75 0 0 0-.75.75v6a.75.75 0 0 0 .75.75h8.5a.75.75 0 0 0 .75-.75v-6a.75.75 0 0 0-.75-.75h-8.5Zm1.75 2.25h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/>

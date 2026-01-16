@@ -15,6 +15,8 @@ use App\Repository\JobRepository;
 use App\Service\DiskEnforcementService;
 use App\Service\JobLogger;
 use App\Service\JobPayloadMasker;
+use App\Service\InstanceInstallService;
+use App\Service\SetupChecker;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -34,6 +36,8 @@ final class CustomerJobApiController
         private readonly JobLogger $jobLogger,
         private readonly JobPayloadMasker $jobPayloadMasker,
         private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly SetupChecker $setupChecker,
+        private readonly InstanceInstallService $instanceInstallService,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
     ) {
@@ -52,6 +56,15 @@ final class CustomerJobApiController
             throw new BadRequestHttpException('Invalid action type.');
         }
 
+        $blocked = $this->guardSetupRequirements($instance, $jobType);
+        if ($blocked !== null) {
+            return new JsonResponse([
+                'error' => 'Setup requirements missing.',
+                'error_code' => 'MISSING_REQUIREMENTS',
+                'missing' => $blocked['missing'],
+            ], JsonResponse::HTTP_CONFLICT);
+        }
+
         if (in_array($jobType, ['instance.reinstall', 'instance.backup.create', 'instance.backup.restore', 'instance.addon.install', 'instance.addon.remove', 'instance.addon.update'], true)) {
             $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
             if ($blockMessage !== null) {
@@ -59,8 +72,20 @@ final class CustomerJobApiController
             }
         }
 
-        $extraPayload = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
-        $jobPayload = array_merge($extraPayload, $this->buildBasePayload($instance));
+        if ($jobType === 'sniper.install') {
+            $install = $this->instanceInstallService->prepareInstall($instance);
+            if (!$install['ok']) {
+                return new JsonResponse([
+                    'error' => 'Install prerequisites not met.',
+                    'error_code' => $install['error_code'] ?? 'MISSING_REQUIREMENTS',
+                    'missing' => $install['missing'] ?? [],
+                ], JsonResponse::HTTP_CONFLICT);
+            }
+            $jobPayload = array_merge($this->buildBasePayload($instance), $install['payload'] ?? []);
+        } else {
+            $extraPayload = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
+            $jobPayload = array_merge($extraPayload, $this->buildBasePayload($instance));
+        }
 
         $job = new Job($jobType, $jobPayload);
         $this->entityManager->persist($job);
@@ -226,6 +251,7 @@ final class CustomerJobApiController
             'start' => 'instance.start',
             'stop' => 'instance.stop',
             'restart' => 'instance.restart',
+            'install' => 'sniper.install',
             'reinstall' => 'instance.reinstall',
             default => null,
         };
@@ -234,6 +260,7 @@ final class CustomerJobApiController
     private function isAllowedJobType(string $type): bool
     {
         $allowed = [
+            'sniper.install',
             'instance.start',
             'instance.stop',
             'instance.restart',
@@ -246,6 +273,32 @@ final class CustomerJobApiController
         ];
 
         return in_array($type, $allowed, true);
+    }
+
+    /**
+     * @return array{missing: array<int, array{key: string, label: string, type: string}>}|null
+     */
+    private function guardSetupRequirements(Instance $instance, string $jobType): ?array
+    {
+        $action = match ($jobType) {
+            'instance.start' => SetupChecker::ACTION_START,
+            'instance.reinstall' => SetupChecker::ACTION_INSTALL,
+            'sniper.install' => SetupChecker::ACTION_INSTALL,
+            default => null,
+        };
+
+        if ($action === null) {
+            return null;
+        }
+
+        $status = $this->setupChecker->getSetupStatus($instance);
+        if ($status['is_ready'] || !in_array($action, $status['blocked_actions'], true)) {
+            return null;
+        }
+
+        return [
+            'missing' => $status['missing'],
+        ];
     }
 
     /**

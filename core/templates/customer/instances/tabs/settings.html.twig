@@ -11,5 +11,5 @@
         <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ t(tabError, page_locale()) }}</div>
     {% endif %}
 
-    {% include 'customer/instances/_settings_form.html.twig' with { instance: instance, detailMode: true } %}
+    {% include 'customer/instances/_settings_form.html.twig' with { instance: instance, detailMode: true, minecraftCatalog: minecraftCatalog|default(null) } %}
 </div>

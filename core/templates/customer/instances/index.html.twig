@@ -13,7 +13,7 @@
     <div class="mt-6 space-y-6">
         {% for instance in instances %}
             <div id="instance-card-{{ instance.id }}">
-                {% include 'customer/instances/_card.html.twig' with { instance: instance } %}
+                {% include 'customer/instances/_card.html.twig' with { instance: instance, minecraftCatalog: minecraftCatalog|default(null) } %}
             </div>
         {% else %}
             <div class="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-700">

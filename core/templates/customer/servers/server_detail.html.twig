@@ -1,0 +1,374 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}{{ server.name }} · Easy-Wi NextGen{% endblock %}
+
+{% block body %}
+<div class="px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+    <div class="server-hero" data-instance-id="{{ server.id }}">
+        <div class="server-hero__info">
+            <p class="text-xs font-semibold uppercase text-slate-400">{{ server.gameKey }}</p>
+            <h1 class="text-2xl font-semibold text-slate-900">{{ server.name }}</h1>
+            <div class="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                <span class="status-badge status-{{ server.status }}">{{ server.status|replace({'_': ' '})|title }}</span>
+                <span class="setup-badge {{ server.setupRequired ? 'setup-warning' : 'setup-ready' }}">
+                    {{ server.setupRequired ? 'Setup erforderlich' : 'Setup ready' }}
+                </span>
+                <span>Zuletzt gesehen: {{ server.lastSeenAt ? server.lastSeenAt|date('Y-m-d H:i') : 'Nie' }}</span>
+                <span>Node: {{ server.nodeName ?? '—' }}</span>
+            </div>
+        </div>
+        <div class="server-hero__actions">
+            {% set installMessages = {
+                'NODE_NOT_SET': 'Kein Node zugewiesen. Bitte Support kontaktieren.',
+                'MISSING_REQUIREMENTS': 'Setup ist noch nicht vollständig.',
+                'NO_PORTS_AVAILABLE': 'Keine freien Ports verfügbar.',
+                'TEMPLATE_OS_MISMATCH': 'Template unterstützt das Node-Betriebssystem nicht.'
+            } %}
+            {% if server.status == 'pending_setup' %}
+                <div class="server-actions-row" data-action-row>
+                    <button type="button" class="btn-primary" data-action="install" {{ not server.installReady ? 'disabled' : '' }}>Installieren</button>
+                </div>
+                <p class="text-xs {{ server.installReady ? 'text-slate-500' : 'text-rose-500' }}" id="action-feedback">
+                    {{ server.installReady ? 'Installation startet einen Job im Hintergrund.' : installMessages[server.installErrorCode]|default('Installation aktuell nicht möglich.') }}
+                </p>
+            {% elseif not server.setupRequired %}
+                <div class="server-actions-row" data-action-row>
+                    <button type="button" class="btn-primary" data-action="start">Start</button>
+                    <button type="button" class="btn-ghost" data-action="stop">Stop</button>
+                    <button type="button" class="btn-ghost" data-action="restart">Restart</button>
+                </div>
+                <p class="text-xs text-slate-500" id="action-feedback">Aktionen erzeugen Jobs und aktualisieren die Activity-Ansicht automatisch.</p>
+            {% else %}
+                <p class="text-xs text-slate-500">Quick Actions stehen nach dem Setup zur Verfügung.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if server.setupRequired %}
+        <div class="setup-banner">
+            <div class="setup-banner__content">
+                <h2 class="text-sm font-semibold text-slate-900">Setup erforderlich</h2>
+                <p class="text-sm text-slate-600">Bitte vervollständige die fehlenden Daten, bevor Aktionen ausgeführt werden.</p>
+                <ul class="mt-2 list-disc pl-5 text-sm text-slate-600">
+                    {% for field in server.setupMissingFields %}
+                        <li>{{ field }}</li>
+                    {% else %}
+                        <li>Bitte kontaktiere den Support, um die fehlenden Admin-Daten zu hinterlegen.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="setup-banner__form">
+                <div class="grid gap-6 lg:grid-cols-2">
+                    <div class="setup-panel">
+                        <h3 class="text-sm font-semibold text-slate-900">Setup Variablen</h3>
+                        <form action="/kunden/servers/{{ server.id }}/setup/vars" method="post" class="mt-4 space-y-4">
+                            {% for field in setupWizard.vars %}
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase">
+                                        {{ field.label }}{% if field.required %} *{% endif %}
+                                    </label>
+                                    <input
+                                        name="vars[{{ field.key }}]"
+                                        value="{{ field.value }}"
+                                        type="{{ field.type == 'number' ? 'number' : 'text' }}"
+                                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                                    >
+                                    {% if field.helptext %}
+                                        <p class="mt-1 text-xs text-slate-500">{{ field.helptext }}</p>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <p class="text-sm text-slate-500">Keine Variablen definiert.</p>
+                            {% endfor %}
+                            <button type="submit" class="btn-primary">Variablen speichern</button>
+                        </form>
+                    </div>
+                    <div class="setup-panel">
+                        <h3 class="text-sm font-semibold text-slate-900">Setup Secrets</h3>
+                        <form action="/kunden/servers/{{ server.id }}/setup/secrets" method="post" class="mt-4 space-y-4">
+                            {% for field in setupWizard.secrets %}
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 uppercase">
+                                        {{ field.label }}{% if field.required %} *{% endif %}
+                                    </label>
+                                    <div class="mt-2 flex flex-col gap-2">
+                                        <input
+                                            name="secrets[{{ field.key }}]"
+                                            type="{{ field.type == 'number' ? 'number' : 'password' }}"
+                                            class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                                            placeholder="Neues Secret eingeben"
+                                        >
+                                        <span class="text-xs text-slate-500">Gesetzt: {{ field.is_set ? 'Ja' : 'Nein' }}</span>
+                                    </div>
+                                    {% if field.helptext %}
+                                        <p class="mt-1 text-xs text-slate-500">{{ field.helptext }}</p>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <p class="text-sm text-slate-500">Keine Secrets definiert.</p>
+                            {% endfor %}
+                            <button type="submit" class="btn-primary">Secrets speichern</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="server-tabs">
+        {% for tab in tabs %}
+            <a href="{{ tab.href }}" class="server-tab {{ tab.key == activeTab ? 'is-active' : '' }}">{{ tab.label }}</a>
+        {% endfor %}
+    </div>
+
+    {% if activeTab == 'overview' %}
+        <div class="grid gap-4 lg:grid-cols-3">
+            <div class="server-card">
+                <div class="server-card__header">
+                    <h2 class="text-sm font-semibold text-slate-900">Status</h2>
+                </div>
+                <div class="server-card__body space-y-3">
+                    <div>
+                        <p class="server-meta__label">Letzte Aktion</p>
+                        <p class="server-meta__value">{{ server.lastActionLabel ?? '—' }}</p>
+                        <p class="server-meta__sub">{{ server.lastActionAt ? server.lastActionAt|date('Y-m-d H:i') : 'Keine Aktionen' }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="server-card">
+                <div class="server-card__header">
+                    <h2 class="text-sm font-semibold text-slate-900">Evidence</h2>
+                </div>
+                <div class="server-card__body space-y-3">
+                    <div>
+                        <p class="server-meta__label">Ports</p>
+                        <div class="server-ports__list">
+                            {% for port in server.ports %}
+                                <span class="server-ports__chip">{{ port.label }} {{ port.port }}</span>
+                            {% else %}
+                                <span class="text-xs text-slate-500">Keine Ports zugeordnet</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div>
+                        <p class="server-meta__label">Version</p>
+                        <p class="server-meta__value">{{ server.currentVersion ?? '—' }}</p>
+                        {% if server.lockedVersion %}
+                            <p class="server-meta__sub">Fixiert: {{ server.lockedVersion }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <p class="server-meta__label">PID</p>
+                        <p class="server-meta__value">{{ server.processId ?? '—' }}</p>
+                    </div>
+                    <div>
+                        <p class="server-meta__label">Instance Root</p>
+                        <p class="text-sm text-slate-700 font-mono">{{ server.instanceRoot }}</p>
+                    </div>
+                    <div>
+                        <p class="server-meta__label">Letzter Fehler</p>
+                        <p class="server-meta__value">{{ server.lastError ?? '—' }}</p>
+                    </div>
+                    {% if server.address %}
+                        <div>
+                            <p class="server-meta__label">Adresse</p>
+                            <p class="text-sm text-slate-700">{{ server.address }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="server-card">
+                <div class="server-card__header">
+                    <h2 class="text-sm font-semibold text-slate-900">Setup & Node</h2>
+                </div>
+                <div class="server-card__body space-y-3">
+                    <div>
+                        <p class="server-meta__label">Setup Status</p>
+                        <span class="setup-badge {{ server.setupRequired ? 'setup-warning' : 'setup-ready' }}">
+                            {{ server.setupRequired ? 'Setup erforderlich' : 'Setup ready' }}
+                        </span>
+                    </div>
+                    <div>
+                        <p class="server-meta__label">Node</p>
+                        <p class="server-meta__value">{{ server.nodeName ?? '—' }}</p>
+                        <p class="server-meta__sub">{{ server.nodeId ?? '—' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% elseif activeTab == 'files' %}
+        <div class="server-card">
+            <div class="server-card__header">
+                <h2 class="text-sm font-semibold text-slate-900">Files</h2>
+                <a href="/instances/{{ server.id }}/files" class="btn-ghost">Öffnen</a>
+            </div>
+            <div class="server-card__body text-sm text-slate-600">
+                Der File Browser öffnet sich im bekannten Interface und zeigt das Instance-Verzeichnis an.
+            </div>
+        </div>
+        <div class="server-card">
+            <div class="server-card__header">
+                <h2 class="text-sm font-semibold text-slate-900">SFTP Zugriff</h2>
+            </div>
+            <div class="server-card__body space-y-4 text-sm text-slate-600">
+                <dl class="grid gap-3 sm:grid-cols-3">
+                    <div>
+                        <dt class="text-xs font-semibold uppercase text-slate-400">Host</dt>
+                        <dd class="text-sm font-medium text-slate-800">{{ sftp.host ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-semibold uppercase text-slate-400">Port</dt>
+                        <dd class="text-sm font-medium text-slate-800">{{ sftp.port ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-semibold uppercase text-slate-400">Username</dt>
+                        <dd class="text-sm font-medium text-slate-800">{{ sftp.username ?? '—' }}</dd>
+                    </div>
+                </dl>
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="status-badge {{ sftp.enabled ? 'status-running' : 'status-stopped' }}">
+                        {{ sftp.enabled ? 'Aktiv' : 'Inaktiv' }}
+                    </span>
+                    <span class="text-slate-500">{{ sftp.keys_count }} Key(s) hinterlegt</span>
+                    {% if sftp.password_set_at %}
+                        <span class="text-slate-500">Passwort zuletzt gesetzt: {{ sftp.password_set_at|date('Y-m-d H:i') }}</span>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-slate-500">
+                    SFTP nutzt einen chroot auf das Instance-Root. Das Passwort wird bei Aktivierung oder Reset gesetzt und nicht angezeigt.
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    {% if not sftp.enabled %}
+                        <form method="post" action="/kunden/servers/{{ server.id }}/sftp/enable">
+                            <button type="submit" class="btn-primary">SFTP aktivieren</button>
+                        </form>
+                    {% else %}
+                        <form method="post" action="/kunden/servers/{{ server.id }}/sftp/reset-password">
+                            <button type="submit" class="btn-ghost">Passwort zurücksetzen</button>
+                        </form>
+                        <form method="post" action="/kunden/servers/{{ server.id }}/sftp/disable">
+                            <button type="submit" class="btn-ghost">SFTP deaktivieren</button>
+                        </form>
+                    {% endif %}
+                </div>
+                <form method="post" action="/kunden/servers/{{ server.id }}/sftp/keys" class="space-y-2">
+                    <label class="block text-xs font-semibold uppercase text-slate-400">SSH Keys</label>
+                    <textarea name="keys" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="ssh-ed25519 AAAA..."></textarea>
+                    <div class="flex items-center gap-2">
+                        <button type="submit" class="btn-ghost">Keys speichern</button>
+                        <span class="text-xs text-slate-500">Jede Zeile ein Public Key.</span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    {% elseif activeTab == 'config' %}
+        <div class="server-card">
+            <div class="server-card__header">
+                <h2 class="text-sm font-semibold text-slate-900">Quick Config</h2>
+            </div>
+            <div class="server-card__body">
+                {% include 'customer/instances/_settings_form.html.twig' with { instance: {
+                    id: server.id,
+                    update_policy: instance.updatePolicy.value,
+                    locked_build_id: instance.lockedBuildId,
+                    locked_version: instance.lockedVersion,
+                    schedule: updateSchedule,
+                    template: {
+                        game_key: instance.template.gameKey,
+                        install_resolver: instance.template.installResolver
+                    }
+                }, detailMode: true, minecraftCatalog: minecraftCatalog|default(null) } only %}
+            </div>
+        </div>
+    {% elseif activeTab == 'logs' %}
+        <div class="server-card">
+            <div class="server-card__header">
+                <h2 class="text-sm font-semibold text-slate-900">Logs</h2>
+                <a href="/kunden/servers/{{ server.id }}/logs/download" class="btn-ghost">Download</a>
+            </div>
+            <div class="server-card__body">
+                <div class="log-output">
+                    {% for entry in logSnapshot.entries %}
+                        <div><span>{{ entry.created_at|date('H:i:s') }}</span> {{ entry.message }}</div>
+                    {% else %}
+                        <div class="text-sm text-slate-500">Noch keine Logs verfügbar.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% elseif activeTab == 'activity' %}
+        <div id="activity-timeline" hx-get="/kunden/servers/{{ server.id }}/activity" hx-trigger="load, every 4s" hx-swap="innerHTML">
+            {% include 'customer/servers/_activity_timeline.html.twig' with { timeline: timeline } %}
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    (() => {
+        const hero = document.querySelector('.server-hero');
+        if (!hero) {
+            return;
+        }
+        const instanceId = hero.dataset.instanceId;
+        const feedback = document.getElementById('action-feedback');
+        const row = hero.querySelector('[data-action-row]');
+        if (!row) {
+            return;
+        }
+
+        const setFeedback = (message, isError = false) => {
+            if (!feedback) {
+                return;
+            }
+            feedback.textContent = message;
+            feedback.classList.toggle('text-rose-500', isError);
+            feedback.classList.toggle('text-slate-500', !isError);
+        };
+
+        const errorMessages = {
+            NODE_NOT_SET: 'Kein Node zugewiesen. Bitte Support kontaktieren.',
+            MISSING_REQUIREMENTS: 'Setup ist noch nicht vollständig.',
+            NO_PORTS_AVAILABLE: 'Keine freien Ports verfügbar.',
+            TEMPLATE_OS_MISMATCH: 'Template unterstützt das Node-Betriebssystem nicht.',
+        };
+
+        const handleAction = async (action) => {
+            if (!instanceId) {
+                return;
+            }
+            setFeedback('Aktion wird ausgeführt...');
+
+            const response = await fetch(`/api/customer/instances/${instanceId}/actions`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ action }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                const message = errorMessages[data.error_code] || data.error || 'Aktion fehlgeschlagen.';
+                setFeedback(message, true);
+                return;
+            }
+
+            setFeedback('Aktion wurde gestartet.');
+        };
+
+        row.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) {
+                return;
+            }
+            const action = target.dataset.action;
+            if (!action) {
+                return;
+            }
+            handleAction(action);
+        });
+    })();
+</script>
+{% endblock %}

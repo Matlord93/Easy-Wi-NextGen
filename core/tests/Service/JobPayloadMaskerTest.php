@@ -15,6 +15,7 @@ final class JobPayloadMaskerTest extends TestCase
 
         $payload = [
             'password' => 'super-secret',
+            'authorized_keys' => 'ssh-ed25519 AAA',
             'nested' => [
                 'token' => 'token-value',
                 'items' => [
@@ -32,6 +33,7 @@ final class JobPayloadMaskerTest extends TestCase
         $masked = $masker->maskPayload($payload);
 
         self::assertSame('[redacted]', $masked['password']);
+        self::assertSame('[redacted]', $masked['authorized_keys']);
         self::assertSame('[redacted]', $masked['nested']['token']);
         self::assertSame('[redacted]', $masked['nested']['items'][0]['apiKey']);
         self::assertSame('ok', $masked['nested']['items'][1]['value']);

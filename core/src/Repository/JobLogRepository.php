@@ -45,4 +45,18 @@ final class JobLogRepository extends ServiceEntityRepository
 
         return $builder->getQuery()->getResult();
     }
+
+    /**
+     * @return JobLog[]
+     */
+    public function findLastByJob(Job $job, int $limit = 200): array
+    {
+        return $this->createQueryBuilder('log')
+            ->andWhere('log.job = :job')
+            ->setParameter('job', $job)
+            ->orderBy('log.id', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
 }

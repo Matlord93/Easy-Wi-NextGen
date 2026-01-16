@@ -17,11 +17,13 @@ use App\Repository\BackupDefinitionRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceScheduleRepository;
 use App\Repository\JobRepository;
-use App\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Service\AuditLogger;
 use App\Service\DiskEnforcementService;
 use App\Service\DiskUsageFormatter;
 use App\Service\InstanceJobPayloadBuilder;
+use App\Service\MinecraftCatalogService;
+use App\Service\SetupChecker;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -45,6 +47,8 @@ final class CustomerInstanceController
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
+        private readonly MinecraftCatalogService $minecraftCatalogService,
+        private readonly SetupChecker $setupChecker,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
     ) {
@@ -59,6 +63,7 @@ final class CustomerInstanceController
         return new Response($this->twig->render('customer/instances/index.html.twig', [
             'instances' => $this->normalizeInstances($instances),
             'activeNav' => 'instances',
+            'minecraftCatalog' => $this->minecraftCatalogService->getUiCatalog(),
         ]));
     }
 
@@ -101,6 +106,7 @@ final class CustomerInstanceController
             'tabTemplate' => sprintf('customer/instances/tabs/%s.html.twig', $activeTab),
             'tabNotice' => $this->resolveNoticeKey((string) $request->query->get('notice', '')),
             'tabError' => $this->resolveErrorKey((string) $request->query->get('error', '')),
+            'minecraftCatalog' => $this->minecraftCatalogService->getUiCatalog(),
         ]));
     }
 
@@ -172,6 +178,11 @@ final class CustomerInstanceController
             return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_confirm');
         }
 
+        $blocked = $this->guardSetupRequirements($instance, SetupChecker::ACTION_INSTALL);
+        if ($blocked !== null) {
+            return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_blocked');
+        }
+
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
             return $this->redirectToTab($instance->getId(), 'reinstall', null, 'customer_instance_reinstall_error_blocked');
@@ -210,6 +221,11 @@ final class CustomerInstanceController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $template = $instance->getTemplate();
+
+        $blocked = $this->guardSetupRequirements($instance, SetupChecker::ACTION_UPDATE);
+        if ($blocked !== null) {
+            return $this->renderInstanceCard($instance, null, $blocked);
+        }
 
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
@@ -285,6 +301,19 @@ final class CustomerInstanceController
                 return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
             }
             return $this->renderInstanceCard($instance, null, 'Time zone is invalid.');
+        }
+
+        $resolver = $instance->getTemplate()->getInstallResolver();
+        $resolverType = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        if (in_array($resolverType, ['minecraft_vanilla', 'papermc_paper'], true)) {
+            $channel = $resolverType === 'minecraft_vanilla' ? 'vanilla' : 'paper';
+            $validationError = $this->minecraftCatalogService->validateSelection($channel, $lockedVersion, $lockedBuildId);
+            if ($validationError !== null) {
+                if ($detailMode) {
+                    return $this->redirectToTab($instance->getId(), 'settings', null, 'customer_instance_settings_error');
+                }
+                return $this->renderInstanceCard($instance, null, $validationError);
+            }
         }
 
         $instance->setUpdatePolicy($policy);
@@ -380,6 +409,13 @@ final class CustomerInstanceController
             return $this->renderInstanceCard($instance, null, 'This instance is suspended.');
         }
 
+        if ($action === 'start') {
+            $blocked = $this->guardSetupRequirements($instance, SetupChecker::ACTION_START);
+            if ($blocked !== null) {
+                return $this->renderInstanceCard($instance, null, $blocked);
+            }
+        }
+
         $jobType = match ($action) {
             'start' => 'instance.start',
             'stop' => 'instance.stop',
@@ -415,6 +451,20 @@ final class CustomerInstanceController
         };
 
         return $this->renderInstanceCard($instance, $notice, null);
+    }
+
+    private function guardSetupRequirements(Instance $instance, string $action): ?string
+    {
+        $status = $this->setupChecker->getSetupStatus($instance);
+        if ($status['is_ready'] || !in_array($action, $status['blocked_actions'], true)) {
+            return null;
+        }
+
+        $labels = array_map(static fn (array $entry): string => $entry['label'], $status['missing']);
+
+        return $labels === []
+            ? 'Setup requirements missing.'
+            : sprintf('Setup required: %s.', implode(', ', $labels));
     }
 
     private function requireCustomer(Request $request): User
@@ -469,7 +519,7 @@ final class CustomerInstanceController
         }, $instances);
     }
 
-    private function normalizeInstance(Instance $instance, ?InstanceSchedule $schedule, ?\App\Entity\PortBlock $portBlock, ?string $notice = null, ?string $error = null): array
+    private function normalizeInstance(Instance $instance, ?InstanceSchedule $schedule, ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock, ?string $notice = null, ?string $error = null): array
     {
         $diskLimitBytes = $instance->getDiskLimitBytes();
         $diskUsedBytes = $instance->getDiskUsedBytes();
@@ -481,6 +531,7 @@ final class CustomerInstanceController
             'template' => [
                 'name' => $instance->getTemplate()->getDisplayName(),
                 'game_key' => $instance->getTemplate()->getGameKey(),
+                'install_resolver' => $instance->getTemplate()->getInstallResolver(),
             ],
             'node' => [
                 'id' => $instance->getNode()->getId(),
@@ -716,10 +767,11 @@ final class CustomerInstanceController
 
         return new Response($this->twig->render('customer/instances/_card.html.twig', [
             'instance' => $this->normalizeInstance($instance, $schedule, $portBlock, $notice, $error),
+            'minecraftCatalog' => $this->minecraftCatalogService->getUiCatalog(),
         ]));
     }
 
-    private function buildConnectionData(Instance $instance, ?\App\Entity\PortBlock $portBlock): array
+    private function buildConnectionData(Instance $instance, ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock): array
     {
         $host = $instance->getNode()->getLastHeartbeatIp();
         $requiredPorts = $instance->getTemplate()->getRequiredPorts();

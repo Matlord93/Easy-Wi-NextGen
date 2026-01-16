@@ -6,7 +6,7 @@ namespace App\Command;
 
 use App\Entity\Job;
 use App\Repository\FirewallStateRepository;
-use App\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Service\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;

@@ -1,0 +1,98 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}SinusBot Node {{ node.name }} · Easy-Wi NextGen{% endblock %}
+
+{% block body %}
+    <div class="sinusbot-page">
+        <div class="sinusbot-header">
+            <div>
+                <h1>{{ node.name }}</h1>
+                <p>Status und Aktionen für diese SinusBot Node.</p>
+            </div>
+            <div class="sinusbot-actions">
+                <a class="sinusbot-link" href="/admin/sinusbot/nodes">Zurück zur Übersicht</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="sinusbot-alert sinusbot-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="sinusbot-grid">
+            <div class="sinusbot-card">
+                <h2>Installation</h2>
+                <div class="sinusbot-meta">
+                    <div><strong>Status:</strong> {{ node.installStatus }}</div>
+                    <div><strong>Version:</strong> {{ node.installedVersion ?? '–' }}</div>
+                    <div><strong>Letzter Fehler:</strong> {{ node.lastError ?? '–' }}</div>
+                </div>
+                <div class="sinusbot-actions">
+                    <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/install">
+                        <input type="hidden" name="_token" value="{{ csrf.install }}">
+                        <button class="sinusbot-button" type="submit">Installieren / Reparieren</button>
+                    </form>
+                    <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/refresh">
+                        <input type="hidden" name="_token" value="{{ csrf.refresh }}">
+                        <button class="sinusbot-button" type="submit">Status aktualisieren</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="sinusbot-card">
+                <h2>TS3 Client Dependency</h2>
+                <div class="sinusbot-meta">
+                    <div><strong>Installiert:</strong> {{ node.ts3ClientInstalled ? 'Ja' : 'Nein' }}</div>
+                    <div><strong>Version:</strong> {{ node.ts3ClientVersion ?? '–' }}</div>
+                    <div><strong>Pfad:</strong> {{ node.ts3ClientPath ?? '–' }}</div>
+                </div>
+                <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/install-ts3-client" class="sinusbot-form">
+                    <input type="hidden" name="_token" value="{{ csrf.install_ts3_client }}">
+                    <label for="ts3-client-url">TS3 Client Download URL (optional)</label>
+                    <input id="ts3-client-url" type="text" name="ts3_client_download_url" placeholder="https://files.teamspeak-services.com/...">
+                    <div class="sinusbot-actions">
+                        <button class="sinusbot-button" type="submit">TS3 Client installieren/reparieren</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="sinusbot-card">
+                <h2>Agent Konfiguration</h2>
+                <div class="sinusbot-meta">
+                    <div><strong>Agent URL:</strong> {{ node.agentBaseUrl }}</div>
+                    <div><strong>Install Pfad:</strong> {{ node.installPath }}</div>
+                    <div><strong>Instance Root:</strong> {{ node.instanceRoot }}</div>
+                    <div><strong>Web Bind:</strong> {{ node.webBindIp }}:{{ node.webPortBase }}</div>
+                </div>
+            </div>
+
+            <div class="sinusbot-card">
+                <h2>Admin Credentials</h2>
+                <p class="sinusbot-muted">Passwort wird verschlüsselt gespeichert und nur für Admins angezeigt.</p>
+                {% if admin_password %}
+                    <div class="sinusbot-credentials">
+                        <div><strong>Username:</strong> {{ node.adminUsername ?? '–' }}</div>
+                        <div class="sinusbot-secret">{{ admin_password }}</div>
+                    </div>
+                    <button class="sinusbot-button" type="button" data-sinusbot-copy="{{ admin_password }}">Kopieren</button>
+                {% else %}
+                    <div class="sinusbot-credentials">
+                        <div><strong>Username:</strong> {{ node.adminUsername ?? '–' }}</div>
+                        <div class="sinusbot-secret">••••••••</div>
+                    </div>
+                    <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/reveal-credentials">
+                        <input type="hidden" name="_token" value="{{ csrf.reveal }}">
+                        <button class="sinusbot-button" type="submit">Anzeigen</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll('[data-sinusbot-copy]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                navigator.clipboard?.writeText(button.dataset.sinusbotCopy || '');
+            });
+        });
+    </script>
+{% endblock %}

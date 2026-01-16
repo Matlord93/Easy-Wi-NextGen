@@ -22,7 +22,7 @@
     </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
     <div class="rounded-xl bg-white border border-slate-200 p-4">
         <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_total', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
@@ -30,6 +30,10 @@
     <div class="rounded-xl bg-white border border-slate-200 p-4">
         <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_running', page_locale()) }}</p>
         <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.running }}</p>
+    </div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4">
+        <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_pending_setup', page_locale()) }}</p>
+        <p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.pending_setup }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
         <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_provisioning', page_locale()) }}</p>

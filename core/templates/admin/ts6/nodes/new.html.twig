@@ -1,0 +1,34 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}TS6 Node anlegen · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts6-page">
+        <div class="ts6-header">
+            <div>
+                <h1>TS6 Node anlegen</h1>
+                <p>Verbinde einen Agenten für TeamSpeak 6 Installationen.</p>
+            </div>
+        </div>
+
+        <div class="ts6-card">
+            {{ form_start(form, { attr: { class: 'ts6-form' } }) }}
+                <div class="ts6-grid">
+                    {{ form_row(form.name) }}
+                    {{ form_row(form.agentBaseUrl) }}
+                    {{ form_row(form.agentApiToken) }}
+                    {{ form_row(form.osType) }}
+                    {{ form_row(form.downloadUrl) }}
+                    {{ form_row(form.installPath) }}
+                    {{ form_row(form.instanceName) }}
+                    {{ form_row(form.serviceName) }}
+                    {{ form_row(form.queryBindIp) }}
+                    {{ form_row(form.queryHttpsPort) }}
+                </div>
+                <div class="ts6-actions">
+                    <button class="ts6-button" type="submit">Node speichern</button>
+                </div>
+            {{ form_end(form) }}
+        </div>
+    </div>
+{% endblock %}

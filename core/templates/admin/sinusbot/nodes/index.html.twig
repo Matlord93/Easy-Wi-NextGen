@@ -1,0 +1,63 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}SinusBot Nodes · Easy-Wi NextGen{% endblock %}
+
+{% block body %}
+    <div class="sinusbot-page">
+        <div class="sinusbot-header">
+            <div>
+                <h1>SinusBot Nodes</h1>
+                <p>Verwalte die Agent-Verbindungen und den Installationsstatus.</p>
+            </div>
+            <div class="sinusbot-actions">
+                <a class="sinusbot-button" href="/admin/sinusbot/nodes/new">Node hinzufügen</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="sinusbot-alert sinusbot-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="sinusbot-card">
+            <table class="sinusbot-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Version</th>
+                        <th>TS3 Client</th>
+                        <th>Aktualisiert</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for node in nodes %}
+                        <tr>
+                            <td>
+                                <div>{{ node.name }}</div>
+                                <div class="sinusbot-muted">{{ node.agentBaseUrl }}</div>
+                            </td>
+                            <td><span class="sinusbot-pill">{{ node.installStatus }}</span></td>
+                            <td>{{ node.installedVersion ?? '–' }}</td>
+                            <td>
+                                {% if node.ts3ClientInstalled %}
+                                    <span class="sinusbot-pill">Installiert</span>
+                                {% else %}
+                                    <span class="sinusbot-muted">Nicht installiert</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
+                            <td class="sinusbot-align-right">
+                                <a class="sinusbot-link" href="/admin/sinusbot/nodes/{{ node.id }}">Details</a>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="sinusbot-empty">Keine SinusBot Nodes vorhanden.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

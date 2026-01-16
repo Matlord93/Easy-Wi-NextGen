@@ -19,6 +19,9 @@ final class JobPayloadMasker
         'dkim',
         'smtppass',
         'sshkey',
+        'authorizedkey',
+        'authorizedkeys',
+        'sftpkeys',
     ];
 
     /**

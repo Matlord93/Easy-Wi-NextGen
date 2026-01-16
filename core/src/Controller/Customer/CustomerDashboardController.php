@@ -77,11 +77,13 @@ final class CustomerDashboardController
     private function normalizeInstances(array $instances): array
     {
         return array_map(static function (Instance $instance): array {
+            $statusLabel = ucwords(str_replace('_', ' ', $instance->getStatus()->value));
+
             return [
                 'id' => $instance->getId(),
                 'name' => $instance->getTemplate()->getName(),
                 'status' => $instance->getStatus()->value,
-                'status_label' => $instance->getStatus()->name,
+                'status_label' => $statusLabel,
             ];
         }, $instances);
     }

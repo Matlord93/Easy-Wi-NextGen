@@ -13,13 +13,11 @@ use App\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceScheduleRepository;
-use App\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
 use App\Service\DiskEnforcementService;
-use App\Service\InstanceJobPayloadBuilder;
-use App\Service\InstanceSftpProvisioner;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -36,8 +34,6 @@ final class InstanceApiController
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly AuditLogger $auditLogger,
-        private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
-        private readonly InstanceSftpProvisioner $instanceSftpProvisioner,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly EntityManagerInterface $entityManager,
     ) {
@@ -122,7 +118,7 @@ final class InstanceApiController
             $ramLimit,
             $diskLimit,
             $portBlock?->getId(),
-            InstanceStatus::Provisioning,
+            InstanceStatus::PendingSetup,
             InstanceUpdatePolicy::Manual,
         );
 
@@ -139,40 +135,6 @@ final class InstanceApiController
             ]);
         }
 
-        $job = new Job('instance.create', [
-            'instance_id' => (string) $instance->getId(),
-            'customer_id' => (string) $customer->getId(),
-            'template_id' => (string) $template->getId(),
-            'game_key' => $template->getGameKey(),
-            'display_name' => $template->getDisplayName(),
-            'steam_app_id' => $template->getSteamAppId() !== null ? (string) $template->getSteamAppId() : '',
-            'sniper_profile' => $template->getSniperProfile() ?? '',
-            'node_id' => $node->getId(),
-            'cpu_limit' => (string) $cpuLimit,
-            'ram_limit' => (string) $ramLimit,
-            'disk_limit' => (string) $diskLimit,
-            'port_block_id' => $instance->getPortBlockId() ?? '',
-            'port_block_ports' => $portBlock ? implode(',', array_map('strval', $portBlock->getPorts())) : '',
-            'start_params' => $template->getStartParams(),
-            'required_ports' => implode(',', $template->getRequiredPortLabels()),
-            'env_vars' => $this->encodeJson($template->getEnvVars()),
-            'config_files' => $this->encodeJson($template->getConfigFiles()),
-            'plugin_paths' => $this->encodeJson($template->getPluginPaths()),
-            'fastdl_settings' => $this->encodeJson($template->getFastdlSettings()),
-            'install_command' => $template->getInstallCommand(),
-            'update_command' => $template->getUpdateCommand(),
-            'allowed_switch_flags' => implode(',', $template->getAllowedSwitchFlags()),
-        ]);
-        $this->entityManager->persist($job);
-
-        $sniperInstallJob = null;
-        if ($template->getInstallCommand() !== '' || $template->getSteamAppId() !== null) {
-            $sniperInstallJob = new Job('sniper.install', $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance));
-            $this->entityManager->persist($sniperInstallJob);
-        }
-
-        $this->instanceSftpProvisioner->provision($actor, $instance);
-
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
             'customer_id' => $customer->getId(),
@@ -182,19 +144,7 @@ final class InstanceApiController
             'ram_limit' => $ramLimit,
             'disk_limit' => $diskLimit,
             'port_block_id' => $instance->getPortBlockId(),
-            'job_id' => $job->getId(),
-            'sniper_job_id' => $sniperInstallJob?->getId(),
         ]);
-
-        if ($sniperInstallJob !== null) {
-            $this->auditLogger->log($actor, 'instance.sniper.install_queued', [
-                'instance_id' => $instance->getId(),
-                'customer_id' => $customer->getId(),
-                'template_id' => $template->getId(),
-                'node_id' => $node->getId(),
-                'job_id' => $sniperInstallJob->getId(),
-            ]);
-        }
 
         $this->entityManager->flush();
 
@@ -208,8 +158,6 @@ final class InstanceApiController
             'disk_limit' => $instance->getDiskLimit(),
             'port_block_id' => $instance->getPortBlockId(),
             'status' => $instance->getStatus()->value,
-            'job_id' => $job->getId(),
-            'sniper_job_id' => $sniperInstallJob?->getId(),
         ], JsonResponse::HTTP_CREATED);
     }
 
@@ -399,10 +347,4 @@ final class InstanceApiController
         return new JsonResponse(['instances' => $payload]);
     }
 
-    private function encodeJson(array $value): string
-    {
-        $encoded = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        return $encoded === false ? '[]' : $encoded;
-    }
 }

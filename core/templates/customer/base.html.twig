@@ -16,6 +16,8 @@
     <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
     <link rel="stylesheet" href="/ui.css">
     <link rel="stylesheet" href="/admin-customer.css">
+    <link rel="stylesheet" href="/ts6.css">
+    <link rel="stylesheet" href="/ts3.css">
     <script src="/htmx.min.js"></script>
 </head>
 <body class="customer-interface bg-slate-100 text-slate-900">
@@ -69,6 +71,14 @@
                     </svg>
                 </summary>
                 <div class="mt-2 space-y-1">
+                    <a href="/kunden/servers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'servers' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'servers' ? 'bg-white/15' : 'bg-white/10' }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm2.5 2.5a.75.75 0 0 0 0 1.5h9a.75.75 0 0 0 0-1.5h-9Zm0 4a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5h-6Z"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm font-medium">Game-Server</span>
+                    </a>
                     <a href="/instances" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'instances' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                         <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'instances' ? 'bg-white/15' : 'bg-white/10' }}">
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -77,8 +87,18 @@
                         </span>
                         <span class="text-sm font-medium">{{ t('customer_nav_instances', page_locale()) }}</span>
                     </a>
+                    {% if module_enabled('ts') %}
+                        <a href="/customer/ts3/servers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ts3' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                            <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'ts3' ? 'bg-white/15' : 'bg-white/10' }}">
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path d="M3.5 4.75A2.25 2.25 0 0 1 5.75 2.5h8.5A2.25 2.25 0 0 1 16.5 4.75v10.5A2.25 2.25 0 0 1 14.25 17.5h-8.5A2.25 2.25 0 0 1 3.5 15.25v-10.5Zm2.5.25a.75.75 0 0 0-.75.75v8.5c0 .41.34.75.75.75h8.5a.75.75 0 0 0 .75-.75v-8.5a.75.75 0 0 0-.75-.75h-8.5Zm1.5 2.5h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3.5h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/>
+                                </svg>
+                            </span>
+                            <span class="text-sm font-medium">{{ t('customer_nav_ts3_virtual', page_locale()) }}</span>
+                        </a>
+                    {% endif %}
                     {% if module_enabled('ts6') %}
-                        <a href="/ts6" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ts6' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                        <a href="/customer/ts6/servers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'ts6' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                             <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'ts6' ? 'bg-white/15' : 'bg-white/10' }}">
                                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                     <path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h9A2.5 2.5 0 0 1 17 6.5v7A2.5 2.5 0 0 1 14.5 16h-9A2.5 2.5 0 0 1 3 13.5v-7Zm6.75-1a.75.75 0 0 0-1.5 0V7H6.5a.75.75 0 0 0 0 1.5h1.75V10a.75.75 0 0 0 1.5 0V8.5h1.75a.75.75 0 0 0 0-1.5H9.75V5.5Z"/>

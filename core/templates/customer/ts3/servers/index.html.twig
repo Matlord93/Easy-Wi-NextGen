@@ -1,0 +1,53 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}TS3 Server · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>TS3 Server</h1>
+                <p>Verwalte deine TeamSpeak 3 Virtual Server.</p>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts3-card">
+            <table class="ts3-table">
+                <thead>
+                <tr>
+                    <th>Server</th>
+                    <th>Ports</th>
+                    <th>Status</th>
+                    <th>Aktualisiert</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for server in servers %}
+                    <tr>
+                        <td>
+                            <div>{{ server.name }}</div>
+                            <div class="ts3-muted">#{{ server.sid }}</div>
+                        </td>
+                        <td>
+                            <div>Voice: {{ server.voicePort ?? '—' }}</div>
+                            <div class="ts3-muted">File: {{ server.filetransferPort ?? '—' }}</div>
+                        </td>
+                        <td><span class="ts3-pill">{{ server.status }}</span></td>
+                        <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
+                        <td class="ts3-align-right"><a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}">Details</a></td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td class="ts3-empty" colspan="5">Keine TS3 Server gefunden.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

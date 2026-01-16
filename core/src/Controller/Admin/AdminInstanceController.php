@@ -15,15 +15,13 @@ use App\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceSftpCredentialRepository;
-use App\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
 use App\Service\DiskEnforcementService;
 use App\Service\DiskUsageFormatter;
 use App\Service\EncryptionService;
-use App\Service\InstanceJobPayloadBuilder;
-use App\Service\InstanceSftpProvisioner;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -41,8 +39,6 @@ final class AdminInstanceController
         private readonly AgentRepository $agentRepository,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
-        private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
-        private readonly InstanceSftpProvisioner $instanceSftpProvisioner,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
@@ -153,7 +149,7 @@ final class AdminInstanceController
             $formData['ram_limit'],
             $formData['disk_limit'],
             $formData['port_block']?->getId(),
-            InstanceStatus::Provisioning,
+            InstanceStatus::PendingSetup,
             InstanceUpdatePolicy::Manual,
         );
 
@@ -170,40 +166,6 @@ final class AdminInstanceController
             ]);
         }
 
-        $job = new Job('instance.create', [
-            'instance_id' => (string) $instance->getId(),
-            'customer_id' => (string) $formData['customer']->getId(),
-            'template_id' => (string) $formData['template']->getId(),
-            'game_key' => $formData['template']->getGameKey(),
-            'display_name' => $formData['template']->getDisplayName(),
-            'steam_app_id' => $formData['template']->getSteamAppId() !== null ? (string) $formData['template']->getSteamAppId() : '',
-            'sniper_profile' => $formData['template']->getSniperProfile() ?? '',
-            'node_id' => $formData['node']->getId(),
-            'cpu_limit' => (string) $formData['cpu_limit'],
-            'ram_limit' => (string) $formData['ram_limit'],
-            'disk_limit' => (string) $formData['disk_limit'],
-            'port_block_id' => $instance->getPortBlockId() ?? '',
-            'port_block_ports' => $formData['port_block'] ? implode(',', array_map('strval', $formData['port_block']->getPorts())) : '',
-            'start_params' => $formData['template']->getStartParams(),
-            'required_ports' => implode(',', $formData['template']->getRequiredPortLabels()),
-            'env_vars' => $this->encodeJson($formData['template']->getEnvVars()),
-            'config_files' => $this->encodeJson($formData['template']->getConfigFiles()),
-            'plugin_paths' => $this->encodeJson($formData['template']->getPluginPaths()),
-            'fastdl_settings' => $this->encodeJson($formData['template']->getFastdlSettings()),
-            'install_command' => $formData['template']->getInstallCommand(),
-            'update_command' => $formData['template']->getUpdateCommand(),
-            'allowed_switch_flags' => implode(',', $formData['template']->getAllowedSwitchFlags()),
-        ]);
-        $this->entityManager->persist($job);
-
-        $sniperInstallJob = null;
-        if ($formData['template']->getInstallCommand() !== '' || $formData['template']->getSteamAppId() !== null) {
-            $sniperInstallJob = new Job('sniper.install', $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance));
-            $this->entityManager->persist($sniperInstallJob);
-        }
-
-        $this->instanceSftpProvisioner->provision($actor, $instance);
-
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
             'customer_id' => $formData['customer']->getId(),
@@ -213,19 +175,7 @@ final class AdminInstanceController
             'ram_limit' => $formData['ram_limit'],
             'disk_limit' => $formData['disk_limit'],
             'port_block_id' => $instance->getPortBlockId(),
-            'job_id' => $job->getId(),
-            'sniper_job_id' => $sniperInstallJob?->getId(),
         ]);
-
-        if ($sniperInstallJob !== null) {
-            $this->auditLogger->log($actor, 'instance.sniper.install_queued', [
-                'instance_id' => $instance->getId(),
-                'customer_id' => $formData['customer']->getId(),
-                'template_id' => $formData['template']->getId(),
-                'node_id' => $formData['node']->getId(),
-                'job_id' => $sniperInstallJob->getId(),
-            ]);
-        }
 
         $this->entityManager->flush();
 
@@ -619,6 +569,7 @@ final class AdminInstanceController
         $summary = [
             'total' => count($instances),
             'running' => 0,
+            'pending_setup' => 0,
             'stopped' => 0,
             'suspended' => 0,
             'provisioning' => 0,
@@ -629,6 +580,8 @@ final class AdminInstanceController
             $status = $instance->getStatus();
             if ($status === InstanceStatus::Running) {
                 $summary['running']++;
+            } elseif ($status === InstanceStatus::PendingSetup) {
+                $summary['pending_setup']++;
             } elseif ($status === InstanceStatus::Stopped) {
                 $summary['stopped']++;
             } elseif ($status === InstanceStatus::Suspended) {
@@ -641,13 +594,6 @@ final class AdminInstanceController
         }
 
         return $summary;
-    }
-
-    private function encodeJson(array $value): string
-    {
-        $encoded = json_encode($value);
-
-        return $encoded === false ? '[]' : $encoded;
     }
 
     private function isAdmin(Request $request): bool

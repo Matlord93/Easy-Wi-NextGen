@@ -70,6 +70,16 @@
             <textarea name="env_vars" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_env_vars_placeholder', page_locale()) }}">{{ form.env_vars }}</textarea>
         </div>
         <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_templates_requirement_vars', page_locale()) }}</label>
+            <textarea name="requirement_vars" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_requirement_vars_placeholder', page_locale()) }}">{{ form.requirement_vars }}</textarea>
+            <p class="mt-1 text-xs text-slate-700">{{ t('admin_templates_requirement_vars_hint', page_locale()) }}</p>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_templates_requirement_secrets', page_locale()) }}</label>
+            <textarea name="requirement_secrets" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_requirement_secrets_placeholder', page_locale()) }}">{{ form.requirement_secrets }}</textarea>
+            <p class="mt-1 text-xs text-slate-700">{{ t('admin_templates_requirement_secrets_hint', page_locale()) }}</p>
+        </div>
+        <div>
             <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_templates_config_files', page_locale()) }}</label>
             <textarea name="config_files" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_config_files_placeholder', page_locale()) }}">{{ form.config_files }}</textarea>
         </div>
@@ -97,6 +107,11 @@
         <div>
             <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_templates_update_command', page_locale()) }}</label>
             <textarea name="update_command" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="{{ t('admin_templates_update_command_placeholder', page_locale()) }}">{{ form.update_command }}</textarea>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_templates_install_resolver', page_locale()) }}</label>
+            <textarea name="install_resolver" rows="2" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder='{"type":"minecraft_vanilla"}'>{{ form.install_resolver }}</textarea>
+            <p class="mt-1 text-xs text-slate-700">{{ t('admin_templates_install_resolver_hint', page_locale()) }}</p>
         </div>
         <div>
             <label class="block text-xs font-semibold text-slate-700 uppercase">{{ t('admin_templates_switch_flags', page_locale()) }}</label>

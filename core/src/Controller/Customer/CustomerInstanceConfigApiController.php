@@ -13,7 +13,7 @@ use App\Repository\GameDefinitionRepository;
 use App\Repository\InstanceRepository;
 use App\Service\AuditLogger;
 use App\Service\ConfigSchema\ConfigSchemaService;
-use App\Service\SftpFileService;
+use App\Service\FileServiceClient;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -28,7 +28,7 @@ final class CustomerInstanceConfigApiController
         private readonly GameDefinitionRepository $gameDefinitionRepository,
         private readonly ConfigSchemaRepository $configSchemaRepository,
         private readonly ConfigSchemaService $configSchemaService,
-        private readonly SftpFileService $fileService,
+        private readonly FileServiceClient $fileService,
         private readonly AuditLogger $auditLogger,
     ) {
     }

@@ -1,0 +1,45 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}TS3 Viewer · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>Viewer</h1>
+                <p>{{ server.name }}</p>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}">Zurück</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts3-card">
+            {{ form_start(form, { attr: { class: 'ts3-form' } }) }}
+                <div class="ts3-grid">
+                    {{ form_row(form.enabled, { label: 'Viewer aktiv' }) }}
+                    {{ form_row(form.cacheTtlMs, { label: 'Cache TTL (ms)' }) }}
+                    {{ form_row(form.domainAllowlist, { label: 'Domain Allowlist (eine pro Zeile)' }) }}
+                </div>
+                <button class="ts3-button" type="submit">Viewer speichern</button>
+            {{ form_end(form) }}
+        </div>
+
+        {% if viewer %}
+            <div class="ts3-card">
+                <p class="ts3-muted">Nutze den Viewer als iFrame oder Widget.</p>
+                <div class="ts3-code">
+                    <pre>&lt;iframe src="{{ app.request.schemeAndHttpHost }}/viewer/ts3/{{ viewer.publicId }}" width="100%" height="600" loading="lazy"&gt;&lt;/iframe&gt;</pre>
+                </div>
+                <div class="ts3-code">
+                    <pre>&lt;div id="ts3-viewer" data-id="{{ viewer.publicId }}"&gt;&lt;/div&gt;
+&lt;script src="{{ app.request.schemeAndHttpHost }}/viewer/ts3/{{ viewer.publicId }}.js" async&gt;&lt;/script&gt;</pre>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

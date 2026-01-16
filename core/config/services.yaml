@@ -1,6 +1,15 @@
 parameters:
   app.agent_signature_skew_seconds: '%env(int:AGENT_SIGNATURE_SKEW_SECONDS)%'
   app.agent_nonce_ttl_seconds: '%env(int:AGENT_NONCE_TTL_SECONDS)%'
+  app.filesvc_timeout_seconds_default: '10'
+  app.filesvc_timeout_seconds: '%env(int:default:app.filesvc_timeout_seconds_default:APP_FILESVC_TIMEOUT_SECONDS)%'
+  app.filesvc_port_default: '8444'
+  app.filesvc_port: '%env(int:default:app.filesvc_port_default:APP_FILESVC_PORT)%'
+  app.filesvc_scheme_default: 'https'
+  app.filesvc_scheme: '%env(default:app.filesvc_scheme_default:APP_FILESVC_SCHEME)%'
+  app.filesvc_client_cert: '%env(default::APP_FILESVC_CLIENT_CERT)%'
+  app.filesvc_client_key: '%env(default::APP_FILESVC_CLIENT_KEY)%'
+  app.filesvc_ca_cert: '%env(default::APP_FILESVC_CA_CERT)%'
   app.agent_release_channel_default: 'stable'
   app.agent_release_repository: '%env(default::APP_AGENT_RELEASE_REPOSITORY)%'
   app.agent_release_channel: '%env(default:app.agent_release_channel_default:APP_AGENT_RELEASE_CHANNEL)%'
@@ -43,10 +52,23 @@ services:
       $activeKeyId: '%env(default::APP_ENCRYPTION_KEY_ID)%'
       $keyring: '%env(default::APP_ENCRYPTION_KEYS)%'
 
+  App\Service\SecretsCrypto:
+    arguments:
+      $appSecret: '%env(APP_SECRET)%'
+
   App\Service\AgentSignatureVerifier:
     arguments:
       $maxSkewSeconds: '%app.agent_signature_skew_seconds%'
       $nonceTtlSeconds: '%app.agent_nonce_ttl_seconds%'
+
+  App\Service\FileServiceClient:
+    arguments:
+      $timeoutSeconds: '%app.filesvc_timeout_seconds%'
+      $defaultPort: '%app.filesvc_port%'
+      $defaultScheme: '%app.filesvc_scheme%'
+      $clientCertPath: '%app.filesvc_client_cert%'
+      $clientKeyPath: '%app.filesvc_client_key%'
+      $clientCaPath: '%app.filesvc_ca_cert%'
 
   App\Service\AgentReleaseChecker:
     arguments:
@@ -82,6 +104,8 @@ services:
       $fallbackVersion: '%app.core_version%'
 
   App\Domain\Event\EventBusInterface: '@App\Domain\Event\SymfonyEventBus'
+
+  App\Repository\MinecraftVersionCatalogRepositoryInterface: '@App\Repository\MinecraftVersionCatalogRepository'
 
   App\Extension\ExtensionMenuRegistry:
     arguments:

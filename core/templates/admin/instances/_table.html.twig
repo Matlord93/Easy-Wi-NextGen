@@ -28,9 +28,11 @@
                     ? 'text-amber-700 bg-amber-50'
                     : (instance.status == 'error'
                         ? 'text-rose-600 bg-rose-50'
-                        : (instance.status == 'provisioning'
-                            ? 'text-indigo-600 bg-indigo-50'
-                            : 'text-slate-600 bg-slate-100'))) %}
+                        : (instance.status == 'pending_setup'
+                            ? 'text-amber-700 bg-amber-50'
+                            : (instance.status == 'provisioning'
+                                ? 'text-indigo-600 bg-indigo-50'
+                                : 'text-slate-600 bg-slate-100')))) %}
             {% set diskStateStyles = {
                 'ok': 'text-emerald-700 bg-emerald-50',
                 'warning': 'text-amber-700 bg-amber-50',
@@ -64,7 +66,7 @@
                     </div>
                 </td>
                 <td class="px-6 py-4 text-sm">
-                    <span class="rounded-full px-3 py-1 text-xs font-semibold {{ statusColor }}">{{ instance.status|title }}</span>
+                    <span class="rounded-full px-3 py-1 text-xs font-semibold {{ statusColor }}">{{ instance.status|replace({'_': ' '})|title }}</span>
                 </td>
                 <td class="px-6 py-4 text-sm text-slate-700">{{ instance.updated_at ? instance.updated_at|date('Y-m-d H:i') : '—' }}</td>
                 <td class="px-6 py-4 text-sm text-slate-700">

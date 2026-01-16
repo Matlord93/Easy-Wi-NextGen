@@ -1,0 +1,83 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}TS3 Node · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>{{ node.name }}</h1>
+                <p>Agent: {{ node.agentBaseUrl }}</p>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-link" href="/admin/ts3/nodes">Zurück zur Übersicht</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts3-grid">
+            <div class="ts3-card">
+                <h2>Status</h2>
+                <div class="ts3-meta">
+                    <div><strong>Installationsstatus:</strong> {{ node.installStatus }}</div>
+                    <div><strong>Version:</strong> {{ node.installedVersion ?? '—' }}</div>
+                    <div><strong>Service:</strong> {{ node.serviceName }}</div>
+                    <div><strong>Running:</strong> {{ node.running ? 'Ja' : 'Nein' }}</div>
+                    <div><strong>Letzter Fehler:</strong> {{ node.lastError ?? '—' }}</div>
+                </div>
+                <div class="ts3-actions">
+                    <form method="post" action="/admin/ts3/nodes/{{ node.id }}/install">
+                        <input type="hidden" name="_token" value="{{ csrf.install }}">
+                        <button class="ts3-button" type="submit">Installieren</button>
+                    </form>
+                    <form method="post" action="/admin/ts3/nodes/{{ node.id }}/start">
+                        <input type="hidden" name="_token" value="{{ csrf.start }}">
+                        <button class="ts3-button" type="submit">Start</button>
+                    </form>
+                    <form method="post" action="/admin/ts3/nodes/{{ node.id }}/stop">
+                        <input type="hidden" name="_token" value="{{ csrf.stop }}">
+                        <button class="ts3-button" type="submit">Stop</button>
+                    </form>
+                    <form method="post" action="/admin/ts3/nodes/{{ node.id }}/restart">
+                        <input type="hidden" name="_token" value="{{ csrf.restart }}">
+                        <button class="ts3-button" type="submit">Restart</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="ts3-card">
+                <h2>Admin Credentials</h2>
+                <p class="ts3-muted">Passwort wird verschlüsselt gespeichert und nur für Admins angezeigt.</p>
+                {% if admin_password %}
+                    <div class="ts3-credentials">
+                        <div><strong>{{ node.adminUsername }}</strong></div>
+                        <div class="ts3-secret">{{ admin_password }}</div>
+                    </div>
+                    <button class="ts3-button" type="button" data-ts3-copy="{{ admin_password }}">Kopieren</button>
+                {% else %}
+                    <div class="ts3-credentials">
+                        <div><strong>{{ node.adminUsername }}</strong></div>
+                        <div class="ts3-secret">••••••••</div>
+                    </div>
+                {% endif %}
+                <form method="post" action="/admin/ts3/nodes/{{ node.id }}/show-admin-credentials">
+                    <input type="hidden" name="_token" value="{{ csrf.show_admin }}">
+                    <button class="ts3-button" type="submit">Anzeigen</button>
+                </form>
+                {% if node.adminPasswordShownOnceAt %}
+                    <p class="ts3-muted">Zuletzt angezeigt: {{ node.adminPasswordShownOnceAt|date('Y-m-d H:i') }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <script>
+        document.querySelectorAll('[data-ts3-copy]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                navigator.clipboard?.writeText(button.dataset.ts3Copy || '');
+            });
+        });
+    </script>
+{% endblock %}

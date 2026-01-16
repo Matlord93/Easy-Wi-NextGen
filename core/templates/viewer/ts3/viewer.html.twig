@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TS3 Viewer</title>
+    <link rel="stylesheet" href="/ts3.css">
+</head>
+<body class="ts3-viewer-body">
+    <div class="ts3-viewer">
+        <div class="ts3-viewer-header">
+            <h1>{{ server.name }}</h1>
+            <p>Live Snapshot</p>
+        </div>
+        <div id="ts3-viewer" data-id="{{ public_id }}" class="ts3-viewer-container">
+            <div class="ts3-muted">Lade Daten…</div>
+        </div>
+    </div>
+    <script src="/viewer/ts3/{{ public_id }}.js" async></script>
+</body>
+</html>

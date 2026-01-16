@@ -1,0 +1,36 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}TS3 Server erstellen · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>TS3 Virtual Server anlegen</h1>
+                <p>Erstelle einen TS3 Server und ordne ihn einem Kunden zu.</p>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-link" href="/admin/ts3/nodes">Nodes verwalten</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts3-card">
+            {{ form_start(form, { attr: { class: 'ts3-form' } }) }}
+                <div class="ts3-grid">
+                    {{ form_row(form.customerId, { label: 'Kunde' }) }}
+                    {{ form_row(form.nodeId, { label: 'Node' }) }}
+                    {{ form_row(form.name, { label: 'Servername' }) }}
+                    {{ form_row(form.voicePort, { label: 'Voice Port' }) }}
+                    {{ form_row(form.filetransferPort, { label: 'Filetransfer Port' }) }}
+                </div>
+                <div class="ts3-actions">
+                    <button class="ts3-button" type="submit">Server erstellen</button>
+                </div>
+            {{ form_end(form) }}
+        </div>
+    </div>
+{% endblock %}

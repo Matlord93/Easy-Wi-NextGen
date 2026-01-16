@@ -1,0 +1,46 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}TS6 Viewer · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts6-page">
+        <div class="ts6-header">
+            <div>
+                <h1>TS6 Viewer</h1>
+                <p>Öffentlicher Viewer für {{ server.name }}</p>
+            </div>
+            <div class="ts6-actions">
+                <a class="ts6-link" href="/customer/ts6/servers/{{ server.id }}">Zurück</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts6-alert ts6-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts6-card">
+            {{ form_start(form, { attr: { class: 'ts6-form' } }) }}
+                <div class="ts6-grid">
+                    {{ form_row(form.enabled) }}
+                    {{ form_row(form.cacheTtlMs) }}
+                    {{ form_row(form.domainAllowlist) }}
+                </div>
+                <button class="ts6-button" type="submit">Viewer speichern</button>
+            {{ form_end(form) }}
+        </div>
+
+        {% if viewer %}
+            <div class="ts6-card">
+                <h2>Embed Code</h2>
+                <p class="ts6-muted">Nutze den Viewer als iFrame oder Widget.</p>
+                <div class="ts6-code">
+                    <pre>&lt;iframe src="{{ app.request.schemeAndHttpHost }}/viewer/ts6/{{ viewer.publicId }}" width="100%" height="600" loading="lazy"&gt;&lt;/iframe&gt;</pre>
+                </div>
+                <div class="ts6-code">
+                    <pre>&lt;div id="ts6-viewer" data-id="{{ viewer.publicId }}"&gt;&lt;/div&gt;
+&lt;script src="{{ app.request.schemeAndHttpHost }}/viewer/ts6/{{ viewer.publicId }}.js" async&gt;&lt;/script&gt;</pre>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

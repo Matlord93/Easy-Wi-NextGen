@@ -204,7 +204,19 @@ final class AdminTemplateController
             $formData['fastdl_settings'],
             $formData['install_command'],
             $formData['update_command'],
+            $formData['install_resolver'],
             $formData['allowed_switch_flags'],
+            $formData['requirement_vars_parsed'],
+            $formData['requirement_secrets_parsed'],
+            $this->resolveSupportedOs($formData['game_key']),
+            $this->buildPortProfile($formData['required_ports']),
+            $this->buildRequirements(
+                $formData['game_key'],
+                $formData['steam_app_id'],
+                $formData['env_vars'],
+                $formData['requirement_vars_parsed'],
+                $formData['requirement_secrets_parsed'],
+            ),
         );
 
         $this->entityManager->persist($template);
@@ -258,7 +270,19 @@ final class AdminTemplateController
         $template->setFastdlSettings($formData['fastdl_settings']);
         $template->setInstallCommand($formData['install_command']);
         $template->setUpdateCommand($formData['update_command']);
+        $template->setInstallResolver($formData['install_resolver']);
         $template->setAllowedSwitchFlags($formData['allowed_switch_flags']);
+        $template->setRequirementVars($formData['requirement_vars_parsed']);
+        $template->setRequirementSecrets($formData['requirement_secrets_parsed']);
+        $template->setSupportedOs($this->resolveSupportedOs($formData['game_key']));
+        $template->setPortProfile($this->buildPortProfile($formData['required_ports']));
+        $template->setRequirements($this->buildRequirements(
+            $formData['game_key'],
+            $formData['steam_app_id'],
+            $formData['env_vars'],
+            $formData['requirement_vars_parsed'],
+            $formData['requirement_secrets_parsed'],
+        ));
         $this->entityManager->flush();
 
         $this->auditLogger->log($actor, 'template.updated', [
@@ -335,7 +359,19 @@ final class AdminTemplateController
                 $templateData['fastdl_settings'],
                 $templateData['install_command'],
                 $templateData['update_command'],
+                $templateData['install_resolver'],
                 $templateData['allowed_switch_flags'],
+                $templateData['requirement_vars'],
+                $templateData['requirement_secrets'],
+                $this->resolveSupportedOs($templateData['game_key']),
+                $this->buildPortProfile($templateData['required_ports']),
+                $this->buildRequirements(
+                    $templateData['game_key'],
+                    $templateData['steam_app_id'],
+                    $templateData['env_vars'],
+                    $templateData['requirement_vars'],
+                    $templateData['requirement_secrets'],
+                ),
             );
 
             $this->entityManager->persist($template);
@@ -404,6 +440,7 @@ final class AdminTemplateController
                 'install_command' => $template->getInstallCommand(),
                 'update_command' => $template->getUpdateCommand(),
                 'allowed_switch_flags' => $template->getAllowedSwitchFlags(),
+                'supported_os' => $template->getSupportedOs(),
                 'updated_at' => $template->getUpdatedAt(),
             ];
         }, $templates);
@@ -432,7 +469,10 @@ final class AdminTemplateController
             'fastdl_root_path' => '',
             'install_command' => '',
             'update_command' => '',
+            'install_resolver' => '',
             'allowed_switch_flags' => '',
+            'requirement_vars' => '',
+            'requirement_secrets' => '',
         ];
 
         return array_merge($defaults, $overrides ?? []);
@@ -462,7 +502,10 @@ final class AdminTemplateController
             'fastdl_root_path' => (string) ($fastdlSettings['root_path'] ?? ''),
             'install_command' => $template->getInstallCommand(),
             'update_command' => $template->getUpdateCommand(),
+            'install_resolver' => $this->normalizeJsonInput($template->getInstallResolver()),
             'allowed_switch_flags' => implode(',', $template->getAllowedSwitchFlags()),
+            'requirement_vars' => $this->normalizeJsonInput($template->getRequirementVars()),
+            'requirement_secrets' => $this->normalizeJsonInput($template->getRequirementSecrets()),
         ]);
     }
 
@@ -498,7 +541,10 @@ final class AdminTemplateController
         $fastdlRootPath = trim((string) $request->request->get('fastdl_root_path', ''));
         $installCommand = trim((string) $request->request->get('install_command', ''));
         $updateCommand = trim((string) $request->request->get('update_command', ''));
+        $installResolverRaw = trim((string) $request->request->get('install_resolver', ''));
         $allowedSwitchFlagsRaw = trim((string) $request->request->get('allowed_switch_flags', ''));
+        $requirementVarsRaw = trim((string) $request->request->get('requirement_vars', ''));
+        $requirementSecretsRaw = trim((string) $request->request->get('requirement_secrets', ''));
 
         if ($gameKey === '') {
             $errors[] = 'Game key is required.';
@@ -536,6 +582,9 @@ final class AdminTemplateController
         $requiredPorts = $this->parseRequiredPorts($requiredPortsRaw, $entryErrors);
         $envVars = $this->parseEnvVars($envVarsRaw, $entryErrors);
         $configFiles = $this->parseConfigFiles($configFilesRaw, $entryErrors);
+        $requirementVarsParsed = $this->parseRequirements($requirementVarsRaw, $entryErrors, 'vars');
+        $requirementSecretsParsed = $this->parseRequirements($requirementSecretsRaw, $entryErrors, 'secrets');
+        $installResolver = $this->parseInstallResolver($installResolverRaw, $entryErrors);
         foreach ($entryErrors as $entryError) {
             $errors[] = $entryError;
         }
@@ -567,13 +616,21 @@ final class AdminTemplateController
             'fastdl_settings' => $fastdlSettings,
             'install_command' => $installCommand,
             'update_command' => $updateCommand,
+            'install_resolver' => $installResolver,
             'allowed_switch_flags' => $allowedSwitchFlags,
+            'requirement_vars' => $requirementVarsRaw,
+            'requirement_secrets' => $requirementSecretsRaw,
+            'requirement_vars_parsed' => $requirementVarsParsed,
+            'requirement_secrets_parsed' => $requirementSecretsParsed,
             'required_ports_raw' => $requiredPortsRaw,
             'allowed_switch_flags_raw' => $allowedSwitchFlagsRaw,
+            'install_resolver_raw' => $installResolverRaw,
             'steam_app_id_raw' => $steamAppIdRaw,
             'env_vars_raw' => $envVarsRaw,
             'config_files_raw' => $configFilesRaw,
             'plugin_paths_raw' => $pluginPathsRaw,
+            'requirement_vars_raw' => $requirementVarsRaw,
+            'requirement_secrets_raw' => $requirementSecretsRaw,
             'fastdl_enabled' => $fastdlEnabled,
             'fastdl_base_url' => $fastdlBaseUrl,
             'fastdl_root_path' => $fastdlRootPath,
@@ -615,7 +672,10 @@ final class AdminTemplateController
         $fastdlRootPath = trim((string) ($entry['fastdl_root_path'] ?? ($fastdlSettingsInput['root_path'] ?? '')));
         $installCommand = trim((string) ($entry['install_command'] ?? ''));
         $updateCommand = trim((string) ($entry['update_command'] ?? ''));
+        $installResolverRaw = $entry['install_resolver'] ?? [];
         $allowedSwitchFlagsRaw = $this->normalizeListInput($entry['allowed_switch_flags'] ?? '');
+        $requirementVarsRaw = $entry['requirement_vars'] ?? [];
+        $requirementSecretsRaw = $entry['requirement_secrets'] ?? [];
 
         $entryErrors = [];
         if ($gameKey === '') {
@@ -661,6 +721,9 @@ final class AdminTemplateController
         $requiredPorts = $this->parseRequiredPorts($requiredPortsRaw, $entryErrors);
         $envVars = $this->parseEnvVars($envVarsRaw, $entryErrors);
         $configFiles = $this->parseConfigFiles($configFilesRaw, $entryErrors);
+        $requirementVars = $this->parseRequirements($requirementVarsRaw, $entryErrors, 'vars');
+        $requirementSecrets = $this->parseRequirements($requirementSecretsRaw, $entryErrors, 'secrets');
+        $installResolver = $this->parseInstallResolver($installResolverRaw, $entryErrors);
         $pluginPaths = $this->parseLines($pluginPathsRaw);
         $allowedSwitchFlags = $this->parseList($allowedSwitchFlagsRaw);
         $fastdlSettings = [
@@ -696,8 +759,57 @@ final class AdminTemplateController
             'fastdl_settings' => $fastdlSettings,
             'install_command' => $installCommand,
             'update_command' => $updateCommand,
+            'install_resolver' => $installResolver,
             'allowed_switch_flags' => $allowedSwitchFlags,
+            'requirement_vars' => $requirementVars,
+            'requirement_secrets' => $requirementSecrets,
         ];
+    }
+
+    private function normalizeJsonInput(array $value): string
+    {
+        return $value === [] ? '' : (string) json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * @param array<int, mixed>|string $input
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseRequirements(array|string $input, array &$errors, string $label): array
+    {
+        if (is_string($input)) {
+            if (trim($input) === '') {
+                return [];
+            }
+
+            $decoded = json_decode($input, true);
+            if (!is_array($decoded)) {
+                $errors[] = sprintf('Requirements %s must be valid JSON.', $label);
+                return [];
+            }
+            $input = $decoded;
+        }
+
+        if (!is_array($input)) {
+            $errors[] = sprintf('Requirements %s must be an array.', $label);
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($input as $entry) {
+            if (!is_array($entry)) {
+                $errors[] = sprintf('Requirements %s entry must be an object.', $label);
+                continue;
+            }
+            $key = trim((string) ($entry['key'] ?? ''));
+            if ($key === '') {
+                $errors[] = sprintf('Requirements %s entry must include a key.', $label);
+                continue;
+            }
+            $normalized[] = $entry;
+        }
+
+        return $normalized;
     }
 
     private function parseRequiredPorts(array $portTypes, array &$errors): array
@@ -957,6 +1069,178 @@ final class AdminTemplateController
         return $steps;
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $requiredPorts
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildPortProfile(array $requiredPorts): array
+    {
+        $roleMap = [
+            'game' => 'game',
+            'query' => 'query',
+            'rcon' => 'rcon',
+            'tv' => 'tv',
+            'voice' => 'voice',
+            'filetransfer' => 'filetransfer',
+        ];
+
+        $profile = [];
+        foreach ($requiredPorts as $port) {
+            if (!is_array($port)) {
+                continue;
+            }
+            $name = strtolower((string) ($port['name'] ?? 'game'));
+            $role = $roleMap[$name] ?? $name;
+            $protocol = (string) ($port['protocol'] ?? 'udp');
+            $count = (int) ($port['count'] ?? 1);
+            if ($count <= 0) {
+                $count = 1;
+            }
+
+            $profile[] = [
+                'role' => $role,
+                'protocol' => $protocol,
+                'count' => $count,
+                'required' => isset($port['required']) ? (bool) $port['required'] : true,
+                'contiguous' => isset($port['contiguous']) ? (bool) $port['contiguous'] : false,
+            ];
+        }
+
+        return $profile;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $envVars
+     * @param array<int, array<string, mixed>> $requirementVars
+     * @param array<int, array<string, mixed>> $requirementSecrets
+     * @return array<string, mixed>
+     */
+    private function buildRequirements(
+        string $gameKey,
+        ?int $steamAppId,
+        array $envVars,
+        array $requirementVars,
+        array $requirementSecrets,
+    ): array {
+        $envVarKeys = $this->extractEnvVarKeys($envVars);
+        $requiredVars = $this->normalizeRequirementKeys($requirementVars);
+        if ($requiredVars === []) {
+            $requiredVars = $envVarKeys;
+        }
+        $requiredSecrets = $this->normalizeSecretKeys($requirementSecrets, $gameKey);
+
+        return [
+            'required_vars' => $requiredVars,
+            'required_secrets' => $requiredSecrets,
+            'steam_install_mode' => $this->resolveSteamInstallMode($gameKey, $steamAppId),
+            'customer_allowed_vars' => $envVarKeys,
+            'customer_allowed_secrets' => $requiredSecrets,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $envVars
+     * @return array<int, string>
+     */
+    private function extractEnvVarKeys(array $envVars): array
+    {
+        $keys = [];
+        foreach ($envVars as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $key = trim((string) ($entry['key'] ?? ''));
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $requirementSecrets
+     * @return array<int, string>
+     */
+    private function normalizeSecretKeys(array $requirementSecrets, string $gameKey): array
+    {
+        $keys = [];
+        foreach ($requirementSecrets as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $key = trim((string) ($entry['key'] ?? ''));
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+
+        if ($this->isCsTemplate($gameKey) && !in_array('STEAM_GSLT', $keys, true)) {
+            $keys[] = 'STEAM_GSLT';
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $requirementVars
+     * @return array<int, string>
+     */
+    private function normalizeRequirementKeys(array $requirementVars): array
+    {
+        $keys = [];
+        foreach ($requirementVars as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $key = trim((string) ($entry['key'] ?? ''));
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function resolveSupportedOs(string $gameKey): array
+    {
+        return str_ends_with($gameKey, '_windows') ? ['windows'] : ['linux'];
+    }
+
+    private function resolveSteamInstallMode(string $gameKey, ?int $steamAppId): string
+    {
+        if ($this->isMinecraftNoSteam($gameKey)) {
+            return 'none';
+        }
+
+        return $steamAppId !== null ? 'anonymous' : 'none';
+    }
+
+    private function isMinecraftNoSteam(string $gameKey): bool
+    {
+        return in_array($gameKey, [
+            'minecraft_paper',
+            'minecraft_vanilla',
+            'minecraft_paper_windows',
+            'minecraft_vanilla_windows',
+            'minecraft_paper_all',
+            'minecraft_vanilla_all',
+        ], true);
+    }
+
+    private function isCsTemplate(string $gameKey): bool
+    {
+        return in_array($gameKey, [
+            'cs2',
+            'csgo_legacy',
+            'cs2_windows',
+            'csgo_legacy_windows',
+        ], true);
+    }
+
     private function renderFormWithErrors(array $formData, int $status): Response
     {
         return new Response($this->twig->render('admin/templates/_form.html.twig', [
@@ -979,6 +1263,7 @@ final class AdminTemplateController
                 'fastdl_root_path' => $formData['fastdl_root_path'],
                 'install_command' => $formData['install_command'],
                 'update_command' => $formData['update_command'],
+                'install_resolver' => $formData['install_resolver_raw'],
                 'allowed_switch_flags' => $formData['allowed_switch_flags_raw'],
             ]),
         ]), $status);
@@ -992,6 +1277,26 @@ final class AdminTemplateController
                 'payload' => $payload,
             ]),
         ]), $status);
+    }
+
+    private function parseInstallResolver(mixed $raw, array &$errors): array
+    {
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        $rawValue = trim((string) $raw);
+        if ($rawValue === '') {
+            return [];
+        }
+
+        $decoded = json_decode($rawValue, true);
+        if (!is_array($decoded)) {
+            $errors[] = 'Install resolver must be valid JSON.';
+            return [];
+        }
+
+        return $decoded;
     }
 
     private function formatImportError(int $index, string $message): string

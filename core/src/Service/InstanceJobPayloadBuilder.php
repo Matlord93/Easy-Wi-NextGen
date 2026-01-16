@@ -8,6 +8,11 @@ use App\Entity\Instance;
 
 final class InstanceJobPayloadBuilder
 {
+    public function __construct(
+        private readonly \App\Service\Installer\TemplateInstallResolver $templateInstallResolver,
+    ) {
+    }
+
     /**
      * @return array<string, string>
      */
@@ -49,8 +54,8 @@ final class InstanceJobPayloadBuilder
             'sniper_profile' => $template->getSniperProfile() ?? '',
             'node_id' => $instance->getNode()->getId(),
             'agent_id' => $instance->getNode()->getId(),
-            'install_command' => $template->getInstallCommand(),
-            'update_command' => $template->getUpdateCommand(),
+            'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance),
+            'update_command' => $this->templateInstallResolver->resolveUpdateCommand($instance),
         ];
 
         if ($instance->getLockedBuildId() !== null) {

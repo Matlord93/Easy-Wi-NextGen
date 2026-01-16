@@ -70,6 +70,12 @@ class Instance implements ResourceEventSource
     #[ORM\Column(enumType: InstanceUpdatePolicy::class)]
     private InstanceUpdatePolicy $updatePolicy;
 
+    #[ORM\Column(type: 'json')]
+    private array $setupVars = [];
+
+    #[ORM\Column(type: 'json')]
+    private array $setupSecrets = [];
+
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $lockedBuildId = null;
 
@@ -264,6 +270,48 @@ class Instance implements ResourceEventSource
     public function getUpdatePolicy(): InstanceUpdatePolicy
     {
         return $this->updatePolicy;
+    }
+
+    public function getSetupVars(): array
+    {
+        return $this->setupVars;
+    }
+
+    public function setSetupVars(array $setupVars): void
+    {
+        $this->setupVars = $setupVars;
+        $this->touch();
+    }
+
+    public function setSetupVar(string $key, mixed $value): void
+    {
+        $this->setupVars[$key] = $value;
+        $this->touch();
+    }
+
+    public function getSetupSecrets(): array
+    {
+        return $this->setupSecrets;
+    }
+
+    public function setSetupSecrets(array $setupSecrets): void
+    {
+        $this->setupSecrets = $setupSecrets;
+        $this->touch();
+    }
+
+    /**
+     * @param array{key_id: string, nonce: string, ciphertext: string} $payload
+     */
+    public function setSetupSecret(string $key, array $payload): void
+    {
+        $this->setupSecrets[$key] = $payload;
+        $this->touch();
+    }
+
+    public function hasSetupSecret(string $key): bool
+    {
+        return array_key_exists($key, $this->setupSecrets);
     }
 
     public function setUpdatePolicy(InstanceUpdatePolicy $updatePolicy): void

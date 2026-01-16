@@ -1,0 +1,32 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}TS3 Token · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>Token</h1>
+                <p>{{ server.name }}</p>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}">Zurück</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts3-card">
+            <div class="ts3-credentials">
+                <div><strong>Owner Token</strong></div>
+                <div class="ts3-secret">{{ token ?? '—' }}</div>
+            </div>
+            <form method="post" action="/customer/ts3/servers/{{ server.id }}/token/rotate">
+                <input type="hidden" name="_token" value="{{ csrf.rotate }}">
+                <button class="ts3-button" type="submit">Token rotieren</button>
+            </form>
+        </div>
+    </div>
+{% endblock %}

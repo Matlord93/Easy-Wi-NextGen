@@ -1,0 +1,47 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}{{ server.name }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>{{ server.name }}</h1>
+                <p>Server ID #{{ server.sid }}</p>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-link" href="/customer/ts3/servers">Zurück</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts3-card">
+            <div class="ts3-meta">
+                <div><strong>Status:</strong> {{ server.status }}</div>
+                <div><strong>Voice Port:</strong> {{ server.voicePort ?? '—' }}</div>
+                <div><strong>Filetransfer Port:</strong> {{ server.filetransferPort ?? '—' }}</div>
+            </div>
+            <div class="ts3-actions">
+                <form method="post" action="/customer/ts3/servers/{{ server.id }}/start">
+                    <input type="hidden" name="_token" value="{{ csrf.start }}">
+                    <button class="ts3-button" type="submit">Start</button>
+                </form>
+                <form method="post" action="/customer/ts3/servers/{{ server.id }}/stop">
+                    <input type="hidden" name="_token" value="{{ csrf.stop }}">
+                    <button class="ts3-button" type="submit">Stop</button>
+                </form>
+                <form method="post" action="/customer/ts3/servers/{{ server.id }}/recreate">
+                    <input type="hidden" name="_token" value="{{ csrf.recreate }}">
+                    <button class="ts3-button" type="submit">Recreate</button>
+                </form>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}/token">Token anzeigen</a>
+                <a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}/viewer">Viewer</a>
+            </div>
+        </div>
+    </div>
+{% endblock %}

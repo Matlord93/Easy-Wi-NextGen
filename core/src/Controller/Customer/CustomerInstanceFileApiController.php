@@ -9,7 +9,7 @@ use App\Entity\User;
 use App\Enum\UserType;
 use App\Repository\InstanceRepository;
 use App\Service\AuditLogger;
-use App\Service\SftpFileService;
+use App\Service\FileServiceClient;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -25,7 +25,7 @@ final class CustomerInstanceFileApiController
 {
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
-        private readonly SftpFileService $fileService,
+        private readonly FileServiceClient $fileService,
         private readonly AuditLogger $auditLogger,
         #[Autowire(service: 'limiter.instance_files_uploads')]
         private readonly RateLimiterFactory $uploadsLimiter,
@@ -68,7 +68,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $content = $this->fileService->readFile($instance, $path, $name);
+            $content = $this->fileService->downloadFile($instance, $path, $name);
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -77,6 +77,31 @@ final class CustomerInstanceFileApiController
         $disposition = $response->headers->makeDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $name);
         $response->headers->set('Content-Disposition', $disposition);
         $response->headers->set('Content-Type', 'application/octet-stream');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+
+        return $response;
+    }
+
+    #[Route(path: '/api/instances/{id}/files/read', name: 'customer_instance_files_api_read', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/read', name: 'customer_instance_files_api_read_v1', methods: ['GET'])]
+    public function read(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+        $path = trim((string) $request->query->get('path', ''));
+        $name = trim((string) $request->query->get('name', ''));
+        if ($name === '') {
+            throw new BadRequestHttpException('Missing file name.');
+        }
+
+        try {
+            $content = $this->fileService->readFileForEditor($instance, $path, $name);
+        } catch (\RuntimeException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $response = new Response($content);
+        $response->headers->set('Content-Type', 'text/plain; charset=utf-8');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
 
         return $response;
@@ -99,13 +124,8 @@ final class CustomerInstanceFileApiController
             throw new BadRequestHttpException('Missing upload.');
         }
 
-        $content = file_get_contents($upload->getPathname());
-        if ($content === false) {
-            throw new BadRequestHttpException('Failed to read upload.');
-        }
-
         try {
-            $this->fileService->writeFile($instance, $path, $upload->getClientOriginalName(), $content);
+            $this->fileService->uploadFile($instance, $path, $upload);
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }

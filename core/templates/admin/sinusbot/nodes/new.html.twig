@@ -1,0 +1,32 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}SinusBot Node erstellen · Easy-Wi NextGen{% endblock %}
+
+{% block body %}
+    <div class="sinusbot-page">
+        <div class="sinusbot-header">
+            <div>
+                <h1>SinusBot Node hinzufügen</h1>
+                <p>Konfiguriere die Agent-URL und Installationspfade.</p>
+            </div>
+        </div>
+
+        <div class="sinusbot-card">
+            {{ form_start(form, { attr: { class: 'sinusbot-form' } }) }}
+                <div class="sinusbot-grid">
+                    {{ form_row(form.name, { label: 'Name' }) }}
+                    {{ form_row(form.agentBaseUrl, { label: 'Agent Base URL' }) }}
+                    {{ form_row(form.agentApiToken, { label: 'Agent API Token' }) }}
+                    {{ form_row(form.downloadUrl, { label: 'SinusBot Download URL' }) }}
+                    {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
+                    {{ form_row(form.instanceRoot, { label: 'Instance Root' }) }}
+                    {{ form_row(form.webBindIp, { label: 'Web Bind IP' }) }}
+                    {{ form_row(form.webPortBase, { label: 'Web Port Basis' }) }}
+                </div>
+                <div class="sinusbot-actions">
+                    <button class="sinusbot-button" type="submit">Node speichern</button>
+                </div>
+            {{ form_end(form) }}
+        </div>
+    </div>
+{% endblock %}

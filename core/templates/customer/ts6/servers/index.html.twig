@@ -1,0 +1,53 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}TS6 Server · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts6-page">
+        <div class="ts6-header">
+            <div>
+                <h1>TeamSpeak 6 Server</h1>
+                <p>Verwalte deine TS6 Virtual Server.</p>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts6-alert ts6-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts6-card">
+            <table class="ts6-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Ports</th>
+                        <th>Aktualisiert</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for server in servers %}
+                        <tr>
+                            <td>
+                                <strong>{{ server.name }}</strong>
+                                <div class="ts6-muted">#{{ server.sid }}</div>
+                            </td>
+                            <td><span class="ts6-pill">{{ server.status }}</span></td>
+                            <td>
+                                {% if server.voicePort %}Voice {{ server.voicePort }}{% endif %}
+                                {% if server.filetransferPort %}<div>FT {{ server.filetransferPort }}</div>{% endif %}
+                            </td>
+                            <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
+                            <td class="ts6-align-right"><a class="ts6-link" href="/customer/ts6/servers/{{ server.id }}">Details</a></td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td class="ts6-empty" colspan="5">Keine TS6 Server gefunden.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

@@ -14,7 +14,25 @@
             {% for template in templates %}
                 <tr class="hover:bg-slate-50">
                     <td class="px-5 py-4">
-                        <div class="font-semibold text-slate-900">{{ template.display_name }}</div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <div class="font-semibold text-slate-900">{{ template.display_name }}</div>
+                            {% set supportedOs = template.supported_os ?? [] %}
+                            {% if supportedOs is not empty %}
+                                {% set hasLinux = 'linux' in supportedOs %}
+                                {% set hasWindows = 'windows' in supportedOs %}
+                                {% if hasLinux and hasWindows %}
+                                    {% set osLabel = 'Both' %}
+                                    {% set osClass = 'badge--os-both' %}
+                                {% elseif hasWindows %}
+                                    {% set osLabel = 'Windows' %}
+                                    {% set osClass = 'badge--os-windows' %}
+                                {% else %}
+                                    {% set osLabel = 'Linux' %}
+                                    {% set osClass = 'badge--os-linux' %}
+                                {% endif %}
+                                <span class="badge template-os-badge {{ osClass }}">{{ osLabel }}</span>
+                            {% endif %}
+                        </div>
                         <div class="text-xs text-slate-700 mt-1">
                             {{ t('admin_templates_game_key_label', page_locale()) }}: {{ template.game_key }}
                         </div>

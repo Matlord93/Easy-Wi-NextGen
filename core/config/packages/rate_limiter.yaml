@@ -20,6 +20,14 @@ framework:
             policy: 'fixed_window'
             limit: 60
             interval: '1 minute'
+        ts6_viewer:
+            policy: 'fixed_window'
+            limit: 30
+            interval: '1 minute'
+        ts3_viewer:
+            policy: 'fixed_window'
+            limit: 30
+            interval: '1 minute'
         public_registration:
             policy: 'fixed_window'
             limit: 10

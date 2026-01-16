@@ -1,0 +1,48 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}TS6 Server · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts6-page">
+        <div class="ts6-header">
+            <div>
+                <h1>{{ server.name }}</h1>
+                <p>SID {{ server.sid }} · Status {{ server.status }}</p>
+            </div>
+            <div class="ts6-actions">
+                <a class="ts6-link" href="/customer/ts6/servers">Zurück</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts6-alert ts6-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts6-card">
+            <div class="ts6-meta">
+                <div><strong>Node:</strong> {{ server.node.name }}</div>
+                <div><strong>Voice Port:</strong> {{ server.voicePort ?? '—' }}</div>
+                <div><strong>Filetransfer Port:</strong> {{ server.filetransferPort ?? '—' }}</div>
+                <div><strong>Slots:</strong> {{ server.slots }}</div>
+            </div>
+            <div class="ts6-actions">
+                <form method="post" action="/customer/ts6/servers/{{ server.id }}/start">
+                    <input type="hidden" name="_token" value="{{ csrf.start }}">
+                    <button class="ts6-button" type="submit">Start</button>
+                </form>
+                <form method="post" action="/customer/ts6/servers/{{ server.id }}/stop">
+                    <input type="hidden" name="_token" value="{{ csrf.stop }}">
+                    <button class="ts6-button" type="submit">Stop</button>
+                </form>
+                <form method="post" action="/customer/ts6/servers/{{ server.id }}/recreate">
+                    <input type="hidden" name="_token" value="{{ csrf.recreate }}">
+                    <button class="ts6-button" type="submit">Recreate</button>
+                </form>
+            </div>
+            <div class="ts6-actions">
+                <a class="ts6-link" href="/customer/ts6/servers/{{ server.id }}/token">Token anzeigen</a>
+                <a class="ts6-link" href="/customer/ts6/servers/{{ server.id }}/viewer">Viewer</a>
+            </div>
+        </div>
+    </div>
+{% endblock %}

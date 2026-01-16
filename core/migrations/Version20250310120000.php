@@ -1510,10 +1510,24 @@ final class Version20250310120000 extends AbstractMigration
         string $updateCommand,
         array $allowedSwitchFlags,
     ): void {
-        $sql = sprintf(
-            'INSERT INTO game_templates (game_key, display_name, description, steam_app_id, sniper_profile, required_ports, start_params, env_vars, config_files, plugin_paths, fastdl_settings, install_command, update_command, allowed_switch_flags, created_at, updated_at) '
-            . 'SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s '
-            . 'WHERE NOT EXISTS (SELECT 1 FROM game_templates WHERE game_key = %s)',
+        $columns = [
+            'game_key',
+            'display_name',
+            'description',
+            'steam_app_id',
+            'sniper_profile',
+            'required_ports',
+            'start_params',
+            'env_vars',
+            'config_files',
+            'plugin_paths',
+            'fastdl_settings',
+            'install_command',
+            'update_command',
+            'allowed_switch_flags',
+        ];
+
+        $values = [
             $this->quote($gameKey),
             $this->quote($displayName),
             $this->quote($description),
@@ -1528,8 +1542,26 @@ final class Version20250310120000 extends AbstractMigration
             $this->quote($installCommand),
             $this->quote($updateCommand),
             $this->quoteJson($allowedSwitchFlags),
-            $this->currentTimestampExpression(),
-            $this->currentTimestampExpression(),
+        ];
+
+        if ($this->hasColumn('game_templates', 'supported_os')) {
+            $columns[] = 'supported_os';
+            $columns[] = 'port_profile';
+            $columns[] = 'requirements';
+            $values[] = $this->quoteJson($this->resolveSupportedOs($gameKey));
+            $values[] = $this->quoteJson($this->buildPortProfile($requiredPorts));
+            $values[] = $this->quoteJson($this->buildRequirements($gameKey, $steamAppId, $envVars));
+        }
+
+        $columns[] = 'created_at';
+        $columns[] = 'updated_at';
+        $values[] = $this->currentTimestampExpression();
+        $values[] = $this->currentTimestampExpression();
+
+        $sql = sprintf(
+            'INSERT INTO game_templates (%s) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM game_templates WHERE game_key = %s)',
+            implode(', ', $columns),
+            implode(', ', $values),
             $this->quote($gameKey),
         );
 
@@ -1602,6 +1634,121 @@ final class Version20250310120000 extends AbstractMigration
         return $encoded === false ? '[]' : $encoded;
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $requiredPorts
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildPortProfile(array $requiredPorts): array
+    {
+        $roleMap = [
+            'game' => 'game',
+            'query' => 'query',
+            'rcon' => 'rcon',
+            'tv' => 'tv',
+            'voice' => 'voice',
+            'filetransfer' => 'filetransfer',
+        ];
+
+        $profile = [];
+        foreach ($requiredPorts as $port) {
+            if (!is_array($port)) {
+                continue;
+            }
+            $name = strtolower((string) ($port['name'] ?? 'game'));
+            $role = $roleMap[$name] ?? $name;
+            $protocol = (string) ($port['protocol'] ?? 'udp');
+            $count = (int) ($port['count'] ?? 1);
+            if ($count <= 0) {
+                $count = 1;
+            }
+
+            $profile[] = [
+                'role' => $role,
+                'protocol' => $protocol,
+                'count' => $count,
+                'required' => isset($port['required']) ? (bool) $port['required'] : true,
+                'contiguous' => isset($port['contiguous']) ? (bool) $port['contiguous'] : false,
+            ];
+        }
+
+        return $profile;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $envVars
+     * @return array<string, mixed>
+     */
+    private function buildRequirements(string $gameKey, ?int $steamAppId, array $envVars): array
+    {
+        $envVarKeys = $this->extractEnvVarKeys($envVars);
+        $requiredSecrets = $this->isCsTemplate($gameKey) ? ['STEAM_GSLT'] : [];
+
+        return [
+            'required_vars' => $envVarKeys,
+            'required_secrets' => $requiredSecrets,
+            'steam_install_mode' => $this->resolveSteamInstallMode($gameKey, $steamAppId),
+            'customer_allowed_vars' => $envVarKeys,
+            'customer_allowed_secrets' => $requiredSecrets,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $envVars
+     * @return array<int, string>
+     */
+    private function extractEnvVarKeys(array $envVars): array
+    {
+        $keys = [];
+        foreach ($envVars as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $key = trim((string) ($entry['key'] ?? ''));
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function resolveSupportedOs(string $gameKey): array
+    {
+        return str_ends_with($gameKey, '_windows') ? ['windows'] : ['linux'];
+    }
+
+    private function resolveSteamInstallMode(string $gameKey, ?int $steamAppId): string
+    {
+        if ($this->isMinecraftNoSteam($gameKey)) {
+            return 'none';
+        }
+
+        return $steamAppId !== null ? 'anonymous' : 'none';
+    }
+
+    private function isMinecraftNoSteam(string $gameKey): bool
+    {
+        return in_array($gameKey, [
+            'minecraft_paper',
+            'minecraft_vanilla',
+            'minecraft_paper_windows',
+            'minecraft_vanilla_windows',
+        ], true);
+    }
+
+    private function isCsTemplate(string $gameKey): bool
+    {
+        return in_array($gameKey, [
+            'cs2',
+            'csgo_legacy',
+            'cs2_windows',
+            'csgo_legacy_windows',
+        ], true);
+    }
+
     private function currentTimestampExpression(): string
     {
         return $this->isSqlite() ? 'CURRENT_TIMESTAMP' : 'CURRENT_TIMESTAMP()';
@@ -1617,5 +1764,12 @@ final class Version20250310120000 extends AbstractMigration
 
         return $platform instanceof \Doctrine\DBAL\Platforms\SqlitePlatform
             || $platform instanceof \Doctrine\DBAL\Platforms\SQLitePlatform;
+    }
+
+    private function hasColumn(string $table, string $column): bool
+    {
+        $columns = $this->connection->createSchemaManager()->listTableColumns($table);
+
+        return array_key_exists($column, $columns);
     }
 }

@@ -55,8 +55,26 @@ class Template
     #[ORM\Column(type: 'text')]
     private string $updateCommand;
 
+    #[ORM\Column(type: 'json', name: 'install_resolver')]
+    private array $installResolver = [];
+
     #[ORM\Column(type: 'json')]
     private array $allowedSwitchFlags;
+
+    #[ORM\Column(type: 'json', name: 'requirement_vars')]
+    private array $requirementVars = [];
+
+    #[ORM\Column(type: 'json', name: 'requirement_secrets')]
+    private array $requirementSecrets = [];
+
+    #[ORM\Column(type: 'json', name: 'supported_os')]
+    private array $supportedOs = [];
+
+    #[ORM\Column(type: 'json', name: 'port_profile')]
+    private array $portProfile = [];
+
+    #[ORM\Column(type: 'json')]
+    private array $requirements = [];
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -78,7 +96,13 @@ class Template
         array $fastdlSettings,
         string $installCommand,
         string $updateCommand,
+        array $installResolver,
         array $allowedSwitchFlags,
+        array $requirementVars = [],
+        array $requirementSecrets = [],
+        array $supportedOs = [],
+        array $portProfile = [],
+        array $requirements = [],
     ) {
         $this->gameKey = $gameKey;
         $this->displayName = $displayName;
@@ -93,7 +117,13 @@ class Template
         $this->fastdlSettings = $fastdlSettings;
         $this->installCommand = $installCommand;
         $this->updateCommand = $updateCommand;
+        $this->installResolver = $installResolver;
         $this->allowedSwitchFlags = $allowedSwitchFlags;
+        $this->requirementVars = $requirementVars;
+        $this->requirementSecrets = $requirementSecrets;
+        $this->supportedOs = $supportedOs;
+        $this->portProfile = $portProfile;
+        $this->requirements = $requirements;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -260,6 +290,17 @@ class Template
         return $this->updateCommand;
     }
 
+    public function getInstallResolver(): array
+    {
+        return $this->installResolver;
+    }
+
+    public function setInstallResolver(array $installResolver): void
+    {
+        $this->installResolver = $installResolver;
+        $this->touch();
+    }
+
     public function setUpdateCommand(string $updateCommand): void
     {
         $this->updateCommand = $updateCommand;
@@ -274,6 +315,61 @@ class Template
     public function setAllowedSwitchFlags(array $allowedSwitchFlags): void
     {
         $this->allowedSwitchFlags = $allowedSwitchFlags;
+        $this->touch();
+    }
+
+    public function getRequirementVars(): array
+    {
+        return $this->requirementVars;
+    }
+
+    public function setRequirementVars(array $requirementVars): void
+    {
+        $this->requirementVars = $requirementVars;
+        $this->touch();
+    }
+
+    public function getRequirementSecrets(): array
+    {
+        return $this->requirementSecrets;
+    }
+
+    public function setRequirementSecrets(array $requirementSecrets): void
+    {
+        $this->requirementSecrets = $requirementSecrets;
+        $this->touch();
+    }
+
+    public function getSupportedOs(): array
+    {
+        return $this->supportedOs;
+    }
+
+    public function setSupportedOs(array $supportedOs): void
+    {
+        $this->supportedOs = $supportedOs;
+        $this->touch();
+    }
+
+    public function getPortProfile(): array
+    {
+        return $this->portProfile;
+    }
+
+    public function setPortProfile(array $portProfile): void
+    {
+        $this->portProfile = $portProfile;
+        $this->touch();
+    }
+
+    public function getRequirements(): array
+    {
+        return $this->requirements;
+    }
+
+    public function setRequirements(array $requirements): void
+    {
+        $this->requirements = $requirements;
         $this->touch();
     }
 

@@ -18,7 +18,7 @@ use App\Repository\InvoiceRepository;
 use App\Repository\MailAliasRepository;
 use App\Repository\MailboxRepository;
 use App\Repository\PaymentRepository;
-use App\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\TicketMessageRepository;
 use App\Repository\TicketRepository;
 use App\Repository\Ts3InstanceRepository;

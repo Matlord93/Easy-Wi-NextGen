@@ -1,0 +1,33 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}TS6 Virtual Server anlegen · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts6-page">
+        <div class="ts6-header">
+            <div>
+                <h1>TS6 Virtual Server anlegen</h1>
+                <p>Ordne einem Kunden einen TS6 Virtual Server zu.</p>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts6-alert ts6-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts6-card">
+            {{ form_start(form, { attr: { class: 'ts6-form' } }) }}
+                <div class="ts6-grid">
+                    {{ form_row(form.customerId) }}
+                    {{ form_row(form.nodeId) }}
+                    {{ form_row(form.name) }}
+                    {{ form_row(form.slots) }}
+                    {{ form_row(form.voicePort) }}
+                </div>
+                <div class="ts6-actions">
+                    <button class="ts6-button" type="submit">Server erstellen</button>
+                </div>
+            {{ form_end(form) }}
+        </div>
+    </div>
+{% endblock %}

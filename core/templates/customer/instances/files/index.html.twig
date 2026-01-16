@@ -118,6 +118,7 @@
                             {{ t('customer_instance_files_up_one_level', page_locale()) }}
                         </button>
                     </div>
+                    <div id="file-breadcrumb" class="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs text-slate-600"></div>
 
                     <div class="rounded-xl border border-slate-200 bg-white p-4">
                         <div class="grid gap-4 lg:grid-cols-3">
@@ -221,6 +222,7 @@
             const currentPathEl = document.getElementById('file-current-path');
             const pathInput = document.getElementById('file-path-input');
             const feedbackEl = document.getElementById('file-feedback');
+            const breadcrumbEl = document.getElementById('file-breadcrumb');
             const uploadForm = document.getElementById('file-upload-form');
             const mkdirForm = document.getElementById('file-mkdir-form');
             const createForm = document.getElementById('file-create-form');
@@ -342,6 +344,21 @@
                     createForm.querySelector('input[name="path"]').value = currentPath;
                 }
                 editorPath.value = currentPath;
+                renderBreadcrumb(currentPath);
+            };
+
+            const renderBreadcrumb = (path) => {
+                if (!breadcrumbEl) {
+                    return;
+                }
+                const parts = (path || '').split('/').filter(Boolean);
+                let cursor = '';
+                let html = `<button type="button" class="font-semibold text-indigo-600 hover:text-indigo-700" data-path="">/</button>`;
+                parts.forEach((part) => {
+                    cursor = cursor ? `${cursor}/${part}` : part;
+                    html += `<span class="text-slate-400">/</span><button type="button" class="font-semibold text-slate-700 hover:text-indigo-600" data-path="${cursor}">${part}</button>`;
+                });
+                breadcrumbEl.innerHTML = html;
             };
 
             const renderEntries = (entries) => {
@@ -408,7 +425,7 @@
 
             const readFile = async (path, name) => {
                 try {
-                    const response = await fetch(`${apiBase}/download${buildQuery({ path, name })}`);
+                    const response = await fetch(`${apiBase}/read${buildQuery({ path, name })}`);
                     if (!response.ok) {
                         const data = await response.json().catch(() => ({}));
                         throw new Error(data.error || 'Download failed.');
@@ -498,6 +515,17 @@
                     }
                 }
             });
+
+            if (breadcrumbEl) {
+                breadcrumbEl.addEventListener('click', (event) => {
+                    const target = event.target.closest('[data-path]');
+                    if (!target) {
+                        return;
+                    }
+                    const path = target.dataset.path || '';
+                    loadListing(path);
+                });
+            }
 
             uploadForm.addEventListener('submit', async (event) => {
                 event.preventDefault();

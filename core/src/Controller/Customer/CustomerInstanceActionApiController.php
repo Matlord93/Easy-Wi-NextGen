@@ -16,8 +16,10 @@ use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
-use App\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Service\DiskEnforcementService;
+use App\Service\Installer\TemplateInstallResolver;
+use App\Service\SetupChecker;
 use Cron\CronExpression;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -38,6 +40,8 @@ final class CustomerInstanceActionApiController
         private readonly GamePluginRepository $gamePluginRepository,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly SetupChecker $setupChecker,
+        private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
     ) {
@@ -395,6 +399,15 @@ final class CustomerInstanceActionApiController
             return new JsonResponse(['error' => 'Confirmation is required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
+        $status = $this->setupChecker->getSetupStatus($instance);
+        if (!$status['is_ready'] && in_array(SetupChecker::ACTION_INSTALL, $status['blocked_actions'], true)) {
+            return new JsonResponse([
+                'error' => 'Setup requirements missing.',
+                'error_code' => 'MISSING_REQUIREMENTS',
+                'missing' => $status['missing'],
+            ], JsonResponse::HTTP_CONFLICT);
+        }
+
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
             return new JsonResponse(['error' => $blockMessage], JsonResponse::HTTP_BAD_REQUEST);
@@ -412,7 +425,7 @@ final class CustomerInstanceActionApiController
             'start_params' => $instance->getTemplate()->getStartParams(),
             'required_ports' => implode(',', $instance->getTemplate()->getRequiredPortLabels()),
             'port_block_ports' => $portBlock ? implode(',', array_map('strval', $portBlock->getPorts())) : '',
-            'install_command' => $instance->getTemplate()->getInstallCommand(),
+            'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance),
         ]);
 
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);

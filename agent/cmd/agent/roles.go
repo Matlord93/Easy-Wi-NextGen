@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -126,6 +127,7 @@ func collectMetadata() map[string]any {
 	metadata := map[string]any{
 		"ts6_supported": detectTS6Support(),
 	}
+	appendFilesvcMetadata(metadata)
 	if hostname, err := os.Hostname(); err == nil && hostname != "" {
 		metadata["hostname"] = hostname
 	}
@@ -144,6 +146,27 @@ func collectMetadata() map[string]any {
 		return nil
 	}
 	return metadata
+}
+
+func appendFilesvcMetadata(metadata map[string]any) {
+	if metadata == nil {
+		return
+	}
+	if value := strings.TrimSpace(os.Getenv("EASYWI_FILESVC_URL")); value != "" {
+		metadata["filesvc_url"] = value
+		return
+	}
+	if value := strings.TrimSpace(os.Getenv("EASYWI_FILESVC_HOST")); value != "" {
+		metadata["filesvc_host"] = value
+	}
+	if value := strings.TrimSpace(os.Getenv("EASYWI_FILESVC_PORT")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			metadata["filesvc_port"] = parsed
+		}
+	}
+	if value := strings.TrimSpace(os.Getenv("EASYWI_FILESVC_SCHEME")); value != "" {
+		metadata["filesvc_scheme"] = value
+	}
 }
 
 func readOSRelease() map[string]string {

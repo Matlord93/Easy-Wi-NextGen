@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TS6 Viewer</title>
+    <link rel="stylesheet" href="/ts6.css">
+</head>
+<body class="ts6-viewer-body">
+    <div class="ts6-viewer">
+        <div class="ts6-viewer-header">
+            <h1>{{ server.name }}</h1>
+            <p>Live Snapshot</p>
+        </div>
+        <div id="ts6-viewer" data-id="{{ public_id }}" class="ts6-viewer-container">
+            <div class="ts6-muted">Lade Daten…</div>
+        </div>
+    </div>
+    <script src="/viewer/ts6/{{ public_id }}.js" async></script>
+</body>
+</html>

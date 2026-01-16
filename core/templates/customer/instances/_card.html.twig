@@ -8,6 +8,8 @@
     {% set statusColor = 'bg-rose-100 text-rose-700' %}
 {% elseif status == 'error' %}
     {% set statusColor = 'bg-rose-100 text-rose-700' %}
+{% elseif status == 'pending_setup' %}
+    {% set statusColor = 'bg-amber-100 text-amber-700' %}
 {% elseif status == 'provisioning' %}
     {% set statusColor = 'bg-sky-100 text-sky-700' %}
 {% endif %}
@@ -161,6 +163,6 @@
     </div>
 
     <div class="mt-6">
-        {% include 'customer/instances/_settings_form.html.twig' with { instance: instance } %}
+        {% include 'customer/instances/_settings_form.html.twig' with { instance: instance, minecraftCatalog: minecraftCatalog|default(null) } %}
     </div>
 </div>

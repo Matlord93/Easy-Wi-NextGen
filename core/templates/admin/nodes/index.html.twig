@@ -190,6 +190,9 @@
                                     hx-target="#nodes-table-wrap"
                                     hx-swap="innerHTML"
                                 >{{ t('admin_nodes_update_check', page_locale()) }}</button>
+                                <a class="btn btn--tertiary" href="/admin/nodes/{{ selectedNode.id }}/port-ranges">
+                                    {{ t('admin_nodes_port_ranges', page_locale()) }}
+                                </a>
                             </div>
                         </div>
 

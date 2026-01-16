@@ -5,20 +5,17 @@ declare(strict_types=1);
 namespace App\Controller\Admin;
 
 use App\Entity\Instance;
-use App\Entity\Job;
 use App\Entity\InvoicePreferences;
 use App\Entity\User;
 use App\Enum\InstanceStatus;
 use App\Enum\InstanceUpdatePolicy;
 use App\Enum\UserType;
 use App\Repository\AgentRepository;
-use App\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
 use App\Service\DiskEnforcementService;
-use App\Service\InstanceJobPayloadBuilder;
-use App\Service\InstanceSftpProvisioner;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -34,8 +31,6 @@ final class AdminShopProvisioningController
         private readonly PortBlockRepository $portBlockRepository,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly AuditLogger $auditLogger,
-        private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
-        private readonly InstanceSftpProvisioner $instanceSftpProvisioner,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly EntityManagerInterface $entityManager,
     ) {
@@ -145,7 +140,7 @@ final class AdminShopProvisioningController
             $ramLimit,
             $diskLimit,
             $portBlock?->getId(),
-            InstanceStatus::Provisioning,
+            InstanceStatus::PendingSetup,
             InstanceUpdatePolicy::Manual,
         );
 
@@ -162,40 +157,6 @@ final class AdminShopProvisioningController
             ]);
         }
 
-        $job = new Job('instance.create', [
-            'instance_id' => (string) $instance->getId(),
-            'customer_id' => (string) $customer->getId(),
-            'template_id' => (string) $template->getId(),
-            'game_key' => $template->getGameKey(),
-            'display_name' => $template->getDisplayName(),
-            'steam_app_id' => $template->getSteamAppId() !== null ? (string) $template->getSteamAppId() : '',
-            'sniper_profile' => $template->getSniperProfile() ?? '',
-            'node_id' => $node->getId(),
-            'cpu_limit' => (string) $cpuLimit,
-            'ram_limit' => (string) $ramLimit,
-            'disk_limit' => (string) $diskLimit,
-            'port_block_id' => $instance->getPortBlockId() ?? '',
-            'port_block_ports' => $portBlock ? implode(',', array_map('strval', $portBlock->getPorts())) : '',
-            'start_params' => $template->getStartParams(),
-            'required_ports' => implode(',', $template->getRequiredPortLabels()),
-            'env_vars' => $this->encodeJson($template->getEnvVars()),
-            'config_files' => $this->encodeJson($template->getConfigFiles()),
-            'plugin_paths' => $this->encodeJson($template->getPluginPaths()),
-            'fastdl_settings' => $this->encodeJson($template->getFastdlSettings()),
-            'install_command' => $template->getInstallCommand(),
-            'update_command' => $template->getUpdateCommand(),
-            'allowed_switch_flags' => implode(',', $template->getAllowedSwitchFlags()),
-        ]);
-        $this->entityManager->persist($job);
-
-        $sniperInstallJob = null;
-        if ($template->getInstallCommand() !== '' || $template->getSteamAppId() !== null) {
-            $sniperInstallJob = new Job('sniper.install', $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance));
-            $this->entityManager->persist($sniperInstallJob);
-        }
-
-        $this->instanceSftpProvisioner->provision($actor, $instance);
-
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
             'customer_id' => $customer->getId(),
@@ -205,30 +166,15 @@ final class AdminShopProvisioningController
             'ram_limit' => $ramLimit,
             'disk_limit' => $diskLimit,
             'port_block_id' => $instance->getPortBlockId(),
-            'job_id' => $job->getId(),
-            'sniper_job_id' => $sniperInstallJob?->getId(),
             'source' => 'shop.checkout',
         ]);
-
-        if ($sniperInstallJob !== null) {
-            $this->auditLogger->log($actor, 'instance.sniper.install_queued', [
-                'instance_id' => $instance->getId(),
-                'customer_id' => $customer->getId(),
-                'template_id' => $template->getId(),
-                'node_id' => $node->getId(),
-                'job_id' => $sniperInstallJob->getId(),
-                'source' => 'shop.checkout',
-            ]);
-        }
 
         $this->auditLogger->log($actor, 'shop.checkout.provisioned', [
             'customer_id' => $customer->getId(),
             'instance_id' => $instance->getId(),
-            'job_id' => $job->getId(),
             'template_id' => $template->getId(),
             'node_id' => $node->getId(),
             'email' => $customer->getEmail(),
-            'sniper_job_id' => $sniperInstallJob?->getId(),
         ]);
 
         $this->entityManager->flush();
@@ -236,8 +182,6 @@ final class AdminShopProvisioningController
         $response = [
             'customer_id' => $customer->getId(),
             'instance_id' => $instance->getId(),
-            'job_id' => $job->getId(),
-            'sniper_job_id' => $sniperInstallJob?->getId(),
             'customer_created' => $isNewCustomer,
         ];
 
@@ -248,10 +192,4 @@ final class AdminShopProvisioningController
         return new JsonResponse($response, JsonResponse::HTTP_CREATED);
     }
 
-    private function encodeJson(array $value): string
-    {
-        $encoded = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        return $encoded === false ? '[]' : $encoded;
-    }
 }

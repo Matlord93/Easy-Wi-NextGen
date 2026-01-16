@@ -1,0 +1,36 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}TS3 Node anlegen · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>Neuer TS3 Node</h1>
+                <p>Verbinde einen Agenten für TeamSpeak 3.</p>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-link" href="/admin/ts3/nodes">Zurück</a>
+            </div>
+        </div>
+
+        <div class="ts3-card">
+            {{ form_start(form, { attr: { class: 'ts3-form' } }) }}
+                <div class="ts3-grid">
+                    {{ form_row(form.name, { label: 'Name' }) }}
+                    {{ form_row(form.agentBaseUrl, { label: 'Agent Base URL' }) }}
+                    {{ form_row(form.agentApiToken, { label: 'Agent API Token' }) }}
+                    {{ form_row(form.downloadUrl, { label: 'Download URL' }) }}
+                    {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
+                    {{ form_row(form.instanceName, { label: 'Instanzname' }) }}
+                    {{ form_row(form.serviceName, { label: 'Service Name' }) }}
+                    {{ form_row(form.queryBindIp, { label: 'Query Bind IP' }) }}
+                    {{ form_row(form.queryPort, { label: 'Query Port' }) }}
+                </div>
+                <div class="ts3-actions">
+                    <button class="ts3-button" type="submit">Node speichern</button>
+                </div>
+            {{ form_end(form) }}
+        </div>
+    </div>
+{% endblock %}

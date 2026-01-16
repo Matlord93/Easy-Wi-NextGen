@@ -1,0 +1,146 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ t('admin_port_ranges_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<section class="port-ranges-page">
+    <header class="port-ranges-header">
+        <div>
+            <h1 class="port-ranges-title">{{ t('admin_port_ranges_title', page_locale()) }}</h1>
+            <p class="port-ranges-subtitle">{{ t('admin_port_ranges_intro', page_locale()) }}</p>
+            <div class="port-ranges-meta">
+                {{ t('admin_port_ranges_node_label', page_locale())|replace({'%node%': node.name ?? node.id}) }}
+            </div>
+        </div>
+        <div class="nodes-actions">
+            <a href="/admin/nodes" class="btn btn--secondary">{{ t('admin_port_ranges_back', page_locale()) }}</a>
+        </div>
+    </header>
+
+    {% if noticeKey or errorKey or warning %}
+        <div class="nodes-detail">
+            {% if noticeKey %}
+                <div class="nodes-alert nodes-alert--success">{{ t(noticeKey, page_locale()) }}</div>
+            {% endif %}
+            {% if warning %}
+                <div class="nodes-alert nodes-alert--warning">
+                    {{ t(warning.key, page_locale())|replace({'%count%': warning.count}) }}
+                </div>
+            {% endif %}
+            {% if errorKey %}
+                <div class="nodes-alert nodes-alert--danger">{{ t(errorKey, page_locale()) }}</div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <div class="port-ranges-layout">
+        <div class="nodes-card">
+            <div class="nodes-card__header">
+                <div>
+                    <h2 class="nodes-card__title">{{ t('admin_port_ranges_list_title', page_locale()) }}</h2>
+                    <p class="nodes-card__subtitle">{{ t('admin_port_ranges_list_intro', page_locale()) }}</p>
+                </div>
+            </div>
+            <div class="port-ranges-table">
+                {% for range in ranges %}
+                    <form id="port-range-{{ range.id }}" method="post" action="/admin/nodes/{{ node.id }}/port-ranges/{{ range.id }}/update"></form>
+                {% endfor %}
+                <table class="nodes-table">
+                    <thead>
+                    <tr>
+                        <th>{{ t('admin_port_ranges_purpose', page_locale()) }}</th>
+                        <th>{{ t('admin_port_ranges_protocol', page_locale()) }}</th>
+                        <th>{{ t('admin_port_ranges_start_port', page_locale()) }}</th>
+                        <th>{{ t('admin_port_ranges_end_port', page_locale()) }}</th>
+                        <th>{{ t('admin_port_ranges_enabled', page_locale()) }}</th>
+                        <th>{{ t('admin_port_ranges_actions', page_locale()) }}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for range in ranges %}
+                        <tr>
+                            <td>
+                                <input form="port-range-{{ range.id }}" name="purpose" value="{{ range.purpose }}" class="form-input form-input--slim" />
+                            </td>
+                            <td>
+                                <select form="port-range-{{ range.id }}" name="protocol" class="form-input form-input--slim">
+                                    {% for protocol in protocols %}
+                                        <option value="{{ protocol }}" {% if protocol == range.protocol %}selected{% endif %}>{{ protocol|upper }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input form="port-range-{{ range.id }}" type="number" min="1" max="65535" step="1" name="start_port" value="{{ range.start_port }}" class="form-input form-input--slim port-range-number" />
+                            </td>
+                            <td>
+                                <input form="port-range-{{ range.id }}" type="number" min="1" max="65535" step="1" name="end_port" value="{{ range.end_port }}" class="form-input form-input--slim port-range-number" />
+                            </td>
+                            <td>
+                                <label class="port-range-toggle">
+                                    <input form="port-range-{{ range.id }}" type="checkbox" name="enabled" value="1" {% if range.enabled %}checked{% endif %} />
+                                    <span>{{ range.enabled ? t('admin_port_ranges_enabled_yes', page_locale()) : t('admin_port_ranges_enabled_no', page_locale()) }}</span>
+                                </label>
+                            </td>
+                            <td class="port-range-actions">
+                                <button form="port-range-{{ range.id }}" type="submit" class="btn btn--tertiary">
+                                    {{ t('admin_port_ranges_update_button', page_locale()) }}
+                                </button>
+                                <form method="post" action="/admin/nodes/{{ node.id }}/port-ranges/{{ range.id }}/delete" class="inline-form">
+                                    <button type="submit" class="btn btn--danger">
+                                        {{ t('admin_port_ranges_delete_button', page_locale()) }}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6">{{ t('admin_port_ranges_empty', page_locale()) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <aside class="nodes-card">
+            <div class="nodes-card__header">
+                <div>
+                    <h2 class="nodes-card__title">{{ t('admin_port_ranges_create_title', page_locale()) }}</h2>
+                    <p class="nodes-card__subtitle">{{ t('admin_port_ranges_create_intro', page_locale()) }}</p>
+                </div>
+            </div>
+            <form class="port-range-form" method="post" action="/admin/nodes/{{ node.id }}/port-ranges">
+                <div class="form-field">
+                    <label class="form-label" for="port-range-purpose">{{ t('admin_port_ranges_purpose', page_locale()) }}</label>
+                    <input id="port-range-purpose" name="purpose" value="{{ form.purpose }}" class="form-input" />
+                </div>
+                <div class="form-field">
+                    <label class="form-label" for="port-range-protocol">{{ t('admin_port_ranges_protocol', page_locale()) }}</label>
+                    <select id="port-range-protocol" name="protocol" class="form-input">
+                        {% for protocol in protocols %}
+                            <option value="{{ protocol }}" {% if protocol == form.protocol %}selected{% endif %}>{{ protocol|upper }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label class="form-label" for="port-range-start">{{ t('admin_port_ranges_start_port', page_locale()) }}</label>
+                    <input id="port-range-start" type="number" min="1" max="65535" step="1" name="start_port" value="{{ form.start_port }}" class="form-input" />
+                </div>
+                <div class="form-field">
+                    <label class="form-label" for="port-range-end">{{ t('admin_port_ranges_end_port', page_locale()) }}</label>
+                    <input id="port-range-end" type="number" min="1" max="65535" step="1" name="end_port" value="{{ form.end_port }}" class="form-input" />
+                </div>
+                <div class="form-field">
+                    <label class="port-range-toggle port-range-toggle--large">
+                        <input type="checkbox" name="enabled" value="1" {% if form.enabled %}checked{% endif %} />
+                        <span>{{ t('admin_port_ranges_enabled_label', page_locale()) }}</span>
+                    </label>
+                </div>
+                <div class="nodes-actions-row">
+                    <button type="submit" class="btn btn--primary">{{ t('admin_port_ranges_create_button', page_locale()) }}</button>
+                </div>
+            </form>
+        </aside>
+    </div>
+</section>
+{% endblock %}
