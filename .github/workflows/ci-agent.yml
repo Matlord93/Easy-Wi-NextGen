@@ -29,6 +29,8 @@ jobs:
           mkdir -p ../dist
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-agent-linux-amd64 ./cmd/agent
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
+            -o ../dist/easywi-filesvc-linux-amd64 ./cmd/filesvc
 
       - name: Build windows-amd64
         run: |
@@ -39,6 +41,7 @@ jobs:
         run: |
           cd ../dist
           sha256sum easywi-agent-* > checksums-agent.txt
+          sha256sum easywi-filesvc-* > checksums-filesvc.txt
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
@@ -46,7 +49,9 @@ jobs:
           name: agent-binaries
           path: |
             dist/easywi-agent-*
+            dist/easywi-filesvc-*
             dist/checksums-agent.txt
+            dist/checksums-filesvc.txt
 
   release:
     name: Agent - publish release assets
@@ -64,10 +69,32 @@ jobs:
           name: agent-binaries
           path: dist
 
+      - name: Sign checksums
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}
+        run: |
+          if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
+            echo "Missing GPG signing key (EASYWI_GPG_PRIVATE_KEY)." >&2
+            exit 1
+          fi
+          export GNUPGHOME
+          GNUPGHOME="$(mktemp -d)"
+          chmod 700 "${GNUPGHOME}"
+          printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
+            --armor --detach-sign dist/checksums-agent.txt
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
+            --armor --detach-sign dist/checksums-filesvc.txt
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/easywi-agent-*
+            dist/easywi-filesvc-*
             dist/checksums-agent.txt
+            dist/checksums-agent.txt.asc
+            dist/checksums-filesvc.txt
+            dist/checksums-filesvc.txt.asc
           generate_release_notes: false
