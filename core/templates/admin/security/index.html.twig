@@ -1,12 +1,12 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Security & DDoS · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_security_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
     <div>
-        <h1 class="text-2xl font-semibold">Security & DDoS</h1>
-        <p class="text-sm text-slate-700">Manage firewall port rules and DDoS provider access for the control plane.</p>
+        <h1 class="text-2xl font-semibold">{{ t('admin_security_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_security_intro', page_locale()) }}</p>
     </div>
 
     {% if errors is not empty %}
@@ -21,47 +21,47 @@
 
     {% if ddosUpdated %}
         <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
-            DDoS provider settings updated.
+            {{ t('admin_security_ddos_updated', page_locale()) }}
         </div>
     {% endif %}
 
     <div class="grid gap-6 lg:grid-cols-2">
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
-                <h2 class="text-lg font-semibold">DDoS provider access</h2>
-                <p class="text-sm text-slate-700">Store encrypted API keys for mitigation providers.</p>
+                <h2 id="ddos-provider" class="text-lg font-semibold">{{ t('admin_security_ddos_provider_title', page_locale()) }}</h2>
+                <p class="text-sm text-slate-700">{{ t('admin_security_ddos_provider_intro', page_locale()) }}</p>
             </div>
             <div class="px-5 py-5">
                 <form method="post" action="/admin/security/ddos" class="space-y-4">
                     <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">Provider</label>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_security_provider_label', page_locale()) }}</label>
                         <input
                             name="provider"
-                            placeholder="e.g. cloudflare"
+                            placeholder="{{ t('admin_security_provider_placeholder', page_locale()) }}"
                             class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                         >
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">API key</label>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_security_api_key_label', page_locale()) }}</label>
                         <input
                             type="password"
                             name="api_key"
-                            placeholder="Enter the provider API key"
+                            placeholder="{{ t('admin_security_api_key_placeholder', page_locale()) }}"
                             class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                         >
                     </div>
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Save credentials</button>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_security_save_credentials', page_locale()) }}</button>
                 </form>
                 <div class="mt-6 space-y-2">
-                    <p class="text-xs font-semibold uppercase text-slate-700">Configured providers</p>
+                    <p class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_security_configured_providers', page_locale()) }}</p>
                     {% if credentials is empty %}
-                        <p class="text-sm text-slate-700">No providers configured yet.</p>
+                        <p class="text-sm text-slate-700">{{ t('admin_security_no_providers', page_locale()) }}</p>
                     {% else %}
                         <ul class="space-y-2">
                             {% for credential in credentials %}
                                 <li class="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">
                                     <span class="font-medium text-slate-900">{{ credential.provider|title }}</span>
-                                    <span class="text-xs text-slate-600">Updated {{ credential.updatedAt|date('Y-m-d H:i') }}</span>
+                                    <span class="text-xs text-slate-600">{{ t('admin_security_updated_at', page_locale())|replace({'%time%': credential.updatedAt|date('Y-m-d H:i')}) }}</span>
                                 </li>
                             {% endfor %}
                         </ul>
@@ -72,19 +72,19 @@
 
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
-                <h2 class="text-lg font-semibold">Firewall port rules</h2>
-                <p class="text-sm text-slate-700">Define which ports should stay open per node.</p>
+                <h2 id="firewall" class="text-lg font-semibold">{{ t('admin_security_firewall_title', page_locale()) }}</h2>
+                <p class="text-sm text-slate-700">{{ t('admin_security_firewall_intro', page_locale()) }}</p>
             </div>
             <div class="divide-y divide-slate-200">
                 {% if firewallNodes is empty %}
-                    <div class="px-5 py-5 text-sm text-slate-700">No nodes available yet.</div>
+                    <div class="px-5 py-5 text-sm text-slate-700">{{ t('admin_security_no_nodes', page_locale()) }}</div>
                 {% else %}
                     {% for node in firewallNodes %}
                         <div class="px-5 py-5">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
                                     <p class="text-sm font-semibold text-slate-900">{{ node.name }}</p>
-                                    <p class="text-xs text-slate-700">Node #{{ node.id }} · Last update {{ node.updatedAt|date('Y-m-d H:i') }}</p>
+                                    <p class="text-xs text-slate-700">{{ t('admin_security_node_last_update', page_locale())|replace({'%id%': node.id, '%time%': node.updatedAt|date('Y-m-d H:i')}) }}</p>
                                 </div>
                                 <span class="rounded-full border px-3 py-1 text-xs font-semibold {{ node.status == 'online' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : (node.status == 'degraded' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-rose-200 bg-rose-50 text-rose-700') }}">
                                     {{ node.status|title }}
@@ -93,7 +93,7 @@
                             <div class="mt-4 flex flex-wrap gap-2">
                                 {% if node.rules is empty %}
                                     {% if node.ports is empty %}
-                                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">No firewall rules recorded</span>
+                                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">{{ t('admin_security_no_firewall_rules', page_locale()) }}</span>
                                     {% else %}
                                         {% for port in node.ports %}
                                             <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">{{ port }}</span>
@@ -110,12 +110,12 @@
                             {% if node.job %}
                                 <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
                                     <div class="flex flex-wrap items-center justify-between gap-2">
-                                        <span class="font-semibold text-slate-700">Last firewall job</span>
+                                        <span class="font-semibold text-slate-700">{{ t('admin_security_last_firewall_job', page_locale()) }}</span>
                                         <span class="text-slate-500">{{ node.job.type }} · {{ node.job.status|title }}</span>
                                     </div>
                                     {% if node.job.resultStatus %}
                                         <div class="mt-2 text-slate-600">
-                                            Result: <span class="font-semibold">{{ node.job.resultStatus|title }}</span>
+                                            {{ t('admin_security_job_result', page_locale()) }} <span class="font-semibold">{{ node.job.resultStatus|title }}</span>
                                             {% if node.job.resultMessage %}
                                                 · {{ node.job.resultMessage }}
                                             {% endif %}
@@ -124,17 +124,17 @@
                                 </div>
                             {% endif %}
                             <form method="post" action="/admin/security/firewall/{{ node.id }}" class="mt-4 flex flex-col gap-3">
-                                <label class="text-xs font-semibold uppercase text-slate-700">Desired open ports (comma separated)</label>
+                                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_security_desired_ports', page_locale()) }}</label>
                                 <input
                                     name="ports"
                                     value="{{ node.ports|join(', ') }}"
-                                    placeholder="22, 27015, 27016"
+                                    placeholder="{{ t('admin_security_ports_placeholder', page_locale()) }}"
                                     class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                 >
                                 <div class="flex items-center gap-3">
-                                    <button type="submit" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">Update firewall</button>
+                                    <button type="submit" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">{{ t('admin_security_update_firewall', page_locale()) }}</button>
                                     {% if firewallUpdated == node.id %}
-                                        <span class="text-xs text-emerald-600">Saved.</span>
+                                        <span class="text-xs text-emerald-600">{{ t('admin_security_saved', page_locale()) }}</span>
                                     {% endif %}
                                 </div>
                             </form>

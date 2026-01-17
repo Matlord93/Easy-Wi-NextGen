@@ -26,6 +26,15 @@
     <form method="post" action="/admin/profile" class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="grid gap-5 lg:grid-cols-2">
             <div>
+                <label class="block text-xs font-semibold uppercase text-slate-700">Name</label>
+                <input
+                    type="text"
+                    name="name"
+                    value="{{ form.name }}"
+                    class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                >
+            </div>
+            <div>
                 <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('email_address', page_locale()) }}</label>
                 <input
                     type="email"

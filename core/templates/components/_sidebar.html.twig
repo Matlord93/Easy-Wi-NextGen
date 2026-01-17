@@ -6,16 +6,20 @@
     <div class="ng-sidebar__title">{{ title }}</div>
     <nav class="ng-sidebar__nav">
         {% for group in groups %}
-            <details class="ng-sidebar__group" {{ group.open ? 'open' : '' }}>
+            {% set groupId = group.id|default(group.label|default(loop.index)) %}
+            <details class="ng-sidebar__group" data-nav-id="{{ groupId|lower|replace({' ': '-'}) }}" {{ group.open ? 'open' : '' }}>
                 <summary class="ng-sidebar__group-label">
                     <span>{{ group.label }}</span>
                     <span class="ng-sidebar__chevron"></span>
                 </summary>
                 <div class="ng-sidebar__items">
                     {% for item in group.items %}
-                        {% set isActive = activeNav == item.key %}
+                        {% set itemKey = item.key|default(item.href|default(item.label|default(''))) %}
+                        {% set isActive = activeNav == itemKey %}
                         <a href="{{ item.href }}" class="ng-sidebar__item {{ isActive ? 'is-active' : '' }}">
-                            {% if item.icon is defined %}
+                            {% if item.iconSvg is defined and item.iconSvg %}
+                                <span class="ng-sidebar__icon">{{ item.iconSvg|raw }}</span>
+                            {% elseif item.icon is defined and item.icon %}
                                 <span class="ng-sidebar__icon">{{ item.icon|raw }}</span>
                             {% endif %}
                             <span class="ng-sidebar__text">{{ item.label }}</span>
@@ -27,3 +31,15 @@
     </nav>
     <div class="ng-sidebar__footer">{{ footer|default('Easy-Wi NextGen · Customer Portal') }}</div>
 </aside>
+<script>
+    document.querySelectorAll('.ng-sidebar__group[data-nav-id]').forEach((group) => {
+        const key = `ng-sidebar-group:${group.dataset.navId}`;
+        const stored = localStorage.getItem(key);
+        if (stored !== null) {
+            group.open = stored === 'open';
+        }
+        group.addEventListener('toggle', () => {
+            localStorage.setItem(key, group.open ? 'open' : 'closed');
+        });
+    });
+</script>

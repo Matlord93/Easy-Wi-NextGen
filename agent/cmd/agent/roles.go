@@ -118,6 +118,12 @@ func canonicalRoleName(role string) string {
 		return "DB"
 	case "core":
 		return "Core"
+	case "ts3":
+		return "TS3"
+	case "ts6":
+		return "TS6"
+	case "sinusbot":
+		return "Sinusbot"
 	default:
 		return strings.TrimSpace(role)
 	}

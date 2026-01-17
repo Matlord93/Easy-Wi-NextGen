@@ -7,18 +7,16 @@
         <div class="sinusbot-header">
             <div>
                 <h1>SinusBot Node hinzufügen</h1>
-                <p>Konfiguriere die Agent-URL und Installationspfade.</p>
+                <p>Wähle den Agenten aus, die Verbindungsdaten werden automatisch übernommen.</p>
             </div>
         </div>
 
         <div class="sinusbot-card">
             {{ form_start(form, { attr: { class: 'sinusbot-form' } }) }}
+                {{ form_errors(form) }}
                 <div class="sinusbot-grid">
                     {{ form_row(form.name, { label: 'Name' }) }}
                     {{ form_row(form.agentNodeId, { label: 'Agent Node' }) }}
-                    <div class="sinusbot-muted">Optional: Daten aus einer registrierten Node übernehmen.</div>
-                    {{ form_row(form.agentBaseUrl, { label: 'Agent Base URL' }) }}
-                    {{ form_row(form.agentApiToken, { label: 'Agent API Token' }) }}
                     {{ form_row(form.downloadUrl, { label: 'SinusBot Download URL' }) }}
                     {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
                     {{ form_row(form.instanceRoot, { label: 'Instance Root' }) }}

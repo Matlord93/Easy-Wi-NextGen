@@ -1,0 +1,22 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ t('admin_updates_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ t('admin_updates_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_updates_intro', page_locale()) }}</p>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-2">
+        <div>
+            <h2 class="text-lg font-semibold text-slate-900 mb-3">{{ t('admin_updates_web_title', page_locale()) }}</h2>
+            {% include 'admin/dashboard/_web_update_card.html.twig' with { coreUpdate: coreUpdate } %}
+        </div>
+        <div id="agent-update-card">
+            {% include 'admin/updates/_agent_update_card.html.twig' with { agentUpdate: agentUpdate } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

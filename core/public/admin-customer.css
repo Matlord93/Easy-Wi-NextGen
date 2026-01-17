@@ -1496,6 +1496,33 @@ html:not(.dark) {
     border-radius: 999px;
 }
 
+.ng-update-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ng-update-pill__count {
+    min-width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(251, 191, 36, 0.25);
+    color: #fbbf24;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+}
+
 .ng-user-button {
     display: flex;
     align-items: center;

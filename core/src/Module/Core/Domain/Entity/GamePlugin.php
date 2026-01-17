@@ -17,7 +17,7 @@ class GamePlugin
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: Template::class)]
+    #[ORM\ManyToOne(targetEntity: Template::class, cascade: ['persist'])]
     #[ORM\JoinColumn(nullable: false)]
     private Template $template;
 

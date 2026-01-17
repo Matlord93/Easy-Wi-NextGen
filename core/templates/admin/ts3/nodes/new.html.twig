@@ -15,14 +15,12 @@
         </div>
 
         <div class="ts3-card">
-            <p class="ts3-muted">Trage die Agent-URL, das API-Token und den Installationspfad des Agenten ein.</p>
+            <p class="ts3-muted">Wähle den Agenten aus, die Verbindungsdaten werden automatisch übernommen.</p>
             {{ form_start(form, { attr: { class: 'ts3-form' } }) }}
+                {{ form_errors(form) }}
                 <div class="ts3-grid">
                     {{ form_row(form.name, { label: 'Name' }) }}
                     {{ form_row(form.agentNodeId, { label: 'Agent Node' }) }}
-                    <div class="ts3-muted">Optional: Daten aus einer registrierten Node übernehmen.</div>
-                    {{ form_row(form.agentBaseUrl, { label: 'Agent Base URL' }) }}
-                    {{ form_row(form.agentApiToken, { label: 'Agent API Token' }) }}
                     {{ form_row(form.downloadUrl, { label: 'Download URL' }) }}
                     <div class="ts3-muted">Direkter Link zum TeamSpeak 3 Server-Archiv (tar.bz2 oder zip).</div>
                     {{ form_row(form.installPath, { label: 'Installationspfad' }) }}

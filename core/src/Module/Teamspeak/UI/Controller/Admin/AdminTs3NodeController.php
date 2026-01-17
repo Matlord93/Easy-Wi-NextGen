@@ -267,31 +267,27 @@ final class AdminTs3NodeController
     private function applyAgentDefaults(Ts3NodeDto $dto, \Symfony\Component\Form\FormInterface $form): void
     {
         $agentId = trim($dto->agentNodeId);
-        if ($agentId !== '') {
-            $agent = $this->agentRepository->find($agentId);
-            if ($agent === null) {
-                $form->addError(new FormError('Selected agent was not found.'));
-
-                return;
-            }
-
-            if (trim($dto->agentBaseUrl) === '') {
-                $dto->agentBaseUrl = $agent->getServiceBaseUrl();
-            }
-            if (trim($dto->agentApiToken) === '') {
-                $dto->agentApiToken = $agent->getServiceApiToken($this->crypto);
-            }
+        if ($agentId === '') {
+            $form->addError(new FormError('Agent Node is required.'));
+            return;
         }
+
+        $agent = $this->agentRepository->find($agentId);
+        if ($agent === null) {
+            $form->addError(new FormError('Selected agent was not found.'));
+
+            return;
+        }
+
+        $dto->agentBaseUrl = $agent->getServiceBaseUrl();
+        $dto->agentApiToken = $agent->getServiceApiToken($this->crypto);
 
         if (trim($dto->installPath) === '') {
             $dto->installPath = '/home/teamspeak3';
         }
 
-        if (trim($dto->agentBaseUrl) === '') {
-            $form->addError(new FormError('Agent Base URL is required.'));
-        }
-        if (trim($dto->agentApiToken) === '') {
-            $form->addError(new FormError('Agent API Token is required.'));
+        if (trim($dto->installPath) === '') {
+            $form->addError(new FormError('Install path is required.'));
         }
     }
 }

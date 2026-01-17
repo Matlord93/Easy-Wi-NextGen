@@ -6,7 +6,7 @@
 <div class="flex flex-col gap-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ t('notifications', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">Latest system signals across jobs, billing, and tickets.</p>
+        <p class="text-sm text-slate-700">{{ t('admin_notifications_intro', page_locale()) }}</p>
     </div>
     <div class="space-y-4">
         {% for notification in notifications %}

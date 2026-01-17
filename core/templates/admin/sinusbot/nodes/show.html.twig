@@ -1,16 +1,16 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}SinusBot Node {{ node.name }} · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_sinusbot_node_title', page_locale())|replace({'%name%': node.name}) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
     <div class="sinusbot-page">
         <div class="sinusbot-header">
             <div>
                 <h1>{{ node.name }}</h1>
-                <p>Status und Aktionen für diese SinusBot Node.</p>
+                <p>{{ t('admin_sinusbot_intro', page_locale()) }}</p>
             </div>
             <div class="sinusbot-actions">
-                <a class="sinusbot-link" href="/admin/sinusbot/nodes">Zurück zur Übersicht</a>
+                <a class="sinusbot-link" href="/admin/sinusbot/nodes">{{ t('admin_sinusbot_back_to_overview', page_locale()) }}</a>
             </div>
         </div>
 
@@ -20,68 +20,68 @@
 
         <div class="sinusbot-grid">
             <div class="sinusbot-card">
-                <h2>Installation</h2>
+                <h2>{{ t('admin_sinusbot_installation_title', page_locale()) }}</h2>
                 <div class="sinusbot-meta">
-                    <div><strong>Status:</strong> {{ node.installStatus }}</div>
-                    <div><strong>Version:</strong> {{ node.installedVersion ?? '–' }}</div>
-                    <div><strong>Letzter Fehler:</strong> {{ node.lastError ?? '–' }}</div>
+                    <div><strong>{{ t('admin_sinusbot_status_label', page_locale()) }}</strong> {{ node.installStatus }}</div>
+                    <div><strong>{{ t('admin_sinusbot_version_label', page_locale()) }}</strong> {{ node.installedVersion ?? '–' }}</div>
+                    <div><strong>{{ t('admin_sinusbot_last_error_label', page_locale()) }}</strong> {{ node.lastError ?? '–' }}</div>
                 </div>
                 <div class="sinusbot-actions">
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/install">
                         <input type="hidden" name="_token" value="{{ csrf.install }}">
-                        <button class="sinusbot-button" type="submit">Installieren / Reparieren</button>
+                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_install_repair', page_locale()) }}</button>
                     </form>
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/refresh">
                         <input type="hidden" name="_token" value="{{ csrf.refresh }}">
-                        <button class="sinusbot-button" type="submit">Status aktualisieren</button>
+                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_refresh_status', page_locale()) }}</button>
                     </form>
                 </div>
             </div>
 
             <div class="sinusbot-card">
-                <h2>TS3 Client Dependency</h2>
+                <h2>{{ t('admin_sinusbot_ts3_dependency_title', page_locale()) }}</h2>
                 <div class="sinusbot-meta">
-                    <div><strong>Installiert:</strong> {{ node.ts3ClientInstalled ? 'Ja' : 'Nein' }}</div>
-                    <div><strong>Version:</strong> {{ node.ts3ClientVersion ?? '–' }}</div>
-                    <div><strong>Pfad:</strong> {{ node.ts3ClientPath ?? '–' }}</div>
+                    <div><strong>{{ t('admin_sinusbot_installed_label', page_locale()) }}</strong> {{ node.ts3ClientInstalled ? t('admin_sinusbot_yes', page_locale()) : t('admin_sinusbot_no', page_locale()) }}</div>
+                    <div><strong>{{ t('admin_sinusbot_version_label', page_locale()) }}</strong> {{ node.ts3ClientVersion ?? '–' }}</div>
+                    <div><strong>{{ t('admin_sinusbot_path_label', page_locale()) }}</strong> {{ node.ts3ClientPath ?? '–' }}</div>
                 </div>
                 <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/install-ts3-client" class="sinusbot-form">
                     <input type="hidden" name="_token" value="{{ csrf.install_ts3_client }}">
-                    <label for="ts3-client-url">TS3 Client Download URL (optional)</label>
-                    <input id="ts3-client-url" type="text" name="ts3_client_download_url" placeholder="https://files.teamspeak-services.com/...">
+                    <label for="ts3-client-url">{{ t('admin_sinusbot_ts3_download_label', page_locale()) }}</label>
+                    <input id="ts3-client-url" type="text" name="ts3_client_download_url" placeholder="{{ t('admin_sinusbot_ts3_download_placeholder', page_locale()) }}">
                     <div class="sinusbot-actions">
-                        <button class="sinusbot-button" type="submit">TS3 Client installieren/reparieren</button>
+                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_ts3_install_repair', page_locale()) }}</button>
                     </div>
                 </form>
             </div>
 
             <div class="sinusbot-card">
-                <h2>Agent Konfiguration</h2>
+                <h2>{{ t('admin_sinusbot_agent_config_title', page_locale()) }}</h2>
                 <div class="sinusbot-meta">
-                    <div><strong>Agent URL:</strong> {{ node.agentBaseUrl }}</div>
-                    <div><strong>Install Pfad:</strong> {{ node.installPath }}</div>
-                    <div><strong>Instance Root:</strong> {{ node.instanceRoot }}</div>
-                    <div><strong>Web Bind:</strong> {{ node.webBindIp }}:{{ node.webPortBase }}</div>
+                    <div><strong>{{ t('admin_sinusbot_agent_url_label', page_locale()) }}</strong> {{ node.agentBaseUrl }}</div>
+                    <div><strong>{{ t('admin_sinusbot_install_path_label', page_locale()) }}</strong> {{ node.installPath }}</div>
+                    <div><strong>{{ t('admin_sinusbot_instance_root_label', page_locale()) }}</strong> {{ node.instanceRoot }}</div>
+                    <div><strong>{{ t('admin_sinusbot_web_bind_label', page_locale()) }}</strong> {{ node.webBindIp }}:{{ node.webPortBase }}</div>
                 </div>
             </div>
 
             <div class="sinusbot-card">
-                <h2>Admin Credentials</h2>
-                <p class="sinusbot-muted">Passwort wird verschlüsselt gespeichert und nur für Admins angezeigt.</p>
+                <h2>{{ t('admin_sinusbot_admin_credentials_title', page_locale()) }}</h2>
+                <p class="sinusbot-muted">{{ t('admin_sinusbot_admin_credentials_note', page_locale()) }}</p>
                 {% if admin_password %}
                     <div class="sinusbot-credentials">
-                        <div><strong>Username:</strong> {{ node.adminUsername ?? '–' }}</div>
+                        <div><strong>{{ t('admin_sinusbot_username_label', page_locale()) }}</strong> {{ node.adminUsername ?? '–' }}</div>
                         <div class="sinusbot-secret">{{ admin_password }}</div>
                     </div>
-                    <button class="sinusbot-button" type="button" data-sinusbot-copy="{{ admin_password }}">Kopieren</button>
+                    <button class="sinusbot-button" type="button" data-sinusbot-copy="{{ admin_password }}">{{ t('admin_sinusbot_copy', page_locale()) }}</button>
                 {% else %}
                     <div class="sinusbot-credentials">
-                        <div><strong>Username:</strong> {{ node.adminUsername ?? '–' }}</div>
+                        <div><strong>{{ t('admin_sinusbot_username_label', page_locale()) }}</strong> {{ node.adminUsername ?? '–' }}</div>
                         <div class="sinusbot-secret">••••••••</div>
                     </div>
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/reveal-credentials">
                         <input type="hidden" name="_token" value="{{ csrf.reveal }}">
-                        <button class="sinusbot-button" type="submit">Anzeigen</button>
+                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_reveal', page_locale()) }}</button>
                     </form>
                 {% endif %}
             </div>

@@ -7,7 +7,7 @@
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
                 class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm"
-                hx-post="/admin/update/webinterface"
+                hx-post="/admin/updates/webinterface"
                 hx-target="#core-update-card"
                 hx-swap="outerHTML"
                 {% if coreUpdate.latestVersion is empty or coreUpdate.updateAvailable is same as(false) %}
@@ -18,7 +18,7 @@
             </button>
             <button
                 class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
-                hx-post="/admin/update/webinterface/auto"
+                hx-post="/admin/updates/webinterface/auto"
                 hx-vals='{"enabled": {{ coreUpdate.autoEnabled ? "false" : "true" }} }'
                 hx-target="#core-update-card"
                 hx-swap="outerHTML"

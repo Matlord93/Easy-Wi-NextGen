@@ -48,7 +48,7 @@ final class AdminTs3InstanceController
         return new Response($this->twig->render('admin/ts3/instances/index.html.twig', [
             'instances' => $this->normalizeInstances($instances),
             'summary' => $summary,
-            'activeNav' => 'ts3-instances',
+            'activeNav' => 'ts3',
         ]));
     }
 
@@ -60,7 +60,7 @@ final class AdminTs3InstanceController
         }
 
         return new Response($this->twig->render('admin/ts3/instances/new.html.twig', [
-            'activeNav' => 'ts3-instances',
+            'activeNav' => 'ts3',
         ]));
     }
 
@@ -75,7 +75,7 @@ final class AdminTs3InstanceController
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
             'form' => $this->buildFormContext(),
-            'activeNav' => 'ts3-instances',
+            'activeNav' => 'ts3',
         ]));
     }
 

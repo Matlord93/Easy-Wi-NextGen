@@ -1,12 +1,12 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}DDoS policy · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_ddos_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
     <div>
-        <h1 class="text-2xl font-semibold">DDoS policy</h1>
-        <p class="text-sm text-slate-700">Apply mitigation policies and review live attack status from agents.</p>
+        <h1 class="text-2xl font-semibold">{{ t('admin_ddos_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_ddos_intro', page_locale()) }}</p>
     </div>
 
     {% if errors is not empty %}
@@ -21,53 +21,53 @@
 
     {% if ddosApplied %}
         <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
-            DDoS policy jobs queued.
+            {{ t('admin_ddos_jobs_queued', page_locale()) }}
         </div>
     {% endif %}
 
     <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-5 py-4">
-            <h2 class="text-lg font-semibold">Current attack status</h2>
-            <p class="text-sm text-slate-700">Latest telemetry from ddos.status.check jobs.</p>
+            <h2 class="text-lg font-semibold">{{ t('admin_ddos_current_status_title', page_locale()) }}</h2>
+            <p class="text-sm text-slate-700">{{ t('admin_ddos_current_status_intro', page_locale()) }}</p>
         </div>
         <div class="grid gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-3">
             {% if statusPanels is empty %}
-                <p class="text-sm text-slate-700">No nodes available yet.</p>
+                <p class="text-sm text-slate-700">{{ t('admin_ddos_no_nodes_available', page_locale()) }}</p>
             {% else %}
                 {% for panel in statusPanels %}
                     <div class="rounded-lg border border-slate-200 p-4">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <p class="text-sm font-semibold text-slate-900">{{ panel.name }}</p>
-                                <p class="text-xs text-slate-600">Node #{{ panel.id }}</p>
+                                <p class="text-xs text-slate-600">{{ t('admin_ddos_node_label', page_locale())|replace({'%id%': panel.id}) }}</p>
                             </div>
                             <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ panel.attackActive ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700' }}">
-                                {{ panel.attackActive ? 'Attack active' : 'Idle' }}
+                                {{ panel.attackActive ? t('admin_nodes_ddos_attack_active', page_locale()) : t('admin_nodes_ddos_idle', page_locale()) }}
                             </span>
                         </div>
                         <div class="mt-4 space-y-2 text-xs text-slate-700">
                             <div class="flex items-center justify-between">
-                                <span>Packets per second</span>
+                                <span>{{ t('admin_ddos_packets_per_second', page_locale()) }}</span>
                                 <span class="font-medium text-slate-700">{{ panel.pps ?? '—' }}</span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span>Connections</span>
+                                <span>{{ t('admin_ddos_connections', page_locale()) }}</span>
                                 <span class="font-medium text-slate-700">{{ panel.connCount ?? '—' }}</span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span>Mode</span>
+                                <span>{{ t('admin_ddos_mode', page_locale()) }}</span>
                                 <span class="font-medium text-slate-700">{{ panel.mode ?? '—' }}</span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span>Reported</span>
+                                <span>{{ t('admin_ddos_reported', page_locale()) }}</span>
                                 <span class="font-medium text-slate-700">{{ panel.reportedAt ? panel.reportedAt|date('Y-m-d H:i') : '—' }}</span>
                             </div>
                         </div>
                         <div class="mt-4">
-                            <p class="text-xs font-semibold uppercase text-slate-600">Protected ports</p>
+                            <p class="text-xs font-semibold uppercase text-slate-600">{{ t('admin_ddos_protected_ports', page_locale()) }}</p>
                             <div class="mt-2 flex flex-wrap gap-2">
                                 {% if panel.ports is empty %}
-                                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">No ports reported</span>
+                                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{{ t('admin_ddos_no_ports_reported', page_locale()) }}</span>
                                 {% else %}
                                     {% for port in panel.ports %}
                                         <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
@@ -78,10 +78,10 @@
                             </div>
                         </div>
                         <div class="mt-3">
-                            <p class="text-xs font-semibold uppercase text-slate-600">Protocols</p>
+                            <p class="text-xs font-semibold uppercase text-slate-600">{{ t('admin_ddos_protocols', page_locale()) }}</p>
                             <div class="mt-2 flex flex-wrap gap-2">
                                 {% if panel.protocols is empty %}
-                                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">No protocols reported</span>
+                                    <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{{ t('admin_ddos_no_protocols_reported', page_locale()) }}</span>
                                 {% else %}
                                     {% for protocol in panel.protocols %}
                                         <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
@@ -93,10 +93,10 @@
                         </div>
                         <div class="mt-4 border-t border-slate-100 pt-4">
                             <div class="flex items-center justify-between text-xs text-slate-700">
-                                <span class="font-semibold uppercase text-slate-600">Policy</span>
+                                <span class="font-semibold uppercase text-slate-600">{{ t('admin_ddos_policy', page_locale()) }}</span>
                                 <span class="font-medium">
                                     {% if panel.policyEnabled is same as(false) %}
-                                        Disabled
+                                        {{ t('admin_ddos_policy_disabled', page_locale()) }}
                                     {% else %}
                                         {{ panel.policyMode ?? '—' }}
                                     {% endif %}
@@ -104,19 +104,19 @@
                             </div>
                             <div class="mt-2 space-y-2 text-xs text-slate-700">
                                 <div class="flex items-center justify-between">
-                                    <span>Applied</span>
+                                    <span>{{ t('admin_ddos_applied', page_locale()) }}</span>
                                     <span class="font-medium text-slate-700">{{ panel.policyAppliedAt ? panel.policyAppliedAt|date('Y-m-d H:i') : '—' }}</span>
                                 </div>
                                 <div class="flex items-center justify-between">
-                                    <span>Last update</span>
+                                    <span>{{ t('admin_ddos_last_update', page_locale()) }}</span>
                                     <span class="font-medium text-slate-700">{{ panel.policyUpdatedAt ? panel.policyUpdatedAt|date('Y-m-d H:i') : '—' }}</span>
                                 </div>
                             </div>
                             <div class="mt-3">
-                                <p class="text-xs font-semibold uppercase text-slate-600">Policy ports</p>
+                                <p class="text-xs font-semibold uppercase text-slate-600">{{ t('admin_ddos_policy_ports', page_locale()) }}</p>
                                 <div class="mt-2 flex flex-wrap gap-2">
                                     {% if panel.policyPorts is empty %}
-                                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">No policy ports</span>
+                                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{{ t('admin_ddos_no_policy_ports', page_locale()) }}</span>
                                     {% else %}
                                         {% for port in panel.policyPorts %}
                                             <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
@@ -127,10 +127,10 @@
                                 </div>
                             </div>
                             <div class="mt-3">
-                                <p class="text-xs font-semibold uppercase text-slate-600">Policy protocols</p>
+                                <p class="text-xs font-semibold uppercase text-slate-600">{{ t('admin_ddos_policy_protocols', page_locale()) }}</p>
                                 <div class="mt-2 flex flex-wrap gap-2">
                                     {% if panel.policyProtocols is empty %}
-                                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">No policy protocols</span>
+                                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{{ t('admin_ddos_no_policy_protocols', page_locale()) }}</span>
                                     {% else %}
                                         {% for protocol in panel.policyProtocols %}
                                             <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
@@ -149,12 +149,12 @@
 
     <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-5 py-4">
-            <h2 class="text-lg font-semibold">Apply mitigation policy</h2>
-            <p class="text-sm text-slate-700">Select nodes, ports, and protocols to update.</p>
+            <h2 class="text-lg font-semibold">{{ t('admin_ddos_apply_policy_title', page_locale()) }}</h2>
+            <p class="text-sm text-slate-700">{{ t('admin_ddos_apply_policy_intro', page_locale()) }}</p>
         </div>
         <form method="post" action="/admin/ddos/apply" class="space-y-6 px-5 py-5">
             <div>
-                <p class="text-xs font-semibold uppercase text-slate-700">Target nodes</p>
+                <p class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_ddos_target_nodes', page_locale()) }}</p>
                 <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {% for node in nodes %}
                         <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
@@ -165,17 +165,17 @@
                                 class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                 {{ node.id in formData.nodes ? 'checked' : '' }}
                             >
-                            <span>{{ node.name ?? 'Unnamed node' }} <span class="text-xs text-slate-500">#{{ node.id }}</span></span>
+                            <span>{{ node.name ?? t('admin_ddos_unnamed_node', page_locale()) }} <span class="text-xs text-slate-500">#{{ node.id }}</span></span>
                         </label>
                     {% else %}
-                        <p class="text-sm text-slate-700">No nodes available.</p>
+                        <p class="text-sm text-slate-700">{{ t('admin_ddos_no_nodes_available', page_locale()) }}</p>
                     {% endfor %}
                 </div>
             </div>
 
             <div class="grid gap-6 lg:grid-cols-2">
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-700">Protected ports</label>
+                    <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_ddos_protected_ports', page_locale()) }}</label>
                     <select
                         name="ports[]"
                         multiple
@@ -186,19 +186,19 @@
                             <option value="{{ port }}" {{ port in formData.ports ? 'selected' : '' }}>{{ port }}</option>
                         {% endfor %}
                     </select>
-                    <p class="mt-2 text-xs text-slate-500">Hold Ctrl/⌘ to select multiple ports.</p>
-                    <label class="mt-4 block text-xs font-semibold uppercase text-slate-700">Custom ports (comma separated)</label>
+                    <p class="mt-2 text-xs text-slate-500">{{ t('admin_ddos_ports_hint', page_locale()) }}</p>
+                    <label class="mt-4 block text-xs font-semibold uppercase text-slate-700">{{ t('admin_ddos_custom_ports_label', page_locale()) }}</label>
                     <input
                         name="custom_ports"
                         value="{{ formData.custom_ports }}"
-                        placeholder="12345, 23456"
+                        placeholder="{{ t('admin_ddos_custom_ports_placeholder', page_locale()) }}"
                         class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                     >
                 </div>
 
                 <div class="space-y-5">
                     <div>
-                        <p class="text-xs font-semibold uppercase text-slate-700">Protocols</p>
+                        <p class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_ddos_protocols', page_locale()) }}</p>
                         <div class="mt-3 flex flex-wrap gap-3">
                             {% for protocol in protocolOptions %}
                                 <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
@@ -216,7 +216,7 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">Mode</label>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_ddos_mode', page_locale()) }}</label>
                         <select
                             name="mode"
                             class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
@@ -230,7 +230,7 @@
             </div>
 
             <div class="flex items-center gap-3">
-                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Apply policy</button>
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_ddos_apply_policy', page_locale()) }}</button>
             </div>
         </form>
     </div>

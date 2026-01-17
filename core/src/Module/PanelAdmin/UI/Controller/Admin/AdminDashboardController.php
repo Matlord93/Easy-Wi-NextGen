@@ -13,12 +13,8 @@ use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Repository\TicketRepository;
 use App\Repository\UserRepository;
-use App\Module\Setup\Application\WebinterfaceUpdateService;
-use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
-use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
@@ -31,8 +27,6 @@ final class AdminDashboardController
         private readonly UserRepository $userRepository,
         private readonly InstanceRepository $instanceRepository,
         private readonly TicketRepository $ticketRepository,
-        private readonly WebinterfaceUpdateService $updateService,
-        private readonly WebinterfaceUpdateSettingsService $updateSettingsService,
         private readonly Environment $twig,
     ) {
     }
@@ -66,40 +60,7 @@ final class AdminDashboardController
             'overview' => $overview,
             'jobs' => $this->normalizeJobs($jobs),
             'nodes' => $this->normalizeAgents(array_slice($agents, 0, 6)),
-            'coreUpdate' => $this->buildCoreUpdateSummary(),
         ]));
-    }
-
-    #[Route(path: '/update/webinterface', name: 'admin_update_webinterface', methods: ['POST'])]
-    public function updateWebinterface(Request $request): Response
-    {
-        if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
-        }
-
-        $result = $this->updateService->applyUpdate();
-        $summary = $this->buildCoreUpdateSummary();
-        if ($result->success) {
-            $summary['notice'] = $result->message;
-        } else {
-            $summary['error'] = $result->error ?? $result->message;
-        }
-        $summary['logPath'] = $result->logPath;
-
-        return $this->renderUpdateCard($summary);
-    }
-
-    #[Route(path: '/update/webinterface/auto', name: 'admin_update_webinterface_auto', methods: ['POST'])]
-    public function toggleAutoUpdates(Request $request): Response
-    {
-        if (!$this->isAdmin($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
-        }
-
-        $enabled = $request->request->getBoolean('enabled');
-        $this->updateSettingsService->setAutoEnabled($enabled);
-
-        return $this->renderUpdateCard($this->buildCoreUpdateSummary());
     }
 
     private function isAdmin(Request $request): bool
@@ -171,60 +132,6 @@ final class AdminDashboardController
                 'queue' => $queue,
             ];
         }, $agents);
-    }
-
-    private function buildCoreUpdateSummary(): array
-    {
-        $status = $this->updateService->checkForUpdate();
-        $settings = $this->updateSettingsService->getSettings();
-
-        return [
-            'currentVersion' => $status->installedVersion,
-            'latestVersion' => $status->latestVersion,
-            'updateAvailable' => $status->updateAvailable,
-            'notes' => $status->notes,
-            'notesList' => $this->normalizeNotesList($status->notes),
-            'manifestError' => $status->error,
-            'logPath' => null,
-            'notice' => null,
-            'error' => null,
-            'autoEnabled' => $settings['autoEnabled'],
-        ];
-    }
-
-    private function renderUpdateCard(array $summary): Response
-    {
-        return new Response($this->twig->render('admin/dashboard/_web_update_card.html.twig', [
-            'coreUpdate' => $summary,
-        ]), HttpResponse::HTTP_OK, [
-            ResponseHeaderBag::CONTENT_TYPE => 'text/html; charset=UTF-8',
-        ]);
-    }
-
-    private function normalizeNotesList(?string $notes): array
-    {
-        if ($notes === null) {
-            return [];
-        }
-
-        $lines = preg_split('/\r\n|\r|\n/', $notes);
-        if ($lines === false) {
-            return [];
-        }
-
-        $items = [];
-        foreach ($lines as $line) {
-            $item = trim($line);
-            if ($item === '') {
-                continue;
-            }
-            $item = ltrim($item, "-* \t");
-            if ($item !== '') {
-                $items[] = $item;
-            }
-        }
-
-        return $items;
     }
 
     private function extractMetricPercent(array $metrics, string $key): ?float

@@ -32,14 +32,14 @@
                             hx-target="#changelog-form"
                             hx-swap="outerHTML"
                         >
-                            Edit
+                            {{ t('edit', page_locale()) }}
                         </button>
                         <button
                             class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600"
                             hx-post="/admin/changelog/{{ entry.id }}/delete"
-                            hx-confirm="Delete {{ entry.title }}?"
+                            hx-confirm="{{ t('admin_changelog_delete_confirm', page_locale())|replace({'%title%': entry.title}) }}"
                         >
-                            Delete
+                            {{ t('delete', page_locale()) }}
                         </button>
                     </td>
                 </tr>

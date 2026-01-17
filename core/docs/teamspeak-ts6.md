@@ -1,13 +1,14 @@
-# Teamspeak 6 (TS6) & Virtual Server Hosting (Skeleton)
+# Teamspeak 6 (TS6) & Virtual Server Hosting (Experimental)
 
-This document captures the planned TS6 architecture, capability detection, and the placeholder job interfaces
-that will be implemented in later EPICs.
+This document captures the TS6 architecture, capability detection, and job interfaces. The module is
+feature-complete but remains labeled **Experimental** because it is running against beta server builds
+that can change without notice.
 
 ## Scope
 
-* TS6 core module placeholders in the Symfony application.
+* TS6 core module and Symfony application integration.
 * Agent heartbeat capability reporting (`ts6_supported`).
-* Virtual server hosting placeholders (TS reseller concept).
+* Virtual server hosting (TS reseller concept).
 
 ## Planned architecture (TS6)
 
@@ -15,9 +16,9 @@ that will be implemented in later EPICs.
 * Multiple **virtual servers** attached to each physical TS6 instance.
 * Core UI surfaces the module as **Planned / Experimental** while gated behind feature flags.
 
-## Intended job interfaces (placeholder)
+## Job interfaces (experimental)
 
-These job types are documented for the future agent implementation. They are **not** active yet.
+These job types are implemented but remain **Experimental** while the TS6 beta is in flight.
 
 ### Physical TS6 instance jobs
 
@@ -50,4 +51,3 @@ These job types are documented for the future agent implementation. They are **n
    * **Planned/Experimental** badges.
    * A **Node capabilities** table with `ts6_supported` values.
    * The **Virtual server hosting** card appearing only when the feature flag is enabled.
-

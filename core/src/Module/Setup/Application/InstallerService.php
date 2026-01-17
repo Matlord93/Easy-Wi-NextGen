@@ -38,6 +38,7 @@ final class InstallerService
         private readonly EntityManagerInterface $defaultEntityManager,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly LoggerInterface $logger,
+        private readonly \App\Module\Core\Application\GameTemplateSeeder $templateSeeder,
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
     ) {
@@ -289,6 +290,9 @@ final class InstallerService
             'path' => $databaseState['path'] ?? null,
             'stored_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
         ]);
+
+        $_ENV['DATABASE_URL'] = $databaseUrl;
+        $_SERVER['DATABASE_URL'] = $databaseUrl;
     }
 
     public function clearCache(): void
@@ -359,6 +363,11 @@ final class InstallerService
             $this->logException($exception, 'Installer migrations skipped because tables already exist.');
             $this->ensureSchemaExists($entityManager);
         }
+    }
+
+    public function seedTemplates(EntityManagerInterface $entityManager): void
+    {
+        $this->templateSeeder->seed($entityManager);
     }
 
     private function ensureSchemaExists(EntityManagerInterface $entityManager): void

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Extension\Twig;
 
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Application\AgentReleaseChecker;
+use App\Module\Setup\Application\WebinterfaceUpdateService;
+use App\Repository\AgentRepository;
 use App\Repository\InvoicePreferencesRepository;
 use App\Repository\NotificationRepository;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -18,6 +21,9 @@ final class PortalContextTwigExtension extends AbstractExtension
         private readonly RequestStack $requestStack,
         private readonly NotificationRepository $notificationRepository,
         private readonly InvoicePreferencesRepository $invoicePreferencesRepository,
+        private readonly WebinterfaceUpdateService $webinterfaceUpdateService,
+        private readonly AgentRepository $agentRepository,
+        private readonly AgentReleaseChecker $agentReleaseChecker,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -26,6 +32,7 @@ final class PortalContextTwigExtension extends AbstractExtension
     {
         return [
             new TwigFunction('current_user', [$this, 'currentUser']),
+            new TwigFunction('admin_update_status', [$this, 'adminUpdateStatus']),
             new TwigFunction('page_locale', [$this, 'pageLocale']),
             new TwigFunction('unread_notifications', [$this, 'unreadNotifications']),
             new TwigFunction('t', [$this, 'translate']),
@@ -82,6 +89,39 @@ final class PortalContextTwigExtension extends AbstractExtension
         }
 
         return $this->notificationRepository->findUnreadCount($actor);
+    }
+
+    /**
+     * @return array{coreUpdateAvailable: bool, agentUpdates: int, hasUpdates: bool}|null
+     */
+    public function adminUpdateStatus(): ?array
+    {
+        $request = $this->requestStack->getCurrentRequest();
+        $actor = $request?->attributes->get('current_user');
+
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return null;
+        }
+
+        $coreStatus = $this->webinterfaceUpdateService->checkForUpdate();
+        $coreUpdateAvailable = $coreStatus->updateAvailable === true;
+
+        $latestVersion = $this->agentReleaseChecker->getLatestVersion();
+        $agentUpdates = 0;
+        if ($latestVersion !== null && $latestVersion !== '') {
+            $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+            foreach ($agents as $agent) {
+                if ($this->agentReleaseChecker->isUpdateAvailable($agent->getLastHeartbeatVersion(), $latestVersion)) {
+                    $agentUpdates++;
+                }
+            }
+        }
+
+        return [
+            'coreUpdateAvailable' => $coreUpdateAvailable,
+            'agentUpdates' => $agentUpdates,
+            'hasUpdates' => $coreUpdateAvailable || $agentUpdates > 0,
+        ];
     }
 
     public function translate(string $key, ?string $locale = null): string

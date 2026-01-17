@@ -1,6 +1,12 @@
 {% set title = title|default('') %}
 {% set subtitle = subtitle|default('') %}
 {% set actions = actions|default([]) %}
+{% set user = current_user() %}
+{% set userName = user ? (user.name ?: user.email) : '' %}
+{% set userInitial = userName ? userName|slice(0, 1)|upper : 'U' %}
+{% set updateStatus = admin_update_status() %}
+{% set notificationsHref = user and user.isAdmin ? '/admin/notifications' : '/notifications' %}
+{% set unreadCount = unread_notifications() %}
 
 <header class="ng-topbar">
     <div class="ng-topbar__title">
@@ -15,15 +21,25 @@
         {% for action in actions %}
             {% include 'components/_button.html.twig' with action %}
         {% endfor %}
-        <button class="ng-icon-button" aria-label="Benachrichtigungen">
-            <span class="ng-icon-button__dot"></span>
+        <a class="ng-icon-button" aria-label="{{ t('notifications', page_locale()) }}" href="{{ notificationsHref }}">
+            {% if unreadCount > 0 %}
+                <span class="ng-icon-button__dot"></span>
+            {% endif %}
             <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path d="M10 2a5 5 0 0 0-5 5v2.59l-.7 1.4a1 1 0 0 0 .9 1.44h9.6a1 1 0 0 0 .9-1.44l-.7-1.4V7a5 5 0 0 0-5-5Zm0 16a2 2 0 0 0 2-2H8a2 2 0 0 0 2 2Z"/>
             </svg>
-        </button>
+        </a>
+        {% if updateStatus and updateStatus.hasUpdates %}
+            <a class="ng-update-pill" href="/admin/updates">
+                {{ t('admin_updates_available', page_locale()) }}
+                {% if updateStatus.agentUpdates > 0 %}
+                    <span class="ng-update-pill__count">{{ updateStatus.agentUpdates }}</span>
+                {% endif %}
+            </a>
+        {% endif %}
         <button class="ng-user-button" aria-label="Benutzerkonto">
-            <span class="ng-user-button__avatar">M</span>
-            <span class="ng-user-button__name">Max Mustermann</span>
+            <span class="ng-user-button__avatar">{{ userInitial }}</span>
+            <span class="ng-user-button__name">{{ userName }}</span>
         </button>
     </div>
 </header>

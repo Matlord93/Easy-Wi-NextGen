@@ -12,7 +12,7 @@
         <div class="flex flex-wrap items-center gap-3">
             <a href="/admin/jobs/new" class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">{{ t('admin_dashboard_create_job', page_locale()) }}</a>
             <a href="/admin/users" class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_dashboard_invite_operator', page_locale()) }}</a>
-            <a href="/admin/security" class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">Security center</a>
+            <a href="/admin/security" class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_dashboard_security_center', page_locale()) }}</a>
         </div>
     </div>
 
@@ -29,44 +29,44 @@
     <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <h2 class="text-lg font-semibold">System health</h2>
-                <p class="text-sm text-slate-700">Live signals for nodes, jobs, and support.</p>
+                <h2 class="text-lg font-semibold">{{ t('admin_dashboard_system_health', page_locale()) }}</h2>
+                <p class="text-sm text-slate-700">{{ t('admin_dashboard_system_health_intro', page_locale()) }}</p>
             </div>
             <a href="/admin/status/incidents" class="btn rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">
-                View status page
+                {{ t('admin_dashboard_view_status', page_locale()) }}
             </a>
         </div>
         <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                <p class="text-xs font-semibold uppercase text-slate-500">Nodes</p>
+                <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_nodes', page_locale()) }}</p>
                 <p class="mt-2 text-2xl font-semibold text-slate-900">{{ agentSummary.online }}</p>
-                <p class="mt-1 text-xs text-slate-600">{{ agentSummary.degraded }} degraded · {{ agentSummary.offline }} offline</p>
+                <p class="mt-1 text-xs text-slate-600">{{ t('admin_dashboard_degraded_offline', page_locale())|replace({'%degraded%': agentSummary.degraded, '%offline%': agentSummary.offline}) }}</p>
                 <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[nodeState] }}">
                     {{ nodeState|title }}
                 </span>
             </div>
             <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                <p class="text-xs font-semibold uppercase text-slate-500">Jobs</p>
+                <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_jobs', page_locale()) }}</p>
                 <p class="mt-2 text-2xl font-semibold text-slate-900">{{ jobSummary.running + jobSummary.queued }}</p>
-                <p class="mt-1 text-xs text-slate-600">{{ jobSummary.failed }} failed · {{ jobSummary.total }} total</p>
+                <p class="mt-1 text-xs text-slate-600">{{ t('admin_dashboard_failed_total', page_locale())|replace({'%failed%': jobSummary.failed, '%total%': jobSummary.total}) }}</p>
                 <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[jobState] }}">
                     {{ jobState|title }}
                 </span>
             </div>
             <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                <p class="text-xs font-semibold uppercase text-slate-500">Support</p>
+                <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_support', page_locale()) }}</p>
                 <p class="mt-2 text-2xl font-semibold text-slate-900">{{ overview.tickets_open }}</p>
-                <p class="mt-1 text-xs text-slate-600">Open tickets</p>
+                <p class="mt-1 text-xs text-slate-600">{{ t('admin_dashboard_open_tickets', page_locale()) }}</p>
                 <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[ticketState] }}">
                     {{ ticketState|title }}
                 </span>
             </div>
             <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                <p class="text-xs font-semibold uppercase text-slate-500">Incidents</p>
+                <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_incidents', page_locale()) }}</p>
                 <p class="mt-2 text-2xl font-semibold text-slate-900">
-                    {{ incidentState == 'healthy' ? 'All clear' : 'Attention needed' }}
+                    {{ incidentState == 'healthy' ? t('admin_dashboard_all_clear', page_locale()) : t('admin_dashboard_attention_needed', page_locale()) }}
                 </p>
-                <p class="mt-1 text-xs text-slate-600">Fast check for urgent issues.</p>
+                <p class="mt-1 text-xs text-slate-600">{{ t('admin_dashboard_incidents_hint', page_locale()) }}</p>
                 <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[incidentState] }}">
                     {{ incidentState|title }}
                 </span>
@@ -74,46 +74,44 @@
         </div>
     </div>
 
-    {% include 'admin/dashboard/_web_update_card.html.twig' with { coreUpdate: coreUpdate } %}
-
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <a href="/admin/users" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-600">Customers</p>
+            <p class="text-xs uppercase text-slate-600">{{ t('admin_dashboard_customers', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold text-slate-900">{{ overview.customers }}</p>
-            <p class="mt-2 text-xs text-slate-700">Active accounts in the platform.</p>
+            <p class="mt-2 text-xs text-slate-700">{{ t('admin_dashboard_customers_description', page_locale()) }}</p>
         </a>
         <a href="/admin/instances" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-600">Game instances</p>
+            <p class="text-xs uppercase text-slate-600">{{ t('admin_dashboard_game_instances', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold text-slate-900">{{ overview.instances }}</p>
-            <p class="mt-2 text-xs text-slate-700">Provisioned services across nodes.</p>
+            <p class="mt-2 text-xs text-slate-700">{{ t('admin_dashboard_game_instances_description', page_locale()) }}</p>
         </a>
         <a href="/admin/tickets" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-600">Open tickets</p>
+            <p class="text-xs uppercase text-slate-600">{{ t('admin_dashboard_open_tickets', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold text-slate-900">{{ overview.tickets_open }}</p>
-            <p class="mt-2 text-xs text-slate-700">Support requests awaiting action.</p>
+            <p class="mt-2 text-xs text-slate-700">{{ t('admin_dashboard_open_tickets_description', page_locale()) }}</p>
         </a>
         <a href="/admin/jobs" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-600">Jobs in progress</p>
+            <p class="text-xs uppercase text-slate-600">{{ t('admin_dashboard_jobs_in_progress', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold text-slate-900">{{ jobSummary.running + jobSummary.queued }}</p>
-            <p class="mt-2 text-xs text-slate-700">{{ jobSummary.failed }} failed · {{ jobSummary.total }} total</p>
+            <p class="mt-2 text-xs text-slate-700">{{ t('admin_dashboard_failed_total', page_locale())|replace({'%failed%': jobSummary.failed, '%total%': jobSummary.total}) }}</p>
         </a>
     </div>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div class="rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-5 text-white shadow-md">
-            <p class="text-xs uppercase text-slate-200/80">Nodes online</p>
+            <p class="text-xs uppercase text-slate-200/80">{{ t('admin_dashboard_nodes_online', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold">{{ agentSummary.online }}</p>
-            <p class="mt-2 text-xs text-slate-200/80">{{ agentSummary.degraded }} degraded · {{ agentSummary.offline }} offline</p>
+            <p class="mt-2 text-xs text-slate-200/80">{{ t('admin_dashboard_degraded_offline', page_locale())|replace({'%degraded%': agentSummary.degraded, '%offline%': agentSummary.offline}) }}</p>
         </div>
         <div class="rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-800 p-5 text-white shadow-md">
-            <p class="text-xs uppercase text-indigo-200/90">Queued jobs</p>
+            <p class="text-xs uppercase text-indigo-200/90">{{ t('admin_dashboard_queued_jobs', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold">{{ jobSummary.queued }}</p>
-            <p class="mt-2 text-xs text-indigo-200/90">{{ jobSummary.running }} running · {{ jobSummary.failed }} failed</p>
+            <p class="mt-2 text-xs text-indigo-200/90">{{ t('admin_dashboard_running_failed', page_locale())|replace({'%running%': jobSummary.running, '%failed%': jobSummary.failed}) }}</p>
         </div>
         <div class="rounded-xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 p-5 text-white shadow-md">
-            <p class="text-xs uppercase text-emerald-200/90">Active operators</p>
+            <p class="text-xs uppercase text-emerald-200/90">{{ t('admin_dashboard_active_operators', page_locale()) }}</p>
             <p class="mt-3 text-2xl font-semibold">{{ agentSummary.total }}</p>
-            <p class="mt-2 text-xs text-emerald-200/90">Nodes reporting in the last 30 minutes.</p>
+            <p class="mt-2 text-xs text-emerald-200/90">{{ t('admin_dashboard_nodes_reporting', page_locale()) }}</p>
         </div>
     </div>
 
@@ -178,8 +176,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Security center</p>
-                    <p class="text-xs text-slate-600">DDoS credentials & firewall rules.</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_security_center', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_security_center_description', page_locale()) }}</p>
                 </div>
             </div>
         </a>
@@ -191,8 +189,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Templates</p>
-                    <p class="text-xs text-slate-600">Manage game and service templates.</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_templates', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_templates_description', page_locale()) }}</p>
                 </div>
             </div>
         </a>
@@ -204,8 +202,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Status page</p>
-                    <p class="text-xs text-slate-600">Update incidents and components.</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_status_page', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_status_page_description', page_locale()) }}</p>
                 </div>
             </div>
         </a>
@@ -217,8 +215,8 @@
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-semibold text-slate-900">Jobs & automation</p>
-                    <p class="text-xs text-slate-600">Monitor pending automation work.</p>
+                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_jobs_automation', page_locale()) }}</p>
+                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_jobs_automation_description', page_locale()) }}</p>
                 </div>
             </div>
         </a>

@@ -1,6 +1,6 @@
 <div class="px-5 py-4">
     <div class="mb-4">
-        <h2 class="text-lg font-semibold">{{ form.action == 'create' ? 'Add changelog entry' : 'Edit changelog entry' }}</h2>
+        <h2 class="text-lg font-semibold">{{ form.action == 'create' ? t('admin_changelog_form_create_title', page_locale()) : t('admin_changelog_form_edit_title', page_locale()) }}</h2>
         <p class="text-sm text-slate-700">{{ t('admin_changelog_form_intro', page_locale()) }}</p>
     </div>
 
@@ -23,12 +23,12 @@
     >
         <div>
             <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('title', page_locale()) }}</label>
-            <input type="text" name="title" value="{{ form.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="New hosting regions">
+            <input type="text" name="title" value="{{ form.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('admin_changelog_title_placeholder', page_locale()) }}">
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
                 <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('version', page_locale()) }}</label>
-                <input type="text" name="version" value="{{ form.version }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="v1.4.0">
+                <input type="text" name="version" value="{{ form.version }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('admin_changelog_version_placeholder', page_locale()) }}">
             </div>
             <div>
                 <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('admin_changelog_publish_date', page_locale()) }}</label>
@@ -37,12 +37,12 @@
         </div>
         <div>
             <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('details', page_locale()) }}</label>
-            <textarea name="content" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Describe the update">{{ form.content }}</textarea>
+            <textarea name="content" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('admin_changelog_content_placeholder', page_locale()) }}">{{ form.content }}</textarea>
         </div>
         <div class="grid gap-3 sm:grid-cols-1">
             <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">
                 <input type="checkbox" name="visible_public" class="rounded border-slate-300 text-indigo-600" {% if form.visible_public %}checked{% endif %}>
-                Visible (Public)
+                {{ t('admin_changelog_visible_public', page_locale()) }}
             </label>
         </div>
         <button type="submit" class="w-full rounded-lg px-4 py-2 text-sm font-semibold text-slate-900 text-white {{ form.submit_color }} hover:opacity-90">{{ form.submit_label }}</button>

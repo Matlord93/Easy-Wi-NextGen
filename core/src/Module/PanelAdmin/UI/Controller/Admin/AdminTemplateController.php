@@ -33,16 +33,6 @@ final class AdminTemplateController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        if (!ctype_digit($id)) {
-            return new Response('Invalid id.', Response::HTTP_BAD_REQUEST);
-        }
-        $id = (int) $id;
-
-        if (!ctype_digit($id)) {
-            return new Response('Invalid id.', Response::HTTP_BAD_REQUEST);
-        }
-        $id = (int) $id;
-
         $templates = $this->templateRepository->findBy([], ['updatedAt' => 'DESC']);
 
         return new Response($this->twig->render('admin/templates/index.html.twig', [
@@ -614,6 +604,7 @@ final class AdminTemplateController
         if ($fastdlEnabled && $fastdlBaseUrl === '') {
             $errors[] = 'FastDL base URL is required when FastDL is enabled.';
         }
+        $this->validateMinecraftInstallResolver($gameKey, $installResolver, $errors);
 
         return [
             'errors' => $errors,
@@ -750,6 +741,7 @@ final class AdminTemplateController
         if ($fastdlEnabled && $fastdlBaseUrl === '') {
             $entryErrors[] = 'FastDL base URL is required when FastDL is enabled.';
         }
+        $this->validateMinecraftInstallResolver($gameKey, $installResolver, $entryErrors);
 
         if ($entryErrors !== []) {
             foreach ($entryErrors as $entryError) {
@@ -1251,6 +1243,7 @@ final class AdminTemplateController
             'minecraft_vanilla_windows',
             'minecraft_paper_all',
             'minecraft_vanilla_all',
+            'minecraft_bedrock',
         ], true);
     }
 
@@ -1320,6 +1313,39 @@ final class AdminTemplateController
         }
 
         return $decoded;
+    }
+
+    private function validateMinecraftInstallResolver(string $gameKey, array $installResolver, array &$errors): void
+    {
+        if (!$this->requiresMinecraftResolver($gameKey)) {
+            return;
+        }
+
+        $type = trim((string) ($installResolver['type'] ?? ''));
+        if ($type === '') {
+            $errors[] = 'Minecraft templates require an install resolver.';
+            return;
+        }
+
+        if ($gameKey === 'minecraft_vanilla_all' && $type !== 'minecraft_vanilla') {
+            $errors[] = 'Minecraft Vanilla templates must use the minecraft_vanilla resolver.';
+        }
+
+        if ($gameKey === 'minecraft_paper_all' && $type !== 'papermc_paper') {
+            $errors[] = 'Minecraft Paper templates must use the papermc_paper resolver.';
+        }
+    }
+
+    private function requiresMinecraftResolver(string $gameKey): bool
+    {
+        return in_array($gameKey, [
+            'minecraft_vanilla',
+            'minecraft_paper',
+            'minecraft_paper_windows',
+            'minecraft_vanilla_windows',
+            'minecraft_paper_all',
+            'minecraft_vanilla_all',
+        ], true);
     }
 
     private function formatImportError(int $index, string $message): string

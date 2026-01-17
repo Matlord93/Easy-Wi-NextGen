@@ -26,7 +26,7 @@ use Twig\Environment;
 #[Route(path: '/admin/nodes')]
 final class AdminNodeController
 {
-    private const ROLE_OPTIONS = ['Core', 'Web', 'Mail', 'DNS', 'Game', 'DB'];
+    private const ROLE_OPTIONS = ['Core', 'Web', 'Mail', 'DNS', 'Game', 'DB', 'TS3', 'TS6', 'Sinusbot'];
     private const ENCRYPTION_CONFIG_ERROR = 'Encryption key configuration is invalid: %s Set APP_ENCRYPTION_KEY_ID to match a key in APP_ENCRYPTION_KEYS (format: key_id:base64_32_byte_key). Example: APP_ENCRYPTION_KEY_ID=v1 and APP_ENCRYPTION_KEYS=v1:<base64 key>.';
 
     public function __construct(

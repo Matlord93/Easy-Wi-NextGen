@@ -359,6 +359,18 @@ func rolePackages(role, family string) []string {
 		if family == "rhel" {
 			return []string{"mariadb-server", "postgresql-server"}
 		}
+	case "ts3", "ts6", "sinusbot":
+		return roleBasePackages(family)
+	}
+	return nil
+}
+
+func roleBasePackages(family string) []string {
+	if family == "debian" {
+		return []string{"ca-certificates", "curl", "tar", "xz-utils", "bzip2"}
+	}
+	if family == "rhel" {
+		return []string{"ca-certificates", "curl", "tar", "xz", "bzip2"}
 	}
 	return nil
 }

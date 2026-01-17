@@ -40,6 +40,7 @@ final class AdminProfileController
     {
         $admin = $this->requireAdmin($request);
 
+        $name = trim((string) $request->request->get('name', ''));
         $email = trim((string) $request->request->get('email', ''));
         $password = (string) $request->request->get('password', '');
         $passwordConfirm = (string) $request->request->get('password_confirm', '');
@@ -69,10 +70,13 @@ final class AdminProfileController
 
         if ($errors !== []) {
             return $this->renderPage($admin, [
+                'name' => $name,
                 'email' => $email,
                 'signature' => $signature,
             ], $errors, Response::HTTP_BAD_REQUEST);
         }
+
+        $admin->setName($name);
 
         if ($email !== '') {
             $admin->setEmail($email);
@@ -86,6 +90,7 @@ final class AdminProfileController
 
         $this->auditLogger->log($admin, 'admin.profile.updated', [
             'admin_id' => $admin->getId(),
+            'name' => $admin->getName(),
             'email' => $admin->getEmail(),
             'password_updated' => $password !== '',
             'signature_updated' => $signature !== '',
@@ -94,6 +99,7 @@ final class AdminProfileController
         $this->entityManager->flush();
 
         return $this->renderPage($admin, [
+            'name' => $admin->getName(),
             'email' => $admin->getEmail(),
             'success' => true,
             'signature' => $admin->getAdminSignature(),
@@ -106,6 +112,7 @@ final class AdminProfileController
             'activeNav' => 'profile',
             'form' => array_merge([
                 'email' => $admin->getEmail(),
+                'name' => $admin->getName(),
                 'success' => false,
                 'signature' => $admin->getAdminSignature(),
             ], $overrides),
