@@ -17,11 +17,11 @@ Infrastruktur zentral zu steuern.
 
 ## Dokumentation & Wiki
 Alle Details zur Installation, Systemvoraussetzungen, Einrichtung und Betrieb sind im Wiki zu finden:
-- **Startseite:** `[wiki/Home.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki)`
-- **Installation:** `[wiki/Installation.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Installation.md)`
-- **Erste Schritte:** `[wiki/Erste-Schritte.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Erste-Schritte.md)`
-- **Betrieb & Updates:** `[wiki/Betrieb-Wartung.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Betrieb-Wartung.md)`
-- **Fehlerbehebung:** `[wiki/Fehlerbehebung.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Fehlerbehebung.md)`
-- **FAQ:** `[wiki/FAQ.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/FAQ.md)`
+- **Startseite:** [wiki/Home.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki)
+- **Installation:** [wiki/Installation.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Installation.md)
+- **Erste Schritte:** [wiki/Erste-Schritte.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Erste-Schritte.md)
+- **Betrieb & Updates:** [wiki/Betrieb-Wartung.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Betrieb-Wartung.md)
+- **Fehlerbehebung:** [wiki/Fehlerbehebung.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Fehlerbehebung.md)
+- **FAQ:** [wiki/FAQ.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/FAQ.md)
 
 > Hinweis: Die README enthält bewusst nur die wichtigsten Punkte. Detaillierte Anleitungen findest du im Wiki.
