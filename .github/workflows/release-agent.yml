@@ -34,6 +34,8 @@ jobs:
           mkdir -p ../dist
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-agent-linux-amd64 ./cmd/agent
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
+            -o ../dist/easywi-filesvc-linux-amd64 ./cmd/filesvc
 
       - name: Build windows-amd64
         run: |
@@ -44,6 +46,7 @@ jobs:
         run: |
           cd ../dist
           sha256sum easywi-agent-* > checksums-agent.txt
+          sha256sum easywi-filesvc-* > checksums-filesvc.txt
 
       - name: Sign checksums
         if: ${{ env.GPG_PRIVATE_KEY != '' }}
@@ -58,13 +61,22 @@ jobs:
             echo "Failed to create checksums-agent.txt.asc" >&2
             exit 1
           fi
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
+            --armor --detach-sign --output ../dist/checksums-filesvc.txt.asc ../dist/checksums-filesvc.txt
+          if [[ ! -f ../dist/checksums-filesvc.txt.asc ]]; then
+            echo "Failed to create checksums-filesvc.txt.asc" >&2
+            exit 1
+          fi
 
       - name: Prepare release assets
         id: release_assets
         run: |
-          files="dist/easywi-agent-*"$'\n'"dist/checksums-agent.txt"
+          files="dist/easywi-agent-*"$'\n'"dist/easywi-filesvc-*"$'\n'"dist/checksums-agent.txt"$'\n'"dist/checksums-filesvc.txt"
           if [[ -f ../dist/checksums-agent.txt.asc ]]; then
             files="$files"$'\n'"dist/checksums-agent.txt.asc"
+          fi
+          if [[ -f ../dist/checksums-filesvc.txt.asc ]]; then
+            files="$files"$'\n'"dist/checksums-filesvc.txt.asc"
           fi
           printf 'files<<EOF\n%s\nEOF\n' "$files" >> "$GITHUB_OUTPUT"
 
