@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Entity;
 
-use App\Entity\Job;
-use App\Enum\JobStatus;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Enum\JobStatus;
 use PHPUnit\Framework\TestCase;
 
 final class JobTest extends TestCase

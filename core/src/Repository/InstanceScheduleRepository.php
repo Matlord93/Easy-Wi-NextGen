@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\Instance;
-use App\Entity\InstanceSchedule;
-use App\Enum\InstanceScheduleAction;
+use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\InstanceSchedule;
+use App\Module\Core\Domain\Enum\InstanceScheduleAction;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

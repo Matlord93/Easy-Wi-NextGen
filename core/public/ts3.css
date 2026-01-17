@@ -215,3 +215,63 @@
     border-radius: 8px;
     background: #1f2937;
 }
+
+.dark .ts3-header p {
+    color: #94a3b8;
+}
+
+.dark .ts3-card {
+    background: #0f172a;
+    border-color: #1e293b;
+    box-shadow: none;
+}
+
+.dark .ts3-table th,
+.dark .ts3-table td {
+    border-bottom-color: #1e293b;
+}
+
+.dark .ts3-table th {
+    color: #94a3b8;
+}
+
+.dark .ts3-empty,
+.dark .ts3-muted {
+    color: #94a3b8;
+}
+
+.dark .ts3-button {
+    background: #6366f1;
+}
+
+.dark .ts3-button:hover {
+    background: #4f46e5;
+}
+
+.dark .ts3-link {
+    color: #818cf8;
+}
+
+.dark .ts3-form input,
+.dark .ts3-form select,
+.dark .ts3-form textarea {
+    background: #0b1120;
+    border-color: #1e293b;
+    color: #e2e8f0;
+}
+
+.dark .ts3-alert-success {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #a7f3d0;
+}
+
+.dark .ts3-pill {
+    background: rgba(99, 102, 241, 0.2);
+    color: #c7d2fe;
+}
+
+.dark .ts3-secret {
+    background: #111827;
+    color: #e2e8f0;
+}

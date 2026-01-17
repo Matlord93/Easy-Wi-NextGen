@@ -1,0 +1,271 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Module\PanelAdmin\UI\Controller\Admin;
+
+use App\Module\Core\Dto\Sinusbot\SinusbotNodeDto;
+use App\Module\Core\Domain\Entity\SinusbotNode;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Form\SinusbotNodeType;
+use App\Repository\AgentRepository;
+use App\Repository\SinusbotNodeRepository;
+use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\Sinusbot\SinusbotNodeService;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormFactoryInterface;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Twig\Environment;
+
+#[Route(path: '/admin/sinusbot/nodes')]
+final class AdminSinusbotNodeController
+{
+    public function __construct(
+        private readonly SinusbotNodeRepository $nodeRepository,
+        private readonly AgentRepository $agentRepository,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly SecretsCrypto $crypto,
+        private readonly SinusbotNodeService $nodeService,
+        private readonly FormFactoryInterface $formFactory,
+        private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly Environment $twig,
+    ) {
+    }
+
+    #[Route(path: '', name: 'admin_sinusbot_nodes_index', methods: ['GET'])]
+    public function index(Request $request): Response
+    {
+        $this->requireAdmin($request);
+
+        $nodes = $this->nodeRepository->findBy([], ['updatedAt' => 'DESC']);
+
+        return new Response($this->twig->render('admin/sinusbot/nodes/index.html.twig', [
+            'activeNav' => 'sinusbot',
+            'nodes' => $nodes,
+        ]));
+    }
+
+    #[Route(path: '/new', name: 'admin_sinusbot_nodes_new', methods: ['GET', 'POST'])]
+    public function new(Request $request): Response
+    {
+        $this->requireAdmin($request);
+
+        $dto = new SinusbotNodeDto();
+        $form = $this->formFactory->create(SinusbotNodeType::class, $dto, [
+            'agent_choices' => $this->buildAgentChoices(),
+        ]);
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted()) {
+            $this->applyAgentDefaults($dto, $form);
+        }
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $node = new SinusbotNode(
+                $dto->name,
+                rtrim($dto->agentBaseUrl, '/'),
+                $this->crypto->encrypt($dto->agentApiToken),
+                $dto->downloadUrl,
+                $dto->installPath,
+                $dto->instanceRoot,
+            );
+            $node->setWebBindIp($dto->webBindIp);
+            $node->setWebPortBase($dto->webPortBase);
+
+            $this->entityManager->persist($node);
+            $this->entityManager->flush();
+
+            $request->getSession()->getFlashBag()->add('success', 'SinusBot node created.');
+
+            return new Response('', Response::HTTP_FOUND, [
+                'Location' => sprintf('/admin/sinusbot/nodes/%d', $node->getId()),
+            ]);
+        }
+
+        return new Response($this->twig->render('admin/sinusbot/nodes/new.html.twig', [
+            'activeNav' => 'sinusbot',
+            'form' => $form->createView(),
+        ]));
+    }
+
+    #[Route(path: '/{id}', name: 'admin_sinusbot_nodes_show', methods: ['GET'])]
+    public function show(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+
+        $node = $this->findNode($id);
+
+        return new Response($this->twig->render('admin/sinusbot/nodes/show.html.twig', [
+            'activeNav' => 'sinusbot',
+            'node' => $node,
+            'admin_password' => null,
+            'csrf' => $this->csrfTokens($node),
+        ]));
+    }
+
+    #[Route(path: '/{id}/install', name: 'admin_sinusbot_nodes_install', methods: ['POST'])]
+    public function install(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'sinusbot_install_' . $id);
+
+        $this->nodeService->install($node, false, null);
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot install queued.');
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/install-ts3-client', name: 'admin_sinusbot_nodes_install_ts3_client', methods: ['POST'])]
+    public function installTs3Client(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'sinusbot_install_ts3_client_' . $id);
+
+        $downloadUrl = trim((string) $request->request->get('ts3_client_download_url', ''));
+        $this->nodeService->install($node, true, $downloadUrl !== '' ? $downloadUrl : null);
+        $request->getSession()->getFlashBag()->add('success', 'TS3 client install/repair queued.');
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/refresh', name: 'admin_sinusbot_nodes_refresh', methods: ['POST'])]
+    public function refresh(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'sinusbot_refresh_' . $id);
+
+        $this->nodeService->refreshStatus($node);
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot status refreshed.');
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/reveal-credentials', name: 'admin_sinusbot_nodes_reveal_credentials', methods: ['POST'])]
+    public function revealCredentials(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'sinusbot_reveal_credentials_' . $id);
+
+        $adminPassword = $node->getAdminPassword($this->crypto);
+
+        return new Response($this->twig->render('admin/sinusbot/nodes/show.html.twig', [
+            'activeNav' => 'sinusbot',
+            'node' => $node,
+            'admin_password' => $adminPassword,
+            'csrf' => $this->csrfTokens($node),
+        ]));
+    }
+
+    private function requireAdmin(Request $request): User
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            throw new UnauthorizedHttpException('session', 'Unauthorized.');
+        }
+
+        return $actor;
+    }
+
+    private function findNode(int $id): SinusbotNode
+    {
+        $node = $this->nodeRepository->find($id);
+        if ($node === null) {
+            throw new NotFoundHttpException('SinusBot node not found.');
+        }
+
+        return $node;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function csrfTokens(SinusbotNode $node): array
+    {
+        $id = (string) $node->getId();
+
+        return [
+            'install' => $this->csrfTokenManager->getToken('sinusbot_install_' . $id)->getValue(),
+            'install_ts3_client' => $this->csrfTokenManager->getToken('sinusbot_install_ts3_client_' . $id)->getValue(),
+            'refresh' => $this->csrfTokenManager->getToken('sinusbot_refresh_' . $id)->getValue(),
+            'reveal' => $this->csrfTokenManager->getToken('sinusbot_reveal_credentials_' . $id)->getValue(),
+        ];
+    }
+
+    private function validateCsrf(Request $request, string $tokenId): void
+    {
+        $token = new CsrfToken($tokenId, (string) $request->request->get('_token', ''));
+        if (!$this->csrfTokenManager->isTokenValid($token)) {
+            throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
+        }
+    }
+
+    private function redirectToNode(SinusbotNode $node): Response
+    {
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => sprintf('/admin/sinusbot/nodes/%d', $node->getId()),
+        ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildAgentChoices(): array
+    {
+        $choices = [];
+        $agents = $this->agentRepository->findBy([], ['name' => 'ASC']);
+
+        foreach ($agents as $agent) {
+            $label = $agent->getName() !== null && $agent->getName() !== ''
+                ? sprintf('%s (%s)', $agent->getName(), $agent->getId())
+                : $agent->getId();
+            $choices[$label] = $agent->getId();
+        }
+
+        return $choices;
+    }
+
+    private function applyAgentDefaults(SinusbotNodeDto $dto, \Symfony\Component\Form\FormInterface $form): void
+    {
+        $agentId = trim($dto->agentNodeId);
+        if ($agentId !== '') {
+            $agent = $this->agentRepository->find($agentId);
+            if ($agent === null) {
+                $form->addError(new FormError('Selected agent was not found.'));
+
+                return;
+            }
+
+            if (trim($dto->agentBaseUrl) === '') {
+                $dto->agentBaseUrl = $agent->getServiceBaseUrl();
+            }
+            if (trim($dto->agentApiToken) === '') {
+                $dto->agentApiToken = $agent->getServiceApiToken($this->crypto);
+            }
+        }
+
+        if (trim($dto->installPath) === '') {
+            $dto->installPath = '/home/sinusbot';
+        }
+        if (trim($dto->instanceRoot) === '') {
+            $dto->instanceRoot = '/home/sinusbot/instances';
+        }
+
+        if (trim($dto->agentBaseUrl) === '') {
+            $form->addError(new FormError('Agent Base URL is required.'));
+        }
+        if (trim($dto->agentApiToken) === '') {
+            $form->addError(new FormError('Agent API Token is required.'));
+        }
+    }
+}

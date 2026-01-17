@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\MinecraftVersionCatalog;
+use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
 
 interface MinecraftVersionCatalogRepositoryInterface
 {

@@ -48,6 +48,10 @@
                     <input type="text" name="docroot" placeholder="/var/www/webspaces/acme/public" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                     <p class="mt-1 text-xs text-slate-600">{{ t('admin_webspaces_docroot_hint', page_locale()) }}</p>
                 </div>
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_domain_label', page_locale()) }}</label>
+                    <input type="text" name="domain" placeholder="{{ t('admin_webspaces_domain_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                </div>
                 <div class="grid gap-2 sm:grid-cols-2">
                     <div>
                         <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_php_label', page_locale()) }}</label>
@@ -112,6 +116,9 @@
                         <th class="px-6 py-3">{{ t('admin_webspaces_customer_label', page_locale()) }}</th>
                         <th class="px-6 py-3">{{ t('admin_webspaces_node_label', page_locale()) }}</th>
                         <th class="px-6 py-3">{{ t('admin_webspaces_path_label', page_locale()) }}</th>
+                        <th class="px-6 py-3">{{ t('admin_webspaces_domain_label', page_locale()) }}</th>
+                        <th class="px-6 py-3">{{ t('admin_webspaces_port_label', page_locale()) }}</th>
+                        <th class="px-6 py-3">{{ t('admin_webspaces_ddos_label', page_locale()) }}</th>
                         <th class="px-6 py-3">{{ t('admin_webspaces_php_label', page_locale()) }}</th>
                         <th class="px-6 py-3">{{ t('admin_webspaces_status_label', page_locale()) }}</th>
                         <th class="px-6 py-3">{{ t('admin_actions', page_locale()) }}</th>
@@ -132,6 +139,11 @@
                             <td class="px-6 py-3">
                                 <div class="text-sm font-semibold text-slate-900">{{ webspace.path }}</div>
                                 <div class="text-xs text-slate-600">{{ webspace.docroot }}</div>
+                            </td>
+                            <td class="px-6 py-3 text-xs text-slate-600">{{ webspace.domain }}</td>
+                            <td class="px-6 py-3 text-xs text-slate-600">{{ webspace.assigned_port ?? '-' }}</td>
+                            <td class="px-6 py-3 text-xs text-slate-600">
+                                {{ webspace.ddos_protection_enabled ? t('admin_webspaces_ddos_enabled', page_locale()) : t('admin_webspaces_ddos_disabled', page_locale()) }}
                             </td>
                             <td class="px-6 py-3 text-xs text-slate-600">{{ webspace.php_version }}</td>
                             <td class="px-6 py-3">
@@ -167,7 +179,7 @@
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="7" class="px-6 py-6 text-center text-sm text-slate-600">{{ t('admin_webspaces_empty', page_locale()) }}</td>
+                            <td colspan="10" class="px-6 py-6 text-center text-sm text-slate-600">{{ t('admin_webspaces_empty', page_locale()) }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

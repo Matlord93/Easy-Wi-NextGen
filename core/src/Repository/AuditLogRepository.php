@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\AuditLog;
+use App\Module\Core\Domain\Entity\AuditLog;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -34,7 +34,7 @@ final class AuditLogRepository extends ServiceEntityRepository
     /**
      * @return AuditLog[]
      */
-    public function findRecent(int $limit = 30, ?\App\Entity\User $actor = null): array
+    public function findRecent(int $limit = 30, ?\App\Module\Core\Domain\Entity\User $actor = null): array
     {
         $builder = $this->createQueryBuilder('audit')
             ->orderBy('audit.createdAt', 'DESC')

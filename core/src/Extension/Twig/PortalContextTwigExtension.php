@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Extension\Twig;
 
-use App\Entity\User;
+use App\Module\Core\Domain\Entity\User;
 use App\Repository\InvoicePreferencesRepository;
 use App\Repository\NotificationRepository;
 use Symfony\Component\HttpFoundation\RequestStack;

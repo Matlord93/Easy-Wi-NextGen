@@ -1,0 +1,29 @@
+{% set title = title|default('') %}
+{% set subtitle = subtitle|default('') %}
+{% set actions = actions|default([]) %}
+
+<header class="ng-topbar">
+    <div class="ng-topbar__title">
+        {% if title %}
+            <h1>{{ title }}</h1>
+        {% endif %}
+        {% if subtitle %}
+            <p>{{ subtitle }}</p>
+        {% endif %}
+    </div>
+    <div class="ng-topbar__actions">
+        {% for action in actions %}
+            {% include 'components/_button.html.twig' with action %}
+        {% endfor %}
+        <button class="ng-icon-button" aria-label="Benachrichtigungen">
+            <span class="ng-icon-button__dot"></span>
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M10 2a5 5 0 0 0-5 5v2.59l-.7 1.4a1 1 0 0 0 .9 1.44h9.6a1 1 0 0 0 .9-1.44l-.7-1.4V7a5 5 0 0 0-5-5Zm0 16a2 2 0 0 0 2-2H8a2 2 0 0 0 2 2Z"/>
+            </svg>
+        </button>
+        <button class="ng-user-button" aria-label="Benutzerkonto">
+            <span class="ng-user-button__avatar">M</span>
+            <span class="ng-user-button__name">Max Mustermann</span>
+        </button>
+    </div>
+</header>

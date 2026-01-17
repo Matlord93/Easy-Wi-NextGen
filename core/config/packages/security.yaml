@@ -1,11 +1,11 @@
 security:
   password_hashers:
-    App\Entity\User: 'argon2id'
+    App\Module\Core\Domain\Entity\User: 'argon2id'
 
   providers:
     app_users:
       entity:
-        class: App\Entity\User
+        class: App\Module\Core\Domain\Entity\User
         property: email
 
   firewalls:

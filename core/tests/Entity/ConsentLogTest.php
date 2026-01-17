@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Entity;
 
-use App\Entity\ConsentLog;
-use App\Entity\User;
-use App\Enum\ConsentType;
-use App\Enum\UserType;
+use App\Module\Core\Domain\Entity\ConsentLog;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\ConsentType;
+use App\Module\Core\Domain\Enum\UserType;
 use PHPUnit\Framework\TestCase;
 
 final class ConsentLogTest extends TestCase

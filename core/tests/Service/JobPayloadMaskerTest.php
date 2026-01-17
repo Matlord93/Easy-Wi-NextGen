@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Service\JobPayloadMasker;
+use App\Module\Core\Application\JobPayloadMasker;
 use PHPUnit\Framework\TestCase;
 
 final class JobPayloadMaskerTest extends TestCase

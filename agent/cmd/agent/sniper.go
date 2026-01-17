@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -36,10 +37,14 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	installCommand := payloadValue(job.Payload, "install_command")
 	updateCommand := payloadValue(job.Payload, "update_command")
 	baseDir := payloadValue(job.Payload, "base_dir")
+	startParams := payloadValue(job.Payload, "start_params")
+	requiredPortsRaw := payloadValue(job.Payload, "required_ports")
+	templateKey := payloadValue(job.Payload, "template_key", "game_key")
 
 	missing := missingValues([]requiredValue{
 		{key: "instance_id", value: instanceID},
 		{key: "customer_id", value: customerID},
+		{key: "start_params", value: startParams},
 	})
 	if len(missing) > 0 {
 		return jobs.Result{
@@ -127,9 +132,26 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 		return failureResult(job.ID, err)
 	}
 
+	allocatedPorts := parsePayloadPorts(job.Payload)
+	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	startScriptPath, err := writeStartScript(instanceDir, renderedStartParams)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := validateBinaryExists(instanceDir, renderedStartParams); err != nil {
+		return failureResult(job.ID, err)
+	}
+	maskedCommand := maskSensitiveValues(renderedStartParams, templateValues)
+	log.Printf("instance=%s template=%s start_command=%s start_script_path=%s", instanceID, templateKey, maskedCommand, startScriptPath)
+
 	buildID, version := extractBuildInfo(output)
 	resultOutput := map[string]string{
-		"message": "sniper " + action + " completed",
+		"message":           "sniper " + action + " completed",
+		"start_script_path": startScriptPath,
 	}
 	if buildID != "" {
 		resultOutput["build_id"] = buildID

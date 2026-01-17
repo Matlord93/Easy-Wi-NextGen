@@ -2,7 +2,7 @@
 
 {% block title %}SinusBot Node erstellen · Easy-Wi NextGen{% endblock %}
 
-{% block body %}
+{% block content %}
     <div class="sinusbot-page">
         <div class="sinusbot-header">
             <div>
@@ -15,6 +15,8 @@
             {{ form_start(form, { attr: { class: 'sinusbot-form' } }) }}
                 <div class="sinusbot-grid">
                     {{ form_row(form.name, { label: 'Name' }) }}
+                    {{ form_row(form.agentNodeId, { label: 'Agent Node' }) }}
+                    <div class="sinusbot-muted">Optional: Daten aus einer registrierten Node übernehmen.</div>
                     {{ form_row(form.agentBaseUrl, { label: 'Agent Base URL' }) }}
                     {{ form_row(form.agentApiToken, { label: 'Agent API Token' }) }}
                     {{ form_row(form.downloadUrl, { label: 'SinusBot Download URL' }) }}

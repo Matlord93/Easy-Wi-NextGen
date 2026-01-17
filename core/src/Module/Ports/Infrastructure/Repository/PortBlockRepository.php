@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Infrastructure\Repository;
 
-use App\Entity\Instance;
+use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
-use App\Entity\User;
+use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

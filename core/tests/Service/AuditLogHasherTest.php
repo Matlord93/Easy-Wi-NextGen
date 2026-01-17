@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Entity\AuditLog;
-use App\Service\AuditLogHasher;
+use App\Module\Core\Domain\Entity\AuditLog;
+use App\Module\Core\Application\AuditLogHasher;
 use PHPUnit\Framework\TestCase;
 
 final class AuditLogHasherTest extends TestCase

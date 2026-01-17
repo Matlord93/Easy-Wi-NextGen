@@ -44,24 +44,23 @@ services:
     resource: '../src/'
     exclude:
       - '../src/DependencyInjection/'
-      - '../src/Entity/'
       - '../src/Kernel.php'
 
-  App\Service\EncryptionService:
+  App\Module\Core\Application\EncryptionService:
     arguments:
       $activeKeyId: '%env(default::APP_ENCRYPTION_KEY_ID)%'
       $keyring: '%env(default::APP_ENCRYPTION_KEYS)%'
 
-  App\Service\SecretsCrypto:
+  App\Module\Core\Application\SecretsCrypto:
     arguments:
       $appSecret: '%env(APP_SECRET)%'
 
-  App\Service\AgentSignatureVerifier:
+  App\Module\Core\Application\AgentSignatureVerifier:
     arguments:
       $maxSkewSeconds: '%app.agent_signature_skew_seconds%'
       $nonceTtlSeconds: '%app.agent_nonce_ttl_seconds%'
 
-  App\Service\FileServiceClient:
+  App\Module\Core\Application\FileServiceClient:
     arguments:
       $timeoutSeconds: '%app.filesvc_timeout_seconds%'
       $defaultPort: '%app.filesvc_port%'
@@ -70,30 +69,30 @@ services:
       $clientKeyPath: '%app.filesvc_client_key%'
       $clientCaPath: '%app.filesvc_ca_cert%'
 
-  App\Service\AgentReleaseChecker:
+  App\Module\Core\Application\AgentReleaseChecker:
     arguments:
       $repository: '%app.agent_release_repository%'
       $cacheTtlSeconds: '%env(int:APP_AGENT_RELEASE_CACHE_TTL)%'
       $channel: '%app.agent_release_channel%'
 
-  App\Service\ChangelogFetcher:
+  App\Module\Core\Application\ChangelogFetcher:
     arguments:
       $repository: '%app.changelog_repository%'
       $cacheTtlSeconds: '%env(int:APP_CHANGELOG_CACHE_TTL)%'
 
-  App\Service\CoreReleaseChecker:
+  App\Module\Core\Application\CoreReleaseChecker:
     arguments:
       $repository: '%app.core_release_repository%'
       $cacheTtlSeconds: '%env(int:APP_CORE_RELEASE_CACHE_TTL)%'
       $channel: '%app.core_release_channel%'
 
-  App\Service\GithubWorkflowDispatcher:
+  App\Module\Core\Application\GithubWorkflowDispatcher:
     arguments:
       $repository: '%app.core_update_repository%'
       $workflowFile: '%app.core_update_workflow%'
       $token: '%app.core_update_token%'
 
-  App\Service\WebinterfaceUpdateService:
+  App\Module\Setup\Application\WebinterfaceUpdateService:
     arguments:
       $manifestUrl: '%app.core_update_manifest_url%'
       $installDir: '%app.core_update_install_dir%'
@@ -103,7 +102,7 @@ services:
       $excludes: '%app.core_update_excludes%'
       $fallbackVersion: '%app.core_version%'
 
-  App\Domain\Event\EventBusInterface: '@App\Domain\Event\SymfonyEventBus'
+  App\Module\Core\Domain\Event\EventBusInterface: '@App\Module\Core\Domain\Event\SymfonyEventBus'
 
   App\Repository\MinecraftVersionCatalogRepositoryInterface: '@App\Repository\MinecraftVersionCatalogRepository'
 

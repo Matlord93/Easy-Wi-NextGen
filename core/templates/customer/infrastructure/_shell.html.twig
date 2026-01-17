@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="{{ pageLocale|default(page_locale()) }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
+    <link rel="stylesheet" href="/ui.css">
+    <link rel="stylesheet" href="/admin-customer.css">
+</head>
+<body class="customer-interface ng-shell">
+<div class="ng-layout">
+    {% include 'components/_sidebar.html.twig' with {
+        title: 'Easy-Wi NextGen',
+        activeNav: activeNav|default(''),
+        groups: sidebarGroups|default([]),
+        footer: 'Easy-Wi NextGen · Kundenbereich'
+    } %}
+
+    <main class="ng-main">
+        {% include 'components/_topbar.html.twig' with {
+            title: pageTitle|default(''),
+            subtitle: pageSubtitle|default(''),
+            actions: topbarActions|default([])
+        } %}
+        <div class="ng-content">
+            {% block body %}{% endblock %}
+        </div>
+    </main>
+</div>
+</body>
+</html>

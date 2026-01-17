@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Extension\Twig;
 
-use App\Service\ModuleRegistry;
+use App\Module\Core\Application\ModuleRegistry;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 

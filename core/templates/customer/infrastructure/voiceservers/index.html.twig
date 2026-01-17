@@ -1,0 +1,49 @@
+{% extends 'customer/base.html.twig' %}
+
+{% set activeNav = 'voiceservers' %}
+{% set pageTitle = voiceTitle|default('Voiceserver / TeamSpeak') %}
+{% set voiceBaseUrl = voiceBaseUrl|default('/customer/ts3/servers') %}
+{% set pageSubtitle = 'Kerninfos wie ID/Port, Slots, Uptime und Traffic bleiben sichtbar.' %}
+{% set topbarActions = [
+    { label: 'Server bestellen', href: '#', variant: 'primary', size: 'sm' },
+    { label: 'Suche', href: '#', variant: 'secondary', size: 'sm' }
+] %}
+
+{% block content %}
+    {% embed 'components/_card.html.twig' with { title: 'Deine Voiceserver', subtitle: 'Primäre Aktionen sind sichtbar, weitere Funktionen im Overflow-Menü.' } %}
+        {% block card_body %}
+            <div class="ng-server-list">
+                {% for server in servers %}
+                    {% set statusTone = server.status == 'online' ? 'success' : 'warning' %}
+                    {% include 'components/_serverRow.html.twig' with {
+                        title: server.name,
+                        subtitle: 'ID #' ~ server.sid ~ ' · Port ' ~ (server.voicePort ?? '—'),
+                        status: server.status|replace({'_': ' '})|title,
+                        statusTone: statusTone,
+                        meta: [
+                            { label: 'Voice', value: server.voicePort ?? '—' },
+                            { label: 'File', value: server.filetransferPort ?? '—' },
+                            { label: 'Aktualisiert', value: server.updatedAt ? server.updatedAt|date('Y-m-d H:i') : '—' }
+                        ],
+                        actions: [
+                            { label: 'Starten', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'primary', size: 'sm' },
+                            { label: 'Stoppen', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'secondary', size: 'sm' },
+                            { label: 'Neustart', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'secondary', size: 'sm' },
+                            { label: 'Token', href: voiceBaseUrl ~ '/' ~ server.id ~ '/token', variant: 'ghost', size: 'sm' },
+                            { label: 'Ban-Liste', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' },
+                            { label: 'Backup', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' },
+                            { label: 'Einstellungen', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' }
+                        ],
+                        overflowActions: [
+                            { label: 'Channels', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost' },
+                            { label: 'Userverwaltung', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost' },
+                            { label: 'Logs', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost' }
+                        ]
+                    } %}
+                {% else %}
+                    <p>Keine Voiceserver gefunden.</p>
+                {% endfor %}
+            </div>
+        {% endblock %}
+    {% endembed %}
+{% endblock %}

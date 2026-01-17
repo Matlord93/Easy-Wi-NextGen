@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\DunningReminder;
-use App\Entity\Invoice;
+use App\Module\Core\Domain\Entity\DunningReminder;
+use App\Module\Core\Domain\Entity\Invoice;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

@@ -1,0 +1,29 @@
+{% set title = title|default('Easy-Wi NextGen') %}
+{% set groups = groups|default([]) %}
+{% set activeNav = activeNav|default('') %}
+
+<aside class="ng-sidebar">
+    <div class="ng-sidebar__title">{{ title }}</div>
+    <nav class="ng-sidebar__nav">
+        {% for group in groups %}
+            <details class="ng-sidebar__group" {{ group.open ? 'open' : '' }}>
+                <summary class="ng-sidebar__group-label">
+                    <span>{{ group.label }}</span>
+                    <span class="ng-sidebar__chevron"></span>
+                </summary>
+                <div class="ng-sidebar__items">
+                    {% for item in group.items %}
+                        {% set isActive = activeNav == item.key %}
+                        <a href="{{ item.href }}" class="ng-sidebar__item {{ isActive ? 'is-active' : '' }}">
+                            {% if item.icon is defined %}
+                                <span class="ng-sidebar__icon">{{ item.icon|raw }}</span>
+                            {% endif %}
+                            <span class="ng-sidebar__text">{{ item.label }}</span>
+                        </a>
+                    {% endfor %}
+                </div>
+            </details>
+        {% endfor %}
+    </nav>
+    <div class="ng-sidebar__footer">{{ footer|default('Easy-Wi NextGen · Customer Portal') }}</div>
+</aside>

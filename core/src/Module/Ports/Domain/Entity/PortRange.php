@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Domain\Entity;
 
-use App\Entity\Agent;
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Ports\Infrastructure\Repository\PortRangeRepository;
 use Doctrine\ORM\Mapping as ORM;
 

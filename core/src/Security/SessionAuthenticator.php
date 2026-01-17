@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Security;
 
-use App\Entity\User;
+use App\Module\Core\Domain\Entity\User;
 use App\Repository\UserSessionRepository;
-use App\Service\AuditLogger;
+use App\Module\Core\Application\AuditLogger;
 use Doctrine\DBAL\Exception\TableNotFoundException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;

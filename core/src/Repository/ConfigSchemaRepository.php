@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\ConfigSchema;
-use App\Entity\GameDefinition;
+use App\Module\Core\Domain\Entity\ConfigSchema;
+use App\Module\Core\Domain\Entity\GameDefinition;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

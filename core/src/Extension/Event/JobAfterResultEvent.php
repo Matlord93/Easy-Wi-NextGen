@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Extension\Event;
 
-use App\Entity\Agent;
-use App\Entity\Job;
-use App\Entity\JobResult;
+use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\JobResult;
 use Symfony\Contracts\EventDispatcher\Event;
 
 final class JobAfterResultEvent extends Event

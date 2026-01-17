@@ -4,25 +4,25 @@ declare(strict_types=1);
 
 namespace App\MessageHandler;
 
-use App\Entity\Backup;
-use App\Entity\BackupDefinition;
-use App\Entity\Instance;
-use App\Entity\InstanceSchedule;
-use App\Entity\Job;
-use App\Entity\JobResult;
-use App\Enum\BackupStatus;
-use App\Enum\InstanceScheduleAction;
-use App\Enum\InstanceUpdatePolicy;
-use App\Enum\JobResultStatus;
-use App\Enum\JobStatus;
+use App\Module\Core\Domain\Entity\Backup;
+use App\Module\Core\Domain\Entity\BackupDefinition;
+use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\InstanceSchedule;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\JobResult;
+use App\Module\Core\Domain\Enum\BackupStatus;
+use App\Module\Core\Domain\Enum\InstanceScheduleAction;
+use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
+use App\Module\Core\Domain\Enum\JobResultStatus;
+use App\Module\Core\Domain\Enum\JobStatus;
 use App\Message\InstanceActionMessage;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceScheduleRepository;
 use App\Repository\UserRepository;
-use App\Service\AuditLogger;
-use App\Service\JobLogger;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\JobLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -69,7 +69,7 @@ final class InstanceActionMessageHandler
      *
      * @return array<string, mixed>
      */
-    private function handleSettingsUpdate(Instance $instance, ?\App\Entity\User $actor, array $payload): array
+    private function handleSettingsUpdate(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
         $policy = InstanceUpdatePolicy::from((string) ($payload['update_policy'] ?? InstanceUpdatePolicy::Manual->value));
         $lockedBuildId = $this->stringOrNull($payload['locked_build_id'] ?? null);
@@ -131,7 +131,7 @@ final class InstanceActionMessageHandler
      *
      * @return array<string, mixed>
      */
-    private function handleScheduleUpdate(Instance $instance, ?\App\Entity\User $actor, array $payload): array
+    private function handleScheduleUpdate(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
         $action = InstanceScheduleAction::from((string) $payload['action']);
         $cronExpression = (string) ($payload['cron_expression'] ?? '');
@@ -186,7 +186,7 @@ final class InstanceActionMessageHandler
      *
      * @return array<string, mixed>
      */
-    private function handleBackupCreate(Instance $instance, ?\App\Entity\User $actor, array $payload): array
+    private function handleBackupCreate(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
         $definitionId = $payload['definition_id'] ?? null;
         if (!is_int($definitionId) && !is_string($definitionId)) {
@@ -233,7 +233,7 @@ final class InstanceActionMessageHandler
      *
      * @return array<string, mixed>
      */
-    private function handleBackupRestore(Instance $instance, ?\App\Entity\User $actor, array $payload): array
+    private function handleBackupRestore(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
         $backupId = $payload['backup_id'] ?? null;
         if (!is_int($backupId) && !is_string($backupId)) {
@@ -269,7 +269,7 @@ final class InstanceActionMessageHandler
      *
      * @return array<string, mixed>
      */
-    private function handleAgentJob(Instance $instance, ?\App\Entity\User $actor, string $action, array $payload): array
+    private function handleAgentJob(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, string $action, array $payload): array
     {
         $job = new Job($action, $payload);
         $this->entityManager->persist($job);

@@ -1,0 +1,22 @@
+{% set variant = variant|default('primary') %}
+{% set size = size|default('md') %}
+{% set asLink = href is defined and href %}
+{% set tag = asLink ? 'a' : 'button' %}
+{% set classes = [
+    'ng-button',
+    'ng-button--' ~ variant,
+    'ng-button--' ~ size,
+    class|default('')
+]|join(' ') %}
+
+<{{ tag }}
+    {% if asLink %}href="{{ href }}"{% else %}type="{{ type|default('button') }}"{% endif %}
+    class="{{ classes|trim }}"
+    {% if ariaLabel is defined %}aria-label="{{ ariaLabel }}"{% endif %}
+    {{ attributes|default('')|raw }}
+>
+    {% if icon is defined %}
+        <span class="ng-button__icon">{{ icon|raw }}</span>
+    {% endif %}
+    <span class="ng-button__label">{{ label|default('') }}</span>
+</{{ tag }}>

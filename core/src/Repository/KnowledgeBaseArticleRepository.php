@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\KnowledgeBaseArticle;
-use App\Enum\TicketCategory;
+use App\Module\Core\Domain\Entity\KnowledgeBaseArticle;
+use App\Module\Core\Domain\Enum\TicketCategory;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

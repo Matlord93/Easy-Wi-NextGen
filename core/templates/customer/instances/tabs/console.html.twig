@@ -13,7 +13,12 @@
             <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_console_env_vars', page_locale()) }}</p>
             <ul class="mt-3 space-y-2 text-xs text-slate-600">
                 {% for env in template.env_vars %}
-                    <li class="rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-700">{{ env }}</li>
+                    {% if env is iterable %}
+                        {% set envLine = (env.key ?? '') ~ '=' ~ (env.value ?? '') %}
+                    {% else %}
+                        {% set envLine = env %}
+                    {% endif %}
+                    <li class="rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-700">{{ envLine }}</li>
                 {% else %}
                     <li class="text-sm text-slate-500">{{ t('customer_instance_console_env_empty', page_locale()) }}</li>
                 {% endfor %}

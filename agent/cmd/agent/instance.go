@@ -121,8 +121,16 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
-	startCommand = replaceInstanceTemplateTokens(startCommand, templateValues)
-	startParams = replaceInstanceTemplateTokens(startParams, templateValues)
+	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	startScriptPath, err := writeStartScript(instanceDir, renderedStartParams)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	startCommand = startScriptPath
+	startParams = ""
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
@@ -149,18 +157,19 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 		JobID:  job.ID,
 		Status: "success",
 		Output: map[string]string{
-			"os_username":     osUsername,
-			"instance_dir":    instanceDir,
-			"data_dir":        dataDir,
-			"logs_dir":        logsDir,
-			"config_dir":      configDir,
-			"service_name":    serviceName,
-			"cpu_limit":       strconv.Itoa(cpuLimit),
-			"ram_limit":       strconv.Itoa(ramLimit),
-			"disk_limit":      strconv.Itoa(diskLimit),
-			"autostart":       strconv.FormatBool(autostart),
-			"allocated_ports": strings.Join(intSliceToStrings(allocatedPorts), ","),
-			"required_ports":  requiredPortsRaw,
+			"os_username":       osUsername,
+			"instance_dir":      instanceDir,
+			"data_dir":          dataDir,
+			"logs_dir":          logsDir,
+			"config_dir":        configDir,
+			"service_name":      serviceName,
+			"cpu_limit":         strconv.Itoa(cpuLimit),
+			"ram_limit":         strconv.Itoa(ramLimit),
+			"disk_limit":        strconv.Itoa(diskLimit),
+			"autostart":         strconv.FormatBool(autostart),
+			"allocated_ports":   strings.Join(intSliceToStrings(allocatedPorts), ","),
+			"required_ports":    requiredPortsRaw,
+			"start_script_path": startScriptPath,
 		},
 		Completed: time.Now().UTC(),
 	}, nil
@@ -414,8 +423,16 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
-	startCommand = replaceInstanceTemplateTokens(startCommand, templateValues)
-	startParams = replaceInstanceTemplateTokens(startParams, templateValues)
+	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	startScriptPath, err := writeStartScript(instanceDir, renderedStartParams)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	startCommand = startScriptPath
+	startParams = ""
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startCommand, startParams, cpuLimit, ramLimit)
@@ -431,6 +448,9 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 		if err := runCommandAsUser(osUsername, installWithDir); err != nil {
 			return failureResult(job.ID, fmt.Errorf("install command failed: %w", err))
 		}
+	}
+	if err := validateBinaryExists(instanceDir, renderedStartParams); err != nil {
+		return failureResult(job.ID, err)
 	}
 
 	if autostart {
@@ -454,6 +474,7 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	diagnostics["ram_limit"] = strconv.Itoa(ramLimit)
 	diagnostics["disk_limit"] = strconv.Itoa(diskLimit)
 	diagnostics["autostart"] = strconv.FormatBool(autostart)
+	diagnostics["start_script_path"] = startScriptPath
 
 	return jobs.Result{
 		JobID:     job.ID,
@@ -592,6 +613,15 @@ func buildInstanceTemplateValues(instanceDir, requiredPortsRaw string, allocated
 		values[key] = value
 	}
 
+	for key, value := range parseSecrets(payload) {
+		if value == "" {
+			continue
+		}
+		values[key] = value
+	}
+
+	applyPortReservations(values, payload)
+
 	portLabels := parsePortLabels(requiredPortsRaw)
 	for idx, label := range portLabels {
 		if idx >= len(allocatedPorts) {
@@ -644,6 +674,79 @@ func parseEnvVars(payload map[string]any) map[string]string {
 		return parseEnvVarStrings(strings.FieldsFunc(stringValue, func(r rune) bool {
 			return r == '\n' || r == ',' || r == ';'
 		}))
+	}
+}
+
+func parseSecrets(payload map[string]any) map[string]string {
+	raw, ok := payload["secrets"]
+	if !ok || raw == nil {
+		return map[string]string{}
+	}
+
+	switch typed := raw.(type) {
+	case map[string]any:
+		values := map[string]string{}
+		for key, value := range typed {
+			if stringValue := payloadString(value); stringValue != "" {
+				values[key] = stringValue
+			}
+		}
+		return values
+	case []any:
+		return parseSecretEntries(typed)
+	default:
+		return map[string]string{}
+	}
+}
+
+func parseSecretEntries(entries []any) map[string]string {
+	values := map[string]string{}
+	for _, entry := range entries {
+		typed, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		key := strings.TrimSpace(payloadString(typed["key"]))
+		value := payloadString(typed["value"])
+		if value == "" {
+			value = payloadString(typed["placeholder"])
+		}
+		if key != "" {
+			values[key] = value
+		}
+	}
+	return values
+}
+
+func applyPortReservations(values map[string]string, payload map[string]any) {
+	raw, ok := payload["port_reservations"]
+	if !ok || raw == nil {
+		return
+	}
+
+	entries, ok := raw.([]any)
+	if !ok {
+		return
+	}
+
+	for _, entry := range entries {
+		typed, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		role := strings.TrimSpace(payloadString(typed["role"]))
+		if role == "" {
+			role = strings.TrimSpace(payloadString(typed["name"]))
+		}
+		if role == "" {
+			continue
+		}
+		portValue := payloadString(typed["port"])
+		if portValue == "" {
+			continue
+		}
+		placeholder := "PORT_" + strings.ToUpper(role)
+		values[placeholder] = portValue
 	}
 }
 
@@ -732,6 +835,67 @@ func parsePortLabels(requiredPortsRaw string) []string {
 		labels = append(labels, label)
 	}
 	return labels
+}
+
+func parsePayloadPorts(payload map[string]any) []int {
+	if raw, ok := payload["ports"]; ok {
+		if ports := parsePortsFromValue(raw); len(ports) > 0 {
+			return ports
+		}
+	}
+
+	if raw, ok := payload["port_block_ports"]; ok {
+		if ports := parsePortsFromValue(raw); len(ports) > 0 {
+			return ports
+		}
+	}
+
+	if portsRaw := payloadValue(payload, "port_block_ports", "ports"); portsRaw != "" {
+		parsed, err := parsePorts(portsRaw)
+		if err == nil {
+			return parsed
+		}
+	}
+
+	return []int{}
+}
+
+func parsePortsFromValue(value any) []int {
+	switch typed := value.(type) {
+	case []int:
+		return typed
+	case []any:
+		ports := make([]int, 0, len(typed))
+		for _, entry := range typed {
+			portValue := payloadString(entry)
+			if portValue == "" {
+				continue
+			}
+			parsed, err := strconv.Atoi(portValue)
+			if err != nil || parsed <= 0 || parsed > 65535 {
+				continue
+			}
+			ports = append(ports, parsed)
+		}
+		return ports
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return []int{}
+		}
+		if strings.HasPrefix(trimmed, "[") {
+			var parsed []int
+			if err := json.Unmarshal([]byte(trimmed), &parsed); err == nil {
+				return parsed
+			}
+		}
+		if parsed, err := parsePorts(trimmed); err == nil {
+			return parsed
+		}
+		return []int{}
+	default:
+		return []int{}
+	}
 }
 
 func replaceInstanceTemplateTokens(value string, replacements map[string]string) string {

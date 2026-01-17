@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Entity\Agent;
-use App\Entity\Instance;
-use App\Entity\Template;
-use App\Entity\User;
-use App\Enum\InstanceStatus;
-use App\Enum\InstanceUpdatePolicy;
-use App\Enum\UserType;
-use App\Service\SetupChecker;
+use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\Template;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\InstanceStatus;
+use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
+use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Core\Application\SetupChecker;
 use PHPUnit\Framework\TestCase;
 
 final class SetupCheckerTest extends TestCase

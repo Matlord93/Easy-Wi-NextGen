@@ -1,0 +1,3 @@
+{% set tone = tone|default('neutral') %}
+{% set size = size|default('md') %}
+<span class="ng-badge ng-badge--{{ tone }} ng-badge--{{ size }} {{ class|default('')|trim }}">{{ label }}</span>

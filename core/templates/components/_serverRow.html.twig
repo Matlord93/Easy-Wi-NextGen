@@ -1,0 +1,48 @@
+{% set title = title|default('') %}
+{% set subtitle = subtitle|default('') %}
+{% set status = status|default('') %}
+{% set statusTone = statusTone|default('neutral') %}
+{% set meta = meta|default([]) %}
+{% set actions = actions|default([]) %}
+{% set overflowActions = overflowActions|default([]) %}
+
+<article class="ng-server-row">
+    <div class="ng-server-row__main">
+        <div class="ng-server-row__title">
+            <div class="ng-server-row__name">{{ title }}</div>
+            {% if status %}
+                {% include 'components/_badge.html.twig' with { label: status, tone: statusTone, size: 'sm' } %}
+            {% endif %}
+        </div>
+        {% if subtitle %}
+            <div class="ng-server-row__subtitle">{{ subtitle }}</div>
+        {% endif %}
+        {% if meta %}
+            <div class="ng-server-row__meta">
+                {% for item in meta %}
+                    <div class="ng-server-row__meta-item">
+                        <span class="ng-server-row__meta-label">{{ item.label }}</span>
+                        <span class="ng-server-row__meta-value">{{ item.value }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+    <div class="ng-server-row__actions">
+        {% for action in actions %}
+            {% include 'components/_button.html.twig' with action %}
+        {% endfor %}
+        {% if overflowActions %}
+            <details class="ng-overflow">
+                <summary class="ng-overflow__trigger" aria-label="{{ overflowLabel|default('Weitere Aktionen') }}">
+                    <span class="ng-overflow__dots"></span>
+                </summary>
+                <div class="ng-overflow__menu">
+                    {% for action in overflowActions %}
+                        {% include 'components/_button.html.twig' with action|merge({ variant: 'ghost', size: 'sm', class: 'ng-overflow__item' }) %}
+                    {% endfor %}
+                </div>
+            </details>
+        {% endif %}
+    </div>
+</article>

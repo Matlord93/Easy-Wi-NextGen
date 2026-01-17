@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\Invoice;
-use App\Entity\User;
-use App\Enum\InvoiceStatus;
+use App\Module\Core\Domain\Entity\Invoice;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\InvoiceStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

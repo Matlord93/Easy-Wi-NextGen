@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\Backup;
-use App\Entity\BackupDefinition;
+use App\Module\Core\Domain\Entity\Backup;
+use App\Module\Core\Domain\Entity\BackupDefinition;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

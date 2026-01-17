@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Entity\Agent;
-use App\Entity\Instance;
-use App\Entity\Template;
-use App\Entity\User;
-use App\Enum\InstanceStatus;
-use App\Enum\InstanceUpdatePolicy;
-use App\Enum\UserType;
+use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\Template;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\InstanceStatus;
+use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
-use App\Service\InstanceInstallService;
-use App\Service\SetupChecker;
-use App\Service\Installer\TemplateInstallResolver;
+use App\Module\Gameserver\Application\InstanceInstallService;
+use App\Module\Core\Application\SetupChecker;
+use App\Module\Gameserver\Application\TemplateInstallResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 

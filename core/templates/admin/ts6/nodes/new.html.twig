@@ -12,14 +12,18 @@
         </div>
 
         <div class="ts6-card">
+            <p class="ts6-muted">Trage die Agent-URL, das API-Token und den Installationspfad des Agenten ein.</p>
             {{ form_start(form, { attr: { class: 'ts6-form' } }) }}
                 <div class="ts6-grid">
                     {{ form_row(form.name) }}
-                    {{ form_row(form.agentBaseUrl) }}
-                    {{ form_row(form.agentApiToken) }}
+                    {{ form_row(form.agentNodeId, { label: 'Agent Node' }) }}
+                    <div class="ts6-muted">Optional: Daten aus einer registrierten Node übernehmen.</div>
+                    {{ form_row(form.agentBaseUrl, { label: 'Agent Base URL' }) }}
+                    {{ form_row(form.agentApiToken, { label: 'Agent API Token' }) }}
                     {{ form_row(form.osType) }}
                     {{ form_row(form.downloadUrl) }}
-                    {{ form_row(form.installPath) }}
+                    <div class="ts6-muted">Direkter Link zum TeamSpeak 6 Server-Archiv für die Installation.</div>
+                    {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
                     {{ form_row(form.instanceName) }}
                     {{ form_row(form.serviceName) }}
                     {{ form_row(form.queryBindIp) }}

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\UI\Controller\Api;
 
-use App\Entity\User;
-use App\Enum\UserType;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\UserRepository;
-use App\Service\AuditLogger;
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;

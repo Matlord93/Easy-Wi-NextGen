@@ -4,7 +4,7 @@
 declare(strict_types=1);
 
 use App\Kernel;
-use App\Runtime\DatabaseConfig;
+use App\Module\Setup\Runtime\DatabaseConfig;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Dotenv\Dotenv;

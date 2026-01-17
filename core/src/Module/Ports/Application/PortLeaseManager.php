@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Application;
 
-use App\Entity\User;
+use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;

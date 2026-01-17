@@ -1,0 +1,40 @@
+{% extends 'customer/base.html.twig' %}
+
+{% set activeNav = 'sinusbot' %}
+{% set pageTitle = 'SinusBot' %}
+{% set pageSubtitle = 'Gleiche Struktur wie TeamSpeak, mit Bot-spezifischen Aktionen.' %}
+{% set topbarActions = [
+    { label: 'Bot bestellen', href: '#', variant: 'primary', size: 'sm' },
+    { label: 'Instanzen', href: '#', variant: 'secondary', size: 'sm' }
+] %}
+
+{% block content %}
+    {% embed 'components/_card.html.twig' with { title: 'Deine SinusBots', subtitle: 'Status, Instanzen und Kerninfos wie im alten Flow.' } %}
+        {% block card_body %}
+            <div class="ng-server-list">
+                {% include 'components/_serverRow.html.twig' with {
+                    title: 'SinusBot #42',
+                    subtitle: 'Instanz: Lobby · Version 1.0.0',
+                    status: 'Online',
+                    statusTone: 'success',
+                    meta: [
+                        { label: 'Slots', value: '32' },
+                        { label: 'Uptime', value: '12d 2h' },
+                        { label: 'Traffic', value: '48 GB' }
+                    ],
+                    actions: [
+                        { label: 'Starten', href: '#', variant: 'primary', size: 'sm' },
+                        { label: 'Stoppen', href: '#', variant: 'secondary', size: 'sm' },
+                        { label: 'Neustart', href: '#', variant: 'secondary', size: 'sm' },
+                        { label: 'Logs', href: '#', variant: 'ghost', size: 'sm' },
+                        { label: 'Einstellungen', href: '#', variant: 'ghost', size: 'sm' }
+                    ],
+                    overflowActions: [
+                        { label: 'Instanzen', href: '#', variant: 'ghost' },
+                        { label: 'Musikwarteschlange', href: '#', variant: 'ghost' }
+                    ]
+                } %}
+            </div>
+        {% endblock %}
+    {% endembed %}
+{% endblock %}

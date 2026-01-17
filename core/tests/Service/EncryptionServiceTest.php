@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Service\EncryptionService;
+use App\Module\Core\Application\EncryptionService;
 use PHPUnit\Framework\TestCase;
 
 final class EncryptionServiceTest extends TestCase

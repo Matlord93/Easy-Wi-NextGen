@@ -162,3 +162,63 @@
 .sinusbot-align-right {
     text-align: right;
 }
+
+.dark .sinusbot-header p {
+    color: #94a3b8;
+}
+
+.dark .sinusbot-card {
+    background: #0f172a;
+    border-color: #1e293b;
+    box-shadow: none;
+}
+
+.dark .sinusbot-table th,
+.dark .sinusbot-table td {
+    border-bottom-color: #1e293b;
+}
+
+.dark .sinusbot-table th {
+    color: #94a3b8;
+}
+
+.dark .sinusbot-empty,
+.dark .sinusbot-muted {
+    color: #94a3b8;
+}
+
+.dark .sinusbot-button {
+    background: #6366f1;
+}
+
+.dark .sinusbot-button:hover {
+    background: #4f46e5;
+}
+
+.dark .sinusbot-link {
+    color: #818cf8;
+}
+
+.dark .sinusbot-form input,
+.dark .sinusbot-form select,
+.dark .sinusbot-form textarea {
+    background: #0b1120;
+    border-color: #1e293b;
+    color: #e2e8f0;
+}
+
+.dark .sinusbot-alert-success {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #a7f3d0;
+}
+
+.dark .sinusbot-pill {
+    background: rgba(99, 102, 241, 0.2);
+    color: #c7d2fe;
+}
+
+.dark .sinusbot-secret {
+    background: #111827;
+    color: #e2e8f0;
+}

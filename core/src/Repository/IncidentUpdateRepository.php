@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\Incident;
-use App\Entity\IncidentUpdate;
+use App\Module\Core\Domain\Entity\Incident;
+use App\Module\Core\Domain\Entity\IncidentUpdate;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

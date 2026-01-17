@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\UI\Controller\Admin;
 
-use App\Entity\User;
-use App\Form\PortRangeFormType;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Form\PortRangeFormType;
 use App\Repository\AgentRepository;
-use App\Service\AuditLogger;
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Ports\Domain\Entity\PortRange;
 use App\Module\Ports\Infrastructure\Repository\PortRangeRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -186,7 +186,7 @@ final class AdminNodePortRangeController
     }
 
     private function renderPage(
-        \App\Entity\Agent $node,
+        \App\Module\Core\Domain\Entity\Agent $node,
         ?string $errorKey = null,
         ?string $noticeKey = null,
         ?array $warning = null,

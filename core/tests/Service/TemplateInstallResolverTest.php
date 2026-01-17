@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Entity\Agent;
-use App\Entity\Instance;
-use App\Entity\MinecraftVersionCatalog;
-use App\Entity\Template;
-use App\Entity\User;
-use App\Enum\InstanceStatus;
-use App\Enum\InstanceUpdatePolicy;
-use App\Enum\UserType;
+use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\MinecraftVersionCatalog;
+use App\Module\Core\Domain\Entity\Template;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\InstanceStatus;
+use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\MinecraftVersionCatalogRepositoryInterface;
-use App\Service\Installer\TemplateInstallResolver;
-use App\Service\MinecraftCatalogService;
+use App\Module\Gameserver\Application\TemplateInstallResolver;
+use App\Module\Gameserver\Application\MinecraftCatalogService;
 use PHPUnit\Framework\TestCase;
 
 final class TemplateInstallResolverTest extends TestCase

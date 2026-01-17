@@ -1,0 +1,26 @@
+{% set title = title|default('') %}
+{% set subtitle = subtitle|default('') %}
+{% set class = class|default('') %}
+
+<section class="ng-card {{ class|trim }}">
+    {% if title or subtitle or actions is defined %}
+        <header class="ng-card__header">
+            <div>
+                {% if title %}
+                    <h2 class="ng-card__title">{{ title }}</h2>
+                {% endif %}
+                {% if subtitle %}
+                    <p class="ng-card__subtitle">{{ subtitle }}</p>
+                {% endif %}
+            </div>
+            {% if actions is defined %}
+                <div class="ng-card__actions">
+                    {{ actions|raw }}
+                </div>
+            {% endif %}
+        </header>
+    {% endif %}
+    <div class="ng-card__body">
+        {% block card_body %}{% endblock %}
+    </div>
+</section>

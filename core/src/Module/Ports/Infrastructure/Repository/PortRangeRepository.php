@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Infrastructure\Repository;
 
-use App\Entity\Agent;
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Ports\Domain\Entity\PortRange;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;

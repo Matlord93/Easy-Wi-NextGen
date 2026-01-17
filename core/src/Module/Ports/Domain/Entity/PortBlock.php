@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Domain\Entity;
 
-use App\Domain\Event\ResourceEventSource;
-use App\Domain\Event\ResourceEventSourceTrait;
-use App\Entity\Instance;
-use App\Entity\User;
+use App\Module\Core\Domain\Event\ResourceEventSource;
+use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
+use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use Doctrine\ORM\Mapping as ORM;
 

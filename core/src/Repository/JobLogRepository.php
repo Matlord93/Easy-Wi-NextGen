@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\Job;
-use App\Entity\JobLog;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\JobLog;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

@@ -1,0 +1,86 @@
+{% extends 'customer/base.html.twig' %}
+
+{% set activeNav = 'gameservers' %}
+{% set pageTitle = 'Game-Server' %}
+{% set pageSubtitle = 'Übersicht deiner Gameserver wie im alten Easy-Wi, modern aufbereitet.' %}
+{% set topbarActions = [
+    { label: 'Server erstellen', href: '/instances', variant: 'primary', size: 'sm' },
+    { label: 'Filter', href: '/kunden/servers', variant: 'secondary', size: 'sm' }
+] %}
+
+{% block content %}
+    {% embed 'components/_card.html.twig' with { title: 'Deine Game-Server', subtitle: 'Actions bleiben wie im alten Easy-Wi, aber als moderne Button-Leiste.' } %}
+        {% block card_body %}
+            <div class="ng-server-list">
+                {% for server in servers %}
+                    {% set statusTone = server.status == 'running' ? 'success' : (server.status == 'stopped' ? 'warning' : 'neutral') %}
+                    {% set portsLabel = server.ports|map(p => p.label ~ ' ' ~ p.port)|join(', ') %}
+                    {% include 'components/_serverRow.html.twig' with {
+                        title: server.name,
+                        subtitle: server.gameKey,
+                        status: server.status|replace({'_': ' '})|title,
+                        statusTone: statusTone,
+                        meta: [
+                            { label: 'Node', value: server.nodeName ?? '—' },
+                            { label: 'Letzte Aktion', value: server.lastActionLabel ?? '—' },
+                            { label: 'Zuletzt gesehen', value: server.lastSeenAt ? server.lastSeenAt|date('Y-m-d H:i') : 'Nie' },
+                            { label: 'Ports', value: portsLabel ?: '—' }
+                        ],
+                        actions: [
+                            { label: 'Starten', variant: 'primary', size: 'sm', attributes: 'data-server-action="start" data-instance-id="' ~ server.id ~ '"' },
+                            { label: 'Stoppen', variant: 'secondary', size: 'sm', attributes: 'data-server-action="stop" data-instance-id="' ~ server.id ~ '"' },
+                            { label: 'Neustart', variant: 'secondary', size: 'sm', attributes: 'data-server-action="restart" data-instance-id="' ~ server.id ~ '"' },
+                            { label: 'Konsole', href: '/kunden/servers/' ~ server.id ~ '?tab=logs', variant: 'ghost', size: 'sm' },
+                            { label: 'FTP', href: '/kunden/servers/' ~ server.id ~ '?tab=files', variant: 'ghost', size: 'sm' },
+                            { label: 'Addons', href: '/kunden/servers/' ~ server.id ~ '?tab=config', variant: 'ghost', size: 'sm' },
+                            { label: 'Backup', href: '/kunden/servers/' ~ server.id, variant: 'ghost', size: 'sm' },
+                            { label: 'Einstellungen', href: '/kunden/servers/' ~ server.id, variant: 'ghost', size: 'sm' },
+                            { label: 'Reinstall', href: '/kunden/servers/' ~ server.id, variant: 'ghost', size: 'sm' }
+                        ]
+                    } %}
+                {% else %}
+                    <p>Keine Server für die aktuelle Auswahl.</p>
+                {% endfor %}
+            </div>
+        {% endblock %}
+    {% endembed %}
+
+    <script>
+        (() => {
+            const handleAction = async (button) => {
+                const instanceId = button.dataset.instanceId;
+                const action = button.dataset.serverAction;
+                if (!instanceId || !action) {
+                    return;
+                }
+
+                const response = await fetch(`/api/customer/instances/${instanceId}/actions`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ action }),
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+            };
+
+            document.addEventListener('click', (event) => {
+                const target = event.target;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+                const button = target.closest('[data-server-action]');
+                if (!button) {
+                    return;
+                }
+                event.preventDefault();
+                handleAction(button);
+            });
+        })();
+    </script>
+{% endblock %}

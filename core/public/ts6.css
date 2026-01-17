@@ -215,3 +215,63 @@
     border-radius: 8px;
     background: #1f2937;
 }
+
+.dark .ts6-header p {
+    color: #94a3b8;
+}
+
+.dark .ts6-card {
+    background: #0f172a;
+    border-color: #1e293b;
+    box-shadow: none;
+}
+
+.dark .ts6-table th,
+.dark .ts6-table td {
+    border-bottom-color: #1e293b;
+}
+
+.dark .ts6-table th {
+    color: #94a3b8;
+}
+
+.dark .ts6-empty,
+.dark .ts6-muted {
+    color: #94a3b8;
+}
+
+.dark .ts6-button {
+    background: #6366f1;
+}
+
+.dark .ts6-button:hover {
+    background: #4f46e5;
+}
+
+.dark .ts6-link {
+    color: #818cf8;
+}
+
+.dark .ts6-form input,
+.dark .ts6-form select,
+.dark .ts6-form textarea {
+    background: #0b1120;
+    border-color: #1e293b;
+    color: #e2e8f0;
+}
+
+.dark .ts6-alert-success {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #a7f3d0;
+}
+
+.dark .ts6-pill {
+    background: rgba(99, 102, 241, 0.2);
+    color: #c7d2fe;
+}
+
+.dark .ts6-secret {
+    background: #111827;
+    color: #e2e8f0;
+}

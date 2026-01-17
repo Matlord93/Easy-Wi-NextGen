@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Entity\Ticket;
-use App\Entity\TicketMessage;
-use App\Enum\TicketStatus;
+use App\Module\Core\Domain\Entity\Ticket;
+use App\Module\Core\Domain\Entity\TicketMessage;
+use App\Module\Core\Domain\Enum\TicketStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

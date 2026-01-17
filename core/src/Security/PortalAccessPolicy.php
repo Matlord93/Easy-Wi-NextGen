@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Security;
 
-use App\Entity\User;
-use App\Enum\UserType;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\UserType;
 
 final class PortalAccessPolicy
 {

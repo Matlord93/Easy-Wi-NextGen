@@ -6,7 +6,7 @@ namespace App\MessageHandler;
 
 use App\Message\RunInstanceActionMessage;
 use App\Repository\JobRepository;
-use App\Service\JobLogger;
+use App\Module\Core\Application\JobLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
