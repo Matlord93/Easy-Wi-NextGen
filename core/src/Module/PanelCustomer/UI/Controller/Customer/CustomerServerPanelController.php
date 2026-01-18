@@ -157,24 +157,22 @@ final class CustomerServerPanelController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        $instanceJobs = $this->findInstanceJobs($instance);
         $latestJob = $this->findLatestJob($instance);
 
-        if ($latestJob === null) {
+        if ($latestJob === null || $instanceJobs === []) {
             return new JsonResponse([
                 'job' => null,
                 'logs' => [],
             ]);
         }
 
-        $requestedJobId = trim((string) $request->query->get('jobId', ''));
         $afterIdParam = $request->query->get('afterId');
         $afterId = is_numeric($afterIdParam) ? (int) $afterIdParam : null;
 
-        if ($requestedJobId !== '' && $requestedJobId === $latestJob->getId()) {
-            $logs = $this->jobLogRepository->findByJobAfterId($latestJob, $afterId);
-        } else {
-            $logs = array_reverse($this->jobLogRepository->findLastByJob($latestJob, 200));
-        }
+        $logs = $afterId !== null
+            ? $this->jobLogRepository->findByJobsAfterId($instanceJobs, $afterId)
+            : array_reverse($this->jobLogRepository->findLastByJobs($instanceJobs, 200));
 
         $entries = array_map(fn ($log) => [
             'id' => $log->getId(),
@@ -431,8 +429,9 @@ final class CustomerServerPanelController
     private function buildLogSnapshot(Instance $instance, int $limit): array
     {
         $latestJob = $this->findLatestJob($instance);
+        $instanceJobs = $this->findInstanceJobs($instance);
 
-        if ($latestJob === null) {
+        if ($latestJob === null || $instanceJobs === []) {
             return [
                 'job_id' => null,
                 'job_label' => null,
@@ -441,7 +440,7 @@ final class CustomerServerPanelController
             ];
         }
 
-        $logs = $this->jobLogRepository->findLastByJob($latestJob, $limit);
+        $logs = $this->jobLogRepository->findLastByJobs($instanceJobs, $limit);
         $entries = array_reverse(array_map(fn ($log) => [
             'id' => $log->getId(),
             'message' => $this->jobPayloadMasker->maskText($log->getMessage()),
@@ -458,7 +457,17 @@ final class CustomerServerPanelController
 
     private function findLatestJob(Instance $instance): ?Job
     {
-        $jobs = $this->jobRepository->findLatest(200);
+        $jobs = $this->findInstanceJobs($instance);
+        $preferredTypes = $this->getPreferredLogJobTypes();
+
+        foreach ($jobs as $job) {
+            if (!in_array($job->getType(), $preferredTypes, true)) {
+                continue;
+            }
+            if ((string) $this->getInstanceIdFromJob($job) === (string) $instance->getId()) {
+                return $job;
+            }
+        }
 
         foreach ($jobs as $job) {
             if ((string) $this->getInstanceIdFromJob($job) === (string) $instance->getId()) {
@@ -467,6 +476,38 @@ final class CustomerServerPanelController
         }
 
         return null;
+    }
+
+    /**
+     * @return Job[]
+     */
+    private function findInstanceJobs(Instance $instance): array
+    {
+        $jobs = $this->jobRepository->findLatest(200);
+        $instanceJobs = [];
+
+        foreach ($jobs as $job) {
+            if ((string) $this->getInstanceIdFromJob($job) === (string) $instance->getId()) {
+                $instanceJobs[] = $job;
+            }
+        }
+
+        return $instanceJobs;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function getPreferredLogJobTypes(): array
+    {
+        return [
+            'sniper.install',
+            'sniper.update',
+            'instance.reinstall',
+            'instance.start',
+            'instance.restart',
+            'instance.stop',
+        ];
     }
 
     private function getInstanceIdFromJob(Job $job): ?int

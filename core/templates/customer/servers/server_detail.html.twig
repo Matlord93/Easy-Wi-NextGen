@@ -290,7 +290,7 @@
             </div>
             <div class="server-card__body">
                 <p class="text-xs text-slate-500">
-                    Die Konsole zeigt Live-Logs der aktuellsten Installations- oder Start-Jobs.
+                    Die Konsole zeigt Live-Logs aller aktuellen Jobs für diesen Server.
                 </p>
                 <p class="mt-2 text-xs text-slate-500" data-log-status>
                     {% if logSnapshot.job_id %}
@@ -400,8 +400,7 @@
             return;
         }
 
-        let currentJobId = logOutput.dataset.jobId || '';
-        let lastLogId = logOutput.dataset.lastLogId || '';
+        let lastLogId = Number(logOutput.dataset.lastLogId) || 0;
 
         const renderStatus = (job) => {
             if (!status) {
@@ -412,10 +411,6 @@
                 return;
             }
             status.textContent = `Aktiver Job: ${job.label} (${job.status})`;
-        };
-
-        const clearLogs = () => {
-            logOutput.innerHTML = '';
         };
 
         const appendLogs = (logs) => {
@@ -430,6 +425,10 @@
                 empty.remove();
             }
             logs.forEach((log) => {
+                const logId = Number(log.id) || 0;
+                if (logId <= lastLogId) {
+                    return;
+                }
                 const line = document.createElement('div');
                 line.dataset.logEntry = 'true';
                 line.dataset.logId = log.id;
@@ -442,16 +441,13 @@
                 line.appendChild(timestamp);
                 line.append(` ${log.message}`);
                 logOutput.appendChild(line);
-                lastLogId = log.id;
+                lastLogId = logId;
             });
             logOutput.scrollTop = logOutput.scrollHeight;
         };
 
         const fetchLogs = async () => {
             const params = new URLSearchParams();
-            if (currentJobId) {
-                params.set('jobId', currentJobId);
-            }
             if (lastLogId) {
                 params.set('afterId', lastLogId);
             }
@@ -472,12 +468,6 @@
                 renderStatus(null);
                 appendLogs([]);
                 return;
-            }
-
-            if (data.job.id !== currentJobId) {
-                currentJobId = data.job.id;
-                lastLogId = '';
-                clearLogs();
             }
 
             renderStatus(data.job);

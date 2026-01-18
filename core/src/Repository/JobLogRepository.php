@@ -59,4 +59,47 @@ final class JobLogRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * @param Job[] $jobs
+     * @return JobLog[]
+     */
+    public function findByJobsAfterId(array $jobs, ?int $afterId = null, int $limit = 200): array
+    {
+        if ($jobs === []) {
+            return [];
+        }
+
+        $builder = $this->createQueryBuilder('log')
+            ->andWhere('log.job IN (:jobs)')
+            ->setParameter('jobs', $jobs)
+            ->orderBy('log.id', 'ASC')
+            ->setMaxResults($limit);
+
+        if ($afterId !== null) {
+            $builder->andWhere('log.id > :afterId')
+                ->setParameter('afterId', $afterId);
+        }
+
+        return $builder->getQuery()->getResult();
+    }
+
+    /**
+     * @param Job[] $jobs
+     * @return JobLog[]
+     */
+    public function findLastByJobs(array $jobs, int $limit = 200): array
+    {
+        if ($jobs === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('log')
+            ->andWhere('log.job IN (:jobs)')
+            ->setParameter('jobs', $jobs)
+            ->orderBy('log.id', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
 }

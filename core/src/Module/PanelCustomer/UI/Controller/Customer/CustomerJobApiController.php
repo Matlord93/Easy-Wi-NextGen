@@ -16,7 +16,9 @@ use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Gameserver\Application\InstanceInstallService;
+use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Core\Application\SetupChecker;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -38,6 +40,8 @@ final class CustomerJobApiController
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly SetupChecker $setupChecker,
         private readonly InstanceInstallService $instanceInstallService,
+        private readonly TemplateInstallResolver $templateInstallResolver,
+        private readonly PortBlockRepository $portBlockRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
     ) {
@@ -306,11 +310,21 @@ final class CustomerJobApiController
      */
     private function buildBasePayload(Instance $instance): array
     {
+        $portBlock = $this->portBlockRepository->findByInstance($instance);
+        $portBlockPorts = $portBlock ? implode(',', array_map('strval', $portBlock->getPorts())) : '';
+
         return [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'node_id' => $instance->getNode()->getId(),
             'agent_id' => $instance->getNode()->getId(),
+            'cpu_limit' => (string) $instance->getCpuLimit(),
+            'ram_limit' => (string) $instance->getRamLimit(),
+            'disk_limit' => (string) $instance->getDiskLimit(),
+            'start_params' => $instance->getTemplate()->getStartParams(),
+            'required_ports' => implode(',', $instance->getTemplate()->getRequiredPortLabels()),
+            'port_block_ports' => $portBlockPorts,
+            'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance),
         ];
     }
 }

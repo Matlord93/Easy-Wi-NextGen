@@ -55,7 +55,14 @@
                 'NO_PORTS_AVAILABLE': 'Keine freien Ports verfügbar.',
                 'TEMPLATE_OS_MISMATCH': 'Template unterstützt das Node-Betriebssystem nicht.'
             } %}
-            <button type="button" class="btn-primary" data-install-action {{ not installStatus.is_ready ? 'disabled' : '' }}>
+            <button
+                type="button"
+                class="btn-primary"
+                data-install-action
+                data-instance-id="{{ instance.id }}"
+                {{ not installStatus.is_ready ? 'disabled' : '' }}
+                {{ installStatus.is_ready ? 'data-auto-install=1' : '' }}
+            >
                 Installieren
             </button>
             <p class="{{ installStatus.is_ready ? 'text-slate-500' : 'text-rose-600' }}" data-install-feedback>
@@ -156,7 +163,7 @@
             TEMPLATE_OS_MISMATCH: 'Template unterstützt das Node-Betriebssystem nicht.',
         };
 
-        installButton.addEventListener('click', async () => {
+        const triggerInstall = async () => {
             feedback.textContent = 'Installation wird gestartet...';
             feedback.classList.remove('text-rose-600');
             feedback.classList.add('text-slate-500');
@@ -180,7 +187,18 @@
             }
 
             feedback.textContent = 'Installation wurde gestartet.';
-        });
+        };
+
+        installButton.addEventListener('click', triggerInstall);
+
+        const instanceId = installButton.dataset.instanceId || '';
+        if (installButton.dataset.autoInstall && instanceId) {
+            const key = `auto-install:${instanceId}`;
+            if (!sessionStorage.getItem(key)) {
+                sessionStorage.setItem(key, 'attempted');
+                triggerInstall();
+            }
+        }
     })();
 </script>
 {% endblock %}

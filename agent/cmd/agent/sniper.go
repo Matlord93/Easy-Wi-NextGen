@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,14 +38,20 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	installCommand := payloadValue(job.Payload, "install_command")
 	updateCommand := payloadValue(job.Payload, "update_command")
 	baseDir := payloadValue(job.Payload, "base_dir")
+	serviceName := payloadValue(job.Payload, "service_name")
 	startParams := payloadValue(job.Payload, "start_params")
 	requiredPortsRaw := payloadValue(job.Payload, "required_ports")
 	templateKey := payloadValue(job.Payload, "template_key", "game_key")
+	cpuLimitValue := payloadValue(job.Payload, "cpu_limit")
+	ramLimitValue := payloadValue(job.Payload, "ram_limit")
+	autostart := parsePayloadBool(payloadValue(job.Payload, "autostart", "auto_start"), true)
 
 	missing := missingValues([]requiredValue{
 		{key: "instance_id", value: instanceID},
 		{key: "customer_id", value: customerID},
 		{key: "start_params", value: startParams},
+		{key: "cpu_limit", value: cpuLimitValue},
+		{key: "ram_limit", value: ramLimitValue},
 	})
 	if len(missing) > 0 {
 		return jobs.Result{
@@ -57,6 +64,9 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 
 	if baseDir == "" {
 		baseDir = "/home"
+	}
+	if serviceName == "" {
+		serviceName = fmt.Sprintf("gs-%s", instanceID)
 	}
 
 	osUsername := buildInstanceUsername(customerID, instanceID)
@@ -86,6 +96,15 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 
 	allocatedPorts := parsePayloadPorts(job.Payload)
 	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+
+	cpuLimit, err := parsePositiveInt(cpuLimitValue, "cpu_limit")
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	ramLimit, err := parsePositiveInt(ramLimitValue, "ram_limit")
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	var command string
 	if action == "install" {
@@ -152,6 +171,25 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	if err := validateBinaryExists(instanceDir, renderedStartParams); err != nil {
 		return failureResult(job.ID, err)
 	}
+
+	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
+	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startScriptPath, "", cpuLimit, ramLimit)
+	if err := os.WriteFile(unitPath, []byte(unitContent), instanceFileMode); err != nil {
+		return failureResult(job.ID, fmt.Errorf("write systemd unit: %w", err))
+	}
+	if err := runCommand("systemctl", "daemon-reload"); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if autostart {
+		_ = runCommand("systemctl", "enable", serviceName)
+	}
+	if err := runCommand("systemctl", "start", serviceName); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := ensureServiceActive(serviceName); err != nil {
+		return failureResult(job.ID, err)
+	}
+
 	maskedCommand := maskSensitiveValues(renderedStartParams, templateValues)
 	log.Printf("instance=%s template=%s start_command=%s start_script_path=%s", instanceID, templateKey, maskedCommand, startScriptPath)
 
@@ -159,6 +197,10 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 	resultOutput := map[string]string{
 		"message":           "sniper " + action + " completed",
 		"start_script_path": startScriptPath,
+		"service_name":      serviceName,
+		"cpu_limit":         strconv.Itoa(cpuLimit),
+		"ram_limit":         strconv.Itoa(ramLimit),
+		"autostart":         strconv.FormatBool(autostart),
 	}
 	if trimmed := trimOutput(output, 4000); trimmed != "" {
 		resultOutput["install_log"] = trimmed

@@ -30,7 +30,7 @@ class ServerSftpAccess
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $passwordSetAt = null;
 
-    #[ORM\Column(type: 'json')]
+    #[ORM\Column(name: 'ssh_keys', type: 'json')]
     private array $keys = [];
 
     /**
