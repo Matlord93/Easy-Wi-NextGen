@@ -133,11 +133,7 @@ func (c *Client) doSignedJSON(ctx context.Context, method, path string, body any
 		return nil, fmt.Errorf("parse request path: %w", err)
 	}
 	requestURL := c.BaseURL.ResolveReference(requestPath)
-
-	requestPathWithQuery := requestPath.Path
-	if requestPath.RawQuery != "" {
-		requestPathWithQuery = requestPath.Path + "?" + requestPath.RawQuery
-	}
+	
 	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
@@ -151,7 +147,7 @@ func (c *Client) doSignedJSON(ctx context.Context, method, path string, body any
 		return nil, err
 	}
 
-	headers, err := agentcrypto.Sign(c.AgentID, c.Secret, method, requestPathWithQuery, requestBody, time.Now(), nonce)
+	headers, err := agentcrypto.Sign(c.AgentID, c.Secret, method, requestPath.Path, requestBody, time.Now(), nonce)
 	if err != nil {
 		return nil, err
 	}
