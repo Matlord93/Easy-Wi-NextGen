@@ -93,7 +93,8 @@ final class AdminTs3NodeController
             $this->entityManager->persist($node);
             $this->entityManager->flush();
 
-            $request->getSession()->getFlashBag()->add('success', 'TS3 node created.');
+            $this->nodeService->install($node, $this->buildInstallDto($node));
+            $request->getSession()->getFlashBag()->add('success', 'TS3 node created. Install job queued.');
 
             return new Response('', Response::HTTP_FOUND, [
                 'Location' => sprintf('/admin/ts3/nodes/%d', $node->getId()),
@@ -128,18 +129,7 @@ final class AdminTs3NodeController
         $node = $this->findNode($id);
         $this->validateCsrf($request, 'ts3_install_' . $id);
 
-        $dto = new InstallDto(
-            $node->getDownloadUrl(),
-            $node->getInstallPath(),
-            $node->getInstanceName(),
-            $node->getServiceName(),
-            true,
-            $node->getQueryBindIp(),
-            $node->getQueryPort(),
-            null,
-        );
-
-        $this->nodeService->install($node, $dto);
+        $this->nodeService->install($node, $this->buildInstallDto($node));
         $request->getSession()->getFlashBag()->add('success', 'TS3 install queued.');
 
         return $this->redirectToNode($node);
@@ -341,5 +331,19 @@ final class AdminTs3NodeController
         if (trim($dto->serviceName) === '') {
             $form->addError(new FormError('Service name is required.'));
         }
+    }
+
+    private function buildInstallDto(Ts3Node $node): InstallDto
+    {
+        return new InstallDto(
+            $node->getDownloadUrl(),
+            $node->getInstallPath(),
+            $node->getInstanceName(),
+            $node->getServiceName(),
+            true,
+            $node->getQueryBindIp(),
+            $node->getQueryPort(),
+            null,
+        );
     }
 }

@@ -54,6 +54,7 @@ services:
   App\Module\Core\Application\SecretsCrypto:
     arguments:
       $appSecret: '%env(APP_SECRET)%'
+      $fallbackSecrets: '%env(default::APP_SECRET_FALLBACKS)%'
 
   App\Module\Core\Application\AgentSignatureVerifier:
     arguments:

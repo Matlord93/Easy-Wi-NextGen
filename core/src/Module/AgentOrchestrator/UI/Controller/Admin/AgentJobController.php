@@ -52,7 +52,7 @@ final class AgentJobController
         return new JsonResponse($this->normalizeJob($job), JsonResponse::HTTP_CREATED);
     }
 
-    #[Route(path: '/jobs/{id}', name: 'admin_agent_jobs_show', methods: ['GET'])]
+    #[Route(path: '/agent-jobs/{id}', name: 'admin_agent_jobs_show', methods: ['GET'])]
     public function showJob(Request $request, string $id): JsonResponse
     {
         $actor = $request->attributes->get('current_user');

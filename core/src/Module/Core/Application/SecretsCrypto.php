@@ -10,15 +10,22 @@ final class SecretsCrypto
 {
     private const PREFIX = 'v1';
 
-    private string $key;
+    /**
+     * @var string[]
+     */
+    private array $keys;
 
-    public function __construct(string $appSecret)
+    public function __construct(string $appSecret, ?string $fallbackSecrets = null)
     {
         if ($appSecret === '') {
             throw new RuntimeException('APP_SECRET must be configured for SecretsCrypto.');
         }
 
-        $this->key = sodium_crypto_generichash($appSecret, '', SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+        $secrets = array_filter(array_map('trim', array_merge([$appSecret], explode(',', $fallbackSecrets ?? ''))));
+        $this->keys = array_map(
+            static fn (string $secret): string => sodium_crypto_generichash($secret, '', SODIUM_CRYPTO_SECRETBOX_KEYBYTES),
+            $secrets,
+        );
     }
 
     public function encrypt(string $plaintext): string
@@ -28,7 +35,7 @@ final class SecretsCrypto
         }
 
         $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-        $ciphertext = sodium_crypto_secretbox($plaintext, $nonce, $this->key);
+        $ciphertext = sodium_crypto_secretbox($plaintext, $nonce, $this->keys[0]);
 
         return sprintf(
             '%s:%s:%s',
@@ -56,11 +63,13 @@ final class SecretsCrypto
             throw new RuntimeException('Invalid secret payload encoding.');
         }
 
-        $plaintext = sodium_crypto_secretbox_open($ciphertext, $nonce, $this->key);
-        if ($plaintext === false) {
-            throw new RuntimeException('Unable to decrypt secret payload.');
+        foreach ($this->keys as $key) {
+            $plaintext = sodium_crypto_secretbox_open($ciphertext, $nonce, $key);
+            if ($plaintext !== false) {
+                return $plaintext;
+            }
         }
 
-        return $plaintext;
+        throw new RuntimeException('Unable to decrypt secret payload.');
     }
 }

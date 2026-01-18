@@ -13,6 +13,7 @@ use App\Repository\SinusbotNodeRepository;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Sinusbot\SinusbotNodeService;
 use Doctrine\ORM\EntityManagerInterface;
+use RuntimeException;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -92,7 +93,8 @@ final class AdminSinusbotNodeController
             $this->entityManager->persist($node);
             $this->entityManager->flush();
 
-            $request->getSession()->getFlashBag()->add('success', 'SinusBot node created.');
+            $this->nodeService->install($node, false, null);
+            $request->getSession()->getFlashBag()->add('success', 'SinusBot node created. Install job queued.');
 
             return new Response('', Response::HTTP_FOUND, [
                 'Location' => sprintf('/admin/sinusbot/nodes/%d', $node->getId()),
@@ -279,7 +281,12 @@ final class AdminSinusbotNodeController
         }
 
         $dto->agentBaseUrl = $agent->getAgentBaseUrl();
-        $dto->agentApiToken = $agent->getAgentApiToken($this->crypto);
+        try {
+            $dto->agentApiToken = $agent->getAgentApiToken($this->crypto);
+        } catch (RuntimeException $exception) {
+            $dto->agentApiToken = '';
+            $form->addError(new FormError('Unable to decrypt agent API token. Check APP_SECRET and APP_SECRET_FALLBACKS.'));
+        }
 
         if (trim($dto->installPath) === '') {
             $dto->installPath = '/home/sinusbot';

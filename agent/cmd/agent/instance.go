@@ -444,7 +444,11 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if installCommand != "" {
-		installWithDir := fmt.Sprintf("cd %s && %s", instanceDir, installCommand)
+		renderedInstallCommand, err := renderTemplateStrict(installCommand, templateValues)
+		if err != nil {
+			return failureResult(job.ID, err)
+		}
+		installWithDir := fmt.Sprintf("cd %s && %s", instanceDir, renderedInstallCommand)
 		if err := runCommandAsUser(osUsername, installWithDir); err != nil {
 			return failureResult(job.ID, fmt.Errorf("install command failed: %w", err))
 		}

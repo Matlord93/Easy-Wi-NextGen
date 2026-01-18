@@ -94,7 +94,8 @@ final class AdminTs6NodeController
             $this->entityManager->persist($node);
             $this->entityManager->flush();
 
-            $request->getSession()->getFlashBag()->add('success', 'TS6 node created.');
+            $this->nodeService->install($node, $this->buildInstallDto($node));
+            $request->getSession()->getFlashBag()->add('success', 'TS6 node created. Install job queued.');
 
             return new Response('', Response::HTTP_FOUND, [
                 'Location' => sprintf('/admin/ts6/nodes/%d', $node->getId()),
@@ -129,23 +130,7 @@ final class AdminTs6NodeController
         $node = $this->findNode($id);
         $this->validateCsrf($request, 'ts6_install_' . $id);
 
-        $dto = new InstallDto(
-            $node->getDownloadUrl(),
-            $node->getInstallPath(),
-            $node->getInstanceName(),
-            $node->getServiceName(),
-            true,
-            ['0.0.0.0', '::'],
-            9987,
-            30033,
-            ['0.0.0.0', '::'],
-            true,
-            $node->getQueryBindIp(),
-            $node->getQueryHttpsPort(),
-            null,
-        );
-
-        $this->nodeService->install($node, $dto);
+        $this->nodeService->install($node, $this->buildInstallDto($node));
         $request->getSession()->getFlashBag()->add('success', 'TS6-Installation eingereiht. (TS6 install queued.)');
 
         return $this->redirectToNode($node);
@@ -347,5 +332,24 @@ final class AdminTs6NodeController
         if (trim($dto->serviceName) === '') {
             $form->addError(new FormError('Service name is required.'));
         }
+    }
+
+    private function buildInstallDto(Ts6Node $node): InstallDto
+    {
+        return new InstallDto(
+            $node->getDownloadUrl(),
+            $node->getInstallPath(),
+            $node->getInstanceName(),
+            $node->getServiceName(),
+            true,
+            ['0.0.0.0', '::'],
+            9987,
+            30033,
+            ['0.0.0.0', '::'],
+            true,
+            $node->getQueryBindIp(),
+            $node->getQueryHttpsPort(),
+            null,
+        );
     }
 }

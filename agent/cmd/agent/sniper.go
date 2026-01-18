@@ -84,6 +84,9 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 		return failureResult(job.ID, fmt.Errorf("chmod %s: %w", instanceDir, err))
 	}
 
+	allocatedPorts := parsePayloadPorts(job.Payload)
+	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
+
 	var command string
 	if action == "install" {
 		command = installCommand
@@ -106,6 +109,12 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 		}, nil
 	}
 
+	renderedCommand, err := renderTemplateStrict(command, templateValues)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+
+	command = renderedCommand
 	command = normalizeSteamCmdInstallDir(command, instanceDir)
 
 	steamCmdPath := instanceDirSteamCmdPath(instanceDir)
@@ -132,8 +141,6 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 		return failureResult(job.ID, err)
 	}
 
-	allocatedPorts := parsePayloadPorts(job.Payload)
-	templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, job.Payload)
 	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
 	if err != nil {
 		return failureResult(job.ID, err)
