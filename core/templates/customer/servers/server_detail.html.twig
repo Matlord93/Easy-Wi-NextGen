@@ -401,6 +401,7 @@
         }
 
         let lastLogId = Number(logOutput.dataset.lastLogId) || 0;
+        let lastStatusKey = null;
 
         const renderStatus = (job) => {
             if (!status) {
@@ -446,6 +447,30 @@
             logOutput.scrollTop = logOutput.scrollHeight;
         };
 
+        const appendStatusUpdate = (job) => {
+            if (!job) {
+                return;
+            }
+            const statusKey = `${job.id}:${job.status}`;
+            if (statusKey === lastStatusKey) {
+                return;
+            }
+            lastStatusKey = statusKey;
+            const line = document.createElement('div');
+            line.dataset.logEntry = 'true';
+            line.dataset.logStatus = 'true';
+            const timestamp = document.createElement('span');
+            timestamp.textContent = new Date().toLocaleTimeString('de-DE', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+            });
+            line.appendChild(timestamp);
+            line.append(` Status: ${job.label} (${job.status}).`);
+            logOutput.appendChild(line);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        };
+
         const fetchLogs = async () => {
             const params = new URLSearchParams();
             if (lastLogId) {
@@ -471,6 +496,7 @@
             }
 
             renderStatus(data.job);
+            appendStatusUpdate(data.job);
             appendLogs(data.logs);
         };
 

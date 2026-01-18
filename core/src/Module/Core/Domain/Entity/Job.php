@@ -175,6 +175,15 @@ class Job
         $this->touch();
     }
 
+    public function clearLock(): void
+    {
+        $this->lockedBy = null;
+        $this->lockedAt = null;
+        $this->lockToken = null;
+        $this->lockExpiresAt = null;
+        $this->touch();
+    }
+
     public function isLocked(\DateTimeImmutable $now): bool
     {
         if ($this->lockToken === null || $this->lockExpiresAt === null) {

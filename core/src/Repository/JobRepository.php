@@ -111,4 +111,21 @@ final class JobRepository extends ServiceEntityRepository
             ->getQuery()
             ->getSingleScalarResult();
     }
+
+    /**
+     * @return Job[]
+     */
+    public function findRunningWithExpiredLock(\DateTimeImmutable $now, int $limit = 200): array
+    {
+        return $this->createQueryBuilder('job')
+            ->andWhere('job.status = :status')
+            ->andWhere('job.lockExpiresAt IS NOT NULL')
+            ->andWhere('job.lockExpiresAt < :now')
+            ->setParameter('status', JobStatus::Running)
+            ->setParameter('now', $now)
+            ->orderBy('job.lockExpiresAt', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
 }

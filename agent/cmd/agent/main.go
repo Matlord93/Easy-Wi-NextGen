@@ -76,8 +76,9 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 				log.Printf("poll jobs failed: %v", err)
 				continue
 			}
+			logSender := newApiJobLogSender(client)
 			for _, job := range jobsList {
-				result, afterSubmit := handleJob(job)
+				result, afterSubmit := handleJob(job, logSender)
 				if err := client.SubmitJobResult(ctx, result); err != nil {
 					log.Printf("submit job result failed: %v", err)
 					continue
@@ -122,7 +123,7 @@ func collectStats(version string, roles []string) map[string]any {
 	}
 }
 
-func handleJob(job jobs.Job) (jobs.Result, func() error) {
+func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" && !isWindowsSafeJob(job.Type) {
 		return jobs.Result{
 			JobID:     job.ID,
@@ -222,7 +223,7 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 	case "instance.restart":
 		return handleInstanceRestart(job)
 	case "instance.reinstall":
-		return handleInstanceReinstall(job)
+		return handleInstanceReinstall(job, logSender)
 	case "instance.disk.scan":
 		return handleInstanceDiskScan(job)
 	case "instance.disk.top":
@@ -254,9 +255,9 @@ func handleJob(job jobs.Job) (jobs.Result, func() error) {
 	case "instance.sftp.access.disable":
 		return handleInstanceSftpAccessDisable(job)
 	case "sniper.install":
-		return handleSniperInstall(job)
+		return handleSniperInstall(job, logSender)
 	case "sniper.update":
-		return handleSniperUpdate(job)
+		return handleSniperUpdate(job, logSender)
 	case "node.disk.stat":
 		return handleNodeDiskStat(job)
 	case "webspace.files.list":

@@ -119,6 +119,19 @@ func (c *Client) SubmitJobResult(ctx context.Context, result jobs.Result) error 
 	return err
 }
 
+func (c *Client) SubmitJobLogs(ctx context.Context, jobID string, logs []string, progress *int) error {
+	path := fmt.Sprintf("/agent/jobs/%s/logs", url.PathEscape(jobID))
+	payload := map[string]any{
+		"job_id": jobID,
+		"logs":   logs,
+	}
+	if progress != nil {
+		payload["progress"] = *progress
+	}
+	_, err := c.doSignedJSON(ctx, http.MethodPost, path, payload, nil)
+	return err
+}
+
 func (c *Client) doSignedJSON(ctx context.Context, method, path string, body any, out any) (*http.Response, error) {
 	var requestBody []byte
 	if body != nil {

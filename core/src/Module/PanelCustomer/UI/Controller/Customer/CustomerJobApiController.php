@@ -6,7 +6,9 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\JobResult;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Message\RunInstanceActionMessage;
 use App\Repository\InstanceRepository;
@@ -20,6 +22,7 @@ use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use DateTimeImmutable;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -145,12 +148,20 @@ final class CustomerJobApiController
             return new JsonResponse(['error' => 'Job already completed.'], JsonResponse::HTTP_CONFLICT);
         }
 
-        if ($job->getStatus()->value !== 'queued') {
-            return new JsonResponse(['error' => 'Only queued jobs can be cancelled.'], JsonResponse::HTTP_CONFLICT);
+        if (!in_array($job->getStatus(), [
+            \App\Module\Core\Domain\Enum\JobStatus::Queued,
+            \App\Module\Core\Domain\Enum\JobStatus::Running,
+        ], true)) {
+            return new JsonResponse(['error' => 'Only queued or running jobs can be cancelled.'], JsonResponse::HTTP_CONFLICT);
         }
 
         $job->transitionTo(\App\Module\Core\Domain\Enum\JobStatus::Cancelled);
+        $job->clearLock();
         $this->jobLogger->log($job, 'Job cancelled.', 100);
+        $jobResult = new JobResult($job, JobResultStatus::Cancelled, [
+            'message' => 'Job cancelled.',
+        ], new DateTimeImmutable());
+        $this->entityManager->persist($jobResult);
         $this->entityManager->flush();
 
         return new JsonResponse($this->normalizeJob($job));

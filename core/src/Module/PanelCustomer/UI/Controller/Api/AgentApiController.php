@@ -131,6 +131,7 @@ final class AgentApiController
     {
         $agent = $this->requireAgent($request);
         $now = new DateTimeImmutable();
+        $this->expireStaleJobs($now);
 
         $jobs = $this->jobRepository->findQueuedForDispatch(20);
         $jobPayloads = [];
@@ -286,6 +287,52 @@ final class AgentApiController
         return new JsonResponse(['status' => 'ok']);
     }
 
+    #[Route(path: '/agent/jobs/{id}/logs', name: 'agent_job_logs', methods: ['POST'])]
+    #[Route(path: '/api/v1/agent/jobs/{id}/logs', name: 'agent_job_logs_v1', methods: ['POST'])]
+    public function jobLogs(Request $request, string $id): JsonResponse
+    {
+        $agent = $this->requireAgent($request);
+        $job = $this->jobRepository->find($id);
+
+        if ($job === null) {
+            throw new NotFoundHttpException('Job not found.');
+        }
+
+        if ($job->getStatus() !== JobStatus::Running) {
+            throw new ConflictHttpException('Job is not running.');
+        }
+
+        if ($job->getLockedBy() !== $agent->getId()) {
+            throw new ConflictHttpException('Job is not locked by this agent.');
+        }
+
+        try {
+            $payload = $request->toArray();
+        } catch (\JsonException $exception) {
+            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+        }
+
+        $jobId = (string) ($payload['job_id'] ?? '');
+        if ($jobId !== $job->getId()) {
+            throw new BadRequestHttpException('Job id does not match.');
+        }
+
+        $progress = $this->normalizeProgress($payload['progress'] ?? null);
+        $lines = $this->normalizeLogLines($payload);
+
+        if ($lines === []) {
+            return new JsonResponse(['status' => 'ok']);
+        }
+
+        foreach ($lines as $line) {
+            $this->jobLogger->log($job, $line, $progress);
+        }
+
+        $this->entityManager->flush();
+
+        return new JsonResponse(['status' => 'ok']);
+    }
+
     private function appendJobLogsFromOutput(\App\Module\Core\Domain\Entity\Job $job, array $output): void
     {
         $candidates = [];
@@ -325,6 +372,55 @@ final class AgentApiController
         }
     }
 
+    /**
+     * @return list<string>
+     */
+    private function normalizeLogLines(array $payload): array
+    {
+        $candidates = [];
+        $message = $payload['message'] ?? null;
+        if (is_string($message) && trim($message) !== '') {
+            $candidates[] = $message;
+        }
+
+        if (isset($payload['logs']) && is_array($payload['logs'])) {
+            foreach ($payload['logs'] as $entry) {
+                if (is_string($entry) && trim($entry) !== '') {
+                    $candidates[] = $entry;
+                }
+            }
+        }
+
+        if ($candidates === []) {
+            return [];
+        }
+
+        $lines = [];
+        foreach ($candidates as $text) {
+            $split = preg_split('/\r\n|\r|\n/', trim($text)) ?: [];
+            foreach ($split as $line) {
+                $line = trim((string) $line);
+                if ($line === '') {
+                    continue;
+                }
+                $lines[] = $line;
+            }
+        }
+
+        return array_slice($lines, 0, 200);
+    }
+
+    private function normalizeProgress(mixed $progress): ?int
+    {
+        if (!is_numeric($progress)) {
+            return null;
+        }
+
+        $value = (int) $progress;
+
+        return max(0, min(100, $value));
+    }
+
     private function requireAgent(Request $request): \App\Module\Core\Domain\Entity\Agent
     {
         $agentId = (string) $request->headers->get('X-Agent-ID', '');
@@ -341,6 +437,25 @@ final class AgentApiController
         $this->signatureVerifier->verify($request, $agentId, $secret);
 
         return $agent;
+    }
+
+    private function expireStaleJobs(DateTimeImmutable $now): void
+    {
+        $staleJobs = $this->jobRepository->findRunningWithExpiredLock($now);
+        if ($staleJobs === []) {
+            return;
+        }
+
+        foreach ($staleJobs as $job) {
+            if ($job->getStatus() !== JobStatus::Running) {
+                continue;
+            }
+            $job->transitionTo(JobStatus::Failed);
+            $job->clearLock();
+            $this->jobLogger->log($job, 'Job lock expired.', 100);
+        }
+
+        $this->entityManager->flush();
     }
 
     private function isWindowsStats(array $stats): bool

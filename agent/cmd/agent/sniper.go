@@ -23,15 +23,15 @@ var (
 	steamcmdArchiveURL   = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
 )
 
-func handleSniperInstall(job jobs.Job) (jobs.Result, func() error) {
-	return handleSniperAction(job, "install")
+func handleSniperInstall(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	return handleSniperAction(job, "install", logSender)
 }
 
-func handleSniperUpdate(job jobs.Job) (jobs.Result, func() error) {
-	return handleSniperAction(job, "update")
+func handleSniperUpdate(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	return handleSniperAction(job, "update", logSender)
 }
 
-func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error) {
+func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")
 	steamAppID := payloadValue(job.Payload, "steam_app_id")
@@ -155,7 +155,7 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 		instanceDir, command, installSnippet,
 	)
 
-	output, err := runCommandOutputAsUser(osUsername, shellCmd)
+	output, err := runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
 	if err != nil {
 		return failureResult(job.ID, err)
 	}

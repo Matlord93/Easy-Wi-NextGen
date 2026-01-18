@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -284,7 +285,7 @@ func handleInstanceRestart(job jobs.Job) (jobs.Result, func() error) {
 	}, nil
 }
 
-func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
+func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")
 	baseDir := payloadValue(job.Payload, "base_dir")
@@ -445,14 +446,14 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
-	
+
 	if installCommand != "" {
 		renderedInstallCommand, err := renderTemplateStrict(installCommand, templateValues)
 		if err != nil {
 			return failureResult(job.ID, err)
 		}
 		installWithDir := fmt.Sprintf("cd %s && %s", instanceDir, renderedInstallCommand)
-		installOutput, err := runCommandOutputAsUser(osUsername, installWithDir)
+		installOutput, err := runCommandOutputAsUserWithLogs(osUsername, installWithDir, job.ID, logSender)
 		if err != nil {
 			return failureResult(job.ID, fmt.Errorf("install command failed: %w", err))
 		}
@@ -963,6 +964,62 @@ func runCommandAsUser(username, command string) error {
 
 func runCommandOutputAsUser(username, command string) (string, error) {
 	return runCommandOutput("runuser", "-u", username, "--", "/bin/sh", "-c", command)
+}
+
+func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender JobLogSender) (string, error) {
+	cmd := exec.Command("runuser", "-u", username, "--", "/bin/sh", "-c", command)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("stdout pipe: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return "", fmt.Errorf("stderr pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("start command: %w", err)
+	}
+
+	reader := io.MultiReader(stdout, stderr)
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	var output strings.Builder
+	buffer := make([]string, 0, 20)
+	lastFlush := time.Now()
+	flush := func(force bool) {
+		if len(buffer) == 0 {
+			return
+		}
+		if !force && time.Since(lastFlush) < 2*time.Second && len(buffer) < 20 {
+			return
+		}
+		if logSender != nil {
+			logSender.Send(jobID, buffer, nil)
+		}
+		buffer = buffer[:0]
+		lastFlush = time.Now()
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		output.WriteString(line)
+		output.WriteString("\n")
+		buffer = append(buffer, line)
+		flush(false)
+	}
+	flush(true)
+
+	if err := scanner.Err(); err != nil {
+		return output.String(), fmt.Errorf("read output: %w", err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return output.String(), fmt.Errorf("command failed: %w", err)
+	}
+
+	return output.String(), nil
 }
 
 func trimOutput(value string, max int) string {
