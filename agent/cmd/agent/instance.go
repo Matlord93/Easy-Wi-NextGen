@@ -444,6 +444,8 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
+	diagnostics := collectServiceDiagnostics(serviceName)
+	
 	if installCommand != "" {
 		renderedInstallCommand, err := renderTemplateStrict(installCommand, templateValues)
 		if err != nil {
@@ -470,7 +472,6 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
-	diagnostics := collectServiceDiagnostics(serviceName)
 	diagnostics["service_name"] = serviceName
 	diagnostics["instance_dir"] = instanceDir
 	diagnostics["data_dir"] = dataDir
