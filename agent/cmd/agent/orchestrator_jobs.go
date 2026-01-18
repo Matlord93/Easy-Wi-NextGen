@@ -27,7 +27,7 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 	case "ts3.status":
 		return handleServiceStatus(job)
 	case "ts3.instance.create":
-		result, afterSubmit := handleTs3Create(job, logSender)
+		result, afterSubmit := handleTs3Create(job, nil)
 		return convertJobResult(result, afterSubmit)
 	case "ts3.instance.action":
 		return handleTs3InstanceAction(job)
