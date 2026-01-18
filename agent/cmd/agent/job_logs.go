@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"easywi/agent/internal/api"
@@ -30,6 +31,6 @@ func (sender *apiJobLogSender) Send(jobID string, lines []string, progress *int)
 	defer cancel()
 
 	if err := sender.client.SubmitJobLogs(ctx, jobID, lines, progress); err != nil {
-		// Best-effort: ignore streaming errors to avoid failing the job.
+		log.Printf("submit job logs failed job_id=%s lines=%d err=%v", jobID, len(lines), err)
 	}
 }
