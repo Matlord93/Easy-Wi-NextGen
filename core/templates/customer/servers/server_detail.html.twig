@@ -37,6 +37,7 @@
                     <button type="button" class="btn-primary" data-action="start">Start</button>
                     <button type="button" class="btn-ghost" data-action="stop">Stop</button>
                     <button type="button" class="btn-ghost" data-action="restart">Restart</button>
+                    <button type="button" class="btn-ghost" data-action="reinstall">Reinstall</button>
                 </div>
                 <p class="text-xs text-slate-500" id="action-feedback">Aktionen erzeugen Jobs und aktualisieren die Activity-Ansicht automatisch.</p>
             {% else %}
@@ -284,15 +285,25 @@
     {% elseif activeTab == 'logs' %}
         <div class="server-card">
             <div class="server-card__header">
-                <h2 class="text-sm font-semibold text-slate-900">Logs</h2>
+                <h2 class="text-sm font-semibold text-slate-900">Konsole</h2>
                 <a href="/kunden/servers/{{ server.id }}/logs/download" class="btn-ghost">Download</a>
             </div>
             <div class="server-card__body">
-                <div class="log-output">
-                    {% for entry in logSnapshot.entries %}
-                        <div><span>{{ entry.created_at|date('H:i:s') }}</span> {{ entry.message }}</div>
+                <p class="text-xs text-slate-500">
+                    Die Konsole zeigt Live-Logs der aktuellsten Installations- oder Start-Jobs.
+                </p>
+                <p class="mt-2 text-xs text-slate-500" data-log-status>
+                    {% if logSnapshot.job_id %}
+                        Aktiver Job: {{ logSnapshot.job_label }} ({{ logSnapshot.job_status }})
                     {% else %}
-                        <div class="text-sm text-slate-500">Noch keine Logs verfügbar.</div>
+                        Noch keine Logs verfügbar.
+                    {% endif %}
+                </p>
+                <div class="log-output" data-log-output data-job-id="{{ logSnapshot.job_id }}" data-last-log-id="{{ logSnapshot.entries|last ? logSnapshot.entries|last.id : '' }}">
+                    {% for entry in logSnapshot.entries %}
+                        <div data-log-entry data-log-id="{{ entry.id }}"><span>{{ entry.created_at|date('H:i:s') }}</span> {{ entry.message }}</div>
+                    {% else %}
+                        <div class="text-sm text-slate-500" data-log-empty>Noch keine Logs verfügbar.</div>
                     {% endfor %}
                 </div>
             </div>
@@ -337,6 +348,12 @@
             if (!instanceId) {
                 return;
             }
+            if (action === 'reinstall') {
+                const confirmed = window.confirm('Reinstall löscht Serverdaten und installiert neu. Fortfahren?');
+                if (!confirmed) {
+                    return;
+                }
+            }
             setFeedback('Aktion wird ausgeführt...');
 
             const response = await fetch(`/api/customer/instances/${instanceId}/actions`, {
@@ -370,6 +387,105 @@
             }
             handleAction(action);
         });
+    })();
+
+    (() => {
+        const logOutput = document.querySelector('[data-log-output]');
+        if (!logOutput) {
+            return;
+        }
+        const status = document.querySelector('[data-log-status]');
+        const instanceId = document.querySelector('.server-hero')?.dataset.instanceId;
+        if (!instanceId) {
+            return;
+        }
+
+        let currentJobId = logOutput.dataset.jobId || '';
+        let lastLogId = logOutput.dataset.lastLogId || '';
+
+        const renderStatus = (job) => {
+            if (!status) {
+                return;
+            }
+            if (!job) {
+                status.textContent = 'Noch keine Logs verfügbar.';
+                return;
+            }
+            status.textContent = `Aktiver Job: ${job.label} (${job.status})`;
+        };
+
+        const clearLogs = () => {
+            logOutput.innerHTML = '';
+        };
+
+        const appendLogs = (logs) => {
+            if (!Array.isArray(logs) || logs.length === 0) {
+                if (!logOutput.querySelector('[data-log-entry]')) {
+                    logOutput.innerHTML = '<div class="text-sm text-slate-500" data-log-empty>Noch keine Logs verfügbar.</div>';
+                }
+                return;
+            }
+            const empty = logOutput.querySelector('[data-log-empty]');
+            if (empty) {
+                empty.remove();
+            }
+            logs.forEach((log) => {
+                const line = document.createElement('div');
+                line.dataset.logEntry = 'true';
+                line.dataset.logId = log.id;
+                const timestamp = document.createElement('span');
+                timestamp.textContent = new Date(log.created_at).toLocaleTimeString('de-DE', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                });
+                line.appendChild(timestamp);
+                line.append(` ${log.message}`);
+                logOutput.appendChild(line);
+                lastLogId = log.id;
+            });
+            logOutput.scrollTop = logOutput.scrollHeight;
+        };
+
+        const fetchLogs = async () => {
+            const params = new URLSearchParams();
+            if (currentJobId) {
+                params.set('jobId', currentJobId);
+            }
+            if (lastLogId) {
+                params.set('afterId', lastLogId);
+            }
+
+            const response = await fetch(`/kunden/servers/${instanceId}/logs/stream?${params.toString()}`, {
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+            if (!data.job) {
+                renderStatus(null);
+                appendLogs([]);
+                return;
+            }
+
+            if (data.job.id !== currentJobId) {
+                currentJobId = data.job.id;
+                lastLogId = '';
+                clearLogs();
+            }
+
+            renderStatus(data.job);
+            appendLogs(data.logs);
+        };
+
+        fetchLogs();
+        window.setInterval(fetchLogs, 3000);
     })();
 </script>
 {% endblock %}

@@ -153,10 +153,11 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
+	diagnostics := collectServiceDiagnostics(serviceName)
 	return jobs.Result{
 		JobID:  job.ID,
 		Status: "success",
-		Output: map[string]string{
+		Output: mergeDiagnostics(map[string]string{
 			"os_username":       osUsername,
 			"instance_dir":      instanceDir,
 			"data_dir":          dataDir,
@@ -170,7 +171,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 			"allocated_ports":   strings.Join(intSliceToStrings(allocatedPorts), ","),
 			"required_ports":    requiredPortsRaw,
 			"start_script_path": startScriptPath,
-		},
+		}, diagnostics),
 		Completed: time.Now().UTC(),
 	}, nil
 }
@@ -449,9 +450,11 @@ func handleInstanceReinstall(job jobs.Job) (jobs.Result, func() error) {
 			return failureResult(job.ID, err)
 		}
 		installWithDir := fmt.Sprintf("cd %s && %s", instanceDir, renderedInstallCommand)
-		if err := runCommandAsUser(osUsername, installWithDir); err != nil {
+		installOutput, err := runCommandOutputAsUser(osUsername, installWithDir)
+		if err != nil {
 			return failureResult(job.ID, fmt.Errorf("install command failed: %w", err))
 		}
+		diagnostics["install_log"] = trimOutput(installOutput, 4000)
 	}
 	if err := validateBinaryExists(instanceDir, renderedStartParams); err != nil {
 		return failureResult(job.ID, err)
@@ -929,6 +932,19 @@ func collectServiceDiagnostics(serviceName string) map[string]string {
 	}
 	diagnostics["logs_tail"] = trimOutput(logOutput, 4000)
 	return diagnostics
+}
+
+func mergeDiagnostics(output map[string]string, diagnostics map[string]string) map[string]string {
+	if len(diagnostics) == 0 {
+		return output
+	}
+	for key, value := range diagnostics {
+		if value == "" {
+			continue
+		}
+		output[key] = value
+	}
+	return output
 }
 
 func runCommandOutput(name string, args ...string) (string, error) {

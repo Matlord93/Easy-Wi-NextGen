@@ -236,6 +236,8 @@ final class AgentApiController
         $completedAt = $this->parseCompletedAt($payload['completed_at'] ?? null);
         $output = is_array($payload['output'] ?? null) ? $payload['output'] : [];
 
+        $this->appendJobLogsFromOutput($job, $output);
+
         $jobResult = new JobResult($job, $resultStatus, $output, $completedAt);
         $job->transitionTo(match ($resultStatus) {
             JobResultStatus::Succeeded => JobStatus::Succeeded,
@@ -282,6 +284,45 @@ final class AgentApiController
         $this->entityManager->flush();
 
         return new JsonResponse(['status' => 'ok']);
+    }
+
+    private function appendJobLogsFromOutput(\App\Module\Core\Domain\Entity\Job $job, array $output): void
+    {
+        $candidates = [];
+        $keys = ['logs_tail', 'install_log', 'log_text', 'output', 'message'];
+        foreach ($keys as $key) {
+            if (isset($output[$key]) && is_string($output[$key]) && trim($output[$key]) !== '') {
+                $candidates[] = (string) $output[$key];
+            }
+        }
+        if (isset($output['logs']) && is_array($output['logs'])) {
+            foreach ($output['logs'] as $entry) {
+                if (is_string($entry) && trim($entry) !== '') {
+                    $candidates[] = $entry;
+                }
+            }
+        }
+
+        if ($candidates === []) {
+            return;
+        }
+
+        $lines = [];
+        foreach ($candidates as $text) {
+            $split = preg_split('/\r\n|\r|\n/', trim($text)) ?: [];
+            foreach ($split as $line) {
+                $line = trim((string) $line);
+                if ($line === '') {
+                    continue;
+                }
+                $lines[] = $line;
+            }
+        }
+
+        $lines = array_slice($lines, 0, 200);
+        foreach ($lines as $line) {
+            $this->jobLogger->log($job, $line, null);
+        }
     }
 
     private function requireAgent(Request $request): \App\Module\Core\Domain\Entity\Agent

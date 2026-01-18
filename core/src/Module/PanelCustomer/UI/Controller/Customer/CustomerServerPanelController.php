@@ -24,6 +24,7 @@ use App\Module\Core\Application\SetupChecker;
 use App\View\CustomerServerView;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
@@ -148,6 +149,50 @@ final class CustomerServerPanelController
         return new Response($content, Response::HTTP_OK, [
             'Content-Type' => 'text/plain; charset=utf-8',
             'Content-Disposition' => sprintf('attachment; filename="server-%d-logs.txt"', $instance->getId()),
+        ]);
+    }
+
+    #[Route(path: '/{id}/logs/stream', name: 'customer_server_panel_logs_stream', methods: ['GET'])]
+    public function streamLogs(Request $request, int $id): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+        $latestJob = $this->findLatestJob($instance);
+
+        if ($latestJob === null) {
+            return new JsonResponse([
+                'job' => null,
+                'logs' => [],
+            ]);
+        }
+
+        $requestedJobId = trim((string) $request->query->get('jobId', ''));
+        $afterIdParam = $request->query->get('afterId');
+        $afterId = is_numeric($afterIdParam) ? (int) $afterIdParam : null;
+
+        if ($requestedJobId !== '' && $requestedJobId === $latestJob->getId()) {
+            $logs = $this->jobLogRepository->findByJobAfterId($latestJob, $afterId);
+        } else {
+            $logs = array_reverse($this->jobLogRepository->findLastByJob($latestJob, 200));
+        }
+
+        $entries = array_map(fn ($log) => [
+            'id' => $log->getId(),
+            'message' => $this->jobPayloadMasker->maskText($log->getMessage()),
+            'progress' => $log->getProgress(),
+            'created_at' => $log->getCreatedAt()->format(DATE_ATOM),
+        ], $logs);
+
+        return new JsonResponse([
+            'job' => [
+                'id' => $latestJob->getId(),
+                'type' => $latestJob->getType(),
+                'label' => $this->formatJobType($latestJob->getType()),
+                'status' => $latestJob->getStatus()->value,
+                'created_at' => $latestJob->getCreatedAt()->format(DATE_ATOM),
+                'updated_at' => $latestJob->getUpdatedAt()->format(DATE_ATOM),
+            ],
+            'logs' => $entries,
         ]);
     }
 
@@ -381,34 +426,47 @@ final class CustomerServerPanelController
     }
 
     /**
-     * @return array{job_id: string|null, entries: array<int, array{message: string, created_at: \DateTimeImmutable}>}
+     * @return array{job_id: string|null, job_label: string|null, job_status: string|null, entries: array<int, array{id: int, message: string, created_at: \DateTimeImmutable}>}
      */
     private function buildLogSnapshot(Instance $instance, int $limit): array
     {
-        $jobs = $this->jobRepository->findLatest(200);
-        $latestJob = null;
-
-        foreach ($jobs as $job) {
-            if ((string) $this->getInstanceIdFromJob($job) === (string) $instance->getId()) {
-                $latestJob = $job;
-                break;
-            }
-        }
+        $latestJob = $this->findLatestJob($instance);
 
         if ($latestJob === null) {
-            return ['job_id' => null, 'entries' => []];
+            return [
+                'job_id' => null,
+                'job_label' => null,
+                'job_status' => null,
+                'entries' => [],
+            ];
         }
 
         $logs = $this->jobLogRepository->findLastByJob($latestJob, $limit);
         $entries = array_reverse(array_map(fn ($log) => [
+            'id' => $log->getId(),
             'message' => $this->jobPayloadMasker->maskText($log->getMessage()),
             'created_at' => $log->getCreatedAt(),
         ], $logs));
 
         return [
             'job_id' => $latestJob->getId(),
+            'job_label' => $this->formatJobType($latestJob->getType()),
+            'job_status' => $latestJob->getStatus()->value,
             'entries' => $entries,
         ];
+    }
+
+    private function findLatestJob(Instance $instance): ?Job
+    {
+        $jobs = $this->jobRepository->findLatest(200);
+
+        foreach ($jobs as $job) {
+            if ((string) $this->getInstanceIdFromJob($job) === (string) $instance->getId()) {
+                return $job;
+            }
+        }
+
+        return null;
     }
 
     private function getInstanceIdFromJob(Job $job): ?int
@@ -422,6 +480,7 @@ final class CustomerServerPanelController
     private function formatJobType(string $type): string
     {
         return match ($type) {
+            'sniper.install' => 'Install',
             'instance.start' => 'Start',
             'instance.stop' => 'Stop',
             'instance.restart' => 'Restart',

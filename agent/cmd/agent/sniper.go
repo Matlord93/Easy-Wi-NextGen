@@ -160,6 +160,9 @@ func handleSniperAction(job jobs.Job, action string) (jobs.Result, func() error)
 		"message":           "sniper " + action + " completed",
 		"start_script_path": startScriptPath,
 	}
+	if trimmed := trimOutput(output, 4000); trimmed != "" {
+		resultOutput["install_log"] = trimmed
+	}
 	if buildID != "" {
 		resultOutput["build_id"] = buildID
 	}

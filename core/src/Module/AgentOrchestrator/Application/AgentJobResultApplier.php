@@ -98,6 +98,9 @@ final class AgentJobResultApplier
             if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
                 $node->setInstalledVersion($payload['installed_version']);
             }
+            if (is_array($payload) && array_key_exists('running', $payload)) {
+                $node->setRunning((bool) $payload['running']);
+            }
         }
 
         if (in_array($job->getType(), ['ts3.service.action', 'ts3.status'], true)) {
@@ -138,6 +141,9 @@ final class AgentJobResultApplier
             if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
                 $node->setInstalledVersion($payload['installed_version']);
             }
+            if (is_array($payload) && array_key_exists('running', $payload)) {
+                $node->setRunning((bool) $payload['running']);
+            }
         }
 
         if (in_array($job->getType(), ['ts6.service.action', 'ts6.status'], true)) {
@@ -171,9 +177,12 @@ final class AgentJobResultApplier
             if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
                 $node->setInstalledVersion($payload['installed_version']);
             }
+            if (is_array($payload) && array_key_exists('running', $payload)) {
+                $node->setRunning((bool) $payload['running']);
+            }
         }
 
-        if ($job->getType() === 'sinusbot.status') {
+        if (in_array($job->getType(), ['sinusbot.status', 'sinusbot.service.action'], true)) {
             if (is_array($payload) && array_key_exists('running', $payload)) {
                 $node->setRunning((bool) $payload['running']);
             }
