@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d
+class ComposerStaticInit99a8024284f79c3f38c426a016bf8649
 {
     public static $files = array (
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
@@ -24,6 +24,7 @@ class ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d
         '6124b4c8570aa390c21fafd04a26c69f' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/deep_copy.php',
         '6a47392539ca2329373e0d33e1dba053' => __DIR__ . '/..' . '/symfony/polyfill-intl-icu/bootstrap.php',
         'f598d06aa772fa33d905e87be6398fb1' => __DIR__ . '/..' . '/symfony/polyfill-intl-idn/bootstrap.php',
+        '09f6b20656683369174dd6fa83b7e5fb' => __DIR__ . '/..' . '/symfony/polyfill-uuid/bootstrap.php',
         'decc78cc4436b1292c6c0d151b19445c' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/bootstrap.php',
         'ec07570ca5a812141189b1fa81503674' => __DIR__ . '/..' . '/phpunit/phpunit/src/Framework/Assert/Functions.php',
         'a1105708a18b76903365ca1c4aa61b02' => __DIR__ . '/..' . '/symfony/translation/Resources/functions.php',
@@ -41,6 +42,7 @@ class ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d
         'S' =>
         array (
             'Symfony\\Runtime\\Symfony\\Component\\' => 34,
+            'Symfony\\Polyfill\\Uuid\\' => 22,
             'Symfony\\Polyfill\\Php85\\' => 23,
             'Symfony\\Polyfill\\Php84\\' => 23,
             'Symfony\\Polyfill\\Mbstring\\' => 26,
@@ -59,6 +61,7 @@ class ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d
             'Symfony\\Component\\VarExporter\\' => 30,
             'Symfony\\Component\\VarDumper\\' => 28,
             'Symfony\\Component\\Validator\\' => 28,
+            'Symfony\\Component\\Uid\\' => 22,
             'Symfony\\Component\\TypeInfo\\' => 27,
             'Symfony\\Component\\Translation\\' => 30,
             'Symfony\\Component\\String\\' => 25,
@@ -153,6 +156,10 @@ class ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d
         array (
             0 => __DIR__ . '/..' . '/symfony/runtime/Internal',
         ),
+        'Symfony\\Polyfill\\Uuid\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-uuid',
+        ),
         'Symfony\\Polyfill\\Php85\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-php85',
@@ -224,6 +231,10 @@ class ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d
         'Symfony\\Component\\Validator\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/validator',
+        ),
+        'Symfony\\Component\\Uid\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/uid',
         ),
         'Symfony\\Component\\TypeInfo\\' =>
         array (
@@ -1797,9 +1808,9 @@ class ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit4af6f63aabaa7de70df54998f5a5f06d::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit99a8024284f79c3f38c426a016bf8649::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit99a8024284f79c3f38c426a016bf8649::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit99a8024284f79c3f38c426a016bf8649::$classMap;
 
         }, null, ClassLoader::class);
     }
