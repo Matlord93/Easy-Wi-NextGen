@@ -985,13 +985,15 @@ func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender J
 	var output strings.Builder
 	lineCh := make(chan string, 128)
 	errCh := make(chan error, 2)
+	logCh := make(chan []string, 16)
 	var wg sync.WaitGroup
+	var logWg sync.WaitGroup
 
 	readStream := func(reader io.Reader) {
 		defer wg.Done()
 		scanner := bufio.NewScanner(reader)
 		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		scanner.Split(splitLogLines)
+		scanner.Split(splitLogLinesWithChunks)
 		for scanner.Scan() {
 			lineCh <- scanner.Text()
 		}
@@ -1008,6 +1010,15 @@ func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender J
 		close(lineCh)
 		close(errCh)
 	}()
+	if logSender != nil {
+		logWg.Add(1)
+		go func() {
+			defer logWg.Done()
+			for lines := range logCh {
+				logSender.Send(jobID, lines, nil)
+			}
+		}()
+	}
 
 	buffer := make([]string, 0, 20)
 	lastFlush := time.Now()
@@ -1019,7 +1030,8 @@ func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender J
 			return
 		}
 		if logSender != nil {
-			logSender.Send(jobID, buffer, nil)
+			batch := append([]string(nil), buffer...)
+			logCh <- batch
 		}
 		buffer = buffer[:0]
 		lastFlush = time.Now()
@@ -1032,6 +1044,8 @@ func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender J
 		flush(false)
 	}
 	flush(true)
+	close(logCh)
+	logWg.Wait()
 
 	var scanErr error
 	for err := range errCh {
@@ -1048,6 +1062,20 @@ func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender J
 	}
 
 	return output.String(), nil
+}
+
+func splitLogLinesWithChunks(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	advance, token, err = splitLogLines(data, atEOF)
+	if token != nil || err != nil || atEOF {
+		return advance, token, err
+	}
+
+	const maxChunkSize = 4096
+	if len(data) >= maxChunkSize {
+		return maxChunkSize, data[:maxChunkSize], nil
+	}
+
+	return 0, nil, nil
 }
 
 func trimOutput(value string, max int) string {
