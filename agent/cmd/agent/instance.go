@@ -967,7 +967,7 @@ func runCommandOutputAsUser(username, command string) (string, error) {
 }
 
 func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender JobLogSender) (string, error) {
-	cmd := exec.Command("runuser", "-u", username, "--", "/bin/sh", "-c", command)
+	cmd := exec.Command("runuser", "-u", username, "--", "stdbuf", "-oL", "-eL", "/bin/sh", "-c", command)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", fmt.Errorf("stdout pipe: %w", err)
@@ -984,6 +984,7 @@ func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender J
 	reader := io.MultiReader(stdout, stderr)
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	scanner.Split(splitLogLines)
 
 	var output strings.Builder
 	buffer := make([]string, 0, 20)
@@ -1028,6 +1029,26 @@ func trimOutput(value string, max int) string {
 		return value
 	}
 	return value[len(value)-max:]
+}
+
+func splitLogLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	for i, b := range data {
+		if b == '\n' || b == '\r' {
+			end := i
+			advance = i + 1
+			if b == '\r' && len(data) > i+1 && data[i+1] == '\n' {
+				advance = i + 2
+			}
+			return advance, data[:end], nil
+		}
+	}
+	if atEOF {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
 }
 
 func parsePositiveInt(value, key string) (int, error) {

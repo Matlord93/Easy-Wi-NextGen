@@ -291,7 +291,7 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 	case "ddos.status.check":
 		return handleDdosStatusCheck(job)
 	case "ts3.create":
-		return handleTs3Create(job)
+		return handleTs3Create(job, logSender)
 	case "ts3.start":
 		return handleTs3Start(job)
 	case "ts3.stop":

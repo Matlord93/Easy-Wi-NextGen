@@ -16,7 +16,7 @@ const (
 	ts3ConfigFile = "ts3server.ini"
 )
 
-func handleTs3Create(job jobs.Job) (jobs.Result, func() error) {
+func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "ts3_instance_id", "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")
 	name := payloadValue(job.Payload, "name")
@@ -82,7 +82,8 @@ func handleTs3Create(job jobs.Job) (jobs.Result, func() error) {
 			return failureResult(job.ID, err)
 		}
 		installWithDir := fmt.Sprintf("cd %s && %s", instanceDir, renderedInstallCommand)
-		if err := runCommandAsUser(osUsername, installWithDir); err != nil {
+		_, err = runCommandOutputAsUserWithLogs(osUsername, installWithDir, job.ID, logSender)
+		if err != nil {
 			return failureResult(job.ID, fmt.Errorf("install command failed: %w", err))
 		}
 	}
