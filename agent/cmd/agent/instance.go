@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"easywi/agent/internal/jobs"
@@ -981,12 +982,33 @@ func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender J
 		return "", fmt.Errorf("start command: %w", err)
 	}
 
-	reader := io.MultiReader(stdout, stderr)
-	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	scanner.Split(splitLogLines)
-
 	var output strings.Builder
+	lineCh := make(chan string, 128)
+	errCh := make(chan error, 2)
+	var wg sync.WaitGroup
+
+	readStream := func(reader io.Reader) {
+		defer wg.Done()
+		scanner := bufio.NewScanner(reader)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		scanner.Split(splitLogLines)
+		for scanner.Scan() {
+			lineCh <- scanner.Text()
+		}
+		if scanErr := scanner.Err(); scanErr != nil {
+			errCh <- scanErr
+		}
+	}
+
+	wg.Add(2)
+	go readStream(stdout)
+	go readStream(stderr)
+	go func() {
+		wg.Wait()
+		close(lineCh)
+		close(errCh)
+	}()
+
 	buffer := make([]string, 0, 20)
 	lastFlush := time.Now()
 	flush := func(force bool) {
@@ -1003,8 +1025,7 @@ func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender J
 		lastFlush = time.Now()
 	}
 
-	for scanner.Scan() {
-		line := scanner.Text()
+	for line := range lineCh {
 		output.WriteString(line)
 		output.WriteString("\n")
 		buffer = append(buffer, line)
@@ -1012,8 +1033,14 @@ func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender J
 	}
 	flush(true)
 
-	if err := scanner.Err(); err != nil {
-		return output.String(), fmt.Errorf("read output: %w", err)
+	var scanErr error
+	for err := range errCh {
+		if err != nil && scanErr == nil {
+			scanErr = err
+		}
+	}
+	if scanErr != nil {
+		return output.String(), fmt.Errorf("read output: %w", scanErr)
 	}
 
 	if err := cmd.Wait(); err != nil {
