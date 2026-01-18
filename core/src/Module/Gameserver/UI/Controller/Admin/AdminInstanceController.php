@@ -22,6 +22,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Gameserver\Application\InstanceInstallService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -45,6 +46,7 @@ final class AdminInstanceController
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly EncryptionService $encryptionService,
+        private readonly InstanceInstallService $instanceInstallService,
         private readonly Environment $twig,
     ) {
     }
@@ -505,6 +507,7 @@ final class AdminInstanceController
             $diskUsedBytes = $instance->getDiskUsedBytes();
             $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
             $credential = $sftpCredentials[$instance->getId()] ?? null;
+            $installStatus = $this->instanceInstallService->getInstallStatus($instance);
 
             return [
                 'id' => $instance->getId(),
@@ -527,6 +530,8 @@ final class AdminInstanceController
                 'updated_at' => $instance->getUpdatedAt(),
                 'sftp_username' => $credential?->getUsername(),
                 'sftp_ready' => $credential !== null,
+                'install_ready' => $installStatus['is_ready'] ?? false,
+                'install_error_code' => $installStatus['error_code'] ?? null,
             ];
         }, $instances);
     }

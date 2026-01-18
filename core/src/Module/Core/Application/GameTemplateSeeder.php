@@ -293,6 +293,7 @@ final class GameTemplateSeeder
             'minecraft_paper_all',
             'minecraft_vanilla_all',
             'minecraft_bedrock',
+            'hytale',
         ], true);
     }
 

@@ -7,7 +7,7 @@ namespace App\Module\Teamspeak\UI\Controller\Customer;
 use App\Module\Core\Domain\Entity\Ts6Instance;
 use App\Module\Core\Domain\Entity\TsVirtualServer;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Entity\Job;
+use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Domain\Enum\ModuleKey;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\Ts6InstanceRepository;
@@ -34,6 +34,7 @@ final class CustomerTs6Controller
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
         private readonly string $projectDir,
+        private readonly AgentJobDispatcher $jobDispatcher,
     ) {
     }
 
@@ -103,12 +104,12 @@ final class CustomerTs6Controller
     private function resolveJobType(string $action): string
     {
         return match ($action) {
-            'start' => 'ts6.instance.start',
-            'stop' => 'ts6.instance.stop',
-            'restart' => 'ts6.instance.restart',
-            'update' => 'ts6.instance.update',
-            'backup' => 'ts6.instance.backup',
-            'restore' => 'ts6.instance.restore',
+            'start' => 'ts6.instance.action',
+            'stop' => 'ts6.instance.action',
+            'restart' => 'ts6.instance.action',
+            'update' => 'ts6.instance.action',
+            'backup' => 'ts6.instance.action',
+            'restore' => 'ts6.instance.action',
             default => throw new BadRequestHttpException('Unsupported action.'),
         };
     }
@@ -118,9 +119,10 @@ final class CustomerTs6Controller
      */
     private function resolveActionPayload(string $action, Request $request): array
     {
+        $payload = ['action' => $action];
         if ($action === 'backup') {
             $backupPath = trim((string) $request->request->get('backup_path', ''));
-            return $backupPath === '' ? [] : ['backup_path' => $backupPath];
+            return $backupPath === '' ? $payload : array_merge($payload, ['backup_path' => $backupPath]);
         }
 
         if ($action === 'restore') {
@@ -129,10 +131,10 @@ final class CustomerTs6Controller
                 throw new BadRequestHttpException('Restore path required.');
             }
 
-            return ['restore_path' => $restorePath];
+            return array_merge($payload, ['restore_path' => $restorePath]);
         }
 
-        return [];
+        return $payload;
     }
 
     private function redirectToIndex(?string $notice): Response
@@ -198,20 +200,16 @@ final class CustomerTs6Controller
     /**
      * @param array<string, string> $extraPayload
      */
-    private function queueTs6Job(string $type, Ts6Instance $instance, array $extraPayload): Job
+    private function queueTs6Job(string $type, Ts6Instance $instance, array $extraPayload): \App\Module\AgentOrchestrator\Domain\Entity\AgentJob
     {
         $payload = array_merge([
-            'ts6_instance_id' => (string) ($instance->getId() ?? ''),
+            'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'node_id' => $instance->getNode()->getId(),
-            'agent_id' => $instance->getNode()->getId(),
             'service_name' => sprintf('ts6-%d', $instance->getId() ?? 0),
+            'action' => $extraPayload['action'] ?? null,
         ], $extraPayload);
-
-        $job = new Job($type, $payload);
-        $this->entityManager->persist($job);
-
-        return $job;
+        return $this->jobDispatcher->dispatch($instance->getNode(), $type, $payload);
     }
 
     /**

@@ -6,6 +6,7 @@ namespace App\Module\Core\Domain\Entity;
 
 use App\Repository\Ts3NodeRepository;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Domain\Entity\Agent;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: Ts3NodeRepository::class)]
@@ -19,6 +20,10 @@ class Ts3Node
 
     #[ORM\Column(length: 120)]
     private string $name;
+
+    #[ORM\ManyToOne(targetEntity: Agent::class)]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
+    private Agent $agent;
 
     #[ORM\Column(length: 255)]
     private string $agentBaseUrl;
@@ -73,6 +78,7 @@ class Ts3Node
 
     public function __construct(
         string $name,
+        Agent $agent,
         string $agentBaseUrl,
         string $agentApiTokenEncrypted,
         string $downloadUrl,
@@ -81,6 +87,7 @@ class Ts3Node
         string $serviceName,
     ) {
         $this->name = $name;
+        $this->agent = $agent;
         $this->agentBaseUrl = $agentBaseUrl;
         $this->agentApiTokenEncrypted = $agentApiTokenEncrypted;
         $this->downloadUrl = $downloadUrl;
@@ -99,6 +106,11 @@ class Ts3Node
     public function getName(): string
     {
         return $this->name;
+    }
+
+    public function getAgent(): Agent
+    {
+        return $this->agent;
     }
 
     public function setName(string $name): void

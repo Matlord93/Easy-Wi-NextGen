@@ -305,8 +305,8 @@ final class AdminNodeController
         return $this->renderNodesTable('Disk settings updated.');
     }
 
-    #[Route(path: '/{id}/service-settings', name: 'admin_nodes_service_settings', methods: ['POST'])]
-    public function updateServiceSettings(Request $request, string $id): Response
+    #[Route(path: '/{id}/agent-settings', name: 'admin_nodes_agent_settings', methods: ['POST'])]
+    public function updateAgentSettings(Request $request, string $id): Response
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
@@ -318,27 +318,29 @@ final class AdminNodeController
             return new Response('Node not found.', Response::HTTP_NOT_FOUND);
         }
 
-        $serviceBaseUrl = trim((string) $request->request->get('service_base_url', ''));
-        $serviceApiToken = trim((string) $request->request->get('service_api_token', ''));
-        $clearToken = $request->request->getBoolean('clear_service_token');
+        $agentBaseUrl = trim((string) $request->request->get('agent_base_url', ''));
+        $agentApiToken = trim((string) $request->request->get('agent_api_token', ''));
+        $clearToken = $request->request->getBoolean('clear_agent_token');
 
-        $node->setServiceBaseUrl($serviceBaseUrl !== '' ? $serviceBaseUrl : null);
+        $node->setAgentBaseUrl($agentBaseUrl !== '' ? $agentBaseUrl : null);
 
         if ($clearToken) {
-            $node->clearServiceApiToken();
-        } elseif ($serviceApiToken !== '') {
-            $node->setServiceApiToken($serviceApiToken, $this->secretsCrypto);
+            $node->clearAgentApiToken();
+        } elseif ($agentApiToken !== '') {
+            $node->setAgentApiToken($agentApiToken, $this->secretsCrypto);
         }
 
         $this->entityManager->flush();
-        $this->auditLogger->log($actor, 'node.service.settings_updated', [
+        $this->auditLogger->log($actor, 'node.agent.settings_updated', [
             'node_id' => $node->getId(),
-            'service_base_url' => $serviceBaseUrl !== '' ? $serviceBaseUrl : null,
-            'service_api_token_updated' => $serviceApiToken !== '' ? true : null,
-            'service_api_token_cleared' => $clearToken ?: null,
+            'agent_base_url' => $agentBaseUrl !== '' ? $agentBaseUrl : null,
+            'agent_api_token_updated' => $agentApiToken !== '' ? true : null,
+            'agent_api_token_cleared' => $clearToken ?: null,
         ]);
 
-        return $this->renderNodesTable('Service settings updated.');
+        $connectivityError = $this->checkAgentConnectivity($agentBaseUrl);
+
+        return $this->renderNodesTable('Agent settings updated.', $connectivityError);
     }
 
     #[Route(path: '/{id}/disk-protection-override', name: 'admin_nodes_disk_protection_override', methods: ['POST'])]
@@ -693,6 +695,46 @@ final class AdminNodeController
         return $this->resolveStatus($node->getLastHeartbeatAt());
     }
 
+    private function checkAgentConnectivity(string $agentBaseUrl): ?string
+    {
+        if (trim($agentBaseUrl) === '') {
+            return null;
+        }
+
+        $parts = parse_url($agentBaseUrl);
+        if (!is_array($parts)) {
+            return sprintf('Agent Base URL "%s" could not be parsed.', $agentBaseUrl);
+        }
+
+        $scheme = $parts['scheme'] ?? '';
+        $host = $parts['host'] ?? '';
+        $port = $parts['port'] ?? null;
+
+        if ($scheme === '' || $host === '') {
+            return sprintf('Agent Base URL "%s" must include scheme and host.', $agentBaseUrl);
+        }
+
+        if ($port === null) {
+            $port = $scheme === 'https' ? 443 : 80;
+        }
+
+        $transport = $scheme === 'https' ? 'ssl' : 'tcp';
+        $target = sprintf('%s://%s:%d', $transport, $host, $port);
+
+        $errno = 0;
+        $errstr = '';
+        $connection = @stream_socket_client($target, $errno, $errstr, 2.0);
+
+        if (!is_resource($connection)) {
+            $details = $errstr !== '' ? $errstr : 'unknown error';
+            return sprintf('Agent Base URL "%s" is not reachable from the panel (%s).', $agentBaseUrl, $details);
+        }
+
+        fclose($connection);
+
+        return null;
+    }
+
     private function normalizeNodes(
         array $nodes,
         ?string $latestVersion,
@@ -737,8 +779,8 @@ final class AdminNodeController
             $diskStat = $this->nodeDiskProtectionService->getDiskStat($node);
             $diskProtectActive = $this->nodeDiskProtectionService->isProtectionActive($node, $now);
             $diskOverrideActive = $this->nodeDiskProtectionService->isOverrideActive($node, $now);
-            $serviceBaseUrl = $node->getServiceBaseUrl();
-            $serviceTokenConfigured = $node->getServiceApiTokenEncrypted() !== '';
+            $agentBaseUrl = $node->getAgentBaseUrl();
+            $agentTokenConfigured = $node->getAgentApiTokenEncrypted() !== '';
 
             return [
                 'id' => $node->getId(),
@@ -766,9 +808,9 @@ final class AdminNodeController
                     'hard_block_percent' => $node->getDiskHardBlockPercent(),
                     'protect_threshold' => $node->getNodeDiskProtectionThresholdPercent(),
                 ],
-                'service' => [
-                    'base_url' => $serviceBaseUrl !== '' ? $serviceBaseUrl : null,
-                    'token_configured' => $serviceTokenConfigured,
+                'agent' => [
+                    'base_url' => $agentBaseUrl !== '' ? $agentBaseUrl : null,
+                    'token_configured' => $agentTokenConfigured,
                 ],
                 'updateAvailable' => $this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion),
                 'latestVersion' => $latestVersion,

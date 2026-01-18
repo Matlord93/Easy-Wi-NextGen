@@ -33,7 +33,7 @@ final class InstanceInstallService
         if (!$status['is_ready']) {
             return [
                 'is_ready' => false,
-                'error_code' => 'MISSING_REQUIREMENTS',
+                'error_code' => $this->resolveMissingRequirementErrorCode($instance, $status['missing']),
                 'missing' => $status['missing'],
             ];
         }
@@ -58,6 +58,53 @@ final class InstanceInstallService
         return [
             'is_ready' => true,
         ];
+    }
+
+    /**
+     * @param array<int, array{key: string, label: string, type: string}> $missing
+     */
+    private function resolveMissingRequirementErrorCode(Instance $instance, array $missing): string
+    {
+        if ($missing === []) {
+            return 'MISSING_REQUIREMENTS';
+        }
+
+        $requirements = $this->setupChecker->getRequirements($instance->getTemplate());
+        $scopes = [
+            'var' => $this->buildRequirementScopeMap($requirements['vars']),
+            'secret' => $this->buildRequirementScopeMap($requirements['secrets']),
+        ];
+
+        $hasCustomerRequirement = false;
+        foreach ($missing as $entry) {
+            $type = $entry['type'];
+            $key = $entry['key'];
+            $scope = $scopes[$type][$key] ?? null;
+            if ($scope !== 'admin_only') {
+                $hasCustomerRequirement = true;
+                break;
+            }
+        }
+
+        return $hasCustomerRequirement ? 'MISSING_REQUIREMENTS' : 'INSTALL_APPROVAL_REQUIRED';
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $requirements
+     * @return array<string, string>
+     */
+    private function buildRequirementScopeMap(array $requirements): array
+    {
+        $map = [];
+        foreach ($requirements as $entry) {
+            $key = (string) ($entry['key'] ?? '');
+            if ($key === '') {
+                continue;
+            }
+            $map[$key] = (string) ($entry['scope'] ?? 'customer_allowed');
+        }
+
+        return $map;
     }
 
     /**

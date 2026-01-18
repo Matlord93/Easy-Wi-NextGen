@@ -11,6 +11,10 @@
             </div>
             <div class="ts3-actions">
                 <a class="ts3-link" href="/admin/ts3/nodes">Zurück zur Übersicht</a>
+                <form method="post" action="/admin/ts3/nodes/{{ node.id }}/delete" onsubmit="return confirm('TS3 Node wirklich löschen?');">
+                    <input type="hidden" name="_token" value="{{ csrf.delete }}">
+                    <button class="ts3-button" type="submit">Löschen</button>
+                </form>
             </div>
         </div>
 

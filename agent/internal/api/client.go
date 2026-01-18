@@ -77,6 +77,40 @@ func (c *Client) PollJobs(ctx context.Context) ([]jobs.Job, error) {
 	return response.Jobs, nil
 }
 
+// PollAgentJobs fetches orchestrator jobs for this agent.
+func (c *Client) PollAgentJobs(ctx context.Context, agentID string, limit int) ([]jobs.Job, error) {
+	var response struct {
+		Jobs []jobs.Job `json:"jobs"`
+	}
+
+	path := fmt.Sprintf("/agent/%s/jobs?status=queued&limit=%d", url.PathEscape(agentID), limit)
+	_, err := c.doSignedJSON(ctx, http.MethodGet, path, nil, &response)
+	if err != nil {
+		return nil, err
+	}
+	return response.Jobs, nil
+}
+
+// StartAgentJob marks an orchestrator job as running.
+func (c *Client) StartAgentJob(ctx context.Context, agentID, jobID string) error {
+	path := fmt.Sprintf("/agent/%s/jobs/%s/start", url.PathEscape(agentID), url.PathEscape(jobID))
+	_, err := c.doSignedJSON(ctx, http.MethodPost, path, map[string]any{}, nil)
+	return err
+}
+
+// FinishAgentJob submits a result for an orchestrator job.
+func (c *Client) FinishAgentJob(ctx context.Context, agentID, jobID, status string, logText string, errorText string, resultPayload map[string]any) error {
+	path := fmt.Sprintf("/agent/%s/jobs/%s/finish", url.PathEscape(agentID), url.PathEscape(jobID))
+	payload := map[string]any{
+		"status":         status,
+		"log_text":       logText,
+		"error_text":     errorText,
+		"result_payload": resultPayload,
+	}
+	_, err := c.doSignedJSON(ctx, http.MethodPost, path, payload, nil)
+	return err
+}
+
 // SubmitJobResult submits a job result payload.
 func (c *Client) SubmitJobResult(ctx context.Context, result jobs.Result) error {
 	path := fmt.Sprintf("/agent/jobs/%s/result", url.PathEscape(result.JobID))

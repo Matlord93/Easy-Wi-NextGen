@@ -240,40 +240,40 @@
 
                         <form
                             class="nodes-detail-card"
-                            hx-post="/admin/nodes/{{ selectedNode.id }}/service-settings"
+                            hx-post="/admin/nodes/{{ selectedNode.id }}/agent-settings"
                             hx-target="#nodes-table-wrap"
                             hx-swap="innerHTML"
                         >
                             <div class="nodes-detail-card__header">
-                                <div class="nodes-detail-card__title">Service-API (TS/Sinusbot)</div>
+                                <div class="nodes-detail-card__title">Agent (TS/Sinusbot)</div>
                                 <button class="btn btn--secondary" type="submit">Speichern</button>
                             </div>
                             <div class="nodes-form-grid">
                                 <div class="form-field">
-                                    <label class="form-label" for="service-base-url">Service Base URL</label>
+                                    <label class="form-label" for="agent-base-url">Agent Base URL</label>
                                     <input
-                                        id="service-base-url"
-                                        name="service_base_url"
+                                        id="agent-base-url"
+                                        name="agent_base_url"
                                         type="text"
-                                        value="{{ selectedNode.service.base_url ?? '' }}"
+                                        value="{{ selectedNode.agent.base_url ?? '' }}"
                                         placeholder="https://agent.example.com"
                                         class="form-input"
                                     >
                                 </div>
                                 <div class="form-field">
-                                    <label class="form-label" for="service-api-token">Service API Token</label>
+                                    <label class="form-label" for="agent-api-token">Agent API Token</label>
                                     <input
-                                        id="service-api-token"
-                                        name="service_api_token"
+                                        id="agent-api-token"
+                                        name="agent_api_token"
                                         type="password"
-                                        placeholder="{{ selectedNode.service.token_configured ? '••••••••' : '' }}"
+                                        placeholder="{{ selectedNode.agent.token_configured ? '••••••••' : '' }}"
                                         class="form-input"
                                     >
                                     <p class="text-xs text-slate-500">Token nur ausfüllen, wenn er geändert werden soll.</p>
                                 </div>
                                 <label class="role-toggle">
-                                    <input type="checkbox" name="clear_service_token" value="1">
-                                    <span>Service-Token löschen</span>
+                                    <input type="checkbox" name="clear_agent_token" value="1">
+                                    <span>Agent-Token löschen</span>
                                 </label>
                             </div>
                         </form>

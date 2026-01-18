@@ -49,6 +49,7 @@
         </div>
         <div class="server-card__body space-y-2 text-sm text-slate-600">
             {% set installMessages = {
+                'INSTALL_APPROVAL_REQUIRED': 'Installation wartet auf Freigabe durch den Admin.',
                 'NODE_NOT_SET': 'Kein Node zugewiesen. Bitte Support kontaktieren.',
                 'MISSING_REQUIREMENTS': 'Setup ist noch nicht vollständig.',
                 'NO_PORTS_AVAILABLE': 'Keine freien Ports verfügbar.',
@@ -148,6 +149,7 @@
         }
 
         const errorMessages = {
+            INSTALL_APPROVAL_REQUIRED: 'Installation wartet auf Freigabe durch den Admin.',
             NODE_NOT_SET: 'Kein Node zugewiesen. Bitte Support kontaktieren.',
             MISSING_REQUIREMENTS: 'Setup ist noch nicht vollständig.',
             NO_PORTS_AVAILABLE: 'Keine freien Ports verfügbar.',

@@ -68,8 +68,18 @@ final class AdminSinusbotNodeController
         }
 
         if ($form->isSubmitted() && $form->isValid()) {
+            $agent = $this->agentRepository->find($dto->agentNodeId);
+            if ($agent === null) {
+                $form->addError(new FormError('Selected agent was not found.'));
+                return new Response($this->twig->render('admin/sinusbot/nodes/new.html.twig', [
+                    'activeNav' => 'sinusbot',
+                    'form' => $form->createView(),
+                ]), Response::HTTP_BAD_REQUEST);
+            }
+
             $node = new SinusbotNode(
                 $dto->name,
+                $agent,
                 rtrim($dto->agentBaseUrl, '/'),
                 $this->crypto->encrypt($dto->agentApiToken),
                 $dto->downloadUrl,
@@ -118,7 +128,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_install_' . $id);
 
         $this->nodeService->install($node, false, null);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot install queued.');
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Installation eingereiht. (SinusBot install queued.)');
 
         return $this->redirectToNode($node);
     }
@@ -148,6 +158,23 @@ final class AdminSinusbotNodeController
         $request->getSession()->getFlashBag()->add('success', 'SinusBot status refreshed.');
 
         return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/delete', name: 'admin_sinusbot_nodes_delete', methods: ['POST'])]
+    public function delete(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'sinusbot_delete_' . $id);
+
+        $this->entityManager->remove($node);
+        $this->entityManager->flush();
+
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot node deleted.');
+
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => '/admin/sinusbot/nodes',
+        ]);
     }
 
     #[Route(path: '/{id}/reveal-credentials', name: 'admin_sinusbot_nodes_reveal_credentials', methods: ['POST'])]
@@ -198,6 +225,7 @@ final class AdminSinusbotNodeController
             'install' => $this->csrfTokenManager->getToken('sinusbot_install_' . $id)->getValue(),
             'install_ts3_client' => $this->csrfTokenManager->getToken('sinusbot_install_ts3_client_' . $id)->getValue(),
             'refresh' => $this->csrfTokenManager->getToken('sinusbot_refresh_' . $id)->getValue(),
+            'delete' => $this->csrfTokenManager->getToken('sinusbot_delete_' . $id)->getValue(),
             'reveal' => $this->csrfTokenManager->getToken('sinusbot_reveal_credentials_' . $id)->getValue(),
         ];
     }
@@ -250,8 +278,8 @@ final class AdminSinusbotNodeController
             return;
         }
 
-        $dto->agentBaseUrl = $agent->getServiceBaseUrl();
-        $dto->agentApiToken = $agent->getServiceApiToken($this->crypto);
+        $dto->agentBaseUrl = $agent->getAgentBaseUrl();
+        $dto->agentApiToken = $agent->getAgentApiToken($this->crypto);
 
         if (trim($dto->installPath) === '') {
             $dto->installPath = '/home/sinusbot';

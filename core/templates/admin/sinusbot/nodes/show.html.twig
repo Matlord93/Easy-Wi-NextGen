@@ -11,6 +11,10 @@
             </div>
             <div class="sinusbot-actions">
                 <a class="sinusbot-link" href="/admin/sinusbot/nodes">{{ t('admin_sinusbot_back_to_overview', page_locale()) }}</a>
+                <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/delete" onsubmit="return confirm('SinusBot Node wirklich löschen?');">
+                    <input type="hidden" name="_token" value="{{ csrf.delete }}">
+                    <button class="sinusbot-button" type="submit">Löschen</button>
+                </form>
             </div>
         </div>
 

@@ -475,7 +475,9 @@ final class InstallerService
             return;
         }
 
-        @rename($tempPath, $path);
+        if (@rename($tempPath, $path) === false) {
+            @unlink($tempPath);
+        }
     }
 
     public function clearState(): void
@@ -508,7 +510,9 @@ final class InstallerService
             return;
         }
 
-        @rename($tempPath, $path);
+        if (@rename($tempPath, $path) === false) {
+            @unlink($tempPath);
+        }
     }
 
     public function clearDebugReport(): void

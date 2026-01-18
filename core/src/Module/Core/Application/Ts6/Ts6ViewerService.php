@@ -15,7 +15,7 @@ use Symfony\Contracts\Cache\ItemInterface;
 final class Ts6ViewerService
 {
     public function __construct(
-        private readonly AgentClient $agentClient,
+        private readonly \App\Module\AgentOrchestrator\Application\AgentJobDispatcher $jobDispatcher,
         private readonly CacheInterface $cache,
         private readonly EntityManagerInterface $entityManager,
         private readonly Ts6ViewerRepository $viewerRepository,
@@ -55,23 +55,31 @@ final class Ts6ViewerService
         $cacheKey = sprintf('ts6_viewer_%s', $publicId);
         $ttlSeconds = max(1, (int) ceil($viewer->getCacheTtlMs() / 1000));
 
-        return $this->cache->get($cacheKey, function (ItemInterface $item) use ($viewer, $ttlSeconds): array {
+        $snapshot = $this->cache->get($cacheKey, function (ItemInterface $item) use ($viewer, $ttlSeconds): array {
             $item->expiresAfter($ttlSeconds);
+            return [];
+        });
+
+        if ($snapshot === []) {
             $server = $viewer->getVirtualServer();
-            $payload = $this->agentClient->request(
-                $server->getNode(),
-                'GET',
-                sprintf('/v1/ts6/virtual-servers/%d/viewer-snapshot', $server->getSid()),
-            );
+            $payload = [
+                'virtual_server_id' => $server->getId(),
+                'node_id' => $server->getNode()->getId(),
+                'sid' => $server->getSid(),
+                'cache_key' => $cacheKey,
+            ];
+            $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.viewer.snapshot', $payload);
 
             return [
-                'status' => 'ok',
-                'server' => $payload['server'] ?? ['sid' => $server->getSid(), 'name' => $server->getName()],
-                'channels' => $payload['channels'] ?? [],
-                'clients' => $payload['clients'] ?? [],
-                'generated_at' => $payload['generated_at'] ?? (new \DateTimeImmutable())->format(DATE_ATOM),
+                'status' => 'pending',
+                'server' => ['sid' => $server->getSid(), 'name' => $server->getName()],
+                'channels' => [],
+                'clients' => [],
+                'generated_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
             ];
-        });
+        }
+
+        return $snapshot;
     }
 
     private function isDomainAllowed(Ts6Viewer $viewer, ?string $originOrReferer): bool

@@ -11,6 +11,10 @@
             </div>
             <div class="ts6-actions">
                 <a class="ts6-link" href="/admin/ts6/nodes">Zurück zur Übersicht</a>
+                <form method="post" action="/admin/ts6/nodes/{{ node.id }}/delete" onsubmit="return confirm('TS6 Node wirklich löschen?');">
+                    <input type="hidden" name="_token" value="{{ csrf.delete }}">
+                    <button class="ts6-button" type="submit">Löschen</button>
+                </form>
             </div>
         </div>
 

@@ -6,6 +6,7 @@ namespace App\Module\Core\Domain\Entity;
 
 use App\Repository\SinusbotNodeRepository;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Domain\Entity\Agent;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: SinusbotNodeRepository::class)]
@@ -19,6 +20,10 @@ class SinusbotNode
 
     #[ORM\Column(length: 120)]
     private string $name;
+
+    #[ORM\ManyToOne(targetEntity: Agent::class)]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
+    private Agent $agent;
 
     #[ORM\Column(length: 255)]
     private string $agentBaseUrl;
@@ -73,6 +78,7 @@ class SinusbotNode
 
     public function __construct(
         string $name,
+        Agent $agent,
         string $agentBaseUrl,
         string $agentApiTokenEncrypted,
         string $downloadUrl,
@@ -80,6 +86,7 @@ class SinusbotNode
         string $instanceRoot,
     ) {
         $this->name = $name;
+        $this->agent = $agent;
         $this->agentBaseUrl = rtrim($agentBaseUrl, '/');
         $this->agentApiTokenEncrypted = $agentApiTokenEncrypted;
         $this->downloadUrl = $downloadUrl;
@@ -97,6 +104,11 @@ class SinusbotNode
     public function getName(): string
     {
         return $this->name;
+    }
+
+    public function getAgent(): Agent
+    {
+        return $this->agent;
     }
 
     public function setName(string $name): void

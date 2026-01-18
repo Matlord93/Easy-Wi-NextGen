@@ -11,7 +11,7 @@ use Doctrine\ORM\EntityManagerInterface;
 final class SinusbotNodeService
 {
     public function __construct(
-        private readonly AgentClient $agentClient,
+        private readonly \App\Module\AgentOrchestrator\Application\AgentJobDispatcher $jobDispatcher,
         private readonly EntityManagerInterface $entityManager,
         private readonly SecretsCrypto $crypto,
     ) {
@@ -23,67 +23,32 @@ final class SinusbotNodeService
         $node->setLastError(null);
         $this->entityManager->flush();
 
-        try {
-            $payload = [
-                'download_url' => $node->getDownloadUrl(),
-                'install_path' => $node->getInstallPath(),
-                'instance_root' => $node->getInstanceRoot(),
-                'web_bind_ip' => $node->getWebBindIp(),
-                'web_port_base' => $node->getWebPortBase(),
-                'return_admin_credentials' => true,
-            ];
+        $payload = [
+            'node_id' => $node->getId(),
+            'download_url' => $node->getDownloadUrl(),
+            'install_dir' => $node->getInstallPath(),
+            'instance_root' => $node->getInstanceRoot(),
+            'web_bind_ip' => $node->getWebBindIp(),
+            'web_port_base' => $node->getWebPortBase(),
+            'service_name' => 'sinusbot',
+            'admin_username' => $node->getAdminUsername(),
+            'admin_password' => $installTs3Client ? $this->crypto->decrypt($node->getAdminPasswordEncrypted()) : null,
+            'ts3_client_install' => $installTs3Client,
+            'ts3_client_download_url' => $ts3ClientDownloadUrl,
+        ];
 
-            if ($installTs3Client || $ts3ClientDownloadUrl !== null) {
-                $payload['dependencies'] = [
-                    'install_ts3_client' => $installTs3Client,
-                ];
-
-                if ($ts3ClientDownloadUrl !== null && $ts3ClientDownloadUrl !== '') {
-                    $payload['dependencies']['ts3_client_download_url'] = $ts3ClientDownloadUrl;
-                }
-            }
-
-            $response = $this->agentClient->request($node, 'POST', '/v1/sinusbot/install', $payload);
-
-            $node->setInstalledVersion($this->stringOrNull($response['installed_version'] ?? null));
-            $node->setInstallStatus('installed');
-            $node->setLastError($this->stringOrNull($response['last_error'] ?? null));
-
-            if (isset($response['admin_credentials']) && is_array($response['admin_credentials'])) {
-                $username = (string) ($response['admin_credentials']['username'] ?? '');
-                $password = $response['admin_credentials']['password'] ?? null;
-                if ($username !== '') {
-                    $node->setAdminUsername($username);
-                }
-                if (is_string($password) && $password !== '') {
-                    $node->setAdminPassword($password, $this->crypto);
-                }
-            }
-
-            $this->applyDependencyStatus($node, $response['dependencies'] ?? null);
-
-            $this->refreshStatus($node);
-        } catch (\Throwable $exception) {
-            $node->setInstallStatus('error');
-            $node->setLastError($exception->getMessage());
-        }
+        $this->jobDispatcher->dispatch($node->getAgent(), 'sinusbot.install', $payload);
 
         $this->entityManager->flush();
     }
 
     public function refreshStatus(SinusbotNode $node): void
     {
-        try {
-            $status = $this->agentClient->request($node, 'GET', '/v1/sinusbot/status');
-            $installed = (bool) ($status['installed'] ?? false);
-            $node->setInstallStatus($installed ? 'installed' : 'not_installed');
-            $node->setInstalledVersion($this->stringOrNull($status['installed_version'] ?? null));
-            $node->setLastError($this->stringOrNull($status['last_error'] ?? null));
-            $this->applyDependencyStatus($node, $status['dependencies'] ?? null);
-        } catch (\Throwable $exception) {
-            $node->setInstallStatus('error');
-            $node->setLastError($exception->getMessage());
-        }
+        $payload = [
+            'node_id' => $node->getId(),
+            'service_name' => 'sinusbot',
+        ];
+        $this->jobDispatcher->dispatch($node->getAgent(), 'sinusbot.status', $payload);
 
         $this->entityManager->flush();
     }

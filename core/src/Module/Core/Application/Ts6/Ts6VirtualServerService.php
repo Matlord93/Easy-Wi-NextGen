@@ -14,7 +14,7 @@ use Doctrine\ORM\EntityManagerInterface;
 final class Ts6VirtualServerService
 {
     public function __construct(
-        private readonly AgentClient $agentClient,
+        private readonly \App\Module\AgentOrchestrator\Application\AgentJobDispatcher $jobDispatcher,
         private readonly EntityManagerInterface $entityManager,
         private readonly SecretsCrypto $crypto,
     ) {
@@ -32,21 +32,20 @@ final class Ts6VirtualServerService
             'params' => $params,
         ];
 
-        $response = $this->agentClient->request($node, 'POST', '/v1/ts6/virtual-servers', $payload);
-        $sid = (int) ($response['sid'] ?? 0);
-
-        if ($sid <= 0) {
-            throw new AgentBadResponseException('Agent did not return a virtual server id.');
-        }
-
-        $virtualServer = new Ts6VirtualServer($node, $customerId, $sid, $dto->name, $dto->slots);
-        $virtualServer->setVoicePort(isset($response['voice_port']) ? (int) $response['voice_port'] : $dto->voicePort);
-        $virtualServer->setFiletransferPort(isset($response['filetransfer_port']) ? (int) $response['filetransfer_port'] : null);
-        $virtualServer->setStatus('running');
+        $virtualServer = new Ts6VirtualServer($node, $customerId, 0, $dto->name, $dto->slots);
+        $virtualServer->setVoicePort($dto->voicePort);
+        $virtualServer->setFiletransferPort(null);
+        $virtualServer->setStatus('provisioning');
         $this->entityManager->persist($virtualServer);
+        $this->entityManager->flush();
 
-        $token = $this->createOwnerToken($virtualServer);
-        $this->entityManager->persist($token);
+        $jobPayload = [
+            'virtual_server_id' => $virtualServer->getId(),
+            'node_id' => $node->getId(),
+            'name' => $dto->name,
+            'params' => $params,
+        ];
+        $this->jobDispatcher->dispatch($node->getAgent(), 'ts6.virtual.create', $jobPayload);
         $this->entityManager->flush();
 
         return $virtualServer;
@@ -54,18 +53,17 @@ final class Ts6VirtualServerService
 
     public function start(Ts6VirtualServer $server): void
     {
-        $this->applyServerAction($server, sprintf('/v1/ts6/virtual-servers/%d/start', $server->getSid()), 'running');
+        $this->applyServerAction($server, 'start');
     }
 
     public function stop(Ts6VirtualServer $server): void
     {
-        $this->applyServerAction($server, sprintf('/v1/ts6/virtual-servers/%d/stop', $server->getSid()), 'stopped');
+        $this->applyServerAction($server, 'stop');
     }
 
     public function recreate(Ts6VirtualServer $server): Ts6VirtualServer
     {
         $this->stop($server);
-        $this->agentClient->request($server->getNode(), 'DELETE', sprintf('/v1/ts6/virtual-servers/%d', $server->getSid()));
         $server->archive();
 
         $dto = new CreateVirtualServerDto($server->getName(), $server->getSlots(), $server->getVoicePort());
@@ -78,62 +76,31 @@ final class Ts6VirtualServerService
 
     public function rotateToken(Ts6VirtualServer $server): Ts6Token
     {
-        $response = $this->agentClient->request(
-            $server->getNode(),
-            'POST',
-            sprintf('/v1/ts6/virtual-servers/%d/tokens/rotate', $server->getSid()),
-        );
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+        ];
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.token.rotate', $payload);
 
-        $tokenValue = (string) ($response['token'] ?? '');
-        if ($tokenValue === '') {
-            throw new AgentBadResponseException('Agent did not return a token.');
-        }
-
-        $existing = $this->findActiveToken($server);
-        if ($existing !== null) {
-            $existing->deactivate();
-        }
-
-        $token = new Ts6Token($server, $this->crypto->encrypt($tokenValue), 'owner');
+        $token = new Ts6Token($server, $this->crypto->encrypt('pending'), 'owner');
+        $token->deactivate();
         $this->entityManager->persist($token);
         $this->entityManager->flush();
 
         return $token;
     }
 
-    private function applyServerAction(Ts6VirtualServer $server, string $endpoint, string $status): void
+    private function applyServerAction(Ts6VirtualServer $server, string $action): void
     {
-        try {
-            $this->agentClient->request($server->getNode(), 'POST', $endpoint);
-            $server->setStatus($status);
-        } catch (\Throwable $exception) {
-            $server->setStatus('unknown');
-        }
-
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'action' => $action,
+        ];
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.action', $payload);
         $this->entityManager->flush();
     }
 
-    private function createOwnerToken(Ts6VirtualServer $server): Ts6Token
-    {
-        $response = $this->agentClient->request(
-            $server->getNode(),
-            'POST',
-            sprintf('/v1/ts6/virtual-servers/%d/tokens', $server->getSid()),
-            ['type' => 'owner'],
-        );
-
-        $tokenValue = (string) ($response['token'] ?? '');
-        if ($tokenValue === '') {
-            throw new AgentBadResponseException('Agent did not return a token.');
-        }
-
-        return new Ts6Token($server, $this->crypto->encrypt($tokenValue), 'owner');
-    }
-
-    private function findActiveToken(Ts6VirtualServer $server): ?Ts6Token
-    {
-        $repository = $this->entityManager->getRepository(Ts6Token::class);
-
-        return $repository->findOneBy(['virtualServer' => $server, 'active' => true]);
-    }
 }

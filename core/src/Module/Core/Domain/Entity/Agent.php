@@ -193,6 +193,36 @@ class Agent
         $this->touch();
     }
 
+    public function getAgentBaseUrl(): string
+    {
+        return $this->getServiceBaseUrl();
+    }
+
+    public function setAgentBaseUrl(?string $agentBaseUrl): void
+    {
+        $this->setServiceBaseUrl($agentBaseUrl);
+    }
+
+    public function getAgentApiTokenEncrypted(): string
+    {
+        return $this->getServiceApiTokenEncrypted();
+    }
+
+    public function getAgentApiToken(SecretsCrypto $crypto): string
+    {
+        return $this->getServiceApiToken($crypto);
+    }
+
+    public function setAgentApiToken(string $token, SecretsCrypto $crypto): void
+    {
+        $this->setServiceApiToken($token, $crypto);
+    }
+
+    public function clearAgentApiToken(): void
+    {
+        $this->clearServiceApiToken();
+    }
+
     public function setMetadata(?array $metadata): void
     {
         $this->metadata = $metadata === [] ? null : $metadata;

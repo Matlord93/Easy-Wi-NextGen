@@ -88,6 +88,22 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 					}
 				}
 			}
+
+			orchestratorJobs, err := client.PollAgentJobs(ctx, cfg.AgentID, 1)
+			if err != nil {
+				log.Printf("poll orchestrator jobs failed: %v", err)
+				continue
+			}
+			for _, job := range orchestratorJobs {
+				if err := client.StartAgentJob(ctx, cfg.AgentID, job.ID); err != nil {
+					log.Printf("start orchestrator job failed: %v", err)
+					continue
+				}
+				result := handleOrchestratorJob(job)
+				if err := client.FinishAgentJob(ctx, cfg.AgentID, job.ID, result.status, result.logText, result.errorText, result.resultPayload); err != nil {
+					log.Printf("finish orchestrator job failed: %v", err)
+				}
+			}
 		}
 	}
 }

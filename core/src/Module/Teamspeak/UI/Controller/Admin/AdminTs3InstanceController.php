@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
-use App\Module\Core\Domain\Entity\Job;
+use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Domain\Entity\Ts3Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\Ts3DatabaseMode;
@@ -29,6 +29,7 @@ final class AdminTs3InstanceController
         private readonly UserRepository $userRepository,
         private readonly AgentRepository $agentRepository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly AgentJobDispatcher $jobDispatcher,
         private readonly AuditLogger $auditLogger,
         private readonly EncryptionService $encryptionService,
         private readonly Environment $twig,
@@ -139,7 +140,7 @@ final class AdminTs3InstanceController
         $this->entityManager->persist($instance);
         $this->entityManager->flush();
 
-        $job = $this->queueTs3Job('ts3.create', $instance, [
+        $job = $this->queueTs3Job('ts3.instance.create', $instance, [
             'name' => $instance->getName(),
             'voice_port' => (string) $instance->getVoicePort(),
             'query_port' => (string) $instance->getQueryPort(),
@@ -376,22 +377,24 @@ final class AdminTs3InstanceController
     private function actionToJobType(string $action): ?string
     {
         return match ($action) {
-            'start' => 'ts3.start',
-            'stop' => 'ts3.stop',
-            'restart' => 'ts3.restart',
-            'update' => 'ts3.update',
-            'backup' => 'ts3.backup',
-            'restore' => 'ts3.restore',
-            'token_reset' => 'ts3.token.reset',
-            'slots' => 'ts3.slots.set',
-            'logs' => 'ts3.logs.export',
+            'start' => 'ts3.instance.action',
+            'stop' => 'ts3.instance.action',
+            'restart' => 'ts3.instance.action',
+            'update' => 'ts3.instance.action',
+            'backup' => 'ts3.instance.action',
+            'restore' => 'ts3.instance.action',
+            'token_reset' => 'ts3.instance.action',
+            'slots' => 'ts3.instance.action',
+            'logs' => 'ts3.instance.action',
             default => null,
         };
     }
 
     private function buildActionPayload(string $action, Request $request): array
     {
-        $payload = [];
+        $payload = [
+            'action' => $action,
+        ];
         $errors = [];
 
         if ($action === 'slots') {
@@ -427,20 +430,17 @@ final class AdminTs3InstanceController
         return ['payload' => $payload, 'errors' => $errors];
     }
 
-    private function queueTs3Job(string $type, Ts3Instance $instance, array $extraPayload): Job
+    private function queueTs3Job(string $type, Ts3Instance $instance, array $extraPayload): \App\Module\AgentOrchestrator\Domain\Entity\AgentJob
     {
         $payload = array_merge([
-            'ts3_instance_id' => (string) ($instance->getId() ?? ''),
+            'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'node_id' => $instance->getNode()->getId(),
-            'agent_id' => $instance->getNode()->getId(),
             'service_name' => sprintf('ts3-%d', $instance->getId() ?? 0),
+            'action' => $extraPayload['action'] ?? null,
         ], $extraPayload);
 
-        $job = new Job($type, $payload);
-        $this->entityManager->persist($job);
-
-        return $job;
+        return $this->jobDispatcher->dispatch($instance->getNode(), $type, $payload);
     }
 
     /**

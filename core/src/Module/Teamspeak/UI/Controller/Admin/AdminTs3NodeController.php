@@ -69,8 +69,18 @@ final class AdminTs3NodeController
         }
 
         if ($form->isSubmitted() && $form->isValid()) {
+            $agent = $this->agentRepository->find($dto->agentNodeId);
+            if ($agent === null) {
+                $form->addError(new FormError('Selected agent was not found.'));
+                return new Response($this->twig->render('admin/ts3/nodes/new.html.twig', [
+                    'activeNav' => 'ts3',
+                    'form' => $form->createView(),
+                ]), Response::HTTP_BAD_REQUEST);
+            }
+
             $node = new Ts3Node(
                 $dto->name,
+                $agent,
                 rtrim($dto->agentBaseUrl, '/'),
                 $this->crypto->encrypt($dto->agentApiToken),
                 $dto->downloadUrl,
@@ -195,6 +205,23 @@ final class AdminTs3NodeController
         return $this->redirectToNode($node);
     }
 
+    #[Route(path: '/{id}/delete', name: 'admin_ts3_nodes_delete', methods: ['POST'])]
+    public function delete(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts3_delete_' . $id);
+
+        $this->entityManager->remove($node);
+        $this->entityManager->flush();
+
+        $request->getSession()->getFlashBag()->add('success', 'TS3 node deleted.');
+
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => '/admin/ts3/nodes',
+        ]);
+    }
+
     private function requireAdmin(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
@@ -235,6 +262,7 @@ final class AdminTs3NodeController
             'start' => $this->csrfTokenManager->getToken('ts3_start_' . $id)->getValue(),
             'stop' => $this->csrfTokenManager->getToken('ts3_stop_' . $id)->getValue(),
             'restart' => $this->csrfTokenManager->getToken('ts3_restart_' . $id)->getValue(),
+            'delete' => $this->csrfTokenManager->getToken('ts3_delete_' . $id)->getValue(),
         ];
     }
 
@@ -279,15 +307,39 @@ final class AdminTs3NodeController
             return;
         }
 
-        $dto->agentBaseUrl = $agent->getServiceBaseUrl();
-        $dto->agentApiToken = $agent->getServiceApiToken($this->crypto);
+        $dto->agentBaseUrl = $agent->getAgentBaseUrl();
+        $dto->agentApiToken = $agent->getAgentApiToken($this->crypto);
+
+        if (trim($dto->downloadUrl) === '') {
+            $dto->downloadUrl = Ts3NodeDto::DEFAULT_DOWNLOAD_URL;
+        }
 
         if (trim($dto->installPath) === '') {
-            $dto->installPath = '/home/teamspeak3';
+            $dto->installPath = Ts3NodeDto::DEFAULT_INSTALL_PATH;
+        }
+
+        if (trim($dto->instanceName) === '') {
+            $dto->instanceName = Ts3NodeDto::DEFAULT_INSTANCE_NAME;
+        }
+
+        if (trim($dto->serviceName) === '') {
+            $dto->serviceName = Ts3NodeDto::DEFAULT_SERVICE_NAME;
         }
 
         if (trim($dto->installPath) === '') {
             $form->addError(new FormError('Install path is required.'));
+        }
+
+        if (trim($dto->downloadUrl) === '') {
+            $form->addError(new FormError('Download URL is required.'));
+        }
+
+        if (trim($dto->instanceName) === '') {
+            $form->addError(new FormError('Instance name is required.'));
+        }
+
+        if (trim($dto->serviceName) === '') {
+            $form->addError(new FormError('Service name is required.'));
         }
     }
 }

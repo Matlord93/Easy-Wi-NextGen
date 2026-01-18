@@ -333,7 +333,7 @@ func roleServices(roles []string) []string {
 			services["mysql"] = struct{}{}
 			services["postgresql"] = struct{}{}
 		case "game":
-			services["easywi-runner"] = struct{}{}
+			services["easywi-agent"] = struct{}{}
 		}
 	}
 

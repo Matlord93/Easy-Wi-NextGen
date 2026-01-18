@@ -113,7 +113,7 @@ func loadFilesvcConfig(path string) (filesvcConfig, error) {
 	if cfg.AgentID == "" || cfg.Secret == "" {
 		agentCfg, err := loadAgentIdentity(cfg.AgentConfigPath)
 		if err != nil {
-			return cfg, err
+			return cfg, fmt.Errorf("load agent identity from %s: %w", cfg.AgentConfigPath, err)
 		}
 		if cfg.AgentID == "" {
 			cfg.AgentID = agentCfg.AgentID
@@ -123,7 +123,7 @@ func loadFilesvcConfig(path string) (filesvcConfig, error) {
 		}
 	}
 
-	if err := validateFilesvcConfig(cfg); err != nil {
+	if err := validateFilesvcConfig(cfg, path); err != nil {
 		return cfg, err
 	}
 
@@ -191,7 +191,7 @@ func loadAgentIdentity(path string) (agentIdentity, error) {
 	return identity, nil
 }
 
-func validateFilesvcConfig(cfg filesvcConfig) error {
+func validateFilesvcConfig(cfg filesvcConfig, path string) error {
 	var missing []string
 	if cfg.AgentID == "" {
 		missing = append(missing, "agent_id")
@@ -209,7 +209,7 @@ func validateFilesvcConfig(cfg filesvcConfig) error {
 		missing = append(missing, "tls_ca")
 	}
 	if len(missing) > 0 {
-		return errors.New("missing config values: " + strings.Join(missing, ", "))
+		return fmt.Errorf("missing config values in %s: %s", path, strings.Join(missing, ", "))
 	}
 	if !filepath.IsAbs(cfg.BaseDir) {
 		return errors.New("base_dir must be absolute")

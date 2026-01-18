@@ -14,7 +14,7 @@ use Doctrine\ORM\EntityManagerInterface;
 final class Ts3VirtualServerService
 {
     public function __construct(
-        private readonly AgentClient $agentClient,
+        private readonly \App\Module\AgentOrchestrator\Application\AgentJobDispatcher $jobDispatcher,
         private readonly EntityManagerInterface $entityManager,
         private readonly SecretsCrypto $crypto,
     ) {
@@ -35,21 +35,22 @@ final class Ts3VirtualServerService
             'params' => $params,
         ];
 
-        $response = $this->agentClient->request($node, 'POST', '/v1/ts3/virtual-servers', $payload);
-        $sid = (int) ($response['sid'] ?? 0);
-
-        if ($sid <= 0) {
-            throw new AgentBadResponseException('Agent did not return a virtual server id.');
-        }
-
-        $virtualServer = new Ts3VirtualServer($node, $customerId, $sid, $dto->name);
-        $virtualServer->setVoicePort(isset($response['voice_port']) ? (int) $response['voice_port'] : $dto->voicePort);
-        $virtualServer->setFiletransferPort(isset($response['filetransfer_port']) ? (int) $response['filetransfer_port'] : $dto->filetransferPort);
-        $virtualServer->setStatus('running');
+        $virtualServer = new Ts3VirtualServer($node, $customerId, 0, $dto->name);
+        $virtualServer->setVoicePort($dto->voicePort);
+        $virtualServer->setFiletransferPort($dto->filetransferPort);
+        $virtualServer->setStatus('provisioning');
         $this->entityManager->persist($virtualServer);
 
-        $token = $this->createOwnerToken($virtualServer);
-        $this->entityManager->persist($token);
+        $this->entityManager->flush();
+
+        $jobPayload = [
+            'virtual_server_id' => $virtualServer->getId(),
+            'node_id' => $node->getId(),
+            'name' => $dto->name,
+            'params' => $params,
+        ];
+
+        $this->jobDispatcher->dispatch($node->getAgent(), 'ts3.virtual.create', $jobPayload);
         $this->entityManager->flush();
 
         return $virtualServer;
@@ -57,18 +58,17 @@ final class Ts3VirtualServerService
 
     public function start(Ts3VirtualServer $server): void
     {
-        $this->applyServerAction($server, sprintf('/v1/ts3/virtual-servers/%d/start', $server->getSid()), 'running');
+        $this->applyServerAction($server, 'start');
     }
 
     public function stop(Ts3VirtualServer $server): void
     {
-        $this->applyServerAction($server, sprintf('/v1/ts3/virtual-servers/%d/stop', $server->getSid()), 'stopped');
+        $this->applyServerAction($server, 'stop');
     }
 
     public function recreate(Ts3VirtualServer $server): Ts3VirtualServer
     {
         $this->stop($server);
-        $this->agentClient->request($server->getNode(), 'DELETE', sprintf('/v1/ts3/virtual-servers/%d', $server->getSid()));
         $server->archive();
 
         $dto = new CreateVirtualServerDto($server->getName(), $server->getVoicePort(), $server->getFiletransferPort());
@@ -81,62 +81,32 @@ final class Ts3VirtualServerService
 
     public function rotateToken(Ts3VirtualServer $server): Ts3Token
     {
-        $response = $this->agentClient->request(
-            $server->getNode(),
-            'POST',
-            sprintf('/v1/ts3/virtual-servers/%d/tokens/rotate', $server->getSid()),
-        );
+        $jobPayload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+        ];
 
-        $tokenValue = (string) ($response['token'] ?? '');
-        if ($tokenValue === '') {
-            throw new AgentBadResponseException('Agent did not return a token.');
-        }
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.token.rotate', $jobPayload);
 
-        $existing = $this->findActiveToken($server);
-        if ($existing !== null) {
-            $existing->deactivate();
-        }
-
-        $token = new Ts3Token($server, $this->crypto->encrypt($tokenValue), 'owner');
+        $token = new Ts3Token($server, $this->crypto->encrypt('pending'), 'owner');
+        $token->deactivate();
         $this->entityManager->persist($token);
         $this->entityManager->flush();
 
         return $token;
     }
 
-    private function applyServerAction(Ts3VirtualServer $server, string $endpoint, string $status): void
+    private function applyServerAction(Ts3VirtualServer $server, string $action): void
     {
-        try {
-            $this->agentClient->request($server->getNode(), 'POST', $endpoint);
-            $server->setStatus($status);
-        } catch (\Throwable $exception) {
-            $server->setStatus('unknown');
-        }
-
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'action' => $action,
+        ];
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.action', $payload);
         $this->entityManager->flush();
     }
 
-    private function createOwnerToken(Ts3VirtualServer $server): Ts3Token
-    {
-        $response = $this->agentClient->request(
-            $server->getNode(),
-            'POST',
-            sprintf('/v1/ts3/virtual-servers/%d/tokens', $server->getSid()),
-            ['type' => 'owner'],
-        );
-
-        $tokenValue = (string) ($response['token'] ?? '');
-        if ($tokenValue === '') {
-            throw new AgentBadResponseException('Agent did not return a token.');
-        }
-
-        return new Ts3Token($server, $this->crypto->encrypt($tokenValue), 'owner');
-    }
-
-    private function findActiveToken(Ts3VirtualServer $server): ?Ts3Token
-    {
-        $repository = $this->entityManager->getRepository(Ts3Token::class);
-
-        return $repository->findOneBy(['virtualServer' => $server, 'active' => true]);
-    }
 }

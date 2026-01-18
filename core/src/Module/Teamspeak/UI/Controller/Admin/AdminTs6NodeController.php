@@ -69,8 +69,18 @@ final class AdminTs6NodeController
         }
 
         if ($form->isSubmitted() && $form->isValid()) {
+            $agent = $this->agentRepository->find($dto->agentNodeId);
+            if ($agent === null) {
+                $form->addError(new FormError('Selected agent was not found.'));
+                return new Response($this->twig->render('admin/ts6/nodes/new.html.twig', [
+                    'activeNav' => 'ts6',
+                    'form' => $form->createView(),
+                ]), Response::HTTP_BAD_REQUEST);
+            }
+
             $node = new Ts6Node(
                 $dto->name,
+                $agent,
                 rtrim($dto->agentBaseUrl, '/'),
                 $this->crypto->encrypt($dto->agentApiToken),
                 $dto->downloadUrl,
@@ -136,7 +146,7 @@ final class AdminTs6NodeController
         );
 
         $this->nodeService->install($node, $dto);
-        $request->getSession()->getFlashBag()->add('success', 'TS6 install queued.');
+        $request->getSession()->getFlashBag()->add('success', 'TS6-Installation eingereiht. (TS6 install queued.)');
 
         return $this->redirectToNode($node);
     }
@@ -201,6 +211,23 @@ final class AdminTs6NodeController
         return $this->redirectToNode($node);
     }
 
+    #[Route(path: '/{id}/delete', name: 'admin_ts6_nodes_delete', methods: ['POST'])]
+    public function delete(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'ts6_delete_' . $id);
+
+        $this->entityManager->remove($node);
+        $this->entityManager->flush();
+
+        $request->getSession()->getFlashBag()->add('success', 'TS6 node deleted.');
+
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => '/admin/ts6/nodes',
+        ]);
+    }
+
     private function requireAdmin(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
@@ -241,6 +268,7 @@ final class AdminTs6NodeController
             'start' => $this->csrfTokenManager->getToken('ts6_start_' . $id)->getValue(),
             'stop' => $this->csrfTokenManager->getToken('ts6_stop_' . $id)->getValue(),
             'restart' => $this->csrfTokenManager->getToken('ts6_restart_' . $id)->getValue(),
+            'delete' => $this->csrfTokenManager->getToken('ts6_delete_' . $id)->getValue(),
         ];
     }
 
@@ -285,15 +313,39 @@ final class AdminTs6NodeController
             return;
         }
 
-        $dto->agentBaseUrl = $agent->getServiceBaseUrl();
-        $dto->agentApiToken = $agent->getServiceApiToken($this->crypto);
+        $dto->agentBaseUrl = $agent->getAgentBaseUrl();
+        $dto->agentApiToken = $agent->getAgentApiToken($this->crypto);
+
+        if (trim($dto->downloadUrl) === '') {
+            $dto->downloadUrl = Ts6NodeDto::DEFAULT_DOWNLOAD_URL;
+        }
 
         if (trim($dto->installPath) === '' && $dto->osType !== 'windows') {
-            $dto->installPath = '/home/teamspeak6';
+            $dto->installPath = Ts6NodeDto::DEFAULT_INSTALL_PATH;
+        }
+
+        if (trim($dto->instanceName) === '') {
+            $dto->instanceName = Ts6NodeDto::DEFAULT_INSTANCE_NAME;
+        }
+
+        if (trim($dto->serviceName) === '') {
+            $dto->serviceName = Ts6NodeDto::DEFAULT_SERVICE_NAME;
         }
 
         if (trim($dto->installPath) === '') {
             $form->addError(new FormError('Install path is required.'));
+        }
+
+        if (trim($dto->downloadUrl) === '') {
+            $form->addError(new FormError('Download URL is required.'));
+        }
+
+        if (trim($dto->instanceName) === '') {
+            $form->addError(new FormError('Instance name is required.'));
+        }
+
+        if (trim($dto->serviceName) === '') {
+            $form->addError(new FormError('Service name is required.'));
         }
     }
 }
