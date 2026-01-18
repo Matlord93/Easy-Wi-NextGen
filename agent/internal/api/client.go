@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	agentcrypto "easywi/agent/internal/crypto"
@@ -132,8 +133,18 @@ func (c *Client) doSignedJSON(ctx context.Context, method, path string, body any
 	if err != nil {
 		return nil, fmt.Errorf("parse request path: %w", err)
 	}
+	if requestPath.RawQuery == "" && strings.Contains(strings.ToLower(requestPath.Path), "%3f") {
+		unescapedPath, err := url.PathUnescape(requestPath.Path)
+		if err != nil {
+			return nil, fmt.Errorf("unescape request path: %w", err)
+		}
+		if pathWithQuery, query, found := strings.Cut(unescapedPath, "?"); found {
+			requestPath.Path = pathWithQuery
+			requestPath.RawQuery = query
+		}
+	}
 	requestURL := c.BaseURL.ResolveReference(requestPath)
-	
+
 	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
