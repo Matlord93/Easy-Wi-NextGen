@@ -199,14 +199,14 @@ func runCommandOutputWithTimeout(timeout time.Duration, name string, args ...str
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)
-	output, err := cmd.CombinedOutput()
+	output, err := StreamCommand(cmd, "", nil)
 	if ctx.Err() == context.DeadlineExceeded {
-		return string(output), fmt.Errorf("%s %s timed out", name, strings.Join(args, " "))
+		return output, fmt.Errorf("%s %s timed out", name, strings.Join(args, " "))
 	}
 	if err != nil {
-		return string(output), fmt.Errorf("%s %s failed: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+		return output, fmt.Errorf("%s %s failed: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(output))
 	}
-	return string(output), nil
+	return output, nil
 }
 
 func parseDiskEntries(output string) []diskEntry {

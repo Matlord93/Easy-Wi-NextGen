@@ -253,11 +253,11 @@ func runCommandIgnoreMissing(name string, args ...string) error {
 
 func runCommandWithIgnore(name string, args []string, ignore []string) error {
 	cmd := exec.Command(name, args...)
-	output, err := cmd.CombinedOutput()
+	output, err := StreamCommand(cmd, "", nil)
 	if err == nil {
 		return nil
 	}
-	outputStr := strings.TrimSpace(string(output))
+	outputStr := strings.TrimSpace(output)
 	for _, entry := range ignore {
 		if strings.Contains(outputStr, entry) {
 			return nil

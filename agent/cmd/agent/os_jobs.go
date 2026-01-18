@@ -172,28 +172,28 @@ func runCommandCapture(name string, args []string, output *strings.Builder) (str
 	if name == "apt-get" {
 		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	}
-	bytes, err := cmd.CombinedOutput()
+	commandOutput, err := StreamCommand(cmd, "", nil)
 	appendOutput(output, fmt.Sprintf("cmd=%s %s", name, strings.Join(args, " ")))
-	if len(bytes) > 0 {
-		appendOutput(output, string(bytes))
+	if len(commandOutput) > 0 {
+		appendOutput(output, commandOutput)
 	}
 	if err != nil {
-		return string(bytes), fmt.Errorf("command %s failed: %w", name, err)
+		return commandOutput, fmt.Errorf("command %s failed: %w", name, err)
 	}
-	return string(bytes), nil
+	return commandOutput, nil
 }
 
 func runRhelUpdateCheck(tool string, output *strings.Builder) (bool, int, error) {
 	cmd := exec.Command(tool, "check-update")
-	bytes, err := cmd.CombinedOutput()
+	commandOutput, err := StreamCommand(cmd, "", nil)
 	appendOutput(output, fmt.Sprintf("cmd=%s check-update", tool))
-	if len(bytes) > 0 {
-		appendOutput(output, string(bytes))
+	if len(commandOutput) > 0 {
+		appendOutput(output, commandOutput)
 	}
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if exitErr.ExitCode() == 100 {
-				count := countPackageLines(string(bytes))
+				count := countPackageLines(commandOutput)
 				return true, count, nil
 			}
 		}
@@ -204,10 +204,10 @@ func runRhelUpdateCheck(tool string, output *strings.Builder) (bool, int, error)
 
 func runPacmanCheckUpdates(tool string, args []string, output *strings.Builder) (bool, int, error) {
 	cmd := exec.Command(tool, args...)
-	bytes, err := cmd.CombinedOutput()
+	commandOutput, err := StreamCommand(cmd, "", nil)
 	appendOutput(output, fmt.Sprintf("cmd=%s %s", tool, strings.Join(args, " ")))
-	if len(bytes) > 0 {
-		appendOutput(output, string(bytes))
+	if len(commandOutput) > 0 {
+		appendOutput(output, commandOutput)
 	}
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -217,7 +217,7 @@ func runPacmanCheckUpdates(tool string, args []string, output *strings.Builder) 
 		}
 		return false, -1, fmt.Errorf("%s update check failed: %w", tool, err)
 	}
-	count := countPackageLines(string(bytes))
+	count := countPackageLines(commandOutput)
 	return count > 0, count, nil
 }
 

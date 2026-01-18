@@ -221,9 +221,9 @@ func userExists(username string) bool {
 func setUserPassword(username, password string) error {
 	cmd := exec.Command("chpasswd")
 	cmd.Stdin = strings.NewReader(fmt.Sprintf("%s:%s", username, password))
-	output, err := cmd.CombinedOutput()
+	output, err := StreamCommand(cmd, "", nil)
 	if err != nil {
-		return fmt.Errorf("set password for %s failed: %w (%s)", username, err, strings.TrimSpace(string(output)))
+		return fmt.Errorf("set password for %s failed: %w (%s)", username, err, strings.TrimSpace(output))
 	}
 	return nil
 }

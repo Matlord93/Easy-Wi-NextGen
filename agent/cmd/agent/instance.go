@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -951,11 +950,11 @@ func mergeDiagnostics(output map[string]string, diagnostics map[string]string) m
 
 func runCommandOutput(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
-	output, err := cmd.CombinedOutput()
+	output, err := StreamCommand(cmd, "", nil)
 	if err != nil {
-		return string(output), fmt.Errorf("%s %s failed: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+		return output, fmt.Errorf("%s %s failed: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(output))
 	}
-	return string(output), nil
+	return output, nil
 }
 
 func runCommandAsUser(username, command string) error {
@@ -967,60 +966,19 @@ func runCommandOutputAsUser(username, command string) (string, error) {
 }
 
 func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender JobLogSender) (string, error) {
-	cmd := exec.Command("runuser", "-u", username, "--", "stdbuf", "-oL", "-eL", "/bin/sh", "-c", command)
-	stdout, err := cmd.StdoutPipe()
+	cmd := buildRunUserCommand(username, command)
+	output, err := StreamCommand(cmd, jobID, logSender)
 	if err != nil {
-		return "", fmt.Errorf("stdout pipe: %w", err)
+		return output, fmt.Errorf("command failed: %w", err)
 	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return "", fmt.Errorf("stderr pipe: %w", err)
+	return output, nil
+}
+
+func buildRunUserCommand(username, command string) *exec.Cmd {
+	if shouldForceTTY(command) {
+		return exec.Command("runuser", "-u", username, "--", "script", "-q", "-f", "-c", command, "/dev/null")
 	}
-
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("start command: %w", err)
-	}
-
-	reader := io.MultiReader(stdout, stderr)
-	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	scanner.Split(splitLogLines)
-
-	var output strings.Builder
-	buffer := make([]string, 0, 20)
-	lastFlush := time.Now()
-	flush := func(force bool) {
-		if len(buffer) == 0 {
-			return
-		}
-		if !force && time.Since(lastFlush) < 2*time.Second && len(buffer) < 20 {
-			return
-		}
-		if logSender != nil {
-			logSender.Send(jobID, buffer, nil)
-		}
-		buffer = buffer[:0]
-		lastFlush = time.Now()
-	}
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		output.WriteString(line)
-		output.WriteString("\n")
-		buffer = append(buffer, line)
-		flush(false)
-	}
-	flush(true)
-
-	if err := scanner.Err(); err != nil {
-		return output.String(), fmt.Errorf("read output: %w", err)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		return output.String(), fmt.Errorf("command failed: %w", err)
-	}
-
-	return output.String(), nil
+	return exec.Command("runuser", "-u", username, "--", "stdbuf", "-oL", "-eL", "/bin/sh", "-c", command)
 }
 
 func trimOutput(value string, max int) string {

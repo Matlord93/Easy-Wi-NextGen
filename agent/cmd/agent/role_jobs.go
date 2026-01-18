@@ -561,10 +561,10 @@ func runCommandWithOutput(name string, args []string, output *strings.Builder) e
 	if name == "apt-get" {
 		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	}
-	bytes, err := cmd.CombinedOutput()
+	commandOutput, err := StreamCommand(cmd, "", nil)
 	appendOutput(output, fmt.Sprintf("cmd=%s %s", name, strings.Join(args, " ")))
-	if len(bytes) > 0 {
-		appendOutput(output, string(bytes))
+	if len(commandOutput) > 0 {
+		appendOutput(output, commandOutput)
 	}
 	if err != nil {
 		return fmt.Errorf("command %s failed: %w", name, err)
