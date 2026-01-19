@@ -638,6 +638,12 @@ func buildInstanceTemplateValues(instanceDir, requiredPortsRaw string, allocated
 		values[placeholder] = strconv.Itoa(allocatedPorts[idx])
 	}
 
+	if payloadString(payload["game_key"]) == "hytale" {
+		if _, ok := values["USE_AOT_CACHE"]; !ok {
+			values["USE_AOT_CACHE"] = "0"
+		}
+	}
+
 	return values
 }
 

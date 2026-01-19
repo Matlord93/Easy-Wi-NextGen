@@ -1,0 +1,6 @@
+<ServerSettings>
+  <property name="ServerPort" value="{{.SERVER_PORT}}" />
+  <property name="ServerMaxPlayerCount" value="{{.SERVER_MAX_PLAYERS}}" />
+  <property name="TelnetPort" value="{{.TELNET_PORT}}" />
+  <property name="ControlPanelPort" value="{{.CONTROL_PANEL_PORT}}" />
+</ServerSettings>
