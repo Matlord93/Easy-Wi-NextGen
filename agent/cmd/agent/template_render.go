@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 )
 
 var templateVariableRegex = regexp.MustCompile(`\{\{\s*([A-Za-z0-9_:-]+)\s*}}`)
@@ -58,6 +59,12 @@ func writeStartScript(instanceDir, startCommand string) (string, error) {
 		return "", err
 	}
 
+	if runtime.GOOS != "windows" {
+		if err := chownToInstanceOwner(instanceDir, scriptDir); err != nil {
+			return "", err
+		}
+	}
+
 	if runtime.GOOS == "windows" {
 		scriptPath := filepath.Join(scriptDir, "start.bat")
 		content := fmt.Sprintf("@echo off\r\ncd /d \"%s\"\r\n%s\r\n", instanceDir, startCommand)
@@ -72,11 +79,29 @@ func writeStartScript(instanceDir, startCommand string) (string, error) {
 	if err := os.WriteFile(scriptPath, []byte(content), instanceFileMode); err != nil {
 		return "", fmt.Errorf("write start script: %w", err)
 	}
+	if err := chownToInstanceOwner(instanceDir, scriptPath); err != nil {
+		return "", err
+	}
 	if err := os.Chmod(scriptPath, 0o750); err != nil {
 		return "", fmt.Errorf("chmod start script: %w", err)
 	}
 
 	return scriptPath, nil
+}
+
+func chownToInstanceOwner(instanceDir, path string) error {
+	info, err := os.Stat(instanceDir)
+	if err != nil {
+		return fmt.Errorf("stat instance directory: %w", err)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("stat instance directory: unsupported")
+	}
+	if err := os.Chown(path, int(stat.Uid), int(stat.Gid)); err != nil {
+		return fmt.Errorf("chown %s: %w", path, err)
+	}
+	return nil
 }
 
 func maskSensitiveValues(input string, values map[string]string) string {
