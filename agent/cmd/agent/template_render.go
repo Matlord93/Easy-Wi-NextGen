@@ -58,12 +58,6 @@ func writeStartScript(instanceDir, startCommand string) (string, error) {
 		return "", err
 	}
 
-	if runtime.GOOS != "windows" {
-		if err := chownToInstanceOwner(instanceDir, scriptDir); err != nil {
-			return "", err
-		}
-	}
-
 	if runtime.GOOS == "windows" {
 		scriptPath := filepath.Join(scriptDir, "start.bat")
 		content := fmt.Sprintf("@echo off\r\ncd /d \"%s\"\r\n%s\r\n", instanceDir, startCommand)
@@ -78,14 +72,11 @@ func writeStartScript(instanceDir, startCommand string) (string, error) {
 	if err := os.WriteFile(scriptPath, []byte(content), instanceFileMode); err != nil {
 		return "", fmt.Errorf("write start script: %w", err)
 	}
-	if err := chownToInstanceOwner(instanceDir, scriptPath); err != nil {
-		return "", err
-	}
 	if err := os.Chmod(scriptPath, 0o750); err != nil {
 		return "", fmt.Errorf("chmod start script: %w", err)
 	}
 
-    return fmt.Sprintf("/bin/bash %q", scriptPath), nil
+	return scriptPath, nil
 }
 
 func maskSensitiveValues(input string, values map[string]string) string {

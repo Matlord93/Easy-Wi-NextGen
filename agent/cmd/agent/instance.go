@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -637,12 +636,6 @@ func buildInstanceTemplateValues(instanceDir, requiredPortsRaw string, allocated
 		}
 		placeholder := "PORT_" + strings.ToUpper(label)
 		values[placeholder] = strconv.Itoa(allocatedPorts[idx])
-	}
-
-		if payloadString(payload["game_key"]) == "hytale" {
-		if _, ok := values["USE_AOT_CACHE"]; !ok {
-			values["USE_AOT_CACHE"] = "0"
-		}
 	}
 
 	return values
