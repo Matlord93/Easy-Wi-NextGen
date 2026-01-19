@@ -85,7 +85,7 @@ func writeStartScript(instanceDir, startCommand string) (string, error) {
 		return "", fmt.Errorf("chmod start script: %w", err)
 	}
 
-	return scriptPath, nil
+    return fmt.Sprintf("/bin/bash %q", scriptPath), nil
 }
 
 func maskSensitiveValues(input string, values map[string]string) string {
