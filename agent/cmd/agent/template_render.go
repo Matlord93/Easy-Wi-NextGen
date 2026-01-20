@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -124,6 +125,11 @@ func validateBinaryExists(instanceDir, startCommand string) error {
 	}
 	if strings.HasPrefix(binaryToken, "-") || strings.HasPrefix(binaryToken, "+") {
 		return nil
+	}
+	if !strings.Contains(binaryToken, "/") && !filepath.IsAbs(binaryToken) {
+		if _, err := exec.LookPath(binaryToken); err == nil {
+			return nil
+		}
 	}
 	binaryPath := resolveBinaryPath(instanceDir, binaryToken)
 	if binaryPath == "" {
