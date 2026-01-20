@@ -7,13 +7,17 @@ namespace App\Module\Gameserver\UI\Controller\Customer;
 use App\Module\Core\Domain\Entity\ConfigSchema;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Enum\InstanceStatus;
+use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\ConfigSchemaRepository;
 use App\Repository\GameDefinitionRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\JobRepository;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\ConfigSchema\ConfigSchemaService;
-use App\Module\Core\Application\FileServiceClient;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -28,8 +32,9 @@ final class CustomerInstanceConfigApiController
         private readonly GameDefinitionRepository $gameDefinitionRepository,
         private readonly ConfigSchemaRepository $configSchemaRepository,
         private readonly ConfigSchemaService $configSchemaService,
-        private readonly FileServiceClient $fileService,
+        private readonly JobRepository $jobRepository,
         private readonly AuditLogger $auditLogger,
+        private readonly EntityManagerInterface $entityManager,
     ) {
     }
 
@@ -59,16 +64,23 @@ final class CustomerInstanceConfigApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $configSchema = $this->resolveConfigSchema($instance, $configId);
+        $this->assertConfigEditable($instance, $configSchema);
 
-        $content = $this->readConfigFile($instance, $configSchema);
-        $parseResult = $this->configSchemaService->parse($configSchema, $content);
+        $jobId = trim((string) $request->query->get('jobId', ''));
+        if ($jobId !== '') {
+            $job = $this->findConfigJob($instance, $customer, $jobId, 'instance.files.read');
+
+            return $this->buildConfigResponseFromJob($configSchema, $job);
+        }
+
+        $job = $this->queueReadJob($instance, $customer, $configSchema);
+        $this->entityManager->flush();
 
         return new JsonResponse([
+            'status' => 'queued',
+            'job_id' => $job->getId(),
             'config' => $this->normalizeConfigSchema($configSchema),
             'schema' => $this->configSchemaService->normalizeSchema($configSchema),
-            'values' => $parseResult->getValues(),
-            'raw' => $content,
-            'warnings' => $parseResult->getWarnings(),
         ]);
     }
 
@@ -79,6 +91,7 @@ final class CustomerInstanceConfigApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $configSchema = $this->resolveConfigSchema($instance, $configId);
+        $this->assertConfigEditable($instance, $configSchema);
         $payload = $this->parsePayload($request);
 
         $values = $payload['values'] ?? [];
@@ -87,23 +100,13 @@ final class CustomerInstanceConfigApiController
         }
 
         $content = $this->configSchemaService->generate($configSchema, $values);
-        $this->writeConfigFile($instance, $configSchema, $content);
-
-        $parseResult = $this->configSchemaService->parse($configSchema, $content);
-
-        $this->auditLogger->log($customer, 'instance.configs.generated', [
-            'instance_id' => $instance->getId(),
-            'config_id' => $configSchema->getId(),
-            'config_key' => $configSchema->getConfigKey(),
-        ]);
+        $job = $this->queueWriteJob($instance, $customer, $configSchema, $content, 'instance.configs.generated_requested');
+        $this->entityManager->flush();
 
         return new JsonResponse([
-            'config' => $this->normalizeConfigSchema($configSchema),
-            'schema' => $this->configSchemaService->normalizeSchema($configSchema),
-            'values' => $parseResult->getValues(),
-            'raw' => $content,
-            'warnings' => $parseResult->getWarnings(),
-        ]);
+            'status' => 'queued',
+            'job_id' => $job->getId(),
+        ], JsonResponse::HTTP_ACCEPTED);
     }
 
     #[Route(path: '/api/customer/instances/{id}/configs/{configId}', name: 'customer_instance_configs_api_update', methods: ['PUT'])]
@@ -113,6 +116,7 @@ final class CustomerInstanceConfigApiController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $configSchema = $this->resolveConfigSchema($instance, $configId);
+        $this->assertConfigEditable($instance, $configSchema);
         $payload = $this->parsePayload($request);
 
         if (!array_key_exists('content', $payload)) {
@@ -120,22 +124,13 @@ final class CustomerInstanceConfigApiController
         }
 
         $content = (string) $payload['content'];
-        $this->writeConfigFile($instance, $configSchema, $content);
-        $parseResult = $this->configSchemaService->parse($configSchema, $content);
-
-        $this->auditLogger->log($customer, 'instance.configs.updated', [
-            'instance_id' => $instance->getId(),
-            'config_id' => $configSchema->getId(),
-            'config_key' => $configSchema->getConfigKey(),
-        ]);
+        $job = $this->queueWriteJob($instance, $customer, $configSchema, $content, 'instance.configs.updated_requested');
+        $this->entityManager->flush();
 
         return new JsonResponse([
-            'config' => $this->normalizeConfigSchema($configSchema),
-            'schema' => $this->configSchemaService->normalizeSchema($configSchema),
-            'values' => $parseResult->getValues(),
-            'raw' => $content,
-            'warnings' => $parseResult->getWarnings(),
-        ]);
+            'status' => 'queued',
+            'job_id' => $job->getId(),
+        ], JsonResponse::HTTP_ACCEPTED);
     }
 
     private function resolveConfigSchema(Instance $instance, string $configId): ConfigSchema
@@ -160,26 +155,140 @@ final class CustomerInstanceConfigApiController
         return $configSchema;
     }
 
-    private function readConfigFile(Instance $instance, ConfigSchema $configSchema): string
+    private function assertConfigEditable(Instance $instance, ConfigSchema $configSchema): void
     {
-        [$path, $name] = $this->splitPath($configSchema->getFilePath());
-
-        try {
-            return $this->fileService->readFile($instance, $path, $name);
-        } catch (\RuntimeException $exception) {
-            throw new BadRequestHttpException($exception->getMessage(), $exception);
+        if ($instance->getStatus() === InstanceStatus::Running) {
+            return;
         }
+
+        if ($this->supportsOfflineEdit($configSchema)) {
+            return;
+        }
+
+        throw new BadRequestHttpException('Config edits are only available while the server is running.');
     }
 
-    private function writeConfigFile(Instance $instance, ConfigSchema $configSchema, string $content): void
+    private function supportsOfflineEdit(ConfigSchema $configSchema): bool
+    {
+        $schema = $configSchema->getSchema();
+        $offline = $schema['offline_edit'] ?? $schema['offlineEdit'] ?? false;
+
+        return filter_var($offline, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private function queueReadJob(Instance $instance, User $customer, ConfigSchema $configSchema): Job
     {
         [$path, $name] = $this->splitPath($configSchema->getFilePath());
 
-        try {
-            $this->fileService->writeFile($instance, $path, $name, $content);
-        } catch (\RuntimeException $exception) {
-            throw new BadRequestHttpException($exception->getMessage(), $exception);
+        $payload = [
+            'instance_id' => (string) ($instance->getId() ?? ''),
+            'customer_id' => (string) $customer->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+            'path' => $path,
+            'name' => $name,
+        ];
+
+        $job = new Job('instance.files.read', $payload);
+        $this->entityManager->persist($job);
+
+        $this->auditLogger->log($customer, 'instance.configs.read_requested', [
+            'instance_id' => $instance->getId(),
+            'config_id' => $configSchema->getId(),
+            'config_key' => $configSchema->getConfigKey(),
+            'job_id' => $job->getId(),
+        ]);
+
+        return $job;
+    }
+
+    private function queueWriteJob(Instance $instance, User $customer, ConfigSchema $configSchema, string $content, string $auditEvent): Job
+    {
+        [$path, $name] = $this->splitPath($configSchema->getFilePath());
+
+        $payload = [
+            'instance_id' => (string) ($instance->getId() ?? ''),
+            'customer_id' => (string) $customer->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+            'path' => $path,
+            'name' => $name,
+            'content_base64' => base64_encode($content),
+        ];
+
+        $job = new Job('instance.files.write', $payload);
+        $this->entityManager->persist($job);
+
+        $this->auditLogger->log($customer, $auditEvent, [
+            'instance_id' => $instance->getId(),
+            'config_id' => $configSchema->getId(),
+            'config_key' => $configSchema->getConfigKey(),
+            'job_id' => $job->getId(),
+        ]);
+
+        return $job;
+    }
+
+    private function findConfigJob(Instance $instance, User $customer, string $jobId, string $type): Job
+    {
+        $job = $this->jobRepository->find($jobId);
+        if ($job === null || $job->getType() !== $type) {
+            throw new NotFoundHttpException('Job not found.');
         }
+
+        $payload = $job->getPayload();
+        $payloadCustomerId = (string) ($payload['customer_id'] ?? '');
+        $payloadInstanceId = (string) ($payload['instance_id'] ?? '');
+        if ($payloadCustomerId !== (string) $customer->getId() || $payloadInstanceId !== (string) $instance->getId()) {
+            throw new AccessDeniedHttpException('Forbidden.');
+        }
+
+        return $job;
+    }
+
+    private function buildConfigResponseFromJob(ConfigSchema $configSchema, Job $job): JsonResponse
+    {
+        $status = $job->getStatus();
+        $result = $job->getResult();
+
+        if (in_array($status, [JobStatus::Queued, JobStatus::Running], true)) {
+            return new JsonResponse([
+                'status' => 'pending',
+                'job_id' => $job->getId(),
+                'config' => $this->normalizeConfigSchema($configSchema),
+                'schema' => $this->configSchemaService->normalizeSchema($configSchema),
+            ]);
+        }
+
+        if ($status === JobStatus::Succeeded && $result !== null) {
+            $error = null;
+            $content = $this->decodeFileContent((string) ($result->getOutput()['content_base64'] ?? ''), $error);
+            if ($error !== null) {
+                return new JsonResponse([
+                    'status' => 'error',
+                    'job_id' => $job->getId(),
+                    'error' => $error,
+                ]);
+            }
+
+            $parseResult = $this->configSchemaService->parse($configSchema, $content);
+
+            return new JsonResponse([
+                'status' => 'ready',
+                'job_id' => $job->getId(),
+                'config' => $this->normalizeConfigSchema($configSchema),
+                'schema' => $this->configSchemaService->normalizeSchema($configSchema),
+                'values' => $parseResult->getValues(),
+                'raw' => $content,
+                'warnings' => $parseResult->getWarnings(),
+            ]);
+        }
+
+        $message = (string) ($result?->getOutput()['message'] ?? 'Config read failed.');
+
+        return new JsonResponse([
+            'status' => 'error',
+            'job_id' => $job->getId(),
+            'error' => $message,
+        ]);
     }
 
     /**
@@ -246,5 +355,20 @@ final class CustomerInstanceConfigApiController
         }
 
         return $request->request->all();
+    }
+
+    private function decodeFileContent(string $encoded, ?string &$error): string
+    {
+        if ($encoded === '') {
+            return '';
+        }
+
+        $decoded = base64_decode($encoded, true);
+        if ($decoded === false) {
+            $error = 'Invalid file content.';
+            return '';
+        }
+
+        return $decoded;
     }
 }

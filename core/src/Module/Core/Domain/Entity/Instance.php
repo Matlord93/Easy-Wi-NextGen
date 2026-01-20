@@ -61,6 +61,12 @@ class Instance implements ResourceEventSource
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $diskScanError = null;
 
+    #[ORM\Column(type: 'json', name: 'query_status_cache')]
+    private array $queryStatusCache = [];
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $queryCheckedAt = null;
+
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $portBlockId = null;
 
@@ -75,6 +81,15 @@ class Instance implements ResourceEventSource
 
     #[ORM\Column]
     private int $slots = 16;
+
+    #[ORM\Column]
+    private int $maxSlots = 16;
+
+    #[ORM\Column]
+    private int $currentSlots = 16;
+
+    #[ORM\Column]
+    private bool $lockSlots = false;
 
     #[ORM\Column(nullable: true)]
     private ?int $assignedPort = null;
@@ -151,6 +166,8 @@ class Instance implements ResourceEventSource
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
         $this->schedules = new ArrayCollection();
+        $this->maxSlots = $this->slots;
+        $this->currentSlots = $this->slots;
     }
 
     public function getId(): ?int
@@ -263,6 +280,28 @@ class Instance implements ResourceEventSource
         $this->touch();
     }
 
+    public function getQueryStatusCache(): array
+    {
+        return $this->queryStatusCache;
+    }
+
+    public function setQueryStatusCache(array $queryStatusCache): void
+    {
+        $this->queryStatusCache = $queryStatusCache;
+        $this->touch();
+    }
+
+    public function getQueryCheckedAt(): ?\DateTimeImmutable
+    {
+        return $this->queryCheckedAt;
+    }
+
+    public function setQueryCheckedAt(?\DateTimeImmutable $queryCheckedAt): void
+    {
+        $this->queryCheckedAt = $queryCheckedAt;
+        $this->touch();
+    }
+
     public function getPortBlockId(): ?string
     {
         return $this->portBlockId;
@@ -320,6 +359,48 @@ class Instance implements ResourceEventSource
     public function setSlots(int $slots): void
     {
         $this->slots = max(0, $slots);
+        $this->touch();
+    }
+
+    public function getMaxSlots(): int
+    {
+        return $this->maxSlots;
+    }
+
+    public function setMaxSlots(int $maxSlots): void
+    {
+        $this->maxSlots = max(0, $maxSlots);
+        if ($this->currentSlots > $this->maxSlots) {
+            $this->currentSlots = $this->maxSlots;
+        }
+        $this->touch();
+    }
+
+    public function getCurrentSlots(): int
+    {
+        return $this->currentSlots;
+    }
+
+    public function setCurrentSlots(int $currentSlots): void
+    {
+        $this->currentSlots = max(0, $currentSlots);
+        if ($this->currentSlots > $this->maxSlots) {
+            $this->currentSlots = $this->maxSlots;
+        }
+        $this->touch();
+    }
+
+    public function isLockSlots(): bool
+    {
+        return $this->lockSlots;
+    }
+
+    public function setLockSlots(bool $lockSlots): void
+    {
+        $this->lockSlots = $lockSlots;
+        if ($this->lockSlots) {
+            $this->currentSlots = $this->maxSlots;
+        }
         $this->touch();
     }
 

@@ -1,10 +1,19 @@
-<div class="space-y-6" id="config-schema-app" data-instance-id="{{ instance.id }}">
+<div
+    class="space-y-6"
+    id="config-schema-app"
+    data-instance-id="{{ instance.id }}"
+    data-config-list-url="{{ path('customer_instance_configs_api_list', {id: instance.id}) }}"
+    data-config-show-url="{{ path('customer_instance_configs_api_show', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-config-generate-url="{{ path('customer_instance_configs_api_generate', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-config-update-url="{{ path('customer_instance_configs_api_update', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-job-show-url="{{ path('customer_job_api_show', {jobId: '__JOB_ID__'}) }}"
+>
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_configs', page_locale()) }}</h2>
             <p class="text-sm text-slate-700">{{ t('customer_instance_configs_intro', page_locale()) }}</p>
         </div>
-        <a href="/instances/{{ instance.id }}/files" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">
+        <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">
             {{ t('customer_instance_configs_open_files', page_locale()) }}
         </a>
     </div>
@@ -69,6 +78,11 @@
             return;
         }
         const instanceId = app.dataset.instanceId;
+        const listUrl = app.dataset.configListUrl;
+        const showUrlTemplate = app.dataset.configShowUrl;
+        const generateUrlTemplate = app.dataset.configGenerateUrl;
+        const updateUrlTemplate = app.dataset.configUpdateUrl;
+        const jobShowUrlTemplate = app.dataset.jobShowUrl;
         const select = document.getElementById('config-schema-select');
         const status = document.getElementById('config-schema-status');
         const error = document.getElementById('config-schema-error');
@@ -195,18 +209,41 @@
 
         const request = async (url, options = {}) => {
             const response = await fetch(url, options);
+            const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
-                const payload = await response.json().catch(() => ({}));
                 const message = payload.error || payload.message || 'Request failed.';
                 throw new Error(message);
             }
-            return response.json();
+            return payload;
+        };
+
+        const scheduleConfigPoll = (configId, jobId) => {
+            window.setTimeout(() => {
+                loadConfig(configId, jobId);
+            }, 1500);
+        };
+
+        const pollJob = async (jobId, onSuccess) => {
+            try {
+                const job = await request(jobShowUrlTemplate.replace('__JOB_ID__', jobId));
+                if (job.status === 'succeeded') {
+                    onSuccess();
+                    return;
+                }
+                if (job.status === 'failed' || job.status === 'cancelled') {
+                    setStatus('{{ t('customer_instance_configs_schema_status_save_failed', page_locale()) }}', true);
+                    return;
+                }
+                window.setTimeout(() => pollJob(jobId, onSuccess), 1500);
+            } catch (err) {
+                setStatus(err.message, true);
+            }
         };
 
         const loadConfigs = async () => {
             try {
                 setStatus(status.textContent);
-                const payload = await request(`/api/customer/instances/${instanceId}/configs`);
+                const payload = await request(listUrl);
                 configs = payload.configs || [];
                 select.innerHTML = `<option value="">${select.options[0].textContent}</option>`;
                 configs.forEach((config) => {
@@ -229,7 +266,7 @@
             }
         };
 
-        const loadConfig = async (configId) => {
+        const loadConfig = async (configId, jobId = null) => {
             if (!configId) {
                 editor.classList.add('hidden');
                 emptyState.classList.remove('hidden');
@@ -237,8 +274,27 @@
             }
             try {
                 feedback.textContent = '';
-                const payload = await request(`/api/customer/instances/${instanceId}/configs/${configId}`);
-                updateEditor(payload);
+                const url = new URL(showUrlTemplate.replace('__CONFIG_ID__', configId), window.location.origin);
+                if (jobId) {
+                    url.searchParams.set('jobId', jobId);
+                }
+                const payload = await request(url.toString());
+                if (payload.status === 'ready') {
+                    updateEditor(payload);
+                    return;
+                }
+                if (payload.status === 'error') {
+                    setStatus(payload.error || 'Request failed.', true);
+                    return;
+                }
+                if (payload.status === 'queued') {
+                    setStatus('{{ t('customer_instance_configs_schema_status_queued', page_locale()) }}');
+                } else if (payload.status === 'pending') {
+                    setStatus('{{ t('customer_instance_configs_schema_status_running', page_locale()) }}');
+                }
+                if (payload.job_id) {
+                    scheduleConfigPoll(configId, payload.job_id);
+                }
             } catch (err) {
                 setStatus(err.message, true);
             }
@@ -252,13 +308,18 @@
             }
             feedback.textContent = '';
             try {
-                const payload = await request(`/api/customer/instances/${instanceId}/configs/${currentConfig.key || currentConfig.id}/generate-save`, {
+                const payload = await request(generateUrlTemplate.replace('__CONFIG_ID__', currentConfig.key || currentConfig.id), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ values: collectValues() }),
                 });
-                updateEditor(payload);
-                feedback.textContent = '{{ t('customer_instance_configs_schema_status_saved', page_locale()) }}';
+                if (payload.job_id) {
+                    feedback.textContent = '{{ t('customer_instance_configs_schema_status_save_queued', page_locale()) }}';
+                    pollJob(payload.job_id, () => {
+                        loadConfig(currentConfig.key || currentConfig.id);
+                        feedback.textContent = '{{ t('customer_instance_configs_schema_status_saved', page_locale()) }}';
+                    });
+                }
             } catch (err) {
                 setStatus(err.message, true);
             }
@@ -270,13 +331,18 @@
             }
             feedback.textContent = '';
             try {
-                const payload = await request(`/api/customer/instances/${instanceId}/configs/${currentConfig.key || currentConfig.id}`, {
+                const payload = await request(updateUrlTemplate.replace('__CONFIG_ID__', currentConfig.key || currentConfig.id), {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ content: rawEditor.value }),
                 });
-                updateEditor(payload);
-                feedback.textContent = '{{ t('customer_instance_configs_schema_status_saved', page_locale()) }}';
+                if (payload.job_id) {
+                    feedback.textContent = '{{ t('customer_instance_configs_schema_status_save_queued', page_locale()) }}';
+                    pollJob(payload.job_id, () => {
+                        loadConfig(currentConfig.key || currentConfig.id);
+                        feedback.textContent = '{{ t('customer_instance_configs_schema_status_saved', page_locale()) }}';
+                    });
+                }
             } catch (err) {
                 setStatus(err.message, true);
             }

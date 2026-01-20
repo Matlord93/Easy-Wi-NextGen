@@ -1,3 +1,6 @@
+{% set siteTitle = app_setting('site_title', 'Easy-Wi NextGen') %}
+{% set brandingName = app_setting('branding_name', siteTitle) %}
+{% set brandingLogo = app_setting('branding_logo_url') %}
 <!DOCTYPE html>
 <html lang="{{ page_locale() }}">
 <head>
@@ -13,12 +16,13 @@
             }
         })();
     </script>
-    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
-    <link rel="stylesheet" href="/ui.css">
-    <link rel="stylesheet" href="/admin-customer.css">
-    <link rel="stylesheet" href="/ts6.css">
-    <link rel="stylesheet" href="/ts3.css">
-    <script src="/htmx.min.js"></script>
+    {% block title %}{{ siteTitle }}{% endblock %}
+    <title>{{ block('title')|replace({'Easy-Wi NextGen': siteTitle}) }}</title>
+    <link rel="stylesheet" href="{{ asset('ui.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
+    <link rel="stylesheet" href="{{ asset('ts6.css') }}">
+    <link rel="stylesheet" href="{{ asset('ts3.css') }}">
+    <script src="{{ asset('htmx.min.js') }}"></script>
 </head>
 <body class="bg-slate-100 text-slate-900">
 {% set activeNav = activeNav|default('') %}
@@ -27,9 +31,14 @@
 <div class="min-h-screen flex">
     <label for="sidebar-toggle" class="fixed inset-0 z-30 hidden bg-slate-900/40 peer-checked:block lg:hidden" aria-label="{{ t('toggle_sidebar', page_locale()) }}"></label>
     <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-gradient-to-b from-indigo-700 via-slate-900 to-slate-950 text-slate-100 shadow-xl transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
-        <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
+        <div class="px-6 py-5 text-lg font-semibold tracking-tight">
+            {% if brandingLogo %}
+                <img src="{{ brandingLogo }}" alt="{{ brandingName }}" style="max-height: 32px; width: auto;" />
+            {% endif %}
+            <span>{{ brandingName }}</span>
+        </div>
         <nav class="flex-1 px-4 space-y-2">
-            <a href="/status" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'status' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+            <a href="{{ path('public_status') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'status' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'status' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M3 3.75A.75.75 0 0 1 3.75 3h12.5a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75H3.75a.75.75 0 0 1-.75-.75V3.75Zm2.5 2a.75.75 0 0 0-.75.75v7a.75.75 0 0 0 .75.75h9a.75.75 0 0 0 .75-.75v-7a.75.75 0 0 0-.75-.75h-9Zm1.75 1.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75Z"/>
@@ -37,7 +46,7 @@
                 </span>
                 <span class="text-sm font-medium">{{ t('status', page_locale()) }}</span>
             </a>
-            <a href="/servers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'servers' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+            <a href="{{ path('public_servers') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'servers' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'servers' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm2.75 1.25a.75.75 0 0 0-.75.75v6a.75.75 0 0 0 .75.75h8.5a.75.75 0 0 0 .75-.75v-6a.75.75 0 0 0-.75-.75h-8.5Zm1.75 2.25h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/>
@@ -45,7 +54,7 @@
                 </span>
                 <span class="text-sm font-medium">{{ t('server_directory', page_locale()) }}</span>
             </a>
-            <a href="/downloads" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'downloads' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+            <a href="{{ path('public_downloads') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'downloads' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'downloads' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M10 3a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3Zm-6 11.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H4.75a.75.75 0 0 1-.75-.75Z"/>
@@ -53,7 +62,7 @@
                 </span>
                 <span class="text-sm font-medium">{{ t('downloads', page_locale()) }}</span>
             </a>
-            <a href="/changelog" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'changelog' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+            <a href="{{ path('public_changelog') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'changelog' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'changelog' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M5.75 3A1.75 1.75 0 0 0 4 4.75v10.5C4 16.216 4.784 17 5.75 17h8.5A1.75 1.75 0 0 0 16 15.25V7.5a.75.75 0 0 0-.75-.75H11A1.25 1.25 0 0 1 9.75 5.5V3.75A.75.75 0 0 0 9 3H5.75Zm2 6.25a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H8.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H8.5a.75.75 0 0 1-.75-.75Z"/>
@@ -61,7 +70,7 @@
                 </span>
                 <span class="text-sm font-medium">{{ t('changelog', page_locale()) }}</span>
             </a>
-            <a href="/docs" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'docs' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+            <a href="{{ path('public_docs') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'docs' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                 <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'docs' ? 'bg-white/15' : 'bg-white/10' }}">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M6.5 3.75A1.75 1.75 0 0 0 4.75 5.5v9A1.75 1.75 0 0 0 6.5 16.25h7A1.75 1.75 0 0 0 15.25 14.5V7.414a1.75 1.75 0 0 0-.513-1.237l-1.664-1.664A1.75 1.75 0 0 0 11.836 4H6.5Zm1.25 4.25a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Z"/>
@@ -96,10 +105,10 @@
                             {% set portalPath = userType == 'admin' ? '/admin' : (userType == 'reseller' ? '/reseller/customers' : '/dashboard') %}
                             {% set portalLabel = userType == 'admin' ? t('admin_portal', page_locale()) : (userType == 'reseller' ? t('reseller_portal', page_locale()) : t('customer_portal', page_locale())) %}
                             <a href="{{ portalPath }}" class="btn rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">{{ portalLabel }}</a>
-                            <a href="/logout" class="btn rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('logout', page_locale()) }}</a>
+                            <a href="{{ path('public_logout') }}" class="btn rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('logout', page_locale()) }}</a>
                         {% else %}
-                            <a href="/login" class="btn rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">{{ t('login', page_locale()) }}</a>
-                            <a href="/register" class="btn rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('register', page_locale()) }}</a>
+                            <a href="{{ path('public_login') }}" class="btn rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">{{ t('login', page_locale()) }}</a>
+                            <a href="{{ path('public_register') }}" class="btn rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('register', page_locale()) }}</a>
                         {% endif %}
                     </div>
                 </div>
@@ -112,11 +121,11 @@
 
         <footer class="border-t border-slate-200 bg-white">
             <div class="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div>Easy-Wi NextGen</div>
+                <div>{{ brandingName }}</div>
                 <div class="flex flex-wrap gap-4">
-                    <a href="/impressum" class="hover:text-slate-700">{{ t('imprint', page_locale()) }}</a>
-                    <a href="/agb" class="hover:text-slate-700">{{ t('terms_of_service', page_locale()) }}</a>
-                    <a href="/datenschutz" class="hover:text-slate-700">{{ t('privacy_policy', page_locale()) }}</a>
+                    <a href="{{ path('public_cms_page_slug', {slug: 'impressum'}) }}" class="hover:text-slate-700">{{ t('imprint', page_locale()) }}</a>
+                    <a href="{{ path('public_cms_page_slug', {slug: 'agb'}) }}" class="hover:text-slate-700">{{ t('terms_of_service', page_locale()) }}</a>
+                    <a href="{{ path('public_cms_page_slug', {slug: 'datenschutz'}) }}" class="hover:text-slate-700">{{ t('privacy_policy', page_locale()) }}</a>
                     <button type="button" class="hover:text-slate-700" data-cookie-open>{{ t('cookie_settings', page_locale()) }}</button>
                 </div>
             </div>

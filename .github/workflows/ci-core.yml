@@ -18,6 +18,8 @@ jobs:
         working-directory: core
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
@@ -76,7 +78,8 @@ jobs:
 
       - name: Prepare bundle
         run: |
-          VERSION="${GITHUB_REF_NAME}"
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG="${GITHUB_REF_NAME}"
           mkdir -p ../dist
           # Archiviert den core-Ordner ohne unnötige Dateien
           tar -czf "../dist/easywi-core-${VERSION}.tar.gz" \
@@ -92,6 +95,53 @@ jobs:
           cd ../dist
           sha256sum easywi-core-*.tar.gz > checksums-core.txt
 
+      - name: Generate update manifest
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAG="${GITHUB_REF_NAME}"
+          ARCHIVE="easywi-core-${VERSION}.tar.gz"
+          SHA256=$(sha256sum "../dist/${ARCHIVE}" | awk '{print $1}')
+          export VERSION TAG ARCHIVE SHA256
+          git fetch --tags --force
+          PREV_TAG=$(git tag --sort=-v:refname | grep -Fv "${TAG}" | head -n 1 || true)
+          if [[ -n "${PREV_TAG}" ]]; then
+            NOTES=$(git log --pretty=format:'- %s' "${PREV_TAG}..${TAG}")
+          else
+            NOTES=$(git log --pretty=format:'- %s' -n 20)
+          fi
+          NOTES="${NOTES}" python - <<'PY'
+          import json
+          import os
+
+          payload = {
+              "latest": os.environ["VERSION"],
+              "asset_url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['TAG']}/{os.environ['ARCHIVE']}",
+              "sha256": os.environ["SHA256"],
+              "notes": os.environ.get("NOTES", "").strip(),
+          }
+          with open("../dist/manifest.json", "w", encoding="utf-8") as handle:
+              json.dump(payload, handle, indent=2, ensure_ascii=False)
+              handle.write("\n")
+          PY
+
+      - name: Sign checksums and manifest
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}
+        run: |
+          if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
+            echo "Missing GPG signing key (EASYWI_GPG_PRIVATE_KEY)." >&2
+            exit 1
+          fi
+          export GNUPGHOME
+          GNUPGHOME="$(mktemp -d)"
+          chmod 700 "${GNUPGHOME}"
+          printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
+            --armor --detach-sign ../dist/checksums-core.txt
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
+            --armor --detach-sign ../dist/manifest.json
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -99,4 +149,7 @@ jobs:
           files: |
             dist/easywi-core-*.tar.gz
             dist/checksums-core.txt
+            dist/checksums-core.txt.asc
+            dist/manifest.json
+            dist/manifest.json.asc
           generate_release_notes: true

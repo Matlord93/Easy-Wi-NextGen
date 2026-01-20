@@ -23,100 +23,213 @@
         </div>
     {% endif %}
 
-    <form method="post" action="/admin/settings" class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div>
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('admin_settings_core_section', page_locale()) }}</h2>
-            <div class="mt-4">
-                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_instance_base_dir', page_locale()) }}</label>
-                <input
-                    type="text"
-                    name="instance_base_dir"
-                    value="{{ settings.instance_base_dir }}"
-                    placeholder="/home"
-                    class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+            {% set tabs = [
+                { key: 'general', label: t('admin_webinterface_tab_general', page_locale()) },
+                { key: 'email', label: t('admin_webinterface_tab_email', page_locale()) },
+                { key: 'gameserver', label: t('admin_webinterface_tab_gameserver', page_locale()) },
+                { key: 'customer', label: t('admin_webinterface_tab_customer', page_locale()) }
+            ] %}
+            {% for tab in tabs %}
+                <a
+                    href="/admin/settings?tab={{ tab.key }}"
+                    class="rounded-lg border px-4 py-2 text-xs font-semibold {{ activeTab == tab.key ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600 hover:text-slate-800' }}"
                 >
-                <p class="mt-2 text-xs text-slate-600">{{ t('admin_settings_instance_base_dir_hint', page_locale()) }}</p>
-            </div>
+                    {{ tab.label }}
+                </a>
+            {% endfor %}
         </div>
 
-        <div>
-            <h2 class="text-sm font-semibold text-slate-900">{{ t('admin_settings_sftp_section', page_locale()) }}</h2>
-            <div class="mt-4 grid gap-5 lg:grid-cols-2">
-                <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_host', page_locale()) }}</label>
-                    <input
-                        type="text"
-                        name="sftp_host"
-                        value="{{ settings.sftp_host }}"
-                        placeholder="node.example.com"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    >
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_port', page_locale()) }}</label>
-                    <input
-                        type="text"
-                        name="sftp_port"
-                        value="{{ settings.sftp_port }}"
-                        placeholder="22"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    >
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_username', page_locale()) }}</label>
-                    <input
-                        type="text"
-                        name="sftp_username"
-                        value="{{ settings.sftp_username }}"
-                        placeholder="easywi"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    >
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_password', page_locale()) }}</label>
-                    <input
-                        type="password"
-                        name="sftp_password"
-                        placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    >
-                </div>
-                <div class="lg:col-span-2">
-                    <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_private_key', page_locale()) }}</label>
-                    <textarea
-                        name="sftp_private_key"
-                        rows="4"
-                        placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    ></textarea>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_private_key_path', page_locale()) }}</label>
-                    <input
-                        type="text"
-                        name="sftp_private_key_path"
-                        value="{{ settings.sftp_private_key_path }}"
-                        placeholder="/home/easywi/.ssh/id_ed25519"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    >
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_private_key_passphrase', page_locale()) }}</label>
-                    <input
-                        type="password"
-                        name="sftp_private_key_passphrase"
-                        placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    >
-                </div>
-            </div>
-            <p class="mt-3 text-xs text-slate-600">{{ t('admin_settings_secret_hint', page_locale()) }}</p>
-        </div>
+        <form method="post" action="/admin/settings" class="mt-6 space-y-6">
+            <input type="hidden" name="tab" value="{{ activeTab }}">
 
-        <div class="flex flex-wrap items-center gap-3">
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_settings_save', page_locale()) }}</button>
-            <a href="/admin" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">{{ t('admin_settings_back', page_locale()) }}</a>
-        </div>
-    </form>
+            {% if activeTab == 'general' %}
+                <div class="grid gap-5 lg:grid-cols-2">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_site_title', page_locale()) }}</label>
+                        <input type="text" name="site_title" value="{{ settings.site_title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_branding_name', page_locale()) }}</label>
+                        <input type="text" name="branding_name" value="{{ settings.branding_name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                    <div class="lg:col-span-2">
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_branding_logo', page_locale()) }}</label>
+                        <input type="text" name="branding_logo_url" value="{{ settings.branding_logo_url }}" placeholder="/assets/logo.svg" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <p class="mt-2 text-xs text-slate-600">{{ t('admin_webinterface_branding_logo_hint', page_locale()) }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_support_email', page_locale()) }}</label>
+                        <input type="email" name="support_email" value="{{ settings.support_email }}" placeholder="support@example.com" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                </div>
+            {% elseif activeTab == 'email' %}
+                <div class="grid gap-5 lg:grid-cols-2">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_mail_from_name', page_locale()) }}</label>
+                        <input type="text" name="mail_from_name" value="{{ settings.mail_from_name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_mail_from_address', page_locale()) }}</label>
+                        <input type="email" name="mail_from_address" value="{{ settings.mail_from_address }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_mail_reply_to', page_locale()) }}</label>
+                        <input type="email" name="mail_reply_to" value="{{ settings.mail_reply_to }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_mail_default_locale', page_locale()) }}</label>
+                        <select name="mail_default_locale" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                            <option value="de" {{ settings.mail_default_locale == 'de' ? 'selected' : '' }}>DE</option>
+                            <option value="en" {{ settings.mail_default_locale == 'en' ? 'selected' : '' }}>EN</option>
+                        </select>
+                    </div>
+                </div>
+            {% elseif activeTab == 'gameserver' %}
+                <div class="grid gap-5 lg:grid-cols-3">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_gameserver_default_slots', page_locale()) }}</label>
+                        <input type="number" min="1" name="gameserver_default_slots" value="{{ settings.gameserver_default_slots }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_gameserver_min_slots', page_locale()) }}</label>
+                        <input type="number" min="1" name="gameserver_min_slots" value="{{ settings.gameserver_min_slots }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_gameserver_max_slots', page_locale()) }}</label>
+                        <input type="number" min="1" name="gameserver_max_slots" value="{{ settings.gameserver_max_slots }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                    <div class="lg:col-span-3 flex flex-wrap gap-6">
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="gameserver_show_port_range" value="1" class="rounded border-slate-300" {{ settings.gameserver_show_port_range ? 'checked' : '' }}>
+                            {{ t('admin_webinterface_gameserver_show_port_range', page_locale()) }}
+                        </label>
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="gameserver_allow_start_stop" value="1" class="rounded border-slate-300" {{ settings.gameserver_allow_start_stop ? 'checked' : '' }}>
+                            {{ t('admin_webinterface_gameserver_allow_start_stop', page_locale()) }}
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-sm font-semibold text-slate-900">{{ t('admin_settings_core_section', page_locale()) }}</h2>
+                    <div class="mt-4">
+                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_instance_base_dir', page_locale()) }}</label>
+                        <input
+                            type="text"
+                            name="instance_base_dir"
+                            value="{{ settings.instance_base_dir }}"
+                            placeholder="/home"
+                            class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                        >
+                        <p class="mt-2 text-xs text-slate-600">{{ t('admin_settings_instance_base_dir_hint', page_locale()) }}</p>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-sm font-semibold text-slate-900">{{ t('admin_settings_sftp_section', page_locale()) }}</h2>
+                    <div class="mt-4 grid gap-5 lg:grid-cols-2">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_host', page_locale()) }}</label>
+                            <input
+                                type="text"
+                                name="sftp_host"
+                                value="{{ settings.sftp_host }}"
+                                placeholder="node.example.com"
+                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            >
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_port', page_locale()) }}</label>
+                            <input
+                                type="text"
+                                name="sftp_port"
+                                value="{{ settings.sftp_port }}"
+                                placeholder="22"
+                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            >
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_username', page_locale()) }}</label>
+                            <input
+                                type="text"
+                                name="sftp_username"
+                                value="{{ settings.sftp_username }}"
+                                placeholder="easywi"
+                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            >
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_password', page_locale()) }}</label>
+                            <input
+                                type="password"
+                                name="sftp_password"
+                                placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}"
+                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            >
+                        </div>
+                        <div class="lg:col-span-2">
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_private_key', page_locale()) }}</label>
+                            <textarea
+                                name="sftp_private_key"
+                                rows="4"
+                                placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}"
+                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            ></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_private_key_path', page_locale()) }}</label>
+                            <input
+                                type="text"
+                                name="sftp_private_key_path"
+                                value="{{ settings.sftp_private_key_path }}"
+                                placeholder="/home/easywi/.ssh/id_ed25519"
+                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            >
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_private_key_passphrase', page_locale()) }}</label>
+                            <input
+                                type="password"
+                                name="sftp_private_key_passphrase"
+                                placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}"
+                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            >
+                        </div>
+                    </div>
+                    <p class="mt-3 text-xs text-slate-600">{{ t('admin_settings_secret_hint', page_locale()) }}</p>
+                </div>
+            {% elseif activeTab == 'customer' %}
+                <div class="space-y-4">
+                    <div class="flex flex-wrap gap-6">
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="customer_data_manager_enabled" value="1" class="rounded border-slate-300" {{ settings.customer_data_manager_enabled ? 'checked' : '' }}>
+                            {{ t('admin_webinterface_customer_data_manager', page_locale()) }}
+                        </label>
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="customer_file_push_enabled" value="1" class="rounded border-slate-300" {{ settings.customer_file_push_enabled ? 'checked' : '' }}>
+                            {{ t('admin_webinterface_customer_file_push', page_locale()) }}
+                        </label>
+                    </div>
+                    <div class="grid gap-5 lg:grid-cols-2">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_customer_console_label', page_locale()) }}</label>
+                            <input type="text" name="customer_console_label" value="{{ settings.customer_console_label }}" placeholder="{{ t('customer_instance_tab_console', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_customer_logs_label', page_locale()) }}</label>
+                            <input type="text" name="customer_logs_label" value="{{ settings.customer_logs_label }}" placeholder="Logs" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_settings_save', page_locale()) }}</button>
+                <a href="/admin" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">{{ t('admin_settings_back', page_locale()) }}</a>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}

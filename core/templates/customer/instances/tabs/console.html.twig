@@ -1,6 +1,13 @@
-<div class="space-y-6">
+<div
+    class="space-y-6"
+    id="instance-console"
+    data-instance-id="{{ instance.id }}"
+    data-instance-status="{{ instance.status }}"
+    data-console-command-url="{{ path('customer_instance_console_command', {id: instance.id}) }}"
+>
     <div>
-        <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_console', page_locale()) }}</h2>
+        {% set consoleLabel = app_setting('customer_console_label', t('customer_instance_tab_console', page_locale())) %}
+        <h2 class="text-lg font-semibold text-slate-900">{{ consoleLabel }}</h2>
         <p class="text-sm text-slate-700">{{ t('customer_instance_console_intro', page_locale()) }}</p>
     </div>
 
@@ -25,4 +32,84 @@
             </ul>
         </div>
     </div>
+
+    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_console_send_title', page_locale()) }}</p>
+        <p class="mt-2 text-sm text-slate-600">{{ t('customer_instance_console_send_intro', page_locale()) }}</p>
+        <div class="mt-4 space-y-2">
+            <label for="instance-console-command" class="text-xs font-semibold text-slate-600">{{ t('customer_instance_console_send_command', page_locale()) }}</label>
+            <input id="instance-console-command" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700" placeholder="{{ t('customer_instance_console_send_command_placeholder', page_locale()) }}">
+            <div class="flex flex-wrap items-center gap-3">
+                <button id="instance-console-send" type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500">
+                    {{ t('customer_instance_console_send_action', page_locale()) }}
+                </button>
+                <span id="instance-console-feedback" class="text-xs text-slate-500"></span>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+    (() => {
+        const container = document.getElementById('instance-console');
+        if (!container) {
+            return;
+        }
+        const instanceId = container.dataset.instanceId;
+        const status = container.dataset.instanceStatus;
+        const commandUrl = container.dataset.consoleCommandUrl;
+        const input = document.getElementById('instance-console-command');
+        const button = document.getElementById('instance-console-send');
+        const feedback = document.getElementById('instance-console-feedback');
+
+        if (!instanceId || !commandUrl || !input || !button || !feedback) {
+            return;
+        }
+
+        if (status !== 'running') {
+            button.disabled = true;
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+            feedback.textContent = '{{ t('customer_instance_console_send_requires_running', page_locale()) }}';
+            return;
+        }
+
+        const setFeedback = (message, isError = false) => {
+            feedback.textContent = message;
+            feedback.classList.toggle('text-rose-600', isError);
+            feedback.classList.toggle('text-slate-500', !isError);
+        };
+
+        button.addEventListener('click', async () => {
+            const command = input.value.trim();
+            if (!command) {
+                setFeedback('{{ t('customer_instance_console_send_command_required', page_locale()) }}', true);
+                return;
+            }
+
+            setFeedback('{{ t('customer_instance_console_send_status_sending', page_locale()) }}');
+
+            try {
+                const response = await fetch(commandUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ command }),
+                });
+
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    setFeedback(payload.error || 'Command failed.', true);
+                    return;
+                }
+
+                input.value = '';
+                setFeedback('{{ t('customer_instance_console_send_status_sent', page_locale()) }}');
+            } catch (err) {
+                setFeedback(err.message || 'Command failed.', true);
+            }
+        });
+    })();
+</script>

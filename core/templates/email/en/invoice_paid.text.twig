@@ -1,0 +1,10 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hello {{ customer_name|default('there') }},
+
+Thank you! We have received your payment for invoice {{ invoice_number }}.
+Amount: {{ invoice_amount }} {{ invoice_currency }}
+
+You can view the invoice in your customer portal.
+{% endblock %}

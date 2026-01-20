@@ -23,6 +23,7 @@ final class Ts6NodeDto
         public string $serviceName = self::DEFAULT_SERVICE_NAME,
         public string $queryBindIp = '127.0.0.1',
         public int $queryHttpsPort = 10443,
+        public int $voicePort = 9987,
     ) {
     }
 }

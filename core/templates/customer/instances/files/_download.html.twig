@@ -4,7 +4,7 @@
     {% if status in ['queued', 'running'] %}
         <span
             class="text-xs text-slate-600"
-            hx-get="/instances/{{ instanceId }}/files/download/{{ jobId }}"
+            hx-get="{{ path('customer_instance_files_download_status', {id: instanceId, jobId: jobId}) }}"
             hx-trigger="load, every 2s"
             hx-swap="outerHTML"
         >
@@ -15,7 +15,7 @@
     {% else %}
         <div class="flex flex-wrap items-center gap-2 text-xs text-emerald-700">
             <span>{{ t('customer_instance_files_download_ready', page_locale()) }} {{ name }}</span>
-            <a href="/instances/{{ instanceId }}/files/download/{{ jobId }}/file" class="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_download_now', page_locale()) }}</a>
+            <a href="{{ path('customer_instance_files_download_file', {id: instanceId, jobId: jobId}) }}" class="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_download_now', page_locale()) }}</a>
         </div>
     {% endif %}
 </div>

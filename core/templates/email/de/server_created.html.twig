@@ -1,0 +1,14 @@
+{% extends 'email/base.html.twig' %}
+
+{% block body %}
+  <p style="margin:0 0 16px 0;">Hallo {{ customer_name|default('') }},</p>
+  <p style="margin:0 0 16px 0;">
+    Ihr Server <strong>{{ server_name }}</strong> wurde erstellt und ist bereit.
+  </p>
+  <p style="margin:0 0 16px 0;">
+    Verwalten Sie ihn hier: <a href="{{ portal_url }}">{{ portal_url }}</a>
+  </p>
+  <p style="margin:0; font-size:14px; color:#6b7280;">
+    Wenn Sie Fragen haben, antworten Sie einfach auf diese E-Mail.
+  </p>
+{% endblock %}

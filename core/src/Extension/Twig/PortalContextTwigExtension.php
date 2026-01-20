@@ -6,6 +6,7 @@ namespace App\Extension\Twig;
 
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Application\AgentReleaseChecker;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Repository\AgentRepository;
 use App\Repository\InvoicePreferencesRepository;
@@ -24,6 +25,7 @@ final class PortalContextTwigExtension extends AbstractExtension
         private readonly WebinterfaceUpdateService $webinterfaceUpdateService,
         private readonly AgentRepository $agentRepository,
         private readonly AgentReleaseChecker $agentReleaseChecker,
+        private readonly AppSettingsService $appSettingsService,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -36,6 +38,8 @@ final class PortalContextTwigExtension extends AbstractExtension
             new TwigFunction('page_locale', [$this, 'pageLocale']),
             new TwigFunction('unread_notifications', [$this, 'unreadNotifications']),
             new TwigFunction('t', [$this, 'translate']),
+            new TwigFunction('app_setting', [$this, 'appSetting']),
+            new TwigFunction('app_settings', [$this, 'appSettings']),
         ];
     }
 
@@ -129,5 +133,20 @@ final class PortalContextTwigExtension extends AbstractExtension
         $resolvedLocale = $locale ?? $this->pageLocale();
 
         return $this->translator->trans($key, [], 'portal', $resolvedLocale);
+    }
+
+    public function appSetting(string $key, mixed $default = null): mixed
+    {
+        $settings = $this->appSettingsService->getSettings();
+
+        return $settings[$key] ?? $default;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function appSettings(): array
+    {
+        return $this->appSettingsService->getSettings();
     }
 }

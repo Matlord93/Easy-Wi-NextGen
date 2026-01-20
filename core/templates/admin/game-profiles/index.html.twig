@@ -1,0 +1,45 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Game Profiles · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="flex flex-col gap-4">
+        <div>
+            <h1 class="text-2xl font-semibold">Game Profiles</h1>
+            <p class="text-sm text-slate-700">Port and slot enforcement profiles loaded from configuration.</p>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <h2 class="text-sm font-semibold uppercase text-slate-700">Profiles</h2>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ profiles|length }}</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                        <tr>
+                            <th class="px-6 py-3">Game key</th>
+                            <th class="px-6 py-3">Ports</th>
+                            <th class="px-6 py-3">Slots</th>
+                            <th class="px-6 py-3">Roles</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                        {% for profile in profiles %}
+                            <tr>
+                                <td class="px-6 py-3 text-xs font-semibold text-slate-900">{{ profile.getGameKey() }}</td>
+                                <td class="px-6 py-3 text-xs text-slate-600">{{ profile.getEnforceModePorts().value }}</td>
+                                <td class="px-6 py-3 text-xs text-slate-600">{{ profile.getEnforceModeSlots().value }}</td>
+                                <td class="px-6 py-3 text-xs text-slate-600">{{ profile.getPortRoles()|length }}</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="px-6 py-6 text-center text-sm text-slate-600">No profiles loaded.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}

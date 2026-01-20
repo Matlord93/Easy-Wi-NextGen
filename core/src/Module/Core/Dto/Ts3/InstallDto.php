@@ -14,6 +14,7 @@ final class InstallDto
         public bool $acceptLicense = true,
         public string $queryBindIp = '127.0.0.1',
         public int $queryPort = 10011,
+        public int $filetransferPort = 30033,
         public ?string $adminPassword = null,
     ) {
     }

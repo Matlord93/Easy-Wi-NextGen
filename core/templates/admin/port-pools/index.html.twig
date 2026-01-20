@@ -35,6 +35,10 @@
                     <input type="text" name="name" placeholder="{{ t('admin_port_pools_name_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                 </div>
                 <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">Pool tag</label>
+                    <input type="text" name="tag" placeholder="GAME_UDP" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                </div>
+                <div>
                     <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_port_pools_range_label', page_locale()) }}</label>
                     <div class="mt-2 grid gap-2 sm:grid-cols-2">
                         <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_pools_range_start_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
@@ -42,6 +46,10 @@
                     </div>
                     <p class="mt-1 text-xs text-slate-600">{{ t('admin_port_pools_range_hint', page_locale()) }}</p>
                 </div>
+                <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700">
+                    <input type="checkbox" name="enabled" value="1" checked class="h-4 w-4 rounded border-slate-300 text-slate-900">
+                    Enabled
+                </label>
                 <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800">
                     {{ t('admin_port_pools_create_action', page_locale()) }}
                 </button>
@@ -72,8 +80,10 @@
                     <tr>
                         <th class="px-6 py-3">{{ t('admin_label_id', page_locale()) }}</th>
                         <th class="px-6 py-3">{{ t('admin_port_pools_name_label', page_locale()) }}</th>
+                        <th class="px-6 py-3">Tag</th>
                         <th class="px-6 py-3">{{ t('admin_port_pools_node_label', page_locale()) }}</th>
                         <th class="px-6 py-3">{{ t('admin_port_pools_range_label', page_locale()) }}</th>
+                        <th class="px-6 py-3">Enabled</th>
                         <th class="px-6 py-3">{{ t('admin_port_pools_created_label', page_locale()) }}</th>
                     </tr>
                 </thead>
@@ -85,17 +95,21 @@
                                 <div class="text-sm font-semibold text-slate-900">{{ pool.name }}</div>
                             </td>
                             <td class="px-6 py-3">
+                                <div class="text-xs font-semibold text-slate-700">{{ pool.tag }}</div>
+                            </td>
+                            <td class="px-6 py-3">
                                 <div class="text-sm font-semibold text-slate-900">{{ pool.node.name ?? pool.node.id }}</div>
                                 <div class="text-xs text-slate-600">{{ pool.node.id }}</div>
                             </td>
                             <td class="px-6 py-3">
                                 <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ pool.start_port }}-{{ pool.end_port }}</span>
                             </td>
+                            <td class="px-6 py-3 text-xs text-slate-600">{{ pool.enabled ? 'Yes' : 'No' }}</td>
                             <td class="px-6 py-3 text-xs text-slate-600">{{ pool.created_at|date('Y-m-d H:i') }}</td>
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="5" class="px-6 py-6 text-center text-sm text-slate-600">{{ t('admin_port_pools_empty', page_locale()) }}</td>
+                            <td colspan="7" class="px-6 py-6 text-center text-sm text-slate-600">{{ t('admin_port_pools_empty', page_locale()) }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

@@ -1,0 +1,10 @@
+{% set appName = app_name|default('Easy-Wi NextGen') %}
+{% set supportEmail = support_email|default('support@example.com') %}
+{% set year = current_year|default('now'|date('Y')) %}
+{{ appName }}
+
+{% block body %}{% endblock %}
+
+--
+{{ supportEmail }}
+© {{ year }} {{ appName }}

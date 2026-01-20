@@ -13,20 +13,20 @@
             </div>
             <div class="flex items-center gap-2 text-xs">
                 <span class="text-indigo-100">{{ t('language', page_locale()) }}:</span>
-                <a href="/?lang=de" class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 {{ page_locale() == 'de' ? 'border-white/70 bg-white/10 text-white' : 'border-indigo-200/60 text-indigo-100 hover:border-white/70' }}">
+                <a href="{{ path('main_index', {lang: 'de'}) }}" class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 {{ page_locale() == 'de' ? 'border-white/70 bg-white/10 text-white' : 'border-indigo-200/60 text-indigo-100 hover:border-white/70' }}">
                     <span aria-hidden="true">🇩🇪</span>
                     <span>DE</span>
                 </a>
-                <a href="/?lang=en" class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 {{ page_locale() == 'en' ? 'border-white/70 bg-white/10 text-white' : 'border-indigo-200/60 text-indigo-100 hover:border-white/70' }}">
+                <a href="{{ path('main_index', {lang: 'en'}) }}" class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 {{ page_locale() == 'en' ? 'border-white/70 bg-white/10 text-white' : 'border-indigo-200/60 text-indigo-100 hover:border-white/70' }}">
                     <span aria-hidden="true">🇬🇧</span>
                     <span>EN</span>
                 </a>
             </div>
         </div>
         <div class="mt-6 flex flex-wrap gap-3">
-            <a href="/login" class="inline-flex items-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700">{{ t('login', page_locale()) }}</a>
-            <a href="/register" class="inline-flex items-center rounded-lg border border-indigo-200/60 px-4 py-2 text-sm font-semibold text-white">{{ t('register', page_locale()) }}</a>
-            <a href="/status" class="inline-flex items-center rounded-lg border border-indigo-200/60 px-4 py-2 text-sm font-semibold text-white">{{ t('view_status', page_locale()) }}</a>
+            <a href="{{ path('public_login') }}" class="inline-flex items-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-700">{{ t('login', page_locale()) }}</a>
+            <a href="{{ path('public_register') }}" class="inline-flex items-center rounded-lg border border-indigo-200/60 px-4 py-2 text-sm font-semibold text-white">{{ t('register', page_locale()) }}</a>
+            <a href="{{ path('public_status') }}" class="inline-flex items-center rounded-lg border border-indigo-200/60 px-4 py-2 text-sm font-semibold text-white">{{ t('view_status', page_locale()) }}</a>
         </div>
     </div>
 
@@ -34,17 +34,17 @@
         <div class="rounded-xl border border-slate-200 bg-white p-6">
             <h2 class="text-base font-semibold text-slate-900">{{ t('status_overview', page_locale()) }}</h2>
             <p class="mt-2 text-sm text-slate-600">{{ t('status_overview_description', page_locale()) }}</p>
-            <a href="/status" class="mt-4 inline-flex text-sm font-semibold text-indigo-600">{{ t('go_to_status', page_locale()) }}</a>
+            <a href="{{ path('public_status') }}" class="mt-4 inline-flex text-sm font-semibold text-indigo-600">{{ t('go_to_status', page_locale()) }}</a>
         </div>
         <div class="rounded-xl border border-slate-200 bg-white p-6">
             <h2 class="text-base font-semibold text-slate-900">{{ t('server_directory', page_locale()) }}</h2>
             <p class="mt-2 text-sm text-slate-600">{{ t('server_directory_description', page_locale()) }}</p>
-            <a href="/servers" class="mt-4 inline-flex text-sm font-semibold text-indigo-600">{{ t('browse_servers', page_locale()) }}</a>
+            <a href="{{ path('public_servers') }}" class="mt-4 inline-flex text-sm font-semibold text-indigo-600">{{ t('browse_servers', page_locale()) }}</a>
         </div>
         <div class="rounded-xl border border-slate-200 bg-white p-6">
             <h2 class="text-base font-semibold text-slate-900">{{ t('downloads_docs', page_locale()) }}</h2>
             <p class="mt-2 text-sm text-slate-600">{{ t('downloads_docs_description', page_locale()) }}</p>
-            <a href="/downloads" class="mt-4 inline-flex text-sm font-semibold text-indigo-600">{{ t('view_downloads', page_locale()) }}</a>
+            <a href="{{ path('public_downloads') }}" class="mt-4 inline-flex text-sm font-semibold text-indigo-600">{{ t('view_downloads', page_locale()) }}</a>
         </div>
     </div>
 </div>

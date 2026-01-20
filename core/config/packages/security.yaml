@@ -1,6 +1,6 @@
 security:
   password_hashers:
-    App\Module\Core\Domain\Entity\User: 'argon2id'
+    App\Module\Core\Domain\Entity\User: 'auto'
 
   providers:
     app_users:

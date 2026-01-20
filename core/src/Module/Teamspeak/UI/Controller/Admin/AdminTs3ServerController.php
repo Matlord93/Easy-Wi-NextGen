@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
 use App\Module\Core\Dto\Ts3\AdminCreateVirtualServerDto;
-use App\Module\Core\Dto\Ts3\CreateVirtualServerDto;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Application\VirtualServerDtoFactory;
 use App\Module\Core\Form\Ts3AdminCreateVirtualServerType;
 use App\Repository\Ts3NodeRepository;
 use App\Repository\UserRepository;
@@ -27,6 +27,7 @@ final class AdminTs3ServerController
         private readonly UserRepository $userRepository,
         private readonly Ts3VirtualServerService $virtualServerService,
         private readonly FormFactoryInterface $formFactory,
+        private readonly VirtualServerDtoFactory $dtoFactory,
         private readonly Environment $twig,
     ) {
     }
@@ -64,7 +65,7 @@ final class AdminTs3ServerController
                 throw new BadRequestHttpException('Customer or node not found.');
             }
 
-            $createDto = new CreateVirtualServerDto($dto->name, $dto->voicePort, $dto->filetransferPort);
+            $createDto = $this->dtoFactory->createTs3($dto);
             $this->virtualServerService->createForCustomer($customer->getId() ?? 0, $node, $createDto);
             $request->getSession()->getFlashBag()->add('success', 'TS3 virtual server created.');
 

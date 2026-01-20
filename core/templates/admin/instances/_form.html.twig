@@ -59,10 +59,18 @@
         </label>
     </div>
 
-    <label class="block text-sm font-medium text-slate-700">
-        {{ t('admin_instances_port_block', page_locale()) }}
-        <input name="port_block_id" value="{{ form.port_block_id }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_port_block_placeholder', page_locale()) }}">
-    </label>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label class="block text-sm font-medium text-slate-700">
+            {{ t('admin_instances_current_slots', page_locale()) }}
+            <input name="current_slots" type="number" min="{{ form.min_slots }}" max="{{ form.max_slots_limit }}" value="{{ form.current_slots }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            {{ t('admin_instances_max_slots', page_locale()) }}
+            <input name="max_slots" type="number" min="{{ form.min_slots }}" max="{{ form.max_slots_limit }}" value="{{ form.max_slots }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+        </label>
+    </div>
+
+    <p class="text-xs text-slate-500">{{ t('admin_instances_ports_auto', page_locale()) }}</p>
 
     <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
         {{ t(form.submit_label, page_locale()) }}

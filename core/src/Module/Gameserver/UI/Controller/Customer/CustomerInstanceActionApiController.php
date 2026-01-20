@@ -9,6 +9,7 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
+use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Message\InstanceActionMessage;
@@ -296,6 +297,10 @@ final class CustomerInstanceActionApiController
 
         if ($command === '') {
             return new JsonResponse(['error' => 'Command is required.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if ($instance->getStatus() !== InstanceStatus::Running) {
+            return new JsonResponse(['error' => 'Instance must be running to send commands.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());

@@ -22,6 +22,7 @@ final class Ts3NodeDto
         public string $serviceName = self::DEFAULT_SERVICE_NAME,
         public string $queryBindIp = '127.0.0.1',
         public int $queryPort = 10011,
+        public int $filetransferPort = 30033,
     ) {
     }
 }

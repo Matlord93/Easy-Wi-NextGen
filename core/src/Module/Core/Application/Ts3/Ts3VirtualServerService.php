@@ -22,12 +22,13 @@ final class Ts3VirtualServerService
 
     public function createForCustomer(int $customerId, Ts3Node $node, CreateVirtualServerDto $dto): Ts3VirtualServer
     {
+        $filetransferPort = $dto->filetransferPort ?? $node->getFiletransferPort();
         $params = [];
         if ($dto->voicePort !== null) {
             $params['voice_port'] = $dto->voicePort;
         }
-        if ($dto->filetransferPort !== null) {
-            $params['filetransfer_port'] = $dto->filetransferPort;
+        if ($filetransferPort !== null) {
+            $params['filetransfer_port'] = $filetransferPort;
         }
 
         $payload = [
@@ -37,7 +38,7 @@ final class Ts3VirtualServerService
 
         $virtualServer = new Ts3VirtualServer($node, $customerId, 0, $dto->name);
         $virtualServer->setVoicePort($dto->voicePort);
-        $virtualServer->setFiletransferPort($dto->filetransferPort);
+        $virtualServer->setFiletransferPort($filetransferPort);
         $virtualServer->setStatus('provisioning');
         $this->entityManager->persist($virtualServer);
 

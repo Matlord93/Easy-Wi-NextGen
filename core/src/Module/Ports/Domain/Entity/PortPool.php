@@ -28,6 +28,9 @@ class PortPool implements ResourceEventSource
     #[ORM\Column(length: 120)]
     private string $name;
 
+    #[ORM\Column(length: 120)]
+    private string $tag;
+
     #[ORM\Column]
     private int $startPort;
 
@@ -35,17 +38,22 @@ class PortPool implements ResourceEventSource
     private int $endPort;
 
     #[ORM\Column]
+    private bool $enabled = true;
+
+    #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
-    public function __construct(Agent $node, string $name, int $startPort, int $endPort)
+    public function __construct(Agent $node, string $name, string $tag, int $startPort, int $endPort, bool $enabled = true)
     {
         $this->node = $node;
         $this->name = $name;
+        $this->tag = $tag;
         $this->startPort = $startPort;
         $this->endPort = $endPort;
+        $this->enabled = $enabled;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -71,6 +79,17 @@ class PortPool implements ResourceEventSource
         $this->touch();
     }
 
+    public function getTag(): string
+    {
+        return $this->tag;
+    }
+
+    public function setTag(string $tag): void
+    {
+        $this->tag = $tag;
+        $this->touch();
+    }
+
     public function getStartPort(): int
     {
         return $this->startPort;
@@ -85,6 +104,17 @@ class PortPool implements ResourceEventSource
     {
         $this->startPort = $startPort;
         $this->endPort = $endPort;
+        $this->touch();
+    }
+
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
+
+    public function setEnabled(bool $enabled): void
+    {
+        $this->enabled = $enabled;
         $this->touch();
     }
 

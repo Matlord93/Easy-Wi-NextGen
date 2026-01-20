@@ -1,0 +1,700 @@
+game_profile_schema:
+  enforce_mode_ports: ENFORCE_BY_ARGS | ENFORCE_BY_CONFIG
+  enforce_mode_slots: ENFORCE_BY_ARGS | ENFORCE_BY_CONFIG
+  port_roles:
+    - role_key: GAME_PORT
+      proto: udp|tcp
+      purpose: text
+      allocation_strategy: pool_single|pool_consecutive|derived_offset|fixed_default_or_pool
+      pool_tag: GAME_UDP
+      required: true|false
+      derived_from: GAME_PORT
+      offset: 1
+      count: 2
+      default_port: 27015
+  slot_rule:
+    mode: args|config
+    arg_key: "+maxplayers"
+    config_file: "server.properties"
+    config_key: "max-players"
+
+profiles:
+  cs2:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: false
+    slot_rule:
+      mode: args
+      arg_key: "+maxplayers"
+  cs2_windows: { inherit: cs2 }
+
+  csgo_legacy:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: false
+    slot_rule:
+      mode: args
+      arg_key: "+maxplayers"
+  csgo_legacy_windows: { inherit: csgo_legacy }
+
+  css:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: false
+    slot_rule:
+      mode: args
+      arg_key: "+maxplayers"
+  css_windows: { inherit: css }
+
+  tf2:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: false
+    slot_rule:
+      mode: args
+      arg_key: "+maxplayers"
+  tf2_windows: { inherit: tf2 }
+
+  hl2dm:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: false
+    slot_rule:
+      mode: args
+      arg_key: "+maxplayers"
+  hl2dm_windows: { inherit: hl2dm }
+
+  l4d:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: false
+    slot_rule:
+      mode: args
+      arg_key: "+maxplayers"
+  l4d_windows: { inherit: l4d }
+
+  l4d2:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: false
+    slot_rule:
+      mode: args
+      arg_key: "+maxplayers"
+  l4d2_windows: { inherit: l4d2 }
+
+  dods:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: false
+    slot_rule:
+      mode: args
+      arg_key: "+maxplayers"
+  dods_windows: { inherit: dods }
+
+  garrys_mod:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: false
+    slot_rule:
+      mode: args
+      arg_key: "+maxplayers"
+
+  rust:
+    enforce_mode_ports: ENFORCE_BY_ARGS
+    enforce_mode_slots: ENFORCE_BY_ARGS
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Server queries
+        allocation_strategy: pool_single
+        pool_tag: A2S_UDP
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: pool_single
+        pool_tag: RCON_TCP
+        required: true
+    slot_rule:
+      mode: args
+      arg_key: "+server.maxplayers"
+  rust_windows: { inherit: rust }
+
+  ark:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: pool_single
+        pool_tag: RCON_TCP
+        required: false
+    slot_rule:
+      mode: config
+      config_file: "GameUserSettings.ini"
+      config_key: "MaxPlayers"
+  ark_windows: { inherit: ark }
+
+  dayz:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "serverDZ.cfg"
+      config_key: "maxPlayers"
+  dayz_windows: { inherit: dayz }
+
+  valheim:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "start_server.cfg"
+      config_key: "-players"
+  valheim_windows: { inherit: valheim }
+
+  satisfactory:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: false
+    slot_rule:
+      mode: config
+      config_file: "Game.ini"
+      config_key: "ServerMaxPlayers"
+  satisfactory_windows: { inherit: satisfactory }
+
+  palworld:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_UDP
+        default_port: 8211
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: A2S_UDP
+        default_port: 27015
+        required: false
+    slot_rule:
+      mode: config
+      config_file: "PalWorldSettings.ini"
+      config_key: "ServerPlayerMaxNum"
+  palworld_windows: { inherit: palworld }
+
+  v_rising:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_UDP
+        default_port: 9876
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: A2S_UDP
+        default_port: 9877
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "ServerHostSettings.json"
+      config_key: "MaxConnectedUsers"
+  v_rising_windows: { inherit: v_rising }
+
+  enshrouded:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: false
+    slot_rule:
+      mode: config
+      config_file: "enshrouded_server.json"
+      config_key: "maxPlayers"
+  enshrouded_windows: { inherit: enshrouded }
+
+  conan_exiles:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_UDP
+        default_port: 7777
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: A2S_UDP
+        default_port: 27015
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "ServerSettings.ini"
+      config_key: "MaxPlayers"
+  conan_exiles_windows: { inherit: conan_exiles }
+
+  squad:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_UDP
+        default_port: 7787
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: A2S_UDP
+        default_port: 27165
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "Server.cfg"
+      config_key: "MaxPlayers"
+  squad_windows: { inherit: squad }
+
+  project_zomboid:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_UDP
+        default_port: 16261
+        required: true
+      - role_key: QUERY_PORT
+        proto: udp
+        purpose: Query traffic
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "server.ini"
+      config_key: "MaxPlayers"
+  project_zomboid_windows: { inherit: project_zomboid }
+
+  seven_days_to_die:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_UDP
+        required: true
+      - role_key: STEAM_QUERY_PORT
+        proto: udp
+        purpose: Steam query
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 1
+        required: true
+      - role_key: STEAM_MASTER_PORT
+        proto: udp
+        purpose: Steam master
+        allocation_strategy: derived_offset
+        derived_from: GAME_PORT
+        offset: 2
+        required: true
+      - role_key: TELNET_PORT
+        proto: tcp
+        purpose: Telnet control
+        allocation_strategy: pool_single
+        pool_tag: CONTROL_TCP
+        required: true
+      - role_key: CONTROL_PANEL_PORT
+        proto: tcp
+        purpose: Control panel
+        allocation_strategy: pool_single
+        pool_tag: CONTROL_TCP
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "serverconfig.xml"
+      config_key: "ServerMaxPlayerCount"
+
+  factorio:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_UDP
+        default_port: 34197
+        required: true
+      - role_key: RCON_PORT
+        proto: tcp
+        purpose: Remote console
+        allocation_strategy: pool_single
+        pool_tag: RCON_TCP
+        required: false
+    slot_rule:
+      mode: config
+      config_file: "server-settings.json"
+      config_key: "max_players"
+
+  terraria:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: tcp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_TCP
+        default_port: 7777
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "serverconfig.txt"
+      config_key: "maxplayers"
+
+  minecraft_vanilla_all:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: tcp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_TCP
+        default_port: 25565
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "server.properties"
+      config_key: "max-players"
+
+  minecraft_paper_all: { inherit: minecraft_vanilla_all }
+
+  minecraft_bedrock:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_UDP
+        default_port: 19132
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "server.properties"
+      config_key: "max-players"
+
+  hytale:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_PORT
+        proto: tcp
+        purpose: Game traffic
+        allocation_strategy: pool_single
+        pool_tag: GAME_TCP
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "server.properties"
+      config_key: "max-players"
+
+  fivem:
+    enforce_mode_ports: ENFORCE_BY_CONFIG
+    enforce_mode_slots: ENFORCE_BY_CONFIG
+    port_roles:
+      - role_key: GAME_TCP
+        proto: tcp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_TCP
+        default_port: 30120
+        required: true
+      - role_key: GAME_UDP
+        proto: udp
+        purpose: Game traffic
+        allocation_strategy: fixed_default_or_pool
+        pool_tag: GAME_UDP
+        default_port: 30120
+        required: true
+    slot_rule:
+      mode: config
+      config_file: "server.cfg"
+      config_key: "sv_maxclients"
+  fivem_windows: { inherit: fivem }

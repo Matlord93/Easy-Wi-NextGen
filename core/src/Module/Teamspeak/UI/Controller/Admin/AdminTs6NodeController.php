@@ -91,6 +91,7 @@ final class AdminTs6NodeController
             $node->setOsType($dto->osType);
             $node->setQueryBindIp($dto->queryBindIp);
             $node->setQueryHttpsPort($dto->queryHttpsPort);
+            $node->setVoicePort($dto->voicePort);
             $this->entityManager->persist($node);
             $this->entityManager->flush();
 
@@ -343,7 +344,7 @@ final class AdminTs6NodeController
             $node->getServiceName(),
             true,
             ['0.0.0.0', '::'],
-            9987,
+            $node->getVoicePort(),
             30033,
             ['0.0.0.0', '::'],
             true,

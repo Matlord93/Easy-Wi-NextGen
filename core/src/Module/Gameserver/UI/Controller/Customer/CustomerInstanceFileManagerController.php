@@ -8,10 +8,12 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobStatus;
+use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,6 +32,7 @@ final class CustomerInstanceFileManagerController
         private readonly JobRepository $jobRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly AppSettingsService $appSettingsService,
         private readonly Environment $twig,
     ) {
     }
@@ -37,6 +40,7 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '', name: 'customer_instance_files', methods: ['GET'])]
     public function index(Request $request, int $id): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim((string) $request->query->get('path', ''));
@@ -52,6 +56,7 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '/listing', name: 'customer_instance_files_listing', methods: ['GET'])]
     public function listing(Request $request, int $id): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim((string) $request->query->get('path', ''));
@@ -70,6 +75,7 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '/listing/{jobId}', name: 'customer_instance_files_listing_status', methods: ['GET'])]
     public function listingStatus(Request $request, int $id, string $jobId): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $job = $this->jobRepository->find($jobId);
@@ -182,8 +188,10 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '/save', name: 'customer_instance_files_save', methods: ['POST'])]
     public function save(Request $request, int $id): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        $this->assertInstanceRunning($instance);
         $path = trim((string) $request->request->get('path', ''));
         $name = trim((string) $request->request->get('name', ''));
         $content = (string) $request->request->get('content', '');
@@ -209,8 +217,11 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '/upload', name: 'customer_instance_files_upload', methods: ['POST'])]
     public function upload(Request $request, int $id): Response
     {
+        $this->assertDataManagerEnabled();
+        $this->assertFilePushEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        $this->assertInstanceRunning($instance);
         $path = trim((string) $request->request->get('path', ''));
         $upload = $request->files->get('upload');
         if (!$upload instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
@@ -240,6 +251,7 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '/mkdir', name: 'customer_instance_files_mkdir', methods: ['POST'])]
     public function mkdir(Request $request, int $id): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim((string) $request->request->get('path', ''));
@@ -265,6 +277,7 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '/delete', name: 'customer_instance_files_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim((string) $request->request->get('path', ''));
@@ -290,6 +303,7 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '/download', name: 'customer_instance_files_download', methods: ['GET'])]
     public function download(Request $request, int $id): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim((string) $request->query->get('path', ''));
@@ -314,6 +328,7 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '/download/{jobId}', name: 'customer_instance_files_download_status', methods: ['GET'])]
     public function downloadStatus(Request $request, int $id, string $jobId): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $job = $this->jobRepository->find($jobId);
@@ -347,6 +362,7 @@ final class CustomerInstanceFileManagerController
     #[Route(path: '/download/{jobId}/file', name: 'customer_instance_files_download_file', methods: ['GET'])]
     public function downloadFile(Request $request, int $id, string $jobId): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $job = $this->jobRepository->find($jobId);
@@ -535,6 +551,27 @@ final class CustomerInstanceFileManagerController
         }
 
         return $decoded;
+    }
+
+    private function assertDataManagerEnabled(): void
+    {
+        if (!$this->appSettingsService->isCustomerDataManagerEnabled()) {
+            throw new AccessDeniedHttpException('File manager is disabled.');
+        }
+    }
+
+    private function assertFilePushEnabled(): void
+    {
+        if (!$this->appSettingsService->isCustomerFilePushEnabled()) {
+            throw new AccessDeniedHttpException('File uploads are disabled.');
+        }
+    }
+
+    private function assertInstanceRunning(Instance $instance): void
+    {
+        if ($instance->getStatus() !== InstanceStatus::Running) {
+            throw new BadRequestHttpException('Instance must be running to send data.');
+        }
     }
 
     private function formatBytes(int $bytes): string

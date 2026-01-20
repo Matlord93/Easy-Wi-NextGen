@@ -264,6 +264,7 @@ final class AgentApiController
         $this->applyInstanceUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyDiskUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyPublicServerUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
+        $this->applyInstanceQueryUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyGdprAnonymizationFromJob($job, $resultStatus, $agent->getId());
         $this->applyBackupUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->eventDispatcher->dispatch(
@@ -316,6 +317,12 @@ final class AgentApiController
         if ($jobId !== $job->getId()) {
             throw new BadRequestHttpException('Job id does not match.');
         }
+
+        if ($job->getLockExpiresAt() === null || $job->getLockExpiresAt() <= new DateTimeImmutable()) {
+            throw new ConflictHttpException('Job lock expired.');
+        }
+
+        $job->extendLock(new DateTimeImmutable('+10 minutes'));
 
         $progress = $this->normalizeProgress($payload['progress'] ?? null);
         $lines = $this->normalizeLogLines($payload);
@@ -1195,6 +1202,54 @@ final class AgentApiController
 
         $this->auditLogger->log(null, 'public_server.status_checked', [
             'server_id' => $server->getId(),
+            'job_id' => $job->getId(),
+            'agent_id' => $agentId,
+            'status' => $status,
+        ]);
+    }
+
+    private function applyInstanceQueryUpdatesFromJob(
+        \App\Module\Core\Domain\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        string $agentId,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'instance.query.check') {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $instanceId = $payload['instance_id'] ?? null;
+        if (!is_int($instanceId) && !is_string($instanceId)) {
+            return;
+        }
+
+        $instance = $this->instanceRepository->find((int) $instanceId);
+        if ($instance === null) {
+            return;
+        }
+
+        $status = match ($resultStatus) {
+            JobResultStatus::Succeeded => is_string($output['status'] ?? null) ? strtolower((string) $output['status']) : 'online',
+            JobResultStatus::Failed => 'error',
+            JobResultStatus::Cancelled => 'unknown',
+        };
+
+        $cache = $instance->getQueryStatusCache();
+        $cache['status'] = $status;
+        $cache['players'] = is_numeric($output['players'] ?? null) ? (int) $output['players'] : null;
+        $cache['max_players'] = is_numeric($output['max_players'] ?? null) ? (int) $output['max_players'] : null;
+        $cache['message'] = is_string($output['message'] ?? null) ? $output['message'] : null;
+        $cache['checked_at'] = $completedAt->format(DATE_RFC3339);
+        unset($cache['queued_at']);
+
+        $instance->setQueryStatusCache($cache);
+        $instance->setQueryCheckedAt($completedAt);
+        $this->entityManager->persist($instance);
+
+        $this->auditLogger->log(null, 'instance.query.checked', [
+            'instance_id' => $instance->getId(),
             'job_id' => $job->getId(),
             'agent_id' => $agentId,
             'status' => $status,

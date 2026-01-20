@@ -386,6 +386,18 @@
                             hx-swap="innerHTML"
                             hx-confirm="{{ t('admin_nodes_reboot_confirm', page_locale()) }}"
                         >{{ t('admin_nodes_reboot', page_locale()) }}</button>
+                        <button
+                            class="btn btn--danger"
+                            hx-post="/admin/nodes/{{ selectedNode.id }}/delete"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                            {% if selectedNode.delete is defined and selectedNode.delete.allowed is same as(false) %}
+                                disabled
+                                title="{{ selectedNode.delete.message }}"
+                            {% else %}
+                                hx-confirm="{{ t('admin_nodes_delete_confirm', page_locale())|replace({'%name%': selectedNode.name ?? t('admin_nodes_unnamed', page_locale())}) }}"
+                            {% endif %}
+                        >{{ t('admin_nodes_delete', page_locale()) }}</button>
                     </div>
                 {% else %}
                     <div class="nodes-detail__header">

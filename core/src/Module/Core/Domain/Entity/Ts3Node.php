@@ -52,6 +52,9 @@ class Ts3Node
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $installedVersion = null;
 
+    #[ORM\Column]
+    private int $filetransferPort = 30033;
+
     #[ORM\Column(length: 32)]
     private string $installStatus = 'not_installed';
 
@@ -209,6 +212,17 @@ class Ts3Node
     public function setQueryPort(int $queryPort): void
     {
         $this->queryPort = max(1, $queryPort);
+        $this->touch();
+    }
+
+    public function getFiletransferPort(): int
+    {
+        return $this->filetransferPort;
+    }
+
+    public function setFiletransferPort(int $filetransferPort): void
+    {
+        $this->filetransferPort = max(1, $filetransferPort);
         $this->touch();
     }
 

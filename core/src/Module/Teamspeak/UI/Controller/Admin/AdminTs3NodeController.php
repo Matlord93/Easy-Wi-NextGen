@@ -90,6 +90,7 @@ final class AdminTs3NodeController
             );
             $node->setQueryBindIp($dto->queryBindIp);
             $node->setQueryPort($dto->queryPort);
+            $node->setFiletransferPort($dto->filetransferPort);
             $this->entityManager->persist($node);
             $this->entityManager->flush();
 
@@ -343,6 +344,7 @@ final class AdminTs3NodeController
             true,
             $node->getQueryBindIp(),
             $node->getQueryPort(),
+            $node->getFiletransferPort(),
             null,
         );
     }

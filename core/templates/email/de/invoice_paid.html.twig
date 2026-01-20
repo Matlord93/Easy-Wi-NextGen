@@ -1,0 +1,14 @@
+{% extends 'email/base.html.twig' %}
+
+{% block body %}
+  <p style="margin:0 0 16px 0;">Hallo {{ customer_name|default('') }},</p>
+  <p style="margin:0 0 16px 0;">
+    vielen Dank! Wir haben Ihre Zahlung für Rechnung {{ invoice_number }} erhalten.
+  </p>
+  <p style="margin:0 0 16px 0;">
+    Betrag: {{ invoice_amount }} {{ invoice_currency }}
+  </p>
+  <p style="margin:0; font-size:14px; color:#6b7280;">
+    Die Rechnung finden Sie in Ihrem Kundenportal.
+  </p>
+{% endblock %}

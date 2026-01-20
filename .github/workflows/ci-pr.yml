@@ -33,13 +33,20 @@ jobs:
         with:
           path: |
             ~/.composer/cache/files
-            core/vendor
           key: ${{ runner.os }}-php84-${{ hashFiles('core/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-php84-
 
       - name: Composer install
         run: composer install --no-interaction --no-progress
+
+      - name: Sanity check vendor
+        run: |
+          if [[ ! -f vendor/symfony/polyfill-uuid/bootstrap.php ]]; then
+            echo "vendor missing symfony/polyfill-uuid, reinstalling" >&2
+            rm -rf vendor
+            composer install --no-interaction --no-progress
+          fi
 
       - name: Lint (optional)
         run: |

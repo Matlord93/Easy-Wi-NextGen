@@ -9,6 +9,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InstanceRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\FileServiceClient;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -27,6 +28,7 @@ final class CustomerInstanceFileApiController
         private readonly InstanceRepository $instanceRepository,
         private readonly FileServiceClient $fileService,
         private readonly AuditLogger $auditLogger,
+        private readonly AppSettingsService $appSettingsService,
         #[Autowire(service: 'limiter.instance_files_uploads')]
         private readonly RateLimiterFactory $uploadsLimiter,
         #[Autowire(service: 'limiter.instance_files_commands')]
@@ -38,6 +40,7 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files', name: 'customer_instance_files_api_list_v1', methods: ['GET'])]
     public function list(Request $request, int $id): JsonResponse
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim((string) $request->query->get('path', ''));
@@ -59,6 +62,7 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/download', name: 'customer_instance_files_api_download_v1', methods: ['GET'])]
     public function download(Request $request, int $id): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim((string) $request->query->get('path', ''));
@@ -86,6 +90,7 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/read', name: 'customer_instance_files_api_read_v1', methods: ['GET'])]
     public function read(Request $request, int $id): Response
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim((string) $request->query->get('path', ''));
@@ -111,6 +116,8 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/upload', name: 'customer_instance_files_api_upload_v1', methods: ['POST'])]
     public function upload(Request $request, int $id): JsonResponse
     {
+        $this->assertDataManagerEnabled();
+        $this->assertFilePushEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
 
@@ -144,6 +151,7 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/save', name: 'customer_instance_files_api_save_v1', methods: ['POST'])]
     public function save(Request $request, int $id): JsonResponse
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
 
@@ -179,6 +187,7 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/mkdir', name: 'customer_instance_files_api_mkdir_v1', methods: ['POST'])]
     public function mkdir(Request $request, int $id): JsonResponse
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
 
@@ -213,6 +222,7 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/rename', name: 'customer_instance_files_api_rename_v1', methods: ['POST'])]
     public function rename(Request $request, int $id): JsonResponse
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
 
@@ -249,6 +259,7 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/delete', name: 'customer_instance_files_api_delete_v1', methods: ['POST'])]
     public function delete(Request $request, int $id): JsonResponse
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
 
@@ -283,6 +294,7 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/chmod', name: 'customer_instance_files_api_chmod_v1', methods: ['POST'])]
     public function chmod(Request $request, int $id): JsonResponse
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
 
@@ -324,6 +336,7 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files/extract', name: 'customer_instance_files_api_extract_v1', methods: ['POST'])]
     public function extract(Request $request, int $id): JsonResponse
     {
+        $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
 
@@ -448,6 +461,20 @@ final class CustomerInstanceFileApiController
             'modified_at' => $entry['modified_at'],
             'is_dir' => (bool) $entry['is_dir'],
         ];
+    }
+
+    private function assertDataManagerEnabled(): void
+    {
+        if (!$this->appSettingsService->isCustomerDataManagerEnabled()) {
+            throw new AccessDeniedHttpException('File manager is disabled.');
+        }
+    }
+
+    private function assertFilePushEnabled(): void
+    {
+        if (!$this->appSettingsService->isCustomerFilePushEnabled()) {
+            throw new AccessDeniedHttpException('File uploads are disabled.');
+        }
     }
 
     private function formatBytes(int $bytes): string

@@ -18,3 +18,4 @@ framework:
           queue_name: failed
     routing:
       App\Message\RunInstanceActionMessage: async
+      App\Message\SendTemplateMailMessage: async

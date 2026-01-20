@@ -3,7 +3,20 @@
 {% block title %}{{ t('customer_instance_files_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
-    <div class="space-y-8">
+    <div
+        class="space-y-8"
+        id="file-manager-app"
+        data-instance-id="{{ instance.id }}"
+        data-files-list-url="{{ path('customer_instance_files_api_list', {id: instance.id}) }}"
+        data-files-download-url="{{ path('customer_instance_files_api_download', {id: instance.id}) }}"
+        data-files-read-url="{{ path('customer_instance_files_api_read', {id: instance.id}) }}"
+        data-files-upload-url="{{ path('customer_instance_files_api_upload', {id: instance.id}) }}"
+        data-files-save-url="{{ path('customer_instance_files_api_save', {id: instance.id}) }}"
+        data-files-mkdir-url="{{ path('customer_instance_files_api_mkdir', {id: instance.id}) }}"
+        data-files-delete-url="{{ path('customer_instance_files_api_delete', {id: instance.id}) }}"
+        data-sftp-show-url="{{ path('instances_sftp_credentials_show', {id: instance.id, include_password: 1}) }}"
+        data-sftp-reset-url="{{ path('instances_sftp_credentials_reset', {id: instance.id}) }}"
+    >
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <p class="text-xs uppercase tracking-wide text-slate-600">{{ t('customer_instance_files_instance_label', page_locale()) }}</p>
@@ -122,12 +135,18 @@
 
                     <div class="rounded-xl border border-slate-200 bg-white p-4">
                         <div class="grid gap-4 lg:grid-cols-3">
-                            <form class="space-y-2" id="file-upload-form" enctype="multipart/form-data">
-                                <input type="hidden" name="path" value="{{ path }}">
-                                <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_upload_label', page_locale()) }}</label>
-                                <input type="file" name="upload" class="w-full text-xs text-slate-600">
-                                <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_upload_action', page_locale()) }}</button>
-                            </form>
+                            {% if app_setting('customer_file_push_enabled', true) %}
+                                <form class="space-y-2" id="file-upload-form" enctype="multipart/form-data">
+                                    <input type="hidden" name="path" value="{{ path }}">
+                                    <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_upload_label', page_locale()) }}</label>
+                                    <input type="file" name="upload" class="w-full text-xs text-slate-600">
+                                    <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_upload_action', page_locale()) }}</button>
+                                </form>
+                            {% else %}
+                                <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                                    {{ t('customer_instance_files_upload_disabled', page_locale()) }}
+                                </div>
+                            {% endif %}
                             <form class="space-y-2" id="file-mkdir-form">
                                 <input type="hidden" name="path" value="{{ path }}">
                                 <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_new_folder', page_locale()) }}</label>
@@ -191,8 +210,19 @@
     {{ parent() }}
     <script>
         (() => {
-            const instanceId = {{ instance.id }};
-            const apiBase = `/api/instances/${instanceId}/files`;
+            const app = document.getElementById('file-manager-app');
+            if (!app) {
+                return;
+            }
+            const listUrl = app.dataset.filesListUrl;
+            const downloadUrl = app.dataset.filesDownloadUrl;
+            const readUrl = app.dataset.filesReadUrl;
+            const uploadUrl = app.dataset.filesUploadUrl;
+            const saveUrl = app.dataset.filesSaveUrl;
+            const mkdirUrl = app.dataset.filesMkdirUrl;
+            const deleteUrl = app.dataset.filesDeleteUrl;
+            const sftpShowUrl = app.dataset.sftpShowUrl;
+            const sftpResetUrl = app.dataset.sftpResetUrl;
             const labels = {
                 loading: "{{ t('customer_instance_files_loading_listing', page_locale())|e('js') }}",
                 empty: "{{ t('customer_instance_files_empty', page_locale())|e('js') }}",
@@ -283,7 +313,7 @@
                 }
                 setSftpStatus(labels.sftpLoading);
                 try {
-                    const response = await fetch(`/api/instances/${instanceId}/sftp-credentials?include_password=1`, {
+                    const response = await fetch(sftpShowUrl, {
                         headers: { 'Accept': 'application/json' },
                     });
                     if (response.status === 404) {
@@ -308,7 +338,7 @@
                 }
                 setSftpStatus(labels.sftpResetting);
                 try {
-                    const response = await fetch(`/api/instances/${instanceId}/sftp-credentials/reset`, {
+                    const response = await fetch(sftpResetUrl, {
                         method: 'POST',
                         headers: { 'Accept': 'application/json' },
                     });
@@ -402,7 +432,7 @@
                 setFeedback(labels.loading);
                 listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">${labels.loading}</td></tr>`;
                 try {
-                    const response = await fetch(`${apiBase}${buildQuery({ path })}`, {
+                    const response = await fetch(`${listUrl}${buildQuery({ path })}`, {
                         headers: { 'Accept': 'application/json' },
                     });
                     const data = await response.json();
@@ -419,13 +449,13 @@
             };
 
             const downloadFile = (path, name) => {
-                const url = `${apiBase}/download${buildQuery({ path, name })}`;
+                const url = `${downloadUrl}${buildQuery({ path, name })}`;
                 window.location.assign(url);
             };
 
             const readFile = async (path, name) => {
                 try {
-                    const response = await fetch(`${apiBase}/read${buildQuery({ path, name })}`);
+                    const response = await fetch(`${readUrl}${buildQuery({ path, name })}`);
                     if (!response.ok) {
                         const data = await response.json().catch(() => ({}));
                         throw new Error(data.error || 'Download failed.');
@@ -499,7 +529,7 @@
                         return;
                     }
                     try {
-                        const response = await fetch(`${apiBase}/delete`, {
+                        const response = await fetch(deleteUrl, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ path: currentPath, name }),
@@ -527,26 +557,28 @@
                 });
             }
 
-            uploadForm.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                const formData = new FormData(uploadForm);
-                formData.set('path', currentPath);
-                try {
-                    const response = await fetch(`${apiBase}/upload`, {
-                        method: 'POST',
-                        body: formData,
-                    });
-                    const data = await response.json();
-                    if (!response.ok) {
-                        throw new Error(data.error || 'Upload failed.');
+            if (uploadForm) {
+                uploadForm.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    const formData = new FormData(uploadForm);
+                    formData.set('path', currentPath);
+                    try {
+                        const response = await fetch(uploadUrl, {
+                            method: 'POST',
+                            body: formData,
+                        });
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Upload failed.');
+                        }
+                        uploadForm.reset();
+                        setFeedback(labels.upload);
+                        loadListing(currentPath);
+                    } catch (error) {
+                        setFeedback(error.message, 'error');
                     }
-                    uploadForm.reset();
-                    setFeedback(labels.upload);
-                    loadListing(currentPath);
-                } catch (error) {
-                    setFeedback(error.message, 'error');
-                }
-            });
+                });
+            }
 
             mkdirForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
@@ -556,7 +588,7 @@
                     return;
                 }
                 try {
-                    const response = await fetch(`${apiBase}/mkdir`, {
+                    const response = await fetch(mkdirUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ path: currentPath, name }),
@@ -581,7 +613,7 @@
                     return;
                 }
                 try {
-                    const response = await fetch(`${apiBase}/save`, {
+                    const response = await fetch(saveUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ path: currentPath, name, content: '' }),
@@ -606,7 +638,7 @@
                     return;
                 }
                 try {
-                    const response = await fetch(`${apiBase}/save`, {
+                    const response = await fetch(saveUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

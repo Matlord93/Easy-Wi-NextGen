@@ -51,6 +51,8 @@ services:
       $activeKeyId: '%env(default::APP_ENCRYPTION_KEY_ID)%'
       $keyring: '%env(default::APP_ENCRYPTION_KEYS)%'
 
+  Symfony\Component\Mailer\MailerInterface: '@App\Module\Core\Application\NullMailer'
+
   App\Module\Core\Application\SecretsCrypto:
     arguments:
       $appSecret: '%env(APP_SECRET)%'

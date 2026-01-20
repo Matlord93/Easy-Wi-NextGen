@@ -63,13 +63,19 @@
 
             <div class="rounded-xl border border-slate-200 bg-white p-4">
                 <div class="grid gap-4 lg:grid-cols-3">
-                    <form class="space-y-2" hx-post="/files/upload" hx-target="#file-feedback" hx-swap="innerHTML" enctype="multipart/form-data">
-                        <input type="hidden" name="webspace_id" value="{{ webspaceId }}">
-                        <input type="hidden" name="path" value="{{ currentPath }}">
-                        <label class="text-xs font-semibold text-slate-700">{{ t('customer_files_upload_label', page_locale()) }}</label>
-                        <input type="file" name="upload" class="w-full text-xs text-slate-600">
-                        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_files_upload_action', page_locale()) }}</button>
-                    </form>
+                    {% if app_setting('customer_file_push_enabled', true) %}
+                        <form class="space-y-2" hx-post="/files/upload" hx-target="#file-feedback" hx-swap="innerHTML" enctype="multipart/form-data">
+                            <input type="hidden" name="webspace_id" value="{{ webspaceId }}">
+                            <input type="hidden" name="path" value="{{ currentPath }}">
+                            <label class="text-xs font-semibold text-slate-700">{{ t('customer_files_upload_label', page_locale()) }}</label>
+                            <input type="file" name="upload" class="w-full text-xs text-slate-600">
+                            <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_files_upload_action', page_locale()) }}</button>
+                        </form>
+                    {% else %}
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                            {{ t('customer_files_upload_disabled', page_locale()) }}
+                        </div>
+                    {% endif %}
                     <form class="space-y-2" hx-post="/files/mkdir" hx-target="#file-feedback" hx-swap="innerHTML">
                         <input type="hidden" name="webspace_id" value="{{ webspaceId }}">
                         <input type="hidden" name="path" value="{{ currentPath }}">

@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+{% set siteTitle = app_setting('site_title', 'Easy-Wi NextGen') %}
+{% set brandingName = app_setting('branding_name', siteTitle) %}
+{% set brandingLogo = app_setting('branding_logo_url') %}
 <html lang="{{ pageLocale|default(page_locale()) }}">
 <head>
     <meta charset="UTF-8">
@@ -13,13 +16,14 @@
             }
         })();
     </script>
-    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
-    <link rel="stylesheet" href="/ui.css">
-    <link rel="stylesheet" href="/admin-customer.css">
-    <link rel="stylesheet" href="/ts6.css">
-    <link rel="stylesheet" href="/sinusbot.css">
-    <link rel="stylesheet" href="/ts3.css">
-    <script src="/htmx.min.js"></script>
+    {% block title %}{{ siteTitle }}{% endblock %}
+    <title>{{ block('title')|replace({'Easy-Wi NextGen': siteTitle}) }}</title>
+    <link rel="stylesheet" href="{{ asset('ui.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
+    <link rel="stylesheet" href="{{ asset('ts6.css') }}">
+    <link rel="stylesheet" href="{{ asset('sinusbot.css') }}">
+    <link rel="stylesheet" href="{{ asset('ts3.css') }}">
+    <script src="{{ asset('htmx.min.js') }}"></script>
 </head>
 <body class="admin-interface ng-shell">
 {% set activeNav = activeNav|default('') %}
@@ -31,58 +35,58 @@
         label: 'Übersicht',
         open: true,
         items: [
-            { key: 'dashboard', label: t('admin_nav_dashboard', page_locale()), href: '/admin' },
-            { key: 'activity', label: t('activity', page_locale()), href: '/admin/activity' },
-            { key: 'audit-logs', label: t('admin_nav_audit_logs', page_locale()), href: '/admin/audit-logs' }
+            { key: 'dashboard', label: t('admin_nav_dashboard', page_locale()), href: path('admin_dashboard') },
+            { key: 'activity', label: t('activity', page_locale()), href: path('admin_activity') },
+            { key: 'audit-logs', label: t('admin_nav_audit_logs', page_locale()), href: path('admin_audit_logs') }
         ]
     },
     {
         label: 'Kunden',
         open: true,
         items: [
-            { key: 'users', label: t('admin_nav_users', page_locale()), href: '/admin/users' },
-            { key: 'billing', label: t('admin_nav_billing', page_locale()), href: '/admin/billing' }
+            { key: 'users', label: t('admin_nav_users', page_locale()), href: path('admin_users') },
+            { key: 'billing', label: t('admin_nav_billing', page_locale()), href: path('admin_billing') }
         ]
     },
     {
         label: 'Infrastruktur',
         open: true,
         items: [
-            { key: 'game-instances', label: 'Gameserver', href: '/admin/instances' },
-            { key: 'public-servers', label: 'CMS Game-Server', href: '/admin/servers' },
-            { key: 'sinusbot', label: 'SinusBot', href: '/admin/sinusbot/nodes' },
-            { key: 'ts3', label: 'TeamSpeak 3', href: '/admin/ts3/nodes' },
-            { key: 'ts6', label: 'TeamSpeak 6', href: '/admin/ts6/nodes' },
-            { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: '/admin/nodes' },
-            { key: 'templates', label: t('admin_nav_templates', page_locale()), href: '/admin/templates' },
-            { key: 'plugins', label: t('admin_nav_plugins', page_locale()), href: '/admin/plugins' },
-            { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: '/admin/ddos' },
-            { key: 'firewall', label: t('admin_nav_security', page_locale()), href: '/admin/security' },
-            { key: 'port-blocks', label: t('admin_nav_port_blocks', page_locale()), href: '/admin/port-blocks' },
-            { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: '/admin/metrics' }
+            { key: 'game-instances', label: 'Gameserver', href: path('admin_instances') },
+            { key: 'public-servers', label: 'CMS Game-Server', href: path('admin_public_servers') },
+            { key: 'sinusbot', label: 'SinusBot', href: path('admin_sinusbot_nodes_index') },
+            { key: 'ts3', label: 'TeamSpeak 3', href: path('admin_ts3_nodes_index') },
+            { key: 'ts6', label: 'TeamSpeak 6', href: path('admin_ts6_nodes_index') },
+            { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: path('admin_nodes') },
+            { key: 'templates', label: t('admin_nav_templates', page_locale()), href: path('admin_templates') },
+            { key: 'plugins', label: t('admin_nav_plugins', page_locale()), href: path('admin_plugins') },
+            { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: path('admin_ddos') },
+            { key: 'firewall', label: t('admin_nav_security', page_locale()), href: path('admin_security') },
+            { key: 'port-blocks', label: t('admin_nav_port_blocks', page_locale()), href: path('admin_port_blocks') },
+            { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') }
         ]
     },
     {
         label: 'Services',
         open: true,
         items: [
-            { key: 'webspaces', label: 'Webspace', href: '/admin/webspaces' },
-            { key: 'databases', label: 'Datenbanken', href: '/admin/databases' }
+            { key: 'webspaces', label: 'Webspace', href: path('admin_webspaces') },
+            { key: 'databases', label: 'Datenbanken', href: path('admin_databases') }
         ]
     },
     {
         label: 'Domains & E-Mail',
         open: true,
         items: [
-            { key: 'mailboxes', label: 'Mailboxes', href: '/admin/mailboxes' },
-            { key: 'mail-aliases', label: 'Mail-Aliase', href: '/admin/mail-aliases' }
+            { key: 'mailboxes', label: 'Mailboxes', href: path('admin_mailboxes') },
+            { key: 'mail-aliases', label: 'Mail-Aliase', href: path('admin_mail_aliases') }
         ]
     },
     {
         label: 'Support',
         open: true,
         items: [
-            { key: 'tickets', label: t('admin_nav_tickets', page_locale()), href: '/admin/tickets' }
+            { key: 'tickets', label: t('admin_nav_tickets', page_locale()), href: path('admin_tickets') }
         ]
     },
     marketplaceItems is not empty ? {
@@ -94,19 +98,20 @@
         label: 'Einstellungen',
         open: true,
         items: [
-            { key: 'settings', label: t('admin_nav_settings', page_locale()), href: '/admin/settings' },
-            { key: 'modules', label: t('admin_nav_modules', page_locale()), href: '/admin/modules' },
-            { key: 'port-pools', label: t('admin_nav_port_pools', page_locale()), href: '/admin/port-pools' },
-            { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()), href: '/admin/agent-bootstrap-tokens' },
-            { key: 'profile', label: t('admin_nav_profile', page_locale()), href: '/admin/profile' },
-            { key: 'updates', label: t('admin_updates_title', page_locale()), href: '/admin/updates' }
+            { key: 'settings', label: t('admin_nav_settings', page_locale()), href: path('admin_settings') },
+            { key: 'modules', label: t('admin_nav_modules', page_locale()), href: path('admin_modules') },
+            { key: 'port-pools', label: t('admin_nav_port_pools', page_locale()), href: path('admin_port_pools') },
+            { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()), href: path('admin_agent_bootstrap_tokens') },
+            { key: 'profile', label: t('admin_nav_profile', page_locale()), href: path('admin_profile') },
+            { key: 'updates', label: t('admin_updates_title', page_locale()), href: path('admin_updates') }
         ]
     }
 ]|filter(v => v) %}
 
 <div class="ng-layout">
     {% include 'components/_sidebar.html.twig' with {
-        title: 'Easy-Wi NextGen',
+        title: brandingName,
+        logoUrl: brandingLogo,
         activeNav: activeNav,
         groups: sidebarGroups,
         footer: t('admin_portal_tagline', page_locale())

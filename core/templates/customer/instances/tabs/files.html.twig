@@ -4,7 +4,7 @@
             <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_files', page_locale()) }}</h2>
             <p class="text-sm text-slate-700">{{ t('customer_instance_files_tab_intro', page_locale()) }}</p>
         </div>
-        <a href="/instances/{{ instance.id }}/files" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
+        <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
             {{ t('customer_instance_files_open_manager', page_locale()) }}
         </a>
     </div>

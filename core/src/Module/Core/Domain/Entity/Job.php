@@ -184,6 +184,20 @@ class Job
         $this->touch();
     }
 
+    public function extendLock(\DateTimeImmutable $expiresAt): void
+    {
+        if ($this->lockToken === null || $this->lockExpiresAt === null) {
+            throw new \InvalidArgumentException('Job is not locked.');
+        }
+
+        if ($this->lockExpiresAt <= new \DateTimeImmutable()) {
+            throw new \InvalidArgumentException('Job lock has expired.');
+        }
+
+        $this->lockExpiresAt = $expiresAt;
+        $this->touch();
+    }
+
     public function isLocked(\DateTimeImmutable $now): bool
     {
         if ($this->lockToken === null || $this->lockExpiresAt === null) {

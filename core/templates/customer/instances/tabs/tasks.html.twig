@@ -46,7 +46,13 @@
         </table>
     </div>
 
-    <div id="job-task-panel" class="rounded-xl border border-slate-200 bg-slate-50 p-5">
+    <div
+        id="job-task-panel"
+        class="rounded-xl border border-slate-200 bg-slate-50 p-5"
+        data-job-show-url="{{ path('customer_job_api_show', {jobId: '__JOB_ID__'}) }}"
+        data-job-logs-url="{{ path('customer_job_api_logs', {jobId: '__JOB_ID__'}) }}"
+        data-job-cancel-url="{{ path('customer_job_api_cancel', {jobId: '__JOB_ID__'}) }}"
+    >
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <p class="text-xs uppercase tracking-wide text-slate-500">Live task</p>
@@ -92,6 +98,9 @@
         }
 
         const jobTitle = panel.querySelector('[data-job-title]');
+        const jobShowUrlTemplate = panel.dataset.jobShowUrl;
+        const jobLogsUrlTemplate = panel.dataset.jobLogsUrl;
+        const jobCancelUrlTemplate = panel.dataset.jobCancelUrl;
         const jobStatus = panel.querySelector('[data-job-status]');
         const jobProgress = panel.querySelector('[data-job-progress]');
         const jobProgressText = panel.querySelector('[data-job-progress-text]');
@@ -146,7 +155,7 @@
             if (!currentJobId) {
                 return;
             }
-            const response = await fetch(`/api/customer/jobs/${currentJobId}`);
+            const response = await fetch(jobShowUrlTemplate.replace('__JOB_ID__', currentJobId));
             if (!response.ok) {
                 return;
             }
@@ -161,7 +170,7 @@
                 return;
             }
             const params = lastLogId ? `?afterId=${encodeURIComponent(lastLogId)}` : '';
-            const response = await fetch(`/api/customer/jobs/${currentJobId}/logs${params}`);
+            const response = await fetch(`${jobLogsUrlTemplate.replace('__JOB_ID__', currentJobId)}${params}`);
             if (!response.ok) {
                 return;
             }
@@ -186,7 +195,7 @@
             if (pollTimer) {
                 clearInterval(pollTimer);
             }
-            pollTimer = setInterval(poll, 5000);
+            pollTimer = setInterval(poll, 2000);
         };
 
         document.querySelectorAll('[data-job-id]').forEach((button) => {
@@ -199,7 +208,7 @@
             if (!currentJobId) {
                 return;
             }
-            await fetch(`/api/customer/jobs/${currentJobId}/cancel`, {
+            await fetch(jobCancelUrlTemplate.replace('__JOB_ID__', currentJobId), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
             });

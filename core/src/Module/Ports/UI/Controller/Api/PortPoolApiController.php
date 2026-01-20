@@ -39,12 +39,14 @@ final class PortPoolApiController
             $payload[] = [
                 'id' => $pool->getId(),
                 'name' => $pool->getName(),
+                'tag' => $pool->getTag(),
                 'node' => [
                     'id' => $node->getId(),
                     'name' => $node->getName(),
                 ],
                 'start_port' => $pool->getStartPort(),
                 'end_port' => $pool->getEndPort(),
+                'enabled' => $pool->isEnabled(),
                 'created_at' => $pool->getCreatedAt()->format(DATE_RFC3339),
             ];
         }
@@ -66,11 +68,13 @@ final class PortPoolApiController
 
         $nodeId = (string) ($payload['node_id'] ?? '');
         $name = trim((string) ($payload['name'] ?? ''));
+        $tag = trim((string) ($payload['tag'] ?? ''));
         $startValue = $payload['start_port'] ?? null;
         $endValue = $payload['end_port'] ?? null;
+        $enabled = (bool) ($payload['enabled'] ?? true);
 
-        if ($nodeId === '' || $name === '' || !is_numeric($startValue) || !is_numeric($endValue)) {
-            return new JsonResponse(['error' => 'Node, name, start_port, and end_port are required.'], JsonResponse::HTTP_BAD_REQUEST);
+        if ($nodeId === '' || $name === '' || $tag === '' || !is_numeric($startValue) || !is_numeric($endValue)) {
+            return new JsonResponse(['error' => 'Node, name, tag, start_port, and end_port are required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $startPort = (int) $startValue;
@@ -84,15 +88,17 @@ final class PortPoolApiController
             return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
         }
 
-        $pool = new PortPool($node, $name, $startPort, $endPort);
+        $pool = new PortPool($node, $name, $tag, $startPort, $endPort, $enabled);
         $this->entityManager->persist($pool);
 
         $this->auditLogger->log($actor, 'port_pool.created', [
             'port_pool_id' => $pool->getId(),
             'node_id' => $node->getId(),
             'name' => $pool->getName(),
+            'tag' => $pool->getTag(),
             'start_port' => $pool->getStartPort(),
             'end_port' => $pool->getEndPort(),
+            'enabled' => $pool->isEnabled(),
         ]);
 
         $this->entityManager->flush();
@@ -100,9 +106,11 @@ final class PortPoolApiController
         return new JsonResponse([
             'id' => $pool->getId(),
             'name' => $pool->getName(),
+            'tag' => $pool->getTag(),
             'node_id' => $node->getId(),
             'start_port' => $pool->getStartPort(),
             'end_port' => $pool->getEndPort(),
+            'enabled' => $pool->isEnabled(),
         ], JsonResponse::HTTP_CREATED);
     }
 

@@ -8,248 +8,61 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InstanceRepository;
-use App\Module\Core\Application\EncryptionService;
-use App\Module\Gameserver\Application\InstanceInstallService;
-use App\Module\Core\Application\SetupChecker;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
-use Twig\Environment;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 #[Route(path: '/kunden/servers')]
 final class CustomerServerSetupController
 {
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
-        private readonly SetupChecker $setupChecker,
-        private readonly EncryptionService $encryptionService,
-        private readonly InstanceInstallService $instanceInstallService,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly Environment $twig,
+        private readonly UrlGeneratorInterface $urlGenerator,
     ) {
     }
 
     #[Route(path: '/{id}/setup', name: 'customer_server_setup', methods: ['GET'])]
     public function show(Request $request, int $id): Response
     {
-        $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        $instance = $this->resolveLegacyInstance($request, $id);
 
-        return $this->renderSetup($instance, []);
+        return $this->redirectToInstanceDetail($instance->getId() ?? 0, ['tab' => 'setup']);
     }
 
     #[Route(path: '/{id}/setup/vars', name: 'customer_server_setup_vars', methods: ['POST'])]
     public function saveVars(Request $request, int $id): Response
     {
-        $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
-        $requirements = $this->setupChecker->getCustomerRequirements($instance->getTemplate());
-        $input = $request->request->all('vars');
-        if (!is_array($input)) {
-            throw new BadRequestHttpException('Invalid payload.');
-        }
+        $instance = $this->resolveLegacyInstance($request, $id);
 
-        $errors = [];
-        $setupVars = $instance->getSetupVars();
-
-        foreach ($requirements['vars'] as $entry) {
-            $key = $entry['key'];
-            if (!array_key_exists($key, $input)) {
-                continue;
-            }
-
-            $value = is_scalar($input[$key]) ? (string) $input[$key] : '';
-            if ($value === '' && !$entry['required']) {
-                unset($setupVars[$key]);
-                continue;
-            }
-
-            $validationError = $this->setupChecker->validateRequirementValue($entry, $value);
-            if ($validationError !== null) {
-                $errors[$key] = $validationError;
-                continue;
-            }
-
-            $setupVars[$key] = $entry['type'] === 'number' ? (string) $value : $value;
-        }
-
-        if ($errors !== []) {
-            return $this->renderSetup($instance, [
-                'vars' => [
-                    'errors' => $errors,
-                ],
-            ], Response::HTTP_BAD_REQUEST);
-        }
-
-        $instance->setSetupVars($setupVars);
-        $this->entityManager->persist($instance);
-        $this->entityManager->flush();
-
-        return $this->renderSetup($instance, [
-            'vars' => [
-                'success' => 'Variablen gespeichert.',
-            ],
-        ]);
+        return $this->redirectToInstanceSetupAction('customer_instance_setup_vars', $instance->getId() ?? 0);
     }
 
     #[Route(path: '/{id}/setup/secrets', name: 'customer_server_setup_secrets', methods: ['POST'])]
     public function saveSecrets(Request $request, int $id): Response
     {
-        $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
-        $requirements = $this->setupChecker->getCustomerRequirements($instance->getTemplate());
-        $input = $request->request->all('secrets');
-        if (!is_array($input)) {
-            throw new BadRequestHttpException('Invalid payload.');
-        }
+        $instance = $this->resolveLegacyInstance($request, $id);
 
-        $errors = [];
-        foreach ($requirements['secrets'] as $entry) {
-            $key = $entry['key'];
-            if (!array_key_exists($key, $input)) {
-                continue;
-            }
-            $value = is_scalar($input[$key]) ? (string) $input[$key] : '';
-            if ($value === '') {
-                if ($entry['required'] && !$instance->hasSetupSecret($key)) {
-                    $errors[$key] = 'Value is required.';
-                }
-                continue;
-            }
+        return $this->redirectToInstanceSetupAction('customer_instance_setup_secrets', $instance->getId() ?? 0);
+    }
 
-            $validationError = $this->setupChecker->validateRequirementValue($entry, $value);
-            if ($validationError !== null) {
-                $errors[$key] = $validationError;
-                continue;
-            }
-
-            $payload = $this->encryptionService->encrypt($value);
-            $instance->setSetupSecret($key, $payload);
-        }
-
-        if ($errors !== []) {
-            return $this->renderSetup($instance, [
-                'secrets' => [
-                    'errors' => $errors,
-                ],
-            ], Response::HTTP_BAD_REQUEST);
-        }
-
-        $this->entityManager->persist($instance);
-        $this->entityManager->flush();
-
-        return $this->renderSetup($instance, [
-            'secrets' => [
-                'success' => 'Secrets gespeichert.',
-            ],
+    private function redirectToInstanceSetupAction(string $routeName, int $id): Response
+    {
+        return new Response('', Response::HTTP_TEMPORARY_REDIRECT, [
+            'Location' => $this->urlGenerator->generate($routeName, ['id' => $id]),
         ]);
     }
 
-    /**
-     * @param array{vars?: array{errors?: array<string, string>, success?: string}, secrets?: array{errors?: array<string, string>, success?: string}} $messages
-     */
-    private function renderSetup(Instance $instance, array $messages, int $statusCode = Response::HTTP_OK): Response
+    private function redirectToInstanceDetail(int $id, array $params = []): Response
     {
-        $status = $this->setupChecker->getSetupStatus($instance);
-        $installStatus = $this->instanceInstallService->getInstallStatus($instance);
-        $requirements = $this->setupChecker->getCustomerRequirements($instance->getTemplate());
-        $setupVars = $instance->getSetupVars();
-        $setupSecrets = $instance->getSetupSecrets();
+        $params = array_merge(['id' => $id], $params);
 
-        $varEntries = array_map(function (array $entry) use ($setupVars, $messages): array {
-            $key = $entry['key'];
-
-            return [
-                'key' => $key,
-                'label' => $entry['label'],
-                'type' => $entry['type'],
-                'required' => $entry['required'],
-                'helptext' => $entry['helptext'],
-                'value' => $setupVars[$key] ?? '',
-                'error' => $messages['vars']['errors'][$key] ?? null,
-            ];
-        }, $requirements['vars']);
-
-        $secretEntries = array_map(function (array $entry) use ($setupSecrets, $messages): array {
-            $key = $entry['key'];
-
-            return [
-                'key' => $key,
-                'label' => $entry['label'],
-                'type' => $entry['type'],
-                'required' => $entry['required'],
-                'helptext' => $entry['helptext'],
-                'is_set' => array_key_exists($key, $setupSecrets),
-                'error' => $messages['secrets']['errors'][$key] ?? null,
-            ];
-        }, $requirements['secrets']);
-
-        $customerKeys = [];
-        foreach (array_merge($requirements['vars'], $requirements['secrets']) as $entry) {
-            $customerKeys[$entry['key']] = true;
-        }
-        $missingLabels = [];
-        foreach ($status['missing'] as $entry) {
-            if (isset($customerKeys[$entry['key']])) {
-                $missingLabels[] = $entry['label'];
-            }
-        }
-
-        return new Response($this->twig->render('customer/servers/server_setup.html.twig', [
-            'instance' => $instance,
-            'setupStatus' => $status,
-            'installStatus' => $installStatus,
-            'vars' => $varEntries,
-            'secrets' => $secretEntries,
-            'missingLabels' => $missingLabels,
-            'messages' => [
-                'vars' => $messages['vars']['success'] ?? null,
-                'secrets' => $messages['secrets']['success'] ?? null,
-            ],
-            'activeNav' => 'servers',
-            'tabs' => $this->buildTabs($instance->getId() ?? 0),
-        ]), $statusCode);
-    }
-
-    private function buildTabs(int $instanceId): array
-    {
-        return [
-            [
-                'key' => 'overview',
-                'label' => 'Overview',
-                'href' => sprintf('/kunden/servers/%d?tab=overview', $instanceId),
-            ],
-            [
-                'key' => 'setup',
-                'label' => 'Setup',
-                'href' => sprintf('/kunden/servers/%d/setup', $instanceId),
-            ],
-            [
-                'key' => 'files',
-                'label' => 'Files',
-                'href' => sprintf('/kunden/servers/%d?tab=files', $instanceId),
-            ],
-            [
-                'key' => 'config',
-                'label' => 'Config',
-                'href' => sprintf('/kunden/servers/%d?tab=config', $instanceId),
-            ],
-            [
-                'key' => 'logs',
-                'label' => 'Logs',
-                'href' => sprintf('/kunden/servers/%d?tab=logs', $instanceId),
-            ],
-            [
-                'key' => 'activity',
-                'label' => 'Activity',
-                'href' => sprintf('/kunden/servers/%d?tab=activity', $instanceId),
-            ],
-        ];
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => $this->urlGenerator->generate('customer_instance_detail', $params),
+        ]);
     }
 
     private function requireCustomer(Request $request): User
@@ -262,8 +75,9 @@ final class CustomerServerSetupController
         return $actor;
     }
 
-    private function findCustomerInstance(User $customer, int $id): Instance
+    private function resolveLegacyInstance(Request $request, int $id): Instance
     {
+        $customer = $this->requireCustomer($request);
         $instance = $this->instanceRepository->find($id);
         if ($instance === null) {
             throw new NotFoundHttpException('Instance not found.');

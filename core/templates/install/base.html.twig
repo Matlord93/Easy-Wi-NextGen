@@ -1,3 +1,4 @@
+{% set siteTitle = app_setting('site_title', 'Easy-Wi NextGen') %}
 <!DOCTYPE html>
 <html lang="{{ app.request.locale }}">
 <head>
@@ -13,7 +14,8 @@
             }
         })();
     </script>
-    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
+    {% block title %}{{ siteTitle }}{% endblock %}
+    <title>{{ block('title')|replace({'Easy-Wi NextGen': siteTitle}) }}</title>
     <link rel="stylesheet" href="/ui.css">
     <link rel="stylesheet" href="/admin-customer.css">
 </head>

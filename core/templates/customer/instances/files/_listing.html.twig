@@ -9,11 +9,11 @@
     id="file-listing"
     class="mt-4"
     {% if status in ['queued', 'running'] %}
-        hx-get="/instances/{{ instanceId }}/files/listing/{{ jobId }}"
+        hx-get="{{ path('customer_instance_files_listing_status', {id: instanceId, jobId: jobId}) }}"
         hx-trigger="load, every 2s"
         hx-swap="outerHTML"
     {% else %}
-        hx-get="/instances/{{ instanceId }}/files/listing?path={{ currentPath|url_encode }}"
+        hx-get="{{ path('customer_instance_files_listing', {id: instanceId, path: currentPath}) }}"
         hx-trigger="instance-files-refresh from:body"
         hx-swap="outerHTML"
     {% endif %}
@@ -52,7 +52,7 @@
                 {% if currentPath %}
                     <button
                         class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
-                        hx-get="/instances/{{ instanceId }}/files/listing?path={{ parentPath|url_encode }}"
+                        hx-get="{{ path('customer_instance_files_listing', {id: instanceId, path: parentPath}) }}"
                         hx-target="#file-listing"
                         hx-swap="outerHTML"
                     >
@@ -63,19 +63,25 @@
 
             <div class="rounded-xl border border-slate-200 bg-white p-4">
                 <div class="grid gap-4 lg:grid-cols-3">
-                    <form class="space-y-2" hx-post="/instances/{{ instanceId }}/files/upload" hx-target="#file-feedback" hx-swap="innerHTML" enctype="multipart/form-data">
-                        <input type="hidden" name="path" value="{{ currentPath }}">
-                        <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_upload_label', page_locale()) }}</label>
-                        <input type="file" name="upload" class="w-full text-xs text-slate-600">
-                        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_upload_action', page_locale()) }}</button>
-                    </form>
-                    <form class="space-y-2" hx-post="/instances/{{ instanceId }}/files/mkdir" hx-target="#file-feedback" hx-swap="innerHTML">
+                    {% if app_setting('customer_file_push_enabled', true) %}
+                        <form class="space-y-2" hx-post="{{ path('customer_instance_files_upload', {id: instanceId}) }}" hx-target="#file-feedback" hx-swap="innerHTML" enctype="multipart/form-data">
+                            <input type="hidden" name="path" value="{{ currentPath }}">
+                            <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_upload_label', page_locale()) }}</label>
+                            <input type="file" name="upload" class="w-full text-xs text-slate-600">
+                            <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_instance_files_upload_action', page_locale()) }}</button>
+                        </form>
+                    {% else %}
+                        <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                            {{ t('customer_instance_files_upload_disabled', page_locale()) }}
+                        </div>
+                    {% endif %}
+                    <form class="space-y-2" hx-post="{{ path('customer_instance_files_mkdir', {id: instanceId}) }}" hx-target="#file-feedback" hx-swap="innerHTML">
                         <input type="hidden" name="path" value="{{ currentPath }}">
                         <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_new_folder', page_locale()) }}</label>
                         <input type="text" name="name" placeholder="{{ t('customer_instance_files_folder_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
                         <button type="submit" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_files_create_folder', page_locale()) }}</button>
                     </form>
-                    <form class="space-y-2" hx-post="/instances/{{ instanceId }}/files/save" hx-target="#file-feedback" hx-swap="innerHTML">
+                    <form class="space-y-2" hx-post="{{ path('customer_instance_files_save', {id: instanceId}) }}" hx-target="#file-feedback" hx-swap="innerHTML">
                         <input type="hidden" name="path" value="{{ currentPath }}">
                         <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_new_file', page_locale()) }}</label>
                         <input type="text" name="name" placeholder="{{ t('customer_instance_files_file_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
@@ -116,7 +122,7 @@
                                             <button
                                                 type="button"
                                                 class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
-                                                hx-get="/instances/{{ instanceId }}/files/listing?path={{ nextPath|url_encode }}"
+                                                hx-get="{{ path('customer_instance_files_listing', {id: instanceId, path: nextPath}) }}"
                                                 hx-target="#file-listing"
                                                 hx-swap="outerHTML"
                                             >
@@ -126,7 +132,7 @@
                                             <button
                                                 type="button"
                                                 class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
-                                                hx-get="/instances/{{ instanceId }}/files/read?path={{ currentPath|url_encode }}&name={{ entry.name|url_encode }}"
+                                                hx-get="{{ path('customer_instance_files_read', {id: instanceId, path: currentPath, name: entry.name}) }}"
                                                 hx-target="#file-editor"
                                                 hx-swap="outerHTML"
                                             >
@@ -135,14 +141,14 @@
                                             <button
                                                 type="button"
                                                 class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
-                                                hx-get="/instances/{{ instanceId }}/files/download?path={{ currentPath|url_encode }}&name={{ entry.name|url_encode }}"
+                                                hx-get="{{ path('customer_instance_files_download', {id: instanceId, path: currentPath, name: entry.name}) }}"
                                                 hx-target="#file-feedback"
                                                 hx-swap="innerHTML"
                                             >
                                                 {{ t('customer_instance_files_download', page_locale()) }}
                                             </button>
                                         {% endif %}
-                                        <form hx-post="/instances/{{ instanceId }}/files/delete" hx-target="#file-feedback" hx-swap="innerHTML" hx-confirm="{{ t('customer_instance_files_delete_confirm', page_locale()) }}">
+                                        <form hx-post="{{ path('customer_instance_files_delete', {id: instanceId}) }}" hx-target="#file-feedback" hx-swap="innerHTML" hx-confirm="{{ t('customer_instance_files_delete_confirm', page_locale()) }}">
                                             <input type="hidden" name="path" value="{{ currentPath }}">
                                             <input type="hidden" name="name" value="{{ entry.name }}">
                                             <button type="submit" class="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 hover:border-rose-300">{{ t('customer_instance_files_delete', page_locale()) }}</button>

@@ -1,0 +1,62 @@
+<div class="{{ cssPrefix }}-page">
+    <div class="{{ cssPrefix }}-header">
+        <div>
+            <h1>{{ title }}</h1>
+            <p>{{ intro }}</p>
+        </div>
+    </div>
+
+    {% for message in app.flashes('success') %}
+        <div class="{{ cssPrefix }}-alert {{ cssPrefix }}-alert-success">{{ message }}</div>
+    {% endfor %}
+
+    <div class="{{ cssPrefix }}-card">
+        <table class="{{ cssPrefix }}-table">
+            <thead>
+            <tr>
+                <th>{{ columns.name }}</th>
+                {% if variant == 'ts6' %}
+                    <th>{{ columns.status }}</th>
+                    <th>{{ columns.ports }}</th>
+                {% else %}
+                    <th>{{ columns.ports }}</th>
+                    <th>{{ columns.status }}</th>
+                {% endif %}
+                <th>{{ columns.updated }}</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for server in servers %}
+                <tr>
+                    <td>
+                        <div>{{ server.name }}</div>
+                        <div class="{{ cssPrefix }}-muted">#{{ server.sid }}</div>
+                    </td>
+                    {% if variant == 'ts6' %}
+                        <td><span class="{{ cssPrefix }}-pill">{{ server.status }}</span></td>
+                        <td>
+                            {% if server.voicePort %}Voice {{ server.voicePort }}{% endif %}
+                            {% if server.filetransferPort %}<div>FT {{ server.filetransferPort }}</div>{% endif %}
+                        </td>
+                    {% else %}
+                        <td>
+                            <div>Voice: {{ server.voicePort ?? '—' }}</div>
+                            <div class="{{ cssPrefix }}-muted">File: {{ server.filetransferPort ?? '—' }}</div>
+                        </td>
+                        <td><span class="{{ cssPrefix }}-pill">{{ server.status }}</span></td>
+                    {% endif %}
+                    <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
+                    <td class="{{ cssPrefix }}-align-right">
+                        <a class="{{ cssPrefix }}-link" href="{{ detailBase }}/{{ server.id }}">Details</a>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td class="{{ cssPrefix }}-empty" colspan="5">{{ emptyText }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

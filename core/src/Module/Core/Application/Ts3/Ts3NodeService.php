@@ -33,7 +33,7 @@ final class Ts3NodeService
             'query_port' => $dto->queryPort,
             'admin_password' => $dto->adminPassword,
             'voice_port' => 9987,
-            'file_port' => 30033,
+            'file_port' => $dto->filetransferPort,
         ];
 
         $this->jobDispatcher->dispatch($node->getAgent(), 'ts3.install', $payload);

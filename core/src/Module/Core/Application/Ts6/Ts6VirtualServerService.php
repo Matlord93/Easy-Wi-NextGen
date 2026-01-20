@@ -22,9 +22,10 @@ final class Ts6VirtualServerService
 
     public function createForCustomer(int $customerId, Ts6Node $node, CreateVirtualServerDto $dto): Ts6VirtualServer
     {
+        $voicePort = $dto->voicePort ?? $node->getVoicePort();
         $params = ['slots' => $dto->slots];
-        if ($dto->voicePort !== null) {
-            $params['voice_port'] = $dto->voicePort;
+        if ($voicePort !== null) {
+            $params['voice_port'] = $voicePort;
         }
 
         $payload = [
@@ -33,7 +34,7 @@ final class Ts6VirtualServerService
         ];
 
         $virtualServer = new Ts6VirtualServer($node, $customerId, 0, $dto->name, $dto->slots);
-        $virtualServer->setVoicePort($dto->voicePort);
+        $virtualServer->setVoicePort($voicePort);
         $virtualServer->setFiletransferPort(null);
         $virtualServer->setStatus('provisioning');
         $this->entityManager->persist($virtualServer);

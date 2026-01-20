@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Api;
 
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
@@ -13,10 +14,14 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceScheduleRepository;
+use App\Module\Ports\Application\PortLeaseManager;
+use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\DiskEnforcementService;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
@@ -33,8 +38,11 @@ final class InstanceApiController
         private readonly InstanceRepository $instanceRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly PortBlockRepository $portBlockRepository,
+        private readonly PortPoolRepository $portPoolRepository,
+        private readonly PortLeaseManager $portLeaseManager,
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly AppSettingsService $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -56,6 +64,8 @@ final class InstanceApiController
         $ramLimitValue = $payload['ram_limit'] ?? null;
         $diskLimitValue = $payload['disk_limit'] ?? null;
         $portBlockId = $payload['port_block_id'] ?? null;
+        $maxSlotsValue = $payload['max_slots'] ?? null;
+        $currentSlotsValue = $payload['current_slots'] ?? null;
 
         if ($customerId === null || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
             return new JsonResponse(['error' => 'Missing required fields.'], JsonResponse::HTTP_BAD_REQUEST);
@@ -71,6 +81,39 @@ final class InstanceApiController
 
         if ($cpuLimit <= 0 || $ramLimit <= 0 || $diskLimit <= 0) {
             return new JsonResponse(['error' => 'Limits must be positive.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $minSlots = $this->appSettingsService->getGameserverMinSlots();
+        $maxSlotsLimit = $this->appSettingsService->getGameserverMaxSlots();
+        $defaultSlots = $this->appSettingsService->getGameserverDefaultSlots();
+        $defaultSlots = max($minSlots, min($defaultSlots, $maxSlotsLimit));
+
+        $maxSlots = $maxSlotsLimit;
+        if ($maxSlotsValue !== null && $maxSlotsValue !== '') {
+            if (!is_numeric($maxSlotsValue)) {
+                return new JsonResponse(['error' => 'Max slots must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
+            }
+            $maxSlots = (int) $maxSlotsValue;
+        }
+
+        $currentSlots = $defaultSlots;
+        if ($currentSlotsValue !== null && $currentSlotsValue !== '') {
+            if (!is_numeric($currentSlotsValue)) {
+                return new JsonResponse(['error' => 'Current slots must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
+            }
+            $currentSlots = (int) $currentSlotsValue;
+        }
+
+        if ($maxSlots < $minSlots) {
+            return new JsonResponse(['error' => 'Max slots must be greater than or equal to the minimum slots.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if ($maxSlots > $maxSlotsLimit) {
+            return new JsonResponse(['error' => 'Max slots exceeds the allowed maximum.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if ($currentSlots < $minSlots || $currentSlots > $maxSlots) {
+            return new JsonResponse(['error' => 'Current slots must be within the allowed range.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $customer = $this->userRepository->find($customerId);
@@ -110,6 +153,16 @@ final class InstanceApiController
             }
         }
 
+        $requiredPorts = $template->getRequiredPorts();
+        $requiredCount = count($requiredPorts);
+
+        if ($portBlock === null && $requiredCount > 0) {
+            $portBlock = $this->allocatePortBlock($node, $customer, $requiredCount);
+            if ($portBlock === null) {
+                return new JsonResponse(['error' => 'No free port blocks available on the selected node.'], JsonResponse::HTTP_BAD_REQUEST);
+            }
+        }
+
         $instance = new Instance(
             $customer,
             $template,
@@ -122,7 +175,14 @@ final class InstanceApiController
             InstanceUpdatePolicy::Manual,
         );
 
+        $instance->setSlots($currentSlots);
+        $instance->setMaxSlots($maxSlots);
+        $instance->setCurrentSlots($currentSlots);
+
         $this->entityManager->persist($instance);
+        if ($portBlock !== null) {
+            $this->entityManager->persist($portBlock);
+        }
         $this->entityManager->flush();
 
         if ($portBlock !== null) {
@@ -159,6 +219,24 @@ final class InstanceApiController
             'port_block_id' => $instance->getPortBlockId(),
             'status' => $instance->getStatus()->value,
         ], JsonResponse::HTTP_CREATED);
+    }
+
+    private function allocatePortBlock(Agent $node, User $customer, int $requiredCount): ?PortBlock
+    {
+        if ($requiredCount <= 0) {
+            return null;
+        }
+
+        $pools = $this->portPoolRepository->findBy(['node' => $node]);
+        foreach ($pools as $pool) {
+            try {
+                return $this->portLeaseManager->allocateBlock($pool, $customer, $requiredCount);
+            } catch (\RuntimeException) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     #[Route(path: '/api/admin/instances/{id}', name: 'admin_instances_delete', methods: ['DELETE'])]

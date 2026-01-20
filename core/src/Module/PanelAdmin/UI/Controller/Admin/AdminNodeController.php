@@ -18,6 +18,12 @@ use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Application\SecretsCrypto;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
+use App\Repository\FirewallStateRepository;
+use App\Repository\InstanceRepository;
+use App\Repository\MetricSampleRepository;
+use App\Repository\Ts3InstanceRepository;
+use App\Repository\Ts6InstanceRepository;
+use App\Repository\WebspaceRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -41,6 +47,12 @@ final class AdminNodeController
         private readonly SecretsCrypto $secretsCrypto,
         private readonly NodeDiskProtectionService $nodeDiskProtectionService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
+        private readonly InstanceRepository $instanceRepository,
+        private readonly WebspaceRepository $webspaceRepository,
+        private readonly Ts3InstanceRepository $ts3InstanceRepository,
+        private readonly Ts6InstanceRepository $ts6InstanceRepository,
+        private readonly MetricSampleRepository $metricSampleRepository,
+        private readonly FirewallStateRepository $firewallStateRepository,
     ) {
     }
 
@@ -59,16 +71,32 @@ final class AdminNodeController
         $serverUpdateJobs = $this->buildServerUpdateJobIndex($nodes);
         $ddosStatuses = $this->buildDdosStatusIndex($nodes);
         $normalizedNodes = $this->normalizeNodes($nodes, $latestVersion, $updateJobs, $serverUpdateJobs, $ddosStatuses);
+        $nodeIndex = [];
+        foreach ($nodes as $node) {
+            $nodeIndex[$node->getId()] = $node;
+        }
         $now = new \DateTimeImmutable();
         $diskProtectActive = array_filter($nodes, fn ($node) => $this->nodeDiskProtectionService->isProtectionActive($node, $now));
+        $selectedNode = $selectedNodeId !== ''
+            ? current(array_filter($normalizedNodes, static fn (array $node): bool => $node['id'] === $selectedNodeId)) ?: ($normalizedNodes[0] ?? null)
+            : ($normalizedNodes[0] ?? null);
+
+        if ($selectedNode !== null) {
+            $selectedNodeEntity = $nodeIndex[$selectedNode['id']] ?? null;
+            if ($selectedNodeEntity !== null) {
+                $usage = $this->buildNodeUsage($selectedNodeEntity);
+                $selectedNode['delete'] = [
+                    'allowed' => !$this->hasNodeUsage($usage),
+                    'message' => $this->formatNodeUsageMessage($usage),
+                ];
+            }
+        }
 
         return new Response($this->twig->render('admin/nodes/index.html.twig', [
             'nodes' => $normalizedNodes,
             'summary' => $summary,
             'roleOptions' => self::ROLE_OPTIONS,
-            'selectedNode' => $selectedNodeId !== ''
-                ? current(array_filter($normalizedNodes, static fn (array $node): bool => $node['id'] === $selectedNodeId)) ?: ($normalizedNodes[0] ?? null)
-                : ($normalizedNodes[0] ?? null),
+            'selectedNode' => $selectedNode,
             'updateChannel' => $this->releaseChecker->getChannel(),
             'diskProtectCount' => count($diskProtectActive),
             'activeNav' => 'nodes',
@@ -520,6 +548,40 @@ final class AdminNodeController
         return $this->renderNodesTable('Reboot check queued.');
     }
 
+    #[Route(path: '/{id}/delete', name: 'admin_nodes_delete', methods: ['POST'])]
+    public function deleteNode(Request $request, string $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $node = $this->agentRepository->find($id);
+        if ($node === null) {
+            return new Response('Node not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $usage = $this->buildNodeUsage($node);
+        $usageMessage = $this->formatNodeUsageMessage($usage);
+        if ($usageMessage !== null) {
+            return $this->renderNodesTable(null, $usageMessage);
+        }
+
+        $this->removeNodeArtifacts($node);
+
+        $this->auditLogger->log($actor, 'node.deleted', [
+            'node_id' => $node->getId(),
+            'name' => $node->getName(),
+        ]);
+
+        $this->entityManager->remove($node);
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_NO_CONTENT, [
+            'HX-Redirect' => '/admin/nodes',
+        ]);
+    }
+
     #[Route(path: '/provision', name: 'admin_nodes_provision_all', methods: ['POST'])]
     public function provisionAll(Request $request): Response
     {
@@ -733,6 +795,69 @@ final class AdminNodeController
         fclose($connection);
 
         return null;
+    }
+
+    /**
+     * @return array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int}
+     */
+    private function buildNodeUsage(\App\Module\Core\Domain\Entity\Agent $node): array
+    {
+        return [
+            'instances' => $this->instanceRepository->count(['node' => $node]),
+            'webspaces' => $this->webspaceRepository->count(['node' => $node]),
+            'ts3_instances' => $this->ts3InstanceRepository->count(['node' => $node]),
+            'ts6_instances' => $this->ts6InstanceRepository->count(['node' => $node]),
+        ];
+    }
+
+    /**
+     * @param array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int} $usage
+     */
+    private function hasNodeUsage(array $usage): bool
+    {
+        return array_sum($usage) > 0;
+    }
+
+    /**
+     * @param array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int} $usage
+     */
+    private function formatNodeUsageMessage(array $usage): ?string
+    {
+        $labels = [
+            'instances' => 'game servers',
+            'webspaces' => 'webspaces',
+            'ts3_instances' => 'TS3 instances',
+            'ts6_instances' => 'TS6 instances',
+        ];
+        $parts = [];
+
+        foreach ($usage as $key => $count) {
+            if ($count > 0) {
+                $label = $labels[$key] ?? $key;
+                $parts[] = sprintf('%s (%d)', $label, $count);
+            }
+        }
+
+        if ($parts === []) {
+            return null;
+        }
+
+        return sprintf('Node cannot be deleted while it still has: %s.', implode(', ', $parts));
+    }
+
+    private function removeNodeArtifacts(\App\Module\Core\Domain\Entity\Agent $node): void
+    {
+        $firewallState = $this->firewallStateRepository->findOneBy(['node' => $node]);
+        if ($firewallState !== null) {
+            $this->entityManager->remove($firewallState);
+        }
+
+        $this->metricSampleRepository->createQueryBuilder('sample')
+            ->delete()
+            ->where('sample.agent = :agent')
+            ->setParameter('agent', $node)
+            ->getQuery()
+            ->execute();
     }
 
     private function normalizeNodes(

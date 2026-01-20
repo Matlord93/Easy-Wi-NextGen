@@ -39,24 +39,24 @@
         </div>
         <div class="flex flex-wrap gap-3">
             {% if status == 'running' %}
-                <form hx-post="/instances/{{ instance.id }}/power" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
+                <form hx-post="{{ path('customer_instance_power', {id: instance.id}) }}" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
                     <input type="hidden" name="action" value="restart">
                     <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300">{{ t('customer_instance_restart', page_locale()) }}</button>
                 </form>
-                <form hx-post="/instances/{{ instance.id }}/power" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
+                <form hx-post="{{ path('customer_instance_power', {id: instance.id}) }}" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
                     <input type="hidden" name="action" value="stop">
                     <button type="submit" class="rounded-lg border border-rose-200 px-4 py-2 text-xs font-semibold text-rose-600 transition hover:border-rose-300">{{ t('customer_instance_stop', page_locale()) }}</button>
                 </form>
             {% elseif status == 'stopped' %}
-                <form hx-post="/instances/{{ instance.id }}/power" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
+                <form hx-post="{{ path('customer_instance_power', {id: instance.id}) }}" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
                     <input type="hidden" name="action" value="start">
                     <button type="submit" class="rounded-lg border border-emerald-200 px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300">{{ t('customer_instance_start', page_locale()) }}</button>
                 </form>
             {% endif %}
-            <form hx-post="/instances/{{ instance.id }}/update" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
+            <form hx-post="{{ path('customer_instance_update', {id: instance.id}) }}" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
                 <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700">{{ t('customer_instance_manual_update', page_locale()) }}</button>
             </form>
-            <form hx-post="/instances/{{ instance.id }}/rollback" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
+            <form hx-post="{{ path('customer_instance_rollback', {id: instance.id}) }}" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
                 <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300">{{ t('customer_instance_rollback', page_locale()) }}</button>
             </form>
         </div>
@@ -103,34 +103,38 @@
                         {{ t('customer_instance_quick_connect', page_locale()) }}
                     </a>
                 {% endif %}
-                {% if instance.connection.port_block %}
-                    <p class="text-xs text-slate-600">{{ t('customer_instance_port_block', page_locale()) }}: {{ instance.connection.port_block.start }}-{{ instance.connection.port_block.end }}</p>
-                {% else %}
-                    <p class="text-xs text-slate-500">{{ t('customer_instance_port_block_missing', page_locale()) }}</p>
+                {% if app_setting('gameserver_show_port_range', true) %}
+                    {% if instance.connection.port_block %}
+                        <p class="text-xs text-slate-600">{{ t('customer_instance_port_block', page_locale()) }}: {{ instance.connection.port_block.start }}-{{ instance.connection.port_block.end }}</p>
+                    {% else %}
+                        <p class="text-xs text-slate-500">{{ t('customer_instance_port_block_missing', page_locale()) }}</p>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
-        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_ports', page_locale()) }}</p>
-            {% if instance.connection.assigned_ports is not empty %}
-                <div class="mt-3 space-y-2 text-sm text-slate-700">
-                    {% for port in instance.connection.assigned_ports %}
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <span class="font-semibold">{{ port.label }}</span>
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm text-slate-900">{{ port.port }}</span>
-                                <button type="button" class="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600" data-copy-value="{{ port.port }}">{{ t('customer_copy', page_locale()) }}</button>
+        {% if app_setting('gameserver_show_port_range', true) %}
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_ports', page_locale()) }}</p>
+                {% if instance.connection.assigned_ports is not empty %}
+                    <div class="mt-3 space-y-2 text-sm text-slate-700">
+                        {% for port in instance.connection.assigned_ports %}
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <span class="font-semibold">{{ port.label }}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm text-slate-900">{{ port.port }}</span>
+                                    <button type="button" class="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600" data-copy-value="{{ port.port }}">{{ t('customer_copy', page_locale()) }}</button>
+                                </div>
                             </div>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="mt-3 text-sm text-slate-500">{{ t('customer_instance_ports_missing', page_locale()) }}</p>
-            {% endif %}
-        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="mt-3 text-sm text-slate-500">{{ t('customer_instance_ports_missing', page_locale()) }}</p>
+                {% endif %}
+            </div>
+        {% endif %}
     </div>
 
-    <div class="mt-6 grid gap-6 lg:grid-cols-3">
+    <div class="mt-6 grid gap-6 lg:grid-cols-4">
         <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_current_build', page_locale()) }}</p>
             <p class="mt-2 text-sm font-semibold text-slate-900">{{ instance.current_build_id ?? t('customer_instance_unknown', page_locale()) }}</p>
@@ -146,6 +150,13 @@
         <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_disk_usage', page_locale()) }}</p>
             <p class="mt-2 text-sm font-semibold text-slate-900">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</p>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+                {% include 'components/_disk_widget.html.twig' with {
+                    disk_last_scanned_at: instance.disk_last_scanned_at,
+                    disk_used_bytes: instance.disk_used_bytes,
+                    disk_scan_error: instance.disk_scan_error
+                } %}
+            </div>
             <div class="mt-3 h-2 w-full rounded-full bg-slate-200">
                 <div class="h-2 rounded-full bg-indigo-500" style="width: {{ diskBarWidth }}%"></div>
             </div>
@@ -154,12 +165,24 @@
                 <p class="mt-2 text-xs text-rose-600">{{ instance.disk_scan_error }}</p>
             {% endif %}
         </div>
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_slots_configured', page_locale()) }}</p>
+            <p class="mt-2 text-sm font-semibold text-slate-900">{{ instance.current_slots }} / {{ instance.max_slots }}</p>
+            <p class="text-xs text-slate-600">{{ t('customer_instance_slots_configured_hint', page_locale()) }}</p>
+            {% set query = instance.query ?? {} %}
+            {% if query.available and (query.players is not null or query.max_players is not null) %}
+                <p class="mt-3 text-xs text-slate-700">{{ t('customer_instance_players_online', page_locale()) }}: {{ query.players ?? '—' }} / {{ query.max_players ?? '—' }}</p>
+                <p class="text-xs text-slate-500">{{ t('customer_instance_players_checked', page_locale()) }}: {{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}</p>
+            {% else %}
+                <p class="mt-3 text-xs text-slate-500">{{ t('customer_instance_players_unavailable', page_locale()) }}</p>
+            {% endif %}
+        </div>
     </div>
 
     <div class="mt-6 flex flex-wrap gap-3">
         <button type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instance_cleanup', page_locale()) }}</button>
-        <a href="/instances/{{ instance.id }}" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_details', page_locale()) }}</a>
-        <a href="/instances/{{ instance.id }}/files" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_file_manager', page_locale()) }}</a>
+        <a href="{{ path('customer_instance_detail', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_details', page_locale()) }}</a>
+        <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_file_manager', page_locale()) }}</a>
     </div>
 
     <div class="mt-6">

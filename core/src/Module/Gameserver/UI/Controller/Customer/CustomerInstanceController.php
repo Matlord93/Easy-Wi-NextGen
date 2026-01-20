@@ -22,7 +22,9 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
+use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Core\Application\SetupChecker;
 use Cron\CronExpression;
@@ -45,12 +47,14 @@ final class CustomerInstanceController
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly JobRepository $jobRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
+        private readonly InstanceQueryService $instanceQueryService,
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly MinecraftCatalogService $minecraftCatalogService,
         private readonly EncryptionService $encryptionService,
         private readonly SetupChecker $setupChecker,
+        private readonly AppSettingsService $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
     ) {
@@ -483,6 +487,10 @@ final class CustomerInstanceController
         $instance = $this->findCustomerInstance($customer, $id);
         $action = trim((string) $request->request->get('action', ''));
 
+        if (!$this->appSettingsService->isGameserverStartStopAllowed()) {
+            return $this->renderInstanceCard($instance, null, 'Start/Stop actions are disabled.');
+        }
+
         if ($instance->getStatus() === InstanceStatus::Suspended) {
             return $this->renderInstanceCard($instance, null, 'This instance is suspended.');
         }
@@ -593,16 +601,23 @@ final class CustomerInstanceController
             $schedule = $scheduleIndex[$instance->getId()] ?? null;
             $portBlock = $portBlockIndex[$instance->getId()] ?? null;
 
-            return $this->normalizeInstance($instance, $schedule, $portBlock);
+            return $this->normalizeInstance($instance, $schedule, $portBlock, false);
         }, $instances);
     }
 
-    private function normalizeInstance(Instance $instance, ?InstanceSchedule $schedule, ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock, ?string $notice = null, ?string $error = null): array
-    {
+    private function normalizeInstance(
+        Instance $instance,
+        ?InstanceSchedule $schedule,
+        ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock,
+        bool $queueQuery,
+        ?string $notice = null,
+        ?string $error = null,
+    ): array {
         $diskLimitBytes = $instance->getDiskLimitBytes();
         $diskUsedBytes = $instance->getDiskUsedBytes();
         $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
         $connection = $this->buildConnectionData($instance, $portBlock);
+        $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, $queueQuery);
 
         return [
             'id' => $instance->getId(),
@@ -632,6 +647,10 @@ final class CustomerInstanceController
             'disk_state' => $instance->getDiskState()->value,
             'disk_last_scanned_at' => $instance->getDiskLastScannedAt(),
             'disk_scan_error' => $instance->getDiskScanError(),
+            'current_slots' => $instance->getCurrentSlots(),
+            'max_slots' => $instance->getMaxSlots(),
+            'lock_slots' => $instance->isLockSlots(),
+            'query' => $querySnapshot,
             'connection' => $connection,
             'schedule' => $schedule === null ? null : [
                 'cron_expression' => $schedule->getCronExpression(),
@@ -725,7 +744,7 @@ final class CustomerInstanceController
 
     private function buildTabs(int $instanceId): array
     {
-        return [
+        $tabs = [
             [
                 'key' => 'overview',
                 'label' => 'customer_instance_tab_overview',
@@ -741,11 +760,11 @@ final class CustomerInstanceController
                 'label' => 'customer_instance_tab_configs',
                 'href' => sprintf('/instances/%d?tab=configs', $instanceId),
             ],
-            [
+            $this->appSettingsService->isCustomerDataManagerEnabled() ? [
                 'key' => 'files',
                 'label' => 'customer_instance_tab_files',
                 'href' => sprintf('/instances/%d?tab=files', $instanceId),
-            ],
+            ] : null,
             [
                 'key' => 'addons',
                 'label' => 'customer_instance_tab_addons',
@@ -763,7 +782,8 @@ final class CustomerInstanceController
             ],
             [
                 'key' => 'console',
-                'label' => 'customer_instance_tab_console',
+                'label' => $this->appSettingsService->getCustomerConsoleLabel() ?? 'customer_instance_tab_console',
+                'label_is_key' => $this->appSettingsService->getCustomerConsoleLabel() === null,
                 'href' => sprintf('/instances/%d?tab=console', $instanceId),
             ],
             [
@@ -782,6 +802,8 @@ final class CustomerInstanceController
                 'href' => sprintf('/instances/%d?tab=tasks', $instanceId),
             ],
         ];
+
+        return array_values(array_filter($tabs));
     }
 
     private function resolveTab(string $tab): string
@@ -790,7 +812,6 @@ final class CustomerInstanceController
             'overview',
             'setup',
             'configs',
-            'files',
             'addons',
             'restart_planner',
             'backups',
@@ -799,6 +820,10 @@ final class CustomerInstanceController
             'reinstall',
             'tasks',
         ];
+
+        if ($this->appSettingsService->isCustomerDataManagerEnabled()) {
+            $allowed[] = 'files';
+        }
 
         $tab = strtolower(trim($tab));
 
@@ -821,7 +846,7 @@ final class CustomerInstanceController
     ): Response {
         $updateSchedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Update);
         $portBlock = $this->portBlockRepository->findByInstance($instance);
-        $instanceView = $this->normalizeInstance($instance, $updateSchedule, $portBlock);
+        $instanceView = $this->normalizeInstance($instance, $updateSchedule, $portBlock, true);
 
         $configFiles = $this->normalizeConfigFiles($instance->getTemplate()->getConfigFiles());
         $restartSchedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Restart);
@@ -968,7 +993,7 @@ final class CustomerInstanceController
         $portBlock = $this->portBlockRepository->findByInstance($instance);
 
         return new Response($this->twig->render('customer/instances/_card.html.twig', [
-            'instance' => $this->normalizeInstance($instance, $schedule, $portBlock, $notice, $error),
+            'instance' => $this->normalizeInstance($instance, $schedule, $portBlock, false, $notice, $error),
             'minecraftCatalog' => $this->minecraftCatalogService->getUiCatalog(),
         ]));
     }

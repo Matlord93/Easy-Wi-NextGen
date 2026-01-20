@@ -1,0 +1,38 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Instance Slots · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="flex flex-col gap-4">
+        <div>
+            <h1 class="text-2xl font-semibold">Instance Slots</h1>
+            <p class="text-sm text-slate-700">Set max slots and lock enforcement for this instance.</p>
+        </div>
+
+        {% if notice %}
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ notice }}</div>
+        {% endif %}
+        {% if error %}
+            <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" class="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="text-sm font-semibold text-slate-700">{{ instance.getServerName() ?? 'Instance' }} (ID {{ instance.getId() }})</div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">Max slots</label>
+                    <input type="number" min="1" name="max_slots" value="{{ instance.getMaxSlots() }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">Current slots</label>
+                    <input type="number" min="1" name="current_slots" value="{{ instance.getCurrentSlots() }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                </div>
+            </div>
+            <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700">
+                <input type="checkbox" name="lock_slots" value="1" {% if instance.isLockSlots() %}checked{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900">
+                Lock slots to max
+            </label>
+            <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800">Save</button>
+        </form>
+    </div>
+{% endblock %}

@@ -1,0 +1,3 @@
+mail.password_reset.subject: "Passwort zurücksetzen"
+mail.invoice_paid.subject: "Zahlung erhalten"
+mail.server_created.subject: "Ihr Server ist bereit"

@@ -55,6 +55,9 @@ class Ts6Node
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $installedVersion = null;
 
+    #[ORM\Column]
+    private int $voicePort = 9987;
+
     #[ORM\Column(length: 32)]
     private string $installStatus = 'not_installed';
 
@@ -223,6 +226,17 @@ class Ts6Node
     public function setQueryHttpsPort(int $queryHttpsPort): void
     {
         $this->queryHttpsPort = max(1, $queryHttpsPort);
+        $this->touch();
+    }
+
+    public function getVoicePort(): int
+    {
+        return $this->voicePort;
+    }
+
+    public function setVoicePort(int $voicePort): void
+    {
+        $this->voicePort = max(1, $voicePort);
         $this->touch();
     }
 

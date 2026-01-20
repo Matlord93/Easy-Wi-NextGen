@@ -1,0 +1,10 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hallo {{ customer_name|default('') }},
+
+Ihr Server "{{ server_name }}" wurde erstellt und ist bereit.
+Verwalten Sie ihn hier: {{ portal_url }}
+
+Wenn Sie Fragen haben, antworten Sie einfach auf diese E-Mail.
+{% endblock %}

@@ -8,8 +8,8 @@ use RuntimeException;
 
 final class EncryptionService
 {
-    private const KEY_BYTES = SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES;
-    private const NONCE_BYTES = SODIUM_CRYPTO_AEAD_AES256GCM_NPUBBYTES;
+    private int $keyBytes;
+    private int $nonceBytes;
 
     /**
      * @var array<string, string>
@@ -23,6 +23,12 @@ final class EncryptionService
         ?string $keyring,
     ) {
         $this->activeKeyId = $activeKeyId ?? '';
+        $this->keyBytes = defined('SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES')
+            ? SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES
+            : 32;
+        $this->nonceBytes = defined('SODIUM_CRYPTO_AEAD_AES256GCM_NPUBBYTES')
+            ? SODIUM_CRYPTO_AEAD_AES256GCM_NPUBBYTES
+            : 12;
         $this->keyring = $this->parseKeyring($keyring ?? '');
     }
 
@@ -36,7 +42,7 @@ final class EncryptionService
             throw new RuntimeException('No active encryption key configured.');
         }
         $key = $this->requireKey($keyId);
-        $nonce = random_bytes(self::NONCE_BYTES);
+        $nonce = random_bytes($this->nonceBytes);
         $ciphertext = sodium_crypto_aead_aes256gcm_encrypt(
             $plaintext,
             $this->aadForKey($keyId),
@@ -120,7 +126,7 @@ final class EncryptionService
             }
 
             $decodedKey = base64_decode($encodedKey, true);
-            if ($decodedKey === false || strlen($decodedKey) !== self::KEY_BYTES) {
+            if ($decodedKey === false || strlen($decodedKey) !== $this->keyBytes) {
                 throw new RuntimeException(sprintf('Invalid key material for key id "%s".', $keyId));
             }
 

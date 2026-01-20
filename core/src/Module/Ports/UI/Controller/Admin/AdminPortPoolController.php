@@ -48,10 +48,12 @@ final class AdminPortPoolController
 
         $nodeId = (string) $request->request->get('node_id', '');
         $name = trim((string) $request->request->get('name', ''));
+        $tag = trim((string) $request->request->get('tag', ''));
         $startValue = $request->request->get('start_port');
         $endValue = $request->request->get('end_port');
+        $enabled = $request->request->get('enabled') === '1';
 
-        if ($nodeId === '' || $name === '' || $startValue === null || $endValue === null) {
+        if ($nodeId === '' || $name === '' || $tag === '' || $startValue === null || $endValue === null) {
             return $this->renderPage('Please complete all required fields.');
         }
 
@@ -70,15 +72,17 @@ final class AdminPortPoolController
             return $this->renderPage('Node not found.');
         }
 
-        $pool = new PortPool($node, $name, $startPort, $endPort);
+        $pool = new PortPool($node, $name, $tag, $startPort, $endPort, $enabled);
         $this->entityManager->persist($pool);
 
         $this->auditLogger->log($actor, 'port_pool.created', [
             'port_pool_id' => $pool->getId(),
             'node_id' => $node->getId(),
             'name' => $pool->getName(),
+            'tag' => $pool->getTag(),
             'start_port' => $pool->getStartPort(),
             'end_port' => $pool->getEndPort(),
+            'enabled' => $pool->isEnabled(),
         ]);
 
         $this->entityManager->flush();
@@ -105,12 +109,14 @@ final class AdminPortPoolController
         return [
             'id' => $pool->getId(),
             'name' => $pool->getName(),
+            'tag' => $pool->getTag(),
             'node' => [
                 'id' => $pool->getNode()->getId(),
                 'name' => $pool->getNode()->getName(),
             ],
             'start_port' => $pool->getStartPort(),
             'end_port' => $pool->getEndPort(),
+            'enabled' => $pool->isEnabled(),
             'created_at' => $pool->getCreatedAt(),
         ];
     }

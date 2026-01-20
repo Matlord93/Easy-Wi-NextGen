@@ -1,3 +1,6 @@
+{% set siteTitle = app_setting('site_title', 'Easy-Wi NextGen') %}
+{% set brandingName = app_setting('branding_name', siteTitle) %}
+{% set brandingLogo = app_setting('branding_logo_url') %}
 <!DOCTYPE html>
 <html lang="{{ page_locale() }}">
 <head>
@@ -13,10 +16,11 @@
             }
         })();
     </script>
-    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
-    <link rel="stylesheet" href="/ui.css">
-    <link rel="stylesheet" href="/admin-customer.css">
-    <script src="/htmx.min.js"></script>
+    {% block title %}{{ siteTitle }}{% endblock %}
+    <title>{{ block('title')|replace({'Easy-Wi NextGen': siteTitle}) }}</title>
+    <link rel="stylesheet" href="{{ asset('ui.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
+    <script src="{{ asset('htmx.min.js') }}"></script>
 </head>
 <body class="bg-slate-100 text-slate-900">
 {% set activeNav = activeNav|default('') %}
@@ -24,7 +28,12 @@
 <div class="min-h-screen flex">
     <label for="sidebar-toggle" class="fixed inset-0 z-30 hidden bg-slate-900/40 peer-checked:block lg:hidden" aria-label="{{ t('reseller_toggle_sidebar', page_locale()) }}"></label>
     <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-gradient-to-b from-indigo-700 via-slate-900 to-slate-950 text-slate-100 shadow-xl transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
-        <div class="px-6 py-5 text-lg font-semibold tracking-tight">Easy-Wi NextGen</div>
+        <div class="px-6 py-5 text-lg font-semibold tracking-tight">
+            {% if brandingLogo %}
+                <img src="{{ brandingLogo }}" alt="{{ brandingName }}" style="max-height: 32px; width: auto;" />
+            {% endif %}
+            <span>{{ brandingName }}</span>
+        </div>
         <nav class="flex-1 px-4 space-y-4">
             <details class="nav-group group" data-nav-id="reseller-management" open>
                 <summary class="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100/80 hover:text-white">
@@ -34,7 +43,7 @@
                     </svg>
                 </summary>
                 <div class="mt-2 space-y-1">
-                    <a href="/reseller/customers" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'customers' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
+                    <a href="{{ path('reseller_customers') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'customers' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
                         <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'customers' ? 'bg-white/15' : 'bg-white/10' }}">
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                 <path d="M7 4.75A2.25 2.25 0 0 1 9.25 2.5h1.5A2.25 2.25 0 0 1 13 4.75v.5h.5A2.25 2.25 0 0 1 15.75 7.5v7a2.25 2.25 0 0 1-2.25 2.25h-7A2.25 2.25 0 0 1 4.25 14.5v-7A2.25 2.25 0 0 1 6.5 5.25H7v-.5Zm1.5 0v.5h3v-.5a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75Zm-2 2a.75.75 0 0 0-.75.75v7a.75.75 0 0 0 .75.75h7a.75.75 0 0 0 .75-.75v-7a.75.75 0 0 0-.75-.75h-7Z"/>
@@ -65,11 +74,11 @@
                 <div class="hidden items-center gap-4 sm:flex">
                     <div class="flex items-center gap-2">
                         <a
-                            href="/dashboard"
+                            href="{{ path('customer_dashboard') }}"
                             class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
                         >{{ t('customer_portal', page_locale()) }}</a>
                         <a
-                            href="/logout"
+                            href="{{ path('public_logout') }}"
                             class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-slate-800"
                         >{{ t('logout', page_locale()) }}</a>
                     </div>

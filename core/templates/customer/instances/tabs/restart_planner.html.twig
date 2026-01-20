@@ -11,7 +11,7 @@
         <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ t(tabError, page_locale()) }}</div>
     {% endif %}
 
-    <form method="post" action="/instances/{{ instance.id }}/restart-planner" class="space-y-4">
+<form method="post" action="{{ path('customer_instance_restart_planner', {id: instance.id}) }}" class="space-y-4">
         <div class="grid gap-4 lg:grid-cols-2">
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_restart_planner_cron', page_locale()) }}</label>

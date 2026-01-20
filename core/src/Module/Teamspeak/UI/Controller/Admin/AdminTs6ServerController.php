@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
 use App\Module\Core\Dto\Ts6\AdminCreateVirtualServerDto;
-use App\Module\Core\Dto\Ts6\CreateVirtualServerDto;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Application\VirtualServerDtoFactory;
 use App\Module\Core\Form\Ts6AdminCreateVirtualServerType;
 use App\Repository\Ts6NodeRepository;
 use App\Repository\UserRepository;
@@ -27,6 +27,7 @@ final class AdminTs6ServerController
         private readonly UserRepository $userRepository,
         private readonly Ts6VirtualServerService $virtualServerService,
         private readonly FormFactoryInterface $formFactory,
+        private readonly VirtualServerDtoFactory $dtoFactory,
         private readonly Environment $twig,
     ) {
     }
@@ -64,7 +65,7 @@ final class AdminTs6ServerController
                 throw new BadRequestHttpException('Customer or node not found.');
             }
 
-            $createDto = new CreateVirtualServerDto($dto->name, $dto->slots, $dto->voicePort);
+            $createDto = $this->dtoFactory->createTs6($dto);
             $this->virtualServerService->createForCustomer($customer->getId() ?? 0, $node, $createDto);
             $request->getSession()->getFlashBag()->add('success', 'TS6 virtual server created.');
 

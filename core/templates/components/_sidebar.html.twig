@@ -1,9 +1,15 @@
 {% set title = title|default('Easy-Wi NextGen') %}
 {% set groups = groups|default([]) %}
 {% set activeNav = activeNav|default('') %}
+{% set logoUrl = logoUrl|default(null) %}
 
 <aside class="ng-sidebar">
-    <div class="ng-sidebar__title">{{ title }}</div>
+    <div class="ng-sidebar__title">
+        {% if logoUrl %}
+            <img src="{{ logoUrl }}" alt="{{ title }}" style="max-height: 32px; width: auto;" />
+        {% endif %}
+        <span>{{ title }}</span>
+    </div>
     <nav class="ng-sidebar__nav">
         {% for group in groups %}
             {% set groupId = group.id|default(group.label|default(loop.index)) %}

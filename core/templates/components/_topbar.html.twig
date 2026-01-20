@@ -5,7 +5,7 @@
 {% set userName = user ? (user.name ?: user.email) : '' %}
 {% set userInitial = userName ? userName|slice(0, 1)|upper : 'U' %}
 {% set updateStatus = admin_update_status() %}
-{% set notificationsHref = user and user.isAdmin ? '/admin/notifications' : '/notifications' %}
+{% set notificationsHref = user and user.isAdmin ? path('admin_notifications') : path('customer_notifications') %}
 {% set unreadCount = unread_notifications() %}
 
 <header class="ng-topbar">
@@ -30,7 +30,7 @@
             </svg>
         </a>
         {% if updateStatus and updateStatus.hasUpdates %}
-            <a class="ng-update-pill" href="/admin/updates">
+            <a class="ng-update-pill" href="{{ path('admin_updates') }}">
                 {{ t('admin_updates_available', page_locale()) }}
                 {% if updateStatus.agentUpdates > 0 %}
                     <span class="ng-update-pill__count">{{ updateStatus.agentUpdates }}</span>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Admin;
 
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\InstanceSftpCredential;
@@ -19,10 +20,14 @@ use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Gameserver\Application\InstanceInstallService;
+use App\Module\Ports\Application\PortLeaseManager;
+use App\Module\Ports\Domain\Entity\PortBlock;
+use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -44,9 +49,12 @@ final class AdminInstanceController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly AppSettingsService $appSettingsService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly EncryptionService $encryptionService,
         private readonly InstanceInstallService $instanceInstallService,
+        private readonly PortPoolRepository $portPoolRepository,
+        private readonly PortLeaseManager $portLeaseManager,
         private readonly Environment $twig,
     ) {
     }
@@ -143,6 +151,17 @@ final class AdminInstanceController
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
         }
 
+        $requiredPorts = $formData['template']->getRequiredPorts();
+        $requiredCount = count($requiredPorts);
+        $portBlock = $formData['port_block'];
+        if ($portBlock === null && $requiredCount > 0) {
+            $portBlock = $this->allocatePortBlock($formData['node'], $formData['customer'], $requiredCount);
+            if ($portBlock === null) {
+                $formData['errors'][] = 'No free port blocks available on the selected node.';
+                return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+            }
+        }
+
         $instance = new Instance(
             $formData['customer'],
             $formData['template'],
@@ -150,19 +169,26 @@ final class AdminInstanceController
             $formData['cpu_limit'],
             $formData['ram_limit'],
             $formData['disk_limit'],
-            $formData['port_block']?->getId(),
+            $portBlock?->getId(),
             InstanceStatus::PendingSetup,
             InstanceUpdatePolicy::Manual,
         );
 
+        $instance->setSlots($formData['current_slots']);
+        $instance->setMaxSlots($formData['max_slots']);
+        $instance->setCurrentSlots($formData['current_slots']);
+
         $this->entityManager->persist($instance);
+        if ($portBlock !== null) {
+            $this->entityManager->persist($portBlock);
+        }
         $this->entityManager->flush();
 
-        if ($formData['port_block'] !== null) {
-            $formData['port_block']->assignInstance($instance);
-            $this->entityManager->persist($formData['port_block']);
+        if ($portBlock !== null) {
+            $portBlock->assignInstance($instance);
+            $this->entityManager->persist($portBlock);
             $this->auditLogger->log($actor, 'port_block.assigned', [
-                'port_block_id' => $formData['port_block']->getId(),
+                'port_block_id' => $portBlock->getId(),
                 'instance_id' => $instance->getId(),
                 'customer_id' => $formData['customer']->getId(),
             ]);
@@ -348,6 +374,8 @@ final class AdminInstanceController
         $ramLimitValue = $request->request->get('ram_limit');
         $diskLimitValue = $request->request->get('disk_limit');
         $portBlockId = $request->request->get('port_block_id');
+        $maxSlotsValue = $request->request->get('max_slots');
+        $currentSlotsValue = $request->request->get('current_slots');
 
         if ($customerId === null || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
             $errors[] = 'Customer, template, node, and resource limits are required.';
@@ -363,6 +391,41 @@ final class AdminInstanceController
 
         if ($cpuLimit <= 0 || $ramLimit <= 0 || $diskLimit <= 0) {
             $errors[] = 'CPU, RAM, and disk limits must be positive.';
+        }
+
+        $minSlots = $this->appSettingsService->getGameserverMinSlots();
+        $maxSlotsLimit = $this->appSettingsService->getGameserverMaxSlots();
+        $defaultSlots = $this->appSettingsService->getGameserverDefaultSlots();
+        $defaultSlots = max($minSlots, min($defaultSlots, $maxSlotsLimit));
+
+        $maxSlots = $maxSlotsLimit;
+        if ($maxSlotsValue !== null && $maxSlotsValue !== '') {
+            if (!is_numeric($maxSlotsValue)) {
+                $errors[] = 'Max slots must be numeric.';
+            } else {
+                $maxSlots = (int) $maxSlotsValue;
+            }
+        }
+
+        $currentSlots = $defaultSlots;
+        if ($currentSlotsValue !== null && $currentSlotsValue !== '') {
+            if (!is_numeric($currentSlotsValue)) {
+                $errors[] = 'Current slots must be numeric.';
+            } else {
+                $currentSlots = (int) $currentSlotsValue;
+            }
+        }
+
+        if ($maxSlots < $minSlots) {
+            $errors[] = 'Max slots must be greater than or equal to the minimum slots.';
+        }
+
+        if ($maxSlots > $maxSlotsLimit) {
+            $errors[] = 'Max slots exceeds the allowed maximum.';
+        }
+
+        if ($currentSlots < $minSlots || $currentSlots > $maxSlots) {
+            $errors[] = 'Current slots must be within the allowed range.';
         }
 
         $customer = $customerId !== null ? $this->userRepository->find($customerId) : null;
@@ -403,6 +466,8 @@ final class AdminInstanceController
             'ram_limit' => $ramLimit,
             'disk_limit' => $diskLimit,
             'port_block' => $portBlock,
+            'max_slots' => $maxSlots,
+            'current_slots' => $currentSlots,
             'customer_id' => $customerId,
             'template_id' => $templateId,
             'node_id' => $nodeId,
@@ -420,6 +485,10 @@ final class AdminInstanceController
             'ram_limit' => 4096,
             'disk_limit' => 20000,
             'port_block_id' => '',
+            'current_slots' => $this->appSettingsService->getGameserverDefaultSlots(),
+            'max_slots' => $this->appSettingsService->getGameserverMaxSlots(),
+            'min_slots' => $this->appSettingsService->getGameserverMinSlots(),
+            'max_slots_limit' => $this->appSettingsService->getGameserverMaxSlots(),
             'errors' => [],
             'action_url' => '/admin/instances',
             'submit_label' => 'admin_instances_submit',
@@ -428,6 +497,9 @@ final class AdminInstanceController
         if ($override !== null) {
             $data = array_merge($data, $override);
         }
+
+        $data['current_slots'] = max($data['min_slots'], min($data['current_slots'], $data['max_slots_limit']));
+        $data['max_slots'] = max($data['min_slots'], min($data['max_slots'], $data['max_slots_limit']));
 
         return $data;
     }
@@ -446,6 +518,8 @@ final class AdminInstanceController
                 'ram_limit' => $formData['ram_limit'],
                 'disk_limit' => $formData['disk_limit'],
                 'port_block_id' => $formData['port_block_id'],
+                'current_slots' => $formData['current_slots'],
+                'max_slots' => $formData['max_slots'],
                 'errors' => $formData['errors'],
             ]),
         ]), $status);
@@ -497,6 +571,24 @@ final class AdminInstanceController
         ]), $status);
     }
 
+    private function allocatePortBlock(Agent $node, User $customer, int $requiredCount): ?PortBlock
+    {
+        if ($requiredCount <= 0) {
+            return null;
+        }
+
+        $pools = $this->portPoolRepository->findBy(['node' => $node]);
+        foreach ($pools as $pool) {
+            try {
+                return $this->portLeaseManager->allocateBlock($pool, $customer, $requiredCount);
+            } catch (\RuntimeException) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @param Instance[] $instances
      */
@@ -526,6 +618,9 @@ final class AdminInstanceController
                 'disk_state' => $instance->getDiskState()->value,
                 'disk_last_scanned_at' => $instance->getDiskLastScannedAt(),
                 'status' => $instance->getStatus()->value,
+                'current_slots' => $instance->getCurrentSlots(),
+                'max_slots' => $instance->getMaxSlots(),
+                'lock_slots' => $instance->isLockSlots(),
                 'created_at' => $instance->getCreatedAt(),
                 'updated_at' => $instance->getUpdatedAt(),
                 'sftp_username' => $credential?->getUsername(),

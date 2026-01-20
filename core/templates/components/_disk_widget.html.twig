@@ -1,0 +1,22 @@
+{% set lastScannedAt = disk_last_scanned_at ?? null %}
+{% set usedBytes = disk_used_bytes|default(0) %}
+{% set scanError = disk_scan_error ?? null %}
+{% if not lastScannedAt or (usedBytes == 0 and scanError) %}
+    {% set status = 'unknown' %}
+    {% set label = 'Unknown' %}
+{% elseif scanError %}
+    {% set status = 'last_known' %}
+    {% set label = 'Last known' %}
+{% else %}
+    {% set status = 'ok' %}
+    {% set label = 'OK' %}
+{% endif %}
+{% set styles = {
+    'ok': 'bg-emerald-50 text-emerald-700',
+    'unknown': 'bg-slate-100 text-slate-600',
+    'last_known': 'bg-amber-50 text-amber-700'
+} %}
+
+<span class="rounded-full px-2.5 py-1 text-[11px] font-semibold {{ styles[status] ?? 'bg-slate-100 text-slate-600' }}">
+    {{ label }}
+</span>

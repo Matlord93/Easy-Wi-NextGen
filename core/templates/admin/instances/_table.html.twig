@@ -56,6 +56,11 @@
                 <td class="px-6 py-4 text-sm text-slate-600">
                     <div class="flex items-center gap-2">
                         <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold {{ diskBadge }}">{{ instance.disk_state|replace({'_': ' '})|title }}</span>
+                        {% include 'components/_disk_widget.html.twig' with {
+                            disk_last_scanned_at: instance.disk_last_scanned_at,
+                            disk_used_bytes: instance.disk_used_bytes,
+                            disk_scan_error: instance.disk_scan_error
+                        } %}
                         <span class="text-xs text-slate-600">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</span>
                     </div>
                     <div class="mt-2 h-2 w-full rounded-full bg-slate-100">

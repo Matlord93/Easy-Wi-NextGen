@@ -1295,8 +1295,8 @@ final class GameTemplateSeedCatalog
                 [],
                 [],
                 $fastdl,
-                'cd {{INSTANCE_DIR}} && curl -L -o hytale-downloader.zip https://downloader.hytale.com/hytale-downloader.zip && unzip -o hytale-downloader.zip -d hytale-downloader && mv hytale-downloader/hytale-downloader-linux-amd64 hytale-downloader/hytale-downloader-linux && chmod 555 hytale-downloader/hytale-downloader-linux && ./hytale-downloader/hytale-downloader-linux install --patchline {{HYTALE_PATCHLINE}}',
-                'cd {{INSTANCE_DIR}} && ./hytale-downloader/hytale-downloader-linux install --patchline {{HYTALE_PATCHLINE}}',
+                'cd {{INSTANCE_DIR}} && curl -L -o hytale-downloader.zip https://downloader.hytale.com/hytale-downloader.zip && unzip -o hytale-downloader.zip -d hytale-downloader && rm -f hytale-downloader.zip && mv hytale-downloader/hytale-downloader-linux-amd64 hytale-downloader/hytale-downloader-linux && chmod 555 hytale-downloader/hytale-downloader-linux && ./hytale-downloader/hytale-downloader-linux install --patchline {{HYTALE_PATCHLINE}} && latest_zip=$(ls -1t *.zip | head -n1) && unzip -o "$latest_zip" && rm -f "$latest_zip"',
+                'cd {{INSTANCE_DIR}} && ./hytale-downloader/hytale-downloader-linux install --patchline {{HYTALE_PATCHLINE}} && latest_zip=$(ls -1t *.zip | head -n1) && unzip -o "$latest_zip" && rm -f "$latest_zip"',
                 [],
             ),
             $this->template(

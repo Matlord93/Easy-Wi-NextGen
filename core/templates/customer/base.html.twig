@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+{% set siteTitle = app_setting('site_title', 'Easy-Wi NextGen') %}
+{% set brandingName = app_setting('branding_name', siteTitle) %}
+{% set brandingLogo = app_setting('branding_logo_url') %}
 <html lang="{{ pageLocale|default(page_locale()) }}">
 <head>
     <meta charset="UTF-8">
@@ -13,59 +16,63 @@
             }
         })();
     </script>
-    <title>{% block title %}Easy-Wi NextGen{% endblock %}</title>
-    <link rel="stylesheet" href="/ui.css">
-    <link rel="stylesheet" href="/admin-customer.css">
-    <link rel="stylesheet" href="/ts6.css">
-    <link rel="stylesheet" href="/ts3.css">
-    <script src="/htmx.min.js"></script>
+    {% block title %}{{ siteTitle }}{% endblock %}
+    <title>{{ block('title')|replace({'Easy-Wi NextGen': siteTitle}) }}</title>
+    <link rel="stylesheet" href="{{ asset('ui.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
+    <link rel="stylesheet" href="{{ asset('ts6.css') }}">
+    <link rel="stylesheet" href="{{ asset('ts3.css') }}">
+    <script src="{{ asset('htmx.min.js') }}"></script>
 </head>
 <body class="customer-interface ng-shell">
 {% set activeNav = activeNav|default('') %}
-{% set voiceserverUrl = module_enabled('ts6') ? '/customer/ts6/servers' : '/customer/ts3/servers' %}
+{% set voiceserverUrl = module_enabled('ts6')
+    ? path('customer_ts6_servers_index')
+    : path('customer_ts3_servers_index')
+%}
 {% set showVoiceserver = module_enabled('ts6') or module_enabled('ts') %}
 {% set extensionItems = extension_menu_items('customer') %}
-{% set marketplaceItems = extensionItems is not empty ? extensionItems : [{ label: 'Erweiterungen', href: '/customer/extensions' }] %}
+{% set marketplaceItems = extensionItems is not empty ? extensionItems : [] %}
 
 {% set sidebarGroups = [
     {
         label: 'Übersicht',
         open: true,
         items: [
-            { key: 'dashboard', label: 'Dashboard', href: '/dashboard' },
-            { key: 'activity', label: 'Aktivität', href: '/activity' }
+            { key: 'dashboard', label: 'Dashboard', href: path('customer_dashboard') },
+            { key: 'activity', label: 'Aktivität', href: path('customer_activity') }
         ]
     },
     {
         label: 'Infrastruktur',
         open: true,
         items: [
-            { key: 'gameservers', label: 'Game-Server', href: '/kunden/servers' },
+            { key: 'gameservers', label: 'Game-Server', href: path('customer_instances') },
             showVoiceserver ? { key: 'voiceservers', label: 'Voiceserver/TeamSpeak', href: voiceserverUrl } : null,
-            { key: 'sinusbot', label: 'SinusBot', href: '/customer/infrastructure/sinusbot' }
+            { key: 'sinusbot', label: 'SinusBot', href: path('customer_sinusbot_index') }
         ]|filter(v => v)
     },
     {
         label: 'Services',
         open: true,
         items: [
-            { key: 'webspaces', label: 'Webspace', href: '/files' },
-            { key: 'databases', label: 'Datenbanken', href: '/databases' }
+            { key: 'webspaces', label: 'Webspace', href: path('customer_files') },
+            { key: 'databases', label: 'Datenbanken', href: path('customer_databases') }
         ]
     },
     {
         label: 'Domains & E-Mail',
         open: true,
         items: [
-            { key: 'domains', label: 'Domains', href: '/domains' },
-            { key: 'mail', label: 'E-Mail', href: '/mail' }
+            { key: 'domains', label: 'Domains', href: path('customer_domains') },
+            { key: 'mail', label: 'E-Mail', href: path('customer_mail') }
         ]
     },
     {
         label: 'Support',
         open: true,
         items: [
-            { key: 'tickets', label: 'Tickets', href: '/tickets' }
+            { key: 'tickets', label: 'Tickets', href: path('customer_tickets') }
         ]
     },
     {
@@ -77,7 +84,8 @@
 
 <div class="ng-layout">
     {% include 'components/_sidebar.html.twig' with {
-        title: 'Easy-Wi NextGen',
+        title: brandingName,
+        logoUrl: brandingLogo,
         activeNav: activeNav,
         groups: sidebarGroups,
         footer: t('customer_portal_tagline', page_locale())

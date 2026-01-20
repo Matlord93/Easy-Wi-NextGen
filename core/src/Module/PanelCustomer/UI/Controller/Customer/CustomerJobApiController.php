@@ -15,6 +15,7 @@ use App\Repository\InstanceRepository;
 use App\Repository\JobLogRepository;
 use App\Repository\JobRepository;
 use App\Module\Core\Application\DiskEnforcementService;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\JobPayloadMasker;
 use App\Module\Gameserver\Application\InstanceInstallService;
@@ -41,6 +42,7 @@ final class CustomerJobApiController
         private readonly JobLogger $jobLogger,
         private readonly JobPayloadMasker $jobPayloadMasker,
         private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly AppSettingsService $appSettingsService,
         private readonly SetupChecker $setupChecker,
         private readonly InstanceInstallService $instanceInstallService,
         private readonly TemplateInstallResolver $templateInstallResolver,
@@ -61,6 +63,10 @@ final class CustomerJobApiController
         $jobType = $this->resolveJobType($payload);
         if ($jobType === null) {
             throw new BadRequestHttpException('Invalid action type.');
+        }
+
+        if (!$this->appSettingsService->isGameserverStartStopAllowed() && in_array($jobType, ['instance.start', 'instance.stop', 'instance.restart'], true)) {
+            return new JsonResponse(['error' => 'Start/stop actions are disabled.'], JsonResponse::HTTP_FORBIDDEN);
         }
 
         $blocked = $this->guardSetupRequirements($instance, $jobType);
