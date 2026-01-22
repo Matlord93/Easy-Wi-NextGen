@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"easywi/agent/internal/jobs"
@@ -959,8 +961,52 @@ func streamServiceLogs(jobID string, logSender JobLogSender, serviceName string,
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "journalctl", "-u", serviceName, "-n", "0", "-f", "--no-pager", "--output=cat")
-	_, err := StreamCommand(cmd, jobID, logSender)
-	if err != nil && ctx.Err() == nil {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		logSender.Send(jobID, []string{fmt.Sprintf("journalctl stdout error: %v", err)}, nil)
+		return
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		logSender.Send(jobID, []string{fmt.Sprintf("journalctl stderr error: %v", err)}, nil)
+		return
+	}
+	if err := cmd.Start(); err != nil {
+		logSender.Send(jobID, []string{fmt.Sprintf("journalctl start error: %v", err)}, nil)
+		return
+	}
+
+	var wg sync.WaitGroup
+	sendLine := func(line string) {
+		if line == "" {
+			return
+		}
+		logSender.Send(jobID, []string{line}, nil)
+	}
+
+	readPipe := func(reader io.Reader, prefix string) {
+		defer wg.Done()
+		scanner := bufio.NewScanner(reader)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		scanner.Split(splitLogLines)
+		for scanner.Scan() {
+			text := strings.TrimSpace(scanner.Text())
+			if text == "" {
+				continue
+			}
+			sendLine(prefix + text)
+		}
+		if scanErr := scanner.Err(); scanErr != nil && ctx.Err() == nil {
+			sendLine(fmt.Sprintf("journalctl read error: %v", scanErr))
+		}
+	}
+
+	wg.Add(2)
+	go readPipe(stdout, "")
+	go readPipe(stderr, "[stderr] ")
+	wg.Wait()
+
+	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
 		logSender.Send(jobID, []string{fmt.Sprintf("journalctl error: %v", err)}, nil)
 	}
 }
