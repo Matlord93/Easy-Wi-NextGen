@@ -217,11 +217,11 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 	case "instance.create":
 		return handleInstanceCreate(job)
 	case "instance.start":
-		return handleInstanceStart(job)
+		return handleInstanceStart(job, logSender)
 	case "instance.stop":
-		return handleInstanceStop(job)
+		return handleInstanceStop(job, logSender)
 	case "instance.restart":
-		return handleInstanceRestart(job)
+		return handleInstanceRestart(job, logSender)
 	case "instance.reinstall":
 		return handleInstanceReinstall(job, logSender)
 	case "instance.disk.scan":
