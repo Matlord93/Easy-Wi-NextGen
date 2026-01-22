@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -176,7 +177,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}, nil
 }
 
-func handleInstanceStart(job jobs.Job) (jobs.Result, func() error) {
+func handleInstanceStart(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")
 	if serviceName == "" && instanceID != "" {
@@ -202,6 +203,8 @@ func handleInstanceStart(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
+	streamServiceLogs(job.ID, logSender, serviceName, 10*time.Second)
+
 	diagnostics := collectServiceDiagnostics(serviceName)
 	diagnostics["service_name"] = serviceName
 
@@ -213,7 +216,7 @@ func handleInstanceStart(job jobs.Job) (jobs.Result, func() error) {
 	}, nil
 }
 
-func handleInstanceStop(job jobs.Job) (jobs.Result, func() error) {
+func handleInstanceStop(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")
 	if serviceName == "" && instanceID != "" {
@@ -236,6 +239,8 @@ func handleInstanceStop(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
+	streamServiceLogs(job.ID, logSender, serviceName, 5*time.Second)
+
 	diagnostics := collectServiceDiagnostics(serviceName)
 	diagnostics["service_name"] = serviceName
 
@@ -247,7 +252,7 @@ func handleInstanceStop(job jobs.Job) (jobs.Result, func() error) {
 	}, nil
 }
 
-func handleInstanceRestart(job jobs.Job) (jobs.Result, func() error) {
+func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")
 	if serviceName == "" && instanceID != "" {
@@ -272,6 +277,8 @@ func handleInstanceRestart(job jobs.Job) (jobs.Result, func() error) {
 	if err := ensureServiceActive(serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
+
+	streamServiceLogs(job.ID, logSender, serviceName, 10*time.Second)
 
 	diagnostics := collectServiceDiagnostics(serviceName)
 	diagnostics["service_name"] = serviceName
@@ -939,6 +946,23 @@ func collectServiceDiagnostics(serviceName string) map[string]string {
 	}
 	diagnostics["logs_tail"] = trimOutput(logOutput, 4000)
 	return diagnostics
+}
+
+func streamServiceLogs(jobID string, logSender JobLogSender, serviceName string, duration time.Duration) {
+	if logSender == nil || jobID == "" || serviceName == "" || duration <= 0 {
+		return
+	}
+
+	logSender.Send(jobID, []string{fmt.Sprintf("--- journalctl %s (live) ---", serviceName)}, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "journalctl", "-u", serviceName, "-n", "0", "-f", "--no-pager", "--output=cat")
+	_, err := StreamCommand(cmd, jobID, logSender)
+	if err != nil && ctx.Err() == nil {
+		logSender.Send(jobID, []string{fmt.Sprintf("journalctl error: %v", err)}, nil)
+	}
 }
 
 func mergeDiagnostics(output map[string]string, diagnostics map[string]string) map[string]string {
