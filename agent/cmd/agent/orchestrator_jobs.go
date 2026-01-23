@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +20,21 @@ type orchestratorResult struct {
 	logText       string
 	errorText     string
 	resultPayload map[string]any
+}
+
+type ts6ConfigOptions struct {
+	licenseAccepted  bool
+	voiceIP          []string
+	defaultVoicePort int
+	filetransferPort int
+	filetransferIP   []string
+	queryBindIP      string
+	queryHttpEnable  bool
+	queryHttpPort    int
+	queryHttpsEnable bool
+	queryHttpsPort   int
+	queryAdminPass   string
+	workingDirectory string
 }
 
 func handleOrchestratorJob(job jobs.Job) orchestratorResult {
@@ -261,6 +278,15 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	serviceName := payloadValue(job.Payload, "service_name")
 	downloadURL := payloadValue(job.Payload, "download_url")
 	instanceName := payloadValue(job.Payload, "instance_name")
+	acceptLicense := parseBool(payloadValue(job.Payload, "accept_license"), true)
+	voiceIP := parseStringList(payloadValue(job.Payload, "voice_ip"), []string{"0.0.0.0", "::"})
+	defaultVoicePort := parseInt(payloadValue(job.Payload, "default_voice_port"), 9987)
+	filetransferPort := parseInt(payloadValue(job.Payload, "filetransfer_port"), 30033)
+	filetransferIP := parseStringList(payloadValue(job.Payload, "filetransfer_ip"), []string{"0.0.0.0", "::"})
+	queryBindIP := payloadValue(job.Payload, "query_bind_ip")
+	queryHttpsEnable := parseBool(payloadValue(job.Payload, "query_https_enable"), true)
+	queryHttpsPort := parseInt(payloadValue(job.Payload, "query_https_port"), 10443)
+	adminPassword := payloadValue(job.Payload, "admin_password")
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
@@ -271,7 +297,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	}
 
 	if runtime.GOOS == "windows" {
-		exePath := filepath.Join(installDir, "ts6server.exe")
+		exePath := filepath.Join(installDir, "tsserver.exe")
 		if err := runCommand("powershell", "-Command", fmt.Sprintf("Invoke-WebRequest -UseBasicParsing -OutFile \"%s\" \"%s\"", exePath, downloadURL)); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
@@ -298,8 +324,26 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	if instanceName == "" {
 		instanceName = "ts6"
 	}
+	configPath := filepath.Join(installDir, "tsserver.yaml")
+	configContent := buildTs6Config(ts6ConfigOptions{
+		licenseAccepted:  acceptLicense,
+		voiceIP:          voiceIP,
+		defaultVoicePort: defaultVoicePort,
+		filetransferPort: filetransferPort,
+		filetransferIP:   filetransferIP,
+		queryBindIP:      queryBindIP,
+		queryHttpEnable:  true,
+		queryHttpPort:    10080,
+		queryHttpsEnable: queryHttpsEnable,
+		queryHttpsPort:   queryHttpsPort,
+		queryAdminPass:   adminPassword,
+		workingDirectory: installDir,
+	})
+	if err := writeFile(configPath, configContent); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, "root", installDir, installDir, "./ts6server", "", 0, 0)
+	unitContent := systemdUnitTemplate(serviceName, "root", installDir, installDir, "installDir/tsserver", "--accept-license" "--config-file tsserver.yaml", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -425,6 +469,138 @@ func validateArchive(path string) error {
 		return fmt.Errorf("downloaded archive looks like HTML; check the download URL for authentication or redirects")
 	}
 	return nil
+}
+
+func buildTs6Config(options ts6ConfigOptions) string {
+	queryIPs := options.voiceIP
+	if options.queryBindIP != "" {
+		queryIPs = []string{options.queryBindIP}
+	}
+	httpEnabled := boolToInt(options.queryHttpEnable)
+	httpsEnabled := boolToInt(options.queryHttpsEnable)
+	acceptValue := "accept"
+	if !options.licenseAccepted {
+		acceptValue = "0"
+	}
+	return fmt.Sprintf(`server:
+  license-path: .
+  default-voice-port: %d
+  voice-ip:
+%s
+  log-path: logs
+  log-append: 0
+  no-default-virtual-server: 0
+  filetransfer-port: %d
+  filetransfer-ip:
+%s
+  accept-license: %s
+  crashdump-path: crashdumps
+
+  database:
+    plugin: sqlite3
+    sql-path: %s/sql/
+    sql-create-path: %s/sql/create_sqlite/
+    client-keep-days: 30
+    config:
+      skip-integrity-check: 0
+      host: 127.0.0.1
+      port: 5432
+      socket: ""
+      timeout: 10
+      name: teamspeak
+      username: ""
+      password: ""
+      connections: 10
+      log-queries: 0
+
+  query:
+    pool-size: 2
+    log-timing: 3600
+    ip-allow-list: query_ip_allowlist.txt
+    ip-block-list: query_ip_denylist.txt
+    admin-password: %q
+    log-commands: 0
+    skip-brute-force-check: 0
+    buffer-mb: 20
+    documentation-path: serverquerydocs
+    timeout: 300
+
+    http:
+      enable: %d
+      port: %d
+      ip:
+%s
+
+    https:
+      enable: %d
+      port: %d
+      ip:
+%s
+      certificate: ""
+      private-key: ""
+`, options.defaultVoicePort, formatYamlList(options.voiceIP, 4), options.filetransferPort, formatYamlList(options.filetransferIP, 4), acceptValue, options.workingDirectory, options.workingDirectory, options.queryAdminPass, httpEnabled, options.queryHttpPort, formatYamlList(queryIPs, 6), httpsEnabled, options.queryHttpsPort, formatYamlList(queryIPs, 6))
+}
+
+func formatYamlList(values []string, indent int) string {
+	prefix := strings.Repeat(" ", indent)
+	lines := make([]string, 0, len(values))
+	for _, value := range values {
+		lines = append(lines, fmt.Sprintf("%s- %s", prefix, value))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func parseBool(value string, fallback bool) bool {
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func parseInt(value string, fallback int) int {
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func parseStringList(value string, fallback []string) []string {
+	if value == "" {
+		return fallback
+	}
+	if strings.HasPrefix(strings.TrimSpace(value), "[") {
+		var parsed []string
+		if err := json.Unmarshal([]byte(value), &parsed); err == nil && len(parsed) > 0 {
+			return parsed
+		}
+	}
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	if len(values) == 0 {
+		return fallback
+	}
+	return values
+}
+
+func boolToInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func convertJobResult(result jobs.Result, afterSubmit func() error) orchestratorResult {
