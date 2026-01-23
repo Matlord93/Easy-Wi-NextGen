@@ -482,17 +482,17 @@ func buildTs6Config(options ts6ConfigOptions) string {
 	if !options.licenseAccepted {
 		acceptValue = "0"
 	}
-	return fmt.Sprintf(`server:
+		return fmt.Sprintf(`server:
   license-path: .
   default-voice-port: %d
   voice-ip:
-- 0.0.0.0
+%s
   log-path: logs
   log-append: 0
   no-default-virtual-server: 0
   filetransfer-port: %d
   filetransfer-ip:
-- 0.0.0.0
+%s
   accept-license: %s
   crashdump-path: crashdumps
 
@@ -529,13 +529,13 @@ func buildTs6Config(options ts6ConfigOptions) string {
       enable: %d
       port: %d
       ip:
-- 127.0.0.1
+%s
 
     https:
       enable: %d
       port: %d
       ip:
-- 127.0.0.1
+%s
       certificate: ""
       private-key: ""
 `, options.defaultVoicePort, formatYamlList(options.voiceIP, 4), options.filetransferPort, formatYamlList(options.filetransferIP, 4), acceptValue, options.workingDirectory, options.workingDirectory, options.queryAdminPass, httpEnabled, options.queryHttpPort, formatYamlList(queryIPs, 6), httpsEnabled, options.queryHttpsPort, formatYamlList(queryIPs, 6))
