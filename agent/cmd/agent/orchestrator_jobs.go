@@ -343,7 +343,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, "root", installDir, installDir, filepath.Join(installDir, "tsserver"), "--accept-licens --config-file tsserver.yaml", 0, 0)
+	unitContent := systemdUnitTemplate(serviceName, "root", installDir, installDir, filepath.Join(installDir, "tsserver"), "--accept-license --config-file installDir, tsserver.yaml", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -486,13 +486,13 @@ func buildTs6Config(options ts6ConfigOptions) string {
   license-path: .
   default-voice-port: %d
   voice-ip:
-%s
+- 0.0.0.0
   log-path: logs
   log-append: 0
   no-default-virtual-server: 0
   filetransfer-port: %d
   filetransfer-ip:
-%s
+- 0.0.0.0
   accept-license: %s
   crashdump-path: crashdumps
 
@@ -529,13 +529,13 @@ func buildTs6Config(options ts6ConfigOptions) string {
       enable: %d
       port: %d
       ip:
-%s
+- 127.0.0.1
 
     https:
       enable: %d
       port: %d
       ip:
-%s
+- 127.0.0.1
       certificate: ""
       private-key: ""
 `, options.defaultVoicePort, formatYamlList(options.voiceIP, 4), options.filetransferPort, formatYamlList(options.filetransferIP, 4), acceptValue, options.workingDirectory, options.workingDirectory, options.queryAdminPass, httpEnabled, options.queryHttpPort, formatYamlList(queryIPs, 6), httpsEnabled, options.queryHttpsPort, formatYamlList(queryIPs, 6))
