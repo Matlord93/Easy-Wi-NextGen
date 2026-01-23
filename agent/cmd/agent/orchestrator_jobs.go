@@ -343,7 +343,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, "root", installDir, installDir, "installDir/tsserver", "--accept-license" "--config-file tsserver.yaml", 0, 0)
+	unitContent := systemdUnitTemplate(serviceName, "root", installDir, installDir, "installDir/tsserver", "--accept-license", "--config-file tsserver.yaml", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
