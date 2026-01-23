@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -197,7 +199,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 	}
 
 	archivePath := filepath.Join(installDir, "ts3server.tar")
-	if err := runCommand("curl", "-L", "-o", archivePath, downloadURL); err != nil {
+	if err := downloadArchive(archivePath, downloadURL); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	if strings.HasSuffix(downloadURL, ".zip") {
@@ -280,7 +282,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	}
 
 	archivePath := filepath.Join(installDir, "ts6server.tar")
-	if err := runCommand("curl", "-L", "-o", archivePath, downloadURL); err != nil {
+	if err := downloadArchive(archivePath, downloadURL); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	if strings.HasSuffix(downloadURL, ".zip") {
@@ -342,7 +344,7 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	}
 
 	archivePath := filepath.Join(installDir, "sinusbot.tar")
-	if err := runCommand("curl", "-L", "-o", archivePath, downloadURL); err != nil {
+	if err := downloadArchive(archivePath, downloadURL); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	if strings.HasSuffix(downloadURL, ".zip") {
@@ -390,6 +392,39 @@ func handleViewerSnapshot(job jobs.Job) orchestratorResult {
 			"generated_at": time.Now().UTC().Format(time.RFC3339),
 		},
 	}
+}
+
+func downloadArchive(destination, url string) error {
+	if err := runCommand("curl", "-fL", "--retry", "3", "--retry-delay", "3", "-o", destination, url); err != nil {
+		return err
+	}
+	return validateArchive(destination)
+}
+
+func validateArchive(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.Size() == 0 {
+		return fmt.Errorf("downloaded archive is empty")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	snippet := strings.ToLower(string(buffer[:n]))
+	if strings.Contains(snippet, "<!doctype") || strings.Contains(snippet, "<html") {
+		return fmt.Errorf("downloaded archive looks like HTML; check the download URL for authentication or redirects")
+	}
+	return nil
 }
 
 func convertJobResult(result jobs.Result, afterSubmit func() error) orchestratorResult {
