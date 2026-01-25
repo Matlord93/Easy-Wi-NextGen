@@ -19,8 +19,8 @@ use function is_array;
 use function is_string;
 use function sprintf;
 
-/** @final */
-class ConfigureDependencyFactoryPass implements CompilerPassInterface
+/** @internal */
+final class ConfigureDependencyFactoryPass implements CompilerPassInterface
 {
     public function process(ContainerBuilder $container): void
     {
@@ -85,7 +85,7 @@ class ConfigureDependencyFactoryPass implements CompilerPassInterface
             throw new InvalidArgumentException(sprintf(
                 'The "%s" connection is not defined. Did you mean one of the following: %s',
                 $preferredConnection,
-                implode(', ', array_keys($allowedConnections))
+                implode(', ', array_keys($allowedConnections)),
             ));
         }
     }
@@ -99,7 +99,7 @@ class ConfigureDependencyFactoryPass implements CompilerPassInterface
         ) {
             throw new InvalidArgumentException(sprintf(
                 'The "%s" entity manager is not defined. It seems that you do not have configured any entity manager in the DoctrineBundle.',
-                $preferredEm
+                $preferredEm,
             ));
         }
 
@@ -109,7 +109,7 @@ class ConfigureDependencyFactoryPass implements CompilerPassInterface
             throw new InvalidArgumentException(sprintf(
                 'The "%s" entity manager is not defined. Did you mean one of the following: %s',
                 $preferredEm,
-                implode(', ', array_keys($allowedEms))
+                implode(', ', array_keys($allowedEms)),
             ));
         }
     }

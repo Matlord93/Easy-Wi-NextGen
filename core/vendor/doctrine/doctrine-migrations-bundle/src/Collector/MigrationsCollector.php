@@ -16,22 +16,16 @@ use Throwable;
 use function count;
 use function get_class;
 
-/** @final */
-class MigrationsCollector extends DataCollector
+/** @internal */
+final class MigrationsCollector extends DataCollector
 {
-    /** @var DependencyFactory */
-    private $dependencyFactory;
-    /** @var MigrationsFlattener */
-    private $flattener;
-
-    public function __construct(DependencyFactory $dependencyFactory, MigrationsFlattener $migrationsFlattener)
-    {
-        $this->dependencyFactory = $dependencyFactory;
-        $this->flattener         = $migrationsFlattener;
+    public function __construct(
+        private readonly DependencyFactory $dependencyFactory,
+        private readonly MigrationsFlattener $flattener,
+    ) {
     }
 
-    /** @return void */
-    public function collect(Request $request, Response $response, ?Throwable $exception = null)
+    public function collect(Request $request, Response $response, Throwable|null $exception = null): void
     {
         if ($this->data !== []) {
             return;
@@ -45,7 +39,7 @@ class MigrationsCollector extends DataCollector
         } catch (Exception $dbalException) {
             $this->dependencyFactory->getLogger()->error(
                 'error while trying to collect executed migrations',
-                ['exception' => $dbalException]
+                ['exception' => $dbalException],
             );
 
             return;
@@ -61,7 +55,7 @@ class MigrationsCollector extends DataCollector
         $this->data['new_migrations']      = $this->flattener->flattenAvailableMigrations($newMigrations);
         $this->data['executed_migrations'] = $this->flattener->flattenExecutedMigrations($executedMigrations, $availableMigrations);
 
-        $this->data['storage'] = get_class($metadataStorage);
+        $this->data['storage'] = $metadataStorage::class;
         $configuration         = $this->dependencyFactory->getConfiguration();
         $storage               = $configuration->getMetadataStorageConfiguration();
         if ($storage instanceof TableMetadataStorageConfiguration) {
@@ -76,20 +70,18 @@ class MigrationsCollector extends DataCollector
         $this->data['namespaces'] = $configuration->getMigrationDirectories();
     }
 
-    /** @return string */
-    public function getName()
+    public function getName(): string
     {
         return 'doctrine_migrations';
     }
 
     /** @return array<string, mixed>|Data */
-    public function getData()
+    public function getData(): array|Data
     {
         return $this->data;
     }
 
-    /** @return void */
-    public function reset()
+    public function reset(): void
     {
         $this->data = [];
     }

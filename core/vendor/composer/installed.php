@@ -56,9 +56,9 @@
             'dev_requirement' => false,
         ),
         'doctrine/doctrine-migrations-bundle' => array(
-            'pretty_version' => '3.7.0',
-            'version' => '3.7.0.0',
-            'reference' => '1e380c6dd8ac8488217f39cff6b77e367f1a644b',
+            'pretty_version' => '4.0.0',
+            'version' => '4.0.0.0',
+            'reference' => '20505da78735744fb4a42a3bb9a416b345ad6f7c',
             'type' => 'symfony-bundle',
             'install_path' => __DIR__ . '/../doctrine/doctrine-migrations-bundle',
             'aliases' => array(),

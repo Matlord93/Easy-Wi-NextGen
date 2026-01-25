@@ -15,7 +15,6 @@ use InvalidArgumentException;
 use RuntimeException;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
-use Symfony\Component\DependencyInjection\ContainerAwareInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
@@ -26,14 +25,13 @@ use function array_keys;
 use function assert;
 use function explode;
 use function implode;
-use function interface_exists;
 use function is_array;
 use function sprintf;
 use function strlen;
 use function substr;
 
-/** @final */
-class DoctrineMigrationsExtension extends Extension
+/** @internal */
+final class DoctrineMigrationsExtension extends Extension
 {
     /**
      * Responds to the migrations configuration parameter.
@@ -153,18 +151,12 @@ class DoctrineMigrationsExtension extends Extension
 
         if ($config['em'] !== null && $config['connection'] !== null) {
             throw new InvalidArgumentException(
-                'You cannot specify both "connection" and "em" in the DoctrineMigrationsBundle configurations.'
+                'You cannot specify both "connection" and "em" in the DoctrineMigrationsBundle configurations.',
             );
         }
 
         $container->setParameter('doctrine.migrations.preferred_em', $config['em']);
         $container->setParameter('doctrine.migrations.preferred_connection', $config['connection']);
-
-        if (interface_exists(ContainerAwareInterface::class)) {
-            return;
-        }
-
-        $container->removeDefinition('doctrine.migrations.container_aware_migrations_factory');
     }
 
     private function checkIfBundleRelativePath(string $path, ContainerBuilder $container): string
@@ -190,7 +182,7 @@ class DoctrineMigrationsExtension extends Extension
             throw new RuntimeException(sprintf(
                 'The bundle "%s" has not been registered, available bundles: %s',
                 $bundleName,
-                implode(', ', array_keys($bundleMetadata))
+                implode(', ', array_keys($bundleMetadata)),
             ));
         }
 

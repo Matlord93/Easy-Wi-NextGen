@@ -1,5 +1,28 @@
 # Upgrade
 
+## 4.0.0
+
+## Dependencies
+
+- Support for PHP < 8.4 has been dropped.
+- Support for `doctrine/orm` < 3 has been dropped.
+- Support for `doctrine/doctrine-bundle` < 3 has been dropped.
+
+## BC break: final, internal classes
+
+Some classes have been marked as `final` and `@internal` because they are not
+supposed to be extended or even referenced outside of the bundle.
+
+### BC break: type declarations
+
+Type declarations have been added to all method signatures and properties. You
+might have to adjust your own code to abide by the new type declarations.
+
+## BC break: Removed support for container-aware migrations
+
+* Migrations that implement `ContainerAwareInterface` will no longer have the container injected automatically.
+* The `ContainerAwareMigrationFactory` class has been removed.
+
 ## Upgrade to 3.5
 
 ## Final classes
