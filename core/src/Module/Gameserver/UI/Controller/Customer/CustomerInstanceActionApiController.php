@@ -428,7 +428,10 @@ final class CustomerInstanceActionApiController
     private function requireCustomer(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
+        if (
+            !$actor instanceof User
+            || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
+        ) {
             throw new UnauthorizedHttpException('session', 'Unauthorized.');
         }
 
@@ -442,7 +445,7 @@ final class CustomerInstanceActionApiController
             throw new NotFoundHttpException('Instance not found.');
         }
 
-        if ($instance->getCustomer()->getId() !== $customer->getId()) {
+        if (!$customer->isAdmin() && $instance->getCustomer()->getId() !== $customer->getId()) {
             throw new AccessDeniedHttpException('Forbidden.');
         }
 

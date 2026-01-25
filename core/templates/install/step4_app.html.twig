@@ -28,6 +28,18 @@
                     <input id="site_host" name="site_host" type="text" value="{{ application.site_host }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.site_host_placeholder'|trans }}">
                     <p class="mt-1 text-xs text-slate-700">{{ 'app.site_host_hint'|trans }}</p>
                 </div>
+                <div class="sm:col-span-2">
+                    <label class="text-sm font-medium text-slate-700" for="cms_template_key">{{ 'app.cms_template_label'|trans }}</label>
+                    <select id="cms_template_key" name="cms_template_key" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <option value="">{{ 'app.cms_template_placeholder'|trans }}</option>
+                        {% for template in cmsTemplates %}
+                            <option value="{{ template.key }}" {{ template.key == application.cms_template_key ? 'selected' : '' }}>
+                                {{ template.label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-slate-700">{{ 'app.cms_template_hint'|trans }}</p>
+                </div>
             </div>
         </div>
 
@@ -41,6 +53,11 @@
                 <div class="sm:col-span-2">
                     <label class="text-sm font-medium text-slate-700" for="admin_email">{{ 'app.admin_email'|trans }}</label>
                     <input id="admin_email" name="admin_email" type="email" value="{{ application.admin_email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.admin_email_placeholder'|trans }}">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="text-sm font-medium text-slate-700" for="admin_ssh_key">{{ 'app.admin_ssh_key'|trans }}</label>
+                    <textarea id="admin_ssh_key" name="admin_ssh_key" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'app.admin_ssh_key_placeholder'|trans }}">{{ application.admin_ssh_key }}</textarea>
+                    <p class="mt-1 text-xs text-slate-700">{{ 'app.admin_ssh_key_hint'|trans }}</p>
                 </div>
                 <div>
                     <label class="text-sm font-medium text-slate-700" for="admin_password">{{ 'app.admin_password'|trans }}</label>

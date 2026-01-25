@@ -7,7 +7,6 @@ namespace App\Module\Cms\UI\Controller\Admin;
 use App\Module\Core\Domain\Entity\CmsBlock;
 use App\Module\Core\Domain\Entity\CmsPage;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\CmsBlockRepository;
 use App\Repository\CmsPageRepository;
 use App\Module\Core\Application\AuditLogger;
@@ -36,7 +35,7 @@ final class AdminCmsPageController
     #[Route(path: '', name: 'admin_cms_pages', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -60,7 +59,7 @@ final class AdminCmsPageController
     #[Route(path: '/table', name: 'admin_cms_pages_table', methods: ['GET'])]
     public function table(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -79,7 +78,7 @@ final class AdminCmsPageController
     #[Route(path: '/form', name: 'admin_cms_pages_form', methods: ['GET'])]
     public function form(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -91,7 +90,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}/edit', name: 'admin_cms_pages_edit', methods: ['GET'])]
     public function edit(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -114,7 +113,7 @@ final class AdminCmsPageController
     public function create(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -154,7 +153,7 @@ final class AdminCmsPageController
     public function update(Request $request, string $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -213,7 +212,7 @@ final class AdminCmsPageController
     public function delete(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -247,7 +246,7 @@ final class AdminCmsPageController
     public function updateTemplate(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -299,7 +298,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}', name: 'admin_cms_pages_show', methods: ['GET'])]
     public function show(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -326,7 +325,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}/blocks/table', name: 'admin_cms_pages_blocks_table', methods: ['GET'])]
     public function blocksTable(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -351,7 +350,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}/blocks/form', name: 'admin_cms_pages_blocks_form', methods: ['GET'])]
     public function blockForm(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -374,7 +373,7 @@ final class AdminCmsPageController
     #[Route(path: '/{id}/blocks/{blockId}/edit', name: 'admin_cms_pages_blocks_edit', methods: ['GET'])]
     public function editBlock(Request $request, int $id, int $blockId): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -403,7 +402,7 @@ final class AdminCmsPageController
     public function createBlock(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -452,7 +451,7 @@ final class AdminCmsPageController
     public function updateBlock(Request $request, int $id, int $blockId): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -512,7 +511,7 @@ final class AdminCmsPageController
     public function deleteBlock(Request $request, int $id, int $blockId): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -547,11 +546,11 @@ final class AdminCmsPageController
         return $response;
     }
 
-    private function isAdmin(Request $request): bool
+    private function isCmsUser(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
 
-        return $actor instanceof User && $actor->isAdmin();
+        return $actor instanceof User;
     }
 
     private function buildSummary(array $pages): array

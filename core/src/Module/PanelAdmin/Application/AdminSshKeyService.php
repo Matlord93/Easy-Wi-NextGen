@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\Application;
 
 use App\Module\Core\Domain\Entity\User;
-use Symfony\Component\Filesystem\Filesystem;
+use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
+use App\Repository\AgentRepository;
 
 final class AdminSshKeyService
 {
     public function __construct(
         private readonly string $authorizedKeysPath,
-        private readonly Filesystem $filesystem,
+        private readonly AgentRepository $agentRepository,
+        private readonly AgentJobDispatcher $jobDispatcher,
     ) {
     }
 
@@ -22,38 +24,23 @@ final class AdminSshKeyService
             return;
         }
 
-        $directory = dirname($this->authorizedKeysPath);
-        $this->filesystem->mkdir($directory, 0700);
-
-        $existing = '';
-        if (is_file($this->authorizedKeysPath)) {
-            $existing = (string) file_get_contents($this->authorizedKeysPath);
-            if (str_contains($existing, $publicKey)) {
-                return;
-            }
-        }
-
-        $entry = $this->withComment($publicKey, $admin);
-        $prefix = $existing !== '' && !str_ends_with($existing, "\n") ? "\n" : '';
-
-        file_put_contents(
-            $this->authorizedKeysPath,
-            $prefix . $entry . "\n",
-            FILE_APPEND | LOCK_EX,
-        );
-
-        $this->filesystem->chmod($this->authorizedKeysPath, 0600);
+        $agent = $this->resolveAgent();
+        $this->jobDispatcher->dispatch($agent, 'admin.ssh_key.store', [
+            'user_id' => $admin->getId(),
+            'admin_email' => $admin->getEmail(),
+            'authorized_keys_path' => $this->authorizedKeysPath,
+            'public_key' => $publicKey,
+        ]);
     }
 
-    private function withComment(string $publicKey, User $admin): string
+    private function resolveAgent(): \App\Module\Core\Domain\Entity\Agent
     {
-        $parts = preg_split('/\s+/', trim($publicKey), 3);
-        if (!is_array($parts) || count($parts) >= 3) {
-            return $publicKey;
+        $agents = $this->agentRepository->findBy([], ['lastSeenAt' => 'DESC', 'updatedAt' => 'DESC']);
+        $agent = $agents[0] ?? null;
+        if (!$agent instanceof \App\Module\Core\Domain\Entity\Agent) {
+            throw new \RuntimeException('No agent available to store SSH keys.');
         }
 
-        $comment = sprintf('easywi-admin-%s %s', $admin->getId() ?? 'unknown', $admin->getEmail());
-
-        return sprintf('%s %s %s', $parts[0], $parts[1], $comment);
+        return $agent;
     }
 }

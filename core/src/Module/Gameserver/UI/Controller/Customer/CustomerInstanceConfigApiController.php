@@ -320,7 +320,10 @@ final class CustomerInstanceConfigApiController
     private function requireCustomer(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
+        if (
+            !$actor instanceof User
+            || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
+        ) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
         }
 
@@ -334,7 +337,7 @@ final class CustomerInstanceConfigApiController
             throw new NotFoundHttpException('Instance not found.');
         }
 
-        if ($instance->getCustomer()->getId() !== $customer->getId()) {
+        if (!$customer->isAdmin() && $instance->getCustomer()->getId() !== $customer->getId()) {
             throw new AccessDeniedHttpException('Forbidden.');
         }
 

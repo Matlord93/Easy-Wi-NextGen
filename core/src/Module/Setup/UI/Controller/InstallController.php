@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\UI\Controller;
 
+use App\Module\Core\Application\CmsTemplateCatalog;
 use App\Module\Setup\Application\InstallerService;
+use App\Module\Setup\Application\InstallerSshKeyException;
 use Doctrine\DBAL\Exception as DbalException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -17,6 +19,7 @@ final class InstallController
 {
     public function __construct(
         private readonly InstallerService $installerService,
+        private readonly CmsTemplateCatalog $cmsTemplateCatalog,
         private readonly Environment $twig,
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
@@ -59,6 +62,8 @@ final class InstallController
             'site_host' => $request->getHost() ?: 'localhost',
             'admin_name' => '',
             'admin_email' => '',
+            'admin_ssh_key' => '',
+            'cms_template_key' => 'hosting',
         ];
         $settingsDefaults = [
             'instance_base_dir' => '/home',
@@ -150,11 +155,11 @@ final class InstallController
                                 $connectionOk = true;
                             } catch (DbalException|\Throwable $fallbackException) {
                                 $this->installerService->logException($fallbackException, 'Database connection failed during installer.');
-                                $errors[] = ['key' => 'errors.db_connection_failed'];
+                                $errors[] = $this->resolveDatabaseConnectionError($databaseState, $fallbackException);
                             }
                         } else {
                             $this->installerService->logException($exception, 'Database connection failed during installer.');
-                            $errors[] = ['key' => 'errors.db_connection_failed'];
+                            $errors[] = $this->resolveDatabaseConnectionError($databaseState, $exception);
                         }
                     }
 
@@ -193,6 +198,8 @@ final class InstallController
                     'site_host' => trim((string) ($payload['site_host'] ?? $applicationState['site_host'])),
                     'admin_name' => trim((string) ($payload['admin_name'] ?? $applicationState['admin_name'])),
                     'admin_email' => trim((string) ($payload['admin_email'] ?? $applicationState['admin_email'])),
+                    'admin_ssh_key' => trim((string) ($payload['admin_ssh_key'] ?? $applicationState['admin_ssh_key'])),
+                    'cms_template_key' => trim((string) ($payload['cms_template_key'] ?? $applicationState['cms_template_key'])),
                 ]);
                 $settingsState = array_merge($settingsState, [
                     'instance_base_dir' => trim((string) ($payload['instance_base_dir'] ?? $settingsState['instance_base_dir'])),
@@ -224,12 +231,23 @@ final class InstallController
                     $errors[] = ['key' => 'errors.email_invalid'];
                 }
 
+                if ($applicationState['admin_ssh_key'] !== '' && !$this->isValidSshPublicKey($applicationState['admin_ssh_key'])) {
+                    $errors[] = ['key' => 'errors.admin_ssh_key_invalid'];
+                }
+
                 if (mb_strlen($adminPassword) < 8) {
                     $errors[] = ['key' => 'errors.password_length'];
                 }
 
                 if ($adminPassword !== $adminPasswordConfirm) {
                     $errors[] = ['key' => 'errors.password_mismatch'];
+                }
+
+                if (
+                    $applicationState['cms_template_key'] !== ''
+                    && $this->cmsTemplateCatalog->getTemplate($applicationState['cms_template_key']) === null
+                ) {
+                    $errors[] = ['key' => 'errors.cms_template_invalid'];
                 }
 
                 if ($action === 'back') {
@@ -277,9 +295,11 @@ final class InstallController
                                     'loginUrl' => $loginUrl,
                                     'step' => 4,
                                 ]));
+                            } catch (InstallerSshKeyException) {
+                                $errors[] = ['key' => 'errors.admin_ssh_key_store_failed'];
                             } catch (DbalException $exception) {
                                 $this->installerService->logException($exception, 'Database connection failed during installation.');
-                                $errors[] = ['key' => 'errors.db_connection_failed'];
+                                $errors[] = $this->resolveDatabaseConnectionError($databaseState, $exception);
                             } catch (\Throwable $exception) {
                                 $this->installerService->logException($exception, 'Installer failed during install step.');
                                 $errors[] = ['key' => 'errors.install_failed'];
@@ -333,6 +353,7 @@ final class InstallController
             'dbVersion' => $dbVersion,
             'hasStoredPassword' => $storedPassword !== '',
             'debugAvailable' => $debugAvailable,
+            'cmsTemplates' => $this->cmsTemplateCatalog->listTemplates(),
         ]));
     }
 
@@ -351,6 +372,61 @@ final class InstallController
         }
 
         return new BinaryFileResponse($path);
+    }
+
+    /**
+     * @param array<string, mixed> $databaseState
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveDatabaseConnectionError(array $databaseState, \Throwable $exception): array
+    {
+        if ($this->isMissingDriverException($exception)) {
+            return [
+                'key' => 'errors.missing_extension',
+                'params' => ['%extension%' => $this->resolveDriverExtension($databaseState)],
+            ];
+        }
+
+        return ['key' => 'errors.db_connection_failed'];
+    }
+
+    private function isMissingDriverException(\Throwable $exception): bool
+    {
+        $current = $exception;
+        while (true) {
+            if (str_contains($current->getMessage(), 'could not find driver')) {
+                return true;
+            }
+
+            $previous = $current->getPrevious();
+            if ($previous === null) {
+                return false;
+            }
+
+            $current = $previous;
+        }
+    }
+
+    private function isValidSshPublicKey(string $sshKey): bool
+    {
+        $sshKey = trim($sshKey);
+        if ($sshKey === '') {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/^(ssh-(?:rsa|ed25519)|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh\\.com|sk-ecdsa-sha2-nistp256@openssh\\.com)\\s+[A-Za-z0-9+\\/=]+(?:\\s+.+)?$/',
+            $sshKey,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $databaseState
+     */
+    private function resolveDriverExtension(array $databaseState): string
+    {
+        return ($databaseState['driver'] ?? 'mysql') === 'sqlite' ? 'pdo_sqlite' : 'pdo_mysql';
     }
 
     /**
@@ -379,6 +455,9 @@ final class InstallController
         }
         if (array_key_exists('sftp_private_key_passphrase', $settingsState)) {
             $settingsState['sftp_private_key_passphrase'] = '***';
+        }
+        if (array_key_exists('admin_ssh_key', $applicationState)) {
+            $applicationState['admin_ssh_key'] = '***';
         }
 
         return [

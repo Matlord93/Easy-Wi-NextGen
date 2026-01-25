@@ -31,12 +31,18 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-3 text-sm text-emerald-100/80">
                     {% if currentUser %}
-                        {% set userType = currentUser.type.value %}
-                        {% set portalPath = userType == 'admin' ? '/admin' : (userType == 'reseller' ? '/reseller/customers' : '/dashboard') %}
-                        {% set portalLabel = userType == 'admin' ? t('admin_portal', page_locale()) : (userType == 'reseller' ? t('reseller_portal', page_locale()) : t('customer_portal', page_locale())) %}
+                        {% set portalPath = '/dashboard' %}
+                        {% set portalLabel = t('customer_portal', page_locale()) %}
+                        {% if is_granted('ROLE_ADMIN') %}
+                            {% set portalPath = '/admin' %}
+                            {% set portalLabel = t('admin_portal', page_locale()) %}
+                        {% elseif is_granted('ROLE_RESELLER') %}
+                            {% set portalPath = '/reseller/customers' %}
+                            {% set portalLabel = t('reseller_portal', page_locale()) %}
+                        {% endif %}
                         <details class="relative">
                             <summary class="cursor-pointer rounded-full border border-emerald-500/40 px-3 py-1 text-xs font-semibold text-emerald-100 hover:border-emerald-400">
-                                {{ currentUser.name ?? currentUser.email ?? t('hosting_user_menu_label', page_locale()) }}
+                                {{ t('hosting_user_menu_label', page_locale()) }}
                             </summary>
                             <div class="absolute right-0 mt-2 w-40 rounded-xl border border-emerald-500/30 bg-slate-950/95 p-2 text-xs shadow-xl">
                                 <a href="{{ portalPath }}" class="block rounded-lg px-3 py-2 text-emerald-100 hover:bg-slate-900">{{ portalLabel }}</a>

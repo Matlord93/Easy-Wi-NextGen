@@ -6,7 +6,6 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Domain\Entity\PublicServer;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\PublicServerRepository;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\PublicServerValidator;
@@ -33,7 +32,7 @@ final class AdminPublicServerController
     #[Route(path: '', name: 'admin_public_servers', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -55,7 +54,7 @@ final class AdminPublicServerController
     #[Route(path: '/table', name: 'admin_public_servers_table', methods: ['GET'])]
     public function table(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -74,7 +73,7 @@ final class AdminPublicServerController
     #[Route(path: '/form', name: 'admin_public_servers_form', methods: ['GET'])]
     public function form(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -86,7 +85,7 @@ final class AdminPublicServerController
     #[Route(path: '/{id}/edit', name: 'admin_public_servers_edit', methods: ['GET'])]
     public function edit(Request $request, int $id): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isCmsUser($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -109,7 +108,7 @@ final class AdminPublicServerController
     public function create(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -166,7 +165,7 @@ final class AdminPublicServerController
     public function update(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -236,7 +235,7 @@ final class AdminPublicServerController
     public function delete(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -435,10 +434,10 @@ final class AdminPublicServerController
         return (int) $value;
     }
 
-    private function isAdmin(Request $request): bool
+    private function isCmsUser(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
 
-        return $actor instanceof User && $actor->isAdmin();
+        return $actor instanceof User;
     }
 }

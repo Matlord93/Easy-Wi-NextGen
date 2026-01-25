@@ -72,7 +72,11 @@ final class AdminProfileController
         }
 
         $currentSshKey = $admin->getAdminSshPublicKey();
+        $canManageSshKey = $this->canManageSshKey($admin);
         if ($sshKey !== '') {
+            if (!$canManageSshKey) {
+                $errors[] = 'SSH key access is not enabled for this account yet. Please contact a super admin to enable it.';
+            }
             if ($currentSshKey !== null) {
                 $errors[] = 'An SSH public key is already stored for this account. Please contact a super admin to change it.';
             } elseif (!$this->isValidSshPublicKey($sshKey)) {
@@ -101,21 +105,25 @@ final class AdminProfileController
 
         $admin->setAdminSignature($signature);
 
-        $sshKeyStored = false;
-        if ($sshKey !== '' && $currentSshKey === null) {
-            try {
-                $this->sshKeyService->storeKey($admin, $sshKey);
-            } catch (\Throwable) {
-                return $this->renderPage($admin, [
-                    'name' => $name,
-                    'email' => $email,
-                    'signature' => $signature,
-                    'ssh_key' => $sshKey,
-                ], ['Unable to store the SSH key on the server. Please contact a super admin.'], Response::HTTP_BAD_REQUEST);
+        $sshKeyQueued = false;
+        if ($sshKey !== '' && $currentSshKey === null && $canManageSshKey) {
+            if ($admin->getType() === UserType::Superadmin) {
+                try {
+                    $admin->setAdminSshPublicKeyPending($sshKey);
+                    $this->sshKeyService->storeKey($admin, $sshKey);
+                } catch (\Throwable) {
+                    return $this->renderPage($admin, [
+                        'name' => $name,
+                        'email' => $email,
+                        'signature' => $signature,
+                        'ssh_key' => $sshKey,
+                    ], ['Unable to store the SSH key on the server. Please contact a super admin.'], Response::HTTP_BAD_REQUEST);
+                }
+                $sshKeyQueued = true;
+            } else {
+                $admin->setAdminSshPublicKeyPending($sshKey);
+                $sshKeyQueued = true;
             }
-
-            $admin->setAdminSshPublicKey($sshKey);
-            $sshKeyStored = true;
         }
 
         $this->auditLogger->log($admin, 'admin.profile.updated', [
@@ -124,7 +132,7 @@ final class AdminProfileController
             'email' => $admin->getEmail(),
             'password_updated' => $password !== '',
             'signature_updated' => $signature !== '',
-            'ssh_key_set' => $sshKeyStored,
+            'ssh_key_queued' => $sshKeyQueued,
         ]);
 
         $this->entityManager->flush();
@@ -149,6 +157,9 @@ final class AdminProfileController
                 'signature' => $admin->getAdminSignature(),
                 'ssh_key' => $admin->getAdminSshPublicKey() ?? '',
                 'ssh_key_set' => $admin->getAdminSshPublicKey() !== null,
+                'ssh_key_pending' => $admin->getAdminSshPublicKeyPending() !== null,
+                'ssh_key_pending_value' => $admin->getAdminSshPublicKeyPending(),
+                'ssh_key_enabled' => $this->canManageSshKey($admin),
             ], $overrides),
             'errors' => $errors,
         ]), $status);
@@ -175,5 +186,10 @@ final class AdminProfileController
             '/^(ssh-(?:rsa|ed25519)|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh\\.com|sk-ecdsa-sha2-nistp256@openssh\\.com)\\s+[A-Za-z0-9+\\/=]+(?:\\s+.+)?$/',
             $sshKey,
         );
+    }
+
+    private function canManageSshKey(User $admin): bool
+    {
+        return $admin->getType() === UserType::Superadmin || $admin->isAdminSshKeyEnabled();
     }
 }

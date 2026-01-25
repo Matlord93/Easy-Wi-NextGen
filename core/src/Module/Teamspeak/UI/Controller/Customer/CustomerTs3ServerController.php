@@ -173,7 +173,10 @@ final class CustomerTs3ServerController
     private function requireCustomer(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
+        if (
+            !$actor instanceof User
+            || (!$actor->isAdmin() && $actor->getType() !== UserType::Customer)
+        ) {
             throw new UnauthorizedHttpException('session', 'Unauthorized.');
         }
 
@@ -182,11 +185,15 @@ final class CustomerTs3ServerController
 
     private function findServer(User $customer, int $id): Ts3VirtualServer
     {
-        $server = $this->virtualServerRepository->findOneBy([
+        $criteria = [
             'id' => $id,
-            'customerId' => $customer->getId(),
             'archivedAt' => null,
-        ]);
+        ];
+        if (!$customer->isAdmin()) {
+            $criteria['customerId'] = $customer->getId();
+        }
+
+        $server = $this->virtualServerRepository->findOneBy($criteria);
         if ($server === null) {
             throw new NotFoundHttpException('TS3 virtual server not found.');
         }

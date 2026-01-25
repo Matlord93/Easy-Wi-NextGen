@@ -41,9 +41,15 @@
                     </div>
                     <div class="flex items-center gap-2">
                         {% if currentUser %}
-                            {% set userType = currentUser.type.value %}
-                            {% set portalPath = userType == 'admin' ? '/admin' : (userType == 'reseller' ? '/reseller/customers' : '/dashboard') %}
-                            {% set portalLabel = userType == 'admin' ? t('admin_portal', page_locale()) : (userType == 'reseller' ? t('reseller_portal', page_locale()) : t('customer_portal', page_locale())) %}
+                            {% set portalPath = '/dashboard' %}
+                            {% set portalLabel = t('customer_portal', page_locale()) %}
+                            {% if is_granted('ROLE_ADMIN') %}
+                                {% set portalPath = '/admin' %}
+                                {% set portalLabel = t('admin_portal', page_locale()) %}
+                            {% elseif is_granted('ROLE_RESELLER') %}
+                                {% set portalPath = '/reseller/customers' %}
+                                {% set portalLabel = t('reseller_portal', page_locale()) %}
+                            {% endif %}
                             <a href="{{ portalPath }}" class="btn rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">{{ portalLabel }}</a>
                             <a href="{{ path('public_logout') }}" class="btn rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('logout', page_locale()) }}</a>
                         {% else %}

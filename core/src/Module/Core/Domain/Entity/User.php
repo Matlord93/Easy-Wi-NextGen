@@ -64,6 +64,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $adminSshPublicKey = null;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $adminSshPublicKeyPending = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $adminSshKeyEnabled = false;
+
     #[ORM\ManyToOne(targetEntity: self::class)]
     #[ORM\JoinColumn(name: 'reseller_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?self $resellerOwner = null;
@@ -229,6 +235,27 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->adminSshPublicKey = $normalized === '' ? null : $normalized;
     }
 
+    public function getAdminSshPublicKeyPending(): ?string
+    {
+        return $this->adminSshPublicKeyPending;
+    }
+
+    public function setAdminSshPublicKeyPending(?string $adminSshPublicKeyPending): void
+    {
+        $normalized = $adminSshPublicKeyPending !== null ? trim($adminSshPublicKeyPending) : null;
+        $this->adminSshPublicKeyPending = $normalized === '' ? null : $normalized;
+    }
+
+    public function isAdminSshKeyEnabled(): bool
+    {
+        return $this->adminSshKeyEnabled;
+    }
+
+    public function setAdminSshKeyEnabled(bool $adminSshKeyEnabled): void
+    {
+        $this->adminSshKeyEnabled = $adminSshKeyEnabled;
+    }
+
     public function anonymize(string $email, string $passwordHash): void
     {
         $this->email = strtolower($email);
@@ -243,6 +270,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->privacyAcceptedIp = null;
         $this->adminSignature = null;
         $this->adminSshPublicKey = null;
+        $this->adminSshPublicKeyPending = null;
+        $this->adminSshKeyEnabled = false;
     }
 
     public function getResellerOwner(): ?self

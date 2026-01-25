@@ -8,7 +8,9 @@ use App\Module\Core\Domain\Entity\AppSetting;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use App\Module\Setup\Runtime\DatabaseConfig;
+use App\Module\Setup\Application\InstallerSshKeyException;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\DBAL\Exception\TableExistsException;
@@ -39,6 +41,7 @@ final class InstallerService
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly LoggerInterface $logger,
         private readonly \App\Module\Core\Application\GameTemplateSeeder $templateSeeder,
+        private readonly AdminSshKeyService $sshKeyService,
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
     ) {
@@ -392,6 +395,9 @@ final class InstallerService
             $site = new Site((string) $data['site_name'], (string) $data['site_host']);
             $entityManager->persist($site);
         }
+        if (isset($data['cms_template_key']) && is_string($data['cms_template_key']) && $data['cms_template_key'] !== '') {
+            $site->setCmsTemplateKey($data['cms_template_key']);
+        }
 
         $userRepository = $entityManager->getRepository(User::class);
         $admin = $userRepository->findOneBy(['type' => UserType::Superadmin->value]);
@@ -402,7 +408,22 @@ final class InstallerService
             $admin = new User((string) $data['admin_email'], UserType::Superadmin);
             $admin->setName((string) ($data['admin_name'] ?? ''));
             $admin->setPasswordHash($this->passwordHasher->hashPassword($admin, $adminPassword));
+            $admin->setAdminSshKeyEnabled(true);
             $entityManager->persist($admin);
+        }
+
+        $sshKey = trim((string) ($data['admin_ssh_key'] ?? ''));
+        if ($sshKey !== '' && $admin->getAdminSshPublicKey() === null) {
+            if ($admin->getId() === null) {
+                $entityManager->flush();
+            }
+            try {
+                $admin->setAdminSshPublicKeyPending($sshKey);
+                $this->sshKeyService->storeKey($admin, $sshKey);
+            } catch (\Throwable $exception) {
+                $this->logException($exception, 'Failed to store admin SSH key during installation.');
+                throw new InstallerSshKeyException('Failed to store admin SSH key.');
+            }
         }
 
         $entityManager->flush();

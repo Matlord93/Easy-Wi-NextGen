@@ -422,6 +422,23 @@ final class AdminTemplateController
 
     private function normalizeTemplates(array $templates): array
     {
+        $filtered = [];
+        foreach ($templates as $template) {
+            if (!$template instanceof Template) {
+                continue;
+            }
+
+            $gameKey = $template->getGameKey();
+            if (str_ends_with($gameKey, '_windows')) {
+                $baseKey = substr($gameKey, 0, -strlen('_windows'));
+                if (isset($filtered[$baseKey])) {
+                    continue;
+                }
+            }
+
+            $filtered[$gameKey] = $template;
+        }
+
         return array_map(static function (Template $template): array {
             return [
                 'id' => $template->getId(),
@@ -443,7 +460,7 @@ final class AdminTemplateController
                 'supported_os' => $template->getSupportedOs(),
                 'updated_at' => $template->getUpdatedAt(),
             ];
-        }, $templates);
+        }, array_values($filtered));
     }
 
     private function buildFormContext(?array $overrides = null): array

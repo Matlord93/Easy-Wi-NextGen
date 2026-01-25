@@ -4678,3 +4678,75 @@ final class Version20260318120000 extends AbstractMigration
         $this->addSql('ALTER TABLE users DROP admin_ssh_public_key');
     }
 }
+
+final class Version20260318121000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add admin SSH key enablement flag.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if ($table->hasColumn('admin_ssh_key_enabled')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE users ADD admin_ssh_key_enabled TINYINT(1) NOT NULL DEFAULT 0');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if (!$table->hasColumn('admin_ssh_key_enabled')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE users DROP admin_ssh_key_enabled');
+    }
+}
+
+final class Version20260320130000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add pending admin SSH public key storage.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if ($table->hasColumn('admin_ssh_public_key_pending')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE users ADD admin_ssh_public_key_pending LONGTEXT DEFAULT NULL');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if (!$table->hasColumn('admin_ssh_public_key_pending')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE users DROP admin_ssh_public_key_pending');
+    }
+}

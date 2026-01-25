@@ -8,6 +8,7 @@ use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\UserSession;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use App\Repository\InvoicePreferencesRepository;
 use App\Repository\UserRepository;
 use App\Security\SessionAuthenticator;
@@ -43,6 +44,7 @@ final class AdminUserManagementController
         private readonly AuditLogger $auditLogger,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly SessionTokenGenerator $tokenGenerator,
+        private readonly AdminSshKeyService $sshKeyService,
         private readonly Environment $twig,
     ) {
     }
@@ -127,9 +129,18 @@ final class AdminUserManagementController
         if ($email !== '') {
             $user->setEmail($email);
         }
-        $user->setType(UserType::from($typeValue));
+        $newType = UserType::from($typeValue);
+        $user->setType($newType);
         if ($password !== '') {
             $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
+        }
+        if ($newType === UserType::Superadmin) {
+            $user->setAdminSshKeyEnabled(true);
+        }
+        if (!$newType->isAdmin()) {
+            $user->setAdminSshPublicKey(null);
+            $user->setAdminSshPublicKeyPending(null);
+            $user->setAdminSshKeyEnabled(false);
         }
 
         $this->auditLogger->log($actor, 'admin.user.updated', [
@@ -137,6 +148,104 @@ final class AdminUserManagementController
             'email' => $user->getEmail(),
             'type' => $user->getType()->value,
             'password_updated' => $password !== '',
+        ]);
+
+        $this->entityManager->flush();
+
+        return new RedirectResponse('/admin/users?updated=' . $user->getId());
+    }
+
+    #[Route(path: '/{id}/ssh-key/approve', name: 'admin_user_ssh_key_approve', methods: ['POST'])]
+    public function approveSshKey(Request $request, int $id): Response
+    {
+        $actor = $this->requireSuperadmin($request);
+        if ($actor === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $user = $this->userRepository->find($id);
+        if ($user === null || !$user->getType()->isAdmin()) {
+            return new Response('User not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $pendingKey = $user->getAdminSshPublicKeyPending();
+        if ($pendingKey === null) {
+            return new RedirectResponse('/admin/users');
+        }
+
+        if ($user->getAdminSshPublicKey() !== null) {
+            $user->setAdminSshPublicKeyPending(null);
+            $this->entityManager->flush();
+
+            return new RedirectResponse('/admin/users?updated=' . $user->getId());
+        }
+
+        if (!$this->isValidSshPublicKey($pendingKey)) {
+            return new RedirectResponse('/admin/users?updated=' . $user->getId());
+        }
+
+        try {
+            $this->sshKeyService->storeKey($user, $pendingKey);
+        } catch (\Throwable) {
+            return new Response('Unable to queue SSH key on the agent.', Response::HTTP_BAD_REQUEST);
+        }
+
+        $this->auditLogger->log($actor, 'admin.user.ssh_key_approved', [
+            'user_id' => $user->getId(),
+        ]);
+
+        $this->entityManager->flush();
+
+        return new RedirectResponse('/admin/users?updated=' . $user->getId());
+    }
+
+    #[Route(path: '/{id}/ssh-key/reject', name: 'admin_user_ssh_key_reject', methods: ['POST'])]
+    public function rejectSshKey(Request $request, int $id): Response
+    {
+        $actor = $this->requireSuperadmin($request);
+        if ($actor === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $user = $this->userRepository->find($id);
+        if ($user === null || !$user->getType()->isAdmin()) {
+            return new Response('User not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        if ($user->getAdminSshPublicKeyPending() === null) {
+            return new RedirectResponse('/admin/users');
+        }
+
+        $user->setAdminSshPublicKeyPending(null);
+
+        $this->auditLogger->log($actor, 'admin.user.ssh_key_rejected', [
+            'user_id' => $user->getId(),
+        ]);
+
+        $this->entityManager->flush();
+
+        return new RedirectResponse('/admin/users?updated=' . $user->getId());
+    }
+
+    #[Route(path: '/{id}/ssh-access', name: 'admin_user_ssh_access_update', methods: ['POST'])]
+    public function updateSshAccess(Request $request, int $id): Response
+    {
+        $actor = $this->requireSuperadmin($request);
+        if ($actor === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $user = $this->userRepository->find($id);
+        if ($user === null || !$user->getType()->isAdmin()) {
+            return new Response('User not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $enabled = $request->request->get('ssh_key_enabled') === '1';
+        $user->setAdminSshKeyEnabled($enabled);
+
+        $this->auditLogger->log($actor, 'admin.user.ssh_key_access_updated', [
+            'user_id' => $user->getId(),
+            'ssh_key_enabled' => $enabled,
         ]);
 
         $this->entityManager->flush();
@@ -265,6 +374,10 @@ final class AdminUserManagementController
                 'locale' => $preferences?->getLocale() ?? 'de_DE',
                 'portal_language' => $preferences?->getPortalLanguage() ?? 'de',
                 'has_preferences' => $preferences !== null,
+                'ssh_key_enabled' => $user->getType() === UserType::Superadmin || $user->isAdminSshKeyEnabled(),
+                'ssh_key_set' => $user->getAdminSshPublicKey() !== null,
+                'ssh_key_pending' => $user->getAdminSshPublicKeyPending() !== null,
+                'ssh_key_pending_value' => $user->getAdminSshPublicKeyPending(),
             ];
         }
 
@@ -290,6 +403,8 @@ final class AdminUserManagementController
             'locales' => self::LOCALE_OPTIONS,
             'portalLanguages' => self::PORTAL_LANGUAGE_OPTIONS,
             'canImpersonate' => $this->canImpersonate($request),
+            'canManageSshKeys' => $this->canManageSshKeys($request),
+            'pendingSshKeys' => $this->collectPendingSshKeys($rows),
             'createForm' => [
                 'email' => '',
                 'type' => UserType::Customer->value,
@@ -298,6 +413,12 @@ final class AdminUserManagementController
     }
 
     private function canImpersonate(Request $request): bool
+    {
+        $actor = $request->attributes->get('current_user');
+        return $actor instanceof User && $actor->getType() === UserType::Superadmin;
+    }
+
+    private function canManageSshKeys(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
         return $actor instanceof User && $actor->getType() === UserType::Superadmin;
@@ -342,5 +463,42 @@ final class AdminUserManagementController
         }
 
         return $errors;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function collectPendingSshKeys(array $rows): array
+    {
+        $pending = [];
+
+        foreach ($rows as $row) {
+            if (!($row['ssh_key_pending'] ?? false)) {
+                continue;
+            }
+
+            $pending[] = [
+                'id' => $row['id'],
+                'email' => $row['email'],
+                'key' => $row['ssh_key_pending_value'] ?? '',
+            ];
+        }
+
+        return $pending;
+    }
+
+    private function isValidSshPublicKey(string $sshKey): bool
+    {
+        $sshKey = trim($sshKey);
+        if ($sshKey === '') {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/^(ssh-(?:rsa|ed25519)|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh\\.com|sk-ecdsa-sha2-nistp256@openssh\\.com)\\s+[A-Za-z0-9+\\/=]+(?:\\s+.+)?$/',
+            $sshKey,
+        );
     }
 }

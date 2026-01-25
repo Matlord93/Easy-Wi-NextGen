@@ -23,6 +23,7 @@ use App\Repository\Ts3VirtualServerRepository;
 use App\Repository\Ts6InstanceRepository;
 use App\Repository\Ts6NodeRepository;
 use App\Repository\Ts6VirtualServerRepository;
+use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class AgentJobResultApplier
@@ -36,6 +37,7 @@ final class AgentJobResultApplier
         private readonly Ts3VirtualServerRepository $ts3VirtualServerRepository,
         private readonly Ts6VirtualServerRepository $ts6VirtualServerRepository,
         private readonly SecretsCrypto $crypto,
+        private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -73,6 +75,10 @@ final class AgentJobResultApplier
 
         if (str_starts_with($type, 'sinusbot.')) {
             $this->applySinusbotNodeResult($job, $status, $payload);
+        }
+
+        if ($type === 'admin.ssh_key.store') {
+            $this->applyAdminSshKeyResult($job, $status);
         }
 
         $this->entityManager->flush();
@@ -209,6 +215,35 @@ final class AgentJobResultApplier
     {
         if ($running && $node->getInstallStatus() !== 'installed') {
             $node->setInstallStatus('installed');
+        }
+    }
+
+    private function applyAdminSshKeyResult(AgentJob $job, AgentJobStatus $status): void
+    {
+        $userId = $job->getPayload()['user_id'] ?? null;
+        $publicKey = $job->getPayload()['public_key'] ?? null;
+
+        if (!is_int($userId) && !is_string($userId)) {
+            return;
+        }
+
+        if (!is_string($publicKey) || trim($publicKey) === '') {
+            return;
+        }
+
+        $user = $this->userRepository->find((int) $userId);
+        if ($user === null) {
+            return;
+        }
+
+        $pending = $user->getAdminSshPublicKeyPending();
+        if ($pending !== null && trim($pending) !== trim($publicKey)) {
+            return;
+        }
+
+        if ($status === AgentJobStatus::Success) {
+            $user->setAdminSshPublicKey($publicKey);
+            $user->setAdminSshPublicKeyPending(null);
         }
     }
 

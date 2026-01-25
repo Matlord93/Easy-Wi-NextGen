@@ -10,6 +10,8 @@ use App\Repository\CmsBlockRepository;
 use App\Repository\CmsPageRepository;
 use App\Repository\PublicServerRepository;
 use App\Module\Core\Application\SiteResolver;
+use App\Module\Setup\Application\InstallerService;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -22,6 +24,7 @@ final class PublicCmsPageController
         private readonly CmsBlockRepository $blockRepository,
         private readonly PublicServerRepository $publicServerRepository,
         private readonly SiteResolver $siteResolver,
+        private readonly InstallerService $installerService,
         private readonly Environment $twig,
     ) {
     }
@@ -49,6 +52,10 @@ final class PublicCmsPageController
 
     private function renderPage(Request $request, string $slug): Response
     {
+        if (!$this->installerService->isLocked()) {
+            return new RedirectResponse('/install');
+        }
+
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
