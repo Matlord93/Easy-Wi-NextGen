@@ -150,12 +150,17 @@ final class AdminCmsPageController
         return $response;
     }
 
-    #[Route(path: '/{id}', name: 'admin_cms_pages_update', methods: ['POST'])]
-    public function update(Request $request, int $id): Response
+    #[Route(path: '/{id}', name: 'admin_cms_pages_update', methods: ['POST'], requirements: ['id' => '\\d+'])]
+    public function update(Request $request, string $id): Response
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $pageId = filter_var($id, FILTER_VALIDATE_INT);
+        if ($pageId === false) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
         $site = $this->siteResolver->resolve($request);
@@ -163,7 +168,7 @@ final class AdminCmsPageController
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
         }
 
-        $page = $this->pageRepository->find($id);
+        $page = $this->pageRepository->find($pageId);
         if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }

@@ -1,15 +1,19 @@
-{% set title = title|default('Easy-Wi NextGen') %}
+{% set title = title|default('') %}
 {% set groups = groups|default([]) %}
 {% set activeNav = activeNav|default('') %}
 {% set logoUrl = logoUrl|default(null) %}
 
 <aside class="ng-sidebar">
-    <div class="ng-sidebar__title">
-        {% if logoUrl %}
-            <img src="{{ logoUrl }}" alt="{{ title }}" style="max-height: 32px; width: auto;" />
-        {% endif %}
-        <span>{{ title }}</span>
-    </div>
+    {% if logoUrl or title %}
+        <div class="ng-sidebar__title">
+            {% if logoUrl %}
+                <img src="{{ logoUrl }}" alt="{{ title }}" style="max-height: 32px; width: auto;" />
+            {% endif %}
+            {% if title %}
+                <span>{{ title }}</span>
+            {% endif %}
+        </div>
+    {% endif %}
     <nav class="ng-sidebar__nav">
         {% for group in groups %}
             {% set groupId = group.id|default(group.label|default(loop.index)) %}
@@ -35,7 +39,9 @@
             </details>
         {% endfor %}
     </nav>
-    <div class="ng-sidebar__footer">{{ footer|default('Easy-Wi NextGen · Customer Portal') }}</div>
+    {% if footer is defined and footer %}
+        <div class="ng-sidebar__footer">{{ footer }}</div>
+    {% endif %}
 </aside>
 <script>
     document.querySelectorAll('.ng-sidebar__group[data-nav-id]').forEach((group) => {

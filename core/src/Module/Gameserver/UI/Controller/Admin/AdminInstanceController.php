@@ -177,6 +177,12 @@ final class AdminInstanceController
         $instance->setSlots($formData['current_slots']);
         $instance->setMaxSlots($formData['max_slots']);
         $instance->setCurrentSlots($formData['current_slots']);
+        $instance->setServerName($formData['server_name'] !== '' ? $formData['server_name'] : null);
+        $instance->setGslKey($formData['steam_gslt'] !== '' ? $formData['steam_gslt'] : null);
+        $instance->setSteamAccount($formData['steam_login_mode'] === 'account' && $formData['steam_account'] !== '' ? $formData['steam_account'] : null);
+        if ($formData['setup_vars'] !== []) {
+            $instance->setSetupVars($formData['setup_vars']);
+        }
 
         $this->entityManager->persist($instance);
         if ($portBlock !== null) {
@@ -376,6 +382,13 @@ final class AdminInstanceController
         $portBlockId = $request->request->get('port_block_id');
         $maxSlotsValue = $request->request->get('max_slots');
         $currentSlotsValue = $request->request->get('current_slots');
+        $serverName = trim((string) $request->request->get('server_name', ''));
+        $serverPassword = (string) $request->request->get('server_password', '');
+        $rconPassword = (string) $request->request->get('rcon_password', '');
+        $steamGslt = trim((string) $request->request->get('steam_gslt', ''));
+        $steamLoginMode = (string) $request->request->get('steam_login_mode', 'anonymous');
+        $steamAccount = trim((string) $request->request->get('steam_account', ''));
+        $steamPassword = (string) $request->request->get('steam_password', '');
 
         if ($customerId === null || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
             $errors[] = 'Customer, template, node, and resource limits are required.';
@@ -457,6 +470,30 @@ final class AdminInstanceController
             }
         }
 
+        if (!in_array($steamLoginMode, ['anonymous', 'account'], true)) {
+            $steamLoginMode = 'anonymous';
+        }
+
+        if ($steamLoginMode === 'account') {
+            if ($steamAccount === '') {
+                $errors[] = 'Steam account username is required when using Steam login.';
+            }
+            if ($steamPassword === '') {
+                $errors[] = 'Steam account password is required when using Steam login.';
+            }
+        }
+
+        $setupVars = [];
+        if ($serverPassword !== '') {
+            $setupVars['SERVER_PASSWORD'] = $serverPassword;
+        }
+        if ($rconPassword !== '') {
+            $setupVars['RCON_PASSWORD'] = $rconPassword;
+        }
+        if ($steamLoginMode === 'account' && $steamPassword !== '') {
+            $setupVars['STEAM_PASSWORD'] = $steamPassword;
+        }
+
         return [
             'errors' => $errors,
             'customer' => $customer,
@@ -472,6 +509,14 @@ final class AdminInstanceController
             'template_id' => $templateId,
             'node_id' => $nodeId,
             'port_block_id' => $portBlockId ?? '',
+            'server_name' => $serverName,
+            'server_password' => $serverPassword,
+            'rcon_password' => $rconPassword,
+            'steam_gslt' => $steamGslt,
+            'steam_login_mode' => $steamLoginMode,
+            'steam_account' => $steamAccount,
+            'steam_password' => $steamPassword,
+            'setup_vars' => $setupVars,
         ];
     }
 
@@ -489,6 +534,13 @@ final class AdminInstanceController
             'max_slots' => $this->appSettingsService->getGameserverMaxSlots(),
             'min_slots' => $this->appSettingsService->getGameserverMinSlots(),
             'max_slots_limit' => $this->appSettingsService->getGameserverMaxSlots(),
+            'server_name' => '',
+            'server_password' => '',
+            'rcon_password' => '',
+            'steam_gslt' => '',
+            'steam_login_mode' => 'anonymous',
+            'steam_account' => '',
+            'steam_password' => '',
             'errors' => [],
             'action_url' => '/admin/instances',
             'submit_label' => 'admin_instances_submit',
@@ -520,6 +572,13 @@ final class AdminInstanceController
                 'port_block_id' => $formData['port_block_id'],
                 'current_slots' => $formData['current_slots'],
                 'max_slots' => $formData['max_slots'],
+                'server_name' => $formData['server_name'],
+                'server_password' => $formData['server_password'],
+                'rcon_password' => $formData['rcon_password'],
+                'steam_gslt' => $formData['steam_gslt'],
+                'steam_login_mode' => $formData['steam_login_mode'],
+                'steam_account' => $formData['steam_account'],
+                'steam_password' => $formData['steam_password'],
                 'errors' => $formData['errors'],
             ]),
         ]), $status);

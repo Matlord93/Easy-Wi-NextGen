@@ -26,6 +26,12 @@ final class PublicCmsPageController
     ) {
     }
 
+    #[Route(path: '/', name: 'public_cms_home', methods: ['GET'], priority: 10)]
+    public function home(Request $request): Response
+    {
+        return $this->renderPage($request, 'startseite');
+    }
+
     #[Route(path: '/pages/{slug}', name: 'public_cms_page', methods: ['GET'])]
     #[Route(
         path: '/{slug}',
@@ -38,6 +44,11 @@ final class PublicCmsPageController
     )]
     public function show(Request $request, string $slug): Response
     {
+        return $this->renderPage($request, $slug);
+    }
+
+    private function renderPage(Request $request, string $slug): Response
+    {
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
@@ -49,14 +60,49 @@ final class PublicCmsPageController
         }
 
         $blocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);
+        $cmsPages = $this->pageRepository->findBy(
+            ['isPublished' => true, 'site' => $site],
+            ['title' => 'ASC']
+        );
+        $cmsPages = $this->normalizePages($cmsPages, $page->getSlug());
 
-        return new Response($this->twig->render('public/pages/show.html.twig', [
+        $templateKey = $site->getCmsTemplateKey() ?? 'hosting';
+
+        return new Response($this->twig->render($this->resolveTemplate($templateKey, $slug), [
             'page' => [
                 'title' => $page->getTitle(),
                 'slug' => $page->getSlug(),
             ],
             'blocks' => $this->normalizeBlocks($blocks, $site->getId() ?? 0),
+            'cms_pages' => $cmsPages,
+            'template_key' => $templateKey,
         ]));
+    }
+
+    /**
+     * @param \App\Module\Core\Domain\Entity\CmsPage[] $pages
+     */
+    private function normalizePages(array $pages, string $currentSlug): array
+    {
+        $normalized = array_map(static fn ($page): array => [
+            'title' => $page->getTitle(),
+            'slug' => $page->getSlug(),
+            'is_active' => $page->getSlug() === $currentSlug,
+        ], $pages);
+
+        usort($normalized, static function (array $left, array $right): int {
+            if ($left['slug'] === 'startseite') {
+                return -1;
+            }
+
+            if ($right['slug'] === 'startseite') {
+                return 1;
+            }
+
+            return strcasecmp($left['title'], $right['title']);
+        });
+
+        return $normalized;
     }
 
     /**
@@ -147,5 +193,31 @@ final class PublicCmsPageController
         }
 
         return 'unknown';
+    }
+
+    private function resolveTemplate(string $templateKey, string $slug): string
+    {
+        $customSlugTemplate = sprintf('public/pages/custom/%s/%s.html.twig', $templateKey, $slug);
+        if ($this->templateExists($customSlugTemplate)) {
+            return $customSlugTemplate;
+        }
+
+        $customTemplate = sprintf('public/pages/custom/%s.html.twig', $templateKey);
+        if ($this->templateExists($customTemplate)) {
+            return $customTemplate;
+        }
+
+        return match ($templateKey) {
+            'clan' => 'public/pages/show_clan.html.twig',
+            'private' => 'public/pages/show_private.html.twig',
+            default => 'public/pages/show_hosting.html.twig',
+        };
+    }
+
+    private function templateExists(string $template): bool
+    {
+        $loader = $this->twig->getLoader();
+
+        return method_exists($loader, 'exists') && $loader->exists($template);
     }
 }

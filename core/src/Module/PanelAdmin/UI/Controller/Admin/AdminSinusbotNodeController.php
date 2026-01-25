@@ -9,6 +9,7 @@ use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Form\SinusbotNodeType;
 use App\Repository\AgentRepository;
+use App\Repository\AgentJobRepository;
 use App\Repository\SinusbotNodeRepository;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Sinusbot\SinusbotNodeService;
@@ -31,6 +32,7 @@ final class AdminSinusbotNodeController
     public function __construct(
         private readonly SinusbotNodeRepository $nodeRepository,
         private readonly AgentRepository $agentRepository,
+        private readonly AgentJobRepository $agentJobRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly SecretsCrypto $crypto,
         private readonly SinusbotNodeService $nodeService,
@@ -118,6 +120,7 @@ final class AdminSinusbotNodeController
             'activeNav' => 'sinusbot',
             'node' => $node,
             'admin_password' => null,
+            'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
         ]));
     }
@@ -192,6 +195,7 @@ final class AdminSinusbotNodeController
             'activeNav' => 'sinusbot',
             'node' => $node,
             'admin_password' => $adminPassword,
+            'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
         ]));
     }
@@ -245,6 +249,17 @@ final class AdminSinusbotNodeController
         return new Response('', Response::HTTP_FOUND, [
             'Location' => sprintf('/admin/sinusbot/nodes/%d', $node->getId()),
         ]);
+    }
+
+    /**
+     * @return array<\App\Module\AgentOrchestrator\Domain\Entity\AgentJob>
+     */
+    private function loadAgentJobs(SinusbotNode $node): array
+    {
+        return $this->agentJobRepository->findLatestForNodeAndTypes($node->getAgent()->getId(), [
+            'sinusbot.install',
+            'sinusbot.status',
+        ], 5);
     }
 
     /**

@@ -58,3 +58,4 @@ Der Agent muss folgende Endpunkte anbieten:
 
 - Agent API Token und Admin Passwörter werden verschlüsselt gespeichert.
 - Der Admin kann Credentials nur manuell im Detailbereich anzeigen.
+- Für `.tar.bz2`-Downloads müssen `tar` und `bzip2` (bzw. `lbzip2`) auf dem Agent-Host installiert sein, sonst wird das Archiv heruntergeladen, aber nicht entpackt.

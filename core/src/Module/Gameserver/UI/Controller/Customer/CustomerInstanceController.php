@@ -7,6 +7,7 @@ namespace App\Module\Gameserver\UI\Controller\Customer;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSchedule;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
@@ -24,11 +25,13 @@ use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
+use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Core\Application\SetupChecker;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -51,6 +54,7 @@ final class CustomerInstanceController
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
+        private readonly InstanceInstallService $instanceInstallService,
         private readonly MinecraftCatalogService $minecraftCatalogService,
         private readonly EncryptionService $encryptionService,
         private readonly SetupChecker $setupChecker,
@@ -90,7 +94,7 @@ final class CustomerInstanceController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $requirements = $this->setupChecker->getCustomerRequirements($instance->getTemplate());
+        $requirements = $this->buildCustomerSetupRequirements($instance->getTemplate());
         $input = $request->request->all('vars');
         if (!is_array($input)) {
             throw new BadRequestHttpException('Invalid payload.');
@@ -118,6 +122,18 @@ final class CustomerInstanceController
             }
 
             $setupVars[$key] = $entry['type'] === 'number' ? (string) $value : $value;
+
+            switch ($key) {
+                case 'SERVER_NAME':
+                    $instance->setServerName($value !== '' ? $value : null);
+                    break;
+                case 'STEAM_GSLT':
+                    $instance->setGslKey($value !== '' ? $value : null);
+                    break;
+                case 'STEAM_ACCOUNT':
+                    $instance->setSteamAccount($value !== '' ? $value : null);
+                    break;
+            }
         }
 
         if ($errors !== []) {
@@ -248,6 +264,62 @@ final class CustomerInstanceController
         $this->entityManager->flush();
 
         return $this->redirectToTab($instance->getId(), 'restart_planner', 'customer_instance_restart_planner_saved', null);
+    }
+
+    #[Route(path: '/{id}/install', name: 'customer_instance_install', methods: ['POST'])]
+    public function install(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+
+        $blocked = $this->guardSetupRequirements($instance, SetupChecker::ACTION_INSTALL);
+        if ($blocked !== null) {
+            if ($this->prefersJsonResponse($request)) {
+                return new JsonResponse(['error' => $blocked], JsonResponse::HTTP_CONFLICT);
+            }
+            return $this->renderInstanceCard($instance, null, $blocked);
+        }
+
+        $install = $this->instanceInstallService->prepareInstall($instance);
+        if (!$install['ok']) {
+            $installError = $this->resolveInstallErrorMessage($install['error_code'] ?? null);
+            if ($this->prefersJsonResponse($request)) {
+                return new JsonResponse([
+                    'error' => $installError,
+                    'error_code' => $install['error_code'] ?? 'INSTALL_FAILED',
+                ], JsonResponse::HTTP_CONFLICT);
+            }
+            return $this->renderInstanceCard($instance, null, $installError);
+        }
+
+        $job = new Job('sniper.install', array_merge([
+            'instance_id' => (string) ($instance->getId() ?? ''),
+            'customer_id' => (string) $customer->getId(),
+            'node_id' => $instance->getNode()->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+            'cpu_limit' => (string) $instance->getCpuLimit(),
+            'ram_limit' => (string) $instance->getRamLimit(),
+            'disk_limit' => (string) $instance->getDiskLimit(),
+        ], $install['payload'] ?? []));
+        $this->entityManager->persist($job);
+
+        $this->auditLogger->log($customer, 'instance.install.queued', [
+            'instance_id' => $instance->getId(),
+            'customer_id' => $customer->getId(),
+            'job_id' => $job->getId(),
+        ]);
+
+        $this->entityManager->flush();
+
+        if ($this->prefersJsonResponse($request)) {
+            return new JsonResponse([
+                'job_id' => $job->getId(),
+                'status' => 'queued',
+                'message' => 'Install queued.',
+            ], JsonResponse::HTTP_ACCEPTED);
+        }
+
+        return $this->renderInstanceCard($instance, 'Install queued.', null);
     }
 
     #[Route(path: '/{id}/reinstall', name: 'customer_instance_reinstall', methods: ['POST'])]
@@ -488,16 +560,25 @@ final class CustomerInstanceController
         $action = trim((string) $request->request->get('action', ''));
 
         if (!$this->appSettingsService->isGameserverStartStopAllowed()) {
+            if ($this->prefersJsonResponse($request)) {
+                return new JsonResponse(['error' => 'Start/Stop actions are disabled.'], JsonResponse::HTTP_FORBIDDEN);
+            }
             return $this->renderInstanceCard($instance, null, 'Start/Stop actions are disabled.');
         }
 
         if ($instance->getStatus() === InstanceStatus::Suspended) {
+            if ($this->prefersJsonResponse($request)) {
+                return new JsonResponse(['error' => 'This instance is suspended.'], JsonResponse::HTTP_CONFLICT);
+            }
             return $this->renderInstanceCard($instance, null, 'This instance is suspended.');
         }
 
         if ($action === 'start') {
             $blocked = $this->guardSetupRequirements($instance, SetupChecker::ACTION_START);
             if ($blocked !== null) {
+                if ($this->prefersJsonResponse($request)) {
+                    return new JsonResponse(['error' => $blocked], JsonResponse::HTTP_CONFLICT);
+                }
                 return $this->renderInstanceCard($instance, null, $blocked);
             }
         }
@@ -535,6 +616,14 @@ final class CustomerInstanceController
             'restart' => 'Restart queued.',
             default => 'Action queued.',
         };
+
+        if ($this->prefersJsonResponse($request)) {
+            return new JsonResponse([
+                'job_id' => $job->getId(),
+                'status' => 'queued',
+                'message' => $notice,
+            ], JsonResponse::HTTP_ACCEPTED);
+        }
 
         return $this->renderInstanceCard($instance, $notice, null);
     }
@@ -618,6 +707,7 @@ final class CustomerInstanceController
         $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
         $connection = $this->buildConnectionData($instance, $portBlock);
         $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, $queueQuery);
+        $installStatus = $this->instanceInstallService->getInstallStatus($instance);
 
         return [
             'id' => $instance->getId(),
@@ -626,6 +716,7 @@ final class CustomerInstanceController
                 'game_key' => $instance->getTemplate()->getGameKey(),
                 'install_resolver' => $instance->getTemplate()->getInstallResolver(),
             ],
+            'server_name' => $instance->getServerName(),
             'node' => [
                 'id' => $instance->getNode()->getId(),
                 'name' => $instance->getNode()->getName(),
@@ -650,6 +741,8 @@ final class CustomerInstanceController
             'current_slots' => $instance->getCurrentSlots(),
             'max_slots' => $instance->getMaxSlots(),
             'lock_slots' => $instance->isLockSlots(),
+            'install_ready' => $installStatus['is_ready'] ?? false,
+            'install_error_code' => $installStatus['error_code'] ?? null,
             'query' => $querySnapshot,
             'connection' => $connection,
             'schedule' => $schedule === null ? null : [
@@ -893,11 +986,16 @@ final class CustomerInstanceController
     private function buildSetupContext(Instance $instance, array $messages): array
     {
         $status = $this->setupChecker->getSetupStatus($instance);
-        $requirements = $this->setupChecker->getCustomerRequirements($instance->getTemplate());
+        $requirements = $this->buildCustomerSetupRequirements($instance->getTemplate());
         $setupVars = $instance->getSetupVars();
         $setupSecrets = $instance->getSetupSecrets();
+        $defaults = [
+            'SERVER_NAME' => $instance->getServerName(),
+            'STEAM_GSLT' => $instance->getGslKey(),
+            'STEAM_ACCOUNT' => $instance->getSteamAccount(),
+        ];
 
-        $varEntries = array_map(function (array $entry) use ($setupVars, $messages): array {
+        $varEntries = array_map(function (array $entry) use ($setupVars, $messages, $defaults): array {
             $key = $entry['key'];
 
             return [
@@ -906,7 +1004,7 @@ final class CustomerInstanceController
                 'type' => $entry['type'],
                 'required' => $entry['required'],
                 'helptext' => $entry['helptext'],
-                'value' => $setupVars[$key] ?? '',
+                'value' => $setupVars[$key] ?? ($defaults[$key] ?? ''),
                 'error' => $messages['vars']['errors'][$key] ?? null,
             ];
         }, $requirements['vars']);
@@ -972,6 +1070,89 @@ final class CustomerInstanceController
         };
     }
 
+    /**
+     * @return array{vars: array<int, array<string, mixed>>, secrets: array<int, array<string, mixed>>}
+     */
+    private function buildCustomerSetupRequirements(Template $template): array
+    {
+        $requirements = $this->setupChecker->getCustomerRequirements($template);
+        $existing = [];
+        foreach (array_merge($requirements['vars'], $requirements['secrets']) as $entry) {
+            $existing[$entry['key']] = true;
+        }
+
+        foreach ($this->buildDefaultCustomerVars() as $entry) {
+            if (!isset($existing[$entry['key']])) {
+                $requirements['vars'][] = $entry;
+            }
+        }
+
+        return $requirements;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildDefaultCustomerVars(): array
+    {
+        return [
+            [
+                'key' => 'SERVER_NAME',
+                'label' => 'Servername',
+                'type' => 'text',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => null,
+                'helptext' => 'Optional, wird als Hostname verwendet.',
+            ],
+            [
+                'key' => 'SERVER_PASSWORD',
+                'label' => 'Serverpasswort',
+                'type' => 'password',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => null,
+                'helptext' => 'Optional, nur nötig für private Server.',
+            ],
+            [
+                'key' => 'RCON_PASSWORD',
+                'label' => 'RCON Passwort',
+                'type' => 'password',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => null,
+                'helptext' => 'Optional, für Remote-Konsole.',
+            ],
+            [
+                'key' => 'STEAM_GSLT',
+                'label' => 'Steam GSLT',
+                'type' => 'text',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => null,
+                'helptext' => 'Benötigt für manche Source-Server.',
+            ],
+            [
+                'key' => 'STEAM_ACCOUNT',
+                'label' => 'Steam Benutzername',
+                'type' => 'text',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => null,
+                'helptext' => 'Nur nötig, wenn kein Anonymous-Login möglich ist.',
+            ],
+            [
+                'key' => 'STEAM_PASSWORD',
+                'label' => 'Steam Passwort',
+                'type' => 'password',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => null,
+                'helptext' => 'Nur nötig, wenn Steam Account genutzt wird.',
+            ],
+        ];
+    }
+
     private function redirectToTab(int $instanceId, string $tab, ?string $notice, ?string $error): Response
     {
         $params = ['tab' => $tab];
@@ -996,6 +1177,27 @@ final class CustomerInstanceController
             'instance' => $this->normalizeInstance($instance, $schedule, $portBlock, false, $notice, $error),
             'minecraftCatalog' => $this->minecraftCatalogService->getUiCatalog(),
         ]));
+    }
+
+    private function prefersJsonResponse(Request $request): bool
+    {
+        $accept = strtolower((string) $request->headers->get('Accept', ''));
+        if (str_contains($accept, 'application/json')) {
+            return true;
+        }
+
+        return $request->getRequestFormat(null) === 'json';
+    }
+
+    private function resolveInstallErrorMessage(?string $errorCode): string
+    {
+        return match ($errorCode) {
+            'NO_PORTS_AVAILABLE' => 'No ports available for this instance.',
+            'INSTALL_COMMAND_RESOLUTION_FAILED' => 'Install command could not be resolved for this template.',
+            'INSTALL_COMMAND_MISSING' => 'No install command configured for this template.',
+            'START_PARAMS_MISSING' => 'No start parameters configured for this template.',
+            default => 'Install prerequisites not met.',
+        };
     }
 
     private function buildConnectionData(Instance $instance, ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock): array

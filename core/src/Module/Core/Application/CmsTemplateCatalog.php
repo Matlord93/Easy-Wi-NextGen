@@ -41,9 +41,10 @@ final class CmsTemplateCatalog
             'pages' => [
                 $this->page('Startseite', 'startseite', [
                     $this->block('text', $this->hostingHero()),
-                    $this->block('text', $this->hostingHighlights()),
-                    $this->block('text', $this->hostingTrust()),
-                    $this->block('text', $this->hostingCta()),
+                    $this->block('text', $this->hostingProductsShowcase()),
+                    $this->block('text', $this->hostingFeatureGrid()),
+                    $this->block('text', $this->hostingLocations()),
+                    $this->block('text', $this->hostingGuarantee()),
                 ]),
                 $this->page('Hosting-Produkte', 'hosting', [
                     $this->block('text', $this->hostingProducts()),
@@ -63,10 +64,16 @@ final class CmsTemplateCatalog
                     $this->block('text', $this->webhostingHero()),
                     $this->block('text', $this->webhostingFeatures()),
                 ]),
+                $this->page('Produkte', 'produkte', [
+                    $this->block('text', $this->hostingProductsPage()),
+                ]),
                 $this->page('Preise', 'preise', [
                     $this->block('text', $this->pricingIntro()),
                     $this->block('text', $this->pricingGrid()),
                     $this->block('text', $this->pricingFaq()),
+                ]),
+                $this->page('Blog', 'blog', [
+                    $this->block('text', $this->blogOverview('Hosting-News')),
                 ]),
                 $this->page('Status', 'status', [
                     $this->block('text', $this->statusOverview()),
@@ -107,6 +114,9 @@ final class CmsTemplateCatalog
                 $this->page('Projekte', 'projekte', [
                     $this->block('text', $this->privateProjects()),
                 ]),
+                $this->page('Blog', 'blog', [
+                    $this->block('text', $this->blogOverview('Updates')),
+                ]),
                 $this->page('Kontakt', 'kontakt', [
                     $this->block('text', $this->contactCard()),
                 ]),
@@ -142,6 +152,12 @@ final class CmsTemplateCatalog
                 $this->page('Server', 'server', [
                     $this->block('text', $this->clanServerIntro()),
                     $this->block('server_list', $this->serverListSettings()),
+                ]),
+                $this->page('Über uns', 'ueber-uns', [
+                    $this->block('text', $this->clanAbout()),
+                ]),
+                $this->page('Blog', 'blog', [
+                    $this->block('text', $this->blogOverview('Clan-News')),
                 ]),
                 $this->page('Mitmachen', 'mitmachen', [
                     $this->block('text', $this->clanJoin()),
@@ -202,68 +218,114 @@ final class CmsTemplateCatalog
     private function hostingHero(): string
     {
         return <<<HTML
-<section class="rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 px-8 py-10 text-white shadow-lg">
-    <p class="text-sm uppercase tracking-[0.24em] text-indigo-200">Hosting + Shop</p>
-    <h2 class="mt-3 text-3xl font-semibold">Skalierbare Infrastruktur mit integriertem Shop.</h2>
-    <p class="mt-4 text-base text-indigo-100">Pakete auswählen, sofort deployen und dein Projekt in Minuten live bringen.</p>
-    <div class="mt-6 flex flex-wrap gap-3">
-        <span class="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold">99,9% Uptime</span>
-        <span class="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold">NVMe Storage</span>
-        <span class="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold">Checkout in 1 Minute</span>
+<div class="space-y-4">
+    <p class="text-xs uppercase tracking-[0.3em] text-red-400">Real Powerful Game Servers</p>
+    <h1 class="text-4xl font-semibold text-white">Hosting, das sofort liefert.</h1>
+    <p class="max-w-2xl text-sm text-slate-200">
+        Hochperformante Game-Server, Cloud-Hosting und Webhosting in einem modernen System – skalierbar, sicher und
+        vorbereitet auf dein Wachstum.
+    </p>
+    <div class="flex flex-wrap gap-3">
+        <a href="/shop" class="rounded bg-red-500 px-4 py-2 text-xs font-semibold text-white">Get Started</a>
+        <a href="/preise" class="rounded border border-white/40 px-4 py-2 text-xs font-semibold text-white">Preise ansehen</a>
     </div>
-</section>
+</div>
+HTML;
+    }
+
+    private function hostingProductsShowcase(): string
+    {
+        return <<<HTML
+<div class="grid gap-6 md:grid-cols-3">
+    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <img src="https://images.unsplash.com/photo-1546443046-ed1ce6ffd1ab?auto=format&fit=crop&w=600&q=80" alt="Minecraft Server" class="h-40 w-full rounded-xl object-cover" />
+        <h3 class="mt-4 text-base font-semibold">Minecraft Server</h3>
+        <p class="mt-2 text-sm text-slate-600">Modpacks, Slots und RAM flexibel skalieren.</p>
+        <span class="mt-4 inline-flex text-xs font-semibold text-red-500">Order now</span>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <img src="https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80" alt="CS:GO Server" class="h-40 w-full rounded-xl object-cover" />
+        <h3 class="mt-4 text-base font-semibold">CS:GO Server</h3>
+        <p class="mt-2 text-sm text-slate-600">DDoS-Schutz, Matchmaking & Control Panel.</p>
+        <span class="mt-4 inline-flex text-xs font-semibold text-red-500">Order now</span>
+    </article>
+    <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <img src="https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=600&q=80" alt="Garrys Mod Server" class="h-40 w-full rounded-xl object-cover" />
+        <h3 class="mt-4 text-base font-semibold">Garrys Mod</h3>
+        <p class="mt-2 text-sm text-slate-600">Addons, FastDL und Premium Support.</p>
+        <span class="mt-4 inline-flex text-xs font-semibold text-red-500">Order now</span>
+    </article>
+</div>
 HTML;
     }
 
     private function hostingFeatureGrid(): string
     {
         return <<<HTML
-<section class="grid gap-4 md:grid-cols-3">
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <h3 class="text-lg font-semibold">Sofort startklar</h3>
-        <p class="mt-2 text-sm text-slate-600">Automatisierte Setups, Templates und Snapshot-Rollbacks.</p>
+<div class="grid gap-6 md:grid-cols-3">
+    <div class="text-center">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">👤</div>
+        <p class="mt-3 text-sm font-semibold">User Friendly</p>
+        <p class="mt-2 text-xs text-slate-600">Klares Control Panel & schnelle Setups.</p>
     </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <h3 class="text-lg font-semibold">Commerce-ready</h3>
-        <p class="mt-2 text-sm text-slate-600">Shop-Sektionen, Produktkarten und klare Checkout-Flows.</p>
+    <div class="text-center">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">🛡️</div>
+        <p class="mt-3 text-sm font-semibold">DDoS Protection</p>
+        <p class="mt-2 text-xs text-slate-600">Stabile Infrastruktur mit Schutzschild.</p>
     </div>
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <h3 class="text-lg font-semibold">24/7 Support</h3>
-        <p class="mt-2 text-sm text-slate-600">Persönliche Ansprechpartner, Migrationen und Onboarding.</p>
+    <div class="text-center">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">🎧</div>
+        <p class="mt-3 text-sm font-semibold">First-class Support</p>
+        <p class="mt-2 text-xs text-slate-600">Schnell erreichbar, kompetent & freundlich.</p>
     </div>
-</section>
+    <div class="text-center">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">💳</div>
+        <p class="mt-3 text-sm font-semibold">Simple Billing</p>
+        <p class="mt-2 text-xs text-slate-600">Transparente Rechnungen & klare Pakete.</p>
+    </div>
+    <div class="text-center">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">🎁</div>
+        <p class="mt-3 text-sm font-semibold">Freebies</p>
+        <p class="mt-2 text-xs text-slate-600">Backups, Monitoring & Extras inklusive.</p>
+    </div>
+    <div class="text-center">
+        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">💾</div>
+        <p class="mt-3 text-sm font-semibold">SSD Powered</p>
+        <p class="mt-2 text-xs text-slate-600">NVMe Storage für maximale Performance.</p>
+    </div>
+</div>
 HTML;
     }
 
-    private function hostingTrust(): string
+    private function hostingLocations(): string
     {
         return <<<HTML
-<section class="rounded-xl border border-slate-200 bg-slate-50 p-6">
-    <div class="grid gap-6 md:grid-cols-3">
-        <div>
-            <p class="text-3xl font-semibold text-slate-900">500+</p>
-            <p class="text-xs uppercase tracking-wide text-slate-500">aktive Projekte</p>
-        </div>
-        <div>
-            <p class="text-3xl font-semibold text-slate-900">12 ms</p>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Ø Latenz EU</p>
-        </div>
-        <div>
-            <p class="text-3xl font-semibold text-slate-900">4,9/5</p>
-            <p class="text-xs uppercase tracking-wide text-slate-500">Kundenzufriedenheit</p>
-        </div>
+<div class="space-y-5 text-center">
+    <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Our Server Locations</p>
+    <h2 class="text-2xl font-semibold">Globale Abdeckung</h2>
+    <p class="text-sm text-slate-600">Niedrige Latenzen durch strategische Standorte weltweit.</p>
+    <img src="https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg" alt="Serverstandorte" class="mx-auto h-48 w-full max-w-4xl object-contain opacity-70" />
+    <div class="flex flex-wrap justify-center gap-3 text-xs text-slate-600">
+        <span class="rounded-full border border-slate-200 px-3 py-1">Frankfurt</span>
+        <span class="rounded-full border border-slate-200 px-3 py-1">Amsterdam</span>
+        <span class="rounded-full border border-slate-200 px-3 py-1">Dallas</span>
+        <span class="rounded-full border border-slate-200 px-3 py-1">Singapur</span>
+        <span class="rounded-full border border-slate-200 px-3 py-1">Sydney</span>
     </div>
-</section>
+</div>
 HTML;
     }
 
-    private function hostingCta(): string
+    private function hostingGuarantee(): string
     {
         return <<<HTML
-<section class="rounded-xl border border-indigo-200 bg-indigo-50 p-6">
-    <h3 class="text-xl font-semibold text-indigo-900">Bereit für den Checkout?</h3>
-    <p class="mt-2 text-sm text-indigo-800">Wähle dein Paket, zahle sicher und starte sofort.</p>
-</section>
+<div class="flex flex-col gap-4 text-white sm:flex-row sm:items-center sm:justify-between">
+    <div>
+        <p class="text-xs uppercase tracking-[0.3em] text-slate-300">30-Day Money Back Guarantee</p>
+        <h3 class="mt-2 text-xl font-semibold">Zufrieden oder Geld zurück.</h3>
+    </div>
+    <a href="/shop" class="inline-flex rounded bg-red-500 px-4 py-2 text-xs font-semibold text-white">Get Started</a>
+</div>
 HTML;
     }
 
@@ -372,6 +434,7 @@ HTML;
 <section class="rounded-2xl border border-slate-200 bg-white p-6">
     <h2 class="text-2xl font-semibold">Shop: Pakete vergleichen & sofort buchen</h2>
     <p class="mt-3 text-sm text-slate-600">Wähle deinen Stack – Gameserver, Webhosting oder All-in-One.</p>
+    <p class="mt-2 text-xs text-slate-500">Hinweis: Das Shop-System wird aktuell vorbereitet und kann bald live gehen.</p>
 </section>
 HTML;
     }
@@ -748,6 +811,70 @@ HTML;
 HTML;
     }
 
+    private function hostingProductsPage(): string
+    {
+        return <<<HTML
+<section class="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
+    <h2 class="text-2xl font-semibold">Produkte im Überblick</h2>
+    <p class="text-sm text-slate-600">Strukturiere hier deine Hosting-Produkte, Add-ons und Bundles.</p>
+    <div class="grid gap-4 md:grid-cols-3">
+        <div class="rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-slate-500">Starter</p>
+            <p class="mt-2 text-lg font-semibold">Webspace Basic</p>
+            <p class="mt-1 text-sm text-slate-600">Ideal für kleine Seiten und Landingpages.</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-slate-500">Pro</p>
+            <p class="mt-2 text-lg font-semibold">Webspace Pro</p>
+            <p class="mt-1 text-sm text-slate-600">Mehr Ressourcen, Backups und Staging.</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-slate-500">Business</p>
+            <p class="mt-2 text-lg font-semibold">Managed Hosting</p>
+            <p class="mt-1 text-sm text-slate-600">SLA, Monitoring und Premium-Support.</p>
+        </div>
+    </div>
+</section>
+HTML;
+    }
+
+    private function blogOverview(string $headline): string
+    {
+        return <<<HTML
+<section class="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
+    <h2 class="text-2xl font-semibold">{$headline}</h2>
+    <p class="text-sm text-slate-600">Nutze den Blog für News, Releases und Updates. Beiträge kannst du im Admin-CMS pflegen.</p>
+    <div class="grid gap-4 md:grid-cols-2">
+        <article class="rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-slate-500">News · 12.05.2024</p>
+            <h3 class="mt-2 text-lg font-semibold">Neues Feature live</h3>
+            <p class="mt-1 text-sm text-slate-600">Kurzer Teaser-Text für den Blogpost.</p>
+        </article>
+        <article class="rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase text-slate-500">Update · 02.05.2024</p>
+            <h3 class="mt-2 text-lg font-semibold">Wartung abgeschlossen</h3>
+            <p class="mt-1 text-sm text-slate-600">Zusammenfassung des Deployments.</p>
+        </article>
+    </div>
+</section>
+HTML;
+    }
+
+    private function clanAbout(): string
+    {
+        return <<<HTML
+<section class="rounded-xl border border-slate-200 bg-white p-6 space-y-3">
+    <h2 class="text-2xl font-semibold">Über uns</h2>
+    <p class="text-sm text-slate-600">Vorstellung des Clans, unserer Werte, Teams und langfristigen Ziele.</p>
+    <ul class="list-disc pl-5 text-sm text-slate-600">
+        <li>Community-getrieben & respektvoll</li>
+        <li>Fokus auf Events & Teamplay</li>
+        <li>Aktiv seit 2018</li>
+    </ul>
+</section>
+HTML;
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
@@ -762,6 +889,9 @@ HTML;
             ]),
             $this->page('Datenschutz', 'datenschutz', [
                 $this->block('text', $this->legalPrivacy()),
+            ]),
+            $this->page('Cookie-Richtlinie', 'cookies', [
+                $this->block('text', $this->legalCookies()),
             ]),
         ];
     }
@@ -806,6 +936,51 @@ HTML;
         <p><strong>Verarbeitete Daten:</strong> Login-Daten, Nutzungsstatistiken, Support-Anfragen.</p>
         <p><strong>Rechtsgrundlage:</strong> Vertragserfüllung & berechtigtes Interesse.</p>
         <p><strong>Kontakt Datenschutz:</strong> datenschutz@example.com</p>
+    </div>
+</section>
+HTML;
+    }
+
+    private function legalCookies(): string
+    {
+        return <<<HTML
+<section class="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
+    <h2 class="text-2xl font-semibold">Cookie-Richtlinie</h2>
+    <p class="text-sm text-slate-600">
+        Diese Seite listet die aktuell im System verwendeten Cookies und deren Zweck. Du kannst deine Auswahl jederzeit
+        über das Cookie-Banner anpassen.
+    </p>
+    <div class="overflow-hidden rounded-lg border border-slate-200">
+        <table class="w-full text-left text-sm text-slate-600">
+            <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                <tr>
+                    <th class="px-4 py-2">Cookie</th>
+                    <th class="px-4 py-2">Zweck</th>
+                    <th class="px-4 py-2">Dauer</th>
+                    <th class="px-4 py-2">Kategorie</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="border-t border-slate-200">
+                    <td class="px-4 py-2 font-medium">session</td>
+                    <td class="px-4 py-2">Anmeldung & Session-Steuerung</td>
+                    <td class="px-4 py-2">Sitzung</td>
+                    <td class="px-4 py-2">Essentiell</td>
+                </tr>
+                <tr class="border-t border-slate-200">
+                    <td class="px-4 py-2 font-medium">locale</td>
+                    <td class="px-4 py-2">Sprachauswahl</td>
+                    <td class="px-4 py-2">1 Jahr</td>
+                    <td class="px-4 py-2">Funktional</td>
+                </tr>
+                <tr class="border-t border-slate-200">
+                    <td class="px-4 py-2 font-medium">cookie_preferences</td>
+                    <td class="px-4 py-2">Speichert deine Cookie-Einstellungen</td>
+                    <td class="px-4 py-2">1 Jahr</td>
+                    <td class="px-4 py-2">Funktional</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </section>
 HTML;

@@ -56,7 +56,7 @@
         label: 'Services',
         open: true,
         items: [
-            { key: 'webspaces', label: 'Webspace', href: path('customer_files') },
+            { key: 'webspaces', label: 'Webspace', href: path('customer_webspace') },
             { key: 'databases', label: 'Datenbanken', href: path('customer_databases') }
         ]
     },
@@ -78,17 +78,17 @@
     {
         label: 'Marketplace',
         open: true,
-        items: marketplaceItems
+        items: ([{ key: 'shop', label: 'Shop', href: path('customer_shop') }]|merge(marketplaceItems))
     }
 ] %}
 
 <div class="ng-layout">
     {% include 'components/_sidebar.html.twig' with {
-        title: brandingName,
-        logoUrl: brandingLogo,
+        title: '',
+        logoUrl: null,
         activeNav: activeNav,
         groups: sidebarGroups,
-        footer: t('customer_portal_tagline', page_locale())
+        footer: ''
     } %}
 
     <main class="ng-main">

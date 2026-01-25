@@ -43,6 +43,32 @@
             </div>
 
             <div class="sinusbot-card">
+                <h2>Letzte Jobs</h2>
+                {% if agent_jobs is not empty %}
+                    {% for job in agent_jobs %}
+                        <div class="sinusbot-meta">
+                            <div><strong>Typ:</strong> {{ job.type }}</div>
+                            <div><strong>Status:</strong> {{ job.status.value }}</div>
+                            <div><strong>Gestartet:</strong> {{ job.startedAt ? job.startedAt|date('Y-m-d H:i') : '—' }}</div>
+                            <div><strong>Beendet:</strong> {{ job.finishedAt ? job.finishedAt|date('Y-m-d H:i') : '—' }}</div>
+                            <div><strong>Fehler:</strong> {{ job.errorText ?? '—' }}</div>
+                        </div>
+                        {% if job.logText %}
+                            <div class="sinusbot-code"><pre>{{ job.logText }}</pre></div>
+                        {% endif %}
+                        {% if job.resultPayload %}
+                            <div class="sinusbot-code"><pre>{{ job.resultPayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></div>
+                        {% endif %}
+                        {% if not loop.last %}
+                            <p class="sinusbot-muted">—</p>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <p class="sinusbot-muted">Keine Jobs vorhanden.</p>
+                {% endif %}
+            </div>
+
+            <div class="sinusbot-card">
                 <h2>{{ t('admin_sinusbot_ts3_dependency_title', page_locale()) }}</h2>
                 <div class="sinusbot-meta">
                     <div><strong>{{ t('admin_sinusbot_installed_label', page_locale()) }}</strong> {{ node.ts3ClientInstalled ? t('admin_sinusbot_yes', page_locale()) : t('admin_sinusbot_no', page_locale()) }}</div>

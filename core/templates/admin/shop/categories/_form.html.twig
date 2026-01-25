@@ -1,0 +1,31 @@
+<div class="p-6">
+    {% if form.errors %}
+        <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <ul class="list-disc space-y-1 pl-4">
+                {% for error in form.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post" action="/admin/shop/categories{% if form.action == 'update' %}/{{ form.id }}{% endif %}" class="space-y-4">
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">Name</label>
+            <input name="name" value="{{ form.name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Gameserver">
+        </div>
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">Slug</label>
+            <input name="slug" value="{{ form.slug }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="gameserver">
+        </div>
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">Sortierung</label>
+            <input name="sort_order" type="number" min="0" value="{{ form.sort_order }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+        </div>
+        <div class="flex justify-end gap-2">
+            <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+                {{ form.action == 'update' ? 'Kategorie speichern' : 'Kategorie anlegen' }}
+            </button>
+        </div>
+    </form>
+</div>

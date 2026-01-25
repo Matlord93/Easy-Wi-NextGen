@@ -20,11 +20,13 @@ final class TemplateInstallResolver
         $resolver = $template->getInstallResolver();
         $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
 
-        return match ($type) {
+        $command = match ($type) {
             'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla'),
             'papermc_paper' => $this->resolveMinecraftCommand($instance, 'paper'),
             default => $template->getInstallCommand(),
         };
+
+        return $this->applySteamLogin($command, $instance);
     }
 
     public function resolveUpdateCommand(Instance $instance): string
@@ -33,11 +35,13 @@ final class TemplateInstallResolver
         $resolver = $template->getInstallResolver();
         $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
 
-        return match ($type) {
+        $command = match ($type) {
             'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla'),
             'papermc_paper' => $this->resolveMinecraftCommand($instance, 'paper'),
             default => $template->getUpdateCommand(),
         };
+
+        return $this->applySteamLogin($command, $instance);
     }
 
     private function resolveMinecraftCommand(Instance $instance, string $channel): string
@@ -92,5 +96,24 @@ final class TemplateInstallResolver
             'powershell -Command "Invoke-WebRequest -Uri \'%s\' -OutFile \'server.jar\'"',
             $escaped,
         );
+    }
+
+    private function applySteamLogin(string $command, Instance $instance): string
+    {
+        $account = trim((string) $instance->getSteamAccount());
+        if ($account === '') {
+            return $command;
+        }
+
+        $setupVars = $instance->getSetupVars();
+        $password = trim((string) ($setupVars['STEAM_PASSWORD'] ?? ''));
+        if ($password === '' || str_contains($command, '{{STEAM_ACCOUNT}}')) {
+            return $command;
+        }
+
+        $replacement = '+login {{STEAM_ACCOUNT}} {{STEAM_PASSWORD}}';
+        $updated = preg_replace('/\+login\s+anonymous\b/i', $replacement, $command, 1);
+
+        return $updated ?? $command;
     }
 }

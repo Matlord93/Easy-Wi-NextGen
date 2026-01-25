@@ -1,0 +1,21 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Shop-Produkte · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Shop-Produkte</h1>
+        <p class="text-sm text-slate-700">Produkte pro Kategorie mit Preis, Bildern und Limits verwalten.</p>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
+        <div class="rounded-xl border border-slate-200 bg-white" id="shop-products-table" hx-trigger="shop-products-changed from:body" hx-get="/admin/shop/products/table" hx-swap="outerHTML">
+            {% include 'admin/shop/products/_table.html.twig' with { products: products } %}
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white" id="shop-products-form" hx-trigger="shop-products-changed from:body" hx-get="/admin/shop/products/form" hx-swap="outerHTML">
+            {% include 'admin/shop/products/_form.html.twig' with { form: form, categories: categories, templates: templates, nodes: nodes } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -427,6 +427,7 @@ final class CustomerInstanceFileManagerController
         return [
             'id' => $instance->getId(),
             'name' => $instance->getTemplate()->getDisplayName(),
+            'server_name' => $instance->getServerName(),
             'game_key' => $instance->getTemplate()->getGameKey(),
             'node' => [
                 'id' => $instance->getNode()->getId(),

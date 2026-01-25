@@ -36,7 +36,11 @@ final class Ts3NodeService
             'file_port' => $dto->filetransferPort,
         ];
 
-        $this->jobDispatcher->dispatch($node->getAgent(), 'ts3.install', $payload);
+        $job = $this->jobDispatcher->dispatchWithFailureLogging($node->getAgent(), 'ts3.install', $payload);
+        if ($job->getStatus()->value === 'failed') {
+            $node->setInstallStatus('failed');
+            $node->setLastError($job->getErrorText());
+        }
 
         $this->entityManager->flush();
     }

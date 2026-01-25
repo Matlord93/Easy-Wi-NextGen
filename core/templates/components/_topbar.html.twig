@@ -9,14 +9,7 @@
 {% set unreadCount = unread_notifications() %}
 
 <header class="ng-topbar">
-    <div class="ng-topbar__title">
-        {% if title %}
-            <h1>{{ title }}</h1>
-        {% endif %}
-        {% if subtitle %}
-            <p>{{ subtitle }}</p>
-        {% endif %}
-    </div>
+    <div class="ng-topbar__title"></div>
     <div class="ng-topbar__actions">
         {% for action in actions %}
             {% include 'components/_button.html.twig' with action %}

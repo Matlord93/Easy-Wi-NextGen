@@ -3,6 +3,7 @@
 {% block title %}{{ t('customer_instance_files_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+    {% set displayName = instance.server_name ?? instance.name %}
     <div
         class="space-y-8"
         id="file-manager-app"
@@ -24,7 +25,7 @@
                 <p class="text-sm text-slate-700">{{ t('customer_instance_files_intro', page_locale()) }}</p>
             </div>
             <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
-                <p class="font-semibold text-slate-800">{{ instance.name }}</p>
+                <p class="font-semibold text-slate-800">{{ displayName }}</p>
                 <p class="mt-1">{{ instance.game_key }} · {{ instance.node.name }} ({{ instance.node.id }})</p>
             </div>
         </div>

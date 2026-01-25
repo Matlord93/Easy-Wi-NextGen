@@ -10,6 +10,7 @@ use App\Module\Core\Domain\Entity\Ts3Node;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Form\Ts3NodeType;
 use App\Repository\AgentRepository;
+use App\Repository\AgentJobRepository;
 use App\Repository\Ts3NodeRepository;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Ts3\Ts3NodeService;
@@ -31,6 +32,7 @@ final class AdminTs3NodeController
     public function __construct(
         private readonly Ts3NodeRepository $nodeRepository,
         private readonly AgentRepository $agentRepository,
+        private readonly AgentJobRepository $agentJobRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly SecretsCrypto $crypto,
         private readonly Ts3NodeService $nodeService,
@@ -119,6 +121,7 @@ final class AdminTs3NodeController
             'activeNav' => 'ts3',
             'node' => $node,
             'admin_password' => null,
+            'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
         ]));
     }
@@ -153,6 +156,7 @@ final class AdminTs3NodeController
             'activeNav' => 'ts3',
             'node' => $node,
             'admin_password' => $adminPassword,
+            'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
         ]));
     }
@@ -238,6 +242,18 @@ final class AdminTs3NodeController
         return new Response('', Response::HTTP_FOUND, [
             'Location' => sprintf('/admin/ts3/nodes/%d', $node->getId()),
         ]);
+    }
+
+    /**
+     * @return array<\App\Module\AgentOrchestrator\Domain\Entity\AgentJob>
+     */
+    private function loadAgentJobs(Ts3Node $node): array
+    {
+        return $this->agentJobRepository->findLatestForNodeAndTypes($node->getAgent()->getId(), [
+            'ts3.install',
+            'ts3.status',
+            'ts3.service.action',
+        ], 5);
     }
 
     /**

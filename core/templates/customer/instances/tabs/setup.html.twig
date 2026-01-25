@@ -34,7 +34,7 @@
                         <input
                             name="vars[{{ field.key }}]"
                             value="{{ field.value }}"
-                            type="{{ field.type == 'number' ? 'number' : 'text' }}"
+                            type="{% if field.type == 'number' %}number{% elseif field.type == 'password' %}password{% else %}text{% endif %}"
                             class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                         >
                         {% if field.helptext %}

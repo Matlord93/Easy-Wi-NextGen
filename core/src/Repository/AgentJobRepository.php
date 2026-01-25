@@ -45,4 +45,26 @@ final class AgentJobRepository extends ServiceEntityRepository
             ->getQuery()
             ->getOneOrNullResult();
     }
+
+    /**
+     * @param string[] $types
+     *
+     * @return AgentJob[]
+     */
+    public function findLatestForNodeAndTypes(string $nodeId, array $types, int $limit = 5): array
+    {
+        $queryBuilder = $this->createQueryBuilder('job')
+            ->andWhere('job.node = :nodeId')
+            ->setParameter('nodeId', $nodeId)
+            ->orderBy('job.createdAt', 'DESC')
+            ->setMaxResults(max(1, $limit));
+
+        if ($types !== []) {
+            $queryBuilder
+                ->andWhere('job.type IN (:types)')
+                ->setParameter('types', $types);
+        }
+
+        return $queryBuilder->getQuery()->getResult();
+    }
 }

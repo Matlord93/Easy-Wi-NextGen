@@ -1,0 +1,21 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Shop-Kategorien · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Shop-Kategorien</h1>
+        <p class="text-sm text-slate-700">Lege Kategorien für Gameserver, TeamSpeak, Webhosting und Root Server an.</p>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
+        <div class="rounded-xl border border-slate-200 bg-white" id="shop-categories-table" hx-trigger="shop-categories-changed from:body" hx-get="/admin/shop/categories/table" hx-swap="outerHTML">
+            {% include 'admin/shop/categories/_table.html.twig' with { categories: categories } %}
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white" id="shop-categories-form" hx-trigger="shop-categories-changed from:body" hx-get="/admin/shop/categories/form" hx-swap="outerHTML">
+            {% include 'admin/shop/categories/_form.html.twig' with { form: form } %}
+        </div>
+    </div>
+</div>
+{% endblock %}

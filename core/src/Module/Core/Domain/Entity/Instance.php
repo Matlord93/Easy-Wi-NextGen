@@ -214,6 +214,10 @@ class Instance implements ResourceEventSource
 
     public function getDiskLimit(): int
     {
+        if ($this->diskLimit <= 0 && $this->diskLimitBytes > 0) {
+            return (int) ceil($this->diskLimitBytes / (1024 * 1024));
+        }
+
         return $this->diskLimit;
     }
 
@@ -226,6 +230,10 @@ class Instance implements ResourceEventSource
 
     public function getDiskLimitBytes(): int
     {
+        if ($this->diskLimitBytes <= 0 && $this->diskLimit > 0) {
+            return $this->toDiskLimitBytes($this->diskLimit);
+        }
+
         return $this->diskLimitBytes;
     }
 

@@ -14,11 +14,11 @@
 <body class="customer-interface ng-shell">
 <div class="ng-layout">
     {% include 'components/_sidebar.html.twig' with {
-        title: brandingName,
-        logoUrl: brandingLogo,
+        title: '',
+        logoUrl: null,
         activeNav: activeNav|default(''),
         groups: sidebarGroups|default([]),
-        footer: brandingName ~ ' · Kundenbereich'
+        footer: ''
     } %}
 
     <main class="ng-main">

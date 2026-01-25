@@ -26,18 +26,29 @@ final class SinusbotNodeService
         $payload = [
             'node_id' => $node->getId(),
             'download_url' => $node->getDownloadUrl(),
+            'download_filename' => $this->resolveDownloadFilename($node->getDownloadUrl()),
             'install_dir' => $node->getInstallPath(),
+            'install_path' => $node->getInstallPath(),
             'instance_root' => $node->getInstanceRoot(),
             'web_bind_ip' => $node->getWebBindIp(),
             'web_port_base' => $node->getWebPortBase(),
             'service_name' => 'sinusbot',
             'admin_username' => $node->getAdminUsername(),
-            'admin_password' => $installTs3Client ? $this->crypto->decrypt($node->getAdminPasswordEncrypted()) : null,
+            'admin_password' => $node->getAdminPassword($this->crypto),
+            'return_admin_credentials' => true,
             'ts3_client_install' => $installTs3Client,
             'ts3_client_download_url' => $ts3ClientDownloadUrl,
+            'dependencies' => [
+                'install_ts3_client' => $installTs3Client,
+                'ts3_client_download_url' => $ts3ClientDownloadUrl,
+            ],
         ];
 
-        $this->jobDispatcher->dispatch($node->getAgent(), 'sinusbot.install', $payload);
+        $job = $this->jobDispatcher->dispatchWithFailureLogging($node->getAgent(), 'sinusbot.install', $payload);
+        if ($job->getStatus()->value === 'failed') {
+            $node->setInstallStatus('failed');
+            $node->setLastError($job->getErrorText());
+        }
 
         $this->entityManager->flush();
     }
@@ -67,5 +78,17 @@ final class SinusbotNodeService
     private function stringOrNull(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    private function resolveDownloadFilename(string $downloadUrl): ?string
+    {
+        $path = parse_url($downloadUrl, PHP_URL_PATH);
+        if (!is_string($path) || $path === '') {
+            return null;
+        }
+
+        $basename = basename($path);
+
+        return $basename !== '' ? $basename : null;
     }
 }

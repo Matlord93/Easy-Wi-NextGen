@@ -44,6 +44,31 @@ final class AgentJobDispatcher
     /**
      * @param array<string, mixed> $payload
      */
+    public function dispatchWithFailureLogging(\App\Module\Core\Domain\Entity\Agent $node, string $type, array $payload): AgentJob
+    {
+        try {
+            return $this->dispatch($node, $type, $payload);
+        } catch (\InvalidArgumentException $exception) {
+            $idempotencyKey = $this->buildIdempotencyKey($node->getId(), $type, $payload);
+            $existing = $this->repository->findLatestByIdempotencyKey($idempotencyKey);
+            if ($existing instanceof AgentJob) {
+                return $existing;
+            }
+
+            $job = $this->factory->create($node, $type, $payload, $idempotencyKey);
+            $job->setErrorText($exception->getMessage());
+            $job->markFinished(\App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus::Failed);
+
+            $this->entityManager->persist($job);
+            $this->entityManager->flush();
+
+            return $job;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
     private function buildIdempotencyKey(string $nodeId, string $type, array $payload): string
     {
         $payloadJson = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);

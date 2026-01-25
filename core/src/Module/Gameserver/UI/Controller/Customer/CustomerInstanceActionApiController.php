@@ -17,6 +17,7 @@ use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\JobRepository;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
@@ -40,6 +41,7 @@ final class CustomerInstanceActionApiController
         private readonly BackupRepository $backupRepository,
         private readonly GamePluginRepository $gamePluginRepository,
         private readonly PortBlockRepository $portBlockRepository,
+        private readonly JobRepository $jobRepository,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly SetupChecker $setupChecker,
         private readonly TemplateInstallResolver $templateInstallResolver,
@@ -325,28 +327,15 @@ final class CustomerInstanceActionApiController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $payload = $this->parsePayload($request);
-        $linesValue = $payload['lines'] ?? 200;
-
-        if (!is_numeric($linesValue)) {
-            return new JsonResponse(['error' => 'lines must be numeric.'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-        $lines = max(1, min(2000, (int) $linesValue));
-
-        $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
-        if ($blockMessage !== null) {
-            return new JsonResponse(['error' => $blockMessage], JsonResponse::HTTP_BAD_REQUEST);
+        $job = $this->findLatestConsoleJob($instance);
+        if ($job === null) {
+            return new JsonResponse(['error' => 'No recent install/start job found.'], JsonResponse::HTTP_NOT_FOUND);
         }
 
-        $message = new InstanceActionMessage('instance.console.logs', $customer->getId(), $instance->getId(), [
-            'instance_id' => (string) $instance->getId(),
-            'customer_id' => (string) $customer->getId(),
-            'node_id' => $instance->getNode()->getId(),
-            'agent_id' => $instance->getNode()->getId(),
-            'lines' => (string) $lines,
-        ]);
-
-        return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
+        return new JsonResponse([
+            'job_id' => $job->getId(),
+            'job_type' => $job->getType(),
+        ], JsonResponse::HTTP_OK);
     }
 
     #[Route(path: '/api/instances/{id}/settings', name: 'customer_instance_settings_update', methods: ['PATCH'])]
@@ -529,5 +518,31 @@ final class CustomerInstanceActionApiController
         $this->entityManager->flush();
 
         return $definition;
+    }
+
+    private function findLatestConsoleJob(Instance $instance): ?\App\Module\Core\Domain\Entity\Job
+    {
+        $types = [
+            'sniper.install',
+            'instance.reinstall',
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+        ];
+
+        $jobs = $this->jobRepository->findLatest(200);
+        foreach ($jobs as $job) {
+            if (!in_array($job->getType(), $types, true)) {
+                continue;
+            }
+            $payload = $job->getPayload();
+            if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
+                continue;
+            }
+
+            return $job;
+        }
+
+        return null;
     }
 }

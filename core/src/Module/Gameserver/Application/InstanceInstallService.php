@@ -130,9 +130,33 @@ final class InstanceInstallService
             ];
         }
 
+        try {
+            $installCommand = $this->templateInstallResolver->resolveInstallCommand($instance);
+        } catch (\RuntimeException) {
+            return [
+                'ok' => false,
+                'error_code' => 'INSTALL_COMMAND_RESOLUTION_FAILED',
+            ];
+        }
+
+        if (trim($installCommand) === '') {
+            return [
+                'ok' => false,
+                'error_code' => 'INSTALL_COMMAND_MISSING',
+            ];
+        }
+
+        $startParams = trim($instance->getTemplate()->getStartParams());
+        if ($startParams === '') {
+            return [
+                'ok' => false,
+                'error_code' => 'START_PARAMS_MISSING',
+            ];
+        }
+
         $payload = [
-            'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance),
-            'start_params' => $instance->getTemplate()->getStartParams(),
+            'install_command' => $installCommand,
+            'start_params' => $startParams,
             'ports' => $portAllocation['ports'],
             'port_reservations' => $portAllocation['reservations'],
             'env_vars' => $this->buildEnvVars($instance),

@@ -1,0 +1,84 @@
+<div class="p-6">
+    {% if form.errors %}
+        <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <ul class="list-disc space-y-1 pl-4">
+                {% for error in form.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post" action="/admin/shop/products{% if form.action == 'update' %}/{{ form.id }}{% endif %}" class="space-y-4">
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">Kategorie</label>
+            <select name="category_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="">Bitte wählen</option>
+                {% for category in categories %}
+                    <option value="{{ category.id }}" {{ category.id == form.category_id ? 'selected' : '' }}>{{ category.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">Name</label>
+            <input name="name" value="{{ form.name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Premium Gameserver">
+        </div>
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">Beschreibung</label>
+            <textarea name="description" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ form.description }}</textarea>
+        </div>
+        <div>
+            <label class="text-xs font-semibold uppercase text-slate-700">Bild-URL</label>
+            <input name="image_url" value="{{ form.image_url }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="https://...">
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-700">Preis/Monat (€)</label>
+                <input name="price_monthly" type="number" step="0.01" min="0" value="{{ form.price_monthly }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div class="flex items-center gap-2 pt-6">
+                <input type="checkbox" name="is_active" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ form.is_active ? 'checked' : '' }}>
+                <span class="text-sm text-slate-700">Aktiv</span>
+            </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-700">Template</label>
+                <select name="template_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">Bitte wählen</option>
+                    {% for template in templates %}
+                        <option value="{{ template.id }}" {{ template.id == form.template_id ? 'selected' : '' }}>{{ template.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-700">Node</label>
+                <select name="node_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <option value="">Bitte wählen</option>
+                    {% for node in nodes %}
+                        <option value="{{ node.id }}" {{ node.id == form.node_id ? 'selected' : '' }}>{{ node.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-3">
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-700">CPU (Cores)</label>
+                <input name="cpu_limit" type="number" min="1" value="{{ form.cpu_limit }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-700">RAM (GB)</label>
+                <input name="ram_limit" type="number" min="1" value="{{ form.ram_limit }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-700">Disk (GB)</label>
+                <input name="disk_limit" type="number" min="1" value="{{ form.disk_limit }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+        </div>
+        <div class="flex justify-end gap-2">
+            <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+                {{ form.action == 'update' ? 'Produkt speichern' : 'Produkt anlegen' }}
+            </button>
+        </div>
+    </form>
+</div>

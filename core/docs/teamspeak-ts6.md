@@ -47,6 +47,8 @@ These job types are implemented but remain **Experimental** while the TS6 beta i
    * **Teamspeak 6 (Experimental)**
    * **TS Virtual Servers (Experimental)** (optional, to show the virtual server card)
 3. Navigate to **Admin → Services → TS6 (Experimental)**.
+   * When creating or editing a TS6 node, set **Download URL** to the desired Teamspeak 6 release
+     (for example, the GitHub release assets) if the default mirror is unavailable.
 4. Verify the page shows:
    * **Planned/Experimental** badges.
    * A **Node capabilities** table with `ts6_supported` values.

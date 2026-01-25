@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -191,6 +194,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 	installDir := payloadValue(job.Payload, "install_dir")
 	serviceName := payloadValue(job.Payload, "service_name")
 	downloadURL := payloadValue(job.Payload, "download_url")
+	downloadFilename := payloadValue(job.Payload, "download_filename")
 	instanceName := payloadValue(job.Payload, "instance_name")
 	queryPort := payloadValue(job.Payload, "query_port")
 	voicePort := payloadValue(job.Payload, "voice_port")
@@ -215,18 +219,23 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "success", resultPayload: map[string]any{"installed_version": "unknown"}}
 	}
 
-	archivePath := filepath.Join(installDir, "ts3server.tar")
-	if err := downloadArchive(archivePath, downloadURL); err != nil {
+	serviceUser := "ts3"
+	if err := ensureGroup(serviceUser); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if strings.HasSuffix(downloadURL, ".zip") {
-		if err := runCommand("unzip", "-o", archivePath, "-d", installDir); err != nil {
-			return orchestratorResult{status: "failed", errorText: err.Error()}
-		}
-	} else {
-		if err := runCommand("tar", "-xf", archivePath, "-C", installDir, "--strip-components=1"); err != nil {
-			return orchestratorResult{status: "failed", errorText: err.Error()}
-		}
+	if err := ensureUser(serviceUser, serviceUser, installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	archivePath, err := downloadArchiveForInstall(installDir, downloadURL, downloadFilename, "ts3server.tar.bz2")
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := extractArchive(archivePath, downloadURL, installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", serviceUser, serviceUser), installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
 	if instanceName == "" {
@@ -253,7 +262,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, "root", installDir, installDir, "./ts3server", "", 0, 0)
+	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, "./ts3server", "", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -277,6 +286,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	installDir := payloadValue(job.Payload, "install_dir")
 	serviceName := payloadValue(job.Payload, "service_name")
 	downloadURL := payloadValue(job.Payload, "download_url")
+	downloadFilename := payloadValue(job.Payload, "download_filename")
 	instanceName := payloadValue(job.Payload, "instance_name")
 	acceptLicense := parseBool(payloadValue(job.Payload, "accept_license"), true)
 	voiceIP := parseStringList(payloadValue(job.Payload, "voice_ip"), []string{"0.0.0.0"})
@@ -287,6 +297,13 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	queryHttpsEnable := parseBool(payloadValue(job.Payload, "query_https_enable"), true)
 	queryHttpsPort := parseInt(payloadValue(job.Payload, "query_https_port"), 10443)
 	adminPassword := payloadValue(job.Payload, "admin_password")
+	if !hostHasIPv6() {
+		voiceIP = removeUnspecifiedIPv6(voiceIP, []string{"0.0.0.0"})
+		filetransferIP = removeUnspecifiedIPv6(filetransferIP, []string{"0.0.0.0"})
+		if strings.TrimSpace(queryBindIP) == "::" {
+			queryBindIP = ""
+		}
+	}
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
@@ -307,18 +324,23 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "success", resultPayload: map[string]any{"installed_version": "unknown"}}
 	}
 
-	archivePath := filepath.Join(installDir, "ts6server.tar")
-	if err := downloadArchive(archivePath, downloadURL); err != nil {
+	serviceUser := "ts6"
+	if err := ensureGroup(serviceUser); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if strings.HasSuffix(downloadURL, ".zip") {
-		if err := runCommand("unzip", "-o", archivePath, "-d", installDir); err != nil {
-			return orchestratorResult{status: "failed", errorText: err.Error()}
-		}
-	} else {
-		if err := runCommand("tar", "-xf", archivePath, "-C", installDir, "--strip-components=1"); err != nil {
-			return orchestratorResult{status: "failed", errorText: err.Error()}
-		}
+	if err := ensureUser(serviceUser, serviceUser, installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	archivePath, err := downloadArchiveForInstall(installDir, downloadURL, downloadFilename, "ts6server.tar.bz2")
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := extractArchive(archivePath, downloadURL, installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", serviceUser, serviceUser), installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
 	if instanceName == "" {
@@ -343,7 +365,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, "root", installDir, installDir, filepath.Join(installDir, "tsserver"), fmt.Sprintf("--accept-license --config-file %s", filepath.Join(installDir, "tsserver.yaml")), 0, 0)
+	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, filepath.Join(installDir, "tsserver"), fmt.Sprintf("--accept-license --config-file %s", filepath.Join(installDir, "tsserver.yaml")), 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -367,6 +389,7 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	installDir := payloadValue(job.Payload, "install_dir")
 	serviceName := payloadValue(job.Payload, "service_name")
 	downloadURL := payloadValue(job.Payload, "download_url")
+	downloadFilename := payloadValue(job.Payload, "download_filename")
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
@@ -387,22 +410,27 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "success", resultPayload: map[string]any{"installed_version": "unknown"}}
 	}
 
-	archivePath := filepath.Join(installDir, "sinusbot.tar")
-	if err := downloadArchive(archivePath, downloadURL); err != nil {
+	serviceUser := "sinusbot"
+	if err := ensureGroup(serviceUser); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if strings.HasSuffix(downloadURL, ".zip") {
-		if err := runCommand("unzip", "-o", archivePath, "-d", installDir); err != nil {
-			return orchestratorResult{status: "failed", errorText: err.Error()}
-		}
-	} else {
-		if err := runCommand("tar", "-xf", archivePath, "-C", installDir, "--strip-components=1"); err != nil {
-			return orchestratorResult{status: "failed", errorText: err.Error()}
-		}
+	if err := ensureUser(serviceUser, serviceUser, installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	archivePath, err := downloadArchiveForInstall(installDir, downloadURL, downloadFilename, "sinusbot.tar.bz2")
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := extractArchive(archivePath, downloadURL, installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", serviceUser, serviceUser), installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, "root", installDir, installDir, "./sinusbot", "", 0, 0)
+	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, "./sinusbot", "", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -445,6 +473,47 @@ func downloadArchive(destination, url string) error {
 	return validateArchive(destination)
 }
 
+func downloadArchiveForInstall(installDir, downloadURL, downloadFilename, fallback string) (string, error) {
+	filename := strings.TrimSpace(downloadFilename)
+	if filename == "" {
+		parsedURL, err := url.Parse(downloadURL)
+		if err == nil {
+			base := path.Base(parsedURL.Path)
+			if base != "." && base != "/" {
+				filename = base
+			}
+		}
+	}
+	if filename == "" {
+		filename = fallback
+	}
+
+	archivePath := filepath.Join(installDir, filename)
+	if err := downloadArchive(archivePath, downloadURL); err != nil {
+		return "", err
+	}
+
+	return archivePath, nil
+}
+
+func extractArchive(archivePath, downloadURL, installDir string) error {
+	archiveLower := strings.ToLower(archivePath)
+	downloadLower := strings.ToLower(downloadURL)
+	if strings.HasSuffix(archiveLower, ".zip") || strings.HasSuffix(downloadLower, ".zip") {
+		return runCommand("unzip", "-o", archivePath, "-d", installDir)
+	}
+	switch {
+	case strings.HasSuffix(archiveLower, ".tar.bz2"), strings.HasSuffix(archiveLower, ".tbz2"):
+		return runCommand("tar", "-xjf", archivePath, "-C", installDir, "--strip-components=1")
+	case strings.HasSuffix(archiveLower, ".tar.gz"), strings.HasSuffix(archiveLower, ".tgz"):
+		return runCommand("tar", "-xzf", archivePath, "-C", installDir, "--strip-components=1")
+	case strings.HasSuffix(archiveLower, ".tar.xz"), strings.HasSuffix(archiveLower, ".txz"):
+		return runCommand("tar", "-xJf", archivePath, "-C", installDir, "--strip-components=1")
+	default:
+		return runCommand("tar", "-xf", archivePath, "-C", installDir, "--strip-components=1")
+	}
+}
+
 func validateArchive(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -482,7 +551,7 @@ func buildTs6Config(options ts6ConfigOptions) string {
 	if !options.licenseAccepted {
 		acceptValue = "0"
 	}
-		return fmt.Sprintf(`server:
+	return fmt.Sprintf(`server:
   license-path: .
   default-voice-port: %d
   voice-ip:
@@ -548,6 +617,45 @@ func formatYamlList(values []string, indent int) string {
 		lines = append(lines, fmt.Sprintf("%s- %s", prefix, value))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func removeUnspecifiedIPv6(values []string, fallback []string) []string {
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		if strings.TrimSpace(value) != "::" {
+			filtered = append(filtered, value)
+		}
+	}
+	if len(filtered) == 0 {
+		return fallback
+	}
+	return filtered
+}
+
+func hostHasIPv6() bool {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch value := addr.(type) {
+		case *net.IPNet:
+			ip = value.IP
+		case *net.IPAddr:
+			ip = value.IP
+		}
+		if ip == nil || ip.To4() != nil {
+			continue
+		}
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			continue
+		}
+		if ip.IsGlobalUnicast() {
+			return true
+		}
+	}
+	return false
 }
 
 func parseBool(value string, fallback bool) bool {

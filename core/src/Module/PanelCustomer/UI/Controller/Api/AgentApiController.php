@@ -29,6 +29,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\FirewallStateManager;
 use App\Module\Core\Application\GdprAnonymizer;
+use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Application\NodeDiskProtectionService;
@@ -73,6 +74,7 @@ final class AgentApiController
         private readonly GdprAnonymizer $gdprAnonymizer,
         private readonly NotificationService $notificationService,
         private readonly NodeDiskProtectionService $nodeDiskProtectionService,
+        private readonly InstanceFilesystemResolver $filesystemResolver,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly JobLogger $jobLogger,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%app.windows_nodes_enabled%')]
@@ -349,6 +351,11 @@ final class AgentApiController
                 $candidates[] = (string) $output[$key];
             }
         }
+        foreach (['stdout' => 'STDOUT', 'stderr' => 'STDERR'] as $key => $label) {
+            if (isset($output[$key]) && is_string($output[$key]) && trim($output[$key]) !== '') {
+                $candidates[] = sprintf('--- %s ---%s%s', $label, PHP_EOL, $output[$key]);
+            }
+        }
         if (isset($output['logs']) && is_array($output['logs'])) {
             foreach ($output['logs'] as $entry) {
                 if (is_string($entry) && trim($entry) !== '') {
@@ -388,6 +395,12 @@ final class AgentApiController
         $message = $payload['message'] ?? null;
         if (is_string($message) && trim($message) !== '') {
             $candidates[] = $message;
+        }
+
+        foreach (['stdout' => 'STDOUT', 'stderr' => 'STDERR'] as $key => $label) {
+            if (isset($payload[$key]) && is_string($payload[$key]) && trim($payload[$key]) !== '') {
+                $candidates[] = sprintf('--- %s ---%s%s', $label, PHP_EOL, $payload[$key]);
+            }
         }
 
         if (isset($payload['logs']) && is_array($payload['logs'])) {
@@ -1001,6 +1014,10 @@ final class AgentApiController
             return;
         }
 
+        if (in_array($job->getType(), ['instance.create', 'instance.start', 'instance.restart', 'instance.reinstall'], true)) {
+            $this->queueDiskScanIfNeeded($instance, $completedAt);
+        }
+
         if (is_string($output['start_script_path'] ?? null)) {
             $instance->setStartScriptPath($output['start_script_path']);
             $this->entityManager->persist($instance);
@@ -1029,6 +1046,42 @@ final class AgentApiController
             'build_id' => $buildId,
             'version' => $version,
             'completed_at' => $completedAt->format(DATE_RFC3339),
+        ]);
+    }
+
+    private function queueDiskScanIfNeeded(\App\Module\Core\Domain\Entity\Instance $instance, DateTimeImmutable $completedAt): void
+    {
+        if ($instance->getDiskLastScannedAt() !== null) {
+            return;
+        }
+
+        $recentJobs = $this->jobRepository->findLatestByType('instance.disk.scan', 50);
+        foreach ($recentJobs as $job) {
+            $payload = $job->getPayload();
+            if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
+                continue;
+            }
+            if (in_array($job->getStatus(), [JobStatus::Queued, JobStatus::Running], true)) {
+                return;
+            }
+        }
+
+        $payload = [
+            'instance_id' => (string) ($instance->getId() ?? ''),
+            'customer_id' => (string) $instance->getCustomer()->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+            'instance_dir' => $this->filesystemResolver->resolveInstanceDir($instance),
+        ];
+
+        $job = new \App\Module\Core\Domain\Entity\Job('instance.disk.scan', $payload);
+        $this->entityManager->persist($job);
+        $this->jobLogger->log($job, 'Job queued.', 0);
+
+        $this->auditLogger->log(null, 'instance.disk.scan_queued', [
+            'instance_id' => $instance->getId(),
+            'node_id' => $instance->getNode()->getId(),
+            'job_id' => $job->getId(),
+            'queued_at' => $completedAt->format(DATE_RFC3339),
         ]);
     }
 

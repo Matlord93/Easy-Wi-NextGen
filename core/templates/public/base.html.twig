@@ -25,75 +25,15 @@
     <script src="{{ asset('htmx.min.js') }}"></script>
 </head>
 <body class="bg-slate-100 text-slate-900">
-{% set activeNav = activeNav|default('') %}
+{% set showPortalShell = showPortalShell is defined ? showPortalShell : true %}
+{% set contentClass = contentClass is defined ? contentClass : 'mx-auto w-full max-w-6xl px-4 py-6 sm:px-6' %}
 {% set currentUser = current_user() %}
-<input id="sidebar-toggle" type="checkbox" class="peer sr-only">
-<div class="min-h-screen flex">
-    <label for="sidebar-toggle" class="fixed inset-0 z-30 hidden bg-slate-900/40 peer-checked:block lg:hidden" aria-label="{{ t('toggle_sidebar', page_locale()) }}"></label>
-    <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-gradient-to-b from-indigo-700 via-slate-900 to-slate-950 text-slate-100 shadow-xl transition-transform peer-checked:translate-x-0 lg:translate-x-0 lg:static lg:flex lg:flex-col">
-        <div class="px-6 py-5 text-lg font-semibold tracking-tight">
-            {% if brandingLogo %}
-                <img src="{{ brandingLogo }}" alt="{{ brandingName }}" style="max-height: 32px; width: auto;" />
-            {% endif %}
-            <span>{{ brandingName }}</span>
-        </div>
-        <nav class="flex-1 px-4 space-y-2">
-            <a href="{{ path('public_status') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'status' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'status' ? 'bg-white/15' : 'bg-white/10' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M3 3.75A.75.75 0 0 1 3.75 3h12.5a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75H3.75a.75.75 0 0 1-.75-.75V3.75Zm2.5 2a.75.75 0 0 0-.75.75v7a.75.75 0 0 0 .75.75h9a.75.75 0 0 0 .75-.75v-7a.75.75 0 0 0-.75-.75h-9Zm1.75 1.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Zm0 3.5a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75Z"/>
-                    </svg>
-                </span>
-                <span class="text-sm font-medium">{{ t('status', page_locale()) }}</span>
-            </a>
-            <a href="{{ path('public_servers') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'servers' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'servers' ? 'bg-white/15' : 'bg-white/10' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm2.75 1.25a.75.75 0 0 0-.75.75v6a.75.75 0 0 0 .75.75h8.5a.75.75 0 0 0 .75-.75v-6a.75.75 0 0 0-.75-.75h-8.5Zm1.75 2.25h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/>
-                    </svg>
-                </span>
-                <span class="text-sm font-medium">{{ t('server_directory', page_locale()) }}</span>
-            </a>
-            <a href="{{ path('public_downloads') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'downloads' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'downloads' ? 'bg-white/15' : 'bg-white/10' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M10 3a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3Zm-6 11.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H4.75a.75.75 0 0 1-.75-.75Z"/>
-                    </svg>
-                </span>
-                <span class="text-sm font-medium">{{ t('downloads', page_locale()) }}</span>
-            </a>
-            <a href="{{ path('public_changelog') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'changelog' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'changelog' ? 'bg-white/15' : 'bg-white/10' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M5.75 3A1.75 1.75 0 0 0 4 4.75v10.5C4 16.216 4.784 17 5.75 17h8.5A1.75 1.75 0 0 0 16 15.25V7.5a.75.75 0 0 0-.75-.75H11A1.25 1.25 0 0 1 9.75 5.5V3.75A.75.75 0 0 0 9 3H5.75Zm2 6.25a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5H8.5a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H8.5a.75.75 0 0 1-.75-.75Z"/>
-                    </svg>
-                </span>
-                <span class="text-sm font-medium">{{ t('changelog', page_locale()) }}</span>
-            </a>
-            <a href="{{ path('public_docs') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 {{ activeNav == 'docs' ? 'bg-white/10 text-white shadow-inner ring-1 ring-white/10' : 'text-indigo-100/80 transition hover:bg-white/10 hover:text-white' }}">
-                <span class="flex h-8 w-8 items-center justify-center rounded-md {{ activeNav == 'docs' ? 'bg-white/15' : 'bg-white/10' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M6.5 3.75A1.75 1.75 0 0 0 4.75 5.5v9A1.75 1.75 0 0 0 6.5 16.25h7A1.75 1.75 0 0 0 15.25 14.5V7.414a1.75 1.75 0 0 0-.513-1.237l-1.664-1.664A1.75 1.75 0 0 0 11.836 4H6.5Zm1.25 4.25a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Zm0 3a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75Z"/>
-                    </svg>
-                </span>
-                <span class="text-sm font-medium">{{ t('docs', page_locale()) }}</span>
-            </a>
-        </nav>
-        <div class="px-6 py-4 text-xs text-indigo-100/70">{{ t('public_portal_tagline', page_locale()) }}</div>
-    </aside>
-
-    <main class="flex-1 flex flex-col lg:ml-0">
-        <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+{% if showPortalShell %}
+{% set activeNav = activeNav|default('') %}
+<main class="min-h-screen flex flex-col">
+    <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
             <div class="flex items-center justify-between px-4 py-4 sm:px-6">
-                <div class="flex items-center gap-3 w-full">
-                    <label for="sidebar-toggle" class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-indigo-200 text-indigo-600 transition hover:bg-indigo-50 lg:hidden">
-                        <span class="sr-only">{{ t('toggle_sidebar', page_locale()) }}</span>
-                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                            <path d="M3 5.75A.75.75 0 0 1 3.75 5h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 5.75Zm0 4A.75.75 0 0 1 3.75 9h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 9.75Zm0 4a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z"/>
-                        </svg>
-                    </label>
-                    <div class="text-sm font-semibold text-slate-700">{{ t('public_portal', page_locale()) }}</div>
-                </div>
+                <div class="flex items-center gap-3 w-full"></div>
                 <div class="hidden items-center gap-4 sm:flex">
                     <div class="text-right">
                         <p class="text-sm font-semibold">{{ t('hosting_updates_title', page_locale()) }}</p>
@@ -115,13 +55,15 @@
             </div>
         </header>
 
-        <section class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+        <section class="{{ contentClass }}">
             {% block content %}{% endblock %}
         </section>
 
         <footer class="border-t border-slate-200 bg-white">
             <div class="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div>{{ brandingName }}</div>
+                <div class="flex flex-col gap-1">
+                    <span class="text-[11px] text-slate-500">© {{ "now"|date("Y") }}</span>
+                </div>
                 <div class="flex flex-wrap gap-4">
                     <a href="{{ path('public_cms_page_slug', {slug: 'impressum'}) }}" class="hover:text-slate-700">{{ t('imprint', page_locale()) }}</a>
                     <a href="{{ path('public_cms_page_slug', {slug: 'agb'}) }}" class="hover:text-slate-700">{{ t('terms_of_service', page_locale()) }}</a>
@@ -131,7 +73,26 @@
             </div>
         </footer>
     </main>
-</div>
+{% else %}
+<main class="min-h-screen flex flex-col">
+    <section class="{{ contentClass }}">
+        {{ block('content') }}
+    </section>
+    <footer class="mt-auto border-t border-slate-200 bg-white">
+        <div class="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div class="flex flex-col gap-1">
+                <span class="text-[11px] text-slate-500">© {{ "now"|date("Y") }}</span>
+            </div>
+            <div class="flex flex-wrap gap-4">
+                <a href="{{ path('public_cms_page_slug', {slug: 'impressum'}) }}" class="hover:text-slate-700">{{ t('imprint', page_locale()) }}</a>
+                <a href="{{ path('public_cms_page_slug', {slug: 'agb'}) }}" class="hover:text-slate-700">{{ t('terms_of_service', page_locale()) }}</a>
+                <a href="{{ path('public_cms_page_slug', {slug: 'datenschutz'}) }}" class="hover:text-slate-700">{{ t('privacy_policy', page_locale()) }}</a>
+                <button type="button" class="hover:text-slate-700" data-cookie-open>{{ t('cookie_settings', page_locale()) }}</button>
+            </div>
+        </div>
+    </footer>
+</main>
+{% endif %}
 
 <div id="cookie-banner" class="fixed inset-x-4 bottom-4 z-40 hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-lg sm:inset-x-auto sm:right-6 sm:max-w-lg">
     <div class="flex flex-col gap-4">

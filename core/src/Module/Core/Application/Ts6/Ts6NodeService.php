@@ -39,7 +39,11 @@ final class Ts6NodeService
             'admin_password' => $dto->adminPassword,
         ];
 
-        $this->jobDispatcher->dispatch($node->getAgent(), 'ts6.install', $payload);
+        $job = $this->jobDispatcher->dispatchWithFailureLogging($node->getAgent(), 'ts6.install', $payload);
+        if ($job->getStatus()->value === 'failed') {
+            $node->setInstallStatus('failed');
+            $node->setLastError($job->getErrorText());
+        }
 
         $this->entityManager->flush();
     }

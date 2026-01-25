@@ -11,30 +11,25 @@
 {% block content %}
     {% embed 'components/_card.html.twig' with { title: 'Deine SinusBots', subtitle: 'Status, Instanzen und Kerninfos wie im alten Flow.' } %}
         {% block card_body %}
-            <div class="ng-server-list">
-                {% include 'components/_serverRow.html.twig' with {
-                    title: 'SinusBot #42',
-                    subtitle: 'Instanz: Lobby · Version 1.0.0',
-                    status: 'Online',
-                    statusTone: 'success',
-                    meta: [
-                        { label: 'Slots', value: '32' },
-                        { label: 'Uptime', value: '12d 2h' },
-                        { label: 'Traffic', value: '48 GB' }
-                    ],
-                    actions: [
-                        { label: 'Starten', href: '#', variant: 'primary', size: 'sm' },
-                        { label: 'Stoppen', href: '#', variant: 'secondary', size: 'sm' },
-                        { label: 'Neustart', href: '#', variant: 'secondary', size: 'sm' },
-                        { label: 'Logs', href: '#', variant: 'ghost', size: 'sm' },
-                        { label: 'Einstellungen', href: '#', variant: 'ghost', size: 'sm' }
-                    ],
-                    overflowActions: [
-                        { label: 'Instanzen', href: '#', variant: 'ghost' },
-                        { label: 'Musikwarteschlange', href: '#', variant: 'ghost' }
-                    ]
-                } %}
-            </div>
+            {% if instances is not empty %}
+                <div class="ng-server-list">
+                    {% for instance in instances %}
+                        {% include 'components/_serverRow.html.twig' with {
+                            title: instance.name,
+                            subtitle: 'Instanz-ID: ' ~ instance.instanceId,
+                            status: instance.running ? 'Online' : 'Offline',
+                            statusTone: instance.running ? 'success' : 'neutral',
+                            meta: [
+                                { label: 'Node', value: instance.node.name },
+                                { label: 'Web Port', value: instance.webPort }
+                            ],
+                            actions: []
+                        } %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-sm text-slate-600">Aktuell sind keine SinusBots für dein Konto vorhanden.</p>
+            {% endif %}
         {% endblock %}
     {% endembed %}
 {% endblock %}

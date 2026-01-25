@@ -1,0 +1,214 @@
+{% extends 'public/base.html.twig' %}
+
+{% set showPortalShell = false %}
+{% set contentClass = 'w-full max-w-none px-0 py-0 bg-slate-50' %}
+{% set isHomepage = page.slug == 'startseite' %}
+{% set heroBlock = blocks[0] ?? null %}
+{% set productsBlock = blocks[1] ?? null %}
+{% set featuresBlock = blocks[2] ?? null %}
+{% set locationsBlock = blocks[3] ?? null %}
+{% set guaranteeBlock = blocks[4] ?? null %}
+{% set isCustomLayout = isHomepage and blocks|length == 1 and blocks[0].type == 'text' %}
+{% if isCustomLayout %}
+    {% set contentClass = 'w-full max-w-none px-0 py-0' %}
+{% endif %}
+
+{% block title %}{{ page.title }} · {{ siteTitle }}{% endblock %}
+
+{% block content %}
+{% if isCustomLayout %}
+    {{ blocks[0].content|raw }}
+{% else %}
+<div class="space-y-12">
+    <section class="rounded-2xl border border-slate-200 bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-950 px-6 py-4 text-xs uppercase tracking-[0.2em] text-slate-300 shadow-lg">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3 text-white"></div>
+            <div class="flex flex-wrap gap-5 text-[11px] text-slate-300">
+                <a href="/startseite" class="hover:text-white">{{ t('hosting_nav_home', page_locale()) }}</a>
+                <a href="/gameserver" class="hover:text-white">{{ t('hosting_nav_game_servers', page_locale()) }}</a>
+                <a href="/webhosting" class="hover:text-white">{{ t('hosting_nav_cloud_hosting', page_locale()) }}</a>
+                <a href="/webhosting" class="hover:text-white">{{ t('hosting_nav_web_hosting', page_locale()) }}</a>
+                <a href="/shop" class="hover:text-white">{{ t('hosting_nav_shop', page_locale()) }}</a>
+            </div>
+            <div class="flex items-center gap-3 text-[11px] normal-case text-slate-200">
+                {% if currentUser %}
+                    {% set userType = currentUser.type.value %}
+                    {% set portalPath = userType == 'admin' ? '/admin' : (userType == 'reseller' ? '/reseller/customers' : '/dashboard') %}
+                    {% set portalLabel = userType == 'admin' ? t('admin_portal', page_locale()) : (userType == 'reseller' ? t('reseller_portal', page_locale()) : t('customer_portal', page_locale())) %}
+                    <details class="relative">
+                        <summary class="cursor-pointer rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-slate-500">
+                            {{ currentUser.name ?? currentUser.email ?? t('hosting_user_menu_label', page_locale()) }}
+                        </summary>
+                        <div class="absolute right-0 mt-2 w-40 rounded-xl border border-slate-800 bg-slate-950/95 p-2 text-xs shadow-xl">
+                            <a href="{{ portalPath }}" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-900">{{ portalLabel }}</a>
+                            <a href="{{ path('public_logout') }}" class="block rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-900">{{ t('logout', page_locale()) }}</a>
+                        </div>
+                    </details>
+                {% else %}
+                    <a href="{{ path('public_login') }}" class="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-slate-500">{{ t('login', page_locale()) }}</a>
+                    <a href="{{ path('public_register') }}" class="rounded-full bg-red-500 px-3 py-1 text-xs font-semibold text-white hover:bg-red-400">{{ t('register', page_locale()) }}</a>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <section class="relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-900 text-white shadow-xl">
+        <div class="absolute inset-0 bg-cover bg-center opacity-30" style="background-image: url('https://images.unsplash.com/photo-1487017159836-4e23ece2e4cf?auto=format&fit=crop&w=1600&q=80');"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-950/90 via-slate-900/90 to-slate-900/30"></div>
+        <div class="relative space-y-6 px-8 py-12">
+            {% if isHomepage and heroBlock and heroBlock.type == 'text' %}
+                <div class="prose max-w-none text-white prose-headings:text-white prose-p:text-slate-200 prose-a:text-white">
+                    {{ heroBlock.content|raw }}
+                </div>
+            {% else %}
+                <p class="text-xs uppercase tracking-[0.3em] text-indigo-300">{{ t('hosting_hero_kicker', page_locale()) }}</p>
+                <h1 class="text-4xl font-semibold">{{ page.title }}</h1>
+                <p class="max-w-2xl text-sm text-indigo-100/80">{{ t('hosting_hero_subtitle', page_locale()) }}</p>
+                <div class="flex flex-wrap gap-3">
+                    <a href="/shop" class="rounded bg-indigo-500 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-400">{{ t('hosting_hero_cta_primary', page_locale()) }}</a>
+                    <a href="/preise" class="rounded border border-white/30 px-4 py-2 text-xs font-semibold text-white hover:bg-white/10">{{ t('hosting_hero_cta_secondary', page_locale()) }}</a>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
+    {% if isHomepage %}
+        <section class="space-y-6">
+            <div class="text-center">
+                <p class="text-xs uppercase tracking-[0.3em] text-indigo-400">{{ t('hosting_products_kicker', page_locale()) }}</p>
+                <h2 class="mt-2 text-2xl font-semibold text-slate-900">{{ t('hosting_products_title', page_locale()) }}</h2>
+                <p class="mt-2 text-sm text-slate-600">{{ t('hosting_products_subtitle', page_locale()) }}</p>
+            </div>
+            <div class="grid gap-6 md:grid-cols-3">
+                {% if productsBlock and productsBlock.type == 'text' %}
+                    <div class="md:col-span-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                        <div class="prose max-w-none text-slate-700">{{ productsBlock.content|raw }}</div>
+                    </div>
+                {% else %}
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <img src="https://images.unsplash.com/photo-1546443046-ed1ce6ffd1ab?auto=format&fit=crop&w=600&q=80" alt="Minecraft" class="h-40 w-full rounded-xl object-cover" />
+                        <h3 class="mt-4 text-base font-semibold">Minecraft Server</h3>
+                        <p class="mt-2 text-sm text-slate-600">Modpacks, Slots und RAM flexibel skalieren.</p>
+                        <a href="/shop" class="mt-4 inline-flex text-xs font-semibold text-red-500 hover:text-red-400">{{ t('hosting_products_cta', page_locale()) }}</a>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <img src="https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80" alt="CS:GO" class="h-40 w-full rounded-xl object-cover" />
+                        <h3 class="mt-4 text-base font-semibold">CS:GO Server</h3>
+                        <p class="mt-2 text-sm text-slate-600">DDoS-Schutz, Matchmaking & Control Panel.</p>
+                        <a href="/shop" class="mt-4 inline-flex text-xs font-semibold text-red-500 hover:text-red-400">{{ t('hosting_products_cta', page_locale()) }}</a>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <img src="https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=600&q=80" alt="Garrys Mod" class="h-40 w-full rounded-xl object-cover" />
+                        <h3 class="mt-4 text-base font-semibold">Garrys Mod</h3>
+                        <p class="mt-2 text-sm text-slate-600">Addons, FastDL und Premium Support.</p>
+                        <a href="/shop" class="mt-4 inline-flex text-xs font-semibold text-red-500 hover:text-red-400">{{ t('hosting_products_cta', page_locale()) }}</a>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            {% if featuresBlock and featuresBlock.type == 'text' %}
+                <div class="prose max-w-none text-slate-700">{{ featuresBlock.content|raw }}</div>
+            {% else %}
+                <div class="text-center">
+                    <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ t('hosting_features_kicker', page_locale()) }}</p>
+                    <h2 class="mt-2 text-2xl font-semibold text-slate-900">{{ t('hosting_features_title', page_locale()) }}</h2>
+                    <p class="mt-2 text-sm text-slate-600">{{ t('hosting_features_subtitle', page_locale()) }}</p>
+                </div>
+                <div class="mt-6 grid gap-6 md:grid-cols-3">
+                    <div class="text-center">
+                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">👤</div>
+                        <p class="mt-3 text-sm font-semibold">{{ t('hosting_feature_user_friendly', page_locale()) }}</p>
+                        <p class="mt-2 text-xs text-slate-600">{{ t('hosting_feature_user_friendly_desc', page_locale()) }}</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">🛡️</div>
+                        <p class="mt-3 text-sm font-semibold">{{ t('hosting_feature_ddos', page_locale()) }}</p>
+                        <p class="mt-2 text-xs text-slate-600">{{ t('hosting_feature_ddos_desc', page_locale()) }}</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">🎧</div>
+                        <p class="mt-3 text-sm font-semibold">{{ t('hosting_feature_support', page_locale()) }}</p>
+                        <p class="mt-2 text-xs text-slate-600">{{ t('hosting_feature_support_desc', page_locale()) }}</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">💳</div>
+                        <p class="mt-3 text-sm font-semibold">{{ t('hosting_feature_billing', page_locale()) }}</p>
+                        <p class="mt-2 text-xs text-slate-600">{{ t('hosting_feature_billing_desc', page_locale()) }}</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">🎁</div>
+                        <p class="mt-3 text-sm font-semibold">{{ t('hosting_feature_freebies', page_locale()) }}</p>
+                        <p class="mt-2 text-xs text-slate-600">{{ t('hosting_feature_freebies_desc', page_locale()) }}</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-lg">💾</div>
+                        <p class="mt-3 text-sm font-semibold">{{ t('hosting_feature_ssd', page_locale()) }}</p>
+                        <p class="mt-2 text-xs text-slate-600">{{ t('hosting_feature_ssd_desc', page_locale()) }}</p>
+                    </div>
+                </div>
+            {% endif %}
+        </section>
+
+        <section class="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            {% if locationsBlock and locationsBlock.type == 'text' %}
+                <div class="prose max-w-none text-slate-700">{{ locationsBlock.content|raw }}</div>
+            {% else %}
+                <div class="text-center">
+                    <p class="text-xs uppercase tracking-[0.3em] text-slate-400">{{ t('hosting_locations_kicker', page_locale()) }}</p>
+                    <h2 class="mt-2 text-2xl font-semibold text-slate-900">{{ t('hosting_locations_title', page_locale()) }}</h2>
+                    <p class="mt-2 text-sm text-slate-600">{{ t('hosting_locations_subtitle', page_locale()) }}</p>
+                </div>
+                <div class="mt-6 flex flex-col items-center gap-6">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution.svg" alt="Server Locations" class="h-48 w-full max-w-4xl object-contain opacity-70" />
+                    <div class="flex flex-wrap justify-center gap-4 text-xs text-slate-600">
+                        <span class="rounded-full border border-slate-200 px-3 py-1">Frankfurt</span>
+                        <span class="rounded-full border border-slate-200 px-3 py-1">Amsterdam</span>
+                        <span class="rounded-full border border-slate-200 px-3 py-1">Dallas</span>
+                        <span class="rounded-full border border-slate-200 px-3 py-1">Singapur</span>
+                        <span class="rounded-full border border-slate-200 px-3 py-1">Sydney</span>
+                    </div>
+                </div>
+            {% endif %}
+        </section>
+
+        <section class="rounded-3xl border border-slate-200 bg-slate-900 px-8 py-6 text-white shadow-sm">
+            {% if guaranteeBlock and guaranteeBlock.type == 'text' %}
+                <div class="prose max-w-none text-white prose-headings:text-white prose-p:text-slate-200">
+                    {{ guaranteeBlock.content|raw }}
+                </div>
+            {% else %}
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-xs uppercase tracking-[0.3em] text-slate-300">{{ t('hosting_guarantee_kicker', page_locale()) }}</p>
+                        <h3 class="mt-2 text-xl font-semibold">{{ t('hosting_guarantee_title', page_locale()) }}</h3>
+                    </div>
+                    <a href="/shop" class="inline-flex rounded bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:bg-red-400">{{ t('hosting_hero_cta_primary', page_locale()) }}</a>
+                </div>
+            {% endif %}
+        </section>
+    {% endif %}
+
+    {% if not isHomepage %}
+        <section class="grid gap-6 lg:grid-cols-3">
+            {% for block in blocks %}
+                <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    {% if block.type in ['server_list', 'server_featured'] %}
+                        {% include 'public/servers/_server_list.html.twig' with {
+                            servers: block.servers,
+                            show_players: block.settings.show_players,
+                            show_join_button: block.settings.show_join_button
+                        } %}
+                    {% else %}
+                        <div class="prose max-w-none text-slate-700">{{ block.content|raw }}</div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-700">Noch keine Inhalte vorhanden.</div>
+            {% endfor %}
+        </section>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

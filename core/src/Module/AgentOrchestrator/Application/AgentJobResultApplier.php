@@ -55,11 +55,11 @@ final class AgentJobResultApplier
             $this->applyTs6InstanceResult($job, $status);
         }
 
-        if (str_starts_with($type, 'ts3.') && str_contains($type, 'service')) {
+        if (str_starts_with($type, 'ts3.') && (str_contains($type, 'service') || $type === 'ts3.install')) {
             $this->applyTs3NodeResult($job, $status, $payload);
         }
 
-        if (str_starts_with($type, 'ts6.') && str_contains($type, 'service')) {
+        if (str_starts_with($type, 'ts6.') && (str_contains($type, 'service') || $type === 'ts6.install')) {
             $this->applyTs6NodeResult($job, $status, $payload);
         }
 
@@ -150,6 +150,12 @@ final class AgentJobResultApplier
             if (is_array($payload) && array_key_exists('running', $payload)) {
                 $node->setRunning((bool) $payload['running']);
             }
+            if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
+                $node->setInstalledVersion($payload['installed_version']);
+            }
+            if ($status === AgentJobStatus::Success && is_array($payload) && array_key_exists('running', $payload)) {
+                $this->applyInstallStatusFromRuntime($node, (bool) $payload['running']);
+            }
         }
 
         if (is_array($payload) && isset($payload['last_error']) && is_string($payload['last_error'])) {
@@ -186,10 +192,23 @@ final class AgentJobResultApplier
             if (is_array($payload) && array_key_exists('running', $payload)) {
                 $node->setRunning((bool) $payload['running']);
             }
+            if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
+                $node->setInstalledVersion($payload['installed_version']);
+            }
+            if ($status === AgentJobStatus::Success && is_array($payload) && array_key_exists('running', $payload)) {
+                $this->applyInstallStatusFromRuntime($node, (bool) $payload['running']);
+            }
         }
 
         if (is_array($payload) && isset($payload['last_error']) && is_string($payload['last_error'])) {
             $node->setLastError($payload['last_error']);
+        }
+    }
+
+    private function applyInstallStatusFromRuntime(Ts6Node|SinusbotNode $node, bool $running): void
+    {
+        if ($running && $node->getInstallStatus() !== 'installed') {
+            $node->setInstallStatus('installed');
         }
     }
 

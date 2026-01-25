@@ -70,6 +70,52 @@
         </label>
     </div>
 
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label class="block text-sm font-medium text-slate-700">
+            {{ t('admin_instances_server_name', page_locale()) }}
+            <input name="server_name" type="text" value="{{ form.server_name }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_server_name_placeholder', page_locale()) }}">
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            {{ t('admin_instances_steam_gslt', page_locale()) }}
+            <input name="steam_gslt" type="text" value="{{ form.steam_gslt }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="0123456789ABCDEF">
+        </label>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label class="block text-sm font-medium text-slate-700">
+            {{ t('admin_instances_server_password', page_locale()) }}
+            <input name="server_password" type="password" value="{{ form.server_password }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_server_password_placeholder', page_locale()) }}">
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            {{ t('admin_instances_rcon_password', page_locale()) }}
+            <input name="rcon_password" type="password" value="{{ form.rcon_password }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_rcon_password_placeholder', page_locale()) }}">
+        </label>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label class="block text-sm font-medium text-slate-700">
+            {{ t('admin_instances_steam_login_mode', page_locale()) }}
+            <select name="steam_login_mode" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <option value="anonymous" {{ form.steam_login_mode == 'anonymous' ? 'selected' : '' }}>
+                    {{ t('admin_instances_steam_login_anonymous', page_locale()) }}
+                </option>
+                <option value="account" {{ form.steam_login_mode == 'account' ? 'selected' : '' }}>
+                    {{ t('admin_instances_steam_login_account', page_locale()) }}
+                </option>
+            </select>
+            <p class="mt-1 text-xs text-slate-500">{{ t('admin_instances_steam_login_hint', page_locale()) }}</p>
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+            {{ t('admin_instances_steam_account', page_locale()) }}
+            <input name="steam_account" type="text" value="{{ form.steam_account }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_steam_account_placeholder', page_locale()) }}">
+        </label>
+    </div>
+
+    <label class="block text-sm font-medium text-slate-700">
+        {{ t('admin_instances_steam_password', page_locale()) }}
+        <input name="steam_password" type="password" value="{{ form.steam_password }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_steam_password_placeholder', page_locale()) }}">
+    </label>
+
     <p class="text-xs text-slate-500">{{ t('admin_instances_ports_auto', page_locale()) }}</p>
 
     <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">

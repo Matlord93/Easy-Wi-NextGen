@@ -53,7 +53,6 @@
         open: true,
         items: [
             { key: 'game-instances', label: 'Gameserver', href: path('admin_instances') },
-            { key: 'public-servers', label: 'CMS Game-Server', href: path('admin_public_servers') },
             { key: 'sinusbot', label: 'SinusBot', href: path('admin_sinusbot_nodes_index') },
             { key: 'ts3', label: 'TeamSpeak 3', href: path('admin_ts3_nodes_index') },
             { key: 'ts6', label: 'TeamSpeak 6', href: path('admin_ts6_nodes_index') },
@@ -70,16 +69,33 @@
         label: 'Services',
         open: true,
         items: [
-            { key: 'webspaces', label: 'Webspace', href: path('admin_webspaces') },
-            { key: 'databases', label: 'Datenbanken', href: path('admin_databases') }
+            { key: 'webspaces', label: t('admin_nav_webspaces', page_locale()), href: path('admin_webspaces') },
+            { key: 'databases', label: t('admin_nav_databases', page_locale()), href: path('admin_databases') },
+        ]
+    },
+    {
+        label: 'Shop',
+        open: true,
+        items: [
+            { key: 'shop-categories', label: 'Shop-Kategorien', href: path('admin_shop_categories') },
+            { key: 'shop-products', label: 'Shop-Produkte', href: path('admin_shop_products') }
+        ]
+    },
+    {
+        label: 'CMS System',
+        open: true,
+        items: [
+            { key: 'cms-pages', label: t('cms_pages_title', page_locale()), href: path('admin_cms_pages') },
+            { key: 'public-servers', label: t('admin_nav_cms_gameservers', page_locale()), href: path('admin_public_servers') }
         ]
     },
     {
         label: 'Domains & E-Mail',
         open: true,
         items: [
-            { key: 'mailboxes', label: 'Mailboxes', href: path('admin_mailboxes') },
-            { key: 'mail-aliases', label: 'Mail-Aliase', href: path('admin_mail_aliases') }
+            { key: 'dns-records', label: t('admin_nav_dns_records', page_locale()), href: path('admin_dns_records') },
+            { key: 'mailboxes', label: t('admin_nav_mailboxes', page_locale()), href: path('admin_mailboxes') },
+            { key: 'mail-aliases', label: t('admin_nav_mail_aliases', page_locale()), href: path('admin_mail_aliases') }
         ]
     },
     {
@@ -110,11 +126,11 @@
 
 <div class="ng-layout">
     {% include 'components/_sidebar.html.twig' with {
-        title: brandingName,
-        logoUrl: brandingLogo,
+        title: '',
+        logoUrl: null,
         activeNav: activeNav,
         groups: sidebarGroups,
-        footer: t('admin_portal_tagline', page_locale())
+        footer: ''
     } %}
 
     <main class="ng-main">

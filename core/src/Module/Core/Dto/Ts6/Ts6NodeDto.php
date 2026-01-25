@@ -6,7 +6,7 @@ namespace App\Module\Core\Dto\Ts6;
 
 final class Ts6NodeDto
 {
-    public const DEFAULT_DOWNLOAD_URL = 'https://files.teamspeak-services.com/releases/server/6.0.0/teamspeak6-server_linux_amd64-6.0.0.tar.bz2';
+    public const DEFAULT_DOWNLOAD_URL = 'https://github.com/teamspeak/teamspeak6-server/releases/download/v6.0.0%2Fbeta8/teamspeak-server_linux_amd64-v6.0.0-beta8.tar.bz2';
     public const DEFAULT_INSTALL_PATH = '/home/teamspeak6';
     public const DEFAULT_INSTANCE_NAME = 'teamspeak6';
     public const DEFAULT_SERVICE_NAME = 'teamspeak6';

@@ -4,11 +4,23 @@
     data-instance-id="{{ instance.id }}"
     data-instance-status="{{ instance.status }}"
     data-console-command-url="{{ path('customer_instance_console_command', {id: instance.id}) }}"
+    data-console-logs-url="{{ path('customer_instance_console_logs', {id: instance.id}) }}"
+    data-job-logs-url-template="{{ path('customer_job_api_logs', {jobId: '__JOB_ID__'}) }}"
+    data-job-url-template="{{ path('customer_job_api_show', {jobId: '__JOB_ID__'}) }}"
 >
     <div>
         {% set consoleLabel = app_setting('customer_console_label', t('customer_instance_tab_console', page_locale())) %}
         <h2 class="text-lg font-semibold text-slate-900">{{ consoleLabel }}</h2>
         <p class="text-sm text-slate-700">{{ t('customer_instance_console_intro', page_locale()) }}</p>
+    </div>
+
+    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_console_live_log_title', page_locale()) }}</p>
+            <span id="instance-console-log-status" class="text-xs text-slate-500">{{ t('customer_instance_console_log_loading', page_locale()) }}</span>
+        </div>
+        <p class="mt-2 text-xs text-slate-500">{{ t('customer_instance_console_live_log_intro', page_locale()) }}</p>
+        <pre id="instance-console-log" class="mt-3 h-64 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"></pre>
     </div>
 
     <div class="grid gap-4 lg:grid-cols-2">
@@ -58,26 +70,222 @@
         const instanceId = container.dataset.instanceId;
         const status = container.dataset.instanceStatus;
         const commandUrl = container.dataset.consoleCommandUrl;
+        const logsUrl = container.dataset.consoleLogsUrl;
+        const jobLogsUrlTemplate = container.dataset.jobLogsUrlTemplate;
+        const jobUrlTemplate = container.dataset.jobUrlTemplate;
         const input = document.getElementById('instance-console-command');
         const button = document.getElementById('instance-console-send');
         const feedback = document.getElementById('instance-console-feedback');
+        const logContainer = document.getElementById('instance-console-log');
+        const logStatus = document.getElementById('instance-console-log-status');
 
-        if (!instanceId || !commandUrl || !input || !button || !feedback) {
+        if (!instanceId || !commandUrl || !input || !button || !feedback || !logContainer || !logStatus) {
             return;
         }
 
-        if (status !== 'running') {
-            button.disabled = true;
-            button.classList.add('opacity-50', 'cursor-not-allowed');
-            feedback.textContent = '{{ t('customer_instance_console_send_requires_running', page_locale()) }}';
-            return;
-        }
+        let commandAllowed = status === 'running';
 
         const setFeedback = (message, isError = false) => {
             feedback.textContent = message;
             feedback.classList.toggle('text-rose-600', isError);
             feedback.classList.toggle('text-slate-500', !isError);
         };
+
+        const setLogStatus = (message, isError = false) => {
+            logStatus.textContent = message;
+            logStatus.classList.toggle('text-rose-600', isError);
+            logStatus.classList.toggle('text-slate-500', !isError);
+        };
+
+        let activeJobId = null;
+        let lastLogId = null;
+        let outputAppendedForJob = null;
+
+        const appendLogLine = (line) => {
+            if (!line) {
+                return;
+            }
+            if (logContainer.textContent) {
+                logContainer.textContent += '\n';
+            }
+            logContainer.textContent += line;
+            logContainer.scrollTop = logContainer.scrollHeight;
+        };
+
+        const fetchLogSnapshot = async () => {
+            if (!logsUrl) {
+                return;
+            }
+
+            try {
+                const response = await fetch(logsUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({}),
+                });
+
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    setLogStatus(payload.error || '{{ t('customer_instance_console_log_error', page_locale()) }}', true);
+                    return;
+                }
+
+                const jobId = payload.job_id || payload.jobId;
+                if (!jobId) {
+                    setLogStatus('{{ t('customer_instance_console_log_error', page_locale()) }}', true);
+                    return;
+                }
+
+                if (jobId !== activeJobId) {
+                    activeJobId = jobId;
+                    lastLogId = null;
+                    outputAppendedForJob = null;
+                    if (logContainer.textContent) {
+                        appendLogLine('--- {{ t('customer_instance_console_log_session_restart', page_locale()) }} ---');
+                    }
+                }
+                setLogStatus('{{ t('customer_instance_console_log_streaming', page_locale()) }}');
+                if (!commandAllowed && ['instance.start', 'instance.restart'].includes(payload.job_type)) {
+                    commandAllowed = true;
+                    button.disabled = false;
+                    button.classList.remove('opacity-50', 'cursor-not-allowed');
+                    setFeedback('');
+                }
+            } catch (err) {
+                setLogStatus(err.message || '{{ t('customer_instance_console_log_error', page_locale()) }}', true);
+            }
+        };
+
+        const pollJobLogs = async () => {
+            if (!activeJobId || !jobLogsUrlTemplate) {
+                return;
+            }
+
+            const url = jobLogsUrlTemplate.replace('__JOB_ID__', activeJobId);
+            const requestUrl = lastLogId ? `${url}?afterId=${lastLogId}` : url;
+
+            try {
+                const response = await fetch(requestUrl, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok || !payload.logs) {
+                    return;
+                }
+
+                payload.logs.forEach((entry) => {
+                    if (entry.id) {
+                        lastLogId = entry.id;
+                    }
+                    appendLogLine(entry.message || '');
+                });
+            } catch (err) {
+                setLogStatus(err.message || '{{ t('customer_instance_console_log_error', page_locale()) }}', true);
+            }
+        };
+
+        const getOutputEntries = (output) => {
+            if (!output || typeof output !== 'object') {
+                return [];
+            }
+
+            const entries = [];
+            const appendSection = (label, content) => {
+                if (!content || !content.trim()) {
+                    return;
+                }
+                entries.push(`--- ${label} ---`);
+                entries.push(...content.split(/\r\n|\r|\n/));
+            };
+
+            ['logs_tail', 'install_log', 'log_text', 'output', 'message'].forEach((key) => {
+                if (typeof output[key] === 'string' && output[key].trim()) {
+                    entries.push(...output[key].split(/\r\n|\r|\n/));
+                }
+            });
+
+            if (Array.isArray(output.logs)) {
+                output.logs.forEach((entry) => {
+                    if (typeof entry === 'string' && entry.trim()) {
+                        entries.push(entry);
+                    }
+                });
+            }
+
+            if (typeof output.stdout === 'string') {
+                appendSection('STDOUT', output.stdout);
+            }
+
+            if (typeof output.stderr === 'string') {
+                appendSection('STDERR', output.stderr);
+            }
+
+            return entries.map((line) => line.trim()).filter(Boolean);
+        };
+
+        const pollJobOutput = async () => {
+            if (!activeJobId || !jobUrlTemplate || outputAppendedForJob === activeJobId) {
+                return;
+            }
+
+            const url = jobUrlTemplate.replace('__JOB_ID__', activeJobId);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                });
+                const payload = await response.json().catch(() => ({}));
+                const output = payload?.result?.output;
+                const entries = getOutputEntries(output);
+                if (entries.length === 0) {
+                    if (payload?.status && ['succeeded', 'failed', 'cancelled'].includes(payload.status)) {
+                        outputAppendedForJob = activeJobId;
+                    }
+                    return;
+                }
+
+                entries.forEach((line) => appendLogLine(line));
+                outputAppendedForJob = activeJobId;
+            } catch (err) {
+                setLogStatus(err.message || '{{ t('customer_instance_console_log_error', page_locale()) }}', true);
+            }
+        };
+
+        const startLogPolling = () => {
+            if (!logsUrl || !jobLogsUrlTemplate) {
+                setLogStatus('{{ t('customer_instance_console_log_unavailable', page_locale()) }}', true);
+                return;
+            }
+
+            fetchLogSnapshot();
+            pollJobLogs();
+            pollJobOutput();
+            setInterval(pollJobLogs, 2000);
+            setInterval(fetchLogSnapshot, 12000);
+            setInterval(pollJobOutput, 4000);
+        };
+
+        const applyCommandLock = () => {
+            button.disabled = true;
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+            setFeedback('{{ t('customer_instance_console_send_requires_running', page_locale()) }}', true);
+        };
+
+        if (!commandAllowed) {
+            applyCommandLock();
+        }
 
         button.addEventListener('click', async () => {
             const command = input.value.trim();
@@ -111,5 +319,7 @@
                 setFeedback(err.message || 'Command failed.', true);
             }
         });
+
+        startLogPolling();
     })();
 </script>

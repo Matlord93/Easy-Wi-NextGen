@@ -53,6 +53,32 @@
             </div>
 
             <div class="ts6-card">
+                <h2>Letzte Jobs</h2>
+                {% if agent_jobs is not empty %}
+                    {% for job in agent_jobs %}
+                        <div class="ts6-meta">
+                            <div><strong>Typ:</strong> {{ job.type }}</div>
+                            <div><strong>Status:</strong> {{ job.status.value }}</div>
+                            <div><strong>Gestartet:</strong> {{ job.startedAt ? job.startedAt|date('Y-m-d H:i') : '—' }}</div>
+                            <div><strong>Beendet:</strong> {{ job.finishedAt ? job.finishedAt|date('Y-m-d H:i') : '—' }}</div>
+                            <div><strong>Fehler:</strong> {{ job.errorText ?? '—' }}</div>
+                        </div>
+                        {% if job.logText %}
+                            <div class="ts6-code"><pre>{{ job.logText }}</pre></div>
+                        {% endif %}
+                        {% if job.resultPayload %}
+                            <div class="ts6-code"><pre>{{ job.resultPayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></div>
+                        {% endif %}
+                        {% if not loop.last %}
+                            <p class="ts6-muted">—</p>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <p class="ts6-muted">Keine Jobs vorhanden.</p>
+                {% endif %}
+            </div>
+
+            <div class="ts6-card">
                 <h2>Admin Credentials</h2>
                 <p class="ts6-muted">Passwort wird verschlüsselt gespeichert und nur für Admins angezeigt.</p>
                 {% if admin_password %}
