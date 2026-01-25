@@ -4642,3 +4642,39 @@ final class Version20260304120000 extends AbstractMigration
         }
     }
 }
+
+final class Version20260318120000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add admin SSH public key to users.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if ($table->hasColumn('admin_ssh_public_key')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE users ADD admin_ssh_public_key LONGTEXT DEFAULT NULL');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if (!$table->hasColumn('admin_ssh_public_key')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE users DROP admin_ssh_public_key');
+    }
+}

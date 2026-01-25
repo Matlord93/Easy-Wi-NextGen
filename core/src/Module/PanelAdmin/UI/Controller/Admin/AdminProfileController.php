@@ -6,6 +6,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
@@ -23,6 +24,7 @@ final class AdminProfileController
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly AdminSshKeyService $sshKeyService,
         private readonly Environment $twig,
     ) {
     }
@@ -45,6 +47,7 @@ final class AdminProfileController
         $password = (string) $request->request->get('password', '');
         $passwordConfirm = (string) $request->request->get('password_confirm', '');
         $signature = trim((string) $request->request->get('signature', ''));
+        $sshKey = trim((string) $request->request->get('ssh_key', ''));
 
         $errors = [];
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -68,11 +71,21 @@ final class AdminProfileController
             }
         }
 
+        $currentSshKey = $admin->getAdminSshPublicKey();
+        if ($sshKey !== '') {
+            if ($currentSshKey !== null) {
+                $errors[] = 'An SSH public key is already stored for this account. Please contact a super admin to change it.';
+            } elseif (!$this->isValidSshPublicKey($sshKey)) {
+                $errors[] = 'Enter a valid SSH public key.';
+            }
+        }
+
         if ($errors !== []) {
             return $this->renderPage($admin, [
                 'name' => $name,
                 'email' => $email,
                 'signature' => $signature,
+                'ssh_key' => $currentSshKey ?? $sshKey,
             ], $errors, Response::HTTP_BAD_REQUEST);
         }
 
@@ -88,12 +101,30 @@ final class AdminProfileController
 
         $admin->setAdminSignature($signature);
 
+        $sshKeyStored = false;
+        if ($sshKey !== '' && $currentSshKey === null) {
+            try {
+                $this->sshKeyService->storeKey($admin, $sshKey);
+            } catch (\Throwable) {
+                return $this->renderPage($admin, [
+                    'name' => $name,
+                    'email' => $email,
+                    'signature' => $signature,
+                    'ssh_key' => $sshKey,
+                ], ['Unable to store the SSH key on the server. Please contact a super admin.'], Response::HTTP_BAD_REQUEST);
+            }
+
+            $admin->setAdminSshPublicKey($sshKey);
+            $sshKeyStored = true;
+        }
+
         $this->auditLogger->log($admin, 'admin.profile.updated', [
             'admin_id' => $admin->getId(),
             'name' => $admin->getName(),
             'email' => $admin->getEmail(),
             'password_updated' => $password !== '',
             'signature_updated' => $signature !== '',
+            'ssh_key_set' => $sshKeyStored,
         ]);
 
         $this->entityManager->flush();
@@ -103,6 +134,7 @@ final class AdminProfileController
             'email' => $admin->getEmail(),
             'success' => true,
             'signature' => $admin->getAdminSignature(),
+            'ssh_key' => $admin->getAdminSshPublicKey(),
         ]);
     }
 
@@ -115,6 +147,8 @@ final class AdminProfileController
                 'name' => $admin->getName(),
                 'success' => false,
                 'signature' => $admin->getAdminSignature(),
+                'ssh_key' => $admin->getAdminSshPublicKey() ?? '',
+                'ssh_key_set' => $admin->getAdminSshPublicKey() !== null,
             ], $overrides),
             'errors' => $errors,
         ]), $status);
@@ -128,5 +162,18 @@ final class AdminProfileController
         }
 
         return $actor;
+    }
+
+    private function isValidSshPublicKey(string $sshKey): bool
+    {
+        $sshKey = trim($sshKey);
+        if ($sshKey === '') {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/^(ssh-(?:rsa|ed25519)|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh\\.com|sk-ecdsa-sha2-nistp256@openssh\\.com)\\s+[A-Za-z0-9+\\/=]+(?:\\s+.+)?$/',
+            $sshKey,
+        );
     }
 }

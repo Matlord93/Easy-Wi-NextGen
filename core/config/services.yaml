@@ -32,6 +32,8 @@ parameters:
   app.windows_nodes_enabled: '%env(bool:default:app.windows_nodes_enabled_default:APP_WINDOWS_NODES_ENABLED)%'
   app.payment_dummy_enabled_default: '0'
   app.payment_dummy_enabled: '%env(bool:default:app.payment_dummy_enabled_default:APP_PAYMENT_DUMMY_ENABLED)%'
+  app.admin_authorized_keys_path_default: '/home/easywi/.ssh/authorized_keys'
+  app.admin_authorized_keys_path: '%env(default:app.admin_authorized_keys_path_default:APP_ADMIN_AUTHORIZED_KEYS_PATH)%'
 
 services:
   _defaults:
@@ -104,6 +106,10 @@ services:
       $lockFile: '%app.core_update_lock_file%'
       $excludes: '%app.core_update_excludes%'
       $fallbackVersion: '%app.core_version%'
+
+  App\Module\PanelAdmin\Application\AdminSshKeyService:
+    arguments:
+      $authorizedKeysPath: '%app.admin_authorized_keys_path%'
 
   App\Module\Core\Domain\Event\EventBusInterface: '@App\Module\Core\Domain\Event\SymfonyEventBus'
 
