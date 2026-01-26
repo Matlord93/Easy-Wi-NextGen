@@ -23,6 +23,11 @@ func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() 
 	voicePort := payloadValue(job.Payload, "voice_port", "voice_port")
 	queryPort := payloadValue(job.Payload, "query_port", "query_port")
 	filePort := payloadValue(job.Payload, "file_port", "file_port")
+	voiceIP := payloadValue(job.Payload, "voice_ip")
+	queryIP := payloadValue(job.Payload, "query_ip")
+	fileIP := payloadValue(job.Payload, "filetransfer_ip")
+	licensePath := payloadValue(job.Payload, "licensepath", "license_path")
+	adminPassword := payloadValue(job.Payload, "serveradmin_password", "server_admin_password", "admin_password")
 	dbMode := strings.ToLower(payloadValue(job.Payload, "db_mode"))
 	dbHost := payloadValue(job.Payload, "db_host")
 	dbPort := payloadValue(job.Payload, "db_port")
@@ -58,7 +63,10 @@ func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() 
 		serviceName = fmt.Sprintf("ts3-%s", instanceID)
 	}
 	if startCommand == "" {
-		startCommand = "./ts3server"
+		startCommand = "./ts3server inifile=ts3server.ini license_accepted=1"
+		if adminPassword != "" {
+			startCommand = fmt.Sprintf("%s serveradmin_password=%s", startCommand, adminPassword)
+		}
 	}
 
 	osUsername := buildTs3Username(customerID, instanceID)
@@ -89,16 +97,20 @@ func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() 
 	}
 
 	config := buildTs3Config(ts3Config{
-		name:       name,
-		voicePort:  voicePort,
-		queryPort:  queryPort,
-		filePort:   filePort,
-		dbMode:     dbMode,
-		dbHost:     dbHost,
-		dbPort:     dbPort,
-		dbName:     dbName,
-		dbUsername: dbUsername,
-		dbPassword: dbPassword,
+		name:        name,
+		voiceIP:     voiceIP,
+		licensePath: licensePath,
+		voicePort:   voicePort,
+		queryPort:   queryPort,
+		queryIP:     queryIP,
+		filePort:    filePort,
+		fileIP:      fileIP,
+		dbMode:      dbMode,
+		dbHost:      dbHost,
+		dbPort:      dbPort,
+		dbName:      dbName,
+		dbUsername:  dbUsername,
+		dbPassword:  dbPassword,
 	})
 	if err := os.WriteFile(configPath, []byte(config), instanceFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write config: %w", err))
@@ -326,24 +338,43 @@ func handleTs3ServiceAction(job jobs.Job, action string) (jobs.Result, func() er
 }
 
 type ts3Config struct {
-	name       string
-	voicePort  string
-	queryPort  string
-	filePort   string
-	dbMode     string
-	dbHost     string
-	dbPort     string
-	dbName     string
-	dbUsername string
-	dbPassword string
+	name        string
+	voiceIP     string
+	licensePath string
+	voicePort   string
+	queryPort   string
+	queryIP     string
+	filePort    string
+	fileIP      string
+	dbMode      string
+	dbHost      string
+	dbPort      string
+	dbName      string
+	dbUsername  string
+	dbPassword  string
 }
 
 func buildTs3Config(cfg ts3Config) string {
+	if cfg.voiceIP == "" {
+		cfg.voiceIP = "0.0.0.0, ::"
+	}
+	if cfg.queryIP == "" {
+		cfg.queryIP = "0.0.0.0"
+	}
+	if cfg.fileIP == "" {
+		cfg.fileIP = "0.0.0.0"
+	}
 	lines := []string{
 		"machine_id=" + cfg.name,
 		"default_voice_port=" + cfg.voicePort,
+		"voice_ip=" + cfg.voiceIP,
+		"licensepath=" + cfg.licensePath,
 		"query_port=" + cfg.queryPort,
+		"query_ip=" + cfg.queryIP,
+		"query_ip_whitelist=query_ip_whitelist.txt",
+		"query_ip_blacklist=query_ip_blacklist.txt",
 		"filetransfer_port=" + cfg.filePort,
+		"filetransfer_ip=" + cfg.fileIP,
 	}
 	switch cfg.dbMode {
 	case "mysql":
@@ -358,7 +389,16 @@ func buildTs3Config(cfg ts3Config) string {
 	default:
 		lines = append(lines, "dbplugin=ts3db_sqlite3")
 	}
-	lines = append(lines, "license_accepted=1")
+	lines = append(lines,
+		"dbpluginparameter=",
+		"dbsqlpath=sql/",
+		"dbsqlcreatepath=create_sqlite/",
+		"dblogkeepdays=90",
+		"logpath=logs",
+		"logquerycommands=0",
+		"dbclientkeepdays=30",
+		"license_accepted=1",
+	)
 	return strings.Join(lines, "\n") + "\n"
 }
 

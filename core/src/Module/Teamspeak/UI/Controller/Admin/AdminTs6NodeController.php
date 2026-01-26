@@ -353,6 +353,13 @@ final class AdminTs6NodeController
 
     private function buildInstallDto(Ts6Node $node): InstallDto
     {
+        $adminPassword = $node->getAdminPassword($this->crypto);
+        if ($adminPassword === null) {
+            $adminPassword = bin2hex(random_bytes(12));
+            $node->setAdminPassword($adminPassword, $this->crypto);
+            $this->entityManager->flush();
+        }
+
         return new InstallDto(
             $node->getDownloadUrl(),
             $node->getInstallPath(),
@@ -366,7 +373,7 @@ final class AdminTs6NodeController
             true,
             $node->getQueryBindIp(),
             $node->getQueryHttpsPort(),
-            null,
+            $adminPassword,
         );
     }
 }

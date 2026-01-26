@@ -352,6 +352,13 @@ final class AdminTs3NodeController
 
     private function buildInstallDto(Ts3Node $node): InstallDto
     {
+        $adminPassword = $node->getAdminPassword($this->crypto);
+        if ($adminPassword === null) {
+            $adminPassword = bin2hex(random_bytes(12));
+            $node->setAdminPassword($adminPassword, $this->crypto);
+            $this->entityManager->flush();
+        }
+
         return new InstallDto(
             $node->getDownloadUrl(),
             $node->getInstallPath(),
@@ -361,7 +368,7 @@ final class AdminTs3NodeController
             $node->getQueryBindIp(),
             $node->getQueryPort(),
             $node->getFiletransferPort(),
-            null,
+            $adminPassword,
         );
     }
 }

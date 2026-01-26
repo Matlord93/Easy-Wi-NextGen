@@ -231,6 +231,8 @@
                 open: "{{ t('customer_instance_files_open', page_locale())|e('js') }}",
                 edit: "{{ t('customer_instance_files_edit', page_locale())|e('js') }}",
                 download: "{{ t('customer_instance_files_download', page_locale())|e('js') }}",
+                listingFailed: "{{ t('customer_instance_files_listing_failed', page_locale())|e('js') }}",
+                listingFailedDefault: "{{ t('customer_instance_files_listing_failed_default', page_locale())|e('js') }}",
                 delete: "{{ t('customer_instance_files_delete', page_locale())|e('js') }}",
                 deleteConfirm: "{{ t('customer_instance_files_delete_confirm', page_locale())|e('js') }}",
                 upload: "{{ t('customer_instance_files_upload_action', page_locale())|e('js') }}",
@@ -359,6 +361,17 @@
                 return query ? `?${query}` : '';
             };
 
+            const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), timeoutMs);
+                try {
+                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    return response;
+                } finally {
+                    clearTimeout(timer);
+                }
+            };
+
             const updatePathDisplay = (rootPath, path) => {
                 rootPathEl.textContent = rootPath || '—';
                 currentPathEl.textContent = path ? `/${path}` : '/';
@@ -432,19 +445,22 @@
                 setFeedback(labels.loading);
                 listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">${labels.loading}</td></tr>`;
                 try {
-                    const response = await fetch(`${listUrl}${buildQuery({ path })}`, {
+                    const response = await fetchWithTimeout(`${listUrl}${buildQuery({ path })}`, {
                         headers: { 'Accept': 'application/json' },
                     });
-                    const data = await response.json();
+                    const data = await response.json().catch(() => ({}));
                     if (!response.ok) {
-                        throw new Error(data.error || 'Listing failed.');
+                        throw new Error(data.error || labels.listingFailedDefault);
                     }
                     updatePathDisplay(data.root_path, data.path);
                     renderEntries(data.entries || []);
                     setFeedback('');
                 } catch (error) {
-                    listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-rose-600">${error.message}</td></tr>`;
-                    setFeedback(error.message, 'error');
+                    const message = error.name === 'AbortError'
+                        ? labels.listingFailedDefault
+                        : (error.message || labels.listingFailed);
+                    listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-rose-600">${message}</td></tr>`;
+                    setFeedback(message, 'error');
                 }
             };
 

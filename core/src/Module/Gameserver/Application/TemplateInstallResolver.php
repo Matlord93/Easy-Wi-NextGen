@@ -52,11 +52,13 @@ final class TemplateInstallResolver
             $instance->getLockedBuildId(),
         );
 
-        if ($entry === null) {
-            throw new \RuntimeException('Minecraft catalog entry not found.');
-        }
-
         $os = $this->resolveOs($instance->getNode());
+
+        if ($entry === null) {
+            return $os === 'windows'
+                ? $this->buildMinecraftFallbackWindowsCommand($channel)
+                : $this->buildMinecraftFallbackLinuxCommand($channel);
+        }
 
         return $os === 'windows'
             ? $this->buildWindowsDownloadCommand($entry->getDownloadUrl())
@@ -96,6 +98,43 @@ final class TemplateInstallResolver
             'powershell -Command "Invoke-WebRequest -Uri \'%s\' -OutFile \'server.jar\'"',
             $escaped,
         );
+    }
+
+    private function buildMinecraftFallbackLinuxCommand(string $channel): string
+    {
+        return match ($channel) {
+            'paper' => 'if ! command -v curl >/dev/null 2>&1; then echo "Missing curl." >&2; exit 1; fi; '
+                . 'if ! command -v jq >/dev/null 2>&1; then echo "Missing jq." >&2; exit 1; fi; '
+                . 'VERSION=$(curl -s https://api.papermc.io/v2/projects/paper | jq -r \'.versions | last\'); '
+                . 'BUILD=$(curl -s https://api.papermc.io/v2/projects/paper/versions/$VERSION | jq -r \'.builds | last\'); '
+                . 'JAR=$(curl -s https://api.papermc.io/v2/projects/paper/versions/$VERSION/builds/$BUILD | jq -r \'.downloads.application.name\'); '
+                . 'curl -L -o server.jar https://api.papermc.io/v2/projects/paper/versions/$VERSION/builds/$BUILD/downloads/$JAR',
+            default => 'if ! command -v curl >/dev/null 2>&1; then echo "Missing curl." >&2; exit 1; fi; '
+                . 'if ! command -v jq >/dev/null 2>&1; then echo "Missing jq." >&2; exit 1; fi; '
+                . 'URL=$(curl -s https://piston-meta.mojang.com/mc/game/version_manifest_v2.json '
+                . '| jq -r \'.versions[] | select(.type=="release") | .url\' | head -n 1 '
+                . '| xargs curl -s | jq -r \'.downloads.server.url\'); '
+                . 'curl -L -o server.jar "$URL"',
+        };
+    }
+
+    private function buildMinecraftFallbackWindowsCommand(string $channel): string
+    {
+        return match ($channel) {
+            'paper' => 'powershell -Command "$ErrorActionPreference = \'Stop\'; '
+                . '$version = (Invoke-RestMethod https://api.papermc.io/v2/projects/paper).versions[-1]; '
+                . '$builds = Invoke-RestMethod https://api.papermc.io/v2/projects/paper/versions/$version; '
+                . '$build = $builds.builds[-1]; '
+                . '$buildInfo = Invoke-RestMethod https://api.papermc.io/v2/projects/paper/versions/$version/builds/$build; '
+                . '$jar = $buildInfo.downloads.application.name; '
+                . 'Invoke-WebRequest -Uri https://api.papermc.io/v2/projects/paper/versions/$version/builds/$build/downloads/$jar -OutFile server.jar"',
+            default => 'powershell -Command "$ErrorActionPreference = \'Stop\'; '
+                . '$manifest = Invoke-RestMethod https://piston-meta.mojang.com/mc/game/version_manifest_v2.json; '
+                . '$latest = ($manifest.versions | Where-Object { $_.type -eq \'release\' } | Select-Object -First 1).url; '
+                . '$details = Invoke-RestMethod $latest; '
+                . '$url = $details.downloads.server.url; '
+                . 'Invoke-WebRequest -Uri $url -OutFile server.jar"',
+        };
     }
 
     private function applySteamLogin(string $command, Instance $instance): string

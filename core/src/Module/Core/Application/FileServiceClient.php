@@ -213,9 +213,11 @@ final class FileServiceClient
     private function requestRaw(Instance $instance, string $method, string $endpoint, array $query = [], ?array $json = null): \Symfony\Contracts\HttpClient\ResponseInterface
     {
         $options = $this->buildRequestOptions($instance, $method, $endpoint, $query, $json);
+        $baseUrl = $this->resolveBaseUrl($instance->getNode());
+        $this->assertTlsConfigured($baseUrl);
 
         try {
-            return $this->httpClient->request($method, $this->resolveBaseUrl($instance->getNode()) . $options['endpoint'], $options['options']);
+            return $this->httpClient->request($method, $baseUrl . $options['endpoint'], $options['options']);
         } catch (TransportExceptionInterface $exception) {
             throw new \RuntimeException('File service unavailable.', 0, $exception);
         }
@@ -393,5 +395,17 @@ final class FileServiceClient
         if (str_contains($name, '/') || str_contains($name, '\\') || str_contains($name, "\0")) {
             throw new \RuntimeException('Invalid name.');
         }
+    }
+
+    private function assertTlsConfigured(string $baseUrl): void
+    {
+        if (!str_starts_with($baseUrl, 'https://')) {
+            return;
+        }
+        if ($this->clientCertPath !== '' && $this->clientKeyPath !== '' && $this->clientCaPath !== '') {
+            return;
+        }
+
+        throw new \RuntimeException('File service TLS client certificates are not configured.');
     }
 }

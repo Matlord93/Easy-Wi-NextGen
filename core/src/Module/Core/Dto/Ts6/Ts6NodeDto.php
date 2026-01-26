@@ -21,7 +21,7 @@ final class Ts6NodeDto
         public string $installPath = self::DEFAULT_INSTALL_PATH,
         public string $instanceName = self::DEFAULT_INSTANCE_NAME,
         public string $serviceName = self::DEFAULT_SERVICE_NAME,
-        public string $queryBindIp = '127.0.0.1',
+        public string $queryBindIp = '0.0.0.0',
         public int $queryHttpsPort = 10443,
         public int $voicePort = 9987,
     ) {

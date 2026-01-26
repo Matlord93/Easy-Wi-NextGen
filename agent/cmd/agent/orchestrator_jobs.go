@@ -248,6 +248,11 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 	queryPort := payloadValue(job.Payload, "query_port")
 	voicePort := payloadValue(job.Payload, "voice_port")
 	filePort := payloadValue(job.Payload, "file_port")
+	voiceIP := payloadValue(job.Payload, "voice_ip")
+	queryIP := payloadValue(job.Payload, "query_ip")
+	fileIP := payloadValue(job.Payload, "filetransfer_ip")
+	licensePath := payloadValue(job.Payload, "licensepath", "license_path")
+	adminPassword := payloadValue(job.Payload, "admin_password", "serveradmin_password")
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
@@ -257,12 +262,44 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
+	if instanceName == "" {
+		instanceName = "ts3"
+	}
+	if voicePort == "" {
+		voicePort = "9987"
+	}
+	if queryPort == "" {
+		queryPort = "10011"
+	}
+	if filePort == "" {
+		filePort = "30033"
+	}
+
+	configPath := filepath.Join(installDir, ts3ConfigFile)
+	config := buildTs3Config(ts3Config{
+		name:        instanceName,
+		voiceIP:     voiceIP,
+		licensePath: licensePath,
+		voicePort:   voicePort,
+		queryPort:   queryPort,
+		queryIP:     queryIP,
+		filePort:    filePort,
+		fileIP:      fileIP,
+	})
+
 	if runtime.GOOS == "windows" {
 		exePath := filepath.Join(installDir, "ts3server.exe")
 		if err := runCommand("powershell", "-Command", fmt.Sprintf("Invoke-WebRequest -UseBasicParsing -OutFile \"%s\" \"%s\"", exePath, downloadURL)); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
-		if err := runCommand("sc", "create", serviceName, "binPath=", exePath); err != nil {
+		if err := writeFile(configPath, config); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
+		serviceCommand := fmt.Sprintf("\"%s\" inifile=ts3server.ini license_accepted=1", exePath)
+		if adminPassword != "" {
+			serviceCommand = fmt.Sprintf("%s serveradmin_password=%s", serviceCommand, adminPassword)
+		}
+		if err := runCommand("sc", "create", serviceName, "binPath=", serviceCommand); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
 		return orchestratorResult{status: "success", resultPayload: map[string]any{"installed_version": fallbackVersion(extractVersionFromDownloadURL(downloadURL))}}
@@ -287,31 +324,16 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
-	if instanceName == "" {
-		instanceName = "ts3"
-	}
-	if voicePort == "" {
-		voicePort = "9987"
-	}
-	if queryPort == "" {
-		queryPort = "10011"
-	}
-	if filePort == "" {
-		filePort = "30033"
-	}
-	configPath := filepath.Join(installDir, ts3ConfigFile)
-	config := buildTs3Config(ts3Config{
-		name:      instanceName,
-		voicePort: voicePort,
-		queryPort: queryPort,
-		filePort:  filePort,
-	})
 	if err := writeFile(configPath, config); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, "./ts3server", "", 0, 0)
+	startCommand := "./ts3server inifile=ts3server.ini license_accepted=1"
+	if adminPassword != "" {
+		startCommand = fmt.Sprintf("%s serveradmin_password=%s", startCommand, adminPassword)
+	}
+	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, startCommand, "", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -411,6 +433,13 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 		workingDirectory: installDir,
 	})
 	if err := writeFile(configPath, configContent); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	uid, gid, err := lookupIDs(serviceUser, serviceUser)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := os.Chown(configPath, uid, gid); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))

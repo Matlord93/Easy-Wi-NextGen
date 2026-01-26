@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -110,6 +111,19 @@ func openPorts(ports []int) error {
 		return nil
 	}
 
+	if runtime.GOOS == "windows" && commandAvailable("netsh") {
+		for _, port := range ports {
+			portStr := strconv.Itoa(port)
+			if err := openWindowsFirewallPort(portStr, "TCP"); err != nil {
+				return err
+			}
+			if err := openWindowsFirewallPort(portStr, "UDP"); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	if ok, err := ensureNft(); ok {
 		if err != nil {
 			return err
@@ -169,6 +183,19 @@ func openPorts(ports []int) error {
 
 func closePorts(ports []int) error {
 	if len(ports) == 0 {
+		return nil
+	}
+
+	if runtime.GOOS == "windows" && commandAvailable("netsh") {
+		for _, port := range ports {
+			portStr := strconv.Itoa(port)
+			if err := closeWindowsFirewallPort(portStr, "TCP"); err != nil {
+				return err
+			}
+			if err := closeWindowsFirewallPort(portStr, "UDP"); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
@@ -264,4 +291,32 @@ func runCommandWithIgnore(name string, args []string, ignore []string) error {
 		}
 	}
 	return fmt.Errorf("%s %s failed: %w (%s)", name, strings.Join(args, " "), err, outputStr)
+}
+
+func openWindowsFirewallPort(port, protocol string) error {
+	ruleName := fmt.Sprintf("EasyWi Port %s %s", port, protocol)
+	return runCommandIgnoreExists(
+		"netsh",
+		"advfirewall",
+		"firewall",
+		"add",
+		"rule",
+		"name="+ruleName,
+		"dir=in",
+		"action=allow",
+		"protocol="+protocol,
+		"localport="+port,
+	)
+}
+
+func closeWindowsFirewallPort(port, protocol string) error {
+	ruleName := fmt.Sprintf("EasyWi Port %s %s", port, protocol)
+	return runCommandIgnoreMissing(
+		"netsh",
+		"advfirewall",
+		"firewall",
+		"delete",
+		"rule",
+		"name="+ruleName,
+	)
 }

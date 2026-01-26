@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Ts3Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\Ts3DatabaseMode;
@@ -140,6 +141,17 @@ final class AdminTs3InstanceController
         $this->entityManager->persist($instance);
         $this->entityManager->flush();
 
+        $firewallJob = new Job('firewall.open_ports', [
+            'agent_id' => $instance->getNode()->getId(),
+            'instance_id' => (string) $instance->getId(),
+            'ports' => implode(',', [
+                (string) $instance->getVoicePort(),
+                (string) $instance->getQueryPort(),
+                (string) $instance->getFilePort(),
+            ]),
+        ]);
+        $this->entityManager->persist($firewallJob);
+
         $job = $this->queueTs3Job('ts3.instance.create', $instance, [
             'name' => $instance->getName(),
             'voice_port' => (string) $instance->getVoicePort(),
@@ -163,6 +175,7 @@ final class AdminTs3InstanceController
             'file_port' => $instance->getFilePort(),
             'db_mode' => $instance->getDatabaseMode()->value,
             'job_id' => $job->getId(),
+            'firewall_job_id' => $firewallJob->getId(),
         ]);
 
         $this->entityManager->flush();
