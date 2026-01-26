@@ -32,6 +32,7 @@
 {% set moduleGame = module_enabled('game') %}
 {% set moduleTs = module_enabled('ts') %}
 {% set moduleTs6 = module_enabled('ts6') %}
+{% set moduleTsCombined = moduleTs or moduleTs6 %}
 {% set moduleWeb = module_enabled('web') %}
 {% set moduleMail = module_enabled('mail') %}
 {% set moduleDns = module_enabled('dns') %}
@@ -45,10 +46,9 @@
 {% set infrastructureItems = [
     moduleGame ? { key: 'game-instances', label: 'Gameserver', href: path('admin_instances') } : null,
     moduleGame ? { key: 'sinusbot', label: 'SinusBot', href: path('admin_sinusbot_nodes_index') } : null,
-    moduleTs ? { key: 'ts3', label: 'TeamSpeak 3', href: path('admin_ts3_nodes_index') } : null,
-    moduleTs ? { key: 'ts3-servers', label: 'TeamSpeak 3 Server', href: path('customer_ts3_servers_index') } : null,
-    moduleTs6 ? { key: 'ts6', label: 'TeamSpeak 6', href: path('admin_ts6_nodes_index') } : null,
-    moduleTs6 ? { key: 'ts6-servers', label: 'TeamSpeak 6 Server', href: path('customer_ts6_servers_index') } : null,
+    moduleTsCombined ? { key: 'ts-nodes', label: 'TeamSpeak Nodes', href: path('admin_ts_nodes_index') } : null,
+    moduleTs ? { key: 'ts3-servers', label: 'TeamSpeak 3 Server', href: path('admin_ts3_servers_index') } : null,
+    moduleTs6 ? { key: 'ts6-servers', label: 'TeamSpeak 6 Server', href: path('admin_ts6_servers_index') } : null,
     { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: path('admin_nodes') },
     moduleGame ? { key: 'templates', label: t('admin_nav_templates', page_locale()), href: path('admin_templates') } : null,
     moduleGame ? { key: 'plugins', label: t('admin_nav_plugins', page_locale()), href: path('admin_plugins') } : null,

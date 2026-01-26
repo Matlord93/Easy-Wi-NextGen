@@ -26,7 +26,7 @@ final class GameTemplateSeedCatalog
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                     ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/game/bin/linuxsteamrt64/cs2 -dedicated -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/game/bin/linuxsteamrt64/cs2 -dedicated -console -usercon -tickrate 128 -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -61,7 +61,7 @@ final class GameTemplateSeedCatalog
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                     ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds_run -game csgo -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds_run -game csgo -console -usercon -tickrate 128 -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CSGO'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -443,10 +443,11 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds_run -game garrysmod -console +map gm_construct +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}"',
+                '{{INSTANCE_DIR}}/srcds_run -game garrysmod -console -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +tv_port {{PORT_TV}} +map gm_construct +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Garry\'s Mod'],
                     ['key' => 'MAX_PLAYERS', 'value' => '24'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -482,7 +483,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'serverconfig.txt',
                         'description' => 'Terraria server configuration',
-                        'contents' => "world=worlds/{{WORLD_NAME}}.wld\nmaxplayers={{MAX_PLAYERS}}\npassword={{SERVER_PASSWORD}}\n",
+                        'contents' => "world=worlds/{{WORLD_NAME}}.wld\nmaxplayers={{MAX_PLAYERS}}\nport={{PORT_GAME}}\npassword={{SERVER_PASSWORD}}\n",
                     ],
                 ],
                 [],
@@ -530,7 +531,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/bin/x64/factorio --start-server save.zip --server-settings server-settings.json',
+                '{{INSTANCE_DIR}}/bin/x64/factorio --start-server save.zip --server-settings server-settings.json --port {{PORT_GAME}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Factorio'],
                 ],
@@ -731,7 +732,7 @@ final class GameTemplateSeedCatalog
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                     ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds.exe -game cs2 -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/game/bin/win64/cs2.exe -dedicated -console -usercon -tickrate 128 -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -766,7 +767,7 @@ final class GameTemplateSeedCatalog
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                     ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds.exe -game csgo -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds.exe -game csgo -console -usercon -tickrate 128 -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CSGO'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -800,11 +801,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds_run -game tf +map ctf_2fort +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds_run -game tf -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map ctf_2fort +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi TF2'],
                     ['key' => 'MAX_PLAYERS', 'value' => '24'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -832,11 +834,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds.exe -game tf +map ctf_2fort +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds.exe -game tf -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map ctf_2fort +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi TF2'],
                     ['key' => 'MAX_PLAYERS', 'value' => '24'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -865,11 +868,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                     ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds_run -game cstrike +map de_dust2 +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds_run -game cstrike -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map de_dust2 +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CSS'],
                     ['key' => 'MAX_PLAYERS', 'value' => '24'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -898,11 +902,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                     ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds.exe -game cstrike +map de_dust2 +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds.exe -game cstrike -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map de_dust2 +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CSS'],
                     ['key' => 'MAX_PLAYERS', 'value' => '24'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -930,11 +935,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds_run -game hl2mp +map dm_lockdown +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds_run -game hl2mp -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map dm_lockdown +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi HL2DM'],
                     ['key' => 'MAX_PLAYERS', 'value' => '24'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -959,11 +965,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds.exe -game hl2mp +map dm_lockdown +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds.exe -game hl2mp -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map dm_lockdown +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi HL2DM'],
                     ['key' => 'MAX_PLAYERS', 'value' => '24'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -988,11 +995,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds_run -game left4dead2 +map c1m1_hotel +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds_run -game left4dead2 -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map c1m1_hotel +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi L4D2'],
                     ['key' => 'MAX_PLAYERS', 'value' => '8'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -1020,11 +1028,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds.exe -game left4dead2 +map c1m1_hotel +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds.exe -game left4dead2 -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map c1m1_hotel +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi L4D2'],
                     ['key' => 'MAX_PLAYERS', 'value' => '8'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -1052,11 +1061,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds_run -game left4dead +map l4d_hospital01_apartment +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds_run -game left4dead -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map l4d_hospital01_apartment +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi L4D'],
                     ['key' => 'MAX_PLAYERS', 'value' => '8'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -1084,11 +1094,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds.exe -game left4dead +map l4d_hospital01_apartment +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds.exe -game left4dead -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map l4d_hospital01_apartment +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi L4D'],
                     ['key' => 'MAX_PLAYERS', 'value' => '8'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -1116,11 +1127,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds_run -game dod +map dod_anzio +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds_run -game dod -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map dod_anzio +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi DoD:S'],
                     ['key' => 'MAX_PLAYERS', 'value' => '24'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -1148,11 +1160,12 @@ final class GameTemplateSeedCatalog
                     ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                 ],
-                '{{INSTANCE_DIR}}/srcds.exe -game dod +map dod_anzio +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/srcds.exe -game dod -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +map dod_anzio +maxplayers {{MAX_PLAYERS}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}" +sv_password "{{SERVER_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi DoD:S'],
                     ['key' => 'MAX_PLAYERS', 'value' => '24'],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -1182,6 +1195,10 @@ final class GameTemplateSeedCatalog
                 [
                     ['key' => 'JAVA_XMS', 'value' => '1G'],
                     ['key' => 'JAVA_XMX', 'value' => '2G'],
+                    ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Minecraft'],
+                    ['key' => 'MAX_PLAYERS', 'value' => '20'],
+                    ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -1192,7 +1209,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'server.properties',
                         'description' => 'Base server settings',
-                        'contents' => "motd=Easy-Wi Minecraft\nview-distance=10\n",
+                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{SERVER_PORT}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nserver-password={{SERVER_PASSWORD}}\n",
                     ],
                 ],
                 [],
@@ -1216,6 +1233,10 @@ final class GameTemplateSeedCatalog
                 [
                     ['key' => 'JAVA_XMS', 'value' => '1G'],
                     ['key' => 'JAVA_XMX', 'value' => '2G'],
+                    ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi Minecraft'],
+                    ['key' => 'MAX_PLAYERS', 'value' => '20'],
+                    ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
+                    ['key' => 'SERVER_PASSWORD', 'value' => ''],
                 ],
                 [
                     [
@@ -1226,7 +1247,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'server.properties',
                         'description' => 'Base server settings',
-                        'contents' => "motd=Easy-Wi Minecraft\nview-distance=10\n",
+                        'contents' => "motd={{SERVER_NAME}}\nview-distance=10\nserver-port={{SERVER_PORT}}\nmax-players={{MAX_PLAYERS}}\nenable-rcon=true\nrcon.password={{RCON_PASSWORD}}\nserver-password={{SERVER_PASSWORD}}\n",
                     ],
                 ],
                 [],

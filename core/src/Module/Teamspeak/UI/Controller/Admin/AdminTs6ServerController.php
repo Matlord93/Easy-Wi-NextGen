@@ -60,7 +60,7 @@ final class AdminTs6ServerController
         }
 
         return new Response($this->twig->render('admin/ts6/servers/index.html.twig', [
-            'activeNav' => 'ts6',
+            'activeNav' => 'ts6-servers',
             'servers' => $servers,
             'customers' => $customers,
             'customerMap' => $customerMap,
@@ -111,7 +111,7 @@ final class AdminTs6ServerController
         }
 
         return new Response($this->twig->render('admin/ts6/servers/create.html.twig', [
-            'activeNav' => 'ts6',
+            'activeNav' => 'ts6-servers',
             'form' => $form->createView(),
         ]));
     }

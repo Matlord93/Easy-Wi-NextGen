@@ -1,6 +1,5 @@
 {% extends 'customer/base.html.twig' %}
 
-{% block title %}{{ t('customer_instance_files_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
     {% set displayName = instance.server_name ?? instance.name %}

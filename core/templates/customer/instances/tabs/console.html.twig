@@ -20,7 +20,7 @@
             <span id="instance-console-log-status" class="text-xs text-slate-500">{{ t('customer_instance_console_log_loading', page_locale()) }}</span>
         </div>
         <p class="mt-2 text-xs text-slate-500">{{ t('customer_instance_console_live_log_intro', page_locale()) }}</p>
-        <pre id="instance-console-log" class="mt-3 h-64 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"></pre>
+        <pre id="instance-console-log" class="mt-3 h-64 overflow-y-auto overflow-x-auto whitespace-pre-wrap overscroll-contain rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"></pre>
     </div>
 
     <div class="grid gap-4 lg:grid-cols-2">
@@ -205,6 +205,17 @@
                 entries.push(`--- ${label} ---`);
                 entries.push(...content.split(/\r\n|\r|\n/));
             };
+
+            [
+                { key: 'service_name', label: 'SERVICE' },
+                { key: 'service_status', label: 'SERVICE STATUS' },
+                { key: 'service_status_error', label: 'SERVICE STATUS ERROR' },
+                { key: 'logs_error', label: 'LOG ERROR' },
+            ].forEach(({ key, label }) => {
+                if (typeof output[key] === 'string' && output[key].trim()) {
+                    appendSection(label, output[key]);
+                }
+            });
 
             ['logs_tail', 'install_log', 'log_text', 'output', 'message'].forEach((key) => {
                 if (typeof output[key] === 'string' && output[key].trim()) {

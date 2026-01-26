@@ -50,7 +50,7 @@ final class AdminTs6NodeController
         $nodes = $this->nodeRepository->findBy([], ['updatedAt' => 'DESC']);
 
         return new Response($this->twig->render('admin/ts6/nodes/index.html.twig', [
-            'activeNav' => 'ts6',
+            'activeNav' => 'ts-nodes',
             'nodes' => $nodes,
         ]));
     }
@@ -75,7 +75,7 @@ final class AdminTs6NodeController
             if ($agent === null) {
                 $form->addError(new FormError('Selected agent was not found.'));
                 return new Response($this->twig->render('admin/ts6/nodes/new.html.twig', [
-                    'activeNav' => 'ts6',
+                    'activeNav' => 'ts-nodes',
                     'form' => $form->createView(),
                 ]), Response::HTTP_BAD_REQUEST);
             }
@@ -106,7 +106,7 @@ final class AdminTs6NodeController
         }
 
         return new Response($this->twig->render('admin/ts6/nodes/new.html.twig', [
-            'activeNav' => 'ts6',
+            'activeNav' => 'ts-nodes',
             'form' => $form->createView(),
         ]));
     }
@@ -119,7 +119,7 @@ final class AdminTs6NodeController
         $node = $this->findNode($id);
 
         return new Response($this->twig->render('admin/ts6/nodes/show.html.twig', [
-            'activeNav' => 'ts6',
+            'activeNav' => 'ts-nodes',
             'node' => $node,
             'admin_password' => null,
             'agent_jobs' => $this->loadAgentJobs($node),
@@ -154,7 +154,7 @@ final class AdminTs6NodeController
         }
 
         return new Response($this->twig->render('admin/ts6/nodes/show.html.twig', [
-            'activeNav' => 'ts6',
+            'activeNav' => 'ts-nodes',
             'node' => $node,
             'admin_password' => $adminPassword,
             'agent_jobs' => $this->loadAgentJobs($node),

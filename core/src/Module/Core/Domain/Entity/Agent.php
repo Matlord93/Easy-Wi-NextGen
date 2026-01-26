@@ -74,7 +74,7 @@ class Agent
     private string $status = 'offline';
 
     #[ORM\Column]
-    private int $jobConcurrency = 1;
+    private int $jobConcurrency = 50;
 
     /**
      * @param array{key_id: string, nonce: string, ciphertext: string} $secretPayload

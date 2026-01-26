@@ -293,6 +293,77 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 	}, nil
 }
 
+func handleInstanceConsoleCommand(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	instanceID := payloadValue(job.Payload, "instance_id")
+	serviceName := payloadValue(job.Payload, "service_name")
+	command := strings.TrimSpace(payloadValue(job.Payload, "command"))
+
+	if serviceName == "" && instanceID != "" {
+		serviceName = fmt.Sprintf("gs-%s", instanceID)
+	}
+
+	if command == "" {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: command"},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+	if serviceName == "" && instanceID == "" {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: instance_id"},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	statusOutput, err := runCommandOutput("systemctl", "is-active", serviceName)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	if strings.TrimSpace(statusOutput) != "active" {
+		return failureResult(job.ID, fmt.Errorf("service %s is not running", serviceName))
+	}
+
+	pidOutput, err := runCommandOutput("systemctl", "show", "-p", "MainPID", "--value", serviceName)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	pidValue := strings.TrimSpace(pidOutput)
+	pid, err := strconv.Atoi(pidValue)
+	if err != nil || pid <= 0 {
+		return failureResult(job.ID, fmt.Errorf("invalid service pid %q", pidValue))
+	}
+
+	consolePath := fmt.Sprintf("/proc/%d/fd/0", pid)
+	consoleHandle, err := os.OpenFile(consolePath, os.O_WRONLY, 0)
+	if err != nil {
+		return failureResult(job.ID, fmt.Errorf("open console %s: %w", consolePath, err))
+	}
+	defer func() {
+		_ = consoleHandle.Close()
+	}()
+	if _, err := consoleHandle.WriteString(command + "\n"); err != nil {
+		return failureResult(job.ID, fmt.Errorf("write console %s: %w", consolePath, err))
+	}
+
+	if logSender != nil {
+		logSender.Send(job.ID, []string{fmt.Sprintf("console command sent: %s", command)}, nil)
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"message":      "command sent",
+			"service_name": serviceName,
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
 func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")

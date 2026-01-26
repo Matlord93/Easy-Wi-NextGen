@@ -60,7 +60,7 @@ final class AdminTs3ServerController
         }
 
         return new Response($this->twig->render('admin/ts3/servers/index.html.twig', [
-            'activeNav' => 'ts3',
+            'activeNav' => 'ts3-servers',
             'servers' => $servers,
             'customers' => $customers,
             'customerMap' => $customerMap,
@@ -111,7 +111,7 @@ final class AdminTs3ServerController
         }
 
         return new Response($this->twig->render('admin/ts3/servers/create.html.twig', [
-            'activeNav' => 'ts3',
+            'activeNav' => 'ts3-servers',
             'form' => $form->createView(),
         ]));
     }

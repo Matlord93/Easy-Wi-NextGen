@@ -1,0 +1,96 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}TeamSpeak Nodes · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>TeamSpeak Nodes</h1>
+                <p>Verwalte TS3- und TS6-Nodes zentral.</p>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-link" href="/admin/ts3/nodes/new">TS3 Node hinzufügen</a>
+                <a class="ts6-link" href="/admin/ts6/nodes/new">TS6 Node hinzufügen</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts3-card">
+            <h2>TS3 Nodes</h2>
+            <table class="ts3-table">
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Agent URL</th>
+                    <th>Status</th>
+                    <th>Version</th>
+                    <th>Aktualisiert</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for node in ts3_nodes %}
+                    <tr>
+                        <td>
+                            <div>{{ node.name }}</div>
+                            <div class="ts3-muted">#{{ node.id }}</div>
+                        </td>
+                        <td>{{ node.agentBaseUrl }}</td>
+                        <td><span class="ts3-pill">{{ node.installStatus }}</span></td>
+                        <td>{{ node.installedVersion ?? '—' }}</td>
+                        <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
+                        <td class="ts3-align-right">
+                            <a class="ts3-link" href="/admin/ts3/nodes/{{ node.id }}">Details</a>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="ts3-empty">Keine TS3 Nodes vorhanden.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ts6-card">
+            <h2>TS6 Nodes</h2>
+            <table class="ts6-table">
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Agent</th>
+                    <th>Version</th>
+                    <th>Aktualisiert</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for node in ts6_nodes %}
+                    <tr>
+                        <td>
+                            <strong>{{ node.name }}</strong>
+                            <div class="ts6-muted">#{{ node.id }}</div>
+                        </td>
+                        <td><span class="ts6-pill">{{ node.installStatus }}</span></td>
+                        <td>{{ node.agentBaseUrl }}</td>
+                        <td>{{ node.installedVersion ?? '—' }}</td>
+                        <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
+                        <td class="ts6-align-right">
+                            <a class="ts6-link" href="/admin/ts6/nodes/{{ node.id }}">Details</a>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="ts6-empty">Keine TS6 Nodes vorhanden.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

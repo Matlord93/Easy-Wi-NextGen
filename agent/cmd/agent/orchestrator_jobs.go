@@ -477,7 +477,7 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if err := extractArchive(archivePath, downloadURL, installDir); err != nil {
+	if err := extractArchiveWithoutStrip(archivePath, downloadURL, installDir); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	if err := ensureExecutable(filepath.Join(installDir, "sinusbot")); err != nil {
@@ -574,6 +574,24 @@ func extractArchive(archivePath, downloadURL, installDir string) error {
 		return runCommand("tar", "-xJf", archivePath, "-C", installDir, "--strip-components=1")
 	default:
 		return runCommand("tar", "-xf", archivePath, "-C", installDir, "--strip-components=1")
+	}
+}
+
+func extractArchiveWithoutStrip(archivePath, downloadURL, installDir string) error {
+	archiveLower := strings.ToLower(archivePath)
+	downloadLower := strings.ToLower(downloadURL)
+	if strings.HasSuffix(archiveLower, ".zip") || strings.HasSuffix(downloadLower, ".zip") {
+		return runCommand("unzip", "-o", archivePath, "-d", installDir)
+	}
+	switch {
+	case strings.HasSuffix(archiveLower, ".tar.bz2"), strings.HasSuffix(archiveLower, ".tbz2"):
+		return runCommand("tar", "-xjf", archivePath, "-C", installDir)
+	case strings.HasSuffix(archiveLower, ".tar.gz"), strings.HasSuffix(archiveLower, ".tgz"):
+		return runCommand("tar", "-xzf", archivePath, "-C", installDir)
+	case strings.HasSuffix(archiveLower, ".tar.xz"), strings.HasSuffix(archiveLower, ".txz"):
+		return runCommand("tar", "-xJf", archivePath, "-C", installDir)
+	default:
+		return runCommand("tar", "-xf", archivePath, "-C", installDir)
 	}
 }
 

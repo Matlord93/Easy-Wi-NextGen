@@ -1,6 +1,5 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}{{ t('admin_nodes_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
 {% set selectedNode = selectedNode ?? nodes|first %}
@@ -278,7 +277,7 @@
                                         name="job_concurrency"
                                         type="number"
                                         min="1"
-                                        value="{{ selectedNode.agent.job_concurrency ?? 1 }}"
+                                        value="{{ selectedNode.agent.job_concurrency ?? 50 }}"
                                         class="form-input"
                                     >
                                     <p class="text-xs text-slate-500">Legt fest, wie viele Jobs der Agent gleichzeitig ausführen darf.</p>
