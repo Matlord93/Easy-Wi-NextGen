@@ -1,7 +1,18 @@
 <div class="p-6 border-b border-slate-200 flex items-center justify-between">
-    <div>
-        <h2 class="text-lg font-semibold">{{ t('admin_instances_table_title', page_locale()) }}</h2>
-        <p class="text-sm text-slate-700">{{ t('admin_instances_table_intro', page_locale()) }}</p>
+    <div class="space-y-3">
+        <div>
+            <h2 class="text-lg font-semibold">{{ t('admin_instances_table_title', page_locale()) }}</h2>
+            <p class="text-sm text-slate-700">{{ t('admin_instances_table_intro', page_locale()) }}</p>
+        </div>
+        {% if errors is defined and errors is not empty %}
+            <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <ul class="list-disc pl-4 space-y-1">
+                    {% for error in errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
     </div>
 </div>
 <div class="overflow-x-auto">
@@ -52,6 +63,31 @@
                 <td class="px-6 py-4 text-sm text-slate-600">{{ instance.node }}</td>
                 <td class="px-6 py-4 text-sm text-slate-600">
                     {{ instance.cpu_limit }} vCPU · {{ instance.ram_limit }} MB · {{ instance.disk_limit }} MB
+                    <details class="mt-2 text-xs text-slate-600">
+                        <summary class="cursor-pointer text-indigo-600">{{ t('admin_instances_update_resources', page_locale()) }}</summary>
+                        <form
+                            class="mt-3 grid gap-2"
+                            hx-post="/admin/instances/{{ instance.id }}/resources"
+                            hx-target="#instances-table"
+                            hx-swap="outerHTML"
+                        >
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="flex flex-col gap-1">
+                                    <span class="text-[11px] font-semibold uppercase text-slate-500">CPU</span>
+                                    <input name="cpu_limit" type="number" min="{{ instance.cpu_limit }}" value="{{ instance.cpu_limit }}" class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs">
+                                </label>
+                                <label class="flex flex-col gap-1">
+                                    <span class="text-[11px] font-semibold uppercase text-slate-500">RAM</span>
+                                    <input name="ram_limit" type="number" min="{{ instance.ram_limit }}" value="{{ instance.ram_limit }}" class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs">
+                                </label>
+                                <label class="flex flex-col gap-1">
+                                    <span class="text-[11px] font-semibold uppercase text-slate-500">Disk</span>
+                                    <input name="disk_limit" type="number" min="{{ instance.disk_limit }}" value="{{ instance.disk_limit }}" class="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs">
+                                </label>
+                            </div>
+                            <button class="w-fit rounded-md bg-indigo-600 px-3 py-1 text-[11px] font-semibold uppercase text-white">{{ t('admin_instances_update_resources_submit', page_locale()) }}</button>
+                        </form>
+                    </details>
                 </td>
                 <td class="px-6 py-4 text-sm text-slate-600">
                     <div class="flex items-center gap-2">

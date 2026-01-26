@@ -125,11 +125,13 @@ final class InstanceJobPayloadBuilder
             $vars[$key] = (string) ($entry['value'] ?? '');
         }
 
+        $setupVarKeys = [];
         foreach ($instance->getSetupVars() as $key => $value) {
             $normalizedKey = trim((string) $key);
             if ($normalizedKey === '') {
                 continue;
             }
+            $setupVarKeys[$normalizedKey] = true;
             $vars[$normalizedKey] = (string) $value;
         }
 
@@ -141,6 +143,16 @@ final class InstanceJobPayloadBuilder
         }
         if ($instance->getServerName() !== null && $instance->getServerName() !== '') {
             $vars['SERVER_NAME'] = $instance->getServerName();
+        }
+
+        if (!isset($setupVarKeys['SERVER_MEMORY']) && $instance->getRamLimit() > 0) {
+            $vars['SERVER_MEMORY'] = (string) $instance->getRamLimit();
+        }
+
+        foreach (['SERVER_PASSWORD', 'RCON_PASSWORD', 'ADMIN_PASSWORD', 'SERVER_ADMIN_PASSWORD'] as $passwordKey) {
+            if (!isset($setupVarKeys[$passwordKey]) && isset($vars[$passwordKey]) && strtolower($vars[$passwordKey]) === 'change-me') {
+                unset($vars[$passwordKey]);
+            }
         }
 
         $normalized = [];

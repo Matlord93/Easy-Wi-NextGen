@@ -112,9 +112,7 @@ final class AdminInstanceController
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
 
-        return new Response($this->twig->render('admin/instances/_table.html.twig', [
-            'instances' => $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances)),
-        ]));
+        return $this->renderInstancesTable($instances);
     }
 
     #[Route(path: '/form', name: 'admin_instances_form', methods: ['GET'])]
@@ -382,6 +380,74 @@ final class AdminInstanceController
         $response->headers->set('HX-Trigger', 'instances-changed');
 
         return $response;
+    }
+
+    #[Route(path: '/{id}/resources', name: 'admin_instances_update_resources', methods: ['POST'])]
+    public function updateResources(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $instance = $this->instanceRepository->find($id);
+        if ($instance === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $errors = [];
+        $cpuLimitValue = $request->request->get('cpu_limit');
+        $ramLimitValue = $request->request->get('ram_limit');
+        $diskLimitValue = $request->request->get('disk_limit');
+
+        if (!is_numeric($cpuLimitValue) || !is_numeric($ramLimitValue) || !is_numeric($diskLimitValue)) {
+            $errors[] = 'CPU, RAM, and disk limits must be numeric.';
+        }
+
+        $cpuLimit = is_numeric($cpuLimitValue) ? (int) $cpuLimitValue : 0;
+        $ramLimit = is_numeric($ramLimitValue) ? (int) $ramLimitValue : 0;
+        $diskLimit = is_numeric($diskLimitValue) ? (int) $diskLimitValue : 0;
+
+        if ($cpuLimit <= 0 || $ramLimit <= 0 || $diskLimit <= 0) {
+            $errors[] = 'CPU, RAM, and disk limits must be positive.';
+        }
+
+        if ($cpuLimit < $instance->getCpuLimit()) {
+            $errors[] = 'CPU limit cannot be decreased from its current value.';
+        }
+
+        if ($ramLimit < $instance->getRamLimit()) {
+            $errors[] = 'RAM limit cannot be decreased from its current value.';
+        }
+
+        if ($diskLimit < $instance->getDiskLimit()) {
+            $errors[] = 'Disk limit cannot be decreased from its current value.';
+        }
+
+        if ($errors !== []) {
+            $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
+
+            return $this->renderInstancesTable($instances, $errors, Response::HTTP_BAD_REQUEST);
+        }
+
+        $instance->setCpuLimit($cpuLimit);
+        $instance->setRamLimit($ramLimit);
+        $instance->setDiskLimit($diskLimit);
+        $this->entityManager->persist($instance);
+
+        $this->auditLogger->log($actor, 'instance.resources.updated', [
+            'instance_id' => $instance->getId(),
+            'customer_id' => $instance->getCustomer()->getId(),
+            'cpu_limit' => $instance->getCpuLimit(),
+            'ram_limit' => $instance->getRamLimit(),
+            'disk_limit' => $instance->getDiskLimit(),
+        ]);
+
+        $this->entityManager->flush();
+
+        $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
+
+        return $this->renderInstancesTable($instances);
     }
 
     private function parsePayload(Request $request): array
@@ -691,6 +757,7 @@ final class AdminInstanceController
                 'disk_percent' => $diskPercent,
                 'disk_state' => $instance->getDiskState()->value,
                 'disk_last_scanned_at' => $instance->getDiskLastScannedAt(),
+                'disk_scan_error' => $instance->getDiskScanError(),
                 'status' => $instance->getStatus()->value,
                 'current_slots' => $instance->getCurrentSlots(),
                 'max_slots' => $instance->getMaxSlots(),
@@ -774,5 +841,16 @@ final class AdminInstanceController
     {
         $actor = $request->attributes->get('current_user');
         return $actor instanceof User && $actor->isAdmin();
+    }
+
+    /**
+     * @param Instance[] $instances
+     */
+    private function renderInstancesTable(array $instances, array $errors = [], int $status = Response::HTTP_OK): Response
+    {
+        return new Response($this->twig->render('admin/instances/_table.html.twig', [
+            'instances' => $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances)),
+            'errors' => $errors,
+        ]), $status);
     }
 }

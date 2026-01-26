@@ -382,9 +382,14 @@ final class InstallController
     private function resolveDatabaseConnectionError(array $databaseState, \Throwable $exception): array
     {
         if ($this->isMissingDriverException($exception)) {
+            $extension = $this->resolveDriverExtension($databaseState);
+            if (extension_loaded($extension)) {
+                return ['key' => 'errors.db_connection_failed'];
+            }
+
             return [
                 'key' => 'errors.missing_extension',
-                'params' => ['%extension%' => $this->resolveDriverExtension($databaseState)],
+                'params' => ['%extension%' => $extension],
             ];
         }
 

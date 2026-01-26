@@ -145,42 +145,73 @@ final class CustomerDashboardController
      */
     private function calculateResourceUsage(array $instances): array
     {
-        $totals = [
-            'cpu' => 0,
-            'ram' => 0,
-            'disk' => 0,
-        ];
-        $running = [
-            'cpu' => 0,
-            'ram' => 0,
-            'disk' => 0,
-        ];
+        $diskLimitBytes = 0.0;
+        $diskUsedBytes = 0.0;
+        $cpuWeighted = 0.0;
+        $ramWeighted = 0.0;
+        $cpuTotal = 0.0;
+        $ramTotal = 0.0;
+        $nodeLimits = [];
+        $nodeMap = [];
 
         foreach ($instances as $instance) {
-            $totals['cpu'] += $instance->getCpuLimit();
-            $totals['ram'] += $instance->getRamLimit();
-            $totals['disk'] += $instance->getDiskLimit();
+            $nodeId = $instance->getNode()->getId();
+            $nodeMap[$nodeId] = $instance->getNode();
+            $nodeLimits[$nodeId]['cpu'] = ($nodeLimits[$nodeId]['cpu'] ?? 0) + $instance->getCpuLimit();
+            $nodeLimits[$nodeId]['ram'] = ($nodeLimits[$nodeId]['ram'] ?? 0) + $instance->getRamLimit();
 
-            if ($instance->getStatus() === InstanceStatus::Running) {
-                $running['cpu'] += $instance->getCpuLimit();
-                $running['ram'] += $instance->getRamLimit();
-                $running['disk'] += $instance->getDiskLimit();
+            $cpuTotal += $instance->getCpuLimit();
+            $ramTotal += $instance->getRamLimit();
+            $diskLimitBytes += $instance->getDiskLimitBytes();
+            $diskUsedBytes += $instance->getDiskUsedBytes();
+        }
+
+        foreach ($nodeLimits as $nodeId => $limits) {
+            $node = $nodeMap[$nodeId] ?? null;
+            if ($node === null) {
+                continue;
+            }
+
+            $stats = $node->getLastHeartbeatStats() ?? [];
+            $metrics = is_array($stats['metrics'] ?? null) ? $stats['metrics'] : [];
+            $nodeCpuPercent = $this->extractMetricPercent($metrics, 'cpu')
+                ?? $this->extractMetricPercent($stats, 'cpu');
+            $nodeMemoryPercent = $this->extractMetricPercent($metrics, 'memory')
+                ?? $this->extractMetricPercent($stats, 'memory');
+
+            if ($nodeCpuPercent !== null && ($limits['cpu'] ?? 0) > 0) {
+                $cpuWeighted += $nodeCpuPercent * $limits['cpu'];
+            }
+
+            if ($nodeMemoryPercent !== null && ($limits['ram'] ?? 0) > 0) {
+                $ramWeighted += $nodeMemoryPercent * $limits['ram'];
             }
         }
 
         return [
-            'cpu' => $this->formatUsagePercent($running['cpu'], $totals['cpu']),
-            'ram' => $this->formatUsagePercent($running['ram'], $totals['ram']),
-            'disk' => $this->formatUsagePercent($running['disk'], $totals['disk']),
+            'cpu' => $this->formatUsagePercent($cpuWeighted, $cpuTotal),
+            'ram' => $this->formatUsagePercent($ramWeighted, $ramTotal),
+            'disk' => $this->formatUsagePercent($diskUsedBytes, $diskLimitBytes),
         ];
     }
 
-    private function formatUsagePercent(int $used, int $total): int
+    private function formatUsagePercent(float $used, float $total): int
     {
         if ($total <= 0) {
             return 0;
         }
 
         return (int) min(100, round(($used / $total) * 100));
+    }
+
+    private function extractMetricPercent(array $metrics, string $key): ?float
+    {
+        $metric = $metrics[$key] ?? null;
+        if (is_array($metric)) {
+            $value = $metric['percent'] ?? null;
+            return is_numeric($value) ? (float) $value : null;
+        }
+
+        return is_numeric($metric) ? (float) $metric : null;
     }
 }

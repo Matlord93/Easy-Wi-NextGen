@@ -82,6 +82,12 @@ func ensureBaseForRole(role string) (string, error) {
 		return output.String(), fmt.Errorf("unsupported role: %s", role)
 	}
 
+	if role == "game" && containsString(packages, "temurin-25-jdk") {
+		if err := ensureTemurinRepo(&output); err != nil {
+			return output.String(), err
+		}
+	}
+
 	if err := installPackages(family, packages, &output); err != nil {
 		return output.String(), err
 	}
@@ -142,7 +148,9 @@ func ensureBaseForRoleWindows(role string) (string, error) {
 func windowsRoleInstallPlan(role string) *windowsRolePlan {
 	switch role {
 	case "game":
-		return &windowsRolePlan{}
+		return &windowsRolePlan{
+			wingetPackages: []string{"EclipseAdoptium.Temurin.25.JDK"},
+		}
 	case "web", "core":
 		return &windowsRolePlan{
 			features: []string{
@@ -334,10 +342,10 @@ func rolePackages(role, family string) []string {
 	switch role {
 	case "game":
 		if family == "debian" {
-			return []string{"ca-certificates", "curl", "tar", "xz-utils", "unzip", "tmux", "screen", "lib32gcc-s1", "lib32stdc++6", "libc6-i386"}
+			return []string{"ca-certificates", "curl", "tar", "xz-utils", "unzip", "tmux", "screen", "lib32gcc-s1", "lib32stdc++6", "libc6-i386", "gnupg", "temurin-25-jdk"}
 		}
 		if family == "rhel" {
-			return []string{"ca-certificates", "curl", "tar", "xz", "unzip", "tmux", "screen", "glibc.i686", "libstdc++.i686"}
+			return []string{"ca-certificates", "curl", "tar", "xz", "unzip", "tmux", "screen", "glibc.i686", "libstdc++.i686", "temurin-25-jdk"}
 		}
 	case "web":
 		return []string{"nginx", "php-fpm"}
@@ -474,6 +482,167 @@ func installSteamCmd(output *strings.Builder) error {
 	}
 
 	return nil
+}
+
+func ensureTemurinRepo(output *strings.Builder) error {
+	family, err := detectOSFamily()
+	if err != nil {
+		return err
+	}
+
+	switch family {
+	case "debian":
+		return ensureTemurinRepoDebian(output)
+	case "rhel":
+		return ensureTemurinRepoRhel(output)
+	default:
+		return nil
+	}
+}
+
+func ensureTemurinRepoDebian(output *strings.Builder) error {
+	const keyringPath = "/etc/apt/keyrings/adoptium.gpg"
+	const listPath = "/etc/apt/sources.list.d/adoptium.list"
+
+	if _, err := os.Stat(listPath); err == nil {
+		appendOutput(output, "adoptium_repo=already_configured")
+		return nil
+	}
+
+	codename, err := debianCodename()
+	if err != nil {
+		return err
+	}
+	if codename == "" {
+		return fmt.Errorf("unable to resolve debian codename for adoptium repo")
+	}
+
+	if err := runCommandWithOutput("mkdir", []string{"-p", "/etc/apt/keyrings"}, output); err != nil {
+		return err
+	}
+
+	keyPath := "/tmp/adoptium.asc"
+	switch {
+	case commandExists("curl"):
+		if err := runCommandWithOutput("curl", []string{"-fsSL", "https://packages.adoptium.net/artifactory/api/gpg/key/public", "-o", keyPath}, output); err != nil {
+			return err
+		}
+	case commandExists("wget"):
+		if err := runCommandWithOutput("wget", []string{"-qO", keyPath, "https://packages.adoptium.net/artifactory/api/gpg/key/public"}, output); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("adoptium repo setup failed: missing curl or wget")
+	}
+
+	if err := runCommandWithOutput("gpg", []string{"--dearmor", "-o", keyringPath, keyPath}, output); err != nil {
+		return err
+	}
+
+	repoLine := fmt.Sprintf("deb [signed-by=%s] https://packages.adoptium.net/artifactory/deb %s main\n", keyringPath, codename)
+	if err := os.WriteFile(listPath, []byte(repoLine), 0o644); err != nil {
+		return fmt.Errorf("write adoptium list: %w", err)
+	}
+	appendOutput(output, "adoptium_repo=configured")
+
+	return nil
+}
+
+func ensureTemurinRepoRhel(output *strings.Builder) error {
+	const repoPath = "/etc/yum.repos.d/adoptium.repo"
+
+	if _, err := os.Stat(repoPath); err == nil {
+		appendOutput(output, "adoptium_repo=already_configured")
+		return nil
+	}
+
+	majorVersion, err := rhelMajorVersion()
+	if err != nil {
+		return err
+	}
+	if majorVersion == "" {
+		return fmt.Errorf("unable to resolve rhel major version for adoptium repo")
+	}
+
+	baseURL := fmt.Sprintf("https://packages.adoptium.net/artifactory/rpm/centos/%s/x86_64", majorVersion)
+	repo := fmt.Sprintf(`[Adoptium]
+name=Adoptium
+baseurl=%s
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.adoptium.net/artifactory/api/gpg/key/public
+`, baseURL)
+
+	if err := os.WriteFile(repoPath, []byte(repo), 0o644); err != nil {
+		return fmt.Errorf("write adoptium repo: %w", err)
+	}
+	appendOutput(output, "adoptium_repo=configured")
+
+	return nil
+}
+
+func debianCodename() (string, error) {
+	content, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return "", fmt.Errorf("read os-release: %w", err)
+	}
+
+	var codename string
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		value = strings.Trim(value, `"'`)
+		switch key {
+		case "VERSION_CODENAME":
+			codename = value
+		case "UBUNTU_CODENAME":
+			if codename == "" {
+				codename = value
+			}
+		}
+	}
+
+	return codename, nil
+}
+
+func rhelMajorVersion() (string, error) {
+	content, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return "", fmt.Errorf("read os-release: %w", err)
+	}
+
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok || key != "VERSION_ID" {
+			continue
+		}
+		value = strings.Trim(value, `"'`)
+		parts := strings.Split(value, ".")
+		if len(parts) > 0 {
+			return parts[0], nil
+		}
+	}
+
+	return "", nil
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func ensureRoleFiles(role string, output *strings.Builder) error {
