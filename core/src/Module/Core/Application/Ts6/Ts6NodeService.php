@@ -53,6 +53,8 @@ final class Ts6NodeService
         $payload = [
             'node_id' => $node->getId(),
             'service_name' => $node->getServiceName(),
+            'install_dir' => $node->getInstallPath(),
+            'download_url' => $node->getDownloadUrl(),
         ];
         $this->jobDispatcher->dispatch($node->getAgent(), 'ts6.status', $payload);
 

@@ -73,6 +73,9 @@ class Agent
     #[ORM\Column(length: 20)]
     private string $status = 'offline';
 
+    #[ORM\Column]
+    private int $jobConcurrency = 1;
+
     /**
      * @param array{key_id: string, nonce: string, ciphertext: string} $secretPayload
      */
@@ -318,6 +321,17 @@ class Agent
     public function setStatus(string $status): void
     {
         $this->status = $status !== '' ? $status : 'offline';
+        $this->touch();
+    }
+
+    public function getJobConcurrency(): int
+    {
+        return $this->jobConcurrency;
+    }
+
+    public function setJobConcurrency(int $jobConcurrency): void
+    {
+        $this->jobConcurrency = max(1, $jobConcurrency);
         $this->touch();
     }
 

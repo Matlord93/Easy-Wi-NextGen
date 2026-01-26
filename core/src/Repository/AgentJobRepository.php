@@ -46,6 +46,18 @@ final class AgentJobRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
+    public function countRunningForNode(string $nodeId): int
+    {
+        return (int) $this->createQueryBuilder('job')
+            ->select('COUNT(job.id)')
+            ->andWhere('job.node = :nodeId')
+            ->andWhere('job.status = :status')
+            ->setParameter('nodeId', $nodeId)
+            ->setParameter('status', AgentJobStatus::Running)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     /**
      * @param string[] $types
      *

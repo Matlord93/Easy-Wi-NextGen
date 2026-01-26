@@ -271,6 +271,18 @@
                                     >
                                     <p class="text-xs text-slate-500">Token nur ausfüllen, wenn er geändert werden soll.</p>
                                 </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="agent-job-concurrency">Max. parallele Jobs</label>
+                                    <input
+                                        id="agent-job-concurrency"
+                                        name="job_concurrency"
+                                        type="number"
+                                        min="1"
+                                        value="{{ selectedNode.agent.job_concurrency ?? 1 }}"
+                                        class="form-input"
+                                    >
+                                    <p class="text-xs text-slate-500">Legt fest, wie viele Jobs der Agent gleichzeitig ausführen darf.</p>
+                                </div>
                                 <label class="role-toggle">
                                     <input type="checkbox" name="clear_agent_token" value="1">
                                     <span>Agent-Token löschen</span>

@@ -11,6 +11,7 @@ use App\Repository\NotificationRepository;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\NotificationService;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -64,6 +65,22 @@ final class AdminNotificationController
         return new Response($this->twig->render('admin/notifications/_item.html.twig', [
             'notification' => $this->normalizeNotification($notification),
         ]));
+    }
+
+    #[Route(path: '/read-all', name: 'admin_notifications_read_all', methods: ['POST'])]
+    public function markAllRead(Request $request): Response
+    {
+        $actor = $this->requireAdmin($request);
+        $updated = $this->notificationRepository->markAllReadForRecipient($actor);
+
+        if ($updated > 0) {
+            $this->auditLogger->log($actor, 'notification.read_all', [
+                'recipient_id' => $actor->getId(),
+                'count' => $updated,
+            ]);
+        }
+
+        return new RedirectResponse('/admin/notifications');
     }
 
     private function requireAdmin(Request $request): User

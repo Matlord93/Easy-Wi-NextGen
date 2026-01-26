@@ -1,0 +1,79 @@
+name: Webinterface Update (Zip)
+
+on:
+  push:
+    tags: [ "v*.*.*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      - name: Prepare update bundle
+        run: |
+          mkdir -p dist
+          echo "${VERSION}" > VERSION
+          zip -r "dist/easywi-webinterface-${VERSION}.zip" . \
+            -x ".git/*" \
+            -x "dist/*" \
+            -x "var/*" \
+            -x "storage/*" \
+            -x "uploads/*" \
+            -x "core/var/*" \
+            -x "core/storage/*" \
+            -x "core/uploads/*" \
+            -x "core/node_modules/*" \
+            -x "core/.env.local" \
+            -x "core/vendor/*"
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum easywi-webinterface-*.zip > checksums-webinterface.txt
+
+      - name: Generate update manifest
+        run: |
+          ARCHIVE="easywi-webinterface-${VERSION}.zip"
+          TAG="${GITHUB_REF_NAME}"
+          SHA256=$(sha256sum "dist/${ARCHIVE}" | awk '{print $1}')
+          export VERSION TAG ARCHIVE SHA256
+          git fetch --tags --force
+          PREV_TAG=$(git tag --sort=-v:refname | grep -Fv "${TAG}" | head -n 1 || true)
+          if [[ -n "${PREV_TAG}" ]]; then
+            NOTES=$(git log --pretty=format:'- %s' "${PREV_TAG}..${TAG}")
+          else
+            NOTES=$(git log --pretty=format:'- %s' -n 20)
+          fi
+          NOTES="${NOTES}" python - <<'PY'
+          import json
+          import os
+
+          payload = {
+              "latest": os.environ["VERSION"],
+              "asset_url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['TAG']}/{os.environ['ARCHIVE']}",
+              "sha256": os.environ["SHA256"],
+              "notes": os.environ.get("NOTES", "").strip(),
+          }
+          with open("dist/manifest.json", "w", encoding="utf-8") as handle:
+              json.dump(payload, handle, indent=2, ensure_ascii=False)
+              handle.write("\n")
+          PY
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/easywi-webinterface-*.zip
+            dist/checksums-webinterface.txt
+            dist/manifest.json
+          generate_release_notes: true

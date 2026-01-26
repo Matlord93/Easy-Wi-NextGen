@@ -112,6 +112,18 @@ final class JobRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    public function countRunningByAgent(string $agentId): int
+    {
+        return (int) $this->createQueryBuilder('job')
+            ->select('COUNT(job.id)')
+            ->andWhere('job.status = :status')
+            ->andWhere('job.lockedBy = :agent')
+            ->setParameter('status', JobStatus::Running)
+            ->setParameter('agent', $agentId)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     /**
      * @return Job[]
      */

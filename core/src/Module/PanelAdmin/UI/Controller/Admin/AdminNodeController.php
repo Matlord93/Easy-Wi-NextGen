@@ -348,9 +348,11 @@ final class AdminNodeController
 
         $agentBaseUrl = trim((string) $request->request->get('agent_base_url', ''));
         $agentApiToken = trim((string) $request->request->get('agent_api_token', ''));
+        $jobConcurrency = (int) $request->request->get('job_concurrency', $node->getJobConcurrency());
         $clearToken = $request->request->getBoolean('clear_agent_token');
 
         $node->setAgentBaseUrl($agentBaseUrl !== '' ? $agentBaseUrl : null);
+        $node->setJobConcurrency($jobConcurrency);
 
         if ($clearToken) {
             $node->clearAgentApiToken();
@@ -364,6 +366,7 @@ final class AdminNodeController
             'agent_base_url' => $agentBaseUrl !== '' ? $agentBaseUrl : null,
             'agent_api_token_updated' => $agentApiToken !== '' ? true : null,
             'agent_api_token_cleared' => $clearToken ?: null,
+            'job_concurrency' => $node->getJobConcurrency(),
         ]);
 
         $connectivityError = $this->checkAgentConnectivity($agentBaseUrl);
@@ -936,6 +939,7 @@ final class AdminNodeController
                 'agent' => [
                     'base_url' => $agentBaseUrl !== '' ? $agentBaseUrl : null,
                     'token_configured' => $agentTokenConfigured,
+                    'job_concurrency' => $node->getJobConcurrency(),
                 ],
                 'updateAvailable' => $this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion),
                 'latestVersion' => $latestVersion,

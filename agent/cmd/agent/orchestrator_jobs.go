@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -39,6 +40,8 @@ type ts6ConfigOptions struct {
 	queryAdminPass   string
 	workingDirectory string
 }
+
+var teamspeakVersionRegex = regexp.MustCompile(`\d+\.\d+(?:\.\d+)*(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?`)
 
 func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 	switch job.Type {
@@ -84,6 +87,8 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		}
 	case "ts3.viewer.snapshot", "ts6.viewer.snapshot":
 		return handleViewerSnapshot(job)
+	case "admin.ssh_key.store":
+		return handleAdminSshKeyStore(job)
 	default:
 		return orchestratorResult{
 			status:    "failed",
@@ -169,25 +174,69 @@ func handleServiceStatus(job jobs.Job) orchestratorResult {
 	if serviceName == "" {
 		return orchestratorResult{status: "failed", errorText: "missing service_name"}
 	}
+	installedVersion := resolveTeamspeakVersionForStatus(job)
 	if runtime.GOOS == "windows" {
 		output, err := runCommandOutput("sc", "query", serviceName)
 		if err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error(), logText: trimOutput(output, 4000)}
 		}
+		resultPayload := map[string]any{
+			"running": strings.Contains(strings.ToUpper(output), "RUNNING"),
+		}
+		if installedVersion != "" {
+			resultPayload["installed_version"] = installedVersion
+		}
 		return orchestratorResult{
-			status:  "success",
-			logText: trimOutput(output, 4000),
-			resultPayload: map[string]any{
-				"running": strings.Contains(strings.ToUpper(output), "RUNNING"),
-			},
+			status:        "success",
+			logText:       trimOutput(output, 4000),
+			resultPayload: resultPayload,
 		}
 	}
 
 	err := runCommand("systemctl", "is-active", "--quiet", serviceName)
+	resultPayload := map[string]any{"running": err == nil}
+	if installedVersion != "" {
+		resultPayload["installed_version"] = installedVersion
+	}
 	return orchestratorResult{
 		status:        "success",
-		resultPayload: map[string]any{"running": err == nil},
+		resultPayload: resultPayload,
 	}
+}
+
+func resolveTeamspeakVersionForStatus(job jobs.Job) string {
+	if job.Type != "ts3.status" && job.Type != "ts6.status" {
+		return ""
+	}
+
+	downloadURL := payloadValue(job.Payload, "download_url")
+	if version := extractVersionFromDownloadURL(downloadURL); version != "" {
+		return version
+	}
+
+	return ""
+}
+
+func extractVersionFromDownloadURL(downloadURL string) string {
+	if downloadURL == "" {
+		return ""
+	}
+
+	base := downloadURL
+	if parsedURL, err := url.Parse(downloadURL); err == nil {
+		if parsedURL.Path != "" {
+			base = path.Base(parsedURL.Path)
+		}
+	}
+
+	return teamspeakVersionRegex.FindString(base)
+}
+
+func fallbackVersion(version string) string {
+	if version == "" {
+		return "unknown"
+	}
+	return version
 }
 
 func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
@@ -216,7 +265,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 		if err := runCommand("sc", "create", serviceName, "binPath=", exePath); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
-		return orchestratorResult{status: "success", resultPayload: map[string]any{"installed_version": "unknown"}}
+		return orchestratorResult{status: "success", resultPayload: map[string]any{"installed_version": fallbackVersion(extractVersionFromDownloadURL(downloadURL))}}
 	}
 
 	serviceUser := "ts3"
@@ -276,7 +325,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 	return orchestratorResult{
 		status: "success",
 		resultPayload: map[string]any{
-			"installed_version": "unknown",
+			"installed_version": fallbackVersion(extractVersionFromDownloadURL(downloadURL)),
 			"running":           true,
 		},
 	}
@@ -321,7 +370,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 		if err := runCommand("sc", "create", serviceName, "binPath=", exePath); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
-		return orchestratorResult{status: "success", resultPayload: map[string]any{"installed_version": "unknown"}}
+		return orchestratorResult{status: "success", resultPayload: map[string]any{"installed_version": fallbackVersion(extractVersionFromDownloadURL(downloadURL))}}
 	}
 
 	serviceUser := "ts6"
@@ -379,7 +428,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	return orchestratorResult{
 		status: "success",
 		resultPayload: map[string]any{
-			"installed_version": "unknown",
+			"installed_version": fallbackVersion(extractVersionFromDownloadURL(downloadURL)),
 			"running":           true,
 		},
 	}
@@ -387,6 +436,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 
 func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	installDir := payloadValue(job.Payload, "install_dir")
+	instanceRoot := payloadValue(job.Payload, "instance_root")
 	serviceName := payloadValue(job.Payload, "service_name")
 	downloadURL := payloadValue(job.Payload, "download_url")
 	downloadFilename := payloadValue(job.Payload, "download_filename")
@@ -397,6 +447,11 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 
 	if err := ensureInstanceDir(installDir); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if instanceRoot != "" {
+		if err := ensureInstanceDir(instanceRoot); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
 	}
 
 	if runtime.GOOS == "windows" {
@@ -425,8 +480,16 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	if err := extractArchive(archivePath, downloadURL, installDir); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
+	if err := ensureExecutable(filepath.Join(installDir, "sinusbot")); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
 	if err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", serviceUser, serviceUser), installDir); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if instanceRoot != "" {
+		if err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", serviceUser, serviceUser), instanceRoot); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))

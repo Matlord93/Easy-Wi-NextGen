@@ -1,6 +1,7 @@
 global_search_placeholder: "Kunden, Instanzen, Domains, Tickets suchen"
 notifications: "Benachrichtigungen"
 admin_notifications_intro: "Neueste Systemmeldungen zu Jobs, Abrechnung und Tickets."
+admin_notifications_mark_all_read: "Alle als gelesen markieren"
 admin_notifications_open: "Öffnen"
 admin_updates_available: "Updates verfügbar"
 admin_updates_title: "Updates"

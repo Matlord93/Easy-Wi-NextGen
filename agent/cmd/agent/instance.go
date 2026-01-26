@@ -530,6 +530,20 @@ func ensureInstanceDir(path string) error {
 	return nil
 }
 
+func ensureExecutable(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("ensure executable %s: %w", path, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("ensure executable %s: path is a directory", path)
+	}
+	if err := os.Chmod(path, 0o755); err != nil {
+		return fmt.Errorf("chmod executable %s: %w", path, err)
+	}
+	return nil
+}
+
 func ensureBaseDir(path string) error {
 	if err := os.MkdirAll(path, baseDirMode); err != nil {
 		return fmt.Errorf("create base dir %s: %w", path, err)

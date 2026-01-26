@@ -1,0 +1,86 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}TS6 Virtual Server · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts6-page">
+        <div class="ts6-header">
+            <div>
+                <h1>TS6 Virtual Server</h1>
+                <p>Übersicht und Kunden-Zuordnung für vorhandene Virtual Server.</p>
+            </div>
+            <div class="ts6-actions">
+                <a class="ts6-link" href="/admin/ts6/servers/create">Server erstellen</a>
+                <a class="ts6-link" href="/admin/ts6/nodes">Nodes verwalten</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts6-alert ts6-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts6-card">
+            <table class="ts6-table">
+                <thead>
+                    <tr>
+                        <th>Server</th>
+                        <th>Kunde</th>
+                        <th>Node</th>
+                        <th>Slots</th>
+                        <th>Ports</th>
+                        <th>Status</th>
+                        <th>Aktualisiert</th>
+                        <th>Zuordnung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for server in servers %}
+                        {% set customer = customerMap[server.customerId] ?? null %}
+                        <tr>
+                            <td>
+                                <div>{{ server.name }}</div>
+                                <div class="ts6-muted">SID {{ server.sid }} · #{{ server.id }}</div>
+                            </td>
+                            <td>
+                                {% if customer %}
+                                    <div>{{ customer.name ?? customer.email }}</div>
+                                    <div class="ts6-muted">#{{ customer.id }}</div>
+                                {% else %}
+                                    <span class="ts6-muted">Unbekannt</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div>{{ server.node.name }}</div>
+                                <div class="ts6-muted">#{{ server.node.id }}</div>
+                            </td>
+                            <td>{{ server.slots }}</td>
+                            <td>
+                                <div>Voice: {{ server.voicePort ?? '—' }}</div>
+                                <div class="ts6-muted">File: {{ server.filetransferPort ?? '—' }}</div>
+                            </td>
+                            <td><span class="ts6-pill">{{ server.status }}</span></td>
+                            <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
+                            <td>
+                                <form method="post" action="/admin/ts6/servers/{{ server.id }}/assign" class="flex gap-2">
+                                    <input type="hidden" name="_token" value="{{ csrf[server.id] ?? '' }}">
+                                    <select name="customer_id" class="rounded-lg border border-slate-200 px-2 py-1 text-xs">
+                                        {% for customerOption in customers %}
+                                            <option value="{{ customerOption.id }}" {{ customerOption.id == server.customerId ? 'selected' : '' }}>
+                                                {{ customerOption.name ?? customerOption.email }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <button class="ts6-button" type="submit">Zuweisen</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="ts6-empty">Keine TS6 Virtual Server gefunden.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

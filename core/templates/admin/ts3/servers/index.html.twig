@@ -1,0 +1,84 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}TS3 Virtual Server · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts3-page">
+        <div class="ts3-header">
+            <div>
+                <h1>TS3 Virtual Server</h1>
+                <p>Übersicht und Kunden-Zuordnung für vorhandene Virtual Server.</p>
+            </div>
+            <div class="ts3-actions">
+                <a class="ts3-link" href="/admin/ts3/servers/create">Server erstellen</a>
+                <a class="ts3-link" href="/admin/ts3/nodes">Nodes verwalten</a>
+            </div>
+        </div>
+
+        {% for message in app.flashes('success') %}
+            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
+        {% endfor %}
+
+        <div class="ts3-card">
+            <table class="ts3-table">
+                <thead>
+                <tr>
+                    <th>Server</th>
+                    <th>Kunde</th>
+                    <th>Node</th>
+                    <th>Ports</th>
+                    <th>Status</th>
+                    <th>Aktualisiert</th>
+                    <th>Zuordnung</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for server in servers %}
+                    {% set customer = customerMap[server.customerId] ?? null %}
+                    <tr>
+                        <td>
+                            <div>{{ server.name }}</div>
+                            <div class="ts3-muted">SID {{ server.sid }} · #{{ server.id }}</div>
+                        </td>
+                        <td>
+                            {% if customer %}
+                                <div>{{ customer.name ?? customer.email }}</div>
+                                <div class="ts3-muted">#{{ customer.id }}</div>
+                            {% else %}
+                                <span class="ts3-muted">Unbekannt</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div>{{ server.node.name }}</div>
+                            <div class="ts3-muted">#{{ server.node.id }}</div>
+                        </td>
+                        <td>
+                            <div>Voice: {{ server.voicePort ?? '—' }}</div>
+                            <div class="ts3-muted">File: {{ server.filetransferPort ?? '—' }}</div>
+                        </td>
+                        <td><span class="ts3-pill">{{ server.status }}</span></td>
+                        <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
+                        <td>
+                            <form method="post" action="/admin/ts3/servers/{{ server.id }}/assign" class="flex gap-2">
+                                <input type="hidden" name="_token" value="{{ csrf[server.id] ?? '' }}">
+                                <select name="customer_id" class="rounded-lg border border-slate-200 px-2 py-1 text-xs">
+                                    {% for customerOption in customers %}
+                                        <option value="{{ customerOption.id }}" {{ customerOption.id == server.customerId ? 'selected' : '' }}>
+                                            {{ customerOption.name ?? customerOption.email }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <button class="ts3-button" type="submit">Zuweisen</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="ts3-empty">Keine TS3 Virtual Server gefunden.</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

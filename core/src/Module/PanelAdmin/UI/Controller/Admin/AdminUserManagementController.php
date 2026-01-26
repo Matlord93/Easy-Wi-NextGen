@@ -185,7 +185,9 @@ final class AdminUserManagementController
         }
 
         try {
-            $this->sshKeyService->storeKey($user, $pendingKey);
+            if (!$this->sshKeyService->storeKey($user, $pendingKey)) {
+                return new Response('Unable to queue SSH key on the agent.', Response::HTTP_BAD_REQUEST);
+            }
         } catch (\Throwable) {
             return new Response('Unable to queue SSH key on the agent.', Response::HTTP_BAD_REQUEST);
         }

@@ -16,8 +16,8 @@
             }
         })();
     </script>
-    {% block title %}{{ siteTitle }}{% endblock %}
-    <title>{{ block('title')|replace({'Easy-Wi NextGen': siteTitle}) }}</title>
+    {% block title %}{% endblock %}
+    <title></title>
     <link rel="stylesheet" href="{{ asset('ui.css') }}">
     <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
     <link rel="stylesheet" href="{{ asset('ts6.css') }}">
@@ -29,6 +29,55 @@
 {% set activeNav = activeNav|default('') %}
 {% set extensionItems = extension_menu_items('admin') %}
 {% set marketplaceItems = extensionItems is not empty ? extensionItems : [] %}
+{% set moduleGame = module_enabled('game') %}
+{% set moduleTs = module_enabled('ts') %}
+{% set moduleTs6 = module_enabled('ts6') %}
+{% set moduleWeb = module_enabled('web') %}
+{% set moduleMail = module_enabled('mail') %}
+{% set moduleDns = module_enabled('dns') %}
+{% set moduleBilling = module_enabled('billing') %}
+
+{% set customerItems = [
+    { key: 'users', label: t('admin_nav_users', page_locale()), href: path('admin_users') },
+    moduleBilling ? { key: 'billing', label: t('admin_nav_billing', page_locale()), href: path('admin_billing') } : null
+]|filter(v => v) %}
+
+{% set infrastructureItems = [
+    moduleGame ? { key: 'game-instances', label: 'Gameserver', href: path('admin_instances') } : null,
+    moduleGame ? { key: 'sinusbot', label: 'SinusBot', href: path('admin_sinusbot_nodes_index') } : null,
+    moduleTs ? { key: 'ts3', label: 'TeamSpeak 3', href: path('admin_ts3_nodes_index') } : null,
+    moduleTs ? { key: 'ts3-servers', label: 'TeamSpeak 3 Server', href: path('customer_ts3_servers_index') } : null,
+    moduleTs6 ? { key: 'ts6', label: 'TeamSpeak 6', href: path('admin_ts6_nodes_index') } : null,
+    moduleTs6 ? { key: 'ts6-servers', label: 'TeamSpeak 6 Server', href: path('customer_ts6_servers_index') } : null,
+    { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: path('admin_nodes') },
+    moduleGame ? { key: 'templates', label: t('admin_nav_templates', page_locale()), href: path('admin_templates') } : null,
+    moduleGame ? { key: 'plugins', label: t('admin_nav_plugins', page_locale()), href: path('admin_plugins') } : null,
+    { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: path('admin_ddos') },
+    { key: 'firewall', label: t('admin_nav_security', page_locale()), href: path('admin_security') },
+    { key: 'port-blocks', label: t('admin_nav_port_blocks', page_locale()), href: path('admin_port_blocks') },
+    { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') }
+]|filter(v => v) %}
+
+{% set servicesItems = [
+    moduleWeb ? { key: 'webspaces', label: t('admin_nav_webspaces', page_locale()), href: path('admin_webspaces') } : null,
+    { key: 'databases', label: t('admin_nav_databases', page_locale()), href: path('admin_databases') }
+]|filter(v => v) %}
+
+{% set shopItems = moduleBilling ? [
+    { key: 'shop-categories', label: 'Shop-Kategorien', href: path('admin_shop_categories') },
+    { key: 'shop-products', label: 'Shop-Produkte', href: path('admin_shop_products') }
+] : [] %}
+
+{% set cmsItems = [
+    { key: 'cms-pages', label: t('cms_pages_title', page_locale()), href: path('admin_cms_pages') },
+    { key: 'public-servers', label: t('admin_nav_cms_gameservers', page_locale()), href: path('admin_public_servers') }
+] %}
+
+{% set domainItems = [
+    moduleDns ? { key: 'dns-records', label: t('admin_nav_dns_records', page_locale()), href: path('admin_dns_records') } : null,
+    moduleMail ? { key: 'mailboxes', label: t('admin_nav_mailboxes', page_locale()), href: path('admin_mailboxes') } : null,
+    moduleMail ? { key: 'mail-aliases', label: t('admin_nav_mail_aliases', page_locale()), href: path('admin_mail_aliases') } : null
+]|filter(v => v) %}
 
 {% set sidebarGroups = [
     {
@@ -40,66 +89,36 @@
             { key: 'audit-logs', label: t('admin_nav_audit_logs', page_locale()), href: path('admin_audit_logs') }
         ]
     },
-    {
+    customerItems is not empty ? {
         label: 'Kunden',
         open: true,
-        items: [
-            { key: 'users', label: t('admin_nav_users', page_locale()), href: path('admin_users') },
-            { key: 'billing', label: t('admin_nav_billing', page_locale()), href: path('admin_billing') }
-        ]
-    },
-    {
+        items: customerItems
+    } : null,
+    infrastructureItems is not empty ? {
         label: 'Infrastruktur',
         open: true,
-        items: [
-            { key: 'game-instances', label: 'Gameserver', href: path('admin_instances') },
-            { key: 'sinusbot', label: 'SinusBot', href: path('admin_sinusbot_nodes_index') },
-            { key: 'ts3', label: 'TeamSpeak 3', href: path('admin_ts3_nodes_index') },
-            { key: 'ts3-servers', label: 'TeamSpeak 3 Server', href: path('customer_ts3_servers_index') },
-            { key: 'ts6', label: 'TeamSpeak 6', href: path('admin_ts6_nodes_index') },
-            { key: 'ts6-servers', label: 'TeamSpeak 6 Server', href: path('customer_ts6_servers_index') },
-            { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: path('admin_nodes') },
-            { key: 'templates', label: t('admin_nav_templates', page_locale()), href: path('admin_templates') },
-            { key: 'plugins', label: t('admin_nav_plugins', page_locale()), href: path('admin_plugins') },
-            { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: path('admin_ddos') },
-            { key: 'firewall', label: t('admin_nav_security', page_locale()), href: path('admin_security') },
-            { key: 'port-blocks', label: t('admin_nav_port_blocks', page_locale()), href: path('admin_port_blocks') },
-            { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') }
-        ]
-    },
-    {
+        items: infrastructureItems
+    } : null,
+    servicesItems is not empty ? {
         label: 'Services',
         open: true,
-        items: [
-            { key: 'webspaces', label: t('admin_nav_webspaces', page_locale()), href: path('admin_webspaces') },
-            { key: 'databases', label: t('admin_nav_databases', page_locale()), href: path('admin_databases') },
-        ]
-    },
-    {
+        items: servicesItems
+    } : null,
+    shopItems is not empty ? {
         label: 'Shop',
         open: true,
-        items: [
-            { key: 'shop-categories', label: 'Shop-Kategorien', href: path('admin_shop_categories') },
-            { key: 'shop-products', label: 'Shop-Produkte', href: path('admin_shop_products') }
-        ]
-    },
-    {
+        items: shopItems
+    } : null,
+    cmsItems is not empty ? {
         label: 'CMS System',
         open: true,
-        items: [
-            { key: 'cms-pages', label: t('cms_pages_title', page_locale()), href: path('admin_cms_pages') },
-            { key: 'public-servers', label: t('admin_nav_cms_gameservers', page_locale()), href: path('admin_public_servers') }
-        ]
-    },
-    {
+        items: cmsItems
+    } : null,
+    domainItems is not empty ? {
         label: 'Domains & E-Mail',
         open: true,
-        items: [
-            { key: 'dns-records', label: t('admin_nav_dns_records', page_locale()), href: path('admin_dns_records') },
-            { key: 'mailboxes', label: t('admin_nav_mailboxes', page_locale()), href: path('admin_mailboxes') },
-            { key: 'mail-aliases', label: t('admin_nav_mail_aliases', page_locale()), href: path('admin_mail_aliases') }
-        ]
-    },
+        items: domainItems
+    } : null,
     {
         label: 'Support',
         open: true,

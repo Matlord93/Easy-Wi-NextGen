@@ -66,30 +66,32 @@ func (c *Client) SendHeartbeat(ctx context.Context, stats map[string]any, roles 
 }
 
 // PollJobs fetches outstanding jobs for the agent.
-func (c *Client) PollJobs(ctx context.Context) ([]jobs.Job, error) {
+func (c *Client) PollJobs(ctx context.Context) ([]jobs.Job, int, error) {
 	var response struct {
-		Jobs []jobs.Job `json:"jobs"`
+		Jobs          []jobs.Job `json:"jobs"`
+		MaxConcurrent int        `json:"max_concurrency"`
 	}
 
 	_, err := c.doSignedJSON(ctx, http.MethodGet, "/agent/jobs", nil, &response)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return response.Jobs, nil
+	return response.Jobs, response.MaxConcurrent, nil
 }
 
 // PollAgentJobs fetches orchestrator jobs for this agent.
-func (c *Client) PollAgentJobs(ctx context.Context, agentID string, limit int) ([]jobs.Job, error) {
+func (c *Client) PollAgentJobs(ctx context.Context, agentID string, limit int) ([]jobs.Job, int, error) {
 	var response struct {
-		Jobs []jobs.Job `json:"jobs"`
+		Jobs          []jobs.Job `json:"jobs"`
+		MaxConcurrent int        `json:"max_concurrency"`
 	}
 
 	path := fmt.Sprintf("/agent/%s/jobs?status=queued&limit=%d", url.PathEscape(agentID), limit)
 	_, err := c.doSignedJSON(ctx, http.MethodGet, path, nil, &response)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return response.Jobs, nil
+	return response.Jobs, response.MaxConcurrent, nil
 }
 
 // StartAgentJob marks an orchestrator job as running.

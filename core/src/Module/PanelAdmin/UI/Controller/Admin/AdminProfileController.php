@@ -110,7 +110,14 @@ final class AdminProfileController
             if ($admin->getType() === UserType::Superadmin) {
                 try {
                     $admin->setAdminSshPublicKeyPending($sshKey);
-                    $this->sshKeyService->storeKey($admin, $sshKey);
+                    if (!$this->sshKeyService->storeKey($admin, $sshKey)) {
+                        return $this->renderPage($admin, [
+                            'name' => $name,
+                            'email' => $email,
+                            'signature' => $signature,
+                            'ssh_key' => $sshKey,
+                        ], ['Unable to store the SSH key on the server. Please contact a super admin.'], Response::HTTP_BAD_REQUEST);
+                    }
                 } catch (\Throwable) {
                     return $this->renderPage($admin, [
                         'name' => $name,

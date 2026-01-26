@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -53,6 +54,7 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 	defer heartbeatTicker.Stop()
 	defer pollTicker.Stop()
 
+	maxConcurrency := 1
 	roles := collectRoles()
 	metadata := collectMetadata()
 
@@ -71,42 +73,81 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 				log.Printf("heartbeat failed: %v", err)
 			}
 		case <-pollTicker.C:
-			jobsList, err := client.PollJobs(ctx)
+			jobsList, reportedConcurrency, err := client.PollJobs(ctx)
 			if err != nil {
 				log.Printf("poll jobs failed: %v", err)
 				continue
 			}
+			maxConcurrency = resolveMaxConcurrency(maxConcurrency, reportedConcurrency)
 			logSender := newApiJobLogSender(client)
-			for _, job := range jobsList {
+			runJobsConcurrently(maxConcurrency, jobsList, func(job jobs.Job) {
 				result, afterSubmit := handleJob(job, logSender)
 				if err := client.SubmitJobResult(ctx, result); err != nil {
 					log.Printf("submit job result failed: %v", err)
-					continue
+					return
 				}
 				if afterSubmit != nil {
 					if err := afterSubmit(); err != nil {
 						log.Printf("post-submit job action failed: %v", err)
 					}
 				}
-			}
+			})
 
-			orchestratorJobs, err := client.PollAgentJobs(ctx, cfg.AgentID, 1)
+			orchestratorJobs, reportedAgentConcurrency, err := client.PollAgentJobs(ctx, cfg.AgentID, maxConcurrency)
 			if err != nil {
 				log.Printf("poll orchestrator jobs failed: %v", err)
 				continue
 			}
-			for _, job := range orchestratorJobs {
+			maxConcurrency = resolveMaxConcurrency(maxConcurrency, reportedAgentConcurrency)
+			runJobsConcurrently(maxConcurrency, orchestratorJobs, func(job jobs.Job) {
 				if err := client.StartAgentJob(ctx, cfg.AgentID, job.ID); err != nil {
 					log.Printf("start orchestrator job failed: %v", err)
-					continue
+					return
 				}
 				result := handleOrchestratorJob(job)
 				if err := client.FinishAgentJob(ctx, cfg.AgentID, job.ID, result.status, result.logText, result.errorText, result.resultPayload); err != nil {
 					log.Printf("finish orchestrator job failed: %v", err)
 				}
-			}
+			})
 		}
 	}
+}
+
+func resolveMaxConcurrency(current int, reported int) int {
+	if reported <= 0 {
+		if current > 0 {
+			return current
+		}
+		return 1
+	}
+	if reported < 1 {
+		return 1
+	}
+	return reported
+}
+
+func runJobsConcurrently(limit int, jobsList []jobs.Job, handler func(jobs.Job)) {
+	if limit <= 0 {
+		limit = 1
+	}
+	if len(jobsList) == 0 {
+		return
+	}
+
+	semaphore := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+
+	for _, job := range jobsList {
+		wg.Add(1)
+		go func(job jobs.Job) {
+			defer wg.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			handler(job)
+		}(job)
+	}
+
+	wg.Wait()
 }
 
 func collectStats(version string, roles []string) map[string]any {

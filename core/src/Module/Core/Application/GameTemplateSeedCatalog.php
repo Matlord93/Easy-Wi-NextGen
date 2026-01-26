@@ -26,7 +26,7 @@ final class GameTemplateSeedCatalog
                     ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
                     ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/game/bin/cs2 -dedicated -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/game/bin/linuxsteamrt64/cs2 -dedicated -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],

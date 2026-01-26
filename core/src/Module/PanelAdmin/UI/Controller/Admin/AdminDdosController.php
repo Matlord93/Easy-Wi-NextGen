@@ -60,12 +60,14 @@ final class AdminDdosController
             $errors[] = 'Select at least one node.';
         }
 
-        if ($ports === []) {
-            $errors[] = 'Select at least one port.';
-        }
+        if (!in_array($mode, ['off', 'syn-cookie'], true)) {
+            if ($ports === []) {
+                $errors[] = 'Select at least one port.';
+            }
 
-        if ($protocols === []) {
-            $errors[] = 'Select at least one protocol.';
+            if ($protocols === []) {
+                $errors[] = 'Select at least one protocol.';
+            }
         }
 
         if (!in_array($mode, self::MODE_OPTIONS, true)) {

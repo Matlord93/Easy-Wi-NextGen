@@ -38,10 +38,22 @@ final class AgentJobController
         $agent = $this->requireAgent($request, $nodeId);
 
         $limit = (int) $request->query->get('limit', 1);
-        $jobs = $this->jobRepository->findQueuedForNode($agent->getId(), max(1, $limit));
+        $maxConcurrency = $agent->getJobConcurrency();
+        $runningJobs = $this->jobRepository->countRunningForNode($agent->getId());
+        $availableSlots = max(0, $maxConcurrency - $runningJobs);
+        if ($availableSlots <= 0) {
+            return new JsonResponse([
+                'jobs' => [],
+                'max_concurrency' => $maxConcurrency,
+            ]);
+        }
+
+        $effectiveLimit = min(max(1, $limit), $availableSlots);
+        $jobs = $this->jobRepository->findQueuedForNode($agent->getId(), $effectiveLimit);
 
         return new JsonResponse([
             'jobs' => array_map([$this, 'normalizeJob'], $jobs),
+            'max_concurrency' => $maxConcurrency,
         ]);
     }
 

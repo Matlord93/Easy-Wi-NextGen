@@ -16,8 +16,8 @@
             }
         })();
     </script>
-    {% block title %}{{ siteTitle }}{% endblock %}
-    <title>{{ block('title')|replace({'Easy-Wi NextGen': siteTitle}) }}</title>
+    {% block title %}{% endblock %}
+    <title></title>
     <link rel="stylesheet" href="{{ asset('ui.css') }}">
     <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
     <link rel="stylesheet" href="{{ asset('ts6.css') }}">
@@ -30,7 +30,14 @@
     ? path('customer_ts6_servers_index')
     : path('customer_ts3_servers_index')
 %}
-{% set showVoiceserver = module_enabled('ts6') or module_enabled('ts') %}
+{% set moduleGame = module_enabled('game') %}
+{% set moduleTs = module_enabled('ts') %}
+{% set moduleTs6 = module_enabled('ts6') %}
+{% set moduleWeb = module_enabled('web') %}
+{% set moduleMail = module_enabled('mail') %}
+{% set moduleDns = module_enabled('dns') %}
+{% set moduleBilling = module_enabled('billing') %}
+{% set showVoiceserver = moduleTs6 or moduleTs %}
 {% set extensionItems = extension_menu_items('customer') %}
 {% set marketplaceItems = extensionItems is not empty ? extensionItems : [] %}
 
@@ -47,26 +54,26 @@
         label: 'Infrastruktur',
         open: true,
         items: [
-            { key: 'gameservers', label: 'Game-Server', href: path('customer_instances') },
+            moduleGame ? { key: 'gameservers', label: 'Game-Server', href: path('customer_instances') } : null,
             showVoiceserver ? { key: 'voiceservers', label: 'Voiceserver/TeamSpeak', href: voiceserverUrl } : null,
-            { key: 'sinusbot', label: 'SinusBot', href: path('customer_sinusbot_index') }
+            moduleGame ? { key: 'sinusbot', label: 'SinusBot', href: path('customer_sinusbot_index') } : null
         ]|filter(v => v)
     },
     {
         label: 'Services',
         open: true,
         items: [
-            { key: 'webspaces', label: 'Webspace', href: path('customer_webspace') },
+            moduleWeb ? { key: 'webspaces', label: 'Webspace', href: path('customer_webspace') } : null,
             { key: 'databases', label: 'Datenbanken', href: path('customer_databases') }
-        ]
+        ]|filter(v => v)
     },
     {
         label: 'Domains & E-Mail',
         open: true,
         items: [
-            { key: 'domains', label: 'Domains', href: path('customer_domains') },
-            { key: 'mail', label: 'E-Mail', href: path('customer_mail') }
-        ]
+            moduleDns ? { key: 'domains', label: 'Domains', href: path('customer_domains') } : null,
+            moduleMail ? { key: 'mail', label: 'E-Mail', href: path('customer_mail') } : null
+        ]|filter(v => v)
     },
     {
         label: 'Support',
@@ -75,12 +82,12 @@
             { key: 'tickets', label: 'Tickets', href: path('customer_tickets') }
         ]
     },
-    {
+    moduleBilling ? {
         label: 'Marketplace',
         open: true,
         items: ([{ key: 'shop', label: 'Shop', href: path('customer_shop') }]|merge(marketplaceItems))
-    }
-] %}
+    } : null
+]|filter(v => v) %}
 
 <div class="ng-layout">
     {% include 'components/_sidebar.html.twig' with {

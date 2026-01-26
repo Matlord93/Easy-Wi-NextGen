@@ -45,6 +45,9 @@ final class PublicRegistrationController
 
         $form = [
             'email' => '',
+            'first_name' => '',
+            'last_name' => '',
+            'portal_language' => 'de',
             'accept_terms' => false,
             'accept_privacy' => false,
         ];
@@ -63,6 +66,9 @@ final class PublicRegistrationController
             } else {
                 $payload = $request->request->all();
                 $email = trim((string) ($payload['email'] ?? ''));
+                $firstName = trim((string) ($payload['first_name'] ?? ''));
+                $lastName = trim((string) ($payload['last_name'] ?? ''));
+                $portalLanguage = strtolower(trim((string) ($payload['portal_language'] ?? 'de')));
                 $password = (string) ($payload['password'] ?? '');
                 $passwordConfirm = (string) ($payload['password_confirm'] ?? '');
                 $acceptTerms = ($payload['accept_terms'] ?? '') === 'on';
@@ -70,12 +76,23 @@ final class PublicRegistrationController
 
                 $form = [
                     'email' => $email,
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'portal_language' => $portalLanguage,
                     'accept_terms' => $acceptTerms,
                     'accept_privacy' => $acceptPrivacy,
                 ];
 
                 if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     $errors[] = 'Enter a valid email address.';
+                }
+
+                if ($firstName === '') {
+                    $errors[] = 'First name is required.';
+                }
+
+                if ($lastName === '') {
+                    $errors[] = 'Last name is required.';
                 }
 
                 if (mb_strlen($password) < 8) {
@@ -90,6 +107,10 @@ final class PublicRegistrationController
                     $errors[] = 'You must accept the terms and privacy policy.';
                 }
 
+                if (!in_array($portalLanguage, ['de', 'en'], true)) {
+                    $errors[] = 'Select a valid portal language.';
+                }
+
                 if ($email !== '' && $this->users->findOneByEmail($email) !== null) {
                     $errors[] = 'An account with this email already exists.';
                 }
@@ -97,6 +118,7 @@ final class PublicRegistrationController
                 if ($errors === []) {
                     $user = new User($email, UserType::Customer);
                     $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
+                    $user->setName(trim($firstName . ' ' . $lastName));
 
                     $now = new \DateTimeImmutable();
                     $ipAddress = $request->getClientIp() ?? 'unknown';
@@ -107,7 +129,8 @@ final class PublicRegistrationController
                     $user->recordConsents($ipAddress, $now);
 
                     $this->entityManager->persist($user);
-                    $preferences = new InvoicePreferences($user, 'de_DE', true, true, 'manual', 'de');
+                    $locale = $portalLanguage === 'en' ? 'en_GB' : 'de_DE';
+                    $preferences = new InvoicePreferences($user, $locale, true, true, 'manual', $portalLanguage);
                     $this->entityManager->persist($preferences);
                     $this->entityManager->flush();
 
@@ -135,6 +158,10 @@ final class PublicRegistrationController
             'errors' => $errors,
             'registered' => $registered,
             'siteName' => $site->getName(),
+            'portalLanguages' => [
+                'de' => 'Deutsch',
+                'en' => 'English',
+            ],
         ]), $status);
 
         if ($retryAfter !== null) {

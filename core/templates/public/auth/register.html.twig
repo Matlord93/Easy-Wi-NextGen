@@ -31,6 +31,16 @@
                     </div>
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div>
+                            <label class="text-sm font-medium text-slate-700" for="first_name">{{ t('first_name', page_locale()) }}</label>
+                            <input id="first_name" name="first_name" type="text" value="{{ form.first_name }}" required class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-700" for="last_name">{{ t('last_name', page_locale()) }}</label>
+                            <input id="last_name" name="last_name" type="text" value="{{ form.last_name }}" required class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                        </div>
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div>
                             <label class="text-sm font-medium text-slate-700" for="password">{{ t('password', page_locale()) }}</label>
                             <input id="password" name="password" type="password" required class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('password_minimum', page_locale()) }}">
                         </div>
@@ -38,6 +48,14 @@
                             <label class="text-sm font-medium text-slate-700" for="password_confirm">{{ t('confirm_password', page_locale()) }}</label>
                             <input id="password_confirm" name="password_confirm" type="password" required class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('confirm_password_placeholder', page_locale()) }}">
                         </div>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-slate-700" for="portal_language">{{ t('portal_language', page_locale()) }}</label>
+                        <select id="portal_language" name="portal_language" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                            {% for key, label in portalLanguages %}
+                                <option value="{{ key }}" {{ key == form.portal_language ? 'selected' : '' }}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                         <label class="flex items-start gap-3">

@@ -114,6 +114,8 @@ final class CustomerProfileController
         $profile->setPhone($formData['phone']);
         $profile->setCompany($formData['company']);
         $profile->setVatId($formData['vat_id']);
+        $fullName = trim($formData['firstname'] . ' ' . $formData['lastname']);
+        $customer->setName($fullName !== '' ? $fullName : null);
 
         $this->auditLogger->log($customer, 'customer.profile.updated', [
             'customer_id' => $customer->getId(),

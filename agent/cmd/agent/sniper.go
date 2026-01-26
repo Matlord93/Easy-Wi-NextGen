@@ -146,13 +146,18 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if usesSteamCmd {
 		installSnippet = steamCmdInstallSnippet(instanceDirSteamCmdDir(instanceDir), steamCmdPath)
 	}
+	postInstallSnippet := ""
+	if usesSteamCmd {
+		postInstallSnippet = steamCmdClientSnippet(instanceDirSteamCmdDir(instanceDir), instanceDir)
+	}
 
 	shellCmd := fmt.Sprintf(
 		"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
 			"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
 			"%[3]s"+
-			"cd %[1]s && %[2]s",
-		instanceDir, command, installSnippet,
+			"cd %[1]s && %[2]s; "+
+			"%[4]s",
+		instanceDir, command, installSnippet, postInstallSnippet,
 	)
 
 	output, err := runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
@@ -267,6 +272,24 @@ func steamCmdInstallSnippet(steamCmdDir, steamCmdPath string) string {
 		escapedPath,
 		steamcmdArchiveURL,
 		steamcmdArchiveURL,
+	)
+}
+
+func steamCmdClientSnippet(steamCmdDir, instanceDir string) string {
+	escapedDir := strings.ReplaceAll(steamCmdDir, "$", "$$")
+	escapedInstance := strings.ReplaceAll(instanceDir, "$", "$$")
+	return fmt.Sprintf(
+		"if [ -d %[1]s ]; then "+
+			"mkdir -p %[2]s/.steam/sdk32 %[2]s/.steam/sdk64; "+
+			"if [ -f %[1]s/linux32/steamclient.so ]; then "+
+			"cp -f %[1]s/linux32/steamclient.so %[2]s/.steam/sdk32/steamclient.so; "+
+			"fi; "+
+			"if [ -f %[1]s/linux64/steamclient.so ]; then "+
+			"cp -f %[1]s/linux64/steamclient.so %[2]s/.steam/sdk64/steamclient.so; "+
+			"fi; "+
+			"fi; ",
+		escapedDir,
+		escapedInstance,
 	)
 }
 

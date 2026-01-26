@@ -1,6 +1,7 @@
 global_search_placeholder: "Search customers, instances, domains, tickets"
 notifications: "Notifications"
 admin_notifications_intro: "Latest system signals across jobs, billing, and tickets."
+admin_notifications_mark_all_read: "Mark all as read"
 admin_notifications_open: "Open"
 admin_updates_available: "Updates available"
 admin_updates_title: "Updates"

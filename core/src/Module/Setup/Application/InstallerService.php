@@ -419,7 +419,9 @@ final class InstallerService
             }
             try {
                 $admin->setAdminSshPublicKeyPending($sshKey);
-                $this->sshKeyService->storeKey($admin, $sshKey);
+                if (!$this->sshKeyService->storeKey($admin, $sshKey)) {
+                    $this->logger->warning('No agent available to store admin SSH key during installation.');
+                }
             } catch (\Throwable $exception) {
                 $this->logException($exception, 'Failed to store admin SSH key during installation.');
                 throw new InstallerSshKeyException('Failed to store admin SSH key.');

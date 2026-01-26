@@ -4750,3 +4750,62 @@ final class Version20260320130000 extends AbstractMigration
         $this->addSql('ALTER TABLE users DROP admin_ssh_public_key_pending');
     }
 }
+
+final class Version20260323100000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Deduplicate game templates, update CS2 binary path, and store agent job concurrency.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if ($schema->hasTable('game_templates')) {
+            $this->addSql(
+                'DELETE FROM game_templates WHERE game_key IS NOT NULL AND id NOT IN ('
+                . 'SELECT id FROM (SELECT MIN(id) AS id FROM game_templates WHERE game_key IS NOT NULL GROUP BY game_key) dedupe'
+                . ')',
+            );
+            $this->addSql(
+                'UPDATE game_templates SET start_params = '
+                . $this->quote('{{INSTANCE_DIR}}/game/bin/linuxsteamrt64/cs2 -dedicated -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"')
+                . ' WHERE game_key = ' . $this->quote('cs2'),
+            );
+
+            $table = $schema->getTable('game_templates');
+            if (!$table->hasIndex('uniq_game_templates_key')) {
+                $this->addSql('CREATE UNIQUE INDEX uniq_game_templates_key ON game_templates (game_key)');
+            }
+        }
+
+        if (!$schema->hasTable('agents')) {
+            return;
+        }
+
+        $table = $schema->getTable('agents');
+        if ($table->hasColumn('job_concurrency')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE agents ADD job_concurrency INT NOT NULL DEFAULT 1');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if ($schema->hasTable('agents')) {
+            $table = $schema->getTable('agents');
+            if ($table->hasColumn('job_concurrency')) {
+                $this->addSql('ALTER TABLE agents DROP job_concurrency');
+            }
+        }
+
+        if (!$schema->hasTable('game_templates')) {
+            return;
+        }
+
+        $table = $schema->getTable('game_templates');
+        if ($table->hasIndex('uniq_game_templates_key')) {
+            $this->addSql('DROP INDEX uniq_game_templates_key ON game_templates');
+        }
+    }
+}

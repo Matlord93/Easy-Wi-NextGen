@@ -195,6 +195,20 @@ final class InstanceApiController
             ]);
         }
 
+        $firewallJob = null;
+        if ($portBlock !== null) {
+            $ports = $portBlock->getPorts();
+            if ($ports !== []) {
+                $firewallJob = new Job('firewall.open_ports', [
+                    'agent_id' => $node->getId(),
+                    'instance_id' => (string) $instance->getId(),
+                    'port_block_id' => $portBlock->getId(),
+                    'ports' => implode(',', array_map('strval', $ports)),
+                ]);
+                $this->entityManager->persist($firewallJob);
+            }
+        }
+
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
             'customer_id' => $customer->getId(),
@@ -204,6 +218,7 @@ final class InstanceApiController
             'ram_limit' => $ramLimit,
             'disk_limit' => $diskLimit,
             'port_block_id' => $instance->getPortBlockId(),
+            'firewall_job_id' => $firewallJob?->getId(),
         ]);
 
         $this->entityManager->flush();

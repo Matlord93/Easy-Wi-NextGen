@@ -140,13 +140,27 @@ final class AgentApiController
         $updateJobTypes = ['sniper.update', 'agent.update', 'agent.self_update'];
         $maxUpdateJobsPerAgent = 2;
         $runningUpdateJobs = $this->jobRepository->countRunningByAgentAndTypes($agent->getId(), $updateJobTypes);
+        $maxConcurrency = $agent->getJobConcurrency();
+        $runningJobs = $this->jobRepository->countRunningByAgent($agent->getId());
+        $availableSlots = max(0, $maxConcurrency - $runningJobs);
         $isWindowsAgent = $this->isWindowsAgent($agent);
 
         if ($isWindowsAgent && !$this->windowsNodesEnabled) {
             throw new ServiceUnavailableHttpException(null, 'Windows nodes are currently disabled.');
         }
 
+        if ($availableSlots === 0) {
+            return new JsonResponse([
+                'jobs' => [],
+                'max_concurrency' => $maxConcurrency,
+            ]);
+        }
+
+        $dispatched = 0;
         foreach ($jobs as $job) {
+            if ($dispatched >= $availableSlots) {
+                break;
+            }
             if ($job->getStatus() !== JobStatus::Queued) {
                 continue;
             }
@@ -190,11 +204,16 @@ final class AgentApiController
             if (in_array($job->getType(), $updateJobTypes, true)) {
                 $runningUpdateJobs++;
             }
+
+            $dispatched++;
         }
 
         $this->entityManager->flush();
 
-        return new JsonResponse(['jobs' => $jobPayloads]);
+        return new JsonResponse([
+            'jobs' => $jobPayloads,
+            'max_concurrency' => $maxConcurrency,
+        ]);
     }
 
     #[Route(path: '/agent/jobs/{id}/result', name: 'agent_job_result', methods: ['POST'])]

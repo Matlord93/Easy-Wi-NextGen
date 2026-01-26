@@ -8,6 +8,13 @@
         <h1 class="text-2xl font-semibold">{{ t('notifications', page_locale()) }}</h1>
         <p class="text-sm text-slate-700">{{ t('admin_notifications_intro', page_locale()) }}</p>
     </div>
+    <div>
+        <form method="post" action="/admin/notifications/read-all">
+            <button type="submit" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                {{ t('admin_notifications_mark_all_read', page_locale()) }}
+            </button>
+        </form>
+    </div>
     <div class="space-y-4">
         {% for notification in notifications %}
             {% include 'admin/notifications/_item.html.twig' with { notification: notification } %}
