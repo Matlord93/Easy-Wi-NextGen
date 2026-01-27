@@ -30,9 +30,17 @@
                 {% endif %}
             </a>
         {% endif %}
-        <button class="ng-user-button" aria-label="Benutzerkonto">
-            <span class="ng-user-button__avatar">{{ userInitial }}</span>
-            <span class="ng-user-button__name">{{ userName }}</span>
-        </button>
+        <details class="ng-user-menu">
+            <summary class="ng-user-button" aria-label="Benutzerkonto">
+                <span class="ng-user-button__avatar">{{ userInitial }}</span>
+                <span class="ng-user-button__name">{{ userName }}</span>
+            </summary>
+            <div class="ng-user-menu__dropdown" role="menu">
+                <div class="ng-user-menu__label">Konto</div>
+                <a class="ng-user-menu__item" href="{{ path('public_logout') }}" role="menuitem">
+                    {{ t('logout', page_locale()) }}
+                </a>
+            </div>
+        </details>
     </div>
 </header>

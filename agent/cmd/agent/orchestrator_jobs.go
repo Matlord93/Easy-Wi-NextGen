@@ -75,11 +75,12 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		return handleServiceAction(job)
 	case "sinusbot.status":
 		return handleServiceStatus(job)
-	case "ts3.virtual.create", "ts3.virtual.action", "ts3.virtual.token.rotate":
-		return orchestratorResult{
-			status:    "failed",
-			errorText: "ts3 virtual server orchestration not implemented in agent",
-		}
+	case "ts3.virtual.create":
+		return handleTs3VirtualCreate(job)
+	case "ts3.virtual.action":
+		return handleTs3VirtualAction(job)
+	case "ts3.virtual.token.rotate":
+		return handleTs3VirtualTokenRotate(job)
 	case "ts6.virtual.create", "ts6.virtual.action", "ts6.virtual.token.rotate":
 		return orchestratorResult{
 			status:    "failed",
@@ -320,7 +321,7 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 	if err := extractArchive(archivePath, downloadURL, installDir); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", serviceUser, serviceUser), installDir); err != nil {
+	if err := chownRecursiveToUser(installDir, serviceUser); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
@@ -410,7 +411,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	if err := extractArchive(archivePath, downloadURL, installDir); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", serviceUser, serviceUser), installDir); err != nil {
+	if err := chownRecursiveToUser(installDir, serviceUser); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
@@ -512,11 +513,11 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	if err := ensureExecutable(filepath.Join(installDir, "sinusbot")); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", serviceUser, serviceUser), installDir); err != nil {
+	if err := chownRecursiveToUser(installDir, serviceUser); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	if instanceRoot != "" {
-		if err := runCommand("chown", "-R", fmt.Sprintf("%s:%s", serviceUser, serviceUser), instanceRoot); err != nil {
+		if err := chownRecursiveToUser(instanceRoot, serviceUser); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
 	}
@@ -556,6 +557,20 @@ func handleViewerSnapshot(job jobs.Job) orchestratorResult {
 			"generated_at": time.Now().UTC().Format(time.RFC3339),
 		},
 	}
+}
+
+func chownRecursiveToUser(path, username string) error {
+	uid, gid, err := lookupIDs(username, username)
+	if err != nil {
+		return err
+	}
+	if err := os.Chown(path, uid, gid); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("chown %s: %w", path, err)
+	}
+	if err := chownRecursive(path, uid, gid); err != nil {
+		return err
+	}
+	return nil
 }
 
 func downloadArchive(destination, url string) error {

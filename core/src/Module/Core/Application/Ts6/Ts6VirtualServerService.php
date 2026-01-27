@@ -45,6 +45,9 @@ final class Ts6VirtualServerService
             'node_id' => $node->getId(),
             'name' => $dto->name,
             'params' => $params,
+            'query_bind_ip' => $node->getQueryBindIp(),
+            'query_https_port' => $node->getQueryHttpsPort(),
+            'admin_password' => $node->getAdminPassword($this->crypto),
         ];
         $this->jobDispatcher->dispatch($node->getAgent(), 'ts6.virtual.create', $jobPayload);
         $this->entityManager->flush();
@@ -81,6 +84,9 @@ final class Ts6VirtualServerService
             'virtual_server_id' => $server->getId(),
             'node_id' => $server->getNode()->getId(),
             'sid' => $server->getSid(),
+            'query_bind_ip' => $server->getNode()->getQueryBindIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
         $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.token.rotate', $payload);
 
@@ -99,6 +105,9 @@ final class Ts6VirtualServerService
             'node_id' => $server->getNode()->getId(),
             'sid' => $server->getSid(),
             'action' => $action,
+            'query_bind_ip' => $server->getNode()->getQueryBindIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
         $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.action', $payload);
         $this->entityManager->flush();

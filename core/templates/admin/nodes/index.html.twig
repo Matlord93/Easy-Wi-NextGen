@@ -213,32 +213,24 @@
                             </div>
                         </div>
 
-                        <form
-                            class="nodes-detail-card"
-                            hx-post="/admin/nodes/{{ selectedNode.id }}/roles"
-                            hx-target="#nodes-table-wrap"
-                            hx-swap="innerHTML"
-                        >
+                        <div class="nodes-detail-card">
                             <div class="nodes-detail-card__header">
-                                <div class="nodes-detail-card__title">{{ t('admin_nodes_roles_section', page_locale()) }}</div>
-                                <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_update_roles', page_locale()) }}</button>
+                                <div class="nodes-detail-card__title">{{ t('admin_nodes_roles_active', page_locale()) }}</div>
+                                <a class="btn btn--secondary" href="/admin/nodes/{{ selectedNode.id }}/roles">
+                                    {{ t('admin_nodes_manage_roles', page_locale()) }}
+                                </a>
                             </div>
                             <div class="role-toggle-group">
-                                {% for roleOption in roleOptions %}
-                                    {% set roleKey = roleOption|lower %}
-                                    <label class="role-toggle">
-                                        <input
-                                            type="checkbox"
-                                            name="roles[]"
-                                            value="{{ roleOption }}"
-                                            {% if roleKey in selectedNode.roleKeys %}checked{% endif %}
-                                            aria-label="{{ roleOption }}"
-                                        >
-                                        <span>{{ roleOption }}</span>
-                                    </label>
-                                {% endfor %}
+                                {% if selectedNode.roles is empty %}
+                                    <span class="text-xs text-slate-500">{{ t('admin_nodes_roles_empty', page_locale()) }}</span>
+                                {% else %}
+                                    {% for role in selectedNode.roles %}
+                                        <span class="role-chip role-chip--active">{{ role }}</span>
+                                    {% endfor %}
+                                {% endif %}
                             </div>
-                        </form>
+                            <p class="mt-3 text-xs text-slate-500">{{ t('admin_nodes_roles_manage_hint', page_locale()) }}</p>
+                        </div>
 
                         <form
                             class="nodes-detail-card"

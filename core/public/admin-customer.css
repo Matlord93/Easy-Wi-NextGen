@@ -1535,6 +1535,61 @@ html:not(.dark) {
     font-size: 13px;
 }
 
+.ng-user-menu {
+    position: relative;
+}
+
+.ng-user-menu > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.ng-user-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.ng-user-menu__dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    min-width: 200px;
+    border-radius: 14px;
+    border: 1px solid var(--ng-border);
+    background: var(--ng-surface);
+    box-shadow: 0 18px 32px rgba(15, 23, 42, 0.25);
+    padding: 10px;
+    z-index: 20;
+    display: none;
+}
+
+.ng-user-menu[open] .ng-user-menu__dropdown {
+    display: block;
+}
+
+.ng-user-menu__label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--ng-text-muted);
+    letter-spacing: 0.08em;
+    padding: 4px 10px 8px;
+}
+
+.ng-user-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    color: var(--ng-text);
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.ng-user-menu__item:hover {
+    background: rgba(99, 102, 241, 0.12);
+}
+
 .ng-user-button__avatar {
     background: rgba(99, 102, 241, 0.2);
     color: #c7d2fe;

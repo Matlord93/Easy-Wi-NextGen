@@ -49,6 +49,10 @@ final class Ts3VirtualServerService
             'node_id' => $node->getId(),
             'name' => $dto->name,
             'params' => $params,
+            'query_bind_ip' => $node->getQueryBindIp(),
+            'query_port' => $node->getQueryPort(),
+            'admin_username' => $node->getAdminUsername(),
+            'admin_password' => $node->getAdminPassword($this->crypto),
         ];
 
         $this->jobDispatcher->dispatch($node->getAgent(), 'ts3.virtual.create', $jobPayload);
@@ -86,6 +90,10 @@ final class Ts3VirtualServerService
             'virtual_server_id' => $server->getId(),
             'node_id' => $server->getNode()->getId(),
             'sid' => $server->getSid(),
+            'query_bind_ip' => $server->getNode()->getQueryBindIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
 
         $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.token.rotate', $jobPayload);
@@ -105,6 +113,10 @@ final class Ts3VirtualServerService
             'node_id' => $server->getNode()->getId(),
             'sid' => $server->getSid(),
             'action' => $action,
+            'query_bind_ip' => $server->getNode()->getQueryBindIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
         $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.action', $payload);
         $this->entityManager->flush();

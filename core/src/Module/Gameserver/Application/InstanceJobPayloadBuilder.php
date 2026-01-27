@@ -145,11 +145,23 @@ final class InstanceJobPayloadBuilder
             $vars['SERVER_NAME'] = $instance->getServerName();
         }
 
+        $steamAccount = $vars['STEAM_ACCOUNT'] ?? '';
+        $steamPassword = $vars['STEAM_PASSWORD'] ?? '';
+        if ($steamAccount !== '' && $steamPassword !== '') {
+            $vars['STEAM_LOGIN'] = sprintf('%s %s', $steamAccount, $steamPassword);
+        } else {
+            $vars['STEAM_LOGIN'] = 'anonymous';
+        }
+
         if (!isset($setupVarKeys['SERVER_MEMORY']) && $instance->getRamLimit() > 0) {
             $vars['SERVER_MEMORY'] = (string) $instance->getRamLimit();
         }
 
         foreach (['SERVER_PASSWORD', 'RCON_PASSWORD', 'ADMIN_PASSWORD', 'SERVER_ADMIN_PASSWORD'] as $passwordKey) {
+            if (!isset($setupVarKeys[$passwordKey]) && $passwordKey === 'SERVER_PASSWORD' && isset($vars[$passwordKey])) {
+                unset($vars[$passwordKey]);
+                continue;
+            }
             if (!isset($setupVarKeys[$passwordKey]) && isset($vars[$passwordKey]) && strtolower($vars[$passwordKey]) === 'change-me') {
                 unset($vars[$passwordKey]);
             }

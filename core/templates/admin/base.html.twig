@@ -43,20 +43,34 @@
     moduleBilling ? { key: 'billing', label: t('admin_nav_billing', page_locale()), href: path('admin_billing') } : null
 ]|filter(v => v) %}
 
-{% set infrastructureItems = [
+{% set gameModuleItems = [
     moduleGame ? { key: 'game-instances', label: 'Gameserver', href: path('admin_instances') } : null,
-    moduleGame ? { key: 'sinusbot', label: 'SinusBot', href: path('admin_sinusbot_nodes_index') } : null,
-    moduleTsCombined ? { key: 'ts-nodes', label: 'TeamSpeak Nodes', href: path('admin_ts_nodes_index') } : null,
-    moduleTs ? { key: 'ts3-servers', label: 'TeamSpeak 3 Server', href: path('admin_ts3_servers_index') } : null,
-    moduleTs6 ? { key: 'ts6-servers', label: 'TeamSpeak 6 Server', href: path('admin_ts6_servers_index') } : null,
-    { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: path('admin_nodes') },
     moduleGame ? { key: 'templates', label: t('admin_nav_templates', page_locale()), href: path('admin_templates') } : null,
-    moduleGame ? { key: 'plugins', label: t('admin_nav_plugins', page_locale()), href: path('admin_plugins') } : null,
-    { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: path('admin_ddos') },
-    { key: 'firewall', label: t('admin_nav_security', page_locale()), href: path('admin_security') },
-    { key: 'port-blocks', label: t('admin_nav_port_blocks', page_locale()), href: path('admin_port_blocks') },
-    { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') }
+    moduleGame ? { key: 'plugins', label: t('admin_nav_plugins', page_locale()), href: path('admin_plugins') } : null
 ]|filter(v => v) %}
+
+{% set voiceModuleItems = [
+    moduleTsCombined ? { key: 'ts-nodes', label: 'Teamspeak Nodes', href: path('admin_ts_nodes_index') } : null,
+    moduleTs ? { key: 'ts3-servers', label: 'Teamspeak 3', href: path('admin_ts3_servers_index') } : null,
+    moduleTs6 ? { key: 'ts6-servers', label: 'Teamspeak 6', href: path('admin_ts6_servers_index') } : null,
+    moduleGame ? { key: 'sinusbot', label: 'Sinusbot', href: path('admin_sinusbot_nodes_index') } : null
+]|filter(v => v) %}
+
+{% set systemModuleItems = [
+    { key: 'firewall', label: 'Sicherheit/Firewall', href: path('admin_security') },
+    { key: 'port-pools', label: t('admin_nav_port_pools', page_locale()), href: path('admin_port_pools') },
+    { key: 'port-blocks', label: t('admin_nav_port_blocks', page_locale()), href: path('admin_port_blocks') },
+    { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') },
+    { key: 'nodes', label: 'Agent', href: path('admin_nodes') },
+    { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()), href: path('admin_agent_bootstrap_tokens') },
+    { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: path('admin_ddos') }
+]|filter(v => v) %}
+
+{% set webinterfaceModuleItems = [
+    { key: 'settings', label: 'Webinterface (Einstellungen)', href: path('admin_settings') },
+    { key: 'modules', label: t('admin_nav_modules', page_locale()), href: path('admin_modules') },
+    { key: 'updates', label: t('admin_updates_title', page_locale()), href: path('admin_updates') }
+] %}
 
 {% set servicesItems = [
     moduleWeb ? { key: 'webspaces', label: t('admin_nav_webspaces', page_locale()), href: path('admin_webspaces') } : null,
@@ -94,10 +108,25 @@
         open: true,
         items: customerItems
     } : null,
-    infrastructureItems is not empty ? {
-        label: 'Infrastruktur',
+    gameModuleItems is not empty ? {
+        label: 'Game Modul',
         open: true,
-        items: infrastructureItems
+        items: gameModuleItems
+    } : null,
+    voiceModuleItems is not empty ? {
+        label: 'Voice Modul',
+        open: true,
+        items: voiceModuleItems
+    } : null,
+    systemModuleItems is not empty ? {
+        label: 'System Modul',
+        open: true,
+        items: systemModuleItems
+    } : null,
+    webinterfaceModuleItems is not empty ? {
+        label: 'Webinterface Modul',
+        open: true,
+        items: webinterfaceModuleItems
     } : null,
     servicesItems is not empty ? {
         label: 'Services',
@@ -131,18 +160,7 @@
         open: false,
         items: marketplaceItems
     } : null,
-    {
-        label: 'Einstellungen',
-        open: true,
-        items: [
-            { key: 'settings', label: t('admin_nav_settings', page_locale()), href: path('admin_settings') },
-            { key: 'modules', label: t('admin_nav_modules', page_locale()), href: path('admin_modules') },
-            { key: 'port-pools', label: t('admin_nav_port_pools', page_locale()), href: path('admin_port_pools') },
-            { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()), href: path('admin_agent_bootstrap_tokens') },
-            { key: 'profile', label: t('admin_nav_profile', page_locale()), href: path('admin_profile') },
-            { key: 'updates', label: t('admin_updates_title', page_locale()), href: path('admin_updates') }
-        ]
-    }
+    null
 ]|filter(v => v) %}
 
 <div class="ng-layout">

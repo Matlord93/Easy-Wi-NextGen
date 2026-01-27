@@ -95,12 +95,26 @@ final class AdminNodeController
         return new Response($this->twig->render('admin/nodes/index.html.twig', [
             'nodes' => $normalizedNodes,
             'summary' => $summary,
-            'roleOptions' => self::ROLE_OPTIONS,
             'selectedNode' => $selectedNode,
             'updateChannel' => $this->releaseChecker->getChannel(),
             'diskProtectCount' => count($diskProtectActive),
             'activeNav' => 'nodes',
         ]));
+    }
+
+    #[Route(path: '/{id}/roles', name: 'admin_nodes_roles_page', methods: ['GET'])]
+    public function rolesPage(Request $request, string $id): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $node = $this->agentRepository->find($id);
+        if ($node === null) {
+            return new Response('Node not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        return $this->renderRolesPage($node);
     }
 
     #[Route(path: '/register', name: 'admin_nodes_register', methods: ['GET'])]
@@ -240,15 +254,43 @@ final class AdminNodeController
         $unknownRoles = $this->extractUnknownRoles($node->getRoles());
         $existingStoredRoles = array_values(array_merge($existingRoles, $unknownRoles));
         $rolesToStore = array_values(array_merge($normalizedRoles, $unknownRoles));
+        $metadata = $node->getMetadata() ?? [];
+        $existingMetadata = $metadata;
         $notice = null;
         $error = null;
+        $coreAccessMode = $request->request->get('core_access_mode');
+        $normalizedCoreAccessMode = null;
+        if (is_string($coreAccessMode)) {
+            $coreAccessMode = trim($coreAccessMode);
+            if (in_array($coreAccessMode, ['ssh_key_only', 'ssh_key_password'], true)) {
+                $normalizedCoreAccessMode = $coreAccessMode;
+            }
+        }
 
         if ($normalizedRoles === [] && $unknownRoles === []) {
             $error = 'Select at least one role to assign.';
         }
 
-        if ($error === null && $this->rolesChanged($existingStoredRoles, $rolesToStore)) {
-            $node->setRoles($rolesToStore);
+        if ($error === null && in_array('Core', $rolesToStore, true)) {
+            if ($normalizedCoreAccessMode === null) {
+                $error = 'Select an SSH access mode for the Core role.';
+            } else {
+                $metadata['core_access_mode'] = $normalizedCoreAccessMode;
+            }
+        } elseif ($error === null) {
+            unset($metadata['core_access_mode']);
+        }
+
+        $metadataChanged = $metadata !== $existingMetadata;
+        $rolesChanged = $this->rolesChanged($existingStoredRoles, $rolesToStore);
+
+        if ($error === null && ($rolesChanged || $metadataChanged)) {
+            if ($rolesChanged) {
+                $node->setRoles($rolesToStore);
+            }
+            if ($metadataChanged) {
+                $node->setMetadata($metadata === [] ? null : $metadata);
+            }
 
             foreach ($rolesToStore as $role) {
                 $job = new Job('role.ensure_base', [
@@ -262,6 +304,7 @@ final class AdminNodeController
                 'node_id' => $node->getId(),
                 'previous_roles' => $existingStoredRoles,
                 'roles' => $rolesToStore,
+                'core_access_mode' => $metadata['core_access_mode'] ?? null,
             ]);
 
             $this->entityManager->flush();
@@ -270,7 +313,11 @@ final class AdminNodeController
             $notice = 'Roles are already up to date.';
         }
 
-        return $this->renderNodesTable($notice, $error);
+        if ($request->headers->get('HX-Request')) {
+            return $this->renderNodesTable($notice, $error);
+        }
+
+        return $this->renderRolesPage($node, $notice, $error);
     }
 
     #[Route(path: '/{id}/disk-settings', name: 'admin_nodes_disk_settings', methods: ['POST'])]
@@ -689,6 +736,21 @@ final class AdminNodeController
         ]));
     }
 
+    private function renderRolesPage(\App\Module\Core\Domain\Entity\Agent $node, ?string $notice = null, ?string $error = null): Response
+    {
+        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $normalizedNodes = $this->normalizeNodes([$node], $latestVersion);
+        $selectedNode = $normalizedNodes[0] ?? null;
+
+        return new Response($this->twig->render('admin/nodes/roles.html.twig', [
+            'selectedNode' => $selectedNode,
+            'roleOptions' => self::ROLE_OPTIONS,
+            'notice' => $notice,
+            'error' => $error,
+            'activeNav' => 'nodes',
+        ]));
+    }
+
     /**
      * @param \App\Module\Core\Domain\Entity\Agent[] $nodes
      * @return array{nodes: int, jobs: int}
@@ -909,6 +971,8 @@ final class AdminNodeController
             $diskOverrideActive = $this->nodeDiskProtectionService->isOverrideActive($node, $now);
             $agentBaseUrl = $node->getAgentBaseUrl();
             $agentTokenConfigured = $node->getAgentApiTokenEncrypted() !== '';
+            $metadata = $node->getMetadata() ?? [];
+            $coreAccessMode = $metadata['core_access_mode'] ?? null;
 
             return [
                 'id' => $node->getId(),
@@ -941,6 +1005,7 @@ final class AdminNodeController
                     'token_configured' => $agentTokenConfigured,
                     'job_concurrency' => $node->getJobConcurrency(),
                 ],
+                'coreAccessMode' => is_string($coreAccessMode) ? $coreAccessMode : null,
                 'updateAvailable' => $this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion),
                 'latestVersion' => $latestVersion,
                 'updatedAt' => $node->getUpdatedAt(),

@@ -267,6 +267,12 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceConsoleCommand(job, logSender)
 	case "instance.reinstall":
 		return handleInstanceReinstall(job, logSender)
+	case "instance.addon.install":
+		return handleInstanceAddonInstall(job)
+	case "instance.addon.update":
+		return handleInstanceAddonUpdate(job)
+	case "instance.addon.remove":
+		return handleInstanceAddonRemove(job)
 	case "instance.disk.scan":
 		return handleInstanceDiskScan(job)
 	case "instance.disk.top":
