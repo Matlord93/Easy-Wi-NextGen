@@ -470,9 +470,24 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	serviceName := payloadValue(job.Payload, "service_name")
 	downloadURL := payloadValue(job.Payload, "download_url")
 	downloadFilename := payloadValue(job.Payload, "download_filename")
+	serviceUser := payloadValue(job.Payload, "service_user")
+	webBindIP := payloadValue(job.Payload, "web_bind_ip")
+	webPortBase := payloadValue(job.Payload, "web_port_base")
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
+	}
+	if serviceUser == "" {
+		serviceUser = "sinusbot"
+	}
+	if serviceUser == "root" {
+		return orchestratorResult{status: "failed", errorText: "service_user cannot be root"}
+	}
+	if webBindIP == "" {
+		webBindIP = "0.0.0.0"
+	}
+	if webPortBase == "" {
+		webPortBase = "8087"
 	}
 
 	if err := ensureInstanceDir(installDir); err != nil {
@@ -495,11 +510,14 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "success", resultPayload: map[string]any{"installed_version": "unknown"}}
 	}
 
-	serviceUser := "sinusbot"
 	if err := ensureGroup(serviceUser); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	if err := ensureUser(serviceUser, serviceUser, installDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	if err := installSinusbotDependencies(); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
@@ -518,6 +536,17 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	}
 	if instanceRoot != "" {
 		if err := chownRecursiveToUser(instanceRoot, serviceUser); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
+	}
+
+	configPath := filepath.Join(installDir, "config.ini")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		configContent := fmt.Sprintf("ListenPort = %s\nListenHost = \"%s\"\nTS3Path = \"\"\nYoutubeDLPath = \"\"\n", webPortBase, webBindIP)
+		if err := writeFile(configPath, configContent); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
+		if err := chownRecursiveToUser(configPath, serviceUser); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
 	}
@@ -541,6 +570,79 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 			"running":           true,
 		},
 	}
+}
+
+func installSinusbotDependencies() error {
+	family, err := detectOSFamily()
+	if err != nil {
+		return err
+	}
+	packages := sinusbotPackages(family)
+	if len(packages) == 0 {
+		return nil
+	}
+	output := &strings.Builder{}
+	if err := installPackages(family, packages, output); err != nil {
+		return err
+	}
+	return nil
+}
+
+func sinusbotPackages(family string) []string {
+	switch family {
+	case "debian":
+		return []string{
+			"ca-certificates",
+			"bzip2",
+			"screen",
+			"xvfb",
+			"libfontconfig1",
+			"libxtst6",
+			"libxcursor1",
+			"psmisc",
+			"libglib2.0-0",
+			"less",
+			"python3",
+			"iproute2",
+			"dbus",
+			"libnss3",
+			"libegl1-mesa",
+			"x11-xkb-utils",
+			"libasound2",
+			"libxcomposite-dev",
+			"libxi6",
+			"libpci3",
+			"libxslt1.1",
+			"libxkbcommon0",
+			"libxss1",
+		}
+	case "rhel":
+		return []string{
+			"ca-certificates",
+			"bzip2",
+			"screen",
+			"xvfb",
+			"libXcursor",
+			"libXtst",
+			"glib2",
+			"psmisc",
+			"less",
+			"python3",
+			"iproute",
+			"dbus",
+			"nss",
+			"mesa-libEGL",
+			"xorg-x11-xkb-utils",
+			"alsa-lib",
+			"libXcomposite",
+			"libXi",
+			"pciutils-libs",
+			"libxslt",
+			"libxkbcommon",
+			"libXScrnSaver",
+		}
+	}
+	return nil
 }
 
 func handleViewerSnapshot(job jobs.Job) orchestratorResult {

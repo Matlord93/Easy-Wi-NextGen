@@ -709,14 +709,14 @@ func buildInstanceTemplateValues(instanceDir, requiredPortsRaw string, allocated
 	}
 
 	for key, value := range parseEnvVars(payload) {
-		if value == "" {
+		if value == "" && !allowEmptyTemplateValue(key) {
 			continue
 		}
 		values[key] = value
 	}
 
 	for key, value := range parseSecrets(payload) {
-		if value == "" {
+		if value == "" && !allowEmptyTemplateValue(key) {
 			continue
 		}
 		values[key] = value
@@ -740,6 +740,15 @@ func buildInstanceTemplateValues(instanceDir, requiredPortsRaw string, allocated
 	}
 
 	return values
+}
+
+func allowEmptyTemplateValue(key string) bool {
+	switch strings.ToUpper(strings.TrimSpace(key)) {
+	case "SERVER_PASSWORD", "STEAM_GSLT":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseEnvVars(payload map[string]any) map[string]string {
