@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Ts6;
 
 use App\Module\Core\Dto\Ts6\InstallDto;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Ts6Node;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -39,6 +40,7 @@ final class Ts6NodeService
             'admin_password' => $dto->adminPassword,
         ];
 
+        $this->queueFirewallPorts($node, $dto);
         $job = $this->jobDispatcher->dispatchWithFailureLogging($node->getAgent(), 'ts6.install', $payload);
         if ($job->getStatus()->value === 'failed') {
             $node->setInstallStatus('failed');
@@ -85,5 +87,30 @@ final class Ts6NodeService
         ];
         $this->jobDispatcher->dispatch($node->getAgent(), 'ts6.service.action', $payload);
         $this->entityManager->flush();
+    }
+
+    private function queueFirewallPorts(Ts6Node $node, InstallDto $dto): ?Job
+    {
+        $ports = [];
+        if ($dto->defaultVoicePort > 0) {
+            $ports[] = $dto->defaultVoicePort;
+        }
+        if ($dto->queryHttpsEnable && $dto->queryHttpsPort > 0) {
+            $ports[] = $dto->queryHttpsPort;
+        }
+
+        $ports = array_values(array_unique(array_filter($ports, static fn (int $port): bool => $port > 0 && $port <= 65535)));
+        if ($ports === []) {
+            return null;
+        }
+
+        $job = new Job('firewall.open_ports', [
+            'agent_id' => $node->getAgent()->getId(),
+            'ts6_node_id' => (string) $node->getId(),
+            'ports' => implode(',', array_map('strval', $ports)),
+        ]);
+        $this->entityManager->persist($job);
+
+        return $job;
     }
 }

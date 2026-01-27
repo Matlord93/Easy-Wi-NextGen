@@ -17,7 +17,7 @@ final class SinusbotNodeService
     ) {
     }
 
-    public function install(SinusbotNode $node, bool $installTs3Client, ?string $ts3ClientDownloadUrl): void
+    public function install(SinusbotNode $node): void
     {
         $node->setInstallStatus('installing');
         $node->setLastError(null);
@@ -33,15 +33,10 @@ final class SinusbotNodeService
             'web_bind_ip' => $node->getWebBindIp(),
             'web_port_base' => $node->getWebPortBase(),
             'service_name' => 'sinusbot',
+            'service_user' => 'sinusbot',
             'admin_username' => $node->getAdminUsername(),
             'admin_password' => $node->getAdminPassword($this->crypto),
             'return_admin_credentials' => true,
-            'ts3_client_install' => $installTs3Client,
-            'ts3_client_download_url' => $ts3ClientDownloadUrl,
-            'dependencies' => [
-                'install_ts3_client' => $installTs3Client,
-                'ts3_client_download_url' => $ts3ClientDownloadUrl,
-            ],
         ];
 
         $job = $this->jobDispatcher->dispatchWithFailureLogging($node->getAgent(), 'sinusbot.install', $payload);

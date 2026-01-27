@@ -52,6 +52,11 @@
                 <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password_confirm', page_locale()) }}</label>
                 <input type="password" name="password_confirm" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
             </div>
+            <div>
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('user_database_limit_label', page_locale()) }}</label>
+                <input type="number" min="0" name="database_limit" value="{{ createForm.database_limit }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                <p class="mt-1 text-xs text-slate-500">{{ t('user_database_limit_hint', page_locale()) }}</p>
+            </div>
             <div class="md:col-span-2 flex items-end">
                 <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('user_management_create_action', page_locale()) }}</button>
             </div>
@@ -158,6 +163,11 @@
                                     <div>
                                         <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password_confirm', page_locale()) }}</label>
                                         <input type="password" name="password_confirm" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('user_database_limit_label', page_locale()) }}</label>
+                                        <input type="number" min="0" name="database_limit" value="{{ user.database_limit }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" {{ user.type != 'customer' ? 'disabled' : '' }}>
+                                        <p class="mt-1 text-xs text-slate-500">{{ t('user_database_limit_hint', page_locale()) }}</p>
                                     </div>
                                     <div class="flex flex-wrap items-end gap-2">
                                         <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">{{ t('user_management_update_action', page_locale()) }}</button>

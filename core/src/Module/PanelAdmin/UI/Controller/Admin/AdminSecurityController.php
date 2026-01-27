@@ -70,7 +70,7 @@ final class AdminSecurityController
     }
 
     #[Route(path: '/firewall/{id}', name: 'admin_security_firewall', methods: ['POST'])]
-    public function updateFirewall(Request $request, int $id): Response
+    public function updateFirewall(Request $request, string $id): Response
     {
         $admin = $this->requireAdmin($request);
 

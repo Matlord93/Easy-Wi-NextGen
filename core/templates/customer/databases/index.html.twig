@@ -8,44 +8,104 @@
         <p class="text-sm text-slate-700">{{ t('customer_databases_description', page_locale()) }}</p>
     </div>
 
-    <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-            <div>
-                <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_databases_overview', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('customer_databases_overview_description', page_locale()) }}</p>
-            </div>
+    {% if errors is defined and errors is not empty %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm text-rose-700">
+            <ul class="list-disc space-y-1 pl-5">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
         </div>
-        {% if databases is empty %}
-            <div class="px-5 py-6 text-sm text-slate-700">{{ t('customer_databases_empty', page_locale()) }}</div>
-        {% else %}
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50">
-                        <tr>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_name', page_locale()) }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_engine', page_locale()) }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_host', page_locale()) }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_user', page_locale()) }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_updated', page_locale()) }}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-200">
-                        {% for database in databases %}
-                            <tr>
-                                <td class="px-5 py-4">
-                                    <div class="font-semibold text-slate-900">{{ database.name }}</div>
-                                    <div class="text-xs text-slate-700">ID {{ database.id }}</div>
-                                </td>
-                                <td class="px-5 py-4 text-slate-600">{{ database.engine }}</td>
-                                <td class="px-5 py-4 text-slate-600">{{ database.host }}:{{ database.port }}</td>
-                                <td class="px-5 py-4 text-slate-600">{{ database.username }}</td>
-                                <td class="px-5 py-4 text-slate-600">{{ database.updated_at|date('Y-m-d H:i') }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    {% endif %}
+
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_databases_create_title', page_locale()) }}</h2>
+                <p class="text-sm text-slate-700">{{ t('customer_databases_create_description', page_locale()) }}</p>
+                <p class="mt-2 text-xs text-slate-500">
+                    {{ t('customer_databases_limit_label', page_locale()) }}:
+                    {{ databaseLimit > 0 ? databaseCount ~ '/' ~ databaseLimit : t('customer_databases_limit_unlimited', page_locale()) }}
+                </p>
             </div>
-        {% endif %}
+            <form method="post" action="/databases" class="space-y-4 px-5 py-4">
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_engine_label', page_locale()) }}</label>
+                    <select name="engine" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                        {% for engine in engines %}
+                            <option value="{{ engine }}">{{ engine|upper }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_host_label', page_locale()) }}</label>
+                        <input type="text" name="host" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_port_label', page_locale()) }}</label>
+                        <input type="number" min="1" max="65535" name="port" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                    </div>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_name_label', page_locale()) }}</label>
+                        <input type="text" name="name" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_user_label', page_locale()) }}</label>
+                        <input type="text" name="username" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_password_label', page_locale()) }}</label>
+                    <input type="password" name="password" minlength="8" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                </div>
+                <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500" {{ limitReached ? 'disabled' : '' }}>
+                    {{ limitReached ? t('customer_databases_limit_reached', page_locale()) : t('customer_databases_create_action', page_locale()) }}
+                </button>
+            </form>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_databases_overview', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_databases_overview_description', page_locale()) }}</p>
+                </div>
+            </div>
+            {% if databases is empty %}
+                <div class="px-5 py-6 text-sm text-slate-700">{{ t('customer_databases_empty', page_locale()) }}</div>
+            {% else %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_name', page_locale()) }}</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_engine', page_locale()) }}</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_host', page_locale()) }}</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_user', page_locale()) }}</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_databases_table_updated', page_locale()) }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            {% for database in databases %}
+                                <tr>
+                                    <td class="px-5 py-4">
+                                        <div class="font-semibold text-slate-900">{{ database.name }}</div>
+                                        <div class="text-xs text-slate-700">ID {{ database.id }}</div>
+                                    </td>
+                                    <td class="px-5 py-4 text-slate-600">{{ database.engine }}</td>
+                                    <td class="px-5 py-4 text-slate-600">{{ database.host }}:{{ database.port }}</td>
+                                    <td class="px-5 py-4 text-slate-600">{{ database.username }}</td>
+                                    <td class="px-5 py-4 text-slate-600">{{ database.updated_at|date('Y-m-d H:i') }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}

@@ -106,6 +106,12 @@ final class Ts3VirtualServerService
         return $token;
     }
 
+    public function delete(Ts3VirtualServer $server): void
+    {
+        $server->setStatus('deleting');
+        $this->applyServerAction($server, 'delete');
+    }
+
     private function applyServerAction(Ts3VirtualServer $server, string $action): void
     {
         $payload = [

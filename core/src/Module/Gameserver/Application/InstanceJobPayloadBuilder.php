@@ -158,13 +158,12 @@ final class InstanceJobPayloadBuilder
         }
 
         foreach (['SERVER_PASSWORD', 'RCON_PASSWORD', 'ADMIN_PASSWORD', 'SERVER_ADMIN_PASSWORD'] as $passwordKey) {
-            if (!isset($setupVarKeys[$passwordKey]) && $passwordKey === 'SERVER_PASSWORD' && isset($vars[$passwordKey])) {
-                unset($vars[$passwordKey]);
-                continue;
-            }
             if (!isset($setupVarKeys[$passwordKey]) && isset($vars[$passwordKey]) && strtolower($vars[$passwordKey]) === 'change-me') {
                 unset($vars[$passwordKey]);
             }
+        }
+        if (!isset($vars['SERVER_PASSWORD'])) {
+            $vars['SERVER_PASSWORD'] = '';
         }
 
         $normalized = [];

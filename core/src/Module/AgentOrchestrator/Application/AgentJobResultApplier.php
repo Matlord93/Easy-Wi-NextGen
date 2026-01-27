@@ -282,7 +282,12 @@ final class AgentJobResultApplier
 
         if ($job->getType() === 'ts3.virtual.action') {
             $action = (string) ($job->getPayload()['action'] ?? '');
-            $server->setStatus($action === 'stop' ? 'stopped' : 'running');
+            if ($action === 'delete') {
+                $server->archive();
+                $server->setStatus('deleted');
+            } else {
+                $server->setStatus($action === 'stop' ? 'stopped' : 'running');
+            }
         }
 
         if ($job->getType() === 'ts3.virtual.token.rotate' && is_array($payload)) {
@@ -322,7 +327,12 @@ final class AgentJobResultApplier
 
         if ($job->getType() === 'ts6.virtual.action') {
             $action = (string) ($job->getPayload()['action'] ?? '');
-            $server->setStatus($action === 'stop' ? 'stopped' : 'running');
+            if ($action === 'delete') {
+                $server->archive();
+                $server->setStatus('deleted');
+            } else {
+                $server->setStatus($action === 'stop' ? 'stopped' : 'running');
+            }
         }
 
         if ($job->getType() === 'ts6.virtual.token.rotate' && is_array($payload)) {

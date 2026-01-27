@@ -18,6 +18,9 @@
         {% for message in app.flashes('success') %}
             <div class="ts6-alert ts6-alert-success">{{ message }}</div>
         {% endfor %}
+        {% for message in app.flashes('error') %}
+            <div class="ts6-alert ts6-alert-error">{{ message }}</div>
+        {% endfor %}
 
         <div class="ts6-card">
             {{ form_start(form, { attr: { class: 'ts6-form' } }) }}

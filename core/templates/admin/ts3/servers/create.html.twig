@@ -18,6 +18,9 @@
         {% for message in app.flashes('success') %}
             <div class="ts3-alert ts3-alert-success">{{ message }}</div>
         {% endfor %}
+        {% for message in app.flashes('error') %}
+            <div class="ts3-alert ts3-alert-error">{{ message }}</div>
+        {% endfor %}
 
         <div class="ts3-card">
             {{ form_start(form, { attr: { class: 'ts3-form' } }) }}

@@ -19,6 +19,8 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class MailboxApiController
 {
+    private const DEFAULT_MAIL_PORTS = [25, 465, 587, 110, 143, 993, 995];
+
     public function __construct(
         private readonly MailboxRepository $mailboxRepository,
         private readonly DomainRepository $domainRepository,
@@ -80,6 +82,7 @@ final class MailboxApiController
             'quota_mb' => (string) $mailbox->getQuota(),
             'enabled' => $mailbox->isEnabled() ? 'true' : 'false',
         ]);
+        $firewallJob = $this->queueMailboxFirewall($mailbox);
 
         $this->auditLogger->log($actor, 'mailbox.created', [
             'mailbox_id' => $mailbox->getId(),
@@ -88,6 +91,7 @@ final class MailboxApiController
             'quota' => $mailbox->getQuota(),
             'enabled' => $mailbox->isEnabled(),
             'job_id' => $job->getId(),
+            'firewall_job_id' => $firewallJob?->getId(),
         ]);
 
         $this->entityManager->flush();
@@ -95,7 +99,26 @@ final class MailboxApiController
         return new JsonResponse([
             'mailbox' => $this->normalizeMailbox($mailbox),
             'job_id' => $job->getId(),
+            'firewall_job_id' => $firewallJob?->getId(),
         ], JsonResponse::HTTP_CREATED);
+    }
+
+    private function queueMailboxFirewall(Mailbox $mailbox): ?Job
+    {
+        $ports = array_values(array_unique(self::DEFAULT_MAIL_PORTS));
+        if ($ports === []) {
+            return null;
+        }
+
+        $node = $mailbox->getDomain()->getWebspace()->getNode();
+        $firewallJob = new Job('firewall.open_ports', [
+            'agent_id' => $node->getId(),
+            'mailbox_id' => (string) $mailbox->getId(),
+            'ports' => implode(',', array_map('strval', $ports)),
+        ]);
+        $this->entityManager->persist($firewallJob);
+
+        return $firewallJob;
     }
 
     #[Route(path: '/api/mailboxes/{id}/quota', name: 'mailboxes_quota_update', methods: ['PATCH'])]

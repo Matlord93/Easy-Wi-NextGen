@@ -8,44 +8,98 @@
         <p class="text-sm text-slate-700">{{ t('customer_mail_description', page_locale()) }}</p>
     </div>
 
-    <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-            <div>
-                <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_mail_overview', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('customer_mail_overview_description', page_locale()) }}</p>
-            </div>
+    {% if errors is defined and errors is not empty %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm text-rose-700">
+            <ul class="list-disc space-y-1 pl-5">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
         </div>
-        {% if mailboxes is empty %}
-            <div class="px-5 py-6 text-sm text-slate-700">{{ t('customer_mail_empty', page_locale()) }}</div>
-        {% else %}
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead class="bg-slate-50">
-                        <tr>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_address', page_locale()) }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_domain', page_locale()) }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_quota', page_locale()) }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_status', page_locale()) }}</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_updated', page_locale()) }}</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-200">
-                        {% for mailbox in mailboxes %}
-                            <tr>
-                                <td class="px-5 py-4">
-                                    <div class="font-semibold text-slate-900">{{ mailbox.address }}</div>
-                                    <div class="text-xs text-slate-700">ID {{ mailbox.id }}</div>
-                                </td>
-                                <td class="px-5 py-4 text-slate-600">{{ mailbox.domain }}</td>
-                                <td class="px-5 py-4 text-slate-600">{{ mailbox.quota }} MB</td>
-                                <td class="px-5 py-4 text-slate-600">{{ mailbox.enabled ? 'Aktiv' : 'Inaktiv' }}</td>
-                                <td class="px-5 py-4 text-slate-600">{{ mailbox.updated_at|date('Y-m-d H:i') }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    {% endif %}
+
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_mail_create_title', page_locale()) }}</h2>
+                <p class="text-sm text-slate-700">{{ t('customer_mail_create_description', page_locale()) }}</p>
+                <a href="/roundcube" class="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-500" target="_blank" rel="noreferrer">
+                    {{ t('customer_mail_roundcube_link', page_locale()) }}
+                </a>
             </div>
-        {% endif %}
+            <form method="post" action="/mail" class="space-y-4 px-5 py-4">
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_domain_label', page_locale()) }}</label>
+                    <select name="domain_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                        <option value="">{{ t('customer_mail_domain_placeholder', page_locale()) }}</option>
+                        {% for domain in domains %}
+                            <option value="{{ domain.id }}">{{ domain.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_local_part_label', page_locale()) }}</label>
+                    <input type="text" name="local_part" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_password_label', page_locale()) }}</label>
+                        <input type="password" name="password" minlength="8" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_quota_label', page_locale()) }}</label>
+                        <input type="number" min="0" name="quota" value="0" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700">
+                    <input type="checkbox" name="enabled" value="1" class="rounded border-slate-300 text-indigo-600" checked>
+                    {{ t('customer_mail_enabled_label', page_locale()) }}
+                </label>
+                <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                    {{ t('customer_mail_create_action', page_locale()) }}
+                </button>
+            </form>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_mail_overview', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_mail_overview_description', page_locale()) }}</p>
+                </div>
+            </div>
+            {% if mailboxes is empty %}
+                <div class="px-5 py-6 text-sm text-slate-700">{{ t('customer_mail_empty', page_locale()) }}</div>
+            {% else %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_address', page_locale()) }}</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_domain', page_locale()) }}</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_quota', page_locale()) }}</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_status', page_locale()) }}</th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_mail_table_updated', page_locale()) }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            {% for mailbox in mailboxes %}
+                                <tr>
+                                    <td class="px-5 py-4">
+                                        <div class="font-semibold text-slate-900">{{ mailbox.address }}</div>
+                                        <div class="text-xs text-slate-700">ID {{ mailbox.id }}</div>
+                                    </td>
+                                    <td class="px-5 py-4 text-slate-600">{{ mailbox.domain }}</td>
+                                    <td class="px-5 py-4 text-slate-600">{{ mailbox.quota }} MB</td>
+                                    <td class="px-5 py-4 text-slate-600">{{ mailbox.enabled ? t('customer_mail_status_active', page_locale()) : t('customer_mail_status_inactive', page_locale()) }}</td>
+                                    <td class="px-5 py-4 text-slate-600">{{ mailbox.updated_at|date('Y-m-d H:i') }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}

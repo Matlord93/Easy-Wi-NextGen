@@ -74,6 +74,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\JoinColumn(name: 'reseller_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?self $resellerOwner = null;
 
+    #[ORM\Column(options: ['default' => 0])]
+    private int $databaseLimit = 0;
+
     public function __construct(string $email, UserType $type)
     {
         $this->email = strtolower($email);
@@ -282,6 +285,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setResellerOwner(?self $resellerOwner): void
     {
         $this->resellerOwner = $resellerOwner;
+    }
+
+    public function getDatabaseLimit(): int
+    {
+        return $this->databaseLimit;
+    }
+
+    public function setDatabaseLimit(int $databaseLimit): void
+    {
+        $this->databaseLimit = max(0, $databaseLimit);
     }
 
     public function isOwnedBy(self $reseller): bool

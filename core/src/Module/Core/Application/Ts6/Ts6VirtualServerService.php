@@ -8,6 +8,7 @@ use App\Module\Core\Dto\Ts6\CreateVirtualServerDto;
 use App\Module\Core\Domain\Entity\Ts6Node;
 use App\Module\Core\Domain\Entity\Ts6Token;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Application\SecretsCrypto;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -39,6 +40,15 @@ final class Ts6VirtualServerService
         $virtualServer->setStatus('provisioning');
         $this->entityManager->persist($virtualServer);
         $this->entityManager->flush();
+
+        if ($voicePort !== null && $voicePort > 0) {
+            $firewallJob = new Job('firewall.open_ports', [
+                'agent_id' => $node->getAgent()->getId(),
+                'ts6_virtual_server_id' => (string) $virtualServer->getId(),
+                'ports' => (string) $voicePort,
+            ]);
+            $this->entityManager->persist($firewallJob);
+        }
 
         $jobPayload = [
             'virtual_server_id' => $virtualServer->getId(),
@@ -96,6 +106,12 @@ final class Ts6VirtualServerService
         $this->entityManager->flush();
 
         return $token;
+    }
+
+    public function delete(Ts6VirtualServer $server): void
+    {
+        $server->setStatus('deleting');
+        $this->applyServerAction($server, 'delete');
     }
 
     private function applyServerAction(Ts6VirtualServer $server, string $action): void

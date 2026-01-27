@@ -18,6 +18,9 @@
         {% for message in app.flashes('success') %}
             <div class="ts6-alert ts6-alert-success">{{ message }}</div>
         {% endfor %}
+        {% for message in app.flashes('error') %}
+            <div class="ts6-alert ts6-alert-error">{{ message }}</div>
+        {% endfor %}
 
         <div class="ts6-card">
             <table class="ts6-table">
@@ -31,6 +34,7 @@
                         <th>Status</th>
                         <th>Aktualisiert</th>
                         <th>Zuordnung</th>
+                        <th>Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -73,10 +77,16 @@
                                     <button class="ts6-button" type="submit">Zuweisen</button>
                                 </form>
                             </td>
+                            <td>
+                                <form method="post" action="/admin/ts6/servers/{{ server.id }}/delete">
+                                    <input type="hidden" name="_token" value="{{ deleteTokens[server.id] ?? '' }}">
+                                    <button class="ts6-button" type="submit">Löschen</button>
+                                </form>
+                            </td>
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="8" class="ts6-empty">Keine TS6 Virtual Server gefunden.</td>
+                            <td colspan="9" class="ts6-empty">Keine TS6 Virtual Server gefunden.</td>
                         </tr>
                     {% endfor %}
                 </tbody>

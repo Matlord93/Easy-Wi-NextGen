@@ -134,6 +134,12 @@
     border: 1px solid #a7f3d0;
 }
 
+.ts6-alert-error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
 .ts6-pill {
     display: inline-flex;
     align-items: center;
@@ -264,6 +270,12 @@
     background: rgba(16, 185, 129, 0.12);
     border-color: rgba(16, 185, 129, 0.4);
     color: #a7f3d0;
+}
+
+.dark .ts6-alert-error {
+    background: rgba(220, 38, 38, 0.15);
+    border-color: rgba(220, 38, 38, 0.4);
+    color: #fecaca;
 }
 
 .dark .ts6-pill {

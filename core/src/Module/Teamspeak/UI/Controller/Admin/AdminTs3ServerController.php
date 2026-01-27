@@ -12,6 +12,7 @@ use App\Repository\Ts3VirtualServerRepository;
 use App\Repository\Ts3NodeRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\Ts3\Ts3VirtualServerService;
+use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -42,7 +43,7 @@ final class AdminTs3ServerController
     {
         $this->requireAdmin($request);
 
-        $servers = $this->virtualServerRepository->findBy([], ['updatedAt' => 'DESC']);
+        $servers = $this->virtualServerRepository->findBy(['archivedAt' => null], ['updatedAt' => 'DESC']);
         $customers = $this->userRepository->findCustomers();
 
         $customerMap = [];
@@ -53,9 +54,12 @@ final class AdminTs3ServerController
         }
 
         $csrf = [];
+        $deleteTokens = [];
         foreach ($servers as $server) {
             if ($server->getId() !== null) {
-                $csrf[$server->getId()] = $this->csrfTokenManager->getToken('ts3_virtual_assign_' . $server->getId())->getValue();
+                $serverId = $server->getId();
+                $csrf[$serverId] = $this->csrfTokenManager->getToken('ts3_virtual_assign_' . $serverId)->getValue();
+                $deleteTokens[$serverId] = $this->csrfTokenManager->getToken('ts3_virtual_delete_' . $serverId)->getValue();
             }
         }
 
@@ -65,6 +69,7 @@ final class AdminTs3ServerController
             'customers' => $customers,
             'customerMap' => $customerMap,
             'csrf' => $csrf,
+            'deleteTokens' => $deleteTokens,
         ]));
     }
 
@@ -98,16 +103,21 @@ final class AdminTs3ServerController
             $node = $this->nodeRepository->find($dto->nodeId);
 
             if ($customer === null || $node === null) {
-                throw new BadRequestHttpException('Customer or node not found.');
+                $form->addError(new FormError('Customer or node not found.'));
             }
+            if ($form->isValid()) {
+                try {
+                    $createDto = $this->dtoFactory->createTs3($dto);
+                    $this->virtualServerService->createForCustomer($customer->getId() ?? 0, $node, $createDto);
+                    $request->getSession()->getFlashBag()->add('success', 'TS3 virtual server created.');
 
-            $createDto = $this->dtoFactory->createTs3($dto);
-            $this->virtualServerService->createForCustomer($customer->getId() ?? 0, $node, $createDto);
-            $request->getSession()->getFlashBag()->add('success', 'TS3 virtual server created.');
-
-            return new Response('', Response::HTTP_FOUND, [
-                'Location' => '/admin/ts3/servers/create',
-            ]);
+                    return new Response('', Response::HTTP_FOUND, [
+                        'Location' => '/admin/ts3/servers/create',
+                    ]);
+                } catch (\RuntimeException | \InvalidArgumentException $exception) {
+                    $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
+                }
+            }
         }
 
         return new Response($this->twig->render('admin/ts3/servers/create.html.twig', [
@@ -136,6 +146,30 @@ final class AdminTs3ServerController
         $server->setCustomerId($customerId);
         $this->virtualServerRepository->getEntityManager()->flush();
         $request->getSession()->getFlashBag()->add('success', 'TS3 virtual server assigned.');
+
+        return new Response('', Response::HTTP_FOUND, [
+            'Location' => '/admin/ts3/servers',
+        ]);
+    }
+
+    #[Route(path: '/{id}/delete', name: 'admin_ts3_servers_delete', methods: ['POST'])]
+    public function delete(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+
+        $server = $this->virtualServerRepository->find($id);
+        if ($server === null) {
+            throw new BadRequestHttpException('Virtual server not found.');
+        }
+
+        $this->validateCsrf($request, 'ts3_virtual_delete_' . $id);
+
+        try {
+            $this->virtualServerService->delete($server);
+            $request->getSession()->getFlashBag()->add('success', 'TS3 virtual server deletion queued.');
+        } catch (\RuntimeException | \InvalidArgumentException $exception) {
+            $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
+        }
 
         return new Response('', Response::HTTP_FOUND, [
             'Location' => '/admin/ts3/servers',

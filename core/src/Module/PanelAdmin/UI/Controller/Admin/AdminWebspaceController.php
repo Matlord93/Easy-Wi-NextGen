@@ -24,6 +24,7 @@ use Twig\Environment;
 final class AdminWebspaceController
 {
     private const DEFAULT_PHP_VERSION = 'php8.4';
+    private const DEFAULT_WEB_PORTS = [80, 443];
 
     public function __construct(
         private readonly UserRepository $userRepository,
@@ -142,6 +143,8 @@ final class AdminWebspaceController
         $job = new Job('webspace.create', $jobPayload);
         $this->entityManager->persist($job);
 
+        $firewallJob = $this->queueWebspaceFirewall($webspace);
+
         $this->auditLogger->log($actor, 'webspace.created', [
             'webspace_id' => $webspace->getId(),
             'customer_id' => $customer->getId(),
@@ -157,6 +160,7 @@ final class AdminWebspaceController
             'ftp_enabled' => $webspace->isFtpEnabled(),
             'sftp_enabled' => $webspace->isSftpEnabled(),
             'job_id' => $job->getId(),
+            'firewall_job_id' => $firewallJob?->getId(),
         ]);
         $this->entityManager->flush();
 
@@ -200,6 +204,29 @@ final class AdminWebspaceController
         $this->entityManager->flush();
 
         return $this->renderPage(null, 'Webspace deleted.');
+    }
+
+    private function queueWebspaceFirewall(Webspace $webspace): ?Job
+    {
+        $ports = self::DEFAULT_WEB_PORTS;
+        $assignedPort = $webspace->getAssignedPort();
+        if ($assignedPort !== null) {
+            $ports[] = $assignedPort;
+        }
+
+        $ports = array_values(array_unique(array_filter($ports, static fn (int $port): bool => $port > 0 && $port <= 65535)));
+        if ($ports === []) {
+            return null;
+        }
+
+        $firewallJob = new Job('firewall.open_ports', [
+            'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => (string) $webspace->getId(),
+            'ports' => implode(',', array_map('strval', $ports)),
+        ]);
+        $this->entityManager->persist($firewallJob);
+
+        return $firewallJob;
     }
 
     private function updateStatus(Request $request, string $id, string $status, string $auditEvent, string $notice): Response

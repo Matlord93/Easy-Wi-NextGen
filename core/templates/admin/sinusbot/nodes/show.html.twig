@@ -68,23 +68,6 @@
             </div>
 
             <div class="sinusbot-card">
-                <h2>{{ t('admin_sinusbot_ts3_dependency_title', page_locale()) }}</h2>
-                <div class="sinusbot-meta">
-                    <div><strong>{{ t('admin_sinusbot_installed_label', page_locale()) }}</strong> {{ node.ts3ClientInstalled ? t('admin_sinusbot_yes', page_locale()) : t('admin_sinusbot_no', page_locale()) }}</div>
-                    <div><strong>{{ t('admin_sinusbot_version_label', page_locale()) }}</strong> {{ node.ts3ClientVersion ?? '–' }}</div>
-                    <div><strong>{{ t('admin_sinusbot_path_label', page_locale()) }}</strong> {{ node.ts3ClientPath ?? '–' }}</div>
-                </div>
-                <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/install-ts3-client" class="sinusbot-form">
-                    <input type="hidden" name="_token" value="{{ csrf.install_ts3_client }}">
-                    <label for="ts3-client-url">{{ t('admin_sinusbot_ts3_download_label', page_locale()) }}</label>
-                    <input id="ts3-client-url" type="text" name="ts3_client_download_url" placeholder="{{ t('admin_sinusbot_ts3_download_placeholder', page_locale()) }}">
-                    <div class="sinusbot-actions">
-                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_ts3_install_repair', page_locale()) }}</button>
-                    </div>
-                </form>
-            </div>
-
-            <div class="sinusbot-card">
                 <h2>{{ t('admin_sinusbot_agent_config_title', page_locale()) }}</h2>
                 <div class="sinusbot-meta">
                     <div><strong>{{ t('admin_sinusbot_agent_url_label', page_locale()) }}</strong> {{ node.agentBaseUrl }}</div>

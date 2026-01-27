@@ -55,8 +55,16 @@ final class DatabaseApiController
             return $formData['error'];
         }
 
+        $customer = $formData['customer'];
+        if (!$actor->isAdmin()) {
+            $limit = $customer->getDatabaseLimit();
+            if ($limit > 0 && $this->databaseRepository->count(['customer' => $customer]) >= $limit) {
+                return new JsonResponse(['error' => 'Database limit reached.'], JsonResponse::HTTP_FORBIDDEN);
+            }
+        }
+
         $database = new Database(
-            $formData['customer'],
+            $customer,
             $formData['engine'],
             $formData['host'],
             $formData['port'],

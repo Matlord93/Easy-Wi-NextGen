@@ -95,7 +95,7 @@ final class AdminSinusbotNodeController
             $this->entityManager->persist($node);
             $this->entityManager->flush();
 
-            $this->nodeService->install($node, false, null);
+            $this->nodeService->install($node);
             $request->getSession()->getFlashBag()->add('success', 'SinusBot node created. Install job queued.');
 
             return new Response('', Response::HTTP_FOUND, [
@@ -132,22 +132,8 @@ final class AdminSinusbotNodeController
         $node = $this->findNode($id);
         $this->validateCsrf($request, 'sinusbot_install_' . $id);
 
-        $this->nodeService->install($node, false, null);
+        $this->nodeService->install($node);
         $request->getSession()->getFlashBag()->add('success', 'SinusBot-Installation eingereiht. (SinusBot install queued.)');
-
-        return $this->redirectToNode($node);
-    }
-
-    #[Route(path: '/{id}/install-ts3-client', name: 'admin_sinusbot_nodes_install_ts3_client', methods: ['POST'])]
-    public function installTs3Client(Request $request, int $id): Response
-    {
-        $this->requireAdmin($request);
-        $node = $this->findNode($id);
-        $this->validateCsrf($request, 'sinusbot_install_ts3_client_' . $id);
-
-        $downloadUrl = trim((string) $request->request->get('ts3_client_download_url', ''));
-        $this->nodeService->install($node, true, $downloadUrl !== '' ? $downloadUrl : null);
-        $request->getSession()->getFlashBag()->add('success', 'TS3 client install/repair queued.');
 
         return $this->redirectToNode($node);
     }
@@ -229,7 +215,6 @@ final class AdminSinusbotNodeController
 
         return [
             'install' => $this->csrfTokenManager->getToken('sinusbot_install_' . $id)->getValue(),
-            'install_ts3_client' => $this->csrfTokenManager->getToken('sinusbot_install_ts3_client_' . $id)->getValue(),
             'refresh' => $this->csrfTokenManager->getToken('sinusbot_refresh_' . $id)->getValue(),
             'delete' => $this->csrfTokenManager->getToken('sinusbot_delete_' . $id)->getValue(),
             'reveal' => $this->csrfTokenManager->getToken('sinusbot_reveal_credentials_' . $id)->getValue(),

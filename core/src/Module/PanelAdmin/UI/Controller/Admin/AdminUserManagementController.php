@@ -72,19 +72,27 @@ final class AdminUserManagementController
         $password = (string) $request->request->get('password', '');
         $passwordConfirm = (string) $request->request->get('password_confirm', '');
         $typeValue = (string) $request->request->get('type', UserType::Customer->value);
+        $databaseLimitValue = (string) $request->request->get('database_limit', '0');
 
         $errors = $this->validateUserPayload($email, $password, $passwordConfirm, $typeValue, null, true);
+        if (!is_numeric($databaseLimitValue) || (int) $databaseLimitValue < 0) {
+            $errors[] = 'Database limit must be zero or higher.';
+        }
         if ($errors !== []) {
             return new Response($this->renderIndex($request, $errors, [
                 'createForm' => [
                     'email' => $email,
                     'type' => $typeValue,
+                    'database_limit' => $databaseLimitValue,
                 ],
             ]), Response::HTTP_BAD_REQUEST);
         }
 
         $type = UserType::from($typeValue);
         $user = new User($email, $type);
+        if ($type === UserType::Customer) {
+            $user->setDatabaseLimit((int) $databaseLimitValue);
+        }
         $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
 
         $this->entityManager->persist($user);
@@ -120,8 +128,12 @@ final class AdminUserManagementController
         $password = (string) $request->request->get('password', '');
         $passwordConfirm = (string) $request->request->get('password_confirm', '');
         $typeValue = (string) $request->request->get('type', $user->getType()->value);
+        $databaseLimitValue = (string) $request->request->get('database_limit', (string) $user->getDatabaseLimit());
 
         $errors = $this->validateUserPayload($email, $password, $passwordConfirm, $typeValue, $user, false);
+        if (!is_numeric($databaseLimitValue) || (int) $databaseLimitValue < 0) {
+            $errors[] = 'Database limit must be zero or higher.';
+        }
         if ($errors !== []) {
             return new Response($this->renderIndex($request, $errors), Response::HTTP_BAD_REQUEST);
         }
@@ -131,6 +143,9 @@ final class AdminUserManagementController
         }
         $newType = UserType::from($typeValue);
         $user->setType($newType);
+        if ($newType === UserType::Customer) {
+            $user->setDatabaseLimit((int) $databaseLimitValue);
+        }
         if ($password !== '') {
             $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
         }
@@ -380,6 +395,7 @@ final class AdminUserManagementController
                 'ssh_key_set' => $user->getAdminSshPublicKey() !== null,
                 'ssh_key_pending' => $user->getAdminSshPublicKeyPending() !== null,
                 'ssh_key_pending_value' => $user->getAdminSshPublicKeyPending(),
+                'database_limit' => $user->getDatabaseLimit(),
             ];
         }
 
@@ -410,6 +426,7 @@ final class AdminUserManagementController
             'createForm' => [
                 'email' => '',
                 'type' => UserType::Customer->value,
+                'database_limit' => '0',
             ],
         ] + $overrides);
     }

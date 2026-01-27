@@ -25,7 +25,6 @@
                         <th>Name</th>
                         <th>Status</th>
                         <th>Version</th>
-                        <th>TS3 Client</th>
                         <th>Aktualisiert</th>
                         <th></th>
                     </tr>
@@ -39,13 +38,6 @@
                             </td>
                             <td><span class="sinusbot-pill">{{ node.installStatus }}</span></td>
                             <td>{{ node.installedVersion ?? '–' }}</td>
-                            <td>
-                                {% if node.ts3ClientInstalled %}
-                                    <span class="sinusbot-pill">Installiert</span>
-                                {% else %}
-                                    <span class="sinusbot-muted">Nicht installiert</span>
-                                {% endif %}
-                            </td>
                             <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
                             <td class="sinusbot-align-right">
                                 <a class="sinusbot-link" href="/admin/sinusbot/nodes/{{ node.id }}">Details</a>
@@ -53,7 +45,7 @@
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="6" class="sinusbot-empty">Keine SinusBot Nodes vorhanden.</td>
+                            <td colspan="5" class="sinusbot-empty">Keine SinusBot Nodes vorhanden.</td>
                         </tr>
                     {% endfor %}
                 </tbody>

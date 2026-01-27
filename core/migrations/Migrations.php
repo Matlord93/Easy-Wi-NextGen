@@ -4846,3 +4846,37 @@ final class Version20260323110000 extends AbstractMigration
         $this->addSql('ALTER TABLE agents ALTER job_concurrency SET DEFAULT 1');
     }
 }
+
+final class Version20260412120000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add per-customer database limits.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if ($table->hasColumn('database_limit')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE users ADD database_limit INT NOT NULL DEFAULT 0');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if ($table->hasColumn('database_limit')) {
+            $this->addSql('ALTER TABLE users DROP database_limit');
+        }
+    }
+}
