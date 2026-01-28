@@ -757,10 +757,13 @@ func installSinusbotTs3Client(installDir, downloadURL, serviceUser string) (stri
 		return "", err
 	}
 
-	if err := runCommand(archivePath, "--quiet", "--target", ts3ClientDir); err != nil {
-		if err := runCommand(archivePath, "--accept", "--target", ts3ClientDir); err != nil {
-			if err := runCommand("bash", archivePath, "--target", ts3ClientDir); err != nil {
-				return "", err
+	command := fmt.Sprintf("%q --accept --target %q --quiet </dev/null >/dev/null 2>&1", archivePath, ts3ClientDir)
+	if err := runCommand("bash", "-c", command); err != nil {
+		if err := runCommand(archivePath, "--quiet", "--target", ts3ClientDir); err != nil {
+			if err := runCommand(archivePath, "--accept", "--target", ts3ClientDir); err != nil {
+				if err := runCommand("bash", archivePath, "--target", ts3ClientDir); err != nil {
+					return "", err
+				}
 			}
 		}
 	}

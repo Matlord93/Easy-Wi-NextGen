@@ -19,7 +19,7 @@ final class InstallDto
         /** @var string[] */
         public array $filetransferIp = ['0.0.0.0', '::'],
         public bool $queryHttpsEnable = true,
-        public string $queryBindIp = '0.0.0.0',
+        public string $queryBindIp = '127.0.0.1',
         public int $queryHttpsPort = 10443,
         public ?string $adminPassword = null,
     ) {

@@ -47,7 +47,7 @@ class Ts6Node
     private string $serviceName;
 
     #[ORM\Column(length: 64)]
-    private string $queryBindIp = '0.0.0.0';
+    private string $queryBindIp = '127.0.0.1';
 
     #[ORM\Column]
     private int $queryHttpsPort = 10443;
