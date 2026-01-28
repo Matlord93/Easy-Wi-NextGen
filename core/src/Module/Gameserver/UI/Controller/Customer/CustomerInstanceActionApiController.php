@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Module\Core\Domain\Entity\BackupDefinition;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\BackupTargetType;
@@ -301,7 +302,8 @@ final class CustomerInstanceActionApiController
             return new JsonResponse(['error' => 'Command is required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        if ($instance->getStatus() !== InstanceStatus::Running) {
+        $runtimeStatus = strtolower((string) ($instance->getQueryStatusCache()['status'] ?? ''));
+        if ($instance->getStatus() !== InstanceStatus::Running && $runtimeStatus !== 'online') {
             return new JsonResponse(['error' => 'Instance must be running to send commands.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
@@ -327,7 +329,26 @@ final class CustomerInstanceActionApiController
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $job = $this->findLatestConsoleJob($instance);
+        $job = null;
+
+        if ($instance->getStatus() === InstanceStatus::Running) {
+            $job = $this->findLatestLogTailJob($instance);
+            if ($job === null || $job->getStatus()->isTerminal()) {
+                $job = new Job('instance.logs.tail', [
+                    'instance_id' => (string) $instance->getId(),
+                    'customer_id' => (string) $customer->getId(),
+                    'node_id' => $instance->getNode()->getId(),
+                    'agent_id' => $instance->getNode()->getId(),
+                ]);
+                $this->entityManager->persist($job);
+                $this->entityManager->flush();
+            }
+        }
+
+        if ($job === null) {
+            $job = $this->findLatestConsoleJob($instance);
+        }
+
         if ($job === null) {
             return new JsonResponse(['error' => 'No recent install/start job found.'], JsonResponse::HTTP_NOT_FOUND);
         }
@@ -536,6 +557,24 @@ final class CustomerInstanceActionApiController
         $jobs = $this->jobRepository->findLatest(200);
         foreach ($jobs as $job) {
             if (!in_array($job->getType(), $types, true)) {
+                continue;
+            }
+            $payload = $job->getPayload();
+            if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
+                continue;
+            }
+
+            return $job;
+        }
+
+        return null;
+    }
+
+    private function findLatestLogTailJob(Instance $instance): ?\App\Module\Core\Domain\Entity\Job
+    {
+        $jobs = $this->jobRepository->findLatest(200);
+        foreach ($jobs as $job) {
+            if ($job->getType() !== 'instance.logs.tail') {
                 continue;
             }
             $payload = $job->getPayload();

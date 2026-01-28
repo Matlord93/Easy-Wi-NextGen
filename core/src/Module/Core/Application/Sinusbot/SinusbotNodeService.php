@@ -10,6 +10,8 @@ use Doctrine\ORM\EntityManagerInterface;
 
 final class SinusbotNodeService
 {
+    private const DEFAULT_TS3_CLIENT_DOWNLOAD_URL = 'https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run';
+
     public function __construct(
         private readonly \App\Module\AgentOrchestrator\Application\AgentJobDispatcher $jobDispatcher,
         private readonly EntityManagerInterface $entityManager,
@@ -37,6 +39,8 @@ final class SinusbotNodeService
             'admin_username' => $node->getAdminUsername(),
             'admin_password' => $node->getAdminPassword($this->crypto),
             'return_admin_credentials' => true,
+            'ts3_client_install' => true,
+            'ts3_client_download_url' => self::DEFAULT_TS3_CLIENT_DOWNLOAD_URL,
         ];
 
         $job = $this->jobDispatcher->dispatchWithFailureLogging($node->getAgent(), 'sinusbot.install', $payload);
@@ -53,6 +57,9 @@ final class SinusbotNodeService
         $payload = [
             'node_id' => $node->getId(),
             'service_name' => 'sinusbot',
+            'install_dir' => $node->getInstallPath(),
+            'download_url' => $node->getDownloadUrl(),
+            'ts3_client_download_url' => self::DEFAULT_TS3_CLIENT_DOWNLOAD_URL,
         ];
         $this->jobDispatcher->dispatch($node->getAgent(), 'sinusbot.status', $payload);
 

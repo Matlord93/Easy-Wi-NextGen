@@ -1,0 +1,12 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hello {{ customer_name|default('there') }},
+
+Your gameserver "{{ server_name|default('your gameserver') }}" has been set up and is ready.
+You can configure it in the interface now to install the game. The installation can take up to 10 minutes.
+
+Manage it here: {{ portal_url }}
+
+If you have any questions, just reply to this email.
+{% endblock %}

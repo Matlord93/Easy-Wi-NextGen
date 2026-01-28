@@ -1,3 +1,7 @@
 mail.password_reset.subject: "Reset your password"
 mail.invoice_paid.subject: "Payment received"
 mail.server_created.subject: "Your server is ready"
+mail.account_created.subject: "Please confirm your account"
+mail.gameserver_ready.subject: "Your gameserver is ready"
+mail.voiceserver_ready.subject: "Your voice server is ready"
+mail.webspace_ready.subject: "Your webspace is ready"

@@ -11,6 +11,11 @@
             </ul>
         </div>
     {% endif %}
+    {% if form.port_pool_notice %}
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {{ t('admin_instances_port_pool_notice', page_locale())|replace({'%start%': form.port_pool_notice.start, '%end%': form.port_pool_notice.end}) }}
+        </div>
+    {% endif %}
 
     <div class="grid grid-cols-1 gap-4">
         <label class="block text-sm font-medium text-slate-700">

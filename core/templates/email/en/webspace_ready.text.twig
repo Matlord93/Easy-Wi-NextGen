@@ -1,0 +1,10 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hello {{ customer_name|default('there') }},
+
+Your webspace "{{ webspace_domain|default('your webspace') }}" has been set up and is ready.
+Manage it here: {{ portal_url }}
+
+If you have any questions, just reply to this email.
+{% endblock %}

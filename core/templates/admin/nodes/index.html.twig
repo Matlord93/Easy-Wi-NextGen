@@ -255,6 +255,54 @@
                                     >
                                 </div>
                                 <div class="form-field">
+                                    <label class="form-label" for="filesvc-url">Filesrv Base URL</label>
+                                    <input
+                                        id="filesvc-url"
+                                        name="filesvc_url"
+                                        type="text"
+                                        value="{{ selectedNode.agent.filesvc.url ?? '' }}"
+                                        placeholder="https://filesrv.example.com:8444"
+                                        class="form-input"
+                                    >
+                                    <p class="text-xs text-slate-500">Optional: Überschreibt Host/Port/Scheme für den Live-Dateimanager.</p>
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="filesvc-host">Filesrv Host</label>
+                                    <input
+                                        id="filesvc-host"
+                                        name="filesvc_host"
+                                        type="text"
+                                        value="{{ selectedNode.agent.filesvc.host ?? '' }}"
+                                        placeholder="filesrv.example.com"
+                                        class="form-input"
+                                    >
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="filesvc-port">Filesrv Port</label>
+                                    <input
+                                        id="filesvc-port"
+                                        name="filesvc_port"
+                                        type="number"
+                                        min="1"
+                                        max="65535"
+                                        value="{{ selectedNode.agent.filesvc.port ?? '' }}"
+                                        placeholder="8444"
+                                        class="form-input"
+                                    >
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="filesvc-scheme">Filesrv Scheme</label>
+                                    <input
+                                        id="filesvc-scheme"
+                                        name="filesvc_scheme"
+                                        type="text"
+                                        value="{{ selectedNode.agent.filesvc.scheme ?? '' }}"
+                                        placeholder="https"
+                                        class="form-input"
+                                    >
+                                    <p class="text-xs text-slate-500">Für Livetime-Dateizugriff pro Node (bis zu 50 Server).</p>
+                                </div>
+                                <div class="form-field">
                                     <label class="form-label" for="agent-api-token">Agent API Token</label>
                                     <input
                                         id="agent-api-token"

@@ -151,6 +151,15 @@
     font-size: 0.8rem;
 }
 
+.ts6-error-detail {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    color: #b91c1c;
+    max-width: 220px;
+    word-break: break-word;
+}
+
 .ts6-credentials {
     display: flex;
     flex-direction: column;
@@ -281,6 +290,10 @@
 .dark .ts6-pill {
     background: rgba(99, 102, 241, 0.2);
     color: #c7d2fe;
+}
+
+.dark .ts6-error-detail {
+    color: #fca5a5;
 }
 
 .dark .ts6-secret {

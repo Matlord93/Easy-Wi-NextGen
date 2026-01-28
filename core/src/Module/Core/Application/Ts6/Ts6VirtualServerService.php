@@ -110,6 +110,13 @@ final class Ts6VirtualServerService
 
     public function delete(Ts6VirtualServer $server): void
     {
+        if ($server->getSid() <= 0) {
+            $server->setStatus('deleted');
+            $server->archive();
+            $this->entityManager->flush();
+            return;
+        }
+
         $server->setStatus('deleting');
         $this->applyServerAction($server, 'delete');
     }

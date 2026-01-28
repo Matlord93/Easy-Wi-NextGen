@@ -3,47 +3,76 @@
 
 {% block content %}
 <div class="flex flex-col gap-6">
-    <div>
-        <p class="text-xs uppercase tracking-wide text-slate-600">{{ t('customer_webspace_kicker', page_locale()) }}</p>
-        <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_webspace_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('customer_webspace_description', page_locale()) }}</p>
-    </div>
-
-    <div class="grid gap-4 lg:grid-cols-4">
-        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_summary_webspaces', page_locale()) }}</p>
-            <p class="mt-2 text-2xl font-semibold text-slate-900">{{ summary.webspaces }}</p>
+    <div class="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-800 p-6 text-white shadow-lg">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div class="max-w-2xl">
+                <p class="text-xs uppercase tracking-wide text-indigo-200">{{ t('customer_webspace_kicker', page_locale()) }}</p>
+                <h1 class="mt-2 text-3xl font-semibold">{{ t('customer_webspace_title', page_locale()) }}</h1>
+                <p class="mt-2 text-sm text-indigo-100/90">{{ t('customer_webspace_description', page_locale()) }}</p>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <a href="{{ path('customer_files') }}" class="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white/20">
+                    {{ t('customer_webspace_action_files', page_locale()) }}
+                </a>
+                <a href="{{ path('customer_domains') }}" class="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white/20">
+                    {{ t('customer_webspace_action_domains', page_locale()) }}
+                </a>
+                <a href="{{ path('customer_mail') }}" class="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-white/20">
+                    {{ t('customer_webspace_action_mail', page_locale()) }}
+                </a>
+            </div>
         </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_summary_domains', page_locale()) }}</p>
-            <p class="mt-2 text-2xl font-semibold text-slate-900">{{ summary.domains }}</p>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_summary_mailboxes', page_locale()) }}</p>
-            <p class="mt-2 text-2xl font-semibold text-slate-900">{{ summary.mailboxes }}</p>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_summary_ssl_expiring', page_locale()) }}</p>
-            <p class="mt-2 text-2xl font-semibold text-slate-900">{{ summary.ssl_expiring }}</p>
-            <p class="text-xs text-slate-500">{{ t('customer_webspace_summary_ssl_missing', page_locale()) }}: {{ summary.ssl_missing }}</p>
+        <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                <p class="text-xs uppercase text-indigo-100/80">{{ t('customer_webspace_summary_webspaces', page_locale()) }}</p>
+                <p class="mt-2 text-3xl font-semibold">{{ summary.webspaces }}</p>
+            </div>
+            <div class="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                <p class="text-xs uppercase text-indigo-100/80">{{ t('customer_webspace_summary_domains', page_locale()) }}</p>
+                <p class="mt-2 text-3xl font-semibold">{{ summary.domains }}</p>
+            </div>
+            <div class="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                <p class="text-xs uppercase text-indigo-100/80">{{ t('customer_webspace_summary_mailboxes', page_locale()) }}</p>
+                <p class="mt-2 text-3xl font-semibold">{{ summary.mailboxes }}</p>
+            </div>
+            <div class="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                <p class="text-xs uppercase text-indigo-100/80">{{ t('customer_webspace_summary_ssl_expiring', page_locale()) }}</p>
+                <p class="mt-2 text-3xl font-semibold">{{ summary.ssl_expiring }}</p>
+                <p class="text-xs text-indigo-100/80">{{ t('customer_webspace_summary_ssl_missing', page_locale()) }}: {{ summary.ssl_missing }}</p>
+            </div>
         </div>
     </div>
 
     <div class="grid gap-4 lg:grid-cols-3">
-        <a href="{{ path('customer_files') }}" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50">
-            <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_action_files_kicker', page_locale()) }}</p>
-            <p class="mt-2 text-lg font-semibold text-slate-900">{{ t('customer_webspace_action_files', page_locale()) }}</p>
-            <p class="mt-1 text-sm text-slate-600">{{ t('customer_webspace_action_files_description', page_locale()) }}</p>
+        <a href="{{ path('customer_files') }}" class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-50/60">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_action_files_kicker', page_locale()) }}</p>
+                    <p class="mt-2 text-lg font-semibold text-slate-900">{{ t('customer_webspace_action_files', page_locale()) }}</p>
+                </div>
+                <span class="rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-600">{{ summary.webspaces }}</span>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">{{ t('customer_webspace_action_files_description', page_locale()) }}</p>
         </a>
-        <a href="{{ path('customer_domains') }}" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50">
-            <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_action_domains_kicker', page_locale()) }}</p>
-            <p class="mt-2 text-lg font-semibold text-slate-900">{{ t('customer_webspace_action_domains', page_locale()) }}</p>
-            <p class="mt-1 text-sm text-slate-600">{{ t('customer_webspace_action_domains_description', page_locale()) }}</p>
+        <a href="{{ path('customer_domains') }}" class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-50/60">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_action_domains_kicker', page_locale()) }}</p>
+                    <p class="mt-2 text-lg font-semibold text-slate-900">{{ t('customer_webspace_action_domains', page_locale()) }}</p>
+                </div>
+                <span class="rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-600">{{ summary.domains }}</span>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">{{ t('customer_webspace_action_domains_description', page_locale()) }}</p>
         </a>
-        <a href="{{ path('customer_mail') }}" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50">
-            <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_action_mail_kicker', page_locale()) }}</p>
-            <p class="mt-2 text-lg font-semibold text-slate-900">{{ t('customer_webspace_action_mail', page_locale()) }}</p>
-            <p class="mt-1 text-sm text-slate-600">{{ t('customer_webspace_action_mail_description', page_locale()) }}</p>
+        <a href="{{ path('customer_mail') }}" class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-50/60">
+            <div class="flex items-start justify-between">
+                <div>
+                    <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_action_mail_kicker', page_locale()) }}</p>
+                    <p class="mt-2 text-lg font-semibold text-slate-900">{{ t('customer_webspace_action_mail', page_locale()) }}</p>
+                </div>
+                <span class="rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-600">{{ summary.mailboxes }}</span>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">{{ t('customer_webspace_action_mail_description', page_locale()) }}</p>
         </a>
     </div>
 

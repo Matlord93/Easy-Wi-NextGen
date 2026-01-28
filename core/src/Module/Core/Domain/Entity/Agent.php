@@ -361,7 +361,7 @@ class Agent
         }
 
         if ($metadata !== null) {
-            $this->setMetadata($metadata);
+            $this->setMetadata($this->mergeFilesvcMetadata($metadata));
         }
 
         $this->setStatus($status ?? 'online');
@@ -371,5 +371,25 @@ class Agent
     private function touch(): void
     {
         $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function mergeFilesvcMetadata(array $metadata): array
+    {
+        $existing = $this->metadata;
+        if (!is_array($existing) || $existing === []) {
+            return $metadata;
+        }
+
+        foreach (['filesvc_url', 'filesvc_host', 'filesvc_port', 'filesvc_scheme'] as $key) {
+            if (!array_key_exists($key, $metadata) && array_key_exists($key, $existing)) {
+                $metadata[$key] = $existing[$key];
+            }
+        }
+
+        return $metadata;
     }
 }

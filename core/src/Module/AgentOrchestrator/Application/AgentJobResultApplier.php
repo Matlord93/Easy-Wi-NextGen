@@ -195,6 +195,7 @@ final class AgentJobResultApplier
             if (is_array($payload) && array_key_exists('running', $payload)) {
                 $node->setRunning((bool) $payload['running']);
             }
+            $this->applySinusbotDependencies($node, $payload);
         }
 
         if (in_array($job->getType(), ['sinusbot.status', 'sinusbot.service.action'], true)) {
@@ -207,6 +208,7 @@ final class AgentJobResultApplier
             if ($status === AgentJobStatus::Success && is_array($payload) && array_key_exists('running', $payload)) {
                 $this->applyInstallStatusFromRuntime($node, (bool) $payload['running']);
             }
+            $this->applySinusbotDependencies($node, $payload);
         }
 
         if (is_array($payload) && isset($payload['last_error']) && is_string($payload['last_error'])) {
@@ -219,6 +221,21 @@ final class AgentJobResultApplier
         if ($running && $node->getInstallStatus() !== 'installed') {
             $node->setInstallStatus('installed');
         }
+    }
+
+    private function applySinusbotDependencies(SinusbotNode $node, ?array $payload): void
+    {
+        if (!is_array($payload)) {
+            return;
+        }
+        $dependencies = $payload['dependencies'] ?? null;
+        if (!is_array($dependencies)) {
+            return;
+        }
+
+        $node->setTs3ClientInstalled((bool) ($dependencies['ts3_client_installed'] ?? $node->isTs3ClientInstalled()));
+        $node->setTs3ClientVersion(is_string($dependencies['ts3_client_version'] ?? null) ? $dependencies['ts3_client_version'] : null);
+        $node->setTs3ClientPath(is_string($dependencies['ts3_client_path'] ?? null) ? $dependencies['ts3_client_path'] : null);
     }
 
     private function applyAdminSshKeyResult(AgentJob $job, AgentJobStatus $status): void

@@ -1,3 +1,7 @@
 mail.password_reset.subject: "Passwort zurücksetzen"
 mail.invoice_paid.subject: "Zahlung erhalten"
 mail.server_created.subject: "Ihr Server ist bereit"
+mail.account_created.subject: "Bitte Konto bestätigen"
+mail.gameserver_ready.subject: "Ihr Gameserver ist bereit"
+mail.voiceserver_ready.subject: "Ihr VoiceServer ist bereit"
+mail.webspace_ready.subject: "Ihr Webspace ist bereit"

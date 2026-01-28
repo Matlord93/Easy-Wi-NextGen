@@ -711,6 +711,11 @@ final class CustomerInstanceController
         $connection = $this->buildConnectionData($instance, $portBlock);
         $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, $queueQuery);
         $installStatus = $this->instanceInstallService->getInstallStatus($instance);
+        $displayStatus = $instance->getStatus()->value;
+        $runtimeStatus = is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null;
+        if ($displayStatus === InstanceStatus::Running->value && in_array($runtimeStatus, ['offline', 'error', 'unknown', 'crashed'], true)) {
+            $displayStatus = InstanceStatus::Error->value;
+        }
 
         return [
             'id' => $instance->getId(),
@@ -725,6 +730,8 @@ final class CustomerInstanceController
                 'name' => $instance->getNode()->getName(),
             ],
             'status' => $instance->getStatus()->value,
+            'display_status' => $displayStatus,
+            'runtime_status' => $runtimeStatus,
             'update_policy' => $instance->getUpdatePolicy()->value,
             'current_build_id' => $instance->getCurrentBuildId(),
             'current_version' => $instance->getCurrentVersion(),
@@ -848,13 +855,8 @@ final class CustomerInstanceController
             ],
             [
                 'key' => 'setup',
-                'label' => 'customer_instance_tab_setup',
-                'href' => sprintf('/instances/%d?tab=setup', $instanceId),
-            ],
-            [
-                'key' => 'configs',
                 'label' => 'customer_instance_tab_configs',
-                'href' => sprintf('/instances/%d?tab=configs', $instanceId),
+                'href' => sprintf('/instances/%d?tab=setup', $instanceId),
             ],
             $this->appSettingsService->isCustomerDataManagerEnabled() ? [
                 'key' => 'files',
@@ -907,7 +909,6 @@ final class CustomerInstanceController
         $allowed = [
             'overview',
             'setup',
-            'configs',
             'addons',
             'restart_planner',
             'backups',

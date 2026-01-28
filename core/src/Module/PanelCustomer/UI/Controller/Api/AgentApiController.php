@@ -1313,6 +1313,7 @@ final class AgentApiController
         $cache['players'] = is_numeric($output['players'] ?? null) ? (int) $output['players'] : null;
         $cache['max_players'] = is_numeric($output['max_players'] ?? null) ? (int) $output['max_players'] : null;
         $cache['message'] = is_string($output['message'] ?? null) ? $output['message'] : null;
+        $cache['map'] = is_string($output['map'] ?? null) ? (string) $output['map'] : null;
         $cache['checked_at'] = $completedAt->format(DATE_RFC3339);
         unset($cache['queued_at']);
 

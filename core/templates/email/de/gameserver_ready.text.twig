@@ -1,0 +1,12 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hallo {{ customer_name|default('dort') }},
+
+dein Gameserver "{{ server_name|default('dein Gameserver') }}" wurde eingerichtet und ist startbereit.
+Du kannst ihn jetzt im Interface konfigurieren, um das Spiel zu installieren. Die Installation kann bis zu 10 Minuten dauern.
+
+Verwalte ihn hier: {{ portal_url }}
+
+Bei Fragen antworte einfach auf diese E-Mail.
+{% endblock %}

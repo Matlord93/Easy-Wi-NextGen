@@ -1,0 +1,12 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hallo {{ customer_name|default('dort') }},
+
+dein Konto wurde erfolgreich angelegt.
+
+Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren:
+{{ verification_url }}
+
+Falls du dieses Konto nicht erstellt hast, ignoriere diese Nachricht.
+{% endblock %}

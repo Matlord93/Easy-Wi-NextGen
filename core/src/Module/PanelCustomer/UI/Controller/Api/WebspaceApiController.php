@@ -115,6 +115,7 @@ final class WebspaceApiController
 
         $domainEntity = new Domain($customer, $webspace, $domain);
         $this->entityManager->persist($domainEntity);
+        $this->entityManager->flush();
 
         $jobPayload = [
             'agent_id' => $node->getId(),
@@ -135,6 +136,20 @@ final class WebspaceApiController
         $job = new Job('webspace.create', $jobPayload);
         $this->entityManager->persist($job);
 
+        $domainJobPayload = [
+            'agent_id' => $node->getId(),
+            'domain_id' => (string) $domainEntity->getId(),
+            'domain' => $domainEntity->getName(),
+            'web_root' => $webspace->getPath(),
+            'source_dir' => $webspace->getDocroot(),
+            'docroot' => $webspace->getDocroot(),
+            'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domainEntity->getName()),
+            'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $systemUsername),
+            'logs_dir' => rtrim($webspace->getPath(), '/') . '/logs',
+        ];
+        $domainJob = new Job('domain.add', $domainJobPayload);
+        $this->entityManager->persist($domainJob);
+
         $firewallJob = $this->queueWebspaceFirewall($webspace);
 
         $this->auditLogger->log($actor, 'webspace.created', [
@@ -152,6 +167,7 @@ final class WebspaceApiController
             'ftp_enabled' => $webspace->isFtpEnabled(),
             'sftp_enabled' => $webspace->isSftpEnabled(),
             'job_id' => $job->getId(),
+            'domain_job_id' => $domainJob->getId(),
             'firewall_job_id' => $firewallJob?->getId(),
         ]);
         $this->entityManager->flush();
@@ -172,6 +188,7 @@ final class WebspaceApiController
             'sftp_enabled' => $webspace->isSftpEnabled(),
             'status' => $webspace->getStatus(),
             'job_id' => $job->getId(),
+            'domain_job_id' => $domainJob->getId(),
         ], JsonResponse::HTTP_CREATED);
         if ($request->attributes->get('_route') === 'admin_create_webspace') {
             $response->headers->set('Deprecation', 'true');

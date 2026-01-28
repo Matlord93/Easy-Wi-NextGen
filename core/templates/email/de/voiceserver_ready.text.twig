@@ -1,0 +1,10 @@
+{% extends 'email/base.text.twig' %}
+
+{% block body %}
+Hallo {{ customer_name|default('dort') }},
+
+dein VoiceServer "{{ server_name|default('dein VoiceServer') }}" wurde eingerichtet und ist startbereit.
+Verwalte ihn hier: {{ portal_url }}
+
+Bei Fragen antworte einfach auf diese E-Mail.
+{% endblock %}

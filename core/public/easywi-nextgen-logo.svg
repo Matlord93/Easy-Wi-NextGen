@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" role="img" aria-label="Easy-Wi NextGen logo">
+  <defs>
+    <linearGradient id="easywiGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="12" width="72" height="72" rx="18" fill="url(#easywiGradient)"/>
+  <path d="M32 58c6-14 12-21 20-28 8 7 14 14 20 28-7 8-13 12-20 18-8-6-14-10-20-18z" fill="#ffffff" opacity="0.95"/>
+  <path d="M44 44h20v8H44z" fill="#ffffff" opacity="0.9"/>
+  <text x="98" y="42" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="28" font-weight="700" fill="#0f172a">Easy-Wi</text>
+  <text x="98" y="72" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="22" font-weight="600" fill="#475569">NextGen</text>
+</svg>

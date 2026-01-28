@@ -1,0 +1,14 @@
+{% extends 'email/base.html.twig' %}
+
+{% block body %}
+  <p style="margin:0 0 16px 0;">Hello {{ customer_name|default('there') }},</p>
+  <p style="margin:0 0 16px 0;">
+    Your voice server <strong>{{ server_name|default('your voice server') }}</strong> has been set up and is ready.
+  </p>
+  <p style="margin:0 0 16px 0;">
+    Manage it here: <a href="{{ portal_url }}">{{ portal_url }}</a>
+  </p>
+  <p style="margin:0; font-size:14px; color:#6b7280;">
+    If you have any questions, just reply to this email.
+  </p>
+{% endblock %}

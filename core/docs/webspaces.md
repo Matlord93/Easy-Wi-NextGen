@@ -8,9 +8,10 @@ This document describes the webspace provisioning flow and the related API/UI en
    - Select a customer and node.
    - Provide a web root path; leave the document root empty to use `/public`.
 2. Confirm a `webspace.create` job is queued in **Admin → Jobs**.
-3. Verify the webspace list shows status badges and the expected docroot/path.
-4. Suspend and resume the webspace and confirm audit log entries.
-5. Soft-delete the webspace and confirm it disappears from customer lists.
+3. Confirm a `domain.add` job is queued to generate the nginx vhost.
+4. Verify the webspace list shows status badges and the expected docroot/path.
+5. Suspend and resume the webspace and confirm audit log entries.
+6. Soft-delete the webspace and confirm it disappears from customer lists.
 
 ## API checks
 1. `POST /api/v1/admin/webspaces` with required fields to create.

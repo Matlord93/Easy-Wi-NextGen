@@ -38,6 +38,11 @@ use Twig\Environment;
 #[Route(path: '/admin/instances')]
 final class AdminInstanceController
 {
+    private const DEFAULT_PORT_POOL_START = 27015;
+    private const DEFAULT_PORT_POOL_END = 27115;
+    private const DEFAULT_PORT_POOL_TAG = 'gameserver';
+    private const DEFAULT_PORT_POOL_NAME = 'Gameserver Standard';
+
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly UserRepository $userRepository,
@@ -153,6 +158,7 @@ final class AdminInstanceController
         $requiredCount = count($requiredPorts);
         $portBlock = $formData['port_block'];
         if ($portBlock === null && $requiredCount > 0) {
+            $this->ensureDefaultPortPool($formData['node'], $actor);
             $portBlock = $this->allocatePortBlock($formData['node'], $formData['customer'], $requiredCount);
             if ($portBlock === null) {
                 $formData['errors'][] = 'No free port blocks available on the selected node.';
@@ -603,11 +609,19 @@ final class AdminInstanceController
 
     private function buildFormContext(?array $override = null): array
     {
+        $portPoolNotice = null;
+        if ($this->portPoolRepository->count(['enabled' => true]) === 0) {
+            $portPoolNotice = [
+                'start' => self::DEFAULT_PORT_POOL_START,
+                'end' => self::DEFAULT_PORT_POOL_END,
+            ];
+        }
+
         $data = [
             'customer_id' => '',
             'template_id' => '',
             'node_id' => '',
-            'cpu_limit' => 2,
+            'cpu_limit' => 50,
             'ram_limit' => 4096,
             'disk_limit' => 20000,
             'port_block_id' => '',
@@ -623,6 +637,7 @@ final class AdminInstanceController
             'steam_account' => '',
             'steam_password' => '',
             'errors' => [],
+            'port_pool_notice' => $portPoolNotice,
             'action_url' => '/admin/instances',
             'submit_label' => 'admin_instances_submit',
         ];
@@ -727,6 +742,33 @@ final class AdminInstanceController
         }
 
         return null;
+    }
+
+    private function ensureDefaultPortPool(Agent $node, User $actor): void
+    {
+        $pools = $this->portPoolRepository->findEnabledByNode($node);
+        if ($pools !== []) {
+            return;
+        }
+
+        $pool = new \App\Module\Ports\Domain\Entity\PortPool(
+            $node,
+            self::DEFAULT_PORT_POOL_NAME,
+            self::DEFAULT_PORT_POOL_TAG,
+            self::DEFAULT_PORT_POOL_START,
+            self::DEFAULT_PORT_POOL_END,
+            true,
+        );
+        $this->entityManager->persist($pool);
+        $this->auditLogger->log($actor, 'port_pool.created', [
+            'port_pool_id' => $pool->getId(),
+            'node_id' => $node->getId(),
+            'name' => $pool->getName(),
+            'tag' => $pool->getTag(),
+            'start_port' => $pool->getStartPort(),
+            'end_port' => $pool->getEndPort(),
+        ]);
+        $this->entityManager->flush();
     }
 
     /**

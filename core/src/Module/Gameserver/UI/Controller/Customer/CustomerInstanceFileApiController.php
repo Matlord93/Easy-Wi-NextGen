@@ -11,6 +11,7 @@ use App\Repository\InstanceRepository;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\FileServiceClient;
+use App\Module\Core\Application\SftpFileService;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -27,6 +28,7 @@ final class CustomerInstanceFileApiController
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly FileServiceClient $fileService,
+        private readonly SftpFileService $sftpFileService,
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $appSettingsService,
         #[Autowire(service: 'limiter.instance_files_uploads')]
@@ -46,7 +48,10 @@ final class CustomerInstanceFileApiController
         $path = trim((string) $request->query->get('path', ''));
 
         try {
-            $listing = $this->fileService->list($instance, $path);
+            $listing = $this->withFileFallback(
+                fn () => $this->fileService->list($instance, $path),
+                fn () => $this->sftpFileService->list($instance, $path),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -72,7 +77,10 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $content = $this->fileService->downloadFile($instance, $path, $name);
+            $content = $this->withFileFallback(
+                fn () => $this->fileService->downloadFile($instance, $path, $name),
+                fn () => $this->sftpFileService->readFile($instance, $path, $name),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -100,7 +108,10 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $content = $this->fileService->readFileForEditor($instance, $path, $name);
+            $content = $this->withFileFallback(
+                fn () => $this->fileService->readFileForEditor($instance, $path, $name),
+                fn () => $this->sftpFileService->readFile($instance, $path, $name),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -130,9 +141,15 @@ final class CustomerInstanceFileApiController
         if (!$upload instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
             throw new BadRequestHttpException('Missing upload.');
         }
+        if ($this->isProtectedFilename($upload->getClientOriginalName())) {
+            return new JsonResponse(['error' => 'File is protected.'], JsonResponse::HTTP_FORBIDDEN);
+        }
 
         try {
-            $this->fileService->uploadFile($instance, $path, $upload);
+            $this->withFileFallback(
+                fn () => $this->fileService->uploadFile($instance, $path, $upload),
+                fn () => $this->uploadViaSftp($instance, $path, $upload),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -166,9 +183,15 @@ final class CustomerInstanceFileApiController
         if ($name === '') {
             throw new BadRequestHttpException('Missing file name.');
         }
+        if ($this->isProtectedFilename($name)) {
+            return new JsonResponse(['error' => 'File is protected.'], JsonResponse::HTTP_FORBIDDEN);
+        }
 
         try {
-            $this->fileService->writeFile($instance, $path, $name, $content);
+            $this->withFileFallback(
+                fn () => $this->fileService->writeFile($instance, $path, $name, $content),
+                fn () => $this->sftpFileService->writeFile($instance, $path, $name, $content),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -203,7 +226,10 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->fileService->makeDirectory($instance, $path, $name);
+            $this->withFileFallback(
+                fn () => $this->fileService->makeDirectory($instance, $path, $name),
+                fn () => $this->sftpFileService->makeDirectory($instance, $path, $name),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -237,9 +263,15 @@ final class CustomerInstanceFileApiController
         if ($name === '' || $newName === '') {
             throw new BadRequestHttpException('Missing rename target.');
         }
+        if ($this->isProtectedFilename($name) || $this->isProtectedFilename($newName)) {
+            return new JsonResponse(['error' => 'File is protected.'], JsonResponse::HTTP_FORBIDDEN);
+        }
 
         try {
-            $this->fileService->rename($instance, $path, $name, $newName);
+            $this->withFileFallback(
+                fn () => $this->fileService->rename($instance, $path, $name, $newName),
+                fn () => $this->sftpFileService->rename($instance, $path, $name, $newName),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -273,9 +305,15 @@ final class CustomerInstanceFileApiController
         if ($name === '') {
             throw new BadRequestHttpException('Missing target name.');
         }
+        if ($this->isProtectedFilename($name)) {
+            return new JsonResponse(['error' => 'File is protected.'], JsonResponse::HTTP_FORBIDDEN);
+        }
 
         try {
-            $this->fileService->delete($instance, $path, $name);
+            $this->withFileFallback(
+                fn () => $this->fileService->delete($instance, $path, $name),
+                fn () => $this->sftpFileService->delete($instance, $path, $name),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -316,7 +354,10 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->fileService->chmod($instance, $path, $name, $mode);
+            $this->withFileFallback(
+                fn () => $this->fileService->chmod($instance, $path, $name, $mode),
+                fn () => $this->sftpFileService->chmod($instance, $path, $name, $mode),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -353,7 +394,10 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->fileService->extract($instance, $path, $name, $destination);
+            $this->withFileFallback(
+                fn () => $this->fileService->extract($instance, $path, $name, $destination),
+                fn () => $this->sftpFileService->extract($instance, $path, $name, $destination),
+            );
         } catch (\RuntimeException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
         }
@@ -435,6 +479,44 @@ final class CustomerInstanceFileApiController
         return null;
     }
 
+    /**
+     * @template T
+     * @param callable(): T $primary
+     * @param callable(): T $fallback
+     * @return T
+     */
+    private function withFileFallback(callable $primary, callable $fallback)
+    {
+        try {
+            return $primary();
+        } catch (\RuntimeException $exception) {
+            if (!$this->shouldFallback($exception)) {
+                throw $exception;
+            }
+        }
+
+        return $fallback();
+    }
+
+    private function shouldFallback(\RuntimeException $exception): bool
+    {
+        $message = $exception->getMessage();
+
+        return str_contains($message, 'File service unavailable')
+            || str_contains($message, 'File service host not configured')
+            || str_contains($message, 'File service TLS client certificates are not configured');
+    }
+
+    private function uploadViaSftp(Instance $instance, string $path, \Symfony\Component\HttpFoundation\File\UploadedFile $upload): void
+    {
+        $contents = file_get_contents($upload->getPathname());
+        if ($contents === false) {
+            throw new \RuntimeException('Failed to read upload.');
+        }
+
+        $this->sftpFileService->writeFile($instance, $path, $upload->getClientOriginalName(), $contents);
+    }
+
     private function consumeLimiter(RateLimiterFactory $limiterFactory, Request $request, Instance $instance, User $customer): bool
     {
         $identifier = sprintf('instance-%s-user-%s-%s', $instance->getId(), $customer->getId(), $request->getClientIp() ?? 'local');
@@ -442,6 +524,11 @@ final class CustomerInstanceFileApiController
         $limit = $limiter->consume(1);
 
         return $limit->isAccepted();
+    }
+
+    private function isProtectedFilename(string $name): bool
+    {
+        return strtolower(trim($name)) === 'start.sh';
     }
 
     private function rateLimitResponse(): JsonResponse

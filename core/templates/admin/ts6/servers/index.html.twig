@@ -62,7 +62,15 @@
                                 <div>Voice: {{ server.voicePort ?? '—' }}</div>
                                 <div class="ts6-muted">File: {{ server.filetransferPort ?? '—' }}</div>
                             </td>
-                            <td><span class="ts6-pill">{{ server.status }}</span></td>
+                            <td>
+                                <span class="ts6-pill">{{ server.status }}</span>
+                                {% set error = serverErrors[server.id] ?? null %}
+                                {% if error %}
+                                    <div class="ts6-error-detail"><strong>Fehler:</strong> {{ error.error ?? 'Unbekannter Fehler' }}</div>
+                                {% elseif server.status == 'error' %}
+                                    <div class="ts6-error-detail">Fehlerdetails nicht verfügbar.</div>
+                                {% endif %}
+                            </td>
                             <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
                             <td>
                                 <form method="post" action="/admin/ts6/servers/{{ server.id }}/assign" class="flex gap-2">

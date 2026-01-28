@@ -16,8 +16,7 @@
             }
         })();
     </script>
-    {% block title %}{% endblock %}
-    <title></title>
+    <title>{{ siteTitle }}</title>
     <link rel="stylesheet" href="{{ asset('ui.css') }}">
     <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
     <link rel="stylesheet" href="{{ asset('ts6.css') }}">
@@ -165,8 +164,8 @@
 
 <div class="ng-layout">
     {% include 'components/_sidebar.html.twig' with {
-        title: '',
-        logoUrl: null,
+        title: brandingName,
+        logoUrl: brandingLogo ?: asset('easywi-nextgen-logo.svg'),
         activeNav: activeNav,
         groups: sidebarGroups,
         footer: ''

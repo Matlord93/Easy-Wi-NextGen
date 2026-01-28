@@ -8,6 +8,8 @@ use App\Module\Core\Dto\Ts6\AdminCreateVirtualServerDto;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Application\VirtualServerDtoFactory;
 use App\Module\Core\Form\Ts6AdminCreateVirtualServerType;
+use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
+use App\Repository\AgentJobRepository;
 use App\Repository\Ts6VirtualServerRepository;
 use App\Repository\Ts6NodeRepository;
 use App\Repository\UserRepository;
@@ -31,6 +33,7 @@ final class AdminTs6ServerController
         private readonly UserRepository $userRepository,
         private readonly Ts6VirtualServerRepository $virtualServerRepository,
         private readonly Ts6VirtualServerService $virtualServerService,
+        private readonly AgentJobRepository $agentJobRepository,
         private readonly FormFactoryInterface $formFactory,
         private readonly VirtualServerDtoFactory $dtoFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
@@ -70,6 +73,7 @@ final class AdminTs6ServerController
             'customerMap' => $customerMap,
             'csrf' => $csrf,
             'deleteTokens' => $deleteTokens,
+            'serverErrors' => $this->resolveServerErrors($servers),
         ]));
     }
 
@@ -192,5 +196,86 @@ final class AdminTs6ServerController
         if (!$this->csrfTokenManager->isTokenValid($token)) {
             throw new BadRequestHttpException('Invalid CSRF token.');
         }
+    }
+
+    /**
+     * @param \App\Module\Core\Domain\Entity\Ts6VirtualServer[] $servers
+     * @return array<int, array{error: ?string, created_at: \DateTimeImmutable}>
+     */
+    private function resolveServerErrors(array $servers): array
+    {
+        $serversByAgent = [];
+        foreach ($servers as $server) {
+            $serverId = $server->getId();
+            if ($serverId === null) {
+                continue;
+            }
+            $agentId = $server->getNode()->getAgent()->getId();
+            $serversByAgent[$agentId][$serverId] = true;
+        }
+
+        if ($serversByAgent === []) {
+            return [];
+        }
+
+        $errors = [];
+        foreach ($serversByAgent as $agentId => $serverIds) {
+            $jobs = $this->agentJobRepository->findLatestForNodeAndTypes($agentId, [
+                'ts6.virtual.create',
+                'ts6.virtual.action',
+                'ts6.virtual.token.rotate',
+            ], 50);
+
+            foreach ($jobs as $job) {
+                $virtualId = $job->getPayload()['virtual_server_id'] ?? null;
+                if (!is_int($virtualId) && !is_string($virtualId)) {
+                    continue;
+                }
+                $virtualId = (int) $virtualId;
+                if (!isset($serverIds[$virtualId])) {
+                    continue;
+                }
+
+                $errorText = $this->summarizeJobError($job);
+                if ($job->getStatus()->value !== 'failed' && $errorText === null) {
+                    continue;
+                }
+
+                $createdAt = $job->getCreatedAt();
+                if (!isset($errors[$virtualId]) || $createdAt > $errors[$virtualId]['created_at']) {
+                    $errors[$virtualId] = [
+                        'error' => $errorText,
+                        'created_at' => $createdAt,
+                    ];
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    private function summarizeJobError(AgentJob $job): ?string
+    {
+        $error = $job->getErrorText();
+        if ($error !== null) {
+            return $error;
+        }
+
+        $logText = $job->getLogText();
+        if ($logText === null) {
+            return null;
+        }
+
+        $logText = trim($logText);
+        if ($logText === '') {
+            return null;
+        }
+
+        $snippet = mb_substr($logText, 0, 180);
+        if (mb_strlen($logText) > 180) {
+            $snippet .= '…';
+        }
+
+        return $snippet;
     }
 }

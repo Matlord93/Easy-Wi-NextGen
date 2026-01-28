@@ -1,0 +1,15 @@
+{% extends 'email/base.html.twig' %}
+
+{% block body %}
+  <p style="margin:0 0 16px 0;">Hallo {{ customer_name|default('dort') }},</p>
+  <p style="margin:0 0 16px 0;">
+    dein Konto wurde erfolgreich angelegt.
+  </p>
+  <p style="margin:0 0 16px 0;">
+    Bitte bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren:
+    <a href="{{ verification_url }}">{{ verification_url }}</a>
+  </p>
+  <p style="margin:0; font-size:14px; color:#6b7280;">
+    Falls du dieses Konto nicht erstellt hast, ignoriere diese Nachricht.
+  </p>
+{% endblock %}

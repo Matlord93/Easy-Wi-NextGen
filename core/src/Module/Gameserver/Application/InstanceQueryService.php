@@ -217,6 +217,7 @@ final class InstanceQueryService
             'status' => $cache['status'] ?? 'unknown',
             'players' => isset($cache['players']) && is_numeric($cache['players']) ? (int) $cache['players'] : null,
             'max_players' => isset($cache['max_players']) && is_numeric($cache['max_players']) ? (int) $cache['max_players'] : null,
+            'map' => is_string($cache['map'] ?? null) ? (string) $cache['map'] : null,
             'checked_at' => $checkedAt?->format(DATE_ATOM),
             'queued_at' => $cache['queued_at'] ?? null,
         ];

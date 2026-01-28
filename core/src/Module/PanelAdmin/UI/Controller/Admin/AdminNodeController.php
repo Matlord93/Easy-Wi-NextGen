@@ -397,6 +397,10 @@ final class AdminNodeController
         $agentApiToken = trim((string) $request->request->get('agent_api_token', ''));
         $jobConcurrency = (int) $request->request->get('job_concurrency', $node->getJobConcurrency());
         $clearToken = $request->request->getBoolean('clear_agent_token');
+        $filesvcUrl = trim((string) $request->request->get('filesvc_url', ''));
+        $filesvcHost = trim((string) $request->request->get('filesvc_host', ''));
+        $filesvcPort = trim((string) $request->request->get('filesvc_port', ''));
+        $filesvcScheme = trim((string) $request->request->get('filesvc_scheme', ''));
 
         $node->setAgentBaseUrl($agentBaseUrl !== '' ? $agentBaseUrl : null);
         $node->setJobConcurrency($jobConcurrency);
@@ -407,6 +411,10 @@ final class AdminNodeController
             $node->setAgentApiToken($agentApiToken, $this->secretsCrypto);
         }
 
+        $metadata = $node->getMetadata();
+        $metadata = is_array($metadata) ? $metadata : [];
+        $node->setMetadata($this->applyFilesvcMetadata($metadata, $filesvcUrl, $filesvcHost, $filesvcPort, $filesvcScheme));
+
         $this->entityManager->flush();
         $this->auditLogger->log($actor, 'node.agent.settings_updated', [
             'node_id' => $node->getId(),
@@ -414,6 +422,10 @@ final class AdminNodeController
             'agent_api_token_updated' => $agentApiToken !== '' ? true : null,
             'agent_api_token_cleared' => $clearToken ?: null,
             'job_concurrency' => $node->getJobConcurrency(),
+            'filesvc_url' => $filesvcUrl !== '' ? $filesvcUrl : null,
+            'filesvc_host' => $filesvcHost !== '' ? $filesvcHost : null,
+            'filesvc_port' => $filesvcPort !== '' ? $filesvcPort : null,
+            'filesvc_scheme' => $filesvcScheme !== '' ? $filesvcScheme : null,
         ]);
 
         $connectivityError = $this->checkAgentConnectivity($agentBaseUrl);
@@ -822,6 +834,41 @@ final class AdminNodeController
         return $this->resolveStatus($node->getLastHeartbeatAt());
     }
 
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function applyFilesvcMetadata(array $metadata, string $url, string $host, string $port, string $scheme): array
+    {
+        if ($url !== '') {
+            $metadata['filesvc_url'] = $url;
+            unset($metadata['filesvc_host'], $metadata['filesvc_port'], $metadata['filesvc_scheme']);
+            return $metadata;
+        }
+
+        unset($metadata['filesvc_url']);
+
+        if ($host !== '') {
+            $metadata['filesvc_host'] = $host;
+        } else {
+            unset($metadata['filesvc_host']);
+        }
+
+        if ($port !== '') {
+            $metadata['filesvc_port'] = is_numeric($port) ? (int) $port : $port;
+        } else {
+            unset($metadata['filesvc_port']);
+        }
+
+        if ($scheme !== '') {
+            $metadata['filesvc_scheme'] = strtolower($scheme);
+        } else {
+            unset($metadata['filesvc_scheme']);
+        }
+
+        return $metadata;
+    }
+
     private function checkAgentConnectivity(string $agentBaseUrl): ?string
     {
         if (trim($agentBaseUrl) === '') {
@@ -973,6 +1020,10 @@ final class AdminNodeController
             $agentTokenConfigured = $node->getAgentApiTokenEncrypted() !== '';
             $metadata = $node->getMetadata() ?? [];
             $coreAccessMode = $metadata['core_access_mode'] ?? null;
+            $filesvcUrl = $metadata['filesvc_url'] ?? null;
+            $filesvcHost = $metadata['filesvc_host'] ?? null;
+            $filesvcPort = $metadata['filesvc_port'] ?? null;
+            $filesvcScheme = $metadata['filesvc_scheme'] ?? null;
 
             return [
                 'id' => $node->getId(),
@@ -1004,6 +1055,12 @@ final class AdminNodeController
                     'base_url' => $agentBaseUrl !== '' ? $agentBaseUrl : null,
                     'token_configured' => $agentTokenConfigured,
                     'job_concurrency' => $node->getJobConcurrency(),
+                    'filesvc' => [
+                        'url' => is_string($filesvcUrl) ? $filesvcUrl : null,
+                        'host' => is_string($filesvcHost) ? $filesvcHost : null,
+                        'port' => is_numeric($filesvcPort) ? (int) $filesvcPort : null,
+                        'scheme' => is_string($filesvcScheme) ? $filesvcScheme : null,
+                    ],
                 ],
                 'coreAccessMode' => is_string($coreAccessMode) ? $coreAccessMode : null,
                 'updateAvailable' => $this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion),

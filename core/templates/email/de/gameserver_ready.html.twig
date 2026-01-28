@@ -1,0 +1,17 @@
+{% extends 'email/base.html.twig' %}
+
+{% block body %}
+  <p style="margin:0 0 16px 0;">Hallo {{ customer_name|default('dort') }},</p>
+  <p style="margin:0 0 16px 0;">
+    dein Gameserver <strong>{{ server_name|default('dein Gameserver') }}</strong> wurde eingerichtet und ist startbereit.
+  </p>
+  <p style="margin:0 0 16px 0;">
+    Du kannst ihn jetzt im Interface konfigurieren, um das Spiel zu installieren. Die Installation kann bis zu 10 Minuten dauern.
+  </p>
+  <p style="margin:0 0 16px 0;">
+    Verwalte ihn hier: <a href="{{ portal_url }}">{{ portal_url }}</a>
+  </p>
+  <p style="margin:0; font-size:14px; color:#6b7280;">
+    Bei Fragen antworte einfach auf diese E-Mail.
+  </p>
+{% endblock %}

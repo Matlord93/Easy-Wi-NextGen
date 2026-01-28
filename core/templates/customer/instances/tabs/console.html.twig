@@ -3,6 +3,7 @@
     id="instance-console"
     data-instance-id="{{ instance.id }}"
     data-instance-status="{{ instance.status }}"
+    data-runtime-status="{{ instance.runtime_status ?? '' }}"
     data-console-command-url="{{ path('customer_instance_console_command', {id: instance.id}) }}"
     data-console-logs-url="{{ path('customer_instance_console_logs', {id: instance.id}) }}"
     data-job-logs-url-template="{{ path('customer_job_api_logs', {jobId: '__JOB_ID__'}) }}"
@@ -20,7 +21,10 @@
             <span id="instance-console-log-status" class="text-xs text-slate-500">{{ t('customer_instance_console_log_loading', page_locale()) }}</span>
         </div>
         <p class="mt-2 text-xs text-slate-500">{{ t('customer_instance_console_live_log_intro', page_locale()) }}</p>
-        <pre id="instance-console-log" class="mt-3 h-64 overflow-y-auto overflow-x-auto whitespace-pre-wrap overscroll-contain rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"></pre>
+        <pre
+            id="instance-console-log"
+            class="mt-3 h-64 max-h-64 min-h-64 overflow-y-auto overflow-x-auto whitespace-pre-wrap overscroll-contain rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+        ></pre>
     </div>
 
     <div class="grid gap-4 lg:grid-cols-2">
@@ -70,6 +74,7 @@
         const instanceId = container.dataset.instanceId;
         const status = container.dataset.instanceStatus;
         const commandUrl = container.dataset.consoleCommandUrl;
+        const runtimeStatus = (container.dataset.runtimeStatus || '').toLowerCase();
         const logsUrl = container.dataset.consoleLogsUrl;
         const jobLogsUrlTemplate = container.dataset.jobLogsUrlTemplate;
         const jobUrlTemplate = container.dataset.jobUrlTemplate;
@@ -83,7 +88,7 @@
             return;
         }
 
-        let commandAllowed = status === 'running';
+        let commandAllowed = status === 'running' || runtimeStatus === 'online';
 
         const setFeedback = (message, isError = false) => {
             feedback.textContent = message;

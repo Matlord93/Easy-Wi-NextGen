@@ -21,11 +21,11 @@
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
                     <label class="text-xs font-semibold uppercase text-slate-700">Max slots</label>
-                    <input type="number" min="1" name="max_slots" value="{{ instance.getMaxSlots() }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                <input type="number" min="1" max="{{ app_setting('gameserver_max_slots', instance.getMaxSlots()) }}" name="max_slots" value="{{ instance.getMaxSlots() }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                 </div>
                 <div>
                     <label class="text-xs font-semibold uppercase text-slate-700">Current slots</label>
-                    <input type="number" min="1" name="current_slots" value="{{ instance.getCurrentSlots() }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                <input type="number" min="1" max="{{ instance.getMaxSlots() }}" name="current_slots" value="{{ instance.getCurrentSlots() }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                 </div>
             </div>
             <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700">
