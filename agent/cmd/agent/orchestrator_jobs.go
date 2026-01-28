@@ -835,8 +835,18 @@ func chownRecursiveToUser(path, username string) error {
 	if err != nil {
 		return err
 	}
+	info, err :=os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errirf("stat %s: %w", path, err)
+	}
 	if err := os.Chown(path, uid, gid); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("chown %s: %w", path, err)
+	}
+	if !info.IsDir() {
+		return nil
 	}
 	if err := chownRecursive(path, uid, gid); err != nil {
 		return err
