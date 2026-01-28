@@ -18,7 +18,7 @@ class Ts6Token
     private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: Ts6VirtualServer::class)]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Ts6VirtualServer $virtualServer;
 
     #[ORM\Column(type: 'text')]

@@ -17,7 +17,7 @@ class Ts6Viewer
     private ?int $id = null;
 
     #[ORM\OneToOne(targetEntity: Ts6VirtualServer::class)]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Ts6VirtualServer $virtualServer;
 
     #[ORM\Column(length: 64, unique: true)]

@@ -1926,6 +1926,7 @@ admin_dashboard_intro: "Plattformübersicht, Operator-Aktivitäten und Systemzus
 admin_dashboard_core_updates_title: "Webinterface-Updates"
 admin_dashboard_core_updates_intro: "Prüfen Sie neue Releases und installieren Sie Updates direkt von GitHub."
 admin_dashboard_core_updates_action: "Update installieren"
+admin_dashboard_core_updates_migrate_action: "Datenbank aktualisieren"
 admin_dashboard_core_updates_auto_enable: "Auto-Update aktivieren"
 admin_dashboard_core_updates_auto_disable: "Auto-Update deaktivieren"
 admin_dashboard_core_updates_mode: "Update-Modus"

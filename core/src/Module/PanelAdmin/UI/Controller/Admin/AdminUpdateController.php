@@ -72,6 +72,25 @@ final class AdminUpdateController
         return $this->renderUpdateCard($summary);
     }
 
+    #[Route(path: '/webinterface/migrate', name: 'admin_updates_webinterface_migrate', methods: ['POST'])]
+    public function migrateWebinterface(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $result = $this->updateService->applyMigrations();
+        $summary = $this->buildCoreUpdateSummary();
+        if ($result->success) {
+            $summary['notice'] = $result->message;
+        } else {
+            $summary['error'] = $result->error ?? $result->message;
+        }
+        $summary['logPath'] = $result->logPath;
+
+        return $this->renderUpdateCard($summary);
+    }
+
     #[Route(path: '/webinterface/auto', name: 'admin_updates_webinterface_auto', methods: ['POST'])]
     public function toggleAutoUpdates(Request $request): Response
     {

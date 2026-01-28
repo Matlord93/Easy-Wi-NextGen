@@ -186,6 +186,103 @@ final class WebinterfaceUpdateService
         }
     }
 
+    public function applyMigrations(): UpdateResult
+    {
+        $logPath = $this->resolveLogPath($this->installDir);
+        $lockHandle = $this->acquireLock();
+        if ($lockHandle === null) {
+            return new UpdateResult(
+                false,
+                'Update läuft bereits.',
+                'Update-Lock aktiv.',
+                $logPath,
+                $this->getInstalledVersion(),
+                null,
+            );
+        }
+
+        try {
+            $this->log($logPath, 'Starte Datenbank-Migrationen.');
+            $currentDir = $this->resolveCurrentDir();
+            if ($currentDir === null) {
+                $this->log($logPath, 'Installationsverzeichnis nicht gefunden.');
+                return new UpdateResult(
+                    false,
+                    'Installationsverzeichnis nicht gefunden.',
+                    'Kein gültiges Installationsverzeichnis gefunden.',
+                    $logPath,
+                    $this->getInstalledVersion(),
+                    null,
+                );
+            }
+
+            $appRoot = $this->resolveAppRoot($currentDir);
+            if (!$this->commandExists('php')) {
+                $this->log($logPath, 'PHP nicht gefunden. Migrationen können nicht ausgeführt werden.');
+                return new UpdateResult(
+                    false,
+                    'PHP nicht gefunden.',
+                    'PHP CLI ist nicht verfügbar.',
+                    $logPath,
+                    $this->getInstalledVersion(),
+                    null,
+                );
+            }
+
+            if (!is_file($appRoot . '/bin/console')) {
+                $this->log($logPath, 'bin/console nicht gefunden. Migrationen können nicht ausgeführt werden.');
+                return new UpdateResult(
+                    false,
+                    'bin/console nicht gefunden.',
+                    'Symfony Console fehlt im Installationsverzeichnis.',
+                    $logPath,
+                    $this->getInstalledVersion(),
+                    null,
+                );
+            }
+
+            $migrate = $this->runCommand('php bin/console doctrine:migrations:migrate --no-interaction', $appRoot);
+            $this->logCommandResult($logPath, 'doctrine:migrations:migrate', $migrate);
+            if ($migrate['exitCode'] !== 0) {
+                return new UpdateResult(
+                    false,
+                    'Migrationen fehlgeschlagen.',
+                    'Doctrine-Migrationen konnten nicht ausgeführt werden.',
+                    $logPath,
+                    $this->getInstalledVersion(),
+                    null,
+                );
+            }
+
+            $schema = $this->runCommand('php bin/console doctrine:schema:validate --no-interaction', $appRoot);
+            $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema, true);
+
+            $cache = $this->runCommand('php bin/console cache:clear', $appRoot);
+            $this->logCommandResult($logPath, 'cache:clear', $cache);
+            if ($cache['exitCode'] !== 0) {
+                return new UpdateResult(
+                    false,
+                    'Cache konnte nicht geleert werden.',
+                    'Cache-Reset fehlgeschlagen.',
+                    $logPath,
+                    $this->getInstalledVersion(),
+                    null,
+                );
+            }
+
+            return new UpdateResult(
+                true,
+                'Datenbank-Update abgeschlossen.',
+                null,
+                $logPath,
+                $this->getInstalledVersion(),
+                null,
+            );
+        } finally {
+            $this->releaseLock($lockHandle);
+        }
+    }
+
     private function fetchManifest(): array
     {
         if (trim($this->manifestUrl) === '') {

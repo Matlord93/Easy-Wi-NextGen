@@ -3,11 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
 
 	"easywi/agent/internal/jobs"
+	"golang.org/x/crypto/ssh"
 )
 
 func handleTs3VirtualCreate(job jobs.Job) orchestratorResult {
@@ -281,6 +283,7 @@ func newTs3QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 	if queryIP == "" {
 		queryIP = "127.0.0.1"
 	}
+	queryIP = normalizeQueryConnectIP(queryIP)
 	queryPort := payloadValue(payload, "query_port")
 	if queryPort == "" {
 		queryPort = "10011"
@@ -299,32 +302,47 @@ func newTs3QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect serverquery: %w", err)
 	}
-	client := &ts3QueryClient{
-		conn:   conn,
-		reader: bufio.NewReader(conn),
-		writer: bufio.NewWriter(conn),
-	}
-
-	if err := client.drainResponse(); err != nil {
-		_ = conn.Close()
-		return nil, err
-	}
-	if _, err := client.command(fmt.Sprintf("login %s %s", escapeTs3Query(adminUser), escapeTs3Query(adminPass))); err != nil {
-		_ = conn.Close()
-		return nil, err
-	}
-
-	return client, nil
+	return newTsQueryClientWithConn(conn, adminUser, adminPass)
 }
 
 func newTs6QueryClient(payload map[string]any) (*ts3QueryClient, error) {
+	protocol := strings.ToLower(strings.TrimSpace(payloadValue(payload, "query_protocol", "query_transport")))
+	switch protocol {
+	case "ssh":
+		return newTs6QueryClientSSH(payload)
+	case "", "auto", "tcp":
+	default:
+		return nil, fmt.Errorf("unsupported query protocol: %s", protocol)
+	}
+
+	client, err := newTs6QueryClientTCP(payload)
+	if err == nil {
+		return client, nil
+	}
+	if protocol == "tcp" {
+		return nil, err
+	}
+
+	sshClient, sshErr := newTs6QueryClientSSH(payload)
+	if sshErr == nil {
+		return sshClient, nil
+	}
+	return nil, fmt.Errorf("connect serverquery: %v; ssh fallback failed: %v", err, sshErr)
+}
+
+func newTs6QueryClientTCP(payload map[string]any) (*ts3QueryClient, error) {
 	queryIP := payloadValue(payload, "query_bind_ip", "query_ip")
 	if queryIP == "" {
 		queryIP = "127.0.0.1"
 	}
+	queryIP = normalizeQueryConnectIP(queryIP)
 	queryPort := payloadValue(payload, "query_port", "query_https_port")
 	if queryPort == "" {
 		queryPort = "10443"
+	}
+	fallbackPort := payloadValue(payload, "query_http_port")
+	if fallbackPort == "" {
+		fallbackPort = "10080"
 	}
 	adminUser := payloadValue(payload, "admin_username")
 	if adminUser == "" {
@@ -338,8 +356,144 @@ func newTs6QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 
 	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
 	if err != nil {
-		return nil, fmt.Errorf("connect serverquery: %w", err)
+		primaryErr := err
+		if fallbackPort != "" && fallbackPort != queryPort {
+			fallbackAddress := net.JoinHostPort(queryIP, fallbackPort)
+			conn, err = net.DialTimeout("tcp", fallbackAddress, 5*time.Second)
+			if err != nil {
+				return nil, fmt.Errorf("connect serverquery: primary %s failed: %w; fallback %s failed: %v", address, primaryErr, fallbackAddress, err)
+			}
+		} else {
+			return nil, fmt.Errorf("connect serverquery: %w", primaryErr)
+		}
 	}
+
+	return newTsQueryClientWithConn(conn, adminUser, adminPass)
+}
+
+func newTs6QueryClientSSH(payload map[string]any) (*ts3QueryClient, error) {
+	queryIP := payloadValue(payload, "query_bind_ip", "query_ip")
+	if queryIP == "" {
+		queryIP = "127.0.0.1"
+	}
+	queryIP = normalizeQueryConnectIP(queryIP)
+	queryPort := payloadValue(payload, "query_ssh_port")
+	if queryPort == "" {
+		queryPort = "10022"
+	}
+	adminUser := payloadValue(payload, "query_ssh_username", "admin_username")
+	if adminUser == "" {
+		adminUser = "serveradmin"
+	}
+	adminPass := payloadValue(payload, "admin_password")
+	if adminPass == "" {
+		return nil, fmt.Errorf("missing admin_password")
+	}
+	sshPassword := payloadValue(payload, "query_ssh_password", "admin_password")
+	if sshPassword == "" {
+		return nil, fmt.Errorf("missing admin_password")
+	}
+	address := net.JoinHostPort(queryIP, queryPort)
+
+	sshClient, err := ssh.Dial("tcp", address, &ssh.ClientConfig{
+		User:            adminUser,
+		Auth:            []ssh.AuthMethod{ssh.Password(sshPassword)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         5 * time.Second,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("connect serverquery over ssh: %w", err)
+	}
+	session, err := sshClient.NewSession()
+	if err != nil {
+		_ = sshClient.Close()
+		return nil, fmt.Errorf("open serverquery ssh session: %w", err)
+	}
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		_ = session.Close()
+		_ = sshClient.Close()
+		return nil, fmt.Errorf("open serverquery ssh stdin: %w", err)
+	}
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		_ = session.Close()
+		_ = sshClient.Close()
+		return nil, fmt.Errorf("open serverquery ssh stdout: %w", err)
+	}
+	session.Stderr = session.Stdout
+	if err := session.RequestPty("xterm", 80, 40, ssh.TerminalModes{ssh.ECHO: 0}); err != nil {
+		_ = session.Close()
+		_ = sshClient.Close()
+		return nil, fmt.Errorf("request serverquery ssh pty: %w", err)
+	}
+	if err := session.Shell(); err != nil {
+		_ = session.Close()
+		_ = sshClient.Close()
+		return nil, fmt.Errorf("start serverquery ssh shell: %w", err)
+	}
+
+	conn := &sshQueryConn{
+		stdin:   stdin,
+		stdout:  stdout,
+		client:  sshClient,
+		session: session,
+	}
+
+	return newTsQueryClientWithConn(conn, adminUser, adminPass)
+}
+
+type queryConn interface {
+	io.Reader
+	io.Writer
+	Close() error
+}
+
+type sshQueryConn struct {
+	stdin   io.WriteCloser
+	stdout  io.Reader
+	client  *ssh.Client
+	session *ssh.Session
+}
+
+func (conn *sshQueryConn) Read(p []byte) (int, error) {
+	return conn.stdout.Read(p)
+}
+
+func (conn *sshQueryConn) Write(p []byte) (int, error) {
+	return conn.stdin.Write(p)
+}
+
+func (conn *sshQueryConn) Close() error {
+	if conn == nil {
+		return nil
+	}
+	if conn.session != nil {
+		_ = conn.session.Close()
+	}
+	if conn.stdin != nil {
+		_ = conn.stdin.Close()
+	}
+	if conn.client != nil {
+		_ = conn.client.Close()
+	}
+	return nil
+}
+
+type ts3QueryClient struct {
+	conn   queryConn
+	reader *bufio.Reader
+	writer *bufio.Writer
+}
+
+func (client *ts3QueryClient) close() {
+	if client == nil {
+		return
+	}
+	_ = client.conn.Close()
+}
+
+func newTsQueryClientWithConn(conn queryConn, adminUser, adminPass string) (*ts3QueryClient, error) {
 	client := &ts3QueryClient{
 		conn:   conn,
 		reader: bufio.NewReader(conn),
@@ -358,17 +512,14 @@ func newTs6QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 	return client, nil
 }
 
-type ts3QueryClient struct {
-	conn   net.Conn
-	reader *bufio.Reader
-	writer *bufio.Writer
-}
-
-func (client *ts3QueryClient) close() {
-	if client == nil {
-		return
+func normalizeQueryConnectIP(queryIP string) string {
+	normalized := strings.TrimSpace(queryIP)
+	switch normalized {
+	case "", "0.0.0.0", "::":
+		return "127.0.0.1"
+	default:
+		return normalized
 	}
-	_ = client.conn.Close()
 }
 
 func (client *ts3QueryClient) command(cmd string) (map[string]string, error) {

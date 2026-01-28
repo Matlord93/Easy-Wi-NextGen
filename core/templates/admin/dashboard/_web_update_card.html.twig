@@ -18,6 +18,14 @@
             </button>
             <button
                 class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
+                hx-post="/admin/updates/webinterface/migrate"
+                hx-target="#core-update-card"
+                hx-swap="outerHTML"
+            >
+                {{ t('admin_dashboard_core_updates_migrate_action', page_locale()) }}
+            </button>
+            <button
+                class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
                 hx-post="/admin/updates/webinterface/auto"
                 hx-vals='{"enabled": {{ coreUpdate.autoEnabled ? "false" : "true" }} }'
                 hx-target="#core-update-card"

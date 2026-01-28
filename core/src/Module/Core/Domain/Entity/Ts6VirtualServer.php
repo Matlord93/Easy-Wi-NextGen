@@ -17,7 +17,7 @@ class Ts6VirtualServer
     private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: Ts6Node::class)]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Ts6Node $node;
 
     #[ORM\Column]

@@ -198,6 +198,15 @@ class Ts3Node
         return $this->queryBindIp;
     }
 
+    public function getQueryConnectIp(): string
+    {
+        $normalized = trim($this->queryBindIp);
+        if ($normalized === '' || $normalized === '0.0.0.0' || $normalized === '::') {
+            return '127.0.0.1';
+        }
+        return $normalized;
+    }
+
     public function setQueryBindIp(string $queryBindIp): void
     {
         $this->queryBindIp = $queryBindIp;

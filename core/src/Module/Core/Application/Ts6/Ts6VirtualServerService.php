@@ -55,7 +55,7 @@ final class Ts6VirtualServerService
             'node_id' => $node->getId(),
             'name' => $dto->name,
             'params' => $params,
-            'query_bind_ip' => $node->getQueryBindIp(),
+            'query_bind_ip' => $node->getQueryConnectIp(),
             'query_https_port' => $node->getQueryHttpsPort(),
             'admin_password' => $node->getAdminPassword($this->crypto),
         ];
@@ -94,7 +94,7 @@ final class Ts6VirtualServerService
             'virtual_server_id' => $server->getId(),
             'node_id' => $server->getNode()->getId(),
             'sid' => $server->getSid(),
-            'query_bind_ip' => $server->getNode()->getQueryBindIp(),
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
             'query_https_port' => $server->getNode()->getQueryHttpsPort(),
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
@@ -128,7 +128,7 @@ final class Ts6VirtualServerService
             'node_id' => $server->getNode()->getId(),
             'sid' => $server->getSid(),
             'action' => $action,
-            'query_bind_ip' => $server->getNode()->getQueryBindIp(),
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
             'query_https_port' => $server->getNode()->getQueryHttpsPort(),
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
