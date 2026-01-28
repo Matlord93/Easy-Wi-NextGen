@@ -64,13 +64,15 @@ func handleDomainAdd(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, fmt.Errorf("source dir %s: %w", sourceDir, err))
 	}
 
-	mounted, err := isBindMounted(sourceDir, docroot)
-	if err != nil {
-		return failureResult(job.ID, err)
-	}
-	if !mounted {
-		if err := runCommand("mount", "--bind", sourceDir, docroot); err != nil {
+	if filepath.Clean(sourceDir) != filepath.Clean(docroot) {
+		mounted, err := isBindMounted(sourceDir, docroot)
+		if err != nil {
 			return failureResult(job.ID, err)
+		}
+		if !mounted {
+			if err := runCommand("mount", "--bind", sourceDir, docroot); err != nil {
+				return failureResult(job.ID, err)
+			}
 		}
 	}
 

@@ -41,7 +41,9 @@ type ts6ConfigOptions struct {
 	workingDirectory string
 }
 
-var teamspeakVersionRegex = regexp.MustCompile(`\d+\.\d+(?:\.\d+)*(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?`)
+var teamspeakVersionRegex = regexp.MustCompile(`\d+\.\d+(?:\.\d+)*(?:[A-Za-z])?(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?`)
+
+const defaultSinusbotTs3ClientURL = "https://files.teamspeak-services.com/releases/client/3.6.2/TeamSpeak3-Client-linux_amd64-3.6.2.run"
 
 func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 	switch job.Type {
@@ -176,6 +178,11 @@ func handleServiceStatus(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: "missing service_name"}
 	}
 	installedVersion := resolveTeamspeakVersionForStatus(job)
+	if job.Type == "sinusbot.status" {
+		if version := extractVersionFromDownloadURL(payloadValue(job.Payload, "download_url")); version != "" {
+			installedVersion = version
+		}
+	}
 	if runtime.GOOS == "windows" {
 		output, err := runCommandOutput("sc", "query", serviceName)
 		if err != nil {
@@ -198,6 +205,12 @@ func handleServiceStatus(job jobs.Job) orchestratorResult {
 	resultPayload := map[string]any{"running": err == nil}
 	if installedVersion != "" {
 		resultPayload["installed_version"] = installedVersion
+	}
+	if job.Type == "sinusbot.status" {
+		ts3Info := resolveSinusbotTs3ClientStatus(job)
+		if len(ts3Info) > 0 {
+			resultPayload["dependencies"] = ts3Info
+		}
 	}
 	return orchestratorResult{
 		status:        "success",
@@ -473,6 +486,11 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	serviceUser := payloadValue(job.Payload, "service_user")
 	webBindIP := payloadValue(job.Payload, "web_bind_ip")
 	webPortBase := payloadValue(job.Payload, "web_port_base")
+	ts3ClientInstall := parseBool(payloadValue(job.Payload, "ts3_client_install", "install_ts3_client"), true)
+	ts3ClientDownloadURL := payloadValue(job.Payload, "ts3_client_download_url")
+	if ts3ClientDownloadURL == "" {
+		ts3ClientDownloadURL = defaultSinusbotTs3ClientURL
+	}
 
 	if installDir == "" || serviceName == "" || downloadURL == "" {
 		return orchestratorResult{status: "failed", errorText: "missing install_dir, service_name, or download_url"}
@@ -540,15 +558,21 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 		}
 	}
 
-	configPath := filepath.Join(installDir, "config.ini")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		configContent := fmt.Sprintf("ListenPort = %s\nListenHost = \"%s\"\nTS3Path = \"\"\nYoutubeDLPath = \"\"\n", webPortBase, webBindIP)
-		if err := writeFile(configPath, configContent); err != nil {
+	ts3ClientPath := ""
+	ts3ClientInstalled := false
+	ts3ClientVersion := ""
+	if ts3ClientInstall {
+		installedPath, err := installSinusbotTs3Client(installDir, ts3ClientDownloadURL, serviceUser)
+		if err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
-		if err := chownRecursiveToUser(configPath, serviceUser); err != nil {
-			return orchestratorResult{status: "failed", errorText: err.Error()}
-		}
+		ts3ClientPath = installedPath
+		ts3ClientInstalled = true
+		ts3ClientVersion = extractVersionFromDownloadURL(ts3ClientDownloadURL)
+	}
+
+	if err := ensureSinusbotConfig(installDir, serviceUser, webPortBase, webBindIP, ts3ClientPath); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
@@ -566,8 +590,13 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	return orchestratorResult{
 		status: "success",
 		resultPayload: map[string]any{
-			"installed_version": "unknown",
+			"installed_version": fallbackVersion(extractVersionFromDownloadURL(downloadURL)),
 			"running":           true,
+			"dependencies": map[string]any{
+				"ts3_client_installed": ts3ClientInstalled,
+				"ts3_client_version":   ts3ClientVersion,
+				"ts3_client_path":      ts3ClientPath,
+			},
 		},
 	}
 }
@@ -592,9 +621,11 @@ func sinusbotPackages(family string) []string {
 	switch family {
 	case "debian":
 		return []string{
+			"curl",
 			"ca-certificates",
 			"bzip2",
 			"screen",
+			"x11vnc",
 			"xvfb",
 			"libfontconfig1",
 			"libxtst6",
@@ -609,18 +640,21 @@ func sinusbotPackages(family string) []string {
 			"libegl1-mesa",
 			"x11-xkb-utils",
 			"libasound2",
-			"libxcomposite-dev",
+			"libxcomposite1",
 			"libxi6",
 			"libpci3",
 			"libxslt1.1",
 			"libxkbcommon0",
 			"libxss1",
+			"nano",
 		}
 	case "rhel":
 		return []string{
+			"curl",
 			"ca-certificates",
 			"bzip2",
 			"screen",
+			"x11vnc",
 			"xvfb",
 			"libXcursor",
 			"libXtst",
@@ -640,9 +674,132 @@ func sinusbotPackages(family string) []string {
 			"libxslt",
 			"libxkbcommon",
 			"libXScrnSaver",
+			"nano",
 		}
 	}
 	return nil
+}
+
+func ensureSinusbotConfig(installDir, serviceUser, webPortBase, webBindIP, ts3Path string) error {
+	configPath := filepath.Join(installDir, "config.ini")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		distPath := filepath.Join(installDir, "config.ini.dist")
+		if info, err := os.Stat(distPath); err == nil {
+			if err := copyFile(distPath, configPath, info.Mode()); err != nil {
+				return err
+			}
+		} else {
+			configContent := fmt.Sprintf("ListenPort = %s\nListenHost = \"%s\"\nTS3Path = \"\"\nYoutubeDLPath = \"\"\n", webPortBase, webBindIP)
+			if err := writeFile(configPath, configContent); err != nil {
+				return err
+			}
+		}
+	}
+
+	raw, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
+	}
+	content := string(raw)
+	content = ensureIniValue(content, "ListenPort", webPortBase)
+	content = ensureIniValue(content, "ListenHost", fmt.Sprintf("\"%s\"", webBindIP))
+	ts3Value := "\"\""
+	if ts3Path != "" {
+		ts3Value = fmt.Sprintf("\"%s\"", ts3Path)
+	}
+	content = ensureIniValue(content, "TS3Path", ts3Value)
+	content = ensureIniValue(content, "YoutubeDLPath", "\"\"")
+
+	if err := writeFile(configPath, content); err != nil {
+		return err
+	}
+	if err := chownRecursiveToUser(configPath, serviceUser); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ensureIniValue(content, key, value string) string {
+	line := fmt.Sprintf("%s = %s", key, value)
+	re := regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(key) + `\s*=.*$`)
+	if re.MatchString(content) {
+		return re.ReplaceAllString(content, line)
+	}
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	return content + line + "\n"
+}
+
+func installSinusbotTs3Client(installDir, downloadURL, serviceUser string) (string, error) {
+	if downloadURL == "" {
+		return "", fmt.Errorf("missing ts3 client download URL")
+	}
+	archivePath, err := downloadArchiveForInstall(installDir, downloadURL, "", "TeamSpeak3-Client-linux_amd64-3.6.2.run")
+	if err != nil {
+		return "", err
+	}
+	if err := runCommand("chmod", "+x", archivePath); err != nil {
+		return "", err
+	}
+
+	ts3ClientDir := filepath.Join(installDir, "TeamSpeak3-Client-linux_amd64")
+	if err := os.MkdirAll(ts3ClientDir, 0o755); err != nil {
+		return "", err
+	}
+
+	if err := runCommand(archivePath, "--quiet", "--target", ts3ClientDir); err != nil {
+		if err := runCommand(archivePath, "--accept", "--target", ts3ClientDir); err != nil {
+			if err := runCommand("bash", archivePath, "--target", ts3ClientDir); err != nil {
+				return "", err
+			}
+		}
+	}
+
+	glxPath := filepath.Join(ts3ClientDir, "xcbglintegrations", "libqxcb-glx-integration.so")
+	if err := os.Remove(glxPath); err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+
+	pluginsDir := filepath.Join(ts3ClientDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0o755); err != nil {
+		return "", err
+	}
+	pluginSource := filepath.Join(installDir, "plugin", "libsoundbot_plugin.so")
+	pluginInfo, err := os.Stat(pluginSource)
+	if err != nil {
+		return "", err
+	}
+	if err := copyFile(pluginSource, filepath.Join(pluginsDir, "libsoundbot_plugin.so"), pluginInfo.Mode()); err != nil {
+		return "", err
+	}
+
+	if err := chownRecursiveToUser(ts3ClientDir, serviceUser); err != nil {
+		return "", err
+	}
+	return filepath.Join(ts3ClientDir, "ts3client_linux_amd64"), nil
+}
+
+func resolveSinusbotTs3ClientStatus(job jobs.Job) map[string]any {
+	installDir := payloadValue(job.Payload, "install_dir", "install_path")
+	if installDir == "" {
+		return nil
+	}
+	ts3ClientPath := filepath.Join(installDir, "TeamSpeak3-Client-linux_amd64", "ts3client_linux_amd64")
+	_, err := os.Stat(ts3ClientPath)
+	installed := err == nil
+	version := extractVersionFromDownloadURL(payloadValue(job.Payload, "ts3_client_download_url"))
+
+	result := map[string]any{
+		"ts3_client_installed": installed,
+	}
+	if installed {
+		result["ts3_client_path"] = ts3ClientPath
+	}
+	if version != "" {
+		result["ts3_client_version"] = version
+	}
+	return result
 }
 
 func handleViewerSnapshot(job jobs.Job) orchestratorResult {

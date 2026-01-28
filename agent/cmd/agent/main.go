@@ -263,6 +263,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceStop(job, logSender)
 	case "instance.restart":
 		return handleInstanceRestart(job, logSender)
+	case "instance.logs.tail":
+		return handleInstanceLogsTail(job, logSender)
 	case "instance.console.command":
 		return handleInstanceConsoleCommand(job, logSender)
 	case "instance.reinstall":

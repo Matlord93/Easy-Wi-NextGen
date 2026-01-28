@@ -293,6 +293,38 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 	}, nil
 }
 
+func handleInstanceLogsTail(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	instanceID := payloadValue(job.Payload, "instance_id")
+	serviceName := payloadValue(job.Payload, "service_name")
+	if serviceName == "" && instanceID != "" {
+		serviceName = fmt.Sprintf("gs-%s", instanceID)
+	}
+
+	missing := missingValues([]requiredValue{
+		{key: "instance_id", value: instanceID},
+	})
+	if len(missing) > 0 && serviceName == "" {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	streamServiceLogs(job.ID, logSender, serviceName, 60*time.Second)
+
+	diagnostics := collectServiceDiagnostics(serviceName)
+	diagnostics["service_name"] = serviceName
+
+	return jobs.Result{
+		JobID:     job.ID,
+		Status:    "success",
+		Output:    diagnostics,
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
 func handleInstanceConsoleCommand(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")
@@ -653,6 +685,8 @@ func systemdUnitTemplate(serviceName, user, workingDir, readWritePath, startComm
 	return fmt.Sprintf(`[Unit]
 Description=Easy-Wi Instance %s
 After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 Type=simple

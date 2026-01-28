@@ -95,6 +95,11 @@ func ensureBaseForRole(role string) (string, error) {
 	if err := ensureRoleFiles(role, &output); err != nil {
 		return output.String(), err
 	}
+	if role == "mail" {
+		if err := ensureMailSecurityDefaults(&output); err != nil {
+			return output.String(), err
+		}
+	}
 
 	if role == "game" {
 		if err := installSteamCmd(&output); err != nil {
@@ -681,6 +686,59 @@ func ensureRoleFiles(role string, output *strings.Builder) error {
 				}
 			}
 		}
+	}
+
+	return nil
+}
+
+func ensureMailSecurityDefaults(output *strings.Builder) error {
+	if !commandExists("postconf") {
+		appendOutput(output, "postconf_missing=true")
+		return nil
+	}
+
+	settings := []string{
+		"smtpd_sasl_auth_enable=yes",
+		"smtpd_sasl_type=dovecot",
+		"smtpd_sasl_path=private/auth",
+		"smtpd_tls_security_level=may",
+		"smtpd_tls_auth_only=yes",
+		"smtpd_helo_required=yes",
+		"smtpd_helo_restrictions=reject_invalid_helo_hostname,reject_non_fqdn_helo_hostname",
+		"smtpd_sender_restrictions=reject_non_fqdn_sender,reject_unknown_sender_domain",
+		"smtpd_recipient_restrictions=reject_non_fqdn_recipient,reject_unknown_recipient_domain,reject_unlisted_recipient,permit_mynetworks,permit_sasl_authenticated,reject_unauth_destination",
+		"smtpd_relay_restrictions=permit_mynetworks,permit_sasl_authenticated,reject_unauth_destination",
+	}
+
+	for _, setting := range settings {
+		if err := runCommandWithOutput("postconf", []string{"-e", setting}, output); err != nil {
+			return err
+		}
+	}
+
+	dovecotConfDir := "/etc/dovecot/conf.d"
+	if _, err := os.Stat(dovecotConfDir); err == nil {
+		confPath := filepath.Join(dovecotConfDir, "99-easywi-auth.conf")
+		conf := "## Managed by Easy-Wi agent\n" +
+			"auth_mechanisms = plain login\n" +
+			"service auth {\n" +
+			"  unix_listener /var/spool/postfix/private/auth {\n" +
+			"    mode = 0660\n" +
+			"    user = postfix\n" +
+			"    group = postfix\n" +
+			"  }\n" +
+			"}\n"
+		if err := os.WriteFile(confPath, []byte(conf), 0o640); err != nil {
+			return fmt.Errorf("write dovecot auth config: %w", err)
+		}
+		appendOutput(output, "dovecot_auth_written="+confPath)
+	} else {
+		appendOutput(output, "dovecot_conf_missing=true")
+	}
+
+	if commandExists("systemctl") {
+		_ = runCommandWithOutput("systemctl", []string{"reload", "postfix"}, output)
+		_ = runCommandWithOutput("systemctl", []string{"reload", "dovecot"}, output)
 	}
 
 	return nil
