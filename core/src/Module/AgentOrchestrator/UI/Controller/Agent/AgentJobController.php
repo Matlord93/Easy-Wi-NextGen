@@ -10,6 +10,7 @@ use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\EncryptionService;
 use App\Repository\AgentJobRepository;
 use App\Repository\AgentRepository;
+use DateInterval;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -21,6 +22,8 @@ use Symfony\Contracts\Cache\CacheInterface;
 #[Route(path: '/agent')]
 final class AgentJobController
 {
+    private const STALE_JOB_INTERVAL = 'PT15M';
+
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly AgentJobRepository $jobRepository,
@@ -36,6 +39,8 @@ final class AgentJobController
     public function pollJobs(Request $request, string $nodeId): JsonResponse
     {
         $agent = $this->requireAgent($request, $nodeId);
+        $now = new \DateTimeImmutable();
+        $this->expireStaleJobs($now);
 
         $limit = (int) $request->query->get('limit', 1);
         $maxConcurrency = $agent->getJobConcurrency();
@@ -130,6 +135,25 @@ final class AgentJobController
             'payload' => $job->getPayload(),
             'created_at' => $job->getCreatedAt()->format(DATE_RFC3339),
         ];
+    }
+
+    private function expireStaleJobs(\DateTimeImmutable $now): void
+    {
+        $cutoff = $now->sub(new DateInterval(self::STALE_JOB_INTERVAL));
+        $staleJobs = $this->jobRepository->findRunningBefore($cutoff);
+        if ($staleJobs === []) {
+            return;
+        }
+
+        foreach ($staleJobs as $job) {
+            if ($job->getStatus() !== AgentJobStatus::Running) {
+                continue;
+            }
+            $job->setErrorText('Job timed out.');
+            $job->markFinished(AgentJobStatus::Failed, $now);
+        }
+
+        $this->entityManager->flush();
     }
 
     private function applyViewerSnapshotCache(\App\Module\AgentOrchestrator\Domain\Entity\AgentJob $job, mixed $resultPayload): void

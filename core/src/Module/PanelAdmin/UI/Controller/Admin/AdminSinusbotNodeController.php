@@ -151,6 +151,45 @@ final class AdminSinusbotNodeController
         return $this->redirectToNode($node);
     }
 
+    #[Route(path: '/{id}/start', name: 'admin_sinusbot_nodes_start', methods: ['POST'])]
+    public function start(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'sinusbot_start_' . $id);
+
+        $this->nodeService->start($node);
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot service started.');
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/stop', name: 'admin_sinusbot_nodes_stop', methods: ['POST'])]
+    public function stop(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'sinusbot_stop_' . $id);
+
+        $this->nodeService->stop($node);
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot service stopped.');
+
+        return $this->redirectToNode($node);
+    }
+
+    #[Route(path: '/{id}/restart', name: 'admin_sinusbot_nodes_restart', methods: ['POST'])]
+    public function restart(Request $request, int $id): Response
+    {
+        $this->requireAdmin($request);
+        $node = $this->findNode($id);
+        $this->validateCsrf($request, 'sinusbot_restart_' . $id);
+
+        $this->nodeService->restart($node);
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot service restarted.');
+
+        return $this->redirectToNode($node);
+    }
+
     #[Route(path: '/{id}/delete', name: 'admin_sinusbot_nodes_delete', methods: ['POST'])]
     public function delete(Request $request, int $id): Response
     {
@@ -216,6 +255,9 @@ final class AdminSinusbotNodeController
         return [
             'install' => $this->csrfTokenManager->getToken('sinusbot_install_' . $id)->getValue(),
             'refresh' => $this->csrfTokenManager->getToken('sinusbot_refresh_' . $id)->getValue(),
+            'start' => $this->csrfTokenManager->getToken('sinusbot_start_' . $id)->getValue(),
+            'stop' => $this->csrfTokenManager->getToken('sinusbot_stop_' . $id)->getValue(),
+            'restart' => $this->csrfTokenManager->getToken('sinusbot_restart_' . $id)->getValue(),
             'delete' => $this->csrfTokenManager->getToken('sinusbot_delete_' . $id)->getValue(),
             'reveal' => $this->csrfTokenManager->getToken('sinusbot_reveal_credentials_' . $id)->getValue(),
         ];

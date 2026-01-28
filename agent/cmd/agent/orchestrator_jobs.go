@@ -495,6 +495,7 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	serviceUser := payloadValue(job.Payload, "service_user")
 	webBindIP := payloadValue(job.Payload, "web_bind_ip")
 	webPortBase := payloadValue(job.Payload, "web_port_base")
+	adminPassword := payloadValue(job.Payload, "admin_password")
 	ts3ClientInstall := parseBool(payloadValue(job.Payload, "ts3_client_install", "install_ts3_client"), true)
 	ts3ClientDownloadURL := payloadValue(job.Payload, "ts3_client_download_url")
 	if ts3ClientDownloadURL == "" {
@@ -585,7 +586,11 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, "./sinusbot", "", 0, 0)
+	startCommand := filepath.Join(installDir, "sinusbot")
+	if adminPassword != "" {
+		startCommand = fmt.Sprintf("%s --override-password=%s", startCommand, adminPassword)
+	}
+	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, startCommand, "", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}

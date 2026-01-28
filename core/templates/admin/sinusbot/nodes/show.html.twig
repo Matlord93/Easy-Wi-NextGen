@@ -39,6 +39,20 @@
                         <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_refresh_status', page_locale()) }}</button>
                     </form>
                 </div>
+                <div class="sinusbot-actions">
+                    <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/start">
+                        <input type="hidden" name="_token" value="{{ csrf.start }}">
+                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_start', page_locale()) }}</button>
+                    </form>
+                    <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/stop">
+                        <input type="hidden" name="_token" value="{{ csrf.stop }}">
+                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_stop', page_locale()) }}</button>
+                    </form>
+                    <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/restart">
+                        <input type="hidden" name="_token" value="{{ csrf.restart }}">
+                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_restart', page_locale()) }}</button>
+                    </form>
+                </div>
             </div>
 
             <div class="sinusbot-card">
@@ -95,6 +109,17 @@
                         <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_reveal', page_locale()) }}</button>
                     </form>
                 {% endif %}
+            </div>
+
+            <div class="sinusbot-card">
+                <h2>{{ t('admin_sinusbot_user_management_title', page_locale()) }}</h2>
+                <p class="sinusbot-muted">{{ t('admin_sinusbot_user_management_description', page_locale()) }}</p>
+                <div class="sinusbot-code">
+                    <pre>{{ t('admin_sinusbot_user_management_example', page_locale()) }}</pre>
+                </div>
+                <a class="sinusbot-link" href="https://sinusbot.github.io/api-docs/" target="_blank" rel="noopener">
+                    {{ t('admin_sinusbot_user_management_link', page_locale()) }}
+                </a>
             </div>
         </div>
     </div>

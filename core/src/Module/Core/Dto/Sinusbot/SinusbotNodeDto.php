@@ -13,6 +13,6 @@ final class SinusbotNodeDto
     public string $downloadUrl = 'https://michael.frie.se/sinusbot-1.1f-amd64.tar.bz2';
     public string $installPath = '/opt/sinusbot';
     public string $instanceRoot = '/opt/sinusbot/instances';
-    public string $webBindIp = '127.0.0.1';
+    public string $webBindIp = '0.0.0.0';
     public int $webPortBase = 8087;
 }

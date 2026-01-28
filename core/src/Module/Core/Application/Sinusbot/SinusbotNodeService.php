@@ -23,6 +23,16 @@ final class SinusbotNodeService
     {
         $node->setInstallStatus('installing');
         $node->setLastError(null);
+
+        $adminPassword = $node->getAdminPassword($this->crypto);
+        if ($adminPassword === null) {
+            $adminPassword = bin2hex(random_bytes(12));
+            $node->setAdminPassword($adminPassword, $this->crypto);
+        }
+        if ($node->getAdminUsername() === null) {
+            $node->setAdminUsername('admin');
+        }
+
         $this->entityManager->flush();
 
         $payload = [
@@ -37,7 +47,7 @@ final class SinusbotNodeService
             'service_name' => 'sinusbot',
             'service_user' => 'sinusbot',
             'admin_username' => $node->getAdminUsername(),
-            'admin_password' => $node->getAdminPassword($this->crypto),
+            'admin_password' => $adminPassword,
             'return_admin_credentials' => true,
             'ts3_client_install' => true,
             'ts3_client_download_url' => self::DEFAULT_TS3_CLIENT_DOWNLOAD_URL,
@@ -63,6 +73,32 @@ final class SinusbotNodeService
         ];
         $this->jobDispatcher->dispatch($node->getAgent(), 'sinusbot.status', $payload);
 
+        $this->entityManager->flush();
+    }
+
+    public function start(SinusbotNode $node): void
+    {
+        $this->applyServiceAction($node, 'start');
+    }
+
+    public function stop(SinusbotNode $node): void
+    {
+        $this->applyServiceAction($node, 'stop');
+    }
+
+    public function restart(SinusbotNode $node): void
+    {
+        $this->applyServiceAction($node, 'restart');
+    }
+
+    private function applyServiceAction(SinusbotNode $node, string $action): void
+    {
+        $payload = [
+            'node_id' => $node->getId(),
+            'service_name' => 'sinusbot',
+            'action' => $action,
+        ];
+        $this->jobDispatcher->dispatch($node->getAgent(), 'sinusbot.service.action', $payload);
         $this->entityManager->flush();
     }
 

@@ -23,8 +23,9 @@ Der Agent muss folgende Endpunkte anbieten:
   "download_url": "https://michael.frie.se/sinusbot-1.1f-amd64.tar.bz2",
   "install_path": "/opt/sinusbot",
   "instance_root": "/opt/sinusbot/instances",
-  "web_bind_ip": "127.0.0.1",
+  "web_bind_ip": "0.0.0.0",
   "web_port_base": 8087,
+  "admin_password": "wird-automatisch-generiert",
   "return_admin_credentials": true,
   "dependencies": {
     "install_ts3_client": true,
@@ -63,6 +64,7 @@ Die SinusBot-Installation wird ausschließlich durch den Easy-Wi Agent durchgef�
 - Setzen der Rechte im Installationspfad.
 - Optionaler Download und Installation des TeamSpeak-Clients inkl. Plugin-Setup.
 - Erzeugen der Konfiguration (`config.ini`) inkl. Web-Port/Bind-IP.
+- Start über systemd mit `--override-password`, damit das Admin-Passwort gesetzt wird.
 - Rückgabe der Admin-Zugangsdaten, wenn `return_admin_credentials=true` gesetzt ist.
 
 ## Fehlerbehebung bei Startproblemen

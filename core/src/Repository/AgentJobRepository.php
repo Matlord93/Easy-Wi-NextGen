@@ -59,6 +59,22 @@ final class AgentJobRepository extends ServiceEntityRepository
     }
 
     /**
+     * @return AgentJob[]
+     */
+    public function findRunningBefore(\DateTimeImmutable $cutoff, int $limit = 200): array
+    {
+        return $this->createQueryBuilder('job')
+            ->andWhere('job.status = :status')
+            ->andWhere('job.startedAt IS NULL OR job.startedAt < :cutoff')
+            ->setParameter('status', AgentJobStatus::Running)
+            ->setParameter('cutoff', $cutoff)
+            ->orderBy('job.startedAt', 'ASC')
+            ->setMaxResults(max(1, $limit))
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * @param string[] $types
      *
      * @return AgentJob[]

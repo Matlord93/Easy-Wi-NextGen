@@ -41,7 +41,7 @@ class SinusbotNode
     private string $instanceRoot;
 
     #[ORM\Column(length: 64)]
-    private string $webBindIp = '127.0.0.1';
+    private string $webBindIp = '0.0.0.0';
 
     #[ORM\Column]
     private int $webPortBase = 8087;
