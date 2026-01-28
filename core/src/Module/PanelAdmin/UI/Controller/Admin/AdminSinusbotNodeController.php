@@ -7,10 +7,12 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Module\Core\Dto\Sinusbot\SinusbotNodeDto;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Form\SinusbotNodeType;
 use App\Repository\AgentRepository;
 use App\Repository\AgentJobRepository;
 use App\Repository\SinusbotNodeRepository;
+use App\Repository\UserRepository;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Sinusbot\SinusbotNodeService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -33,6 +35,7 @@ final class AdminSinusbotNodeController
         private readonly SinusbotNodeRepository $nodeRepository,
         private readonly AgentRepository $agentRepository,
         private readonly AgentJobRepository $agentJobRepository,
+        private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly SecretsCrypto $crypto,
         private readonly SinusbotNodeService $nodeService,
@@ -63,6 +66,7 @@ final class AdminSinusbotNodeController
         $dto = new SinusbotNodeDto();
         $form = $this->formFactory->create(SinusbotNodeType::class, $dto, [
             'agent_choices' => $this->buildAgentChoices(),
+            'customer_choices' => $this->buildCustomerChoices(),
         ]);
         $form->handleRequest($request);
 
@@ -80,6 +84,18 @@ final class AdminSinusbotNodeController
                 ]), Response::HTTP_BAD_REQUEST);
             }
 
+            $customer = null;
+            if ($dto->customerId !== null) {
+                $customer = $this->userRepository->find($dto->customerId);
+                if ($customer === null || $customer->getType() !== UserType::Customer) {
+                    $form->addError(new FormError('Selected customer was not found.'));
+                    return new Response($this->twig->render('admin/sinusbot/nodes/new.html.twig', [
+                        'activeNav' => 'sinusbot',
+                        'form' => $form->createView(),
+                    ]), Response::HTTP_BAD_REQUEST);
+                }
+            }
+
             $node = new SinusbotNode(
                 $dto->name,
                 $agent,
@@ -91,12 +107,13 @@ final class AdminSinusbotNodeController
             );
             $node->setWebBindIp($dto->webBindIp);
             $node->setWebPortBase($dto->webPortBase);
+            $node->setCustomer($customer);
 
             $this->entityManager->persist($node);
             $this->entityManager->flush();
 
             $this->nodeService->install($node);
-            $request->getSession()->getFlashBag()->add('success', 'SinusBot node created. Install job queued.');
+            $request->getSession()->getFlashBag()->add('success', 'SinusBot-Node erstellt. Installationsauftrag eingereiht. (SinusBot node created. Install job queued.)');
 
             return new Response('', Response::HTTP_FOUND, [
                 'Location' => sprintf('/admin/sinusbot/nodes/%d', $node->getId()),
@@ -120,6 +137,7 @@ final class AdminSinusbotNodeController
             'activeNav' => 'sinusbot',
             'node' => $node,
             'admin_password' => null,
+            'management_url' => $this->buildManagementUrl($node),
             'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
         ]));
@@ -146,7 +164,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_refresh_' . $id);
 
         $this->nodeService->refreshStatus($node);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot status refreshed.');
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Status aktualisiert. (SinusBot status refreshed.)');
 
         return $this->redirectToNode($node);
     }
@@ -159,7 +177,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_start_' . $id);
 
         $this->nodeService->start($node);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot service started.');
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Service gestartet. (SinusBot service started.)');
 
         return $this->redirectToNode($node);
     }
@@ -172,7 +190,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_stop_' . $id);
 
         $this->nodeService->stop($node);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot service stopped.');
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Service gestoppt. (SinusBot service stopped.)');
 
         return $this->redirectToNode($node);
     }
@@ -185,7 +203,7 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_restart_' . $id);
 
         $this->nodeService->restart($node);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot service restarted.');
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Service neu gestartet. (SinusBot service restarted.)');
 
         return $this->redirectToNode($node);
     }
@@ -200,7 +218,7 @@ final class AdminSinusbotNodeController
         $this->entityManager->remove($node);
         $this->entityManager->flush();
 
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot node deleted.');
+        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Node gelöscht. (SinusBot node deleted.)');
 
         return new Response('', Response::HTTP_FOUND, [
             'Location' => '/admin/sinusbot/nodes',
@@ -220,6 +238,7 @@ final class AdminSinusbotNodeController
             'activeNav' => 'sinusbot',
             'node' => $node,
             'admin_password' => $adminPassword,
+            'management_url' => $this->buildManagementUrl($node),
             'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
         ]));
@@ -340,5 +359,46 @@ final class AdminSinusbotNodeController
         if (trim($dto->installPath) === '') {
             $form->addError(new FormError('Install path is required.'));
         }
+    }
+
+    private function buildManagementUrl(SinusbotNode $node): ?string
+    {
+        $host = trim($node->getWebBindIp());
+        $scheme = 'http';
+
+        if ($host === '' || $host === '0.0.0.0' || $host === '::') {
+            $host = trim((string) $node->getAgent()->getLastHeartbeatIp());
+        }
+
+        $agentBaseUrl = $node->getAgentBaseUrl();
+        if (($host === '' || $host === '0.0.0.0' || $host === '::') && $agentBaseUrl !== '') {
+            $parts = parse_url($agentBaseUrl);
+            if (is_array($parts)) {
+                $host = $parts['host'] ?? $host;
+                $scheme = $parts['scheme'] ?? $scheme;
+            }
+        }
+
+        if ($host === '' || $host === '0.0.0.0' || $host === '::') {
+            return null;
+        }
+
+        return sprintf('%s://%s:%d', $scheme, $host, $node->getWebPortBase());
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function buildCustomerChoices(): array
+    {
+        $choices = [];
+        $customers = $this->userRepository->findCustomers();
+
+        foreach ($customers as $customer) {
+            $label = sprintf('%s (%d)', $customer->getEmail(), $customer->getId());
+            $choices[$label] = $customer->getId();
+        }
+
+        return $choices;
     }
 }

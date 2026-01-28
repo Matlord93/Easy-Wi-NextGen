@@ -189,8 +189,12 @@ final class AgentJobResultApplier
             } elseif ($status === AgentJobStatus::Failed) {
                 $node->setInstallStatus('error');
             }
-            if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
-                $node->setInstalledVersion($payload['installed_version']);
+            if (is_array($payload)) {
+                if (isset($payload['installed_version']) && is_string($payload['installed_version'])) {
+                    $node->setInstalledVersion($payload['installed_version']);
+                } elseif (isset($payload['version']) && is_string($payload['version'])) {
+                    $node->setInstalledVersion($payload['version']);
+                }
             }
             if (is_array($payload) && array_key_exists('running', $payload)) {
                 $node->setRunning((bool) $payload['running']);
@@ -202,8 +206,15 @@ final class AgentJobResultApplier
             if (is_array($payload) && array_key_exists('running', $payload)) {
                 $node->setRunning((bool) $payload['running']);
             }
-            if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
-                $node->setInstalledVersion($payload['installed_version']);
+            if (is_array($payload)) {
+                if (array_key_exists('installed', $payload) && $payload['installed'] === true) {
+                    $node->setInstallStatus('installed');
+                }
+                if (isset($payload['installed_version']) && is_string($payload['installed_version'])) {
+                    $node->setInstalledVersion($payload['installed_version']);
+                } elseif (isset($payload['version']) && is_string($payload['version'])) {
+                    $node->setInstalledVersion($payload['version']);
+                }
             }
             if ($status === AgentJobStatus::Success && is_array($payload) && array_key_exists('running', $payload)) {
                 $this->applyInstallStatusFromRuntime($node, (bool) $payload['running']);
@@ -230,7 +241,7 @@ final class AgentJobResultApplier
         }
         $dependencies = $payload['dependencies'] ?? null;
         if (!is_array($dependencies)) {
-            return;
+            $dependencies = $payload;
         }
 
         $node->setTs3ClientInstalled((bool) ($dependencies['ts3_client_installed'] ?? $node->isTs3ClientInstalled()));
@@ -328,18 +339,24 @@ final class AgentJobResultApplier
             return;
         }
 
-        if ($job->getType() === 'ts6.virtual.create' && is_array($payload)) {
-            if (isset($payload['sid'])) {
-                $server->setSid((int) $payload['sid']);
-            }
-            if (isset($payload['voice_port'])) {
-                $server->setVoicePort((int) $payload['voice_port']);
-            }
-            if (isset($payload['filetransfer_port'])) {
-                $server->setFiletransferPort((int) $payload['filetransfer_port']);
+        if ($status !== AgentJobStatus::Success) {
+            return;
+        }
+
+        if ($job->getType() === 'ts6.virtual.create') {
+            if (is_array($payload)) {
+                if (isset($payload['sid'])) {
+                    $server->setSid((int) $payload['sid']);
+                }
+                if (isset($payload['voice_port'])) {
+                    $server->setVoicePort((int) $payload['voice_port']);
+                }
+                if (isset($payload['filetransfer_port'])) {
+                    $server->setFiletransferPort((int) $payload['filetransfer_port']);
+                }
+                $this->applyVirtualToken($server, Ts6Token::class, $payload['token'] ?? null);
             }
             $server->setStatus('running');
-            $this->applyVirtualToken($server, Ts6Token::class, $payload['token'] ?? null);
         }
 
         if ($job->getType() === 'ts6.virtual.action') {

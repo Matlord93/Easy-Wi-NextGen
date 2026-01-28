@@ -84,9 +84,21 @@
             <div class="sinusbot-card">
                 <h2>{{ t('admin_sinusbot_agent_config_title', page_locale()) }}</h2>
                 <div class="sinusbot-meta">
+                    <div><strong>Zugewiesener Kunde:</strong> {{ node.customer ? node.customer.email : '–' }}</div>
                     <div><strong>{{ t('admin_sinusbot_agent_url_label', page_locale()) }}</strong> {{ node.agentBaseUrl }}</div>
                     <div><strong>{{ t('admin_sinusbot_install_path_label', page_locale()) }}</strong> {{ node.installPath }}</div>
                     <div><strong>{{ t('admin_sinusbot_web_bind_label', page_locale()) }}</strong> {{ node.webBindIp }}:{{ node.webPortBase }}</div>
+                    <div><strong>TS3-Client:</strong> {{ node.ts3ClientInstalled ? 'Installiert (Installed)' : 'Nicht installiert (Not installed)' }}</div>
+                    <div><strong>TS3-Client Version:</strong> {{ node.ts3ClientVersion ?? '–' }}</div>
+                    <div><strong>TS3-Client Pfad:</strong> {{ node.ts3ClientPath ?? '–' }}</div>
+                    <div>
+                        <strong>Verwaltungs-URL:</strong>
+                        {% if management_url %}
+                            <a class="sinusbot-link" href="{{ management_url }}" target="_blank" rel="noopener">{{ management_url }}</a>
+                        {% else %}
+                            –
+                        {% endif %}
+                    </div>
                 </div>
             </div>
 

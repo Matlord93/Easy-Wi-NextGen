@@ -7,6 +7,7 @@ namespace App\Module\Core\Dto\Sinusbot;
 final class SinusbotNodeDto
 {
     public string $name = '';
+    public ?int $customerId = null;
     public string $agentNodeId = '';
     public string $agentBaseUrl = '';
     public string $agentApiToken = '';

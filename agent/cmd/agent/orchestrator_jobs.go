@@ -465,6 +465,9 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	if err := os.Chown(configPath, uid, gid); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
+	if err := ensureTs6SshHostKey(installDir, uid, gid); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, filepath.Join(installDir, "tsserver"), fmt.Sprintf("--accept-license --config-file %s", filepath.Join(installDir, "tsserver.yaml")), 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
@@ -962,6 +965,7 @@ func buildTs6Config(options ts6ConfigOptions) string {
 	if !options.licenseAccepted {
 		acceptValue = "0"
 	}
+	sshIPs := []string{"0.0.0.0"}
 	return fmt.Sprintf(`server:
   license-path: .
   default-voice-port: %d
@@ -1018,7 +1022,44 @@ func buildTs6Config(options ts6ConfigOptions) string {
 %s
       certificate: ""
       private-key: ""
-`, options.defaultVoicePort, formatYamlList(options.voiceIP, 4), options.filetransferPort, formatYamlList(options.filetransferIP, 4), acceptValue, options.workingDirectory, options.workingDirectory, options.queryAdminPass, httpEnabled, options.queryHttpPort, formatYamlList(queryIPs, 6), httpsEnabled, options.queryHttpsPort, formatYamlList(queryIPs, 6))
+
+    ssh:
+      enable: 1
+      port: 10022
+      ip:
+%s
+      rsa-key: ssh_host_rsa_key
+`, options.defaultVoicePort, formatYamlList(options.voiceIP, 4), options.filetransferPort, formatYamlList(options.filetransferIP, 4), acceptValue, options.workingDirectory, options.workingDirectory, options.queryAdminPass, httpEnabled, options.queryHttpPort, formatYamlList(queryIPs, 6), httpsEnabled, options.queryHttpsPort, formatYamlList(queryIPs, 6), formatYamlList(sshIPs, 6))
+}
+
+func ensureTs6SshHostKey(installDir string, uid, gid int) error {
+	keyPath := filepath.Join(installDir, "ssh_host_rsa_key")
+	if _, err := os.Stat(keyPath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := runCommand("ssh-keygen", "-t", "rsa", "-b", "4096", "-f", keyPath, "-N", ""); err != nil {
+		return err
+	}
+	if err := os.Chmod(keyPath, 0o600); err != nil {
+		return err
+	}
+	if err := os.Chown(keyPath, uid, gid); err != nil {
+		return err
+	}
+	pubPath := keyPath + ".pub"
+	if _, err := os.Stat(pubPath); err == nil {
+		if err := os.Chmod(pubPath, 0o644); err != nil {
+			return err
+		}
+		if err := os.Chown(pubPath, uid, gid); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func formatYamlList(values []string, indent int) string {

@@ -7,6 +7,7 @@ namespace App\Module\Core\Domain\Entity;
 use App\Repository\SinusbotNodeRepository;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: SinusbotNodeRepository::class)]
@@ -20,6 +21,10 @@ class SinusbotNode
 
     #[ORM\Column(length: 120)]
     private string $name;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $customer = null;
 
     #[ORM\ManyToOne(targetEntity: Agent::class)]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
@@ -104,6 +109,17 @@ class SinusbotNode
     public function getName(): string
     {
         return $this->name;
+    }
+
+    public function getCustomer(): ?User
+    {
+        return $this->customer;
+    }
+
+    public function setCustomer(?User $customer): void
+    {
+        $this->customer = $customer;
+        $this->touch();
     }
 
     public function getAgent(): Agent
