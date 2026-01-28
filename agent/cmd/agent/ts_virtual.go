@@ -67,6 +67,77 @@ func handleTs3VirtualCreate(job jobs.Job) orchestratorResult {
 	}
 }
 
+func handleTs6VirtualCreate(job jobs.Job) orchestratorResult {
+	client, err := newTs6QueryClient(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	name := payloadValue(job.Payload, "name")
+	if strings.TrimSpace(name) == "" {
+		return orchestratorResult{status: "failed", errorText: "missing virtual server name"}
+	}
+
+	existingServers, err := listVirtualServers(client)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	existingSummary := formatVirtualServerSummary(existingServers)
+	if findVirtualServerByName(existingServers, name) {
+		return orchestratorResult{
+			status:    "failed",
+			errorText: fmt.Sprintf("virtual server %q already exists", name),
+			logText:   existingSummary,
+		}
+	}
+
+	params := payloadMap(job.Payload, "params")
+	voicePort := payloadValue(params, "voice_port")
+	filePort := payloadValue(params, "filetransfer_port")
+	maxClients := payloadValue(params, "slots", "max_clients")
+
+	args := []string{fmt.Sprintf("virtualserver_name=%s", escapeTs3Query(name))}
+	if voicePort != "" {
+		args = append(args, fmt.Sprintf("virtualserver_port=%s", voicePort))
+	}
+	if filePort != "" {
+		args = append(args, fmt.Sprintf("virtualserver_filetransfer_port=%s", filePort))
+	}
+	if maxClients != "" {
+		args = append(args, fmt.Sprintf("virtualserver_maxclients=%s", maxClients))
+	}
+	response, err := client.command("servercreate " + strings.Join(args, " "))
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	sid := response["sid"]
+	token := response["token"]
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "servercreate did not return sid"}
+	}
+
+	payload := map[string]any{
+		"sid": sid,
+	}
+	if voicePort != "" {
+		payload["voice_port"] = voicePort
+	}
+	if filePort != "" {
+		payload["filetransfer_port"] = filePort
+	}
+	if token != "" {
+		payload["token"] = token
+	}
+
+	return orchestratorResult{
+		status:        "success",
+		logText:       existingSummary,
+		resultPayload: payload,
+	}
+}
+
 func handleTs3VirtualAction(job jobs.Job) orchestratorResult {
 	client, err := newTs3QueryClient(job.Payload)
 	if err != nil {
@@ -105,8 +176,77 @@ func handleTs3VirtualAction(job jobs.Job) orchestratorResult {
 	}
 }
 
+func handleTs6VirtualAction(job jobs.Job) orchestratorResult {
+	client, err := newTs6QueryClient(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	sid := payloadValue(job.Payload, "sid")
+	action := strings.ToLower(payloadValue(job.Payload, "action"))
+	if sid == "" || action == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid or action"}
+	}
+
+	var command string
+	switch action {
+	case "start":
+		command = fmt.Sprintf("serverstart sid=%s", sid)
+	case "stop":
+		command = fmt.Sprintf("serverstop sid=%s", sid)
+	case "delete":
+		command = fmt.Sprintf("serverdelete sid=%s", sid)
+	default:
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("unsupported action: %s", action)}
+	}
+
+	if _, err := client.command(command); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	return orchestratorResult{
+		status: "success",
+		resultPayload: map[string]any{
+			"sid":    sid,
+			"action": action,
+		},
+	}
+}
+
 func handleTs3VirtualTokenRotate(job jobs.Job) orchestratorResult {
 	client, err := newTs3QueryClient(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	sid := payloadValue(job.Payload, "sid")
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid"}
+	}
+
+	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	response, err := client.command(fmt.Sprintf("servertokenadd tokentype=0 tokenid1=%s tokenid2=0", sid))
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	token := response["token"]
+	if token == "" {
+		return orchestratorResult{status: "failed", errorText: "token rotate did not return token"}
+	}
+
+	return orchestratorResult{
+		status:        "success",
+		resultPayload: map[string]any{"token": token},
+	}
+}
+
+func handleTs6VirtualTokenRotate(job jobs.Job) orchestratorResult {
+	client, err := newTs6QueryClient(job.Payload)
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -177,6 +317,47 @@ func newTs3QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 	return client, nil
 }
 
+func newTs6QueryClient(payload map[string]any) (*ts3QueryClient, error) {
+	queryIP := payloadValue(payload, "query_bind_ip", "query_ip")
+	if queryIP == "" {
+		queryIP = "127.0.0.1"
+	}
+	queryPort := payloadValue(payload, "query_port", "query_https_port")
+	if queryPort == "" {
+		queryPort = "10443"
+	}
+	adminUser := payloadValue(payload, "admin_username")
+	if adminUser == "" {
+		adminUser = "serveradmin"
+	}
+	adminPass := payloadValue(payload, "admin_password")
+	if adminPass == "" {
+		return nil, fmt.Errorf("missing admin_password")
+	}
+	address := net.JoinHostPort(queryIP, queryPort)
+
+	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("connect serverquery: %w", err)
+	}
+	client := &ts3QueryClient{
+		conn:   conn,
+		reader: bufio.NewReader(conn),
+		writer: bufio.NewWriter(conn),
+	}
+
+	if err := client.drainResponse(); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if _, err := client.command(fmt.Sprintf("login %s %s", escapeTs3Query(adminUser), escapeTs3Query(adminPass))); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+
+	return client, nil
+}
+
 type ts3QueryClient struct {
 	conn   net.Conn
 	reader *bufio.Reader
@@ -202,6 +383,16 @@ func (client *ts3QueryClient) command(cmd string) (map[string]string, error) {
 		return nil, err
 	}
 	return parseTs3QueryLines(lines), nil
+}
+
+func (client *ts3QueryClient) commandLines(cmd string) ([]string, error) {
+	if _, err := client.writer.WriteString(cmd + "\n"); err != nil {
+		return nil, err
+	}
+	if err := client.writer.Flush(); err != nil {
+		return nil, err
+	}
+	return client.readResponse()
 }
 
 func (client *ts3QueryClient) drainResponse() error {
@@ -247,6 +438,21 @@ func parseTs3QueryLines(lines []string) map[string]string {
 	return output
 }
 
+func parseTs3QueryLine(line string) map[string]string {
+	output := map[string]string{}
+	for _, part := range strings.Split(line, " ") {
+		if part == "" {
+			continue
+		}
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		output[kv[0]] = unescapeTs3Query(kv[1])
+	}
+	return output
+}
+
 func escapeTs3Query(value string) string {
 	replacer := strings.NewReplacer(
 		`\\`, `\\\\`,
@@ -288,4 +494,61 @@ func payloadMap(payload map[string]any, key string) map[string]any {
 		return typed
 	}
 	return map[string]any{}
+}
+
+func listVirtualServers(client *ts3QueryClient) ([]map[string]string, error) {
+	lines, err := client.commandLines("serverlist")
+	if err != nil {
+		return nil, err
+	}
+	servers := []map[string]string{}
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		for _, chunk := range strings.Split(line, "|") {
+			chunk = strings.TrimSpace(chunk)
+			if chunk == "" {
+				continue
+			}
+			entry := parseTs3QueryLine(chunk)
+			if len(entry) > 0 {
+				servers = append(servers, entry)
+			}
+		}
+	}
+	return servers, nil
+}
+
+func formatVirtualServerSummary(servers []map[string]string) string {
+	if len(servers) == 0 {
+		return ""
+	}
+	entries := make([]string, 0, len(servers))
+	for _, server := range servers {
+		id := server["virtualserver_id"]
+		name := server["virtualserver_name"]
+		if name == "" {
+			name = "unknown"
+		}
+		if id == "" {
+			id = "n/a"
+		}
+		entries = append(entries, fmt.Sprintf("%s (id=%s)", name, id))
+	}
+	return "existing virtual servers: " + strings.Join(entries, ", ")
+}
+
+func findVirtualServerByName(servers []map[string]string, name string) bool {
+	needle := strings.TrimSpace(strings.ToLower(name))
+	if needle == "" {
+		return false
+	}
+	for _, server := range servers {
+		serverName := strings.TrimSpace(strings.ToLower(server["virtualserver_name"]))
+		if serverName != "" && serverName == needle {
+			return true
+		}
+	}
+	return false
 }

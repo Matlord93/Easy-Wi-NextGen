@@ -27,6 +27,7 @@
 {% set diskBarWidth = diskPercent > 100 ? 100 : diskPercent %}
 {% set installReady = instance.install_ready|default(false) %}
 {% set installError = instance.install_error_code|default(null) %}
+{% set isInstalled = instance.is_installed|default(instance.current_build_id ?? false) %}
 {% set displayName = instance.server_name ?? instance.template.name %}
 {% set query = instance.query ?? {} %}
 {% set configuredSlots = query.max_players ?? instance.current_slots %}
@@ -46,7 +47,7 @@
             </div>
             <div class="flex flex-wrap gap-3">
                 <div class="flex flex-wrap gap-2">
-                    {% if installReady and status in ['pending_setup', 'error', 'stopped'] and not instance.current_build_id %}
+                    {% if installReady and status in ['pending_setup', 'error', 'stopped'] and not isInstalled %}
                         <form hx-post="{{ path('customer_instance_install', {id: instance.id}) }}" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
                             <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700">{{ t('customer_instance_install', page_locale()) }}</button>
                         </form>

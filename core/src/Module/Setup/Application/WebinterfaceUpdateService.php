@@ -105,8 +105,22 @@ final class WebinterfaceUpdateService
                 );
             }
 
+            $useDelta = $this->shouldUseDelta($installedVersion, $manifest, $logPath);
+            $assetUrl = $useDelta ? $manifest->deltaAssetUrl : $manifest->assetUrl;
+            if ($assetUrl === null || $assetUrl === '') {
+                $this->log($logPath, 'Update-Asset ist nicht verfügbar.');
+                return new UpdateResult(
+                    false,
+                    'Update-Asset fehlt.',
+                    'Asset URL fehlt.',
+                    $logPath,
+                    $installedVersion,
+                    $manifest->latest,
+                );
+            }
+
             $workDir = $this->createWorkDir();
-            $archivePath = $this->downloadAsset($manifest->assetUrl, $workDir, $logPath);
+            $archivePath = $this->downloadAsset($assetUrl, $workDir, $logPath);
             if ($archivePath === null) {
                 return new UpdateResult(
                     false,
@@ -118,7 +132,8 @@ final class WebinterfaceUpdateService
                 );
             }
 
-            if ($manifest->sha256 !== null && !$this->verifySha256($archivePath, $manifest->sha256, $logPath)) {
+            $expectedSha = $useDelta ? $manifest->deltaSha256 : $manifest->sha256;
+            if ($expectedSha !== null && !$this->verifySha256($archivePath, $expectedSha, $logPath)) {
                 return new UpdateResult(
                     false,
                     'SHA256-Prüfung fehlgeschlagen.',
@@ -142,7 +157,11 @@ final class WebinterfaceUpdateService
             }
 
             $extractedRoot = $this->resolveExtractedRoot($stagingDir);
-            $updateApplied = $this->deployUpdate($extractedRoot, $manifest->latest, $logPath);
+            if ($useDelta) {
+                $updateApplied = $this->deployDeltaUpdate($extractedRoot, $manifest->latest, $logPath, $manifest->deltaDeletes);
+            } else {
+                $updateApplied = $this->deployUpdate($extractedRoot, $manifest->latest, $logPath);
+            }
             if (!$updateApplied) {
                 return new UpdateResult(
                     false,
@@ -193,13 +212,32 @@ final class WebinterfaceUpdateService
         $assetUrl = is_string($payload['asset_url'] ?? null) ? trim($payload['asset_url']) : '';
         $sha256 = is_string($payload['sha256'] ?? null) ? trim($payload['sha256']) : null;
         $notes = is_string($payload['notes'] ?? null) ? trim($payload['notes']) : null;
+        $deltaPayload = is_array($payload['delta'] ?? null) ? $payload['delta'] : null;
+        $deltaFrom = is_array($deltaPayload) && is_string($deltaPayload['from'] ?? null) ? trim($deltaPayload['from']) : null;
+        $deltaAssetUrl = is_array($deltaPayload) && is_string($deltaPayload['asset_url'] ?? null) ? trim($deltaPayload['asset_url']) : null;
+        $deltaSha256 = is_array($deltaPayload) && is_string($deltaPayload['sha256'] ?? null) ? trim($deltaPayload['sha256']) : null;
+        $deltaDeletes = [];
+        if (is_array($deltaPayload) && is_array($deltaPayload['delete'] ?? null)) {
+            $deltaDeletes = array_values(array_filter(array_map(static function ($value): ?string {
+                return is_string($value) ? trim($value) : null;
+            }, $deltaPayload['delete']), static fn (?string $value): bool => $value !== null && $value !== ''));
+        }
 
         if ($latest === '' || $assetUrl === '') {
             return ['manifest' => null, 'error' => 'Manifest ist unvollständig.'];
         }
 
         return [
-            'manifest' => new UpdateManifest($latest, $assetUrl, $sha256 !== '' ? $sha256 : null, $notes !== '' ? $notes : null),
+            'manifest' => new UpdateManifest(
+                $latest,
+                $assetUrl,
+                $sha256 !== '' ? $sha256 : null,
+                $notes !== '' ? $notes : null,
+                $deltaFrom !== '' ? $deltaFrom : null,
+                $deltaAssetUrl !== '' ? $deltaAssetUrl : null,
+                $deltaSha256 !== '' ? $deltaSha256 : null,
+                $deltaDeletes,
+            ),
             'error' => null,
         ];
     }
@@ -569,6 +607,31 @@ final class WebinterfaceUpdateService
         return $filtered !== [] ? $filtered : self::DEFAULT_EXCLUDES;
     }
 
+    private function shouldUseDelta(?string $installedVersion, UpdateManifest $manifest, string $logPath): bool
+    {
+        if ($manifest->deltaAssetUrl === null || $manifest->deltaFrom === null) {
+            return false;
+        }
+
+        if ($this->canUseSymlinkStrategy()) {
+            return false;
+        }
+
+        $installed = $this->normalizeVersion($installedVersion);
+        $deltaFrom = $this->normalizeVersion($manifest->deltaFrom);
+        if ($installed === null || $deltaFrom === null) {
+            return false;
+        }
+
+        if ($installed !== $deltaFrom) {
+            $this->log($logPath, sprintf('Delta-Update übersprungen (installed=%s, expected=%s).', $installed, $deltaFrom));
+            return false;
+        }
+
+        $this->log($logPath, 'Delta-Update wird verwendet.');
+        return true;
+    }
+
     private function copyExcludedPaths(string $sourceDir, string $targetDir, array $excludes): void
     {
         $iterator = new \RecursiveIteratorIterator(
@@ -618,6 +681,70 @@ final class WebinterfaceUpdateService
         }
 
         return false;
+    }
+
+    private function deployDeltaUpdate(string $sourceDir, string $version, string $logPath, array $deletedPaths): bool
+    {
+        if (!$this->commandExists('rsync')) {
+            $this->log($logPath, 'rsync ist erforderlich für Delta-Updates.');
+            return false;
+        }
+
+        $backupDir = rtrim(sys_get_temp_dir(), '/\\') . '/webinterface_backup_' . bin2hex(random_bytes(6));
+        mkdir($backupDir, 0770, true);
+
+        $excludes = $this->parseExcludes();
+        if (!$this->runRsync($this->installDir, $backupDir, $excludes, $logPath)) {
+            $this->log($logPath, 'Backup konnte nicht erstellt werden.');
+            return false;
+        }
+
+        if (!$this->runRsync($sourceDir, $this->installDir, $excludes, $logPath)) {
+            $this->log($logPath, 'Delta-Deploy fehlgeschlagen. Rollback wird durchgeführt.');
+            $this->runRsync($backupDir, $this->installDir, [], $logPath, true);
+            return false;
+        }
+
+        $this->removeDeletedPaths($this->installDir, $deletedPaths, $excludes, $logPath);
+        $this->writeVersionFile($this->installDir, $version);
+        if (!$this->runPostDeploy($this->installDir, $logPath)) {
+            $this->log($logPath, 'Post-Deploy fehlgeschlagen. Rollback wird durchgeführt.');
+            $this->runRsync($backupDir, $this->installDir, [], $logPath, true);
+            return false;
+        }
+
+        return true;
+    }
+
+    private function removeDeletedPaths(string $baseDir, array $paths, array $excludes, string $logPath): void
+    {
+        foreach ($paths as $path) {
+            if (!is_string($path)) {
+                continue;
+            }
+
+            $trimmed = trim($path);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            $relative = ltrim(str_replace('\\', '/', $trimmed), '/');
+            if ($relative === '' || $this->matchesExclude($relative, $excludes)) {
+                continue;
+            }
+
+            $target = rtrim($baseDir, '/\\') . '/' . $relative;
+            if (is_link($target) || is_file($target)) {
+                unlink($target);
+                $this->log($logPath, 'Entfernt: ' . $relative);
+                continue;
+            }
+
+            if (is_dir($target)) {
+                $this->removeDirectory($target);
+                $this->log($logPath, 'Ordner entfernt: ' . $relative);
+            }
+        }
     }
 
     private function copyDirectory(string $sourceDir, string $targetDir, array $excludes): void

@@ -713,8 +713,12 @@ final class CustomerInstanceController
         $installStatus = $this->instanceInstallService->getInstallStatus($instance);
         $displayStatus = $instance->getStatus()->value;
         $runtimeStatus = is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null;
-        if ($displayStatus === InstanceStatus::Running->value && in_array($runtimeStatus, ['offline', 'error', 'unknown', 'crashed'], true)) {
-            $displayStatus = InstanceStatus::Error->value;
+        if ($displayStatus === InstanceStatus::Running->value) {
+            if (in_array($runtimeStatus, ['error', 'crashed'], true)) {
+                $displayStatus = InstanceStatus::Error->value;
+            } elseif (in_array($runtimeStatus, ['offline', 'unknown', 'stopped', 'hibernating', 'idle'], true)) {
+                $displayStatus = InstanceStatus::Stopped->value;
+            }
         }
 
         return [
@@ -740,6 +744,9 @@ final class CustomerInstanceController
             'locked_build_id' => $instance->getLockedBuildId(),
             'locked_version' => $instance->getLockedVersion(),
             'last_update_queued_at' => $instance->getLastUpdateQueuedAt(),
+            'is_installed' => $instance->getCurrentBuildId() !== null
+                || $instance->getCurrentVersion() !== null
+                || $instance->getStartScriptPath() !== null,
             'disk_limit_bytes' => $diskLimitBytes,
             'disk_used_bytes' => $diskUsedBytes,
             'disk_limit_human' => $this->diskUsageFormatter->formatBytes($diskLimitBytes),

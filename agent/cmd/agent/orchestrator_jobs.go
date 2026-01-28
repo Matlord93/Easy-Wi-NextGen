@@ -84,9 +84,18 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 	case "ts3.virtual.token.rotate":
 		return handleTs3VirtualTokenRotate(job)
 	case "ts6.virtual.create", "ts6.virtual.action", "ts6.virtual.token.rotate":
-		return orchestratorResult{
-			status:    "failed",
-			errorText: "ts6 virtual server orchestration not implemented in agent",
+		switch job.Type {
+		case "ts6.virtual.create":
+			return handleTs6VirtualCreate(job)
+		case "ts6.virtual.action":
+			return handleTs6VirtualAction(job)
+		case "ts6.virtual.token.rotate":
+			return handleTs6VirtualTokenRotate(job)
+		default:
+			return orchestratorResult{
+				status:    "failed",
+				errorText: fmt.Sprintf("unsupported job type: %s", job.Type),
+			}
 		}
 	case "ts3.viewer.snapshot", "ts6.viewer.snapshot":
 		return handleViewerSnapshot(job)

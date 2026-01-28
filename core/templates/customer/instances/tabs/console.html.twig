@@ -106,15 +106,22 @@
         let lastLogId = null;
         let outputAppendedForJob = null;
 
+        const shouldAutoScroll = () => (
+            logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 24
+        );
+
         const appendLogLine = (line) => {
             if (!line) {
                 return;
             }
+            const autoScroll = shouldAutoScroll();
             if (logContainer.textContent) {
                 logContainer.textContent += '\n';
             }
             logContainer.textContent += line;
-            logContainer.scrollTop = logContainer.scrollHeight;
+            if (autoScroll) {
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
         };
 
         const fetchLogSnapshot = async () => {

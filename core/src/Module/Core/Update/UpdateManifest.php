@@ -11,6 +11,11 @@ final class UpdateManifest
         public readonly string $assetUrl,
         public readonly ?string $sha256,
         public readonly ?string $notes,
+        public readonly ?string $deltaFrom = null,
+        public readonly ?string $deltaAssetUrl = null,
+        public readonly ?string $deltaSha256 = null,
+        /** @var string[] */
+        public readonly array $deltaDeletes = [],
     ) {
     }
 }

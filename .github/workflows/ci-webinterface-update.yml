@@ -19,6 +19,16 @@ jobs:
       - name: Set version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
 
+      - name: Determine previous tag
+        run: |
+          git fetch --tags --force
+          TAG="${GITHUB_REF_NAME}"
+          PREV_TAG=$(git tag --sort=-v:refname | grep -Fv "${TAG}" | head -n 1 || true)
+          echo "PREV_TAG=${PREV_TAG}" >> $GITHUB_ENV
+          if [[ -n "${PREV_TAG}" ]]; then
+            echo "PREV_VERSION=${PREV_TAG#v}" >> $GITHUB_ENV
+          fi
+
       - name: Prepare update bundle
         run: |
           mkdir -p dist
@@ -36,10 +46,104 @@ jobs:
             -x "core/.env.local" \
             -x "core/vendor/*"
 
+      - name: Prepare delta update bundle
+        if: env.PREV_TAG != ''
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import zipfile
+          from pathlib import Path
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          prev_tag = os.environ["PREV_TAG"]
+          version = os.environ["VERSION"]
+          prev_version = os.environ.get("PREV_VERSION", prev_tag.lstrip("v"))
+          diff = subprocess.check_output(
+              ["git", "diff", "--name-status", prev_tag, tag],
+              text=True,
+          ).splitlines()
+
+          exclude_prefixes = [
+              ".git/",
+              "dist/",
+              "var/",
+              "storage/",
+              "uploads/",
+              "core/var/",
+              "core/storage/",
+              "core/uploads/",
+              "core/node_modules/",
+              "core/vendor/",
+          ]
+          exclude_files = {"core/.env.local"}
+
+          def is_excluded(path: str) -> bool:
+              if path in exclude_files:
+                  return True
+              return any(path.startswith(prefix) for prefix in exclude_prefixes)
+
+          include_files = []
+          delete_files = []
+          for line in diff:
+              if not line.strip():
+                  continue
+              parts = line.split("\t")
+              status = parts[0]
+              path = None
+              if status.startswith(("R", "C")) and len(parts) >= 3:
+                  path = parts[-1]
+              elif len(parts) >= 2:
+                  path = parts[1]
+              if not path or is_excluded(path):
+                  continue
+              if status.startswith("D"):
+                  delete_files.append(path)
+              else:
+                  include_files.append(path)
+
+          if not include_files and not delete_files:
+              print("No delta changes detected.")
+              raise SystemExit(0)
+
+          archive = f"easywi-webinterface-update-{prev_version}-to-{version}.zip"
+          dist_dir = Path("dist")
+          dist_dir.mkdir(parents=True, exist_ok=True)
+          archive_path = dist_dir / archive
+
+          with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+              for path in include_files:
+                  path_obj = Path(path)
+                  if path_obj.is_file():
+                      zf.write(path_obj, arcname=path)
+
+          delete_file = dist_dir / "delta-delete.json"
+          delete_file.write_text(json.dumps(delete_files, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+          hasher = hashlib.sha256()
+          with archive_path.open("rb") as handle:
+              for chunk in iter(lambda: handle.read(8192), b""):
+                  hasher.update(chunk)
+          sha256 = hasher.hexdigest()
+
+          env_path = os.environ.get("GITHUB_ENV")
+          if env_path:
+              with open(env_path, "a", encoding="utf-8") as handle:
+                  handle.write(f"DELTA_ARCHIVE={archive}\n")
+                  handle.write(f"DELTA_SHA256={sha256}\n")
+                  handle.write(f"DELTA_DELETE_FILE={delete_file}\n")
+                  handle.write(f"DELTA_FROM={prev_version}\n")
+          PY
+
       - name: Generate checksums
         run: |
           cd dist
           sha256sum easywi-webinterface-*.zip > checksums-webinterface.txt
+          if [[ -n "${DELTA_ARCHIVE:-}" && -f "${DELTA_ARCHIVE}" ]]; then
+            sha256sum "${DELTA_ARCHIVE}" >> checksums-webinterface.txt
+          fi
 
       - name: Generate update manifest
         run: |
@@ -47,9 +151,7 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           SHA256=$(sha256sum "dist/${ARCHIVE}" | awk '{print $1}')
           export VERSION TAG ARCHIVE SHA256
-          git fetch --tags --force
-          PREV_TAG=$(git tag --sort=-v:refname | grep -Fv "${TAG}" | head -n 1 || true)
-          if [[ -n "${PREV_TAG}" ]]; then
+          if [[ -n "${PREV_TAG:-}" ]]; then
             NOTES=$(git log --pretty=format:'- %s' "${PREV_TAG}..${TAG}")
           else
             NOTES=$(git log --pretty=format:'- %s' -n 20)
@@ -64,6 +166,21 @@ jobs:
               "sha256": os.environ["SHA256"],
               "notes": os.environ.get("NOTES", "").strip(),
           }
+          delta_archive = os.environ.get("DELTA_ARCHIVE")
+          delta_sha = os.environ.get("DELTA_SHA256")
+          delta_from = os.environ.get("DELTA_FROM")
+          delta_delete_file = os.environ.get("DELTA_DELETE_FILE")
+          if delta_archive and delta_sha and delta_from:
+              delete_list = []
+              if delta_delete_file and os.path.isfile(delta_delete_file):
+                  with open(delta_delete_file, "r", encoding="utf-8") as handle:
+                      delete_list = json.load(handle)
+              payload["delta"] = {
+                  "from": delta_from,
+                  "asset_url": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['TAG']}/{delta_archive}",
+                  "sha256": delta_sha,
+                  "delete": delete_list,
+              }
           with open("dist/manifest.json", "w", encoding="utf-8") as handle:
               json.dump(payload, handle, indent=2, ensure_ascii=False)
               handle.write("\n")
