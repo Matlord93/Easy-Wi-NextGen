@@ -57,6 +57,7 @@ final class Ts6VirtualServerService
             'params' => $params,
             'query_bind_ip' => $node->getQueryConnectIp(),
             'query_https_port' => $node->getQueryHttpsPort(),
+            'install_dir' => $node->getInstallPath(),
             'admin_password' => $node->getAdminPassword($this->crypto),
         ];
         $this->jobDispatcher->dispatch($node->getAgent(), 'ts6.virtual.create', $jobPayload);
@@ -96,6 +97,7 @@ final class Ts6VirtualServerService
             'sid' => $server->getSid(),
             'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
             'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
         $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.token.rotate', $payload);
@@ -130,6 +132,7 @@ final class Ts6VirtualServerService
             'action' => $action,
             'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
             'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
         $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.action', $payload);

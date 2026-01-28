@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -315,19 +318,19 @@ func newTs6QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 		return nil, fmt.Errorf("unsupported query protocol: %s", protocol)
 	}
 
-	client, err := newTs6QueryClientTCP(payload)
+	client, err := newTs6QueryClientSSH(payload)
 	if err == nil {
 		return client, nil
 	}
-	if protocol == "tcp" {
+	if protocol == "ssh" {
 		return nil, err
 	}
 
-	sshClient, sshErr := newTs6QueryClientSSH(payload)
-	if sshErr == nil {
-		return sshClient, nil
+	tcpClient, tcpErr := newTs6QueryClientTCP(payload)
+	if tcpErr == nil {
+		return tcpClient, nil
 	}
-	return nil, fmt.Errorf("connect serverquery: %v; ssh fallback failed: %v", err, sshErr)
+	return nil, fmt.Errorf("connect serverquery: ssh failed: %v; tcp fallback failed: %v", err, tcpErr)
 }
 
 func newTs6QueryClientTCP(payload map[string]any) (*ts3QueryClient, error) {
@@ -348,9 +351,9 @@ func newTs6QueryClientTCP(payload map[string]any) (*ts3QueryClient, error) {
 	if adminUser == "" {
 		adminUser = "serveradmin"
 	}
-	adminPass := payloadValue(payload, "admin_password")
-	if adminPass == "" {
-		return nil, fmt.Errorf("missing admin_password")
+	adminPass, err := resolveTs6AdminPassword(payload)
+	if err != nil {
+		return nil, err
 	}
 	address := net.JoinHostPort(queryIP, queryPort)
 
@@ -385,13 +388,13 @@ func newTs6QueryClientSSH(payload map[string]any) (*ts3QueryClient, error) {
 	if adminUser == "" {
 		adminUser = "serveradmin"
 	}
-	adminPass := payloadValue(payload, "admin_password")
-	if adminPass == "" {
-		return nil, fmt.Errorf("missing admin_password")
+	adminPass, err := resolveTs6AdminPassword(payload)
+	if err != nil {
+		return nil, err
 	}
-	sshPassword := payloadValue(payload, "query_ssh_password", "admin_password")
+	sshPassword := payloadValue(payload, "query_ssh_password")
 	if sshPassword == "" {
-		return nil, fmt.Errorf("missing admin_password")
+		sshPassword = adminPass
 	}
 	address := net.JoinHostPort(queryIP, queryPort)
 
@@ -441,6 +444,54 @@ func newTs6QueryClientSSH(payload map[string]any) (*ts3QueryClient, error) {
 	}
 
 	return newTsQueryClientWithConn(conn, adminUser, adminPass)
+}
+
+func resolveTs6AdminPassword(payload map[string]any) (string, error) {
+	if adminPass := strings.TrimSpace(payloadValue(payload, "admin_password")); adminPass != "" {
+		return adminPass, nil
+	}
+
+	configPaths := []string{}
+	if configPath := strings.TrimSpace(payloadValue(payload, "ts6_config_path")); configPath != "" {
+		configPaths = append(configPaths, configPath)
+	}
+	if installDir := strings.TrimSpace(payloadValue(payload, "install_dir")); installDir != "" {
+		configPaths = append(configPaths, filepath.Join(installDir, "tsserver.yaml"))
+	}
+	configPaths = append(configPaths,
+		"/home/teamspeak6/tsserver.yaml",
+		"/opt/teamspeak/ts6/tsserver.yaml",
+	)
+
+	for _, configPath := range configPaths {
+		if configPath == "" {
+			continue
+		}
+		adminPass, err := readTs6AdminPassword(configPath)
+		if err == nil && adminPass != "" {
+			return adminPass, nil
+		}
+	}
+
+	return "", fmt.Errorf("missing admin_password")
+}
+
+func readTs6AdminPassword(configPath string) (string, error) {
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return "", err
+	}
+	re := regexp.MustCompile(`(?m)^\s*admin-password:\s*(.+?)\s*$`)
+	matches := re.FindStringSubmatch(string(content))
+	if len(matches) < 2 {
+		return "", fmt.Errorf("admin-password not found in %s", configPath)
+	}
+	value := strings.TrimSpace(matches[1])
+	value = strings.Trim(value, "\"'")
+	if value == "" || value == "null" {
+		return "", fmt.Errorf("admin-password empty in %s", configPath)
+	}
+	return value, nil
 }
 
 type queryConn interface {
