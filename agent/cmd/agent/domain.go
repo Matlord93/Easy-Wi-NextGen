@@ -21,6 +21,7 @@ func handleDomainAdd(job jobs.Job) (jobs.Result, func() error) {
 	sourceDir := payloadValue(job.Payload, "source_dir", "public_dir", "docroot_source")
 	docroot := payloadValue(job.Payload, "docroot", "document_root", "docroot_target")
 	nginxVhostPath := payloadValue(job.Payload, "nginx_vhost_path", "vhost_path", "nginx_vhost")
+	nginxIncludePath := payloadValue(job.Payload, "nginx_include_path", "nginx_include")
 	phpFpmListen := payloadValue(job.Payload, "php_fpm_listen", "fpm_listen")
 	logsDir := payloadValue(job.Payload, "logs_dir")
 	serverAliases := payloadValue(job.Payload, "server_aliases", "aliases")
@@ -76,7 +77,7 @@ func handleDomainAdd(job jobs.Job) (jobs.Result, func() error) {
 		}
 	}
 
-	if err := writeNginxVhost(nginxVhostPath, domainName, serverAliases, docroot, logsDir, phpFpmListen); err != nil {
+	if err := writeNginxVhost(nginxVhostPath, domainName, serverAliases, docroot, logsDir, phpFpmListen, nginxIncludePath); err != nil {
 		return failureResult(job.ID, err)
 	}
 
@@ -141,19 +142,24 @@ func isBindMounted(sourceDir, targetDir string) (bool, error) {
 	return false, nil
 }
 
-func writeNginxVhost(path, domainName, serverAliases, docroot, logsDir, phpFpmListen string) error {
-	content := nginxVhostTemplate(domainName, serverAliases, docroot, logsDir, phpFpmListen)
+func writeNginxVhost(path, domainName, serverAliases, docroot, logsDir, phpFpmListen, includePath string) error {
+	content := nginxVhostTemplate(domainName, serverAliases, docroot, logsDir, phpFpmListen, includePath)
 	if err := os.WriteFile(path, []byte(content), domainFileMode); err != nil {
 		return fmt.Errorf("write nginx vhost %s: %w", path, err)
 	}
 	return nil
 }
 
-func nginxVhostTemplate(domainName, serverAliases, docroot, logsDir, phpFpmListen string) string {
+func nginxVhostTemplate(domainName, serverAliases, docroot, logsDir, phpFpmListen, includePath string) string {
 	serverNames := buildServerNames(domainName, serverAliases)
 	logBlock := ""
 	if logsDir != "" {
 		logBlock = fmt.Sprintf("\n    access_log %s/%s-access.log;\n    error_log %s/%s-error.log;\n", logsDir, domainName, logsDir, domainName)
+	}
+	includeBlock := ""
+	if includePath != "" {
+		includeBlock = fmt.Sprintf("\n    include %s;\n", includePath)
+		logBlock = ""
 	}
 
 	return fmt.Sprintf(`## Managed by Easy-Wi agent
@@ -162,7 +168,7 @@ server {
     server_name %s;
 
     root %s;
-    index index.php index.html;%s
+    index index.php index.html;%s%s
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;
@@ -174,7 +180,7 @@ server {
         fastcgi_pass %s;
     }
 }
-`, serverNames, docroot, logBlock, phpFpmListen)
+`, serverNames, docroot, logBlock, includeBlock, phpFpmListen)
 }
 
 func buildServerNames(domainName, serverAliases string) string {

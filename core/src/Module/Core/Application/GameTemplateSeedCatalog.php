@@ -22,23 +22,24 @@ final class GameTemplateSeedCatalog
                 'steam',
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
-                    ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
-                    ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
-                    ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '/home/installdir/game/cs2.sh -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} +maxplayers {{MAX_PLAYERS}} +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/game/cs2.sh -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} +maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
                     ['key' => 'STEAM_GSLT', 'value' => ''],
                     ['key' => 'MAX_PLAYERS', 'value' => '16'],
+                    ['key' => 'MAP', 'value' => 'de_dust2'],
+                    ['key' => 'TICKRATE', 'value' => '128'],
+                    ['key' => 'GAME_TYPE', 'value' => '0'],
+                    ['key' => 'GAME_MODE', 'value' => '0'],
                 ],
                 [
                     [
                         'path' => 'game/csgo/cfg/server.cfg',
                         'description' => 'Base server configuration',
-                        'contents' => "hostname \"{{SERVER_NAME}}\"\nrcon_password \"{{RCON_PASSWORD}}\"\nsv_password \"{{SERVER_PASSWORD}}\"\nsv_lan 0\n",
+                        'contents' => "hostname \"{{SERVER_NAME}}\"\nrcon_password \"{{RCON_PASSWORD}}\"\nsv_password \"{{SERVER_PASSWORD}}\"                // optional: Passwort für Spieler (leer = öffentlich)\n",
                     ],
                 ],
                 [
@@ -83,7 +84,7 @@ final class GameTemplateSeedCatalog
                 $fastdl,
                 'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 740 validate +quit',
                 'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 740 +quit',
-                ['+map', '+maxplayers'],
+                ['+map', '+maxplayers', '+game_type', '+game_mode'],
             ),
             $this->template(
                 'rust',
@@ -463,7 +464,7 @@ final class GameTemplateSeedCatalog
                 $fastdl,
                 'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4020 validate +quit',
                 'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 4020 +quit',
-                ['+map', '+maxplayers'],
+                ['+map', '+maxplayers', '+game_type', '+game_mode'],
             ),
             $this->template(
                 'terraria',
@@ -729,22 +730,24 @@ final class GameTemplateSeedCatalog
                 'steam',
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
-                    ['name' => 'query', 'label' => 'Query', 'protocol' => 'udp'],
-                    ['name' => 'rcon', 'label' => 'RCON', 'protocol' => 'tcp'],
-                    ['name' => 'tv', 'label' => 'SourceTV', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/game/bin/win64/cs2.exe -dedicated -console -usercon -tickrate 128 -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"',
+                '{{INSTANCE_DIR}}/game/bin/win64/cs2.exe -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} +maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
                     ['key' => 'RCON_PASSWORD', 'value' => 'change-me'],
                     ['key' => 'STEAM_GSLT', 'value' => ''],
+                    ['key' => 'MAX_PLAYERS', 'value' => '16'],
+                    ['key' => 'MAP', 'value' => 'de_dust2'],
+                    ['key' => 'TICKRATE', 'value' => '128'],
+                    ['key' => 'GAME_TYPE', 'value' => '0'],
+                    ['key' => 'GAME_MODE', 'value' => '0'],
                 ],
                 [
                     [
                         'path' => 'game/csgo/cfg/server.cfg',
                         'description' => 'Base server configuration',
-                        'contents' => "hostname \"{{SERVER_NAME}}\"\nrcon_password \"{{RCON_PASSWORD}}\"\nsv_password \"{{SERVER_PASSWORD}}\"\nsv_lan 0\n",
+                        'contents' => "hostname \"{{SERVER_NAME}}\"\nrcon_password \"{{RCON_PASSWORD}}\"\nsv_password \"{{SERVER_PASSWORD}}\"                // optional: Passwort für Spieler (leer = öffentlich)\n",
                     ],
                 ],
                 [
@@ -754,7 +757,7 @@ final class GameTemplateSeedCatalog
                 $fastdl,
                 'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 validate +quit',
                 'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 +quit',
-                ['+map', '+maxplayers'],
+                ['+map', '+maxplayers', '+game_type', '+game_mode'],
             ),
             $this->template(
                 'csgo_legacy_windows',

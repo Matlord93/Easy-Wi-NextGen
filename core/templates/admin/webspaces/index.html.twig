@@ -40,12 +40,13 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_path_label', page_locale()) }}</label>
-                    <input type="text" name="path" placeholder="/var/www/webspaces/acme" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                    <input type="text" name="path" placeholder="/var/www/example.com" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" disabled>
+                    <p class="mt-1 text-xs text-slate-600">{{ t('admin_webspaces_path_auto_hint', page_locale()) }}</p>
                 </div>
                 <div>
                     <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_docroot_label', page_locale()) }}</label>
-                    <input type="text" name="docroot" placeholder="/var/www/webspaces/acme/public" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                    <p class="mt-1 text-xs text-slate-600">{{ t('admin_webspaces_docroot_hint', page_locale()) }}</p>
+                    <input type="text" name="docroot" placeholder="/var/www/example.com/public" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" disabled>
+                    <p class="mt-1 text-xs text-slate-600">{{ t('admin_webspaces_docroot_auto_hint', page_locale()) }}</p>
                 </div>
                 <div>
                     <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_domain_label', page_locale()) }}</label>
@@ -54,7 +55,12 @@
                 <div class="grid gap-2 sm:grid-cols-2">
                     <div>
                         <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_php_label', page_locale()) }}</label>
-                        <input type="text" name="php_version" value="php8.4" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <select name="php_version" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            {% for version in phpVersions %}
+                                {% set isDefault = version == defaultPhpVersion %}
+                                <option value="{{ version }}" {% if isDefault or (loop.first and defaultPhpVersion not in phpVersions) %}selected{% endif %}>{{ version }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div>
                         <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_quota_label', page_locale()) }}</label>

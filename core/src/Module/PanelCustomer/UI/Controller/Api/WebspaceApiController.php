@@ -46,8 +46,6 @@ final class WebspaceApiController
         $payload = $request->toArray();
         $customerId = $payload['customer_id'] ?? null;
         $nodeId = (string) ($payload['node_id'] ?? '');
-        $path = trim((string) ($payload['path'] ?? ''));
-        $docroot = trim((string) ($payload['docroot'] ?? ''));
         $domain = trim((string) ($payload['domain'] ?? ''));
         $phpVersion = trim((string) ($payload['php_version'] ?? self::DEFAULT_PHP_VERSION));
         $quotaValue = $payload['quota'] ?? null;
@@ -55,7 +53,7 @@ final class WebspaceApiController
         $ftpEnabled = (bool) ($payload['ftp_enabled'] ?? false);
         $sftpEnabled = (bool) ($payload['sftp_enabled'] ?? false);
 
-        if ($customerId === null || $nodeId === '' || $path === '' || $domain === '' || $phpVersion === '' || $quotaValue === null) {
+        if ($customerId === null || $nodeId === '' || $domain === '' || $phpVersion === '' || $quotaValue === null) {
             return new JsonResponse(['error' => 'Missing required fields.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
@@ -72,9 +70,11 @@ final class WebspaceApiController
             return new JsonResponse(['error' => 'Disk limit must be zero or positive.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        if ($docroot === '') {
-            $docroot = rtrim($path, '/') . '/public';
+        $normalizedDomain = $this->normalizeDomain($domain);
+        if ($normalizedDomain === '') {
+            return new JsonResponse(['error' => 'Domain is invalid.'], JsonResponse::HTTP_BAD_REQUEST);
         }
+        $domain = $normalizedDomain;
 
         $customer = $this->userRepository->find($customerId);
         if ($customer === null || $customer->getType() !== UserType::Customer) {
@@ -86,10 +86,17 @@ final class WebspaceApiController
             return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
         }
 
+        $availablePhpVersions = $this->extractPhpVersions($node->getMetadata());
+        if ($availablePhpVersions !== [] && !in_array($phpVersion, $availablePhpVersions, true)) {
+            return new JsonResponse(['error' => 'Selected PHP version is not available on the node.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
         $assignedPort = $this->assignPort($node);
         if ($assignedPort === null) {
             return new JsonResponse(['error' => 'No available ports in the pool for this node.'], JsonResponse::HTTP_CONFLICT);
         }
+
+        [$path, $docroot] = $this->buildWebspacePaths($normalizedDomain);
 
         $webspace = new Webspace(
             $customer,
@@ -144,6 +151,7 @@ final class WebspaceApiController
             'source_dir' => $webspace->getDocroot(),
             'docroot' => $webspace->getDocroot(),
             'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domainEntity->getName()),
+            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $systemUsername),
             'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $systemUsername),
             'logs_dir' => rtrim($webspace->getPath(), '/') . '/logs',
         ];
@@ -405,5 +413,45 @@ final class WebspaceApiController
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed>|null $metadata
+     *
+     * @return string[]
+     */
+    private function extractPhpVersions(?array $metadata): array
+    {
+        if (!is_array($metadata)) {
+            return [];
+        }
+
+        $value = $metadata['php_versions'] ?? null;
+        if (is_string($value)) {
+            $value = array_map('trim', explode(',', $value));
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('strval', $value), static fn (string $item): bool => $item !== ''));
+    }
+
+    /**
+     * @return array{string, string}
+     */
+    private function buildWebspacePaths(string $domain): array
+    {
+        $path = '/var/www/' . $domain;
+
+        return [$path, $path . '/public'];
+    }
+
+    private function normalizeDomain(string $domain): string
+    {
+        $domain = strtolower(trim($domain));
+        $domain = preg_replace('/[^a-z0-9.-]/', '', $domain);
+
+        return $domain ?? '';
     }
 }

@@ -68,6 +68,18 @@ class Webspace implements ResourceEventSource
     #[ORM\Column(length: 64)]
     private string $systemUsername;
 
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $phpSettings = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $cronTasks = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $gitRepoUrl = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $gitBranch = null;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $deletedAt = null;
 
@@ -185,6 +197,57 @@ class Webspace implements ResourceEventSource
     public function getSystemUsername(): string
     {
         return $this->systemUsername;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function getPhpSettings(): array
+    {
+        return $this->phpSettings ?? [];
+    }
+
+    /**
+     * @param array<string, string> $phpSettings
+     */
+    public function setPhpSettings(array $phpSettings): void
+    {
+        $this->phpSettings = $phpSettings === [] ? null : $phpSettings;
+        $this->touch();
+    }
+
+    public function getCronTasks(): string
+    {
+        return $this->cronTasks ?? '';
+    }
+
+    public function setCronTasks(?string $cronTasks): void
+    {
+        $cronTasks = $cronTasks === null ? null : trim($cronTasks);
+        $this->cronTasks = $cronTasks === '' ? null : $cronTasks;
+        $this->touch();
+    }
+
+    public function getGitRepoUrl(): ?string
+    {
+        return $this->gitRepoUrl;
+    }
+
+    public function setGitRepoUrl(?string $gitRepoUrl): void
+    {
+        $this->gitRepoUrl = $gitRepoUrl === '' ? null : $gitRepoUrl;
+        $this->touch();
+    }
+
+    public function getGitBranch(): ?string
+    {
+        return $this->gitBranch;
+    }
+
+    public function setGitBranch(?string $gitBranch): void
+    {
+        $this->gitBranch = $gitBranch === '' ? null : $gitBranch;
+        $this->touch();
     }
 
     public function getDeletedAt(): ?\DateTimeImmutable

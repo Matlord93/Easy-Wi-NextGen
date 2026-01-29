@@ -28,6 +28,7 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 	nginxIncludePath := payloadValue(job.Payload, "nginx_include_path", "nginx_include")
 	phpVersion := payloadValue(job.Payload, "php_version")
 	poolName := payloadValue(job.Payload, "pool_name", "php_fpm_pool_name")
+	phpSettings := payloadPhpSettings(job.Payload)
 
 	var cleanupPaths []string
 	rollback := func() error {
@@ -117,7 +118,7 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 	if phpFpmPoolPath != "" && !pathExists(phpFpmPoolPath) {
 		cleanupPaths = append(cleanupPaths, phpFpmPoolPath)
 	}
-	if err := writePhpFpmPool(phpFpmPoolPath, poolName, ownerUser, ownerGroup, phpFpmListen, webRoot, logsDir, tmpDir, phpVersion); err != nil {
+	if err := writePhpFpmPoolWithSettings(phpFpmPoolPath, poolName, ownerUser, ownerGroup, phpFpmListen, webRoot, logsDir, tmpDir, phpVersion, phpSettings); err != nil {
 		return failWithRollback(err)
 	}
 	if nginxIncludePath != "" && !pathExists(nginxIncludePath) {
@@ -139,6 +140,7 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 			"nginx_include":     nginxIncludePath,
 			"php_fpm_listen":    phpFpmListen,
 			"php_version":       phpVersion,
+			"php_settings":      fmt.Sprintf("%d", len(phpSettings)),
 		},
 		Completed: time.Now().UTC(),
 	}, nil
@@ -218,11 +220,11 @@ func lookupGID(groupName string) (int, error) {
 	return gid, nil
 }
 
-func writePhpFpmPool(path, pool, user, group, listen, webRoot, logsDir, tmpDir, phpVersion string) error {
+func writePhpFpmPoolWithSettings(path, pool, user, group, listen, webRoot, logsDir, tmpDir, phpVersion string, phpSettings map[string]string) error {
 	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
-	content := phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, phpVersion)
+	content := phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, phpVersion, phpSettings)
 	if err := os.WriteFile(path, []byte(content), webspaceFileMode); err != nil {
 		return fmt.Errorf("write php-fpm pool %s: %w", path, err)
 	}
@@ -240,7 +242,7 @@ func writeNginxInclude(path, docroot, logsDir, phpFpmListen string) error {
 	return nil
 }
 
-func phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, phpVersion string) string {
+func phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, phpVersion string, phpSettings map[string]string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString("; Managed by Easy-Wi agent\n")
 	if phpVersion != "" {
@@ -262,6 +264,15 @@ func phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, php
 	buffer.WriteString(fmt.Sprintf("php_admin_value[open_basedir] = %s:/tmp\n", webRoot))
 	buffer.WriteString(fmt.Sprintf("php_admin_value[upload_tmp_dir] = %s\n", tmpDir))
 	buffer.WriteString(fmt.Sprintf("php_admin_value[session.save_path] = %s\n", tmpDir))
+	if len(phpSettings) > 0 {
+		for _, key := range sortedPhpSettings(phpSettings) {
+			value := phpSettings[key]
+			if value == "" {
+				continue
+			}
+			buffer.WriteString(fmt.Sprintf("php_admin_value[%s] = %s\n", key, value))
+		}
+	}
 	buffer.WriteString("security.limit_extensions = .php\n")
 	return buffer.String()
 }
@@ -283,6 +294,7 @@ location ~ \.php$ {
     fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     fastcgi_pass %s;
 }
+include /etc/easywi/web/nginx/includes/roundcube.conf;
 `, docroot, logsDir, logsDir, phpFpmListen)
 }
 

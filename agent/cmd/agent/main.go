@@ -205,10 +205,26 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleDbEnsureBase(job)
 	case "webspace.create":
 		return handleWebspaceCreate(job)
+	case "webspace.update":
+		return handleWebspaceUpdate(job)
+	case "webspace.backup":
+		return handleWebspaceBackup(job)
+	case "webspace.restore":
+		return handleWebspaceRestore(job)
+	case "webspace.logs.tail":
+		return handleWebspaceLogsTail(job)
+	case "webspace.cron.update":
+		return handleWebspaceCronUpdate(job)
+	case "webspace.git.deploy":
+		return handleWebspaceGitDeploy(job)
+	case "webspace.composer.install":
+		return handleWebspaceComposerInstall(job)
 	case "domain.add":
 		return handleDomainAdd(job)
 	case "domain.ssl.issue":
 		return handleDomainSSLIssue(job)
+	case "roundcube.install":
+		return handleRoundcubeInstall(job)
 	case "mail.domain.create":
 		return handleMailDomainCreate(job)
 	case "database.create":

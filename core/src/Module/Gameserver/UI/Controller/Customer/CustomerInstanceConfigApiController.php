@@ -15,6 +15,8 @@ use App\Repository\ConfigSchemaRepository;
 use App\Repository\GameDefinitionRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
+use App\Module\Gameserver\Application\InstanceSlotService;
+use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\ConfigSchema\ConfigSchemaService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -31,9 +33,11 @@ final class CustomerInstanceConfigApiController
         private readonly InstanceRepository $instanceRepository,
         private readonly GameDefinitionRepository $gameDefinitionRepository,
         private readonly ConfigSchemaRepository $configSchemaRepository,
+        private readonly GameProfileRepository $gameProfileRepository,
         private readonly ConfigSchemaService $configSchemaService,
         private readonly JobRepository $jobRepository,
         private readonly AuditLogger $auditLogger,
+        private readonly InstanceSlotService $instanceSlotService,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -99,6 +103,13 @@ final class CustomerInstanceConfigApiController
             throw new BadRequestHttpException('Invalid values payload.');
         }
 
+        $slotUpdate = $this->resolveRequestedSlots($instance, $configSchema, $values);
+        if ($slotUpdate !== null) {
+            $values[$slotUpdate['slot_key']] = (string) $slotUpdate['slots'];
+            $this->instanceSlotService->enforceSlots($instance, $slotUpdate['slots']);
+            $this->entityManager->persist($instance);
+        }
+
         $content = $this->configSchemaService->generate($configSchema, $values);
         $job = $this->queueWriteJob($instance, $customer, $configSchema, $content, 'instance.configs.generated_requested');
         $this->entityManager->flush();
@@ -124,6 +135,13 @@ final class CustomerInstanceConfigApiController
         }
 
         $content = (string) $payload['content'];
+        $slotUpdate = $this->resolveRequestedSlotsFromContent($instance, $configSchema, $content);
+        if ($slotUpdate !== null) {
+            $content = $this->configSchemaService->generate($configSchema, $slotUpdate['values']);
+            $this->instanceSlotService->enforceSlots($instance, $slotUpdate['slots']);
+            $this->entityManager->persist($instance);
+        }
+
         $job = $this->queueWriteJob($instance, $customer, $configSchema, $content, 'instance.configs.updated_requested');
         $this->entityManager->flush();
 
@@ -174,6 +192,117 @@ final class CustomerInstanceConfigApiController
         $offline = $schema['offline_edit'] ?? $schema['offlineEdit'] ?? false;
 
         return filter_var($offline, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     *
+     * @return array{slot_key: string, slots: int}|null
+     */
+    private function resolveRequestedSlots(Instance $instance, ConfigSchema $configSchema, array $values): ?array
+    {
+        $slotRule = $this->resolveSlotRule($instance, $configSchema);
+        if ($slotRule === null) {
+            return null;
+        }
+
+        $slotKey = $this->findSlotKey($values, $slotRule['config_key']);
+        if ($slotKey === null) {
+            return null;
+        }
+
+        $value = $values[$slotKey];
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        if ($instance->isLockSlots()) {
+            throw new BadRequestHttpException('Slots are locked for this instance.');
+        }
+
+        $requested = (int) $value;
+        if ($requested <= 0) {
+            throw new BadRequestHttpException('slots must be positive.');
+        }
+
+        $requested = min($requested, $instance->getMaxSlots());
+
+        return [
+            'slot_key' => $slotKey,
+            'slots' => $requested,
+        ];
+    }
+
+    /**
+     * @return array{values: array<string, mixed>, slots: int}|null
+     */
+    private function resolveRequestedSlotsFromContent(Instance $instance, ConfigSchema $configSchema, string $content): ?array
+    {
+        $slotRule = $this->resolveSlotRule($instance, $configSchema);
+        if ($slotRule === null) {
+            return null;
+        }
+
+        $parseResult = $this->configSchemaService->parse($configSchema, $content);
+        $values = $parseResult->getValues();
+
+        $slotUpdate = $this->resolveRequestedSlots($instance, $configSchema, $values);
+        if ($slotUpdate === null) {
+            return null;
+        }
+
+        $values[$slotUpdate['slot_key']] = (string) $slotUpdate['slots'];
+
+        return [
+            'values' => $values,
+            'slots' => $slotUpdate['slots'],
+        ];
+    }
+
+    /**
+     * @return array{config_key: string, config_file: string}|null
+     */
+    private function resolveSlotRule(Instance $instance, ConfigSchema $configSchema): ?array
+    {
+        $profile = $this->gameProfileRepository->findOneByGameKey($instance->getTemplate()->getGameKey());
+        if ($profile === null) {
+            return null;
+        }
+
+        $slotRules = $profile->getSlotRules();
+        if (($slotRules['mode'] ?? null) !== 'config') {
+            return null;
+        }
+
+        $configKey = trim((string) ($slotRules['config_key'] ?? ''));
+        $configFile = trim((string) ($slotRules['config_file'] ?? ''));
+        if ($configKey === '' || $configFile === '') {
+            return null;
+        }
+
+        $schemaFile = strtolower(basename($configSchema->getFilePath()));
+        if ($schemaFile !== strtolower($configFile)) {
+            return null;
+        }
+
+        return [
+            'config_key' => $configKey,
+            'config_file' => $configFile,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     */
+    private function findSlotKey(array $values, string $slotKey): ?string
+    {
+        foreach (array_keys($values) as $key) {
+            if (strcasecmp($key, $slotKey) === 0) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     private function queueReadJob(Instance $instance, User $customer, ConfigSchema $configSchema): Job

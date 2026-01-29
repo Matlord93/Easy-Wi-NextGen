@@ -159,7 +159,25 @@ final class AdminInstanceController
         $portBlock = $formData['port_block'];
         if ($portBlock === null && $requiredCount > 0) {
             $this->ensureDefaultPortPool($formData['node'], $actor);
-            $portBlock = $this->allocatePortBlock($formData['node'], $formData['customer'], $requiredCount);
+            if ($formData['port_start'] !== null) {
+                try {
+                    $portBlock = $this->allocatePortBlockAt(
+                        $formData['node'],
+                        $formData['customer'],
+                        $formData['port_start'],
+                        $requiredCount,
+                    );
+                } catch (\RuntimeException | \InvalidArgumentException $exception) {
+                    $formData['errors'][] = $exception->getMessage();
+                    return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+                }
+                if ($portBlock === null) {
+                    $formData['errors'][] = 'Requested port does not match any enabled port pool.';
+                    return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+                }
+            } else {
+                $portBlock = $this->allocatePortBlock($formData['node'], $formData['customer'], $requiredCount);
+            }
             if ($portBlock === null) {
                 $formData['errors'][] = 'No free port blocks available on the selected node.';
                 return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
@@ -467,6 +485,7 @@ final class AdminInstanceController
         $ramLimitValue = $request->request->get('ram_limit');
         $diskLimitValue = $request->request->get('disk_limit');
         $portBlockId = $request->request->get('port_block_id');
+        $portStartValue = $request->request->get('port_start');
         $maxSlotsValue = $request->request->get('max_slots');
         $currentSlotsValue = $request->request->get('current_slots');
         $serverName = trim((string) $request->request->get('server_name', ''));
@@ -557,6 +576,18 @@ final class AdminInstanceController
             }
         }
 
+        $portStart = null;
+        if ($portStartValue !== null && $portStartValue !== '') {
+            if (!is_numeric($portStartValue)) {
+                $errors[] = 'Port start must be numeric.';
+            } else {
+                $portStart = (int) $portStartValue;
+                if ($portStart <= 0) {
+                    $errors[] = 'Port start must be positive.';
+                }
+            }
+        }
+
         if (!in_array($steamLoginMode, ['anonymous', 'account'], true)) {
             $steamLoginMode = 'anonymous';
         }
@@ -596,6 +627,7 @@ final class AdminInstanceController
             'template_id' => $templateId,
             'node_id' => $nodeId,
             'port_block_id' => $portBlockId ?? '',
+            'port_start' => $portStart,
             'server_name' => $serverName,
             'server_password' => $serverPassword,
             'rcon_password' => $rconPassword,
@@ -625,6 +657,7 @@ final class AdminInstanceController
             'ram_limit' => 4096,
             'disk_limit' => 20000,
             'port_block_id' => '',
+            'port_start' => '',
             'current_slots' => $this->appSettingsService->getGameserverDefaultSlots(),
             'max_slots' => $this->appSettingsService->getGameserverMaxSlots(),
             'min_slots' => $this->appSettingsService->getGameserverMinSlots(),
@@ -652,6 +685,23 @@ final class AdminInstanceController
         return $data;
     }
 
+    private function allocatePortBlockAt(Agent $node, User $customer, int $startPort, int $requiredCount): ?PortBlock
+    {
+        $pools = $this->portPoolRepository->findEnabledByNode($node);
+        $endPort = $startPort + $requiredCount - 1;
+
+        foreach ($pools as $pool) {
+            if ($startPort < $pool->getStartPort() || $endPort > $pool->getEndPort()) {
+                continue;
+            }
+
+            $blocks = $this->portLeaseManager->allocateBlocksInRange($pool, $customer, $startPort, $endPort, $requiredCount);
+            return $blocks[0] ?? null;
+        }
+
+        return null;
+    }
+
     private function renderFormWithErrors(array $formData, int $status): Response
     {
         return new Response($this->twig->render('admin/instances/_form.html.twig', [
@@ -666,6 +716,7 @@ final class AdminInstanceController
                 'ram_limit' => $formData['ram_limit'],
                 'disk_limit' => $formData['disk_limit'],
                 'port_block_id' => $formData['port_block_id'],
+                'port_start' => $formData['port_start'],
                 'current_slots' => $formData['current_slots'],
                 'max_slots' => $formData['max_slots'],
                 'server_name' => $formData['server_name'],

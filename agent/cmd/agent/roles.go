@@ -133,6 +133,9 @@ func collectMetadata() map[string]any {
 	metadata := map[string]any{
 		"ts6_supported": detectTS6Support(),
 	}
+	if phpVersions := detectPhpVersions(); len(phpVersions) > 0 {
+		metadata["php_versions"] = phpVersions
+	}
 	appendFilesvcMetadata(metadata)
 	if hostname, err := os.Hostname(); err == nil && hostname != "" {
 		metadata["hostname"] = hostname

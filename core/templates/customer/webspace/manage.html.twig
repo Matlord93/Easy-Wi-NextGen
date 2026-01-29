@@ -1,0 +1,234 @@
+{% extends 'customer/base.html.twig' %}
+
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div>
+        <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_webspace_manage_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_description', page_locale()) }}</p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-200 px-5 py-4">
+            <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_select_title', page_locale()) }}</h2>
+            <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_select_description', page_locale()) }}</p>
+        </div>
+        <form method="get" action="/webspace/manage" class="flex flex-wrap items-end gap-3 px-5 py-4">
+            <div class="min-w-[220px] flex-1">
+                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_domain_label', page_locale()) }}</label>
+                <select name="domain_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                    <option value="">{{ t('customer_webspace_manage_domain_placeholder', page_locale()) }}</option>
+                    {% for domain in domains %}
+                        <option value="{{ domain.id }}" {% if selectedDomain and selectedDomain.id == domain.id %}selected{% endif %}>{{ domain.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                {{ t('customer_webspace_manage_select_action', page_locale()) }}
+            </button>
+        </form>
+    </div>
+
+    {% if selectedDomain and webspace %}
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_overview_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_overview_description', page_locale()) }}</p>
+                </div>
+                <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">{{ selectedDomain.name }}</span>
+            </div>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_manage_webroot_label', page_locale()) }}</p>
+                    <p class="mt-2 font-semibold text-slate-900">{{ webspace.path }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_webroot_hint', page_locale()) }}</p>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_manage_docroot_label', page_locale()) }}</p>
+                    <p class="mt-2 font-semibold text-slate-900">{{ webspace.docroot }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_docroot_hint', page_locale()) }}</p>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    <p class="text-xs uppercase text-slate-500">{{ t('customer_webspace_manage_php_label', page_locale()) }}</p>
+                    <p class="mt-2 font-semibold text-slate-900">{{ webspace.php_version }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_subdomain_hint', page_locale()) }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-2">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_docroot_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_docroot_description', page_locale()) }}</p>
+                </div>
+                <form method="post" action="/webspace/manage/docroot" class="space-y-4 px-5 py-4">
+                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_docroot_label', page_locale()) }}</label>
+                        <input type="text" name="docroot" value="{{ webspace.docroot }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                        <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_docroot_framework_hint', page_locale()) }}</p>
+                    </div>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                        {{ t('customer_webspace_manage_docroot_action', page_locale()) }}
+                    </button>
+                </form>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_php_settings_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_php_settings_description', page_locale()) }}</p>
+                </div>
+                <form method="post" action="/webspace/manage/php" class="space-y-4 px-5 py-4">
+                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                    <textarea name="php_settings" rows="6" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="memory_limit=512M&#10;upload_max_filesize=64M">{% for key, value in webspace.php_settings %}{{ key }}={{ value }}
+{% endfor %}</textarea>
+                    <p class="text-xs text-slate-500">{{ t('customer_webspace_manage_php_settings_hint', page_locale()) }}</p>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                        {{ t('customer_webspace_manage_php_settings_action', page_locale()) }}
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-2">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_cron_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_cron_description', page_locale()) }}</p>
+                </div>
+                <form method="post" action="/webspace/manage/cron" class="space-y-4 px-5 py-4">
+                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                    <textarea name="cron_tasks" rows="6" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="*/5 * * * * {{ webspace.path }}/artisan schedule:run">{{ webspace.cron_tasks }}</textarea>
+                    <p class="text-xs text-slate-500">{{ t('customer_webspace_manage_cron_hint', page_locale()) }}</p>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                        {{ t('customer_webspace_manage_cron_action', page_locale()) }}
+                    </button>
+                </form>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_git_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_git_description', page_locale()) }}</p>
+                </div>
+                <form method="post" action="/webspace/manage/git" class="space-y-4 px-5 py-4">
+                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_git_repo_label', page_locale()) }}</label>
+                        <input type="text" name="git_repo_url" value="{{ webspace.git_repo_url }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="git@github.com:org/repo.git">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_git_branch_label', page_locale()) }}</label>
+                        <input type="text" name="git_branch" value="{{ webspace.git_branch ?? 'main' }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    </div>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                        {{ t('customer_webspace_manage_git_action', page_locale()) }}
+                    </button>
+                </form>
+                <form method="post" action="/webspace/manage/composer" class="border-t border-slate-200 px-5 py-4">
+                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_composer_description', page_locale()) }}</p>
+                    <button type="submit" class="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+                        {{ t('customer_webspace_manage_composer_action', page_locale()) }}
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-2">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_backup_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_backup_description', page_locale()) }}</p>
+                </div>
+                <form method="post" action="/webspace/manage/backup" class="space-y-4 px-5 py-4">
+                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_backup_label', page_locale()) }}</label>
+                        <input type="text" name="backup_label" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="release-2025-02-01">
+                    </div>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                        {{ t('customer_webspace_manage_backup_action', page_locale()) }}
+                    </button>
+                </form>
+                <form method="post" action="/webspace/manage/restore" class="border-t border-slate-200 space-y-4 px-5 py-4">
+                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_restore_label', page_locale()) }}</label>
+                        <input type="text" name="backup_path" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="/var/lib/easywi/web/backups/{{ webspace.id }}/webspace-YYYYMMDD-HHMMSS.tar.gz">
+                    </div>
+                    <button type="submit" class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-400">
+                        {{ t('customer_webspace_manage_restore_action', page_locale()) }}
+                    </button>
+                </form>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_ssl_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_ssl_description', page_locale()) }}</p>
+                </div>
+                <div class="space-y-3 px-5 py-4 text-sm text-slate-700">
+                    <p class="font-semibold text-slate-900">{{ t('customer_webspace_manage_ssl_dns_title', page_locale()) }}</p>
+                    <ul class="list-disc space-y-1 pl-5">
+                        <li>{{ t('customer_webspace_manage_ssl_dns_a', page_locale()) }}</li>
+                        <li>{{ t('customer_webspace_manage_ssl_dns_aaaa', page_locale()) }}</li>
+                        <li>{{ t('customer_webspace_manage_ssl_dns_http', page_locale()) }}</li>
+                        <li>{{ t('customer_webspace_manage_ssl_dns_email', page_locale()) }}</li>
+                    </ul>
+                </div>
+                <form method="post" action="/webspace/manage/ssl" class="space-y-4 border-t border-slate-200 px-5 py-4">
+                    <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_ssl_alias_label', page_locale()) }}</label>
+                        <input type="text" name="server_aliases" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="www.{{ selectedDomain.name }}">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_ssl_email_label', page_locale()) }}</label>
+                        <input type="email" name="email" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="admin@{{ selectedDomain.name }}">
+                    </div>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                        {{ t('customer_webspace_manage_ssl_action', page_locale()) }}
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-2">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_logs_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_logs_description', page_locale()) }}</p>
+                </div>
+                <div class="space-y-3 px-5 py-4 text-sm text-slate-700">
+                    <p>{{ t('customer_webspace_manage_logs_hint', page_locale()) }}</p>
+                    <a href="{{ path('customer_files', { webspace: webspace.id }) }}" class="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-500">
+                        {{ t('customer_webspace_manage_logs_action', page_locale()) }}
+                    </a>
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_roundcube_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_roundcube_description', page_locale()) }}</p>
+                </div>
+                <form method="post" action="/webspace/manage/roundcube" class="space-y-4 px-5 py-4">
+                    <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                    <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+                        {{ t('customer_webspace_manage_roundcube_action', page_locale()) }}
+                    </button>
+                </form>
+                <div class="border-t border-slate-200 px-5 py-4 text-sm text-slate-700">
+                    <a href="/roundcube" target="_blank" rel="noreferrer" class="font-semibold text-indigo-600 hover:text-indigo-500">
+                        {{ t('customer_webspace_manage_roundcube_link', page_locale()) }}
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

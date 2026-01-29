@@ -33,6 +33,140 @@ final class Version20250215090000 extends AbstractMigration
     }
 }
 
+final class Version20260615120000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Align CS2 start params and server.cfg defaults with customer-configured values.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('game_templates')) {
+            return;
+        }
+
+        $startParams = '{{INSTANCE_DIR}}/game/cs2.sh -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} +maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}}';
+        $startParamsWindows = '{{INSTANCE_DIR}}/game/bin/win64/cs2.exe -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} +maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}}';
+
+        $configFiles = [
+            [
+                'path' => 'game/csgo/cfg/server.cfg',
+                'description' => 'Base server configuration',
+                'contents' => "hostname \"{{SERVER_NAME}}\"\nrcon_password \"{{RCON_PASSWORD}}\"\nsv_password \"{{SERVER_PASSWORD}}\"                // optional: Passwort für Spieler (leer = öffentlich)\n",
+            ],
+        ];
+
+        $requiredPorts = [
+            ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
+        ];
+
+        $this->updateTemplate('cs2', $startParams, $configFiles, $requiredPorts, [
+            ['key' => 'MAX_PLAYERS', 'value' => '16'],
+            ['key' => 'MAP', 'value' => 'de_dust2'],
+            ['key' => 'TICKRATE', 'value' => '128'],
+            ['key' => 'GAME_TYPE', 'value' => '0'],
+            ['key' => 'GAME_MODE', 'value' => '0'],
+        ]);
+        $this->updateTemplate('cs2_windows', $startParamsWindows, $configFiles, $requiredPorts, [
+            ['key' => 'MAX_PLAYERS', 'value' => '16'],
+            ['key' => 'MAP', 'value' => 'de_dust2'],
+            ['key' => 'TICKRATE', 'value' => '128'],
+            ['key' => 'GAME_TYPE', 'value' => '0'],
+            ['key' => 'GAME_MODE', 'value' => '0'],
+        ]);
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('game_templates')) {
+            return;
+        }
+
+        $this->addSql(sprintf(
+            'UPDATE game_templates SET start_params = %s WHERE game_key = %s',
+            $this->quote('{{INSTANCE_DIR}}/game/cs2.sh -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} +maxplayers {{MAX_PLAYERS}} +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"'),
+            $this->quote('cs2'),
+        ));
+        $this->addSql(sprintf(
+            'UPDATE game_templates SET start_params = %s WHERE game_key = %s',
+            $this->quote('{{INSTANCE_DIR}}/game/bin/win64/cs2.exe -dedicated -console -usercon -tickrate 128 -port {{PORT_GAME}} +sv_queryport {{PORT_QUERY}} +rcon_port {{PORT_RCON}} +tv_port {{PORT_TV}} +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"'),
+            $this->quote('cs2_windows'),
+        ));
+    }
+
+    /**
+     * @param array<int, array{key: string, value: string}> $requiredVars
+     * @param array<int, array<string, mixed>> $configFiles
+     * @param array<int, array<string, mixed>> $requiredPorts
+     */
+    private function updateTemplate(string $gameKey, string $startParams, array $configFiles, array $requiredPorts, array $requiredVars): void
+    {
+        $this->addSql(sprintf(
+            'UPDATE game_templates SET start_params = %s, config_files = %s, required_ports = %s WHERE game_key = %s',
+            $this->quote($startParams),
+            $this->quoteJson($configFiles),
+            $this->quoteJson($requiredPorts),
+            $this->quote($gameKey),
+        ));
+
+        $templates = $this->connection->fetchAllAssociative(
+            'SELECT id, env_vars FROM game_templates WHERE game_key = ' . $this->quote($gameKey),
+        );
+        foreach ($templates as $template) {
+            $envVars = $this->decodeJsonArray((string) ($template['env_vars'] ?? '[]'));
+            foreach ($requiredVars as $requiredVar) {
+                $envVars = $this->ensureEnvVar($envVars, $requiredVar['key'], $requiredVar['value']);
+            }
+
+            $this->addSql(sprintf(
+                'UPDATE game_templates SET env_vars = %s WHERE id = %d',
+                $this->quoteJson($envVars),
+                (int) $template['id'],
+            ));
+        }
+    }
+
+    /**
+     * @param array<int, mixed> $envVars
+     *
+     * @return array<int, mixed>
+     */
+    private function ensureEnvVar(array $envVars, string $key, string $value): array
+    {
+        foreach ($envVars as $entry) {
+            if (is_array($entry) && (string) ($entry['key'] ?? '') === $key) {
+                return $envVars;
+            }
+        }
+
+        $envVars[] = ['key' => $key, 'value' => $value];
+
+        return $envVars;
+    }
+
+    private function decodeJsonArray(string $json): array
+    {
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function quote(?string $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+
+        return $this->connection->quote($value);
+    }
+
+    private function quoteJson(array $value): string
+    {
+        return $this->quote(json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+}
+
 
 final class Version20250215120000 extends AbstractMigration
 {
@@ -4564,6 +4698,39 @@ final class Version20260118120000 extends AbstractMigration
 }
 
 
+final class Version20260201090000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add webspace management settings (PHP settings, cron tasks, git repository).';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('webspaces')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE webspaces ADD php_settings JSON DEFAULT NULL');
+        $this->addSql('ALTER TABLE webspaces ADD cron_tasks LONGTEXT DEFAULT NULL');
+        $this->addSql('ALTER TABLE webspaces ADD git_repo_url VARCHAR(255) DEFAULT NULL');
+        $this->addSql('ALTER TABLE webspaces ADD git_branch VARCHAR(64) DEFAULT NULL');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('webspaces')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE webspaces DROP php_settings');
+        $this->addSql('ALTER TABLE webspaces DROP cron_tasks');
+        $this->addSql('ALTER TABLE webspaces DROP git_repo_url');
+        $this->addSql('ALTER TABLE webspaces DROP git_branch');
+    }
+}
+
+
 final class Version20260119120000 extends AbstractMigration
 {
     public function getDescription(): string
@@ -4765,11 +4932,6 @@ final class Version20260323100000 extends AbstractMigration
                 'DELETE FROM game_templates WHERE game_key IS NOT NULL AND id NOT IN ('
                 . 'SELECT id FROM (SELECT MIN(id) AS id FROM game_templates WHERE game_key IS NOT NULL GROUP BY game_key) dedupe'
                 . ')',
-            );
-            $this->addSql(
-                'UPDATE game_templates SET start_params = '
-                . $this->quote('{{INSTANCE_DIR}}/game/bin/linuxsteamrt64/cs2 -dedicated -console -usercon -tickrate 128 +map de_dust2 +sv_setsteamaccount {{STEAM_GSLT}} +hostname "{{SERVER_NAME}}" +rcon_password "{{RCON_PASSWORD}}"')
-                . ' WHERE game_key = ' . $this->quote('cs2'),
             );
 
             $table = $schema->getTable('game_templates');

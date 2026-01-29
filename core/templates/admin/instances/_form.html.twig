@@ -121,6 +121,12 @@
         <input name="steam_password" type="password" value="{{ form.steam_password }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_steam_password_placeholder', page_locale()) }}">
     </label>
 
+    <label class="block text-sm font-medium text-slate-700">
+        {{ t('admin_instances_port_start_label', page_locale()) }}
+        <input name="port_start" type="number" min="1" value="{{ form.port_start }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_port_start_placeholder', page_locale()) }}">
+        <p class="mt-1 text-xs text-slate-500">{{ t('admin_instances_port_start_hint', page_locale()) }}</p>
+    </label>
+
     <p class="text-xs text-slate-500">{{ t('admin_instances_ports_auto', page_locale()) }}</p>
 
     <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">

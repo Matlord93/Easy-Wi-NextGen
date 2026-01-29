@@ -55,18 +55,17 @@ final class AdminWebspaceController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $customerId = $request->request->get('customer_id');
-        $nodeId = (string) $request->request->get('node_id', '');
-        $path = trim((string) $request->request->get('path', ''));
-        $docroot = trim((string) $request->request->get('docroot', ''));
-        $domain = trim((string) $request->request->get('domain', ''));
-        $phpVersion = trim((string) $request->request->get('php_version', self::DEFAULT_PHP_VERSION));
-        $quotaValue = $request->request->get('quota');
-        $diskLimitValue = $request->request->get('disk_limit_bytes', 0);
-        $ftpEnabled = $request->request->getBoolean('ftp_enabled');
-        $sftpEnabled = $request->request->getBoolean('sftp_enabled');
+        $payload = $request->request;
+        $customerId = $payload->get('customer_id');
+        $nodeId = (string) $payload->get('node_id', '');
+        $domain = trim((string) $payload->get('domain', ''));
+        $phpVersion = trim((string) $payload->get('php_version', self::DEFAULT_PHP_VERSION));
+        $quotaValue = $payload->get('quota');
+        $diskLimitValue = $payload->get('disk_limit_bytes', 0);
+        $ftpEnabled = $payload->getBoolean('ftp_enabled');
+        $sftpEnabled = $payload->getBoolean('sftp_enabled');
 
-        if ($customerId === null || $nodeId === '' || $path === '' || $domain === '' || $quotaValue === null) {
+        if ($customerId === null || $nodeId === '' || $domain === '' || $quotaValue === null) {
             return $this->renderPage('Please complete all required fields.');
         }
 
@@ -80,9 +79,11 @@ final class AdminWebspaceController
             return $this->renderPage('Disk limit and quota must be zero or positive.');
         }
 
-        if ($docroot === '') {
-            $docroot = rtrim($path, '/') . '/public';
+        $normalizedDomain = $this->normalizeDomain($domain);
+        if ($normalizedDomain === '') {
+            return $this->renderPage('Domain is invalid.');
         }
+        $domain = $normalizedDomain;
 
         $customer = $this->userRepository->find($customerId);
         if ($customer === null || $customer->getType() !== UserType::Customer) {
@@ -94,10 +95,17 @@ final class AdminWebspaceController
             return $this->renderPage('Node not found.');
         }
 
+        $availablePhpVersions = $this->extractPhpVersions($node->getMetadata());
+        if ($availablePhpVersions !== [] && !in_array($phpVersion, $availablePhpVersions, true)) {
+            return $this->renderPage('Selected PHP version is not available on the node.');
+        }
+
         $assignedPort = $this->assignPort($node);
         if ($assignedPort === null) {
             return $this->renderPage('No available ports in the pool for this node.');
         }
+
+        [$path, $docroot] = $this->buildWebspacePaths($normalizedDomain);
 
         $webspace = new Webspace(
             $customer,
@@ -152,6 +160,7 @@ final class AdminWebspaceController
             'source_dir' => $webspace->getDocroot(),
             'docroot' => $webspace->getDocroot(),
             'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domainEntity->getName()),
+            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $systemUsername),
             'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $systemUsername),
             'logs_dir' => rtrim($webspace->getPath(), '/') . '/logs',
         ];
@@ -278,11 +287,14 @@ final class AdminWebspaceController
         $webspaces = $this->webspaceRepository->findBy([], ['createdAt' => 'DESC']);
         $customers = $this->userRepository->findCustomers();
         $nodes = $this->agentRepository->findBy([], ['name' => 'ASC']);
+        $phpVersions = $this->collectPhpVersions($nodes);
 
         return new Response($this->twig->render('admin/webspaces/index.html.twig', [
             'webspaces' => array_map(fn (Webspace $webspace) => $this->normalizeWebspace($webspace), $webspaces),
             'customers' => $customers,
             'nodes' => $nodes,
+            'phpVersions' => $phpVersions === [] ? [self::DEFAULT_PHP_VERSION] : $phpVersions,
+            'defaultPhpVersion' => self::DEFAULT_PHP_VERSION,
             'error' => $error,
             'notice' => $notice,
             'activeNav' => 'webspaces',
@@ -342,5 +354,63 @@ final class AdminWebspaceController
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed>|null $metadata
+     *
+     * @return string[]
+     */
+    private function extractPhpVersions(?array $metadata): array
+    {
+        if (!is_array($metadata)) {
+            return [];
+        }
+
+        $value = $metadata['php_versions'] ?? null;
+        if (is_string($value)) {
+            $value = array_map('trim', explode(',', $value));
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('strval', $value), static fn (string $item): bool => $item !== ''));
+    }
+
+    /**
+     * @param array<int, \App\Module\Core\Domain\Entity\Agent> $nodes
+     *
+     * @return string[]
+     */
+    private function collectPhpVersions(array $nodes): array
+    {
+        $versions = [];
+        foreach ($nodes as $node) {
+            $versions = array_merge($versions, $this->extractPhpVersions($node->getMetadata()));
+        }
+
+        $versions = array_values(array_unique($versions));
+        sort($versions);
+
+        return $versions;
+    }
+
+    /**
+     * @return array{string, string}
+     */
+    private function buildWebspacePaths(string $domain): array
+    {
+        $path = '/var/www/' . $domain;
+
+        return [$path, $path . '/public'];
+    }
+
+    private function normalizeDomain(string $domain): string
+    {
+        $domain = strtolower(trim($domain));
+        $domain = preg_replace('/[^a-z0-9.-]/', '', $domain);
+
+        return $domain ?? '';
     }
 }

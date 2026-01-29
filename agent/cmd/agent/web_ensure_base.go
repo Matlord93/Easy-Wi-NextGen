@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -39,6 +40,15 @@ func handleWebEnsureBase(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if err := installPackages(family, packages, &output); err != nil {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": err.Error(), "details": output.String()},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	if err := ensureComposer(&output); err != nil {
 		return jobs.Result{
 			JobID:     job.ID,
 			Status:    "failed",
@@ -108,12 +118,73 @@ func handleWebEnsureBaseWindows(job jobs.Job) (jobs.Result, func() error) {
 func webBasePackages(family string) []string {
 	switch family {
 	case "debian":
-		return []string{"nginx", "php-fpm", "certbot"}
+		packages := []string{"nginx", "php-fpm", "certbot", "git"}
+		return append(packages, webPhpPackagesDebian()...)
 	case "rhel":
-		return []string{"nginx", "php-fpm", "certbot"}
+		return []string{"nginx", "php-fpm", "certbot", "git"}
 	default:
 		return nil
 	}
+}
+
+func webPhpPackagesDebian() []string {
+	if !commandExists("apt-cache") {
+		return nil
+	}
+
+	versions := []string{"8.0", "8.1", "8.2", "8.3", "8.4", "8.5"}
+	packages := []string{}
+	for _, version := range versions {
+		fpmPkg := fmt.Sprintf("php%s-fpm", version)
+		cliPkg := fmt.Sprintf("php%s-cli", version)
+		commonPkg := fmt.Sprintf("php%s-common", version)
+
+		if packageExistsDebian(fpmPkg) {
+			packages = append(packages, fpmPkg)
+		}
+		if packageExistsDebian(cliPkg) {
+			packages = append(packages, cliPkg)
+		}
+		if packageExistsDebian(commonPkg) {
+			packages = append(packages, commonPkg)
+		}
+	}
+
+	return packages
+}
+
+func packageExistsDebian(pkg string) bool {
+	return exec.Command("apt-cache", "show", pkg).Run() == nil
+}
+
+func ensureComposer(output *strings.Builder) error {
+	if commandExists("composer") {
+		appendOutput(output, "composer=already_installed")
+		return nil
+	}
+	if !commandExists("php") {
+		return fmt.Errorf("composer requires php to be installed")
+	}
+
+	installerPath := "/tmp/composer-setup.php"
+	switch {
+	case commandExists("curl"):
+		if err := runCommandWithOutput("curl", []string{"-fsSL", "https://getcomposer.org/installer", "-o", installerPath}, output); err != nil {
+			return err
+		}
+	case commandExists("wget"):
+		if err := runCommandWithOutput("wget", []string{"-qO", installerPath, "https://getcomposer.org/installer"}, output); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("composer installer download failed: missing curl or wget")
+	}
+
+	if err := runCommandWithOutput("php", []string{installerPath, "--install-dir=/usr/local/bin", "--filename=composer"}, output); err != nil {
+		return err
+	}
+	appendOutput(output, "composer=installed")
+	return nil
 }
 
 func ensureWebBaseFiles(output *strings.Builder) error {
@@ -138,6 +209,12 @@ func ensureWebBaseFiles(output *strings.Builder) error {
 		return fmt.Errorf("write nginx template: %w", err)
 	}
 	appendOutput(output, "template_written="+templatePath)
+
+	roundcubeInclude := filepath.Join(baseDir, "nginx", "includes", "roundcube.conf")
+	if err := os.WriteFile(roundcubeInclude, []byte(""), 0o640); err != nil {
+		return fmt.Errorf("write roundcube include: %w", err)
+	}
+	appendOutput(output, "roundcube_include="+roundcubeInclude)
 
 	hookPath := filepath.Join(baseDir, "hooks", "reload.sh")
 	hookContent := "#!/bin/sh\nsystemctl reload nginx || true\n"
