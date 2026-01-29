@@ -38,7 +38,11 @@
                                 <div class="ts6-muted">#{{ node.id }}</div>
                             </td>
                             <td>
-                                <span class="ts6-pill">{{ node.installStatus }}</span>
+                                {% set ts6StatusLabel = node.installStatus %}
+                                {% if node.installStatus == 'installed' %}
+                                    {% set ts6StatusLabel = node.running ? 'running' : 'stopped' %}
+                                {% endif %}
+                                <span class="ts6-pill">{{ ts6StatusLabel }}</span>
                             </td>
                             <td>{{ node.agentBaseUrl }}</td>
                             <td>{{ node.installedVersion ?? '—' }}</td>

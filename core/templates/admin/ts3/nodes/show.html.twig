@@ -27,6 +27,7 @@
                 <h2>Status</h2>
                 <div class="ts3-meta">
                     <div><strong>Installationsstatus:</strong> {{ node.installStatus }}</div>
+                    <div><strong>Runtime:</strong> {{ node.running ? 'running' : 'stopped' }}</div>
                     <div><strong>Version:</strong> {{ node.installedVersion ?? '—' }}</div>
                     <div><strong>Service:</strong> {{ node.serviceName }}</div>
                     <div><strong>Running:</strong> {{ node.running ? 'Ja' : 'Nein' }}</div>

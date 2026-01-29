@@ -116,6 +116,9 @@ final class AgentJobResultApplier
             if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
                 $node->setInstalledVersion($payload['installed_version']);
             }
+            if ($status === AgentJobStatus::Success && is_array($payload) && array_key_exists('running', $payload)) {
+                $this->applyInstallStatusFromRuntime($node, (bool) $payload['running']);
+            }
         }
 
         if (is_array($payload) && isset($payload['last_error']) && is_string($payload['last_error'])) {
@@ -227,7 +230,7 @@ final class AgentJobResultApplier
         }
     }
 
-    private function applyInstallStatusFromRuntime(Ts6Node|SinusbotNode $node, bool $running): void
+    private function applyInstallStatusFromRuntime(Ts3Node|Ts6Node|SinusbotNode $node, bool $running): void
     {
         if ($running && $node->getInstallStatus() !== 'installed') {
             $node->setInstallStatus('installed');

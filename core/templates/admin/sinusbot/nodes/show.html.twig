@@ -26,6 +26,7 @@
                 <h2>{{ t('admin_sinusbot_installation_title', page_locale()) }}</h2>
                 <div class="sinusbot-meta">
                     <div><strong>{{ t('admin_sinusbot_status_label', page_locale()) }}</strong> {{ node.installStatus }}</div>
+                    <div><strong>Runtime:</strong> {{ node.running ? 'running' : 'stopped' }}</div>
                     <div><strong>{{ t('admin_sinusbot_version_label', page_locale()) }}</strong> {{ node.installedVersion ?? '–' }}</div>
                     <div><strong>{{ t('admin_sinusbot_last_error_label', page_locale()) }}</strong> {{ node.lastError ?? '–' }}</div>
                 </div>

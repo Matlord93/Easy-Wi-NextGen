@@ -38,7 +38,11 @@
                             <div class="ts3-muted">#{{ node.id }}</div>
                         </td>
                         <td>{{ node.agentBaseUrl }}</td>
-                        <td><span class="ts3-pill">{{ node.installStatus }}</span></td>
+                        {% set ts3StatusLabel = node.installStatus %}
+                        {% if node.installStatus == 'installed' %}
+                            {% set ts3StatusLabel = node.running ? 'running' : 'stopped' %}
+                        {% endif %}
+                        <td><span class="ts3-pill">{{ ts3StatusLabel }}</span></td>
                         <td>{{ node.installedVersion ?? '—' }}</td>
                         <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
                         <td class="ts3-align-right">

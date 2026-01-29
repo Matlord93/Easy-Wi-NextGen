@@ -57,6 +57,9 @@ class SinusbotNode
     #[ORM\Column(length: 32)]
     private string $installStatus = 'not_installed';
 
+    #[ORM\Column]
+    private bool $running = false;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $lastError = null;
 
@@ -234,6 +237,17 @@ class SinusbotNode
     public function setInstallStatus(string $installStatus): void
     {
         $this->installStatus = $installStatus;
+        $this->touch();
+    }
+
+    public function isRunning(): bool
+    {
+        return $this->running;
+    }
+
+    public function setRunning(bool $running): void
+    {
+        $this->running = $running;
         $this->touch();
     }
 

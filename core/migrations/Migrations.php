@@ -213,6 +213,42 @@ $this->addSql('
     }
 }
 
+final class Version20250302110000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add running status to sinusbot nodes.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('sinusbot_nodes')) {
+            return;
+        }
+
+        $table = $schema->getTable('sinusbot_nodes');
+        if ($table->hasColumn('running')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE sinusbot_nodes ADD running TINYINT(1) NOT NULL');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('sinusbot_nodes')) {
+            return;
+        }
+
+        $table = $schema->getTable('sinusbot_nodes');
+        if (!$table->hasColumn('running')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE sinusbot_nodes DROP running');
+    }
+}
+
 final class Version20250305110000 extends AbstractMigration
 {
     public function getDescription(): string

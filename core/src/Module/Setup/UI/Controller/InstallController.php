@@ -66,14 +66,14 @@ final class InstallController
             'cms_template_key' => 'hosting',
         ];
         $settingsDefaults = [
-            'instance_base_dir' => '/home',
-            'sftp_host' => '',
-            'sftp_port' => '22',
-            'sftp_username' => '',
-            'sftp_password' => '',
-            'sftp_private_key' => '',
-            'sftp_private_key_path' => '',
-            'sftp_private_key_passphrase' => '',
+            'instance_base_dir' => $this->envValue('EASYWI_INSTANCE_BASE_DIR', '/home'),
+            'sftp_host' => $this->envValue('EASYWI_SFTP_HOST', ''),
+            'sftp_port' => $this->envValue('EASYWI_SFTP_PORT', '22'),
+            'sftp_username' => $this->envValue('EASYWI_SFTP_USERNAME', ''),
+            'sftp_password' => $this->envValue('EASYWI_SFTP_PASSWORD', ''),
+            'sftp_private_key' => $this->envValue('EASYWI_SFTP_PRIVATE_KEY', ''),
+            'sftp_private_key_path' => $this->envValue('EASYWI_SFTP_PRIVATE_KEY_PATH', ''),
+            'sftp_private_key_passphrase' => $this->envValue('EASYWI_SFTP_PRIVATE_KEY_PASSPHRASE', ''),
         ];
 
         $databaseState = array_merge($databaseDefaults, $state['database'] ?? []);
@@ -182,7 +182,23 @@ final class InstallController
                         }
 
                         if ($action === 'continue' && $errors === []) {
-                            $step = 4;
+                            try {
+                                $databaseUrl = $this->installerService->buildDatabaseUrl($databaseState);
+                                $this->installerService->storeDatabaseConfig($databaseUrl, $databaseState);
+
+                                $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
+                                $this->installerService->initializeDatabase($entityManager);
+                                $entityManager->clear();
+                                $entityManager->getConnection()->close();
+                                $databaseState['initialized'] = true;
+                                $step = 4;
+                            } catch (DbalException $exception) {
+                                $this->installerService->logException($exception, 'Database migrations failed during installer.');
+                                $errors[] = ['key' => 'errors.db_migrations_failed'];
+                            } catch (\Throwable $exception) {
+                                $this->installerService->logException($exception, 'Database migrations failed during installer.');
+                                $errors[] = ['key' => 'errors.db_migrations_failed'];
+                            }
                         }
                     }
                 }
@@ -276,11 +292,14 @@ final class InstallController
 
                                 $this->installerService->storeDatabaseConfig($databaseUrl, $databaseState);
 
-                                $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
-                                $this->installerService->runMigrations($entityManager);
-                                $this->installerService->seedTemplates($entityManager);
-                                $entityManager->clear();
-                                $entityManager->getConnection()->close();
+                                if (($databaseState['initialized'] ?? false) !== true) {
+                                    $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
+                                    $this->installerService->initializeDatabase($entityManager);
+                                    $entityManager->clear();
+                                    $entityManager->getConnection()->close();
+                                    $databaseState['initialized'] = true;
+                                }
+
                                 $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
                                 $this->installerService->createSiteAndAdmin($entityManager, $applicationState, $adminPassword);
                                 $this->installerService->storeAppSettings($entityManager, $settingsState);
@@ -432,6 +451,21 @@ final class InstallController
     private function resolveDriverExtension(array $databaseState): string
     {
         return ($databaseState['driver'] ?? 'mysql') === 'sqlite' ? 'pdo_sqlite' : 'pdo_mysql';
+    }
+
+    private function envValue(string $key, string $default): string
+    {
+        $value = $_ENV[$key] ?? $_SERVER[$key] ?? null;
+        if (!is_string($value)) {
+            return $default;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return $default;
+        }
+
+        return $trimmed;
     }
 
     /**

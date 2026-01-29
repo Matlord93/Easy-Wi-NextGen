@@ -82,6 +82,7 @@ errors:
   db_missing_fields: "Please fill in host, database name, and username."
   db_connection_failed: "Database connection failed. Please verify the credentials and host."
   db_privileges_failed: "Database privilege test failed. Ensure CREATE, ALTER, and INDEX rights."
+  db_migrations_failed: "Database migrations failed. Check logs for details and try again."
   sqlite_path_required: "Provide a SQLite database path."
   sqlite_file_not_writable: "SQLite database file is not writable."
   sqlite_directory_missing: "SQLite directory does not exist."

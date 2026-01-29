@@ -368,6 +368,12 @@ final class InstallerService
         }
     }
 
+    public function initializeDatabase(EntityManagerInterface $entityManager): void
+    {
+        $this->runMigrations($entityManager);
+        $this->seedTemplates($entityManager);
+    }
+
     public function seedTemplates(EntityManagerInterface $entityManager): void
     {
         $this->templateSeeder->seed($entityManager);

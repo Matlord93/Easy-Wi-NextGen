@@ -18,7 +18,14 @@
                             <div class="flex flex-wrap items-start justify-between gap-4">
                                 <div>
                                     <h3 class="text-base font-semibold text-slate-900">{{ node.name }}</h3>
-                                    <p class="text-sm text-slate-600">Status: {{ node.installStatus }}</p>
+                                    <p class="text-sm text-slate-600">
+                                        Status:
+                                        {% if node.installStatus == 'installed' %}
+                                            {{ node.running ? 'läuft' : 'gestoppt' }}
+                                        {% else %}
+                                            {{ node.installStatus }}
+                                        {% endif %}
+                                    </p>
                                     <p class="text-sm text-slate-600">Version: {{ node.installedVersion ?? '–' }}</p>
                                 </div>
                                 <div class="flex flex-wrap gap-2">

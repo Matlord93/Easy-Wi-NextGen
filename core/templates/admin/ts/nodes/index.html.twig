@@ -40,7 +40,11 @@
                             <div class="ts3-muted">#{{ node.id }}</div>
                         </td>
                         <td>{{ node.agentBaseUrl }}</td>
-                        <td><span class="ts3-pill">{{ node.installStatus }}</span></td>
+                        {% set ts3StatusLabel = node.installStatus %}
+                        {% if node.installStatus == 'installed' %}
+                            {% set ts3StatusLabel = node.running ? 'running' : 'stopped' %}
+                        {% endif %}
+                        <td><span class="ts3-pill">{{ ts3StatusLabel }}</span></td>
                         <td>{{ node.installedVersion ?? '—' }}</td>
                         <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
                         <td class="ts3-align-right">
@@ -76,7 +80,11 @@
                             <strong>{{ node.name }}</strong>
                             <div class="ts6-muted">#{{ node.id }}</div>
                         </td>
-                        <td><span class="ts6-pill">{{ node.installStatus }}</span></td>
+                        {% set ts6StatusLabel = node.installStatus %}
+                        {% if node.installStatus == 'installed' %}
+                            {% set ts6StatusLabel = node.running ? 'running' : 'stopped' %}
+                        {% endif %}
+                        <td><span class="ts6-pill">{{ ts6StatusLabel }}</span></td>
                         <td>{{ node.agentBaseUrl }}</td>
                         <td>{{ node.installedVersion ?? '—' }}</td>
                         <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>

@@ -36,7 +36,11 @@
                                 <div>{{ node.name }}</div>
                                 <div class="sinusbot-muted">{{ node.agentBaseUrl }}</div>
                             </td>
-                            <td><span class="sinusbot-pill">{{ node.installStatus }}</span></td>
+                            {% set sinusStatusLabel = node.installStatus %}
+                            {% if node.installStatus == 'installed' %}
+                                {% set sinusStatusLabel = node.running ? 'running' : 'stopped' %}
+                            {% endif %}
+                            <td><span class="sinusbot-pill">{{ sinusStatusLabel }}</span></td>
                             <td>{{ node.installedVersion ?? '–' }}</td>
                             <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
                             <td class="sinusbot-align-right">

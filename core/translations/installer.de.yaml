@@ -82,6 +82,7 @@ errors:
   db_missing_fields: "Bitte Host, Datenbankname und Benutzername ausfüllen."
   db_connection_failed: "Datenbankverbindung fehlgeschlagen. Bitte Zugangsdaten und Host prüfen."
   db_privileges_failed: "Datenbankrechteprüfung fehlgeschlagen. Stellen Sie CREATE-, ALTER- und INDEX-Rechte sicher."
+  db_migrations_failed: "Datenbank-Migrationen fehlgeschlagen. Prüfen Sie die Logs und versuchen Sie es erneut."
   sqlite_path_required: "Bitte einen SQLite-Dateipfad angeben."
   sqlite_file_not_writable: "SQLite-Datei ist nicht beschreibbar."
   sqlite_directory_missing: "SQLite-Verzeichnis existiert nicht."
