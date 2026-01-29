@@ -125,6 +125,29 @@ final class JobRepository extends ServiceEntityRepository
     }
 
     /**
+     * @param array<int, string> $excludedTypes
+     */
+    public function countRunningByAgentExcludingTypes(string $agentId, array $excludedTypes): int
+    {
+        $builder = $this->createQueryBuilder('job')
+            ->select('COUNT(job.id)')
+            ->andWhere('job.status = :status')
+            ->andWhere('job.lockedBy = :agent')
+            ->setParameter('status', JobStatus::Running)
+            ->setParameter('agent', $agentId);
+
+        if ($excludedTypes !== []) {
+            $builder
+                ->andWhere('job.type NOT IN (:excludedTypes)')
+                ->setParameter('excludedTypes', $excludedTypes);
+        }
+
+        return (int) $builder
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
      * @return Job[]
      */
     public function findRunningWithExpiredLock(\DateTimeImmutable $now, int $limit = 200): array

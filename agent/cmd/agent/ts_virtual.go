@@ -8,12 +8,15 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"easywi/agent/internal/jobs"
 	"golang.org/x/crypto/ssh"
 )
+
+var queryPromptRegex = regexp.MustCompile(`^[A-Za-z0-9._-]+>\s*$`)
 
 func handleTs3VirtualCreate(job jobs.Job) orchestratorResult {
 	client, err := newTs3QueryClient(job.Payload)
@@ -215,6 +218,27 @@ func handleTs6VirtualAction(job jobs.Job) orchestratorResult {
 		resultPayload: map[string]any{
 			"sid":    sid,
 			"action": action,
+		},
+	}
+}
+
+func handleTs6VirtualList(job jobs.Job) orchestratorResult {
+	client, err := newTs6QueryClient(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	servers, err := listVirtualServers(client)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	normalized := normalizeVirtualServerList(servers)
+	return orchestratorResult{
+		status: "success",
+		resultPayload: map[string]any{
+			"servers": normalized,
 		},
 	}
 }
@@ -551,7 +575,7 @@ func newTsQueryClientWithConn(conn queryConn, adminUser, adminPass string) (*ts3
 		writer: bufio.NewWriter(conn),
 	}
 
-	if err := client.drainResponse(); err != nil {
+	if err := client.drainGreeting(); err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
@@ -602,6 +626,28 @@ func (client *ts3QueryClient) drainResponse() error {
 	return err
 }
 
+func (client *ts3QueryClient) drainGreeting() error {
+	for {
+		line, err := client.reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if isQueryPromptLine(line) {
+			return nil
+		}
+		if strings.HasPrefix(line, "error id=") {
+			if !strings.HasPrefix(line, "error id=0") {
+				return fmt.Errorf("serverquery error: %s", line)
+			}
+			return nil
+		}
+	}
+}
+
 func (client *ts3QueryClient) readResponse() ([]string, error) {
 	lines := []string{}
 	for {
@@ -611,6 +657,9 @@ func (client *ts3QueryClient) readResponse() ([]string, error) {
 		}
 		line = strings.TrimSpace(line)
 		if line == "" {
+			continue
+		}
+		if isQueryPromptLine(line) {
 			continue
 		}
 		if strings.HasPrefix(line, "error id=") {
@@ -653,6 +702,16 @@ func parseTs3QueryLine(line string) map[string]string {
 		output[kv[0]] = unescapeTs3Query(kv[1])
 	}
 	return output
+}
+
+func isQueryPromptLine(line string) bool {
+	if line == "" {
+		return false
+	}
+	if line == "TS3" {
+		return true
+	}
+	return queryPromptRegex.MatchString(line)
 }
 
 func escapeTs3Query(value string) string {
@@ -728,8 +787,8 @@ func formatVirtualServerSummary(servers []map[string]string) string {
 	}
 	entries := make([]string, 0, len(servers))
 	for _, server := range servers {
-		id := server["virtualserver_id"]
-		name := server["virtualserver_name"]
+		id := resolveVirtualServerValue(server, "virtualserver_id", "sid", "server_id", "id")
+		name := resolveVirtualServerValue(server, "virtualserver_name", "server_name", "name")
 		if name == "" {
 			name = "unknown"
 		}
@@ -747,10 +806,59 @@ func findVirtualServerByName(servers []map[string]string, name string) bool {
 		return false
 	}
 	for _, server := range servers {
-		serverName := strings.TrimSpace(strings.ToLower(server["virtualserver_name"]))
+		serverName := strings.TrimSpace(strings.ToLower(resolveVirtualServerValue(server, "virtualserver_name", "server_name", "name")))
 		if serverName != "" && serverName == needle {
 			return true
 		}
 	}
 	return false
+}
+
+func resolveVirtualServerValue(server map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(server[key]); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func normalizeVirtualServerList(servers []map[string]string) []map[string]any {
+	results := make([]map[string]any, 0, len(servers))
+	for _, server := range servers {
+		entry := normalizeVirtualServerEntry(server)
+		if entry == nil {
+			continue
+		}
+		results = append(results, entry)
+	}
+	return results
+}
+
+func normalizeVirtualServerEntry(server map[string]string) map[string]any {
+	sidValue := resolveVirtualServerValue(server, "virtualserver_id", "sid", "server_id", "id")
+	name := resolveVirtualServerValue(server, "virtualserver_name", "server_name", "name")
+	if sidValue == "" && name == "" {
+		return nil
+	}
+
+	return map[string]any{
+		"sid":               parseOptionalInt(sidValue),
+		"name":              name,
+		"voice_port":        parseOptionalInt(resolveVirtualServerValue(server, "virtualserver_port", "voice_port", "port", "server_port")),
+		"filetransfer_port": parseOptionalInt(resolveVirtualServerValue(server, "virtualserver_filetransfer_port", "filetransfer_port", "file_port")),
+		"slots":             parseOptionalInt(resolveVirtualServerValue(server, "virtualserver_maxclients", "slots", "max_clients", "clients_max")),
+		"status":            resolveVirtualServerValue(server, "virtualserver_status", "status"),
+	}
+}
+
+func parseOptionalInt(value string) int {
+	if value == "" {
+		return 0
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }

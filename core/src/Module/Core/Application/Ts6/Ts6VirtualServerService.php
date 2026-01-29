@@ -123,6 +123,20 @@ final class Ts6VirtualServerService
         $this->applyServerAction($server, 'delete');
     }
 
+    public function queueVirtualServerSync(Ts6Node $node): Job
+    {
+        $payload = [
+            'node_id' => (string) ($node->getId() ?? ''),
+            'query_bind_ip' => $node->getQueryConnectIp(),
+            'query_https_port' => $node->getQueryHttpsPort(),
+            'install_dir' => $node->getInstallPath(),
+            'admin_username' => $node->getAdminUsername(),
+            'admin_password' => $node->getAdminPassword($this->crypto),
+        ];
+
+        return $this->jobDispatcher->dispatch($node->getAgent(), 'ts6.virtual.list', $payload);
+    }
+
     private function applyServerAction(Ts6VirtualServer $server, string $action): void
     {
         $payload = [

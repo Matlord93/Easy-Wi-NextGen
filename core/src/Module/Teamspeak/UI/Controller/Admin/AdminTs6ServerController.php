@@ -46,6 +46,9 @@ final class AdminTs6ServerController
     {
         $this->requireAdmin($request);
 
+        $nodes = $this->nodeRepository->findBy([], ['name' => 'ASC']);
+        $this->queueVirtualServerSync($nodes);
+
         $servers = $this->virtualServerRepository->findBy(['archivedAt' => null], ['updatedAt' => 'DESC']);
         $customers = $this->userRepository->findCustomers();
 
@@ -277,5 +280,26 @@ final class AdminTs6ServerController
         }
 
         return $snippet;
+    }
+
+    /**
+     * @param \App\Module\Core\Domain\Entity\Ts6Node[] $nodes
+     */
+    private function queueVirtualServerSync(array $nodes): void
+    {
+        if ($nodes === []) {
+            return;
+        }
+
+        $cutoff = new \DateTimeImmutable('-2 minutes');
+        foreach ($nodes as $node) {
+            $agentId = $node->getAgent()->getId();
+            $jobs = $this->agentJobRepository->findLatestForNodeAndTypes($agentId, ['ts6.virtual.list'], 1);
+            if ($jobs !== [] && $jobs[0]->getCreatedAt() >= $cutoff) {
+                continue;
+            }
+
+            $this->virtualServerService->queueVirtualServerSync($node);
+        }
     }
 }

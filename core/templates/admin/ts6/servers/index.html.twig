@@ -67,6 +67,10 @@
                                 {% set error = serverErrors[server.id] ?? null %}
                                 {% if error %}
                                     <div class="ts6-error-detail"><strong>Fehler:</strong> {{ error.error ?? 'Unbekannter Fehler' }}</div>
+                                {% elseif server.status == 'external' %}
+                                    <div class="ts6-error-detail">Server wurde außerhalb des Panels angelegt.</div>
+                                {% elseif server.status == 'missing' %}
+                                    <div class="ts6-error-detail">Server aktuell nicht auf der Node gefunden.</div>
                                 {% elseif server.status == 'error' %}
                                     <div class="ts6-error-detail">Fehlerdetails nicht verfügbar.</div>
                                 {% endif %}

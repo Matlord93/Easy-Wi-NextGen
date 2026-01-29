@@ -97,6 +97,8 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 				errorText: fmt.Sprintf("unsupported job type: %s", job.Type),
 			}
 		}
+	case "ts6.virtual.list":
+		return handleTs6VirtualList(job)
 	case "ts3.viewer.snapshot", "ts6.viewer.snapshot":
 		return handleViewerSnapshot(job)
 	case "admin.ssh_key.store":

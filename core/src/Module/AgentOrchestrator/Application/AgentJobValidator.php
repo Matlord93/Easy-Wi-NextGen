@@ -23,6 +23,7 @@ final class AgentJobValidator
             'ts3.virtual.create', 'ts6.virtual.create' => $this->requireKeys($payload, ['virtual_server_id', 'name']),
             'ts3.virtual.action', 'ts6.virtual.action' => $this->requireKeys($payload, ['virtual_server_id', 'action']),
             'ts3.virtual.token.rotate', 'ts6.virtual.token.rotate' => $this->requireKeys($payload, ['virtual_server_id']),
+            'ts6.virtual.list' => $this->requireKeys($payload, ['node_id']),
             'ts3.viewer.snapshot', 'ts6.viewer.snapshot' => $this->requireKeys($payload, ['virtual_server_id', 'cache_key']),
             'admin.ssh_key.store' => $this->requireKeys($payload, ['user_id', 'authorized_keys_path', 'public_key']),
             default => [],

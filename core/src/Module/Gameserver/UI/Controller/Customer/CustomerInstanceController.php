@@ -713,9 +713,11 @@ final class CustomerInstanceController
         $installStatus = $this->instanceInstallService->getInstallStatus($instance);
         $displayStatus = $instance->getStatus()->value;
         $runtimeStatus = is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null;
-        if ($displayStatus === InstanceStatus::Running->value) {
+        if ($runtimeStatus !== null && $runtimeStatus !== '') {
             if (in_array($runtimeStatus, ['error', 'crashed'], true)) {
                 $displayStatus = InstanceStatus::Error->value;
+            } elseif (in_array($runtimeStatus, ['online', 'running', 'up'], true)) {
+                $displayStatus = InstanceStatus::Running->value;
             } elseif (in_array($runtimeStatus, ['offline', 'unknown', 'stopped', 'hibernating', 'idle'], true)) {
                 $displayStatus = InstanceStatus::Stopped->value;
             }

@@ -328,6 +328,11 @@ final class AgentJobResultApplier
 
     private function applyTs6VirtualServerResult(AgentJob $job, AgentJobStatus $status, ?array $payload): void
     {
+        if ($job->getType() === 'ts6.virtual.list') {
+            $this->applyTs6VirtualServerList($job, $status, $payload);
+            return;
+        }
+
         $virtualId = $job->getPayload()['virtual_server_id'] ?? null;
         if (!is_int($virtualId) && !is_string($virtualId)) {
             return;
@@ -374,6 +379,91 @@ final class AgentJobResultApplier
 
         if ($job->getType() === 'ts6.virtual.token.rotate' && is_array($payload)) {
             $this->applyVirtualToken($server, Ts6Token::class, $payload['token'] ?? null);
+        }
+    }
+
+    private function applyTs6VirtualServerList(AgentJob $job, AgentJobStatus $status, ?array $payload): void
+    {
+        if ($status !== AgentJobStatus::Success || !is_array($payload)) {
+            return;
+        }
+
+        $nodeId = $job->getPayload()['node_id'] ?? null;
+        if (!is_int($nodeId) && !is_string($nodeId)) {
+            return;
+        }
+        $node = $this->ts6NodeRepository->find((int) $nodeId);
+        if (!$node instanceof Ts6Node) {
+            return;
+        }
+
+        $servers = $payload['servers'] ?? null;
+        if (!is_array($servers)) {
+            return;
+        }
+
+        $seen = [];
+        foreach ($servers as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $sid = isset($entry['sid']) && is_numeric($entry['sid']) ? (int) $entry['sid'] : 0;
+            $name = is_string($entry['name'] ?? null) ? trim((string) $entry['name']) : '';
+            if ($sid <= 0 && $name === '') {
+                continue;
+            }
+
+            $server = $this->ts6VirtualServerRepository->findOneBy([
+                'node' => $node,
+                'sid' => $sid,
+                'archivedAt' => null,
+            ]);
+
+            if (!$server instanceof Ts6VirtualServer) {
+                $server = new Ts6VirtualServer(
+                    $node,
+                    0,
+                    $sid,
+                    $name !== '' ? $name : sprintf('TS6 Server %d', $sid),
+                    isset($entry['slots']) && is_numeric($entry['slots']) ? (int) $entry['slots'] : 0,
+                );
+                $server->setStatus('external');
+                $this->entityManager->persist($server);
+            } else {
+                if ($name !== '' && $server->getName() !== $name) {
+                    $server->setName($name);
+                }
+                if (isset($entry['slots']) && is_numeric($entry['slots'])) {
+                    $server->setSlots((int) $entry['slots']);
+                }
+            }
+
+            if (isset($entry['voice_port']) && is_numeric($entry['voice_port'])) {
+                $server->setVoicePort((int) $entry['voice_port']);
+            }
+            if (isset($entry['filetransfer_port']) && is_numeric($entry['filetransfer_port'])) {
+                $server->setFiletransferPort((int) $entry['filetransfer_port']);
+            }
+            if (is_string($entry['status'] ?? null) && $entry['status'] !== '') {
+                $server->setStatus((string) $entry['status']);
+            }
+
+            if ($sid > 0) {
+                $seen[$sid] = true;
+            }
+        }
+
+        $existingServers = $this->ts6VirtualServerRepository->findBy([
+            'node' => $node,
+            'archivedAt' => null,
+        ]);
+
+        foreach ($existingServers as $existing) {
+            $sid = $existing->getSid();
+            if ($sid > 0 && !isset($seen[$sid])) {
+                $existing->setStatus('missing');
+            }
         }
     }
 

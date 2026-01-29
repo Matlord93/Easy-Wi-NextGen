@@ -138,10 +138,11 @@ final class AgentApiController
         $jobs = $this->jobRepository->findQueuedForDispatch(20);
         $jobPayloads = [];
         $updateJobTypes = ['sniper.update', 'agent.update', 'agent.self_update'];
+        $nonBlockingJobTypes = ['instance.logs.tail', 'webspace.logs.tail'];
         $maxUpdateJobsPerAgent = 2;
         $runningUpdateJobs = $this->jobRepository->countRunningByAgentAndTypes($agent->getId(), $updateJobTypes);
         $maxConcurrency = $agent->getJobConcurrency();
-        $runningJobs = $this->jobRepository->countRunningByAgent($agent->getId());
+        $runningJobs = $this->jobRepository->countRunningByAgentExcludingTypes($agent->getId(), $nonBlockingJobTypes);
         $availableSlots = max(0, $maxConcurrency - $runningJobs);
         $isWindowsAgent = $this->isWindowsAgent($agent);
 
