@@ -124,20 +124,4 @@
             </div>
         </div>
     </div>
-
-    <div class="rounded-lg border border-slate-200 bg-white p-4">
-        <p class="text-xs font-semibold uppercase text-slate-700">Update & Versionen</p>
-        <p class="mt-2 text-sm text-slate-600">Hier kannst du Update-Policy und Versionssperren anpassen.</p>
-        <div class="mt-4">
-            {% include 'customer/instances/_settings_form.html.twig' with { instance: instance, detailMode: true, minecraftCatalog: minecraftCatalog|default(null) } %}
-        </div>
-    </div>
-
-    <div class="rounded-lg border border-slate-200 bg-white p-4">
-        <p class="text-xs font-semibold uppercase text-slate-700">Konfigurationsdateien</p>
-        <p class="mt-2 text-sm text-slate-600">Weitere spiel-spezifische Configs kannst du hier bearbeiten.</p>
-        <div class="mt-4">
-            {% include 'customer/instances/tabs/configs.html.twig' %}
-        </div>
-    </div>
 </div>
