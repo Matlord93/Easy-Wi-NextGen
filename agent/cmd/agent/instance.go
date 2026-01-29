@@ -697,6 +697,9 @@ Environment=XDG_CONFIG_HOME=%s/.config
 Environment=XDG_DATA_HOME=%s/.local/share
 ExecStartPre=/usr/bin/test -d %s
 ExecStart=%s
+StandardInput=pipe
+StandardOutput=journal
+StandardError=journal
 Restart=on-failure
 RestartSec=10
 UMask=0027

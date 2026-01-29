@@ -47,6 +47,7 @@ final class ConfigSchemaService
      */
     private function normalizeSchemaArray(array $schema, string $format): array
     {
+        $description = (string) ($schema['description'] ?? '');
         $normalizedFields = [];
         foreach ($schema['fields'] ?? [] as $field) {
             if (!is_array($field)) {
@@ -80,6 +81,7 @@ final class ConfigSchemaService
 
         return [
             'format' => $format,
+            'description' => $description,
             'fields' => $normalizedFields,
         ];
     }

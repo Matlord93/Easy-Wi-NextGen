@@ -23,7 +23,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/game/cs2.sh -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} +maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}}',
+                '{{INSTANCE_DIR}}/game/cs2.sh -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} -maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -39,7 +39,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'game/csgo/cfg/server.cfg',
                         'description' => 'Base server configuration',
-                        'contents' => "hostname \"{{SERVER_NAME}}\"\nrcon_password \"{{RCON_PASSWORD}}\"\nsv_password \"{{SERVER_PASSWORD}}\"                // optional: Passwort für Spieler (leer = öffentlich)\n",
+                        'contents' => "hostname \"{{SERVER_NAME}}\"\nrcon_password \"{{RCON_PASSWORD}}\"\nsv_password \"{{SERVER_PASSWORD}}\"                // optional: Passwort für Spieler (leer = öffentlich)\ngame_type {{GAME_TYPE}}\ngame_mode {{GAME_MODE}}\n",
                     ],
                 ],
                 [
@@ -49,7 +49,7 @@ final class GameTemplateSeedCatalog
                 $fastdl,
                 'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 validate +quit',
                 'steamcmd +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 +quit',
-                ['+map', '+maxplayers', '+game_type', '+game_mode'],
+                ['+map', '-maxplayers', '+game_type', '+game_mode'],
             ),
             $this->template(
                 'csgo_legacy',
@@ -731,7 +731,7 @@ final class GameTemplateSeedCatalog
                 [
                     ['name' => 'game', 'label' => 'Game', 'protocol' => 'udp'],
                 ],
-                '{{INSTANCE_DIR}}/game/bin/win64/cs2.exe -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} +maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}}',
+                '{{INSTANCE_DIR}}/game/bin/win64/cs2.exe -dedicated +ip 0.0.0.0 -port {{PORT_GAME}} -maxplayers {{MAX_PLAYERS}} +map {{MAP}} -tickrate {{TICKRATE}} +servercfgfile server.cfg -condebug +sv_logfile 1 +game_type {{GAME_TYPE}} +game_mode {{GAME_MODE}} +sv_setsteamaccount {{STEAM_GSLT}}',
                 [
                     ['key' => 'SERVER_NAME', 'value' => 'Easy-Wi CS2'],
                     ['key' => 'SERVER_PASSWORD', 'value' => ''],
@@ -747,7 +747,7 @@ final class GameTemplateSeedCatalog
                     [
                         'path' => 'game/csgo/cfg/server.cfg',
                         'description' => 'Base server configuration',
-                        'contents' => "hostname \"{{SERVER_NAME}}\"\nrcon_password \"{{RCON_PASSWORD}}\"\nsv_password \"{{SERVER_PASSWORD}}\"                // optional: Passwort für Spieler (leer = öffentlich)\n",
+                        'contents' => "hostname \"{{SERVER_NAME}}\"\nrcon_password \"{{RCON_PASSWORD}}\"\nsv_password \"{{SERVER_PASSWORD}}\"                // optional: Passwort für Spieler (leer = öffentlich)\ngame_type {{GAME_TYPE}}\ngame_mode {{GAME_MODE}}\n",
                     ],
                 ],
                 [
@@ -757,7 +757,7 @@ final class GameTemplateSeedCatalog
                 $fastdl,
                 'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 validate +quit',
                 'steamcmd.exe +force_install_dir {{INSTANCE_DIR}} +login {{STEAM_LOGIN}} +app_update 730 +quit',
-                ['+map', '+maxplayers', '+game_type', '+game_mode'],
+                ['+map', '-maxplayers', '+game_type', '+game_mode'],
             ),
             $this->template(
                 'csgo_legacy_windows',

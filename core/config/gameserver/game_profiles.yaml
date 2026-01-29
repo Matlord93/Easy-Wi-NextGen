@@ -45,7 +45,7 @@ profiles:
         required: false
     slot_rule:
       mode: args
-      arg_key: "+maxplayers"
+      arg_key: "-maxplayers"
   cs2_windows: { inherit: cs2 }
 
   csgo_legacy:

@@ -124,7 +124,8 @@ final class InstanceConfigService
     private function buildArgsSlotPayload(string $gameKey, int $slots, array $payload): array
     {
         return match ($gameKey) {
-            'cs2', 'cs2_windows', 'csgo_legacy', 'csgo_legacy_windows', 'css', 'css_windows', 'tf2', 'tf2_windows', 'hl2dm', 'hl2dm_windows',
+            'cs2', 'cs2_windows' => $this->withArgs($payload, ['-maxplayers', (string) $slots]),
+            'csgo_legacy', 'csgo_legacy_windows', 'css', 'css_windows', 'tf2', 'tf2_windows', 'hl2dm', 'hl2dm_windows',
             'l4d', 'l4d_windows', 'l4d2', 'l4d2_windows', 'dods', 'dods_windows', 'garrys_mod' => $this->withArgs($payload, ['+maxplayers', (string) $slots]),
             'rust', 'rust_windows' => $this->withArgs($payload, ['+server.maxplayers', (string) $slots]),
             default => $payload,
