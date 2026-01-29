@@ -103,6 +103,9 @@ final class AgentJobController
         $job->setResultPayload(is_array($payload['result_payload'] ?? null) ? $payload['result_payload'] : null);
         $job->markFinished($status);
         $this->applyViewerSnapshotCache($job, $payload['result_payload'] ?? null);
+        $this->applyServerGroupCache($job, $payload['result_payload'] ?? null);
+        $this->applyServerSummaryCache($job, $payload['result_payload'] ?? null);
+        $this->applyServerQueryCache($job, $payload['result_payload'] ?? null);
         $this->resultApplier->apply($job, $status, $job->getResultPayload());
         $this->entityManager->flush();
 
@@ -177,6 +180,99 @@ final class AgentJobController
             'channels' => $resultPayload['channels'] ?? [],
             'clients' => $resultPayload['clients'] ?? [],
             'generated_at' => $resultPayload['generated_at'] ?? (new \DateTimeImmutable())->format(DATE_ATOM),
+        ];
+
+        $this->cache->delete($cacheKey);
+        $this->cache->get($cacheKey, function () use ($snapshot): array {
+            return $snapshot;
+        });
+    }
+
+    private function applyServerGroupCache(\App\Module\AgentOrchestrator\Domain\Entity\AgentJob $job, mixed $resultPayload): void
+    {
+        if (!is_array($resultPayload)) {
+            return;
+        }
+
+        if (!in_array($job->getType(), ['ts3.virtual.servergroup.list', 'ts6.virtual.servergroup.list'], true)) {
+            return;
+        }
+
+        $cacheKey = $job->getPayload()['cache_key'] ?? null;
+        if (!is_string($cacheKey) || $cacheKey === '') {
+            return;
+        }
+
+        $snapshot = [
+            'status' => 'ok',
+            'groups' => is_array($resultPayload['groups'] ?? null) ? $resultPayload['groups'] : [],
+        ];
+
+        $this->cache->delete($cacheKey);
+        $this->cache->get($cacheKey, function () use ($snapshot): array {
+            return $snapshot;
+        });
+    }
+
+    private function applyServerSummaryCache(\App\Module\AgentOrchestrator\Domain\Entity\AgentJob $job, mixed $resultPayload): void
+    {
+        if (!is_array($resultPayload)) {
+            return;
+        }
+
+        if (!in_array($job->getType(), ['ts3.virtual.summary', 'ts6.virtual.summary'], true)) {
+            return;
+        }
+
+        $cacheKey = $job->getPayload()['cache_key'] ?? null;
+        if (!is_string($cacheKey) || $cacheKey === '') {
+            return;
+        }
+
+        $snapshot = [
+            'status' => 'ok',
+            'clients_online' => (int) ($resultPayload['clients_online'] ?? 0),
+            'max_clients' => (int) ($resultPayload['max_clients'] ?? 0),
+            'voice_port' => (int) ($resultPayload['voice_port'] ?? 0),
+            'filetransfer_port' => (int) ($resultPayload['filetransfer_port'] ?? 0),
+        ];
+
+        $this->cache->delete($cacheKey);
+        $this->cache->get($cacheKey, function () use ($snapshot): array {
+            return $snapshot;
+        });
+    }
+
+    private function applyServerQueryCache(\App\Module\AgentOrchestrator\Domain\Entity\AgentJob $job, mixed $resultPayload): void
+    {
+        if (!is_array($resultPayload)) {
+            return;
+        }
+
+        $handled = [
+            'ts3.virtual.ban.list',
+            'ts6.virtual.ban.list',
+            'ts3.virtual.channel.list',
+            'ts6.virtual.channel.list',
+            'ts3.virtual.client.list',
+            'ts6.virtual.client.list',
+            'ts3.virtual.log.view',
+            'ts6.virtual.log.view',
+            'ts3.virtual.snapshot.create',
+            'ts6.virtual.snapshot.create',
+        ];
+        if (!in_array($job->getType(), $handled, true)) {
+            return;
+        }
+
+        $cacheKey = $job->getPayload()['cache_key'] ?? null;
+        if (!is_string($cacheKey) || $cacheKey === '') {
+            return;
+        }
+
+        $snapshot = [
+            'status' => 'ok',
+            'payload' => $resultPayload,
         ];
 
         $this->cache->delete($cacheKey);

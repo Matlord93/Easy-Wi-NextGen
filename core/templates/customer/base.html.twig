@@ -117,6 +117,24 @@
         });
     }
 
+    const copyText = async (value) => {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const success = document.execCommand('copy');
+        textarea.remove();
+        return success;
+    };
+
     document.addEventListener('click', (event) => {
         const button = event.target.closest('[data-copy-value]');
         if (!button) {
@@ -131,11 +149,16 @@
         const originalText = button.dataset.copyOriginal ?? button.textContent?.trim() ?? '';
         button.dataset.copyOriginal = originalText;
 
-        navigator.clipboard.writeText(value).then(() => {
+        copyText(value).then((success) => {
+            if (!success) {
+                return;
+            }
             button.textContent = '{{ t('customer_copy_success', page_locale()) }}';
             window.setTimeout(() => {
                 button.textContent = originalText;
             }, 1200);
+        }).catch(() => {
+            return;
         });
     });
 </script>

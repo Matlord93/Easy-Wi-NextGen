@@ -1002,11 +1002,20 @@ final class CustomerInstanceController
         $requirements = $this->buildCustomerSetupRequirements($instance->getTemplate());
         $setupVars = $instance->getSetupVars();
         $setupSecrets = $instance->getSetupSecrets();
-        $defaults = [
-            'SERVER_NAME' => $instance->getServerName(),
-            'STEAM_GSLT' => $instance->getGslKey(),
-            'STEAM_ACCOUNT' => $instance->getSteamAccount(),
-        ];
+        $defaults = [];
+        foreach ($instance->getTemplate()->getEnvVars() as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $key = trim((string) ($entry['key'] ?? ''));
+            if ($key === '') {
+                continue;
+            }
+            $defaults[$key] = (string) ($entry['value'] ?? '');
+        }
+        $defaults['SERVER_NAME'] = $instance->getServerName() ?? ($defaults['SERVER_NAME'] ?? '');
+        $defaults['STEAM_GSLT'] = $instance->getGslKey() ?? ($defaults['STEAM_GSLT'] ?? '');
+        $defaults['STEAM_ACCOUNT'] = $instance->getSteamAccount() ?? ($defaults['STEAM_ACCOUNT'] ?? '');
 
         $varEntries = array_map(function (array $entry) use ($setupVars, $messages, $defaults): array {
             $key = $entry['key'];
@@ -1036,6 +1045,10 @@ final class CustomerInstanceController
             ];
         }, $requirements['secrets']);
 
+        $configKeys = ['SERVER_NAME', 'SERVER_PASSWORD', 'RCON_PASSWORD'];
+        $configEntries = array_values(array_filter($varEntries, fn (array $entry): bool => in_array($entry['key'], $configKeys, true)));
+        $variableEntries = array_values(array_filter($varEntries, fn (array $entry): bool => !in_array($entry['key'], $configKeys, true) && !$this->isPortKey($entry['key'])));
+
         $customerKeys = [];
         foreach (array_merge($requirements['vars'], $requirements['secrets']) as $entry) {
             $customerKeys[$entry['key']] = true;
@@ -1050,6 +1063,8 @@ final class CustomerInstanceController
         return [
             'setupStatus' => $status,
             'setupVars' => $varEntries,
+            'setupConfigVars' => $configEntries,
+            'setupVariableVars' => $variableEntries,
             'setupSecrets' => $secretEntries,
             'setupMissingLabels' => $missingLabels,
             'setupMessages' => [
@@ -1094,7 +1109,7 @@ final class CustomerInstanceController
             $existing[$entry['key']] = true;
         }
 
-        foreach ($this->buildDefaultCustomerVars() as $entry) {
+        foreach ($this->buildDefaultCustomerVars($template) as $entry) {
             if (!isset($existing[$entry['key']])) {
                 $requirements['vars'][] = $entry;
             }
@@ -1106,9 +1121,23 @@ final class CustomerInstanceController
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function buildDefaultCustomerVars(): array
+    private function buildDefaultCustomerVars(Template $template): array
     {
-        return [
+        $envKeys = [];
+        foreach ($template->getEnvVars() as $entry) {
+            if (is_array($entry) && isset($entry['key'])) {
+                $key = strtoupper(trim((string) $entry['key']));
+                if ($key !== '') {
+                    $envKeys[$key] = true;
+                }
+            }
+        }
+
+        $installCommand = $template->getInstallCommand();
+        $usesSteamLogin = str_contains($installCommand, '{{STEAM_LOGIN}}')
+            || str_contains($installCommand, '{{STEAM_ACCOUNT}}');
+
+        $entries = [
             [
                 'key' => 'SERVER_NAME',
                 'label' => 'Servername',
@@ -1163,7 +1192,39 @@ final class CustomerInstanceController
                 'validation' => null,
                 'helptext' => 'Nur nötig, wenn Steam Account genutzt wird.',
             ],
+            [
+                'key' => 'GAME_TYPE',
+                'label' => 'game_type',
+                'type' => 'number',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => null,
+                'helptext' => 'Nur für Source-Server.',
+            ],
+            [
+                'key' => 'GAME_MODE',
+                'label' => 'game_mode',
+                'type' => 'number',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => null,
+                'helptext' => 'Nur für Source-Server.',
+            ],
         ];
+
+        return array_values(array_filter($entries, static function (array $entry) use ($envKeys, $usesSteamLogin): bool {
+            $key = strtoupper((string) $entry['key']);
+            if ($key === 'STEAM_ACCOUNT' || $key === 'STEAM_PASSWORD') {
+                return $usesSteamLogin || isset($envKeys[$key]);
+            }
+
+            return isset($envKeys[$key]);
+        }));
+    }
+
+    private function isPortKey(string $key): bool
+    {
+        return str_contains(strtoupper($key), 'PORT');
     }
 
     private function redirectToTab(int $instanceId, string $tab, ?string $notice, ?string $error): Response

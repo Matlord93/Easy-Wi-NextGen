@@ -8,6 +8,7 @@ use App\Module\Core\Dto\Ts6\CreateVirtualServerDto;
 use App\Module\Core\Domain\Entity\Ts6Node;
 use App\Module\Core\Domain\Entity\Ts6Token;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
+use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Application\SecretsCrypto;
 use Doctrine\ORM\EntityManagerInterface;
@@ -76,6 +77,11 @@ final class Ts6VirtualServerService
         $this->applyServerAction($server, 'stop');
     }
 
+    public function restart(Ts6VirtualServer $server): void
+    {
+        $this->applyServerAction($server, 'restart');
+    }
+
     public function recreate(Ts6VirtualServer $server): Ts6VirtualServer
     {
         $this->stop($server);
@@ -89,12 +95,17 @@ final class Ts6VirtualServerService
         return $replacement;
     }
 
-    public function rotateToken(Ts6VirtualServer $server): Ts6Token
+    public function rotateToken(Ts6VirtualServer $server, int $serverGroupId = 6): Ts6Token
     {
+        if ($serverGroupId <= 0) {
+            $serverGroupId = 6;
+        }
+        $tokenType = sprintf('server_group:%d', $serverGroupId);
         $payload = [
             'virtual_server_id' => $server->getId(),
             'node_id' => $server->getNode()->getId(),
             'sid' => $server->getSid(),
+            'server_group_id' => $serverGroupId,
             'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
             'query_https_port' => $server->getNode()->getQueryHttpsPort(),
             'install_dir' => $server->getNode()->getInstallPath(),
@@ -102,7 +113,7 @@ final class Ts6VirtualServerService
         ];
         $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.token.rotate', $payload);
 
-        $token = new Ts6Token($server, $this->crypto->encrypt('pending'), 'owner');
+        $token = new Ts6Token($server, $this->crypto->encrypt('pending'), $tokenType);
         $token->deactivate();
         $this->entityManager->persist($token);
         $this->entityManager->flush();
@@ -123,7 +134,7 @@ final class Ts6VirtualServerService
         $this->applyServerAction($server, 'delete');
     }
 
-    public function queueVirtualServerSync(Ts6Node $node): Job
+    public function queueVirtualServerSync(Ts6Node $node): AgentJob
     {
         $payload = [
             'node_id' => (string) ($node->getId() ?? ''),
@@ -135,6 +146,57 @@ final class Ts6VirtualServerService
         ];
 
         return $this->jobDispatcher->dispatch($node->getAgent(), 'ts6.virtual.list', $payload);
+    }
+
+    public function queueServerGroupList(Ts6VirtualServer $server, string $cacheKey): void
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'cache_key' => $cacheKey,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.servergroup.list', $payload);
+        $this->entityManager->flush();
+    }
+
+    public function queueServerSummary(Ts6VirtualServer $server, string $cacheKey): void
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'cache_key' => $cacheKey,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.summary', $payload);
+        $this->entityManager->flush();
+    }
+
+    public function queueServerQuery(Ts6VirtualServer $server, string $cacheKey, string $jobType): void
+    {
+        $payload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'cache_key' => $cacheKey,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_https_port' => $server->getNode()->getQueryHttpsPort(),
+            'install_dir' => $server->getNode()->getInstallPath(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), $jobType, $payload);
+        $this->entityManager->flush();
     }
 
     private function applyServerAction(Ts6VirtualServer $server, string $action): void

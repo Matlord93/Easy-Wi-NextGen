@@ -91,9 +91,14 @@ final class Ts6NodeService
 
     private function queueFirewallPorts(Ts6Node $node, InstallDto $dto): ?Job
     {
-        $ports = [];
+        $ports = [
+            22,
+        ];
         if ($dto->defaultVoicePort > 0) {
             $ports[] = $dto->defaultVoicePort;
+        }
+        if ($dto->filetransferPort > 0) {
+            $ports[] = $dto->filetransferPort;
         }
         if ($dto->queryHttpsEnable && $dto->queryHttpsPort > 0) {
             $ports[] = $dto->queryHttpsPort;

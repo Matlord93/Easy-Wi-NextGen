@@ -99,6 +99,34 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 		}
 	case "ts6.virtual.list":
 		return handleTs6VirtualList(job)
+	case "ts3.virtual.servergroup.list":
+		return handleTs3ServerGroupList(job)
+	case "ts6.virtual.servergroup.list":
+		return handleTs6ServerGroupList(job)
+	case "ts3.virtual.summary":
+		return handleTs3VirtualSummary(job)
+	case "ts6.virtual.summary":
+		return handleTs6VirtualSummary(job)
+	case "ts3.virtual.ban.list":
+		return handleTs3VirtualBanList(job)
+	case "ts6.virtual.ban.list":
+		return handleTs6VirtualBanList(job)
+	case "ts3.virtual.channel.list":
+		return handleTs3VirtualChannelList(job)
+	case "ts6.virtual.channel.list":
+		return handleTs6VirtualChannelList(job)
+	case "ts3.virtual.client.list":
+		return handleTs3VirtualClientList(job)
+	case "ts6.virtual.client.list":
+		return handleTs6VirtualClientList(job)
+	case "ts3.virtual.log.view":
+		return handleTs3VirtualLogView(job)
+	case "ts6.virtual.log.view":
+		return handleTs6VirtualLogView(job)
+	case "ts3.virtual.snapshot.create":
+		return handleTs3VirtualSnapshot(job)
+	case "ts6.virtual.snapshot.create":
+		return handleTs6VirtualSnapshot(job)
 	case "ts3.viewer.snapshot", "ts6.viewer.snapshot":
 		return handleViewerSnapshot(job)
 	case "admin.ssh_key.store":

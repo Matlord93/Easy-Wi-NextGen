@@ -23,10 +23,88 @@
                 <div><strong>Owner Token</strong></div>
                 <div class="ts3-secret">{{ token ?? '—' }}</div>
             </div>
-            <form method="post" action="/customer/ts3/servers/{{ server.id }}/token/rotate">
+            <form class="ts3-form" method="post" action="/customer/ts3/servers/{{ server.id }}/token/rotate">
                 <input type="hidden" name="_token" value="{{ csrf.rotate }}">
+                <label for="ts3-server-group">Servergruppe (SGID)</label>
+                <select id="ts3-server-group" name="server_group_id" data-url="/customer/ts3/servers/{{ server.id }}/server-groups.json">
+                    <option value="6">Lade Servergruppen…</option>
+                </select>
+                <p class="ts3-muted">Nutze die SGID aus <code>servergrouplist</code>, z.B. 6 für Server Admin.</p>
                 <button class="ts3-button" type="submit">Token rotieren</button>
             </form>
         </div>
+
+        <div class="ts3-card">
+            <div class="ts3-credentials">
+                <div><strong>Token-Liste</strong></div>
+                {% if tokens is empty %}
+                    <div class="ts3-muted">Keine Tokens vorhanden.</div>
+                {% else %}
+                    <table class="ts3-table">
+                        <thead>
+                        <tr>
+                            <th>Token</th>
+                            <th>Typ</th>
+                            <th>Status</th>
+                            <th>Erstellt</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for entry in tokens %}
+                            <tr>
+                                <td class="ts3-secret">{{ entry.token }}</td>
+                                <td>{{ entry.type }}</td>
+                                <td>{{ entry.active ? 'Aktiv' : 'Inaktiv' }}</td>
+                                <td>{{ entry.createdAt|date('Y-m-d H:i') }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
+            </div>
+        </div>
     </div>
+    <script>
+        (function () {
+            const select = document.getElementById('ts3-server-group');
+            if (!select) { return; }
+            const url = select.dataset.url;
+            if (!url) { return; }
+            let attempts = 0;
+            const maxAttempts = 6;
+            const delayMs = 1500;
+            const loadGroups = () => {
+                fetch(url)
+                    .then((response) => response.json())
+                    .then((data) => {
+                        if (!data) { return; }
+                        if (data.status === 'pending' && attempts < maxAttempts) {
+                            attempts += 1;
+                            setTimeout(loadGroups, delayMs);
+                            return;
+                        }
+                        if (data.status !== 'ok') { return; }
+                        const groups = Array.isArray(data.groups) ? data.groups : [];
+                        select.innerHTML = '';
+                        groups.forEach((group) => {
+                            const option = document.createElement('option');
+                            option.value = group.id;
+                            option.textContent = `${group.name} (SGID ${group.id})`;
+                            if (group.id === 6) {
+                                option.selected = true;
+                            }
+                            select.appendChild(option);
+                        });
+                        if (groups.length === 0) {
+                            const option = document.createElement('option');
+                            option.value = '6';
+                            option.textContent = 'Keine Servergruppen gefunden';
+                            select.appendChild(option);
+                        }
+                    })
+                    .catch(() => {});
+            };
+            loadGroups();
+        })();
+    </script>
 {% endblock %}

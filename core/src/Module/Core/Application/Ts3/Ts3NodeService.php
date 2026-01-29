@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Ts3;
 
 use App\Module\Core\Dto\Ts3\InstallDto;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Ts3Node;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -36,6 +37,7 @@ final class Ts3NodeService
             'file_port' => $dto->filetransferPort,
         ];
 
+        $this->queueFirewallPorts($node, $dto);
         $job = $this->jobDispatcher->dispatchWithFailureLogging($node->getAgent(), 'ts3.install', $payload);
         if ($job->getStatus()->value === 'failed') {
             $node->setInstallStatus('failed');
@@ -82,5 +84,27 @@ final class Ts3NodeService
         ];
         $this->jobDispatcher->dispatch($node->getAgent(), 'ts3.service.action', $payload);
         $this->entityManager->flush();
+    }
+
+    private function queueFirewallPorts(Ts3Node $node, InstallDto $dto): ?Job
+    {
+        $ports = [
+            22,
+            $dto->filetransferPort,
+        ];
+
+        $ports = array_values(array_unique(array_filter($ports, static fn (int $port): bool => $port > 0 && $port <= 65535)));
+        if ($ports === []) {
+            return null;
+        }
+
+        $job = new Job('firewall.open_ports', [
+            'agent_id' => $node->getAgent()->getId(),
+            'ts3_node_id' => (string) $node->getId(),
+            'ports' => implode(',', array_map('strval', $ports)),
+        ]);
+        $this->entityManager->persist($job);
+
+        return $job;
     }
 }

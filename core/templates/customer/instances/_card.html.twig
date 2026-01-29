@@ -45,7 +45,12 @@
 {% set queryStatusKey = query.status|default('unknown') %}
 {% set queryStatusLabel = queryStatusLabels[queryStatusKey] ?? query.status ?? '—' %}
 
-<div class="overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-sm">
+<div
+    class="overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-sm"
+    data-instance-query="{{ instance.id }}"
+    data-query-url="{{ path('customer_instance_query_api', {id: instance.id}) }}"
+    data-query-status-labels="{{ queryStatusLabels|json_encode|e('html_attr') }}"
+>
     <div class="border-b border-emerald-100 bg-emerald-50 px-6 py-4">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -178,12 +183,16 @@
                 <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_slots_configured', page_locale()) }}</p>
                 <p class="mt-2 text-sm font-semibold text-slate-900">{{ configuredSlots }} / {{ instance.max_slots }}</p>
                 <p class="text-xs text-slate-600">{{ t('customer_instance_slots_configured_hint', page_locale()) }}</p>
-                {% if query.available and (query.players is not null or query.max_players is not null) %}
-                    <p class="mt-3 text-xs text-slate-700">{{ t('customer_instance_players_online', page_locale()) }}: {{ query.players ?? '—' }} / {{ query.max_players ?? '—' }}</p>
-                    <p class="text-xs text-slate-500">{{ t('customer_instance_players_checked', page_locale()) }}: {{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}</p>
-                {% else %}
-                    <p class="mt-3 text-xs text-slate-500">{{ t('customer_instance_players_unavailable', page_locale()) }}</p>
-                {% endif %}
+                <p class="mt-3 text-xs text-slate-700 {{ query.available and (query.players is not null or query.max_players is not null) ? '' : 'hidden' }}" data-query-players-available>
+                    {{ t('customer_instance_players_online', page_locale()) }}:
+                    <span data-query-players>{{ query.players ?? '—' }} / {{ query.max_players ?? '—' }}</span>
+                </p>
+                <p class="text-xs text-slate-500 {{ query.available and (query.players is not null or query.max_players is not null) ? '' : 'hidden' }}" data-query-checked data-query-checked-label="{{ t('customer_instance_players_checked', page_locale()) }}">
+                    {{ t('customer_instance_players_checked', page_locale()) }}: {{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}
+                </p>
+                <p class="mt-3 text-xs text-slate-500 {{ query.available and (query.players is not null or query.max_players is not null) ? 'hidden' : '' }}" data-query-players-unavailable>
+                    {{ t('customer_instance_players_unavailable', page_locale()) }}
+                </p>
             </div>
         </div>
 
@@ -197,18 +206,20 @@
                     </div>
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <span class="font-semibold">{{ t('customer_instance_query_status', page_locale()) }}</span>
-                        <span class="text-slate-900">{{ queryStatusLabel }}</span>
+                        <span class="text-slate-900" data-query-status>{{ queryStatusLabel }}</span>
                     </div>
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <span class="font-semibold">{{ t('customer_instance_players_online', page_locale()) }}</span>
-                        <span class="text-slate-900">{{ query.players ?? '—' }} / {{ query.max_players ?? '—' }}</span>
+                        <span class="text-slate-900" data-query-players>{{ query.players ?? '—' }} / {{ query.max_players ?? '—' }}</span>
                     </div>
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <span class="font-semibold">{{ t('map', page_locale()) }}</span>
-                        <span class="text-slate-900">{{ query.map ?? '—' }}</span>
+                        <span class="text-slate-900" data-query-map>{{ query.map ?? '—' }}</span>
                     </div>
                 </div>
-                <p class="mt-3 text-xs text-slate-600">{{ t('customer_instance_players_checked', page_locale()) }}: {{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}</p>
+                <p class="mt-3 text-xs text-slate-600" data-query-checked data-query-checked-label="{{ t('customer_instance_players_checked', page_locale()) }}">
+                    {{ t('customer_instance_players_checked', page_locale()) }}: {{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}
+                </p>
             </div>
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_previous_build', page_locale()) }}</p>
@@ -241,3 +252,86 @@
 
     </div>
 </div>
+
+<script>
+    (() => {
+        const card = document.querySelector('[data-instance-query="{{ instance.id }}"]');
+        if (!card) {
+            return;
+        }
+        const url = card.dataset.queryUrl;
+        if (!url) {
+            return;
+        }
+        const labels = card.dataset.queryStatusLabels ? JSON.parse(card.dataset.queryStatusLabels) : {};
+
+        const statusEls = card.querySelectorAll('[data-query-status]');
+        const playersEls = card.querySelectorAll('[data-query-players]');
+        const mapEls = card.querySelectorAll('[data-query-map]');
+        const checkedEls = card.querySelectorAll('[data-query-checked]');
+        const availableEls = card.querySelectorAll('[data-query-players-available]');
+        const unavailableEls = card.querySelectorAll('[data-query-players-unavailable]');
+
+        const formatCheckedAt = (value) => {
+            if (!value) {
+                return '—';
+            }
+            const parsed = new Date(value);
+            if (Number.isNaN(parsed.getTime())) {
+                return '—';
+            }
+            return parsed.toLocaleString();
+        };
+
+        const update = (payload) => {
+            const query = payload.query || {};
+            const statusKey = typeof query.status === 'string' ? query.status.toLowerCase() : 'unknown';
+            const statusLabel = labels[statusKey] || query.status || '—';
+            statusEls.forEach((el) => {
+                el.textContent = statusLabel;
+            });
+
+            const players = query.players ?? '—';
+            const maxPlayers = query.max_players ?? '—';
+            playersEls.forEach((el) => {
+                el.textContent = `${players} / ${maxPlayers}`;
+            });
+
+            mapEls.forEach((el) => {
+                el.textContent = query.map ?? '—';
+            });
+
+            checkedEls.forEach((el) => {
+                const label = el.dataset.queryCheckedLabel || '';
+                el.textContent = `${label}: ${formatCheckedAt(query.checked_at)}`;
+            });
+
+            const hasPlayers = query.available && (query.players !== null || query.max_players !== null);
+            availableEls.forEach((el) => {
+                el.classList.toggle('hidden', !hasPlayers);
+            });
+            unavailableEls.forEach((el) => {
+                el.classList.toggle('hidden', hasPlayers);
+            });
+        };
+
+        const fetchQuery = async () => {
+            try {
+                const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                if (!response.ok) {
+                    return;
+                }
+                const payload = await response.json().catch(() => null);
+                if (!payload) {
+                    return;
+                }
+                update(payload);
+            } catch (error) {
+                return;
+            }
+        };
+
+        fetchQuery();
+        window.setInterval(fetchQuery, 15000);
+    })();
+</script>

@@ -148,6 +148,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->getType()->isAdmin();
     }
 
+    public function isCustomer(): bool
+    {
+        return $this->getType() === UserType::Customer;
+    }
+
     public function getName(): ?string
     {
         return $this->name;

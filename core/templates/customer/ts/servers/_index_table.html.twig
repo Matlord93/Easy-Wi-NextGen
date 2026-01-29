@@ -15,48 +15,79 @@
             <thead>
             <tr>
                 <th>{{ columns.name }}</th>
-                {% if variant == 'ts6' %}
-                    <th>{{ columns.status }}</th>
-                    <th>{{ columns.ports }}</th>
-                {% else %}
-                    <th>{{ columns.ports }}</th>
-                    <th>{{ columns.status }}</th>
-                {% endif %}
-                <th>{{ columns.updated }}</th>
-                <th></th>
+                <th>{{ columns.address }}</th>
+                <th>{{ columns.slots }}</th>
+                <th>{{ columns.actions }}</th>
             </tr>
             </thead>
             <tbody>
-            {% for server in servers %}
+            {% for row in servers %}
+                {% set server = row.server %}
                 <tr>
                     <td>
                         <div>{{ server.name }}</div>
                         <div class="{{ cssPrefix }}-muted">#{{ server.sid }}</div>
                     </td>
-                    {% if variant == 'ts6' %}
-                        <td><span class="{{ cssPrefix }}-pill">{{ server.status }}</span></td>
-                        <td>
-                            {% if server.voicePort %}Voice {{ server.voicePort }}{% endif %}
-                            {% if server.filetransferPort %}<div>FT {{ server.filetransferPort }}</div>{% endif %}
-                        </td>
-                    {% else %}
-                        <td>
-                            <div>Voice: {{ server.voicePort ?? '—' }}</div>
-                            <div class="{{ cssPrefix }}-muted">File: {{ server.filetransferPort ?? '—' }}</div>
-                        </td>
-                        <td><span class="{{ cssPrefix }}-pill">{{ server.status }}</span></td>
-                    {% endif %}
-                    <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
+                    <td>
+                        <div>IP: {{ server.node.queryConnectIp }}:{{ server.voicePort ?? '—' }}</div>
+                        <div class="{{ cssPrefix }}-muted">FT {{ server.filetransferPort ?? 30033 }}</div>
+                    </td>
+                    <td>
+                        <span data-summary-url="{{ row.summaryUrl }}" data-slots>—</span>
+                    </td>
                     <td class="{{ cssPrefix }}-align-right">
-                        <a class="{{ cssPrefix }}-link" href="{{ detailBase }}/{{ server.id }}">Details</a>
+                        <div class="{{ cssPrefix }}-actions">
+                            <form method="post" action="{{ detailBase }}/{{ server.id }}/start">
+                                <input type="hidden" name="_token" value="{{ row.csrf.start }}">
+                                <button class="{{ cssPrefix }}-button" type="submit">Start</button>
+                            </form>
+                            <form method="post" action="{{ detailBase }}/{{ server.id }}/stop">
+                                <input type="hidden" name="_token" value="{{ row.csrf.stop }}">
+                                <button class="{{ cssPrefix }}-button" type="submit">Stop</button>
+                            </form>
+                            <form method="post" action="{{ detailBase }}/{{ server.id }}/restart">
+                                <input type="hidden" name="_token" value="{{ row.csrf.restart }}">
+                                <button class="{{ cssPrefix }}-button" type="submit">Neustart</button>
+                            </form>
+                            <a class="{{ cssPrefix }}-link" href="{{ detailBase }}/{{ server.id }}">Einstellung</a>
+                        </div>
                     </td>
                 </tr>
             {% else %}
                 <tr>
-                    <td class="{{ cssPrefix }}-empty" colspan="5">{{ emptyText }}</td>
+                    <td class="{{ cssPrefix }}-empty" colspan="4">{{ emptyText }}</td>
                 </tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+<script>
+    (function () {
+        const rows = document.querySelectorAll('[data-summary-url][data-slots]');
+        if (!rows.length) { return; }
+        rows.forEach((slotCell) => {
+            const url = slotCell.dataset.summaryUrl;
+            if (!url) { return; }
+            let attempts = 0;
+            const maxAttempts = 6;
+            const delayMs = 1500;
+            const loadSummary = () => {
+                fetch(url)
+                    .then((response) => response.json())
+                    .then((data) => {
+                        if (!data) { return; }
+                        if (data.status === 'pending' && attempts < maxAttempts) {
+                            attempts += 1;
+                            setTimeout(loadSummary, delayMs);
+                            return;
+                        }
+                        if (data.status !== 'ok') { return; }
+                        slotCell.textContent = `${data.clients_online ?? 0}/${data.max_clients ?? 0}`;
+                    })
+                    .catch(() => {});
+            };
+            loadSummary();
+        });
+    })();
+</script>

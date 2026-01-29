@@ -308,7 +308,7 @@ final class AgentJobResultApplier
                 $server->setFiletransferPort((int) $payload['filetransfer_port']);
             }
             $server->setStatus('running');
-            $this->applyVirtualToken($server, Ts3Token::class, $payload['token'] ?? null);
+            $this->applyVirtualToken($server, Ts3Token::class, $payload['token'] ?? null, $payload['token_type'] ?? null);
         }
 
         if ($job->getType() === 'ts3.virtual.action') {
@@ -322,7 +322,7 @@ final class AgentJobResultApplier
         }
 
         if ($job->getType() === 'ts3.virtual.token.rotate' && is_array($payload)) {
-            $this->applyVirtualToken($server, Ts3Token::class, $payload['token'] ?? null);
+            $this->applyVirtualToken($server, Ts3Token::class, $payload['token'] ?? null, $payload['token_type'] ?? null);
         }
     }
 
@@ -362,7 +362,7 @@ final class AgentJobResultApplier
                 if (isset($payload['filetransfer_port'])) {
                     $server->setFiletransferPort((int) $payload['filetransfer_port']);
                 }
-                $this->applyVirtualToken($server, Ts6Token::class, $payload['token'] ?? null);
+                $this->applyVirtualToken($server, Ts6Token::class, $payload['token'] ?? null, $payload['token_type'] ?? null);
             }
             $server->setStatus('running');
         }
@@ -378,7 +378,7 @@ final class AgentJobResultApplier
         }
 
         if ($job->getType() === 'ts6.virtual.token.rotate' && is_array($payload)) {
-            $this->applyVirtualToken($server, Ts6Token::class, $payload['token'] ?? null);
+            $this->applyVirtualToken($server, Ts6Token::class, $payload['token'] ?? null, $payload['token_type'] ?? null);
         }
     }
 
@@ -542,12 +542,13 @@ final class AgentJobResultApplier
     /**
      * @param class-string $tokenClass
      */
-    private function applyVirtualToken(Ts3VirtualServer|Ts6VirtualServer $server, string $tokenClass, mixed $tokenValue): void
+    private function applyVirtualToken(Ts3VirtualServer|Ts6VirtualServer $server, string $tokenClass, mixed $tokenValue, mixed $tokenType = null): void
     {
         if (!is_string($tokenValue) || $tokenValue === '') {
             return;
         }
 
+        $type = is_string($tokenType) && $tokenType !== '' ? $tokenType : 'owner';
         $existing = $this->entityManager->getRepository($tokenClass)->findOneBy([
             'virtualServer' => $server,
             'active' => true,
@@ -557,9 +558,9 @@ final class AgentJobResultApplier
         }
 
         if ($tokenClass === Ts3Token::class) {
-            $token = new Ts3Token($server, $this->crypto->encrypt($tokenValue), 'owner');
+            $token = new Ts3Token($server, $this->crypto->encrypt($tokenValue), $type);
         } else {
-            $token = new Ts6Token($server, $this->crypto->encrypt($tokenValue), 'owner');
+            $token = new Ts6Token($server, $this->crypto->encrypt($tokenValue), $type);
         }
         $this->entityManager->persist($token);
     }

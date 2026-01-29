@@ -71,6 +71,11 @@ final class Ts3VirtualServerService
         $this->applyServerAction($server, 'stop');
     }
 
+    public function restart(Ts3VirtualServer $server): void
+    {
+        $this->applyServerAction($server, 'restart');
+    }
+
     public function recreate(Ts3VirtualServer $server): Ts3VirtualServer
     {
         $this->stop($server);
@@ -84,12 +89,17 @@ final class Ts3VirtualServerService
         return $replacement;
     }
 
-    public function rotateToken(Ts3VirtualServer $server): Ts3Token
+    public function rotateToken(Ts3VirtualServer $server, int $serverGroupId = 6): Ts3Token
     {
+        if ($serverGroupId <= 0) {
+            $serverGroupId = 6;
+        }
+        $tokenType = sprintf('server_group:%d', $serverGroupId);
         $jobPayload = [
             'virtual_server_id' => $server->getId(),
             'node_id' => $server->getNode()->getId(),
             'sid' => $server->getSid(),
+            'server_group_id' => $serverGroupId,
             'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
             'query_port' => $server->getNode()->getQueryPort(),
             'admin_username' => $server->getNode()->getAdminUsername(),
@@ -98,7 +108,7 @@ final class Ts3VirtualServerService
 
         $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.token.rotate', $jobPayload);
 
-        $token = new Ts3Token($server, $this->crypto->encrypt('pending'), 'owner');
+        $token = new Ts3Token($server, $this->crypto->encrypt('pending'), $tokenType);
         $token->deactivate();
         $this->entityManager->persist($token);
         $this->entityManager->flush();
@@ -110,6 +120,57 @@ final class Ts3VirtualServerService
     {
         $server->setStatus('deleting');
         $this->applyServerAction($server, 'delete');
+    }
+
+    public function queueServerGroupList(Ts3VirtualServer $server, string $cacheKey): void
+    {
+        $jobPayload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'cache_key' => $cacheKey,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.servergroup.list', $jobPayload);
+        $this->entityManager->flush();
+    }
+
+    public function queueServerSummary(Ts3VirtualServer $server, string $cacheKey): void
+    {
+        $jobPayload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'cache_key' => $cacheKey,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.summary', $jobPayload);
+        $this->entityManager->flush();
+    }
+
+    public function queueServerQuery(Ts3VirtualServer $server, string $cacheKey, string $jobType): void
+    {
+        $jobPayload = [
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'cache_key' => $cacheKey,
+            'query_bind_ip' => $server->getNode()->getQueryConnectIp(),
+            'query_port' => $server->getNode()->getQueryPort(),
+            'admin_username' => $server->getNode()->getAdminUsername(),
+            'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
+        ];
+
+        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), $jobType, $jobPayload);
+        $this->entityManager->flush();
     }
 
     private function applyServerAction(Ts3VirtualServer $server, string $action): void

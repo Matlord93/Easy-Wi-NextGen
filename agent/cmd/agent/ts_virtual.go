@@ -165,6 +165,11 @@ func handleTs3VirtualAction(job jobs.Job) orchestratorResult {
 		command = fmt.Sprintf("serverstart sid=%s", sid)
 	case "stop":
 		command = fmt.Sprintf("serverstop sid=%s", sid)
+	case "restart":
+		if _, err := client.command(fmt.Sprintf("serverstop sid=%s", sid)); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
+		command = fmt.Sprintf("serverstart sid=%s", sid)
 	case "delete":
 		command = fmt.Sprintf("serverdelete sid=%s", sid)
 	default:
@@ -203,6 +208,11 @@ func handleTs6VirtualAction(job jobs.Job) orchestratorResult {
 		command = fmt.Sprintf("serverstart sid=%s", sid)
 	case "stop":
 		command = fmt.Sprintf("serverstop sid=%s", sid)
+	case "restart":
+		if _, err := client.command(fmt.Sprintf("serverstop sid=%s", sid)); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
+		command = fmt.Sprintf("serverstart sid=%s", sid)
 	case "delete":
 		command = fmt.Sprintf("serverdelete sid=%s", sid)
 	default:
@@ -254,12 +264,16 @@ func handleTs3VirtualTokenRotate(job jobs.Job) orchestratorResult {
 	if sid == "" {
 		return orchestratorResult{status: "failed", errorText: "missing sid"}
 	}
+	serverGroupID := payloadValue(job.Payload, "server_group_id", "sgid")
+	if serverGroupID == "" {
+		return orchestratorResult{status: "failed", errorText: "missing server_group_id"}
+	}
 
 	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
-	response, err := client.command(fmt.Sprintf("servertokenadd tokentype=0 tokenid1=%s tokenid2=0", sid))
+	response, err := client.command(fmt.Sprintf("tokenadd tokentype=0 tokenid1=%s tokenid2=0", serverGroupID))
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -269,12 +283,82 @@ func handleTs3VirtualTokenRotate(job jobs.Job) orchestratorResult {
 	}
 
 	return orchestratorResult{
-		status:        "success",
-		resultPayload: map[string]any{"token": token},
+		status: "success",
+		resultPayload: map[string]any{
+			"token":      token,
+			"token_type": fmt.Sprintf("server_group:%s", serverGroupID),
+		},
 	}
 }
 
 func handleTs6VirtualTokenRotate(job jobs.Job) orchestratorResult {
+	client, err := newTs6QueryClient(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	sid := payloadValue(job.Payload, "sid")
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid"}
+	}
+	serverGroupID := payloadValue(job.Payload, "server_group_id", "sgid")
+	if serverGroupID == "" {
+		return orchestratorResult{status: "failed", errorText: "missing server_group_id"}
+	}
+
+	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	response, err := client.command(fmt.Sprintf("tokenadd tokentype=0 tokenid1=%s tokenid2=0", serverGroupID))
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	token := response["token"]
+	if token == "" {
+		return orchestratorResult{status: "failed", errorText: "token rotate did not return token"}
+	}
+
+	return orchestratorResult{
+		status: "success",
+		resultPayload: map[string]any{
+			"token":      token,
+			"token_type": fmt.Sprintf("server_group:%s", serverGroupID),
+		},
+	}
+}
+
+func handleTs3ServerGroupList(job jobs.Job) orchestratorResult {
+	client, err := newTs3QueryClient(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	sid := payloadValue(job.Payload, "sid")
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid"}
+	}
+
+	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	groups, err := listServerGroups(client)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	return orchestratorResult{
+		status: "success",
+		resultPayload: map[string]any{
+			"groups": normalizeServerGroupList(groups),
+		},
+	}
+}
+
+func handleTs6ServerGroupList(job jobs.Job) orchestratorResult {
 	client, err := newTs6QueryClient(job.Payload)
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
@@ -290,18 +374,178 @@ func handleTs6VirtualTokenRotate(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
-	response, err := client.command(fmt.Sprintf("servertokenadd tokentype=0 tokenid1=%s tokenid2=0", sid))
+	groups, err := listServerGroups(client)
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	token := response["token"]
-	if token == "" {
-		return orchestratorResult{status: "failed", errorText: "token rotate did not return token"}
+
+	return orchestratorResult{
+		status: "success",
+		resultPayload: map[string]any{
+			"groups": normalizeServerGroupList(groups),
+		},
+	}
+}
+
+func handleTs3VirtualSummary(job jobs.Job) orchestratorResult {
+	client, err := newTs3QueryClient(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	sid := payloadValue(job.Payload, "sid")
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid"}
+	}
+
+	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	response, err := client.command("serverinfo")
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
 	return orchestratorResult{
-		status:        "success",
-		resultPayload: map[string]any{"token": token},
+		status: "success",
+		resultPayload: map[string]any{
+			"clients_online":    parseOptionalInt(response["virtualserver_clientsonline"]),
+			"max_clients":       parseOptionalInt(response["virtualserver_maxclients"]),
+			"voice_port":        parseOptionalInt(response["virtualserver_port"]),
+			"filetransfer_port": parseOptionalInt(response["virtualserver_filetransfer_port"]),
+		},
+	}
+}
+
+func handleTs6VirtualSummary(job jobs.Job) orchestratorResult {
+	client, err := newTs6QueryClient(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	sid := payloadValue(job.Payload, "sid")
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid"}
+	}
+
+	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	response, err := client.command("serverinfo")
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	return orchestratorResult{
+		status: "success",
+		resultPayload: map[string]any{
+			"clients_online":    parseOptionalInt(response["virtualserver_clientsonline"]),
+			"max_clients":       parseOptionalInt(response["virtualserver_maxclients"]),
+			"voice_port":        parseOptionalInt(response["virtualserver_port"]),
+			"filetransfer_port": parseOptionalInt(response["virtualserver_filetransfer_port"]),
+		},
+	}
+}
+
+func handleTs3VirtualBanList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, newTs3QueryClient, "banlist", "bans")
+}
+
+func handleTs6VirtualBanList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, newTs6QueryClient, "banlist", "bans")
+}
+
+func handleTs3VirtualChannelList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, newTs3QueryClient, "channellist", "channels")
+}
+
+func handleTs6VirtualChannelList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, newTs6QueryClient, "channellist", "channels")
+}
+
+func handleTs3VirtualClientList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, newTs3QueryClient, "clientlist", "clients")
+}
+
+func handleTs6VirtualClientList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, newTs6QueryClient, "clientlist", "clients")
+}
+
+func handleTs3VirtualLogView(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, newTs3QueryClient, "logview", "logs")
+}
+
+func handleTs6VirtualLogView(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, newTs6QueryClient, "logview", "logs")
+}
+
+func handleTs3VirtualSnapshot(job jobs.Job) orchestratorResult {
+	return handleTsSnapshot(job, newTs3QueryClient)
+}
+
+func handleTs6VirtualSnapshot(job jobs.Job) orchestratorResult {
+	return handleTsSnapshot(job, newTs6QueryClient)
+}
+
+func handleTsQueryList(job jobs.Job, builder func(map[string]any) (*ts3QueryClient, error), command, key string) orchestratorResult {
+	client, err := builder(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	sid := payloadValue(job.Payload, "sid")
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid"}
+	}
+
+	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	lines, err := client.commandLines(command)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	return orchestratorResult{
+		status: "success",
+		resultPayload: map[string]any{
+			key: parseQueryList(lines),
+		},
+	}
+}
+
+func handleTsSnapshot(job jobs.Job, builder func(map[string]any) (*ts3QueryClient, error)) orchestratorResult {
+	client, err := builder(job.Payload)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	defer client.close()
+
+	sid := payloadValue(job.Payload, "sid")
+	if sid == "" {
+		return orchestratorResult{status: "failed", errorText: "missing sid"}
+	}
+
+	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	response, err := client.command("serversnapshotcreate")
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	return orchestratorResult{
+		status: "success",
+		resultPayload: map[string]any{
+			"snapshot": response["snapshot"],
+		},
 	}
 }
 
@@ -779,6 +1023,69 @@ func listVirtualServers(client *ts3QueryClient) ([]map[string]string, error) {
 		}
 	}
 	return servers, nil
+}
+
+func listServerGroups(client *ts3QueryClient) ([]map[string]string, error) {
+	lines, err := client.commandLines("servergrouplist")
+	if err != nil {
+		return nil, err
+	}
+	groups := []map[string]string{}
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		for _, chunk := range strings.Split(line, "|") {
+			chunk = strings.TrimSpace(chunk)
+			if chunk == "" {
+				continue
+			}
+			entry := parseTs3QueryLine(chunk)
+			if len(entry) > 0 {
+				groups = append(groups, entry)
+			}
+		}
+	}
+	return groups, nil
+}
+
+func parseQueryList(lines []string) []map[string]string {
+	results := []map[string]string{}
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		for _, chunk := range strings.Split(line, "|") {
+			chunk = strings.TrimSpace(chunk)
+			if chunk == "" {
+				continue
+			}
+			entry := parseTs3QueryLine(chunk)
+			if len(entry) > 0 {
+				results = append(results, entry)
+			}
+		}
+	}
+	return results
+}
+
+func normalizeServerGroupList(groups []map[string]string) []map[string]any {
+	results := make([]map[string]any, 0, len(groups))
+	for _, group := range groups {
+		idValue := resolveVirtualServerValue(group, "sgid", "servergroup_id", "group_id", "id")
+		if idValue == "" {
+			continue
+		}
+		name := resolveVirtualServerValue(group, "name", "servergroup_name", "group_name")
+		if name == "" {
+			name = fmt.Sprintf("Server Group %s", idValue)
+		}
+		results = append(results, map[string]any{
+			"id":   parseOptionalInt(idValue),
+			"name": name,
+		})
+	}
+	return results
 }
 
 func formatVirtualServerSummary(servers []map[string]string) string {

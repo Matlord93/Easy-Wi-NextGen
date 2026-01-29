@@ -19,10 +19,11 @@
         {% endfor %}
 
         <div class="ts3-card">
-            <div class="ts3-meta">
+            <div class="ts3-meta" data-summary-url="/customer/ts3/servers/{{ server.id }}/summary.json">
                 <div><strong>Status:</strong> {{ server.status }}</div>
-                <div><strong>Voice Port:</strong> {{ server.voicePort ?? '—' }}</div>
-                <div><strong>Filetransfer Port:</strong> {{ server.filetransferPort ?? '—' }}</div>
+                <div><strong>Voice IP:</strong> {{ server.node.queryConnectIp }}:{{ server.voicePort ?? '—' }}</div>
+                <div><strong>Filetransfer Port:</strong> {{ server.filetransferPort ?? server.node.filetransferPort ?? 30033 }}</div>
+                <div><strong>Slots:</strong> <span data-slots>—</span></div>
             </div>
             <div class="ts3-actions">
                 <form method="post" action="/customer/ts3/servers/{{ server.id }}/start">
@@ -33,15 +34,222 @@
                     <input type="hidden" name="_token" value="{{ csrf.stop }}">
                     <button class="ts3-button" type="submit">Stop</button>
                 </form>
-                <form method="post" action="/customer/ts3/servers/{{ server.id }}/recreate">
-                    <input type="hidden" name="_token" value="{{ csrf.recreate }}">
-                    <button class="ts3-button" type="submit">Recreate</button>
+                <form method="post" action="/customer/ts3/servers/{{ server.id }}/restart">
+                    <input type="hidden" name="_token" value="{{ csrf.restart }}">
+                    <button class="ts3-button" type="submit">Neustart</button>
                 </form>
+                <a class="ts3-link" href="#verwaltung">Einstellung</a>
             </div>
-            <div class="ts3-actions">
-                <a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}/token">Token anzeigen</a>
-                <a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}/viewer">Viewer</a>
+        </div>
+
+        <div class="ts3-card" id="verwaltung">
+            <h2>Verwaltung</h2>
+            <p class="ts3-muted">Verwalte Token und Viewer direkt hier.</p>
+            <div class="ts3-grid">
+                <details class="ts3-card">
+                    <summary><strong>Token</strong></summary>
+                    <div class="ts3-credentials">
+                        <div><strong>Owner Token</strong></div>
+                        <div class="ts3-secret">{{ token ?? '—' }}</div>
+                    </div>
+                    <form class="ts3-form" method="post" action="/customer/ts3/servers/{{ server.id }}/token/rotate">
+                        <input type="hidden" name="_token" value="{{ csrf.rotate }}">
+                        <label for="ts3-server-group">Servergruppe (SGID)</label>
+                        <select id="ts3-server-group" name="server_group_id" data-url="/customer/ts3/servers/{{ server.id }}/server-groups.json">
+                            <option value="6">Lade Servergruppen…</option>
+                        </select>
+                        <p class="ts3-muted">Nutze die SGID aus <code>servergrouplist</code>, z.B. 6 für Server Admin.</p>
+                        <button class="ts3-button" type="submit">Token rotieren</button>
+                    </form>
+                    {% if tokens is empty %}
+                        <div class="ts3-muted">Keine Tokens vorhanden.</div>
+                    {% else %}
+                        <table class="ts3-table">
+                            <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Typ</th>
+                                <th>Status</th>
+                                <th>Erstellt</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for entry in tokens %}
+                                <tr>
+                                    <td class="ts3-secret">{{ entry.token }}</td>
+                                    <td>{{ entry.type }}</td>
+                                    <td>{{ entry.active ? 'Aktiv' : 'Inaktiv' }}</td>
+                                    <td>{{ entry.createdAt|date('Y-m-d H:i') }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    {% endif %}
+                </details>
+                <details class="ts3-card">
+                    <summary><strong>Viewer</strong></summary>
+                    {{ form_start(form, { attr: { class: 'ts3-form' } }) }}
+                        <div class="ts3-grid">
+                            {{ form_row(form.enabled) }}
+                            {{ form_row(form.cacheTtlMs) }}
+                            {{ form_row(form.domainAllowlist) }}
+                        </div>
+                        <button class="ts3-button" type="submit">Viewer speichern</button>
+                    {{ form_end(form) }}
+                    {% if viewer %}
+                        <div class="ts3-code">
+                            <pre>&lt;iframe src="{{ app.request.schemeAndHttpHost }}/viewer/ts3/{{ viewer.publicId }}" width="100%" height="600" loading="lazy"&gt;&lt;/iframe&gt;</pre>
+                        </div>
+                        <div class="ts3-code">
+                            <pre>&lt;div id="ts3-viewer" data-id="{{ viewer.publicId }}"&gt;&lt;/div&gt;
+&lt;script src="{{ app.request.schemeAndHttpHost }}/viewer/ts3/{{ viewer.publicId }}.js" async&gt;&lt;/script&gt;</pre>
+                        </div>
+                    {% endif %}
+                </details>
+                <details class="ts3-card">
+                    <summary><strong>Ban-Liste</strong></summary>
+                    <div class="ts3-muted" data-query="bans" data-url="/customer/ts3/servers/{{ server.id }}/bans.json">Lade Daten…</div>
+                </details>
+                <details class="ts3-card">
+                    <summary><strong>Channel</strong></summary>
+                    <div class="ts3-muted" data-query="channels" data-url="/customer/ts3/servers/{{ server.id }}/channels.json">Lade Daten…</div>
+                </details>
+                <details class="ts3-card">
+                    <summary><strong>Userverwaltung</strong></summary>
+                    <div class="ts3-muted" data-query="clients" data-url="/customer/ts3/servers/{{ server.id }}/clients.json">Lade Daten…</div>
+                </details>
+                <details class="ts3-card">
+                    <summary><strong>Logs</strong></summary>
+                    <div class="ts3-muted" data-query="logs" data-url="/customer/ts3/servers/{{ server.id }}/logs.json">Lade Daten…</div>
+                </details>
+                <details class="ts3-card">
+                    <summary><strong>Backup</strong></summary>
+                    <div class="ts3-muted" data-query="snapshot" data-url="/customer/ts3/servers/{{ server.id }}/snapshot.json">Lade Daten…</div>
+                </details>
             </div>
         </div>
     </div>
+    <script>
+        (function () {
+            const meta = document.querySelector('.ts3-meta[data-summary-url]');
+            if (!meta) { return; }
+            const slots = meta.querySelector('[data-slots]');
+            const url = meta.dataset.summaryUrl;
+            if (!slots || !url) { return; }
+            let attempts = 0;
+            const maxAttempts = 6;
+            const delayMs = 1500;
+            const loadSummary = () => {
+                fetch(url)
+                    .then((response) => response.json())
+                    .then((data) => {
+                        if (!data) { return; }
+                        if (data.status === 'pending' && attempts < maxAttempts) {
+                            attempts += 1;
+                            setTimeout(loadSummary, delayMs);
+                            return;
+                        }
+                        if (data.status !== 'ok') { return; }
+                        slots.textContent = `${data.clients_online ?? 0}/${data.max_clients ?? 0}`;
+                    })
+                    .catch(() => {});
+            };
+            loadSummary();
+        })();
+        (function () {
+            const select = document.getElementById('ts3-server-group');
+            if (!select) { return; }
+            const url = select.dataset.url;
+            if (!url) { return; }
+            let attempts = 0;
+            const maxAttempts = 6;
+            const delayMs = 1500;
+            const loadGroups = () => {
+                fetch(url)
+                    .then((response) => response.json())
+                    .then((data) => {
+                        if (!data) { return; }
+                        if (data.status === 'pending' && attempts < maxAttempts) {
+                            attempts += 1;
+                            setTimeout(loadGroups, delayMs);
+                            return;
+                        }
+                        if (data.status !== 'ok') { return; }
+                        const groups = Array.isArray(data.groups) ? data.groups : [];
+                        select.innerHTML = '';
+                        groups.forEach((group) => {
+                            const option = document.createElement('option');
+                            option.value = group.id;
+                            option.textContent = `${group.name} (SGID ${group.id})`;
+                            if (group.id === 6) {
+                                option.selected = true;
+                            }
+                            select.appendChild(option);
+                        });
+                        if (groups.length === 0) {
+                            const option = document.createElement('option');
+                            option.value = '6';
+                            option.textContent = 'Keine Servergruppen gefunden';
+                            select.appendChild(option);
+                        }
+                    })
+                    .catch(() => {});
+            };
+            loadGroups();
+        })();
+        (function () {
+            const blocks = document.querySelectorAll('[data-query][data-url]');
+            if (!blocks.length) { return; }
+            blocks.forEach((block) => {
+                const url = block.dataset.url;
+                if (!url) { return; }
+                let attempts = 0;
+                const maxAttempts = 6;
+                const delayMs = 1500;
+                const loadData = () => {
+                    fetch(url)
+                        .then((response) => response.json())
+                        .then((data) => {
+                            if (!data) { return; }
+                            if (data.status === 'pending' && attempts < maxAttempts) {
+                                attempts += 1;
+                                setTimeout(loadData, delayMs);
+                                return;
+                            }
+                            if (data.status !== 'ok') { return; }
+                            const payload = data.payload || {};
+                            if (payload.snapshot) {
+                                block.innerHTML = `<pre>${payload.snapshot}</pre>`;
+                                return;
+                            }
+                            const items = payload.bans || payload.channels || payload.clients || payload.logs || [];
+                            if (!Array.isArray(items) || items.length === 0) {
+                                block.textContent = 'Keine Einträge vorhanden.';
+                                return;
+                            }
+                            const list = document.createElement('ul');
+                            items.forEach((item) => {
+                                const entry = document.createElement('li');
+                                if (item.client_nickname) {
+                                    entry.textContent = `${item.client_nickname} (ID ${item.clid ?? '-'})`;
+                                } else if (item.channel_name) {
+                                    entry.textContent = `${item.channel_name} (ID ${item.cid ?? '-'})`;
+                                } else if (item.ban_reason || item.ip || item.name) {
+                                    entry.textContent = `${item.name ?? item.ip ?? 'Ban'} ${item.ban_reason ?? ''}`.trim();
+                                } else if (item.msg || item.message) {
+                                    entry.textContent = item.msg ?? item.message;
+                                } else {
+                                    entry.textContent = JSON.stringify(item);
+                                }
+                                list.appendChild(entry);
+                            });
+                            block.innerHTML = '';
+                            block.appendChild(list);
+                        })
+                        .catch(() => {});
+                };
+                loadData();
+            });
+        })();
+    </script>
 {% endblock %}

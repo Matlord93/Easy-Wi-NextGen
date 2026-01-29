@@ -84,24 +84,37 @@ final class Ts6ViewerController
 (function () {
   const container = document.getElementById('ts6-viewer');
   if (!container) { return; }
-  fetch('/viewer/ts6/{$publicId}.json')
-    .then((response) => response.json())
-    .then((data) => {
-      if (!data || data.status !== 'ok') { return; }
-      const title = document.createElement('div');
-      title.className = 'ts6-viewer-title';
-      title.textContent = data.server?.name || 'TS6 Server';
-      const list = document.createElement('ul');
-      list.className = 'ts6-viewer-list';
-      (data.channels || []).forEach((channel) => {
-        const item = document.createElement('li');
-        item.textContent = channel.name || 'Channel';
-        list.appendChild(item);
-      });
-      container.innerHTML = '';
-      container.appendChild(title);
-      container.appendChild(list);
-    });
+  let attempts = 0;
+  const maxAttempts = 6;
+  const delayMs = 1500;
+  const loadSnapshot = () => {
+    fetch('/viewer/ts6/{$publicId}.json')
+      .then((response) => response.json())
+      .then((data) => {
+        if (!data) { return; }
+        if (data.status === 'pending' && attempts < maxAttempts) {
+          attempts += 1;
+          setTimeout(loadSnapshot, delayMs);
+          return;
+        }
+        if (data.status !== 'ok') { return; }
+        const title = document.createElement('div');
+        title.className = 'ts6-viewer-title';
+        title.textContent = data.server?.name || 'TS6 Server';
+        const list = document.createElement('ul');
+        list.className = 'ts6-viewer-list';
+        (data.channels || []).forEach((channel) => {
+          const item = document.createElement('li');
+          item.textContent = channel.name || 'Channel';
+          list.appendChild(item);
+        });
+        container.innerHTML = '';
+        container.appendChild(title);
+        container.appendChild(list);
+      })
+      .catch(() => {});
+  };
+  loadSnapshot();
 })();
 JS;
 
