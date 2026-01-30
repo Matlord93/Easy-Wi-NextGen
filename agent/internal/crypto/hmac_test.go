@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"strings"
 	"testing"
 	"time"
 )
@@ -16,15 +15,7 @@ func TestSignBuildsExpectedSignature(t *testing.T) {
 		t.Fatalf("Sign returned error: %v", err)
 	}
 
-	bodyHash := sha256.Sum256([]byte(`{"ok":true}`))
-	payload := strings.Join([]string{
-		"agent-1",
-		"POST",
-		"/agent/agent-1/jobs",
-		hex.EncodeToString(bodyHash[:]),
-		timestamp.Format(time.RFC3339),
-		"nonce-1",
-	}, "\n")
+	payload := buildSignaturePayload("agent-1", "POST", "/agent/agent-1/jobs", timestamp.Format(time.RFC3339), "nonce-1", []byte(`{"ok":true}`))
 
 	mac := hmac.New(sha256.New, []byte("secret"))
 	mac.Write([]byte(payload))

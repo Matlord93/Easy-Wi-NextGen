@@ -20,11 +20,7 @@ type SignatureHeaders struct {
 
 // Sign builds an HMAC signature for the request.
 func Sign(agentID, secret, method, path string, body []byte, timestamp time.Time, nonce string) (SignatureHeaders, error) {
-	bodyHash := sha256.Sum256(body)
-	signaturePayload := fmt.Sprintf("%s\n%s\n%s\n%s\n%s", agentID, method, path, hex.EncodeToString(bodyHash[:]), timestamp.UTC().Format(time.RFC3339))
-	if nonce != "" {
-		signaturePayload = signaturePayload + "\n" + nonce
-	}
+	signaturePayload := buildSignaturePayload(agentID, method, path, timestamp.UTC().Format(time.RFC3339), nonce, body)
 
 	mac := hmac.New(sha256.New, []byte(secret))
 	if _, err := mac.Write([]byte(signaturePayload)); err != nil {
@@ -37,6 +33,16 @@ func Sign(agentID, secret, method, path string, body []byte, timestamp time.Time
 		Nonce:     nonce,
 		Signature: hex.EncodeToString(mac.Sum(nil)),
 	}, nil
+}
+
+func buildSignaturePayload(agentID, method, path, timestamp, nonce string, body []byte) string {
+	bodyHash := sha256.Sum256(body)
+	signaturePayload := fmt.Sprintf("%s\n%s\n%s\n%s\n%s", agentID, method, path, hex.EncodeToString(bodyHash[:]), timestamp)
+	if nonce != "" {
+		signaturePayload = signaturePayload + "\n" + nonce
+	}
+
+	return signaturePayload
 }
 
 // NewNonce creates a random nonce for signing.

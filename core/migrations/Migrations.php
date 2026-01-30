@@ -42,7 +42,7 @@ final class Version20260615120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        if (!$schema->hasTable('game_templates')) {
+        if (!$this->tableExists('game_templates')) {
             return;
         }
 
@@ -79,7 +79,7 @@ final class Version20260615120000 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
-        if (!$schema->hasTable('game_templates')) {
+        if (!$this->tableExists('game_templates')) {
             return;
         }
 
@@ -102,6 +102,10 @@ final class Version20260615120000 extends AbstractMigration
      */
     private function updateTemplate(string $gameKey, string $startParams, array $configFiles, array $requiredPorts, array $requiredVars): void
     {
+        if (!$this->tableExists('game_templates')) {
+            return;
+        }
+
         $this->addSql(sprintf(
             'UPDATE game_templates SET start_params = %s, config_files = %s, required_ports = %s WHERE game_key = %s',
             $this->quote($startParams),
@@ -143,6 +147,15 @@ final class Version20260615120000 extends AbstractMigration
         $envVars[] = ['key' => $key, 'value' => $value];
 
         return $envVars;
+    }
+
+    private function tableExists(string $table): bool
+    {
+        try {
+            return $this->connection->createSchemaManager()->tablesExist([$table]);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function decodeJsonArray(string $json): array
