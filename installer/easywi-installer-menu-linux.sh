@@ -66,6 +66,13 @@ require_command() {
   fi
 }
 
+ensure_git_safe_dir() {
+  local repo_dir="$1"
+  if ! git config --global --get-all safe.directory | grep -Fxq "${repo_dir}"; then
+    git config --global --add safe.directory "${repo_dir}"
+  fi
+}
+
 detect_package_manager() {
   if command -v apt-get >/dev/null 2>&1; then
     echo "apt"
@@ -191,6 +198,23 @@ hmac_sha256_hex() {
   printf '%s' "${payload}" | openssl dgst -sha256 -hmac "${secret}" -hex | awk '{print $2}'
 }
 
+build_signature_payload() {
+  local agent_id="$1"
+  local method="$2"
+  local path="$3"
+  local timestamp="$4"
+  local nonce="$5"
+  local raw_body="$6"
+  local body_hash
+  body_hash="$(sha256_hex "${raw_body}")"
+  local payload
+  payload="$(printf '%s\n%s\n%s\n%s\n%s' "${agent_id}" "${method}" "${path}" "${body_hash}" "${timestamp}")"
+  if [[ -n "${nonce}" ]]; then
+    payload="${payload}"$'\n'"${nonce}"
+  fi
+  printf '%s' "${payload}"
+}
+
 resolve_php_binary() {
   local version="$1"
   if command -v "php${version}" >/dev/null 2>&1; then
@@ -257,6 +281,42 @@ prompt_value() {
   if [[ -n "${value}" ]]; then
     printf -v "${var_name}" '%s' "${value}"
   fi
+}
+
+prompt_yes_no() {
+  local prompt="$1"
+  local default="${2:-no}"
+  local value=""
+
+  if ! is_tty; then
+    return 1
+  fi
+
+  case "${default}" in
+    yes)
+      prompt="${prompt} [Y/n]"
+      ;;
+    no)
+      prompt="${prompt} [y/N]"
+      ;;
+    *)
+      prompt="${prompt} [y/n]"
+      ;;
+  esac
+
+  value="$(read_from_tty "${prompt}: ")"
+  if [[ -z "${value}" ]]; then
+    value="${default}"
+  fi
+
+  case "${value}" in
+    y|Y|yes|YES|Yes)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 db_system_menu() {
@@ -339,6 +399,7 @@ APP_SECRET="${app_secret}"
 APP_ENCRYPTION_KEY_ID=${key_id}
 APP_ENCRYPTION_KEYS="${key_ring}"
 DATABASE_URL="${db_url}"
+DATABASE_REPLICA_URL="${db_url}"
 DEFAULT_URI=${default_uri}
 MESSENGER_TRANSPORT_DSN=doctrine://default?auto_setup=0
 TRUSTED_PROXIES=127.0.0.1
@@ -385,6 +446,41 @@ NGINX
   ln -sf "${config_path}" "${enabled_path}"
   rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
   systemctl reload nginx.service
+}
+
+write_installation_info() {
+  local info_path="$1"
+  local db_driver="$2"
+  local db_host="$3"
+  local db_port="$4"
+  local db_name="$5"
+  local db_user="$6"
+  local db_password="$7"
+  local default_uri="$8"
+  local webserver_config="$9"
+
+  step "Schreibe Installationsinformationen."
+  cat <<INFO >"${info_path}"
+EasyWI Installationsdaten
+=========================
+
+URL: ${default_uri}
+
+Datenbank
+---------
+Treiber: ${db_driver}
+Host: ${db_host}
+Port: ${db_port:-Standard}
+Name: ${db_name}
+User: ${db_user}
+Passwort: ${db_password}
+
+Webserver
+---------
+Nginx-Config: ${webserver_config}
+INFO
+
+  chmod 600 "${info_path}"
 }
 
 create_systemd_service() {
@@ -599,13 +695,22 @@ install_panel() {
 
   step "Lade Panel-Quellcode."
   if [[ -d "${install_dir}/.git" ]]; then
+    ensure_git_safe_dir "${install_dir}"
     git -C "${install_dir}" fetch --all --tags
     git -C "${install_dir}" checkout "${repo_ref}"
     git -C "${install_dir}" pull --ff-only
   elif [[ -d "${install_dir}" && -n "$(ls -A "${install_dir}" 2>/dev/null)" ]]; then
-    fatal "Installationsverzeichnis ${install_dir} ist nicht leer und kein Git-Repository."
+    if prompt_yes_no "Installationsverzeichnis ${install_dir} ist nicht leer. Inhalt löschen und fortfahren?" "no"; then
+      (shopt -s dotglob nullglob; rm -rf "${install_dir:?}/"*)
+      git clone "${repo_url}" "${install_dir}"
+      ensure_git_safe_dir "${install_dir}"
+      git -C "${install_dir}" checkout "${repo_ref}"
+    else
+      fatal "Installationsverzeichnis ${install_dir} ist nicht leer und kein Git-Repository."
+    fi
   else
     git clone "${repo_url}" "${install_dir}"
+    ensure_git_safe_dir "${install_dir}"
     git -C "${install_dir}" checkout "${repo_ref}"
   fi
 
@@ -630,6 +735,7 @@ install_panel() {
   fi
 
   write_env_local "${core_dir}/.env.local" "${db_driver}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" "${app_secret}" "${app_encryption_keys}" "${agent_registration_token}" "${default_uri}" "${install_dir}"
+  write_installation_info "${install_dir}/INSTALLATION_INFO.txt" "${db_driver}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" "${default_uri}" "/etc/nginx/sites-available/easywi.conf"
 
   if [[ -n "${app_github_token}" ]]; then
     echo "APP_GITHUB_TOKEN=\"${app_github_token}\"" >>"${core_dir}/.env.local"
@@ -639,9 +745,7 @@ install_panel() {
   chown -R "${system_user}:${system_user}" "${install_dir}"
   chown -R "${web_user}:${web_user}" "${core_dir}/var" "${core_dir}/public"
 
-  if [[ "${mode}" == "standalone" ]]; then
-    configure_nginx "${web_hostname}" "${core_dir}/public" "${php_version}"
-  fi
+  configure_nginx "${web_hostname}" "${core_dir}/public" "${php_version}"
 
   if [[ "${run_migrations}" == "true" ]]; then
     step "Führe Datenbankmigrationen aus."
@@ -686,11 +790,18 @@ CONF
     chmod 600 /etc/easywi/filesvc.conf
   fi
 
+  create_systemd_service "easywi-agent" "/usr/local/bin/easywi-agent --config /etc/easywi/agent.conf" "EasyWI Agent"
+  create_systemd_service "easywi-filesvc" "/usr/local/bin/easywi-filesvc --config /etc/easywi/filesvc.conf" "EasyWI File Service"
+  systemctl daemon-reload
+  systemctl enable easywi-agent.service
+  systemctl enable easywi-filesvc.service
+
   cat <<'INFO'
 Die Binaries wurden installiert. Die Konfiguration und Dienste können
 nach der Registrierung im Webinterface ergänzt werden:
   - /etc/easywi/agent.conf
   - /etc/easywi/filesvc.conf
+Die Systemd-Services wurden angelegt und für den Autostart aktiviert.
 INFO
 }
 
@@ -850,7 +961,7 @@ register_agent_with_token() {
     path="${path%/}"
   fi
   body_hash="$(sha256_hex "${register_payload}")"
-  payload="${agent_id}\nPOST\n${path}\n${body_hash}\n${timestamp}\n${nonce}"
+  payload="$(build_signature_payload "${agent_id}" "POST" "${path}" "${timestamp}" "${nonce}" "${register_payload}")"
   signature="$(hmac_sha256_hex "${register_token}" "${payload}")"
 
   step "Agent-Registrierung abschließen."
@@ -865,7 +976,7 @@ register_agent_with_token() {
     -d "${register_payload}")"
   register_status="${register_response##*$'\n'}"
   register_response="${register_response%$'\n'*}"
-  if [[ "${register_status}" != "200" ]]; then
+  if [[ "${register_status}" != "200" && "${register_status}" != "201" ]]; then
     log "Registrierungsfehler (HTTP ${register_status})."
     if [[ -n "${register_response}" ]]; then
       log "Antwort: ${register_response}"
@@ -947,7 +1058,7 @@ run_panel_install() {
 
   echo
   echo "Panel-Setup: Wir laden den Quellcode, schreiben die .env.local,"
-  echo "konfigurieren den Webserver (falls Standalone), und führen optional"
+  echo "konfigurieren den Webserver, und führen optional"
   echo "die Datenbankmigrationen aus."
 
   prompt_value repo_url "Git-Repository URL" "https://github.com/Matlord93/Easy-Wi-NextGen.git"
@@ -988,12 +1099,10 @@ run_panel_install() {
   prompt_value app_github_token "GitHub Token (optional)" "${app_github_token}"
   prompt_value run_migrations "Migrationen ausführen? (true/false)" "${run_migrations}"
 
-  if [[ "${mode}" == "standalone" ]]; then
-    prompt_value php_version "PHP-Version (8.4)" "${php_version}"
-    prompt_value web_hostname "Servername" "${web_hostname}"
-    prompt_value web_user "Web-User" "${web_user}"
-    prompt_value web_scheme "Web-Schema (http/https)" "${web_scheme}"
-  fi
+  prompt_value php_version "PHP-Version (8.4)" "${php_version}"
+  prompt_value web_hostname "Servername" "${web_hostname}"
+  prompt_value web_user "Web-User" "${web_user}"
+  prompt_value web_scheme "Web-Schema (http/https)" "${web_scheme}"
   if [[ -z "${web_scheme}" ]]; then
     web_scheme="https"
   fi
