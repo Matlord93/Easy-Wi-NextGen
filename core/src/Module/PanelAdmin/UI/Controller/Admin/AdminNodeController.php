@@ -401,6 +401,7 @@ final class AdminNodeController
         $filesvcHost = trim((string) $request->request->get('filesvc_host', ''));
         $filesvcPort = trim((string) $request->request->get('filesvc_port', ''));
         $filesvcScheme = trim((string) $request->request->get('filesvc_scheme', ''));
+        $instanceBaseDirsRaw = (string) $request->request->get('instance_base_dirs', '');
 
         $node->setAgentBaseUrl($agentBaseUrl !== '' ? $agentBaseUrl : null);
         $node->setJobConcurrency($jobConcurrency);
@@ -413,7 +414,17 @@ final class AdminNodeController
 
         $metadata = $node->getMetadata();
         $metadata = is_array($metadata) ? $metadata : [];
-        $node->setMetadata($this->applyFilesvcMetadata($metadata, $filesvcUrl, $filesvcHost, $filesvcPort, $filesvcScheme));
+        $metadata = $this->applyFilesvcMetadata($metadata, $filesvcUrl, $filesvcHost, $filesvcPort, $filesvcScheme);
+        $baseDirResult = $this->parseInstanceBaseDirs($instanceBaseDirsRaw);
+        if ($baseDirResult['errors'] !== []) {
+            return $this->renderNodesTable(null, implode(' ', $baseDirResult['errors']));
+        }
+        if ($baseDirResult['dirs'] === []) {
+            unset($metadata['instance_base_dirs']);
+        } else {
+            $metadata['instance_base_dirs'] = $baseDirResult['dirs'];
+        }
+        $node->setMetadata($metadata);
 
         $this->entityManager->flush();
         $this->auditLogger->log($actor, 'node.agent.settings_updated', [
@@ -426,6 +437,7 @@ final class AdminNodeController
             'filesvc_host' => $filesvcHost !== '' ? $filesvcHost : null,
             'filesvc_port' => $filesvcPort !== '' ? $filesvcPort : null,
             'filesvc_scheme' => $filesvcScheme !== '' ? $filesvcScheme : null,
+            'instance_base_dirs' => $baseDirResult['dirs'] !== [] ? $baseDirResult['dirs'] : null,
         ]);
 
         $connectivityError = $this->checkAgentConnectivity($agentBaseUrl);
@@ -869,6 +881,58 @@ final class AdminNodeController
         return $metadata;
     }
 
+    /**
+     * @return array{dirs: array<int, string>, errors: array<int, string>}
+     */
+    private function parseInstanceBaseDirs(string $raw): array
+    {
+        $errors = [];
+        $lines = preg_split('/\r?\n/', $raw) ?: [];
+        $dirs = [];
+
+        foreach ($lines as $line) {
+            $candidate = trim($line);
+            if ($candidate === '') {
+                continue;
+            }
+            if (!str_starts_with($candidate, '/')) {
+                $errors[] = sprintf('Instance base dir "%s" must be an absolute path.', $candidate);
+                continue;
+            }
+            $dirs[$candidate] = true;
+        }
+
+        return [
+            'dirs' => array_keys($dirs),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int, string>
+     */
+    private function normalizeInstanceBaseDirs(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $dirs = [];
+        foreach ($value as $entry) {
+            if (!is_string($entry)) {
+                continue;
+            }
+            $candidate = trim($entry);
+            if ($candidate === '' || !str_starts_with($candidate, '/')) {
+                continue;
+            }
+            $dirs[$candidate] = true;
+        }
+
+        return array_keys($dirs);
+    }
+
     private function checkAgentConnectivity(string $agentBaseUrl): ?string
     {
         if (trim($agentBaseUrl) === '') {
@@ -1024,6 +1088,7 @@ final class AdminNodeController
             $filesvcHost = $metadata['filesvc_host'] ?? null;
             $filesvcPort = $metadata['filesvc_port'] ?? null;
             $filesvcScheme = $metadata['filesvc_scheme'] ?? null;
+            $instanceBaseDirs = $this->normalizeInstanceBaseDirs($metadata['instance_base_dirs'] ?? null);
 
             return [
                 'id' => $node->getId(),
@@ -1061,6 +1126,7 @@ final class AdminNodeController
                         'port' => is_numeric($filesvcPort) ? (int) $filesvcPort : null,
                         'scheme' => is_string($filesvcScheme) ? $filesvcScheme : null,
                     ],
+                    'instance_base_dirs' => $instanceBaseDirs,
                 ],
                 'coreAccessMode' => is_string($coreAccessMode) ? $coreAccessMode : null,
                 'updateAvailable' => $this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion),

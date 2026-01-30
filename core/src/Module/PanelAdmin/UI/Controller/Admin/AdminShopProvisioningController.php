@@ -15,6 +15,7 @@ use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\DiskEnforcementService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -32,6 +33,7 @@ final class AdminShopProvisioningController
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly AppSettingsService $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -54,6 +56,7 @@ final class AdminShopProvisioningController
         $diskLimitValue = $payload['disk_limit'] ?? null;
         $portBlockId = $payload['port_block_id'] ?? null;
         $password = (string) ($payload['password'] ?? '');
+        $instanceBaseDir = trim((string) ($payload['instance_base_dir'] ?? ''));
 
         if ($email === '' || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
             return new JsonResponse(['error' => 'Missing required fields.'], JsonResponse::HTTP_BAD_REQUEST);
@@ -69,6 +72,10 @@ final class AdminShopProvisioningController
 
         if ($cpuLimit <= 0 || $ramLimit <= 0 || $diskLimit <= 0) {
             return new JsonResponse(['error' => 'Limits must be positive.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if ($instanceBaseDir !== '' && !str_starts_with($instanceBaseDir, '/')) {
+            return new JsonResponse(['error' => 'Instance base dir must be an absolute path.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $customer = $this->userRepository->findOneByEmail($email);
@@ -143,6 +150,7 @@ final class AdminShopProvisioningController
             InstanceStatus::PendingSetup,
             InstanceUpdatePolicy::Manual,
         );
+        $instance->setInstanceBaseDir($instanceBaseDir !== '' ? $instanceBaseDir : $this->appSettingsService->getInstanceBaseDir());
 
         $this->entityManager->persist($instance);
         $this->entityManager->flush();

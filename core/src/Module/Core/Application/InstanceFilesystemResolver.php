@@ -15,7 +15,7 @@ final class InstanceFilesystemResolver
 
     public function resolveInstanceDir(Instance $instance, ?string $baseDir = null): string
     {
-        $baseDir = $baseDir !== null && $baseDir !== '' ? $baseDir : $this->getDefaultBaseDir();
+        $baseDir = $baseDir !== null && $baseDir !== '' ? $baseDir : ($instance->getInstanceBaseDir() ?? $this->getDefaultBaseDir());
         $username = $this->buildInstanceUsername((string) $instance->getCustomer()->getId(), (string) $instance->getId());
 
         return rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $username;

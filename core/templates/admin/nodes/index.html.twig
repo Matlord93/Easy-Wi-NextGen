@@ -325,6 +325,17 @@
                                     >
                                     <p class="text-xs text-slate-500">Legt fest, wie viele Jobs der Agent gleichzeitig ausführen darf.</p>
                                 </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="instance-base-dirs">{{ t('admin_nodes_instance_base_dirs_label', page_locale()) }}</label>
+                                    <textarea
+                                        id="instance-base-dirs"
+                                        name="instance_base_dirs"
+                                        rows="3"
+                                        class="form-input"
+                                        placeholder="/home&#10;/mnt/storage"
+                                    >{{ selectedNode.agent.instance_base_dirs|default([])|join("\n") }}</textarea>
+                                    <p class="text-xs text-slate-500">{{ t('admin_nodes_instance_base_dirs_hint', page_locale()) }}</p>
+                                </div>
                                 <label class="role-toggle">
                                     <input type="checkbox" name="clear_agent_token" value="1">
                                     <span>Agent-Token löschen</span>

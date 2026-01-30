@@ -67,6 +67,10 @@ final class InstanceJobPayloadBuilder
             'secrets' => $this->buildSecretPlaceholders($instance),
         ];
 
+        if ($instance->getInstanceBaseDir() !== null) {
+            $payload['base_dir'] = $instance->getInstanceBaseDir();
+        }
+
         $payload = array_merge($payload, $this->buildPortPayload($instance));
 
         if ($instance->getLockedBuildId() !== null) {

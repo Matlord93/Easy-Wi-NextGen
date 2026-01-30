@@ -63,7 +63,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	if baseDir == "" {
-		baseDir = "/home"
+		baseDir = defaultInstanceBaseDir()
 	}
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)

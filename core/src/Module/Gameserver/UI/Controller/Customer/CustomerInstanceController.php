@@ -300,6 +300,7 @@ final class CustomerInstanceController
             'cpu_limit' => (string) $instance->getCpuLimit(),
             'ram_limit' => (string) $instance->getRamLimit(),
             'disk_limit' => (string) $instance->getDiskLimit(),
+            'base_dir' => $instance->getInstanceBaseDir() ?? $this->appSettingsService->getInstanceBaseDir(),
         ], $install['payload'] ?? []));
         $this->entityManager->persist($job);
 
@@ -351,6 +352,7 @@ final class CustomerInstanceController
             'cpu_limit' => (string) $instance->getCpuLimit(),
             'ram_limit' => (string) $instance->getRamLimit(),
             'disk_limit' => (string) $instance->getDiskLimit(),
+            'base_dir' => $instance->getInstanceBaseDir() ?? $this->appSettingsService->getInstanceBaseDir(),
             'start_params' => $instance->getTemplate()->getStartParams(),
             'required_ports' => implode(',', $instance->getTemplate()->getRequiredPortLabels()),
             'port_block_ports' => $portBlock ? implode(',', array_map('strval', $portBlock->getPorts())) : '',

@@ -202,6 +202,7 @@ final class AdminInstanceController
         $instance->setServerName($formData['server_name'] !== '' ? $formData['server_name'] : null);
         $instance->setGslKey($formData['steam_gslt'] !== '' ? $formData['steam_gslt'] : null);
         $instance->setSteamAccount($formData['steam_login_mode'] === 'account' && $formData['steam_account'] !== '' ? $formData['steam_account'] : null);
+        $instance->setInstanceBaseDir($formData['instance_base_dir']);
         if ($formData['setup_vars'] !== []) {
             $instance->setSetupVars($formData['setup_vars']);
         }
@@ -495,6 +496,7 @@ final class AdminInstanceController
         $steamLoginMode = (string) $request->request->get('steam_login_mode', 'anonymous');
         $steamAccount = trim((string) $request->request->get('steam_account', ''));
         $steamPassword = (string) $request->request->get('steam_password', '');
+        $instanceBaseDir = trim((string) $request->request->get('instance_base_dir', ''));
 
         if ($customerId === null || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
             $errors[] = 'Customer, template, node, and resource limits are required.';
@@ -560,6 +562,13 @@ final class AdminInstanceController
         $node = $nodeId !== '' ? $this->agentRepository->find($nodeId) : null;
         if ($node === null) {
             $errors[] = 'Node not found.';
+        }
+
+        if ($instanceBaseDir === '' && $node !== null) {
+            $instanceBaseDir = $this->resolveDefaultInstanceBaseDir($node);
+        }
+        if ($instanceBaseDir !== '' && !$this->isAbsolutePath($instanceBaseDir)) {
+            $errors[] = 'Instance base dir must be an absolute path.';
         }
 
         $portBlock = null;
@@ -636,6 +645,7 @@ final class AdminInstanceController
             'steam_account' => $steamAccount,
             'steam_password' => $steamPassword,
             'setup_vars' => $setupVars,
+            'instance_base_dir' => $instanceBaseDir,
         ];
     }
 
@@ -669,6 +679,8 @@ final class AdminInstanceController
             'steam_login_mode' => 'anonymous',
             'steam_account' => '',
             'steam_password' => '',
+            'instance_base_dir' => $this->appSettingsService->getInstanceBaseDir(),
+            'instance_base_dirs' => $this->getKnownInstanceBaseDirs(),
             'errors' => [],
             'port_pool_notice' => $portPoolNotice,
             'action_url' => '/admin/instances',
@@ -726,9 +738,74 @@ final class AdminInstanceController
                 'steam_login_mode' => $formData['steam_login_mode'],
                 'steam_account' => $formData['steam_account'],
                 'steam_password' => $formData['steam_password'],
+                'instance_base_dir' => $formData['instance_base_dir'],
                 'errors' => $formData['errors'],
             ]),
         ]), $status);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function getKnownInstanceBaseDirs(): array
+    {
+        $dirs = [$this->appSettingsService->getInstanceBaseDir()];
+        $nodes = $this->agentRepository->findBy([], ['name' => 'ASC']);
+        foreach ($nodes as $node) {
+            $dirs = array_merge($dirs, $this->extractInstanceBaseDirs($node));
+        }
+
+        $unique = [];
+        foreach ($dirs as $dir) {
+            $normalized = trim($dir);
+            if ($normalized === '' || isset($unique[$normalized])) {
+                continue;
+            }
+            $unique[$normalized] = true;
+        }
+
+        return array_keys($unique);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function extractInstanceBaseDirs(Agent $node): array
+    {
+        $metadata = $node->getMetadata();
+        $dirs = is_array($metadata) ? ($metadata['instance_base_dirs'] ?? []) : [];
+        if (!is_array($dirs)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($dirs as $dir) {
+            if (!is_string($dir)) {
+                continue;
+            }
+            $dir = trim($dir);
+            if ($dir === '' || !$this->isAbsolutePath($dir)) {
+                continue;
+            }
+            $normalized[$dir] = true;
+        }
+
+        return array_keys($normalized);
+    }
+
+    private function resolveDefaultInstanceBaseDir(Agent $node): string
+    {
+        $dirs = $this->extractInstanceBaseDirs($node);
+        if ($dirs !== []) {
+            return $dirs[0];
+        }
+
+        return $this->appSettingsService->getInstanceBaseDir();
+    }
+
+    private function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/');
     }
 
     private function parseCustomerPayload(Request $request): array

@@ -19,6 +19,7 @@ final class ShopProvisioningService
 {
     public function __construct(
         private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly AppSettingsService $appSettingsService,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
     ) {
@@ -47,6 +48,7 @@ final class ShopProvisioningService
             InstanceStatus::PendingSetup,
             InstanceUpdatePolicy::Manual,
         );
+        $instance->setInstanceBaseDir($this->appSettingsService->getInstanceBaseDir());
 
         $this->entityManager->persist($instance);
 

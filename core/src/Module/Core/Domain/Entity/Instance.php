@@ -103,6 +103,9 @@ class Instance implements ResourceEventSource
     #[ORM\Column(enumType: InstanceUpdatePolicy::class)]
     private InstanceUpdatePolicy $updatePolicy;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $instanceBaseDir = null;
+
     #[ORM\Column(type: 'json')]
     private array $setupVars = [];
 
@@ -443,6 +446,18 @@ class Instance implements ResourceEventSource
     public function getUpdatePolicy(): InstanceUpdatePolicy
     {
         return $this->updatePolicy;
+    }
+
+    public function getInstanceBaseDir(): ?string
+    {
+        return $this->instanceBaseDir;
+    }
+
+    public function setInstanceBaseDir(?string $instanceBaseDir): void
+    {
+        $normalized = $instanceBaseDir !== null ? trim($instanceBaseDir) : null;
+        $this->instanceBaseDir = $normalized !== '' ? $normalized : null;
+        $this->touch();
     }
 
     public function getSetupVars(): array

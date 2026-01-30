@@ -57,7 +57,7 @@ func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() 
 	}
 
 	if baseDir == "" {
-		baseDir = "/home"
+		baseDir = defaultInstanceBaseDir()
 	}
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("ts3-%s", instanceID)

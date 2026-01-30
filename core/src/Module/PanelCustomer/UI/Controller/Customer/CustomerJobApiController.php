@@ -338,6 +338,7 @@ final class CustomerJobApiController
             'cpu_limit' => (string) $instance->getCpuLimit(),
             'ram_limit' => (string) $instance->getRamLimit(),
             'disk_limit' => (string) $instance->getDiskLimit(),
+            'base_dir' => $instance->getInstanceBaseDir() ?? $this->appSettingsService->getInstanceBaseDir(),
             'start_params' => $instance->getTemplate()->getStartParams(),
             'required_ports' => implode(',', $instance->getTemplate()->getRequiredPortLabels()),
             'port_block_ports' => $portBlockPorts,

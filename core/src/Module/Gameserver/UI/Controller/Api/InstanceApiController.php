@@ -66,6 +66,7 @@ final class InstanceApiController
         $portBlockId = $payload['port_block_id'] ?? null;
         $maxSlotsValue = $payload['max_slots'] ?? null;
         $currentSlotsValue = $payload['current_slots'] ?? null;
+        $instanceBaseDir = trim((string) ($payload['instance_base_dir'] ?? ''));
 
         if ($customerId === null || $templateId === null || $nodeId === '' || $cpuLimitValue === null || $ramLimitValue === null || $diskLimitValue === null) {
             return new JsonResponse(['error' => 'Missing required fields.'], JsonResponse::HTTP_BAD_REQUEST);
@@ -114,6 +115,10 @@ final class InstanceApiController
 
         if ($currentSlots < $minSlots || $currentSlots > $maxSlots) {
             return new JsonResponse(['error' => 'Current slots must be within the allowed range.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if ($instanceBaseDir !== '' && !str_starts_with($instanceBaseDir, '/')) {
+            return new JsonResponse(['error' => 'Instance base dir must be an absolute path.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $customer = $this->userRepository->find($customerId);
@@ -175,6 +180,7 @@ final class InstanceApiController
             InstanceUpdatePolicy::Manual,
         );
 
+        $instance->setInstanceBaseDir($instanceBaseDir !== '' ? $instanceBaseDir : $this->appSettingsService->getInstanceBaseDir());
         $instance->setSlots($currentSlots);
         $instance->setMaxSlots($maxSlots);
         $instance->setCurrentSlots($currentSlots);

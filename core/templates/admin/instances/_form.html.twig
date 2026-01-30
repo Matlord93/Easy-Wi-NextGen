@@ -47,7 +47,25 @@
                 {% endfor %}
             </select>
         </label>
+        <label class="block text-sm font-medium text-slate-700">
+            {{ t('admin_instances_base_dir_label', page_locale()) }}
+            <input
+                name="instance_base_dir"
+                type="text"
+                list="instance-base-dir-options"
+                value="{{ form.instance_base_dir }}"
+                class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                placeholder="/home"
+            >
+            <p class="mt-1 text-xs text-slate-500">{{ t('admin_instances_base_dir_hint', page_locale()) }}</p>
+        </label>
     </div>
+
+    <datalist id="instance-base-dir-options">
+        {% for dir in form.instance_base_dirs %}
+            <option value="{{ dir }}"></option>
+        {% endfor %}
+    </datalist>
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <label class="block text-sm font-medium text-slate-700">

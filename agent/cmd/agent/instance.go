@@ -55,7 +55,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if baseDir == "" {
-		baseDir = "/home"
+		baseDir = defaultInstanceBaseDir()
 	}
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)
@@ -429,7 +429,7 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 
 	if baseDir == "" {
-		baseDir = "/home"
+		baseDir = defaultInstanceBaseDir()
 	}
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)
@@ -1319,4 +1319,12 @@ func chownRecursive(path string, uid, gid int) error {
 		}
 	}
 	return nil
+}
+
+func defaultInstanceBaseDir() string {
+	baseDir := strings.TrimSpace(os.Getenv("EASYWI_INSTANCE_BASE_DIR"))
+	if baseDir != "" {
+		return baseDir
+	}
+	return "/home"
 }
