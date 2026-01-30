@@ -13,11 +13,11 @@ final class InstallDto
         public string $serviceName,
         public bool $acceptLicense = true,
         /** @var string[] */
-        public array $voiceIp = ['0.0.0.0', '::'],
+        public array $voiceIp = ['0.0.0.0'],
         public int $defaultVoicePort = 9987,
         public int $filetransferPort = 30033,
         /** @var string[] */
-        public array $filetransferIp = ['0.0.0.0', '::'],
+        public array $filetransferIp = ['0.0.0.0'],
         public bool $queryHttpsEnable = true,
         public string $queryBindIp = '127.0.0.1',
         public int $queryHttpsPort = 10443,
