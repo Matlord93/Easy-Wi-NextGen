@@ -1,0 +1,59 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = form.action == 'create' ? t('cms_blog_new', page_locale()) : t('cms_blog_edit', page_locale()) %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ pageTitle }}</h1>
+        <p class="text-sm text-slate-600">{{ t('cms_blog_form_description', page_locale()) }}</p>
+    </div>
+
+    {% if form.errors is not empty %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+            <ul class="list-disc space-y-1 pl-4">
+                {% for error in form.errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post" action="{{ form.action_url }}" class="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="grid gap-5 lg:grid-cols-2">
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('title', page_locale()) }}</label>
+                <input type="text" name="title" value="{{ form.title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('slug', page_locale()) }}</label>
+                <input type="text" name="slug" value="{{ form.slug }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('cms_blog_excerpt', page_locale()) }}</label>
+            <textarea name="excerpt" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ form.excerpt }}</textarea>
+        </div>
+
+        <div>
+            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('content', page_locale()) }}</label>
+            <textarea name="content" rows="10" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>{{ form.content }}</textarea>
+        </div>
+
+        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" name="is_published" class="rounded border-slate-300" {% if form.is_published %}checked{% endif %}>
+            {{ t('cms_blog_publish', page_locale()) }}
+        </label>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                {{ t(form.submit_label, page_locale()) }}
+            </button>
+            <a href="/admin/cms/blog" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">
+                {{ t('back', page_locale()) }}
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

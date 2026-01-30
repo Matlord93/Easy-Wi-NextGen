@@ -45,8 +45,9 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
 
         $request = $event->getRequest();
         $path = $request->getPathInfo();
+        $routeName = $request->attributes->get('_route');
 
-        $isPublic = $this->isPublicPath($path);
+        $isPublic = $this->isPublicPath($path) || $this->isPublicRoute($routeName);
         $requiresSession = $this->requiresSession($path);
 
         if ($isPublic || !$requiresSession) {
@@ -94,6 +95,8 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             || $path === '/status'
             || $path === '/changelog'
             || $path === '/downloads'
+            || $path === '/blog'
+            || str_starts_with($path, '/blog/')
             || str_starts_with($path, '/docs')
             || str_starts_with($path, '/servers')
             || str_starts_with($path, '/pages/')
@@ -102,6 +105,16 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             || str_starts_with($path, '/css/')
             || str_starts_with($path, '/js/')
             || str_starts_with($path, '/images/');
+    }
+
+    private function isPublicRoute(mixed $routeName): bool
+    {
+        if (!is_string($routeName)) {
+            return false;
+        }
+
+        return str_starts_with($routeName, 'public_cms_')
+            || str_starts_with($routeName, 'public_blog_');
     }
 
     private function isUiRoute(string $path): bool

@@ -111,33 +111,44 @@ final class AdminSettingsController
             ]), Response::HTTP_BAD_REQUEST);
         }
 
-        $this->settingsService->updateSettings([
-            AppSettingsService::KEY_SITE_TITLE => trim((string) $request->request->get('site_title', '')),
-            AppSettingsService::KEY_BRANDING_NAME => trim((string) $request->request->get('branding_name', '')),
-            AppSettingsService::KEY_BRANDING_LOGO_URL => $brandingLogoUrl,
-            AppSettingsService::KEY_SUPPORT_EMAIL => $supportEmail,
-            AppSettingsService::KEY_MAIL_FROM_NAME => trim((string) $request->request->get('mail_from_name', '')),
-            AppSettingsService::KEY_MAIL_FROM_ADDRESS => $mailFromAddress,
-            AppSettingsService::KEY_MAIL_REPLY_TO => $mailReplyTo,
-            AppSettingsService::KEY_MAIL_DEFAULT_LOCALE => $defaultLocale,
-            AppSettingsService::KEY_GAMESERVER_DEFAULT_SLOTS => $defaultSlotsRaw,
-            AppSettingsService::KEY_GAMESERVER_MIN_SLOTS => $minSlotsRaw,
-            AppSettingsService::KEY_GAMESERVER_MAX_SLOTS => $maxSlotsRaw,
-            AppSettingsService::KEY_GAMESERVER_SHOW_PORT_RANGE => $request->request->get('gameserver_show_port_range') === '1',
-            AppSettingsService::KEY_GAMESERVER_ALLOW_START_STOP => $request->request->get('gameserver_allow_start_stop') === '1',
-            AppSettingsService::KEY_CUSTOMER_DATA_MANAGER_ENABLED => $request->request->get('customer_data_manager_enabled') === '1',
-            AppSettingsService::KEY_CUSTOMER_FILE_PUSH_ENABLED => $request->request->get('customer_file_push_enabled') === '1',
-            AppSettingsService::KEY_CUSTOMER_CONSOLE_LABEL => trim((string) $request->request->get('customer_console_label', '')),
-            AppSettingsService::KEY_CUSTOMER_LOGS_LABEL => trim((string) $request->request->get('customer_logs_label', '')),
-            AppSettingsService::KEY_INSTANCE_BASE_DIR => trim((string) $request->request->get('instance_base_dir', '')),
-            AppSettingsService::KEY_SFTP_HOST => trim((string) $request->request->get('sftp_host', '')),
-            AppSettingsService::KEY_SFTP_PORT => $sftpPortRaw,
-            AppSettingsService::KEY_SFTP_USERNAME => trim((string) $request->request->get('sftp_username', '')),
-            AppSettingsService::KEY_SFTP_PASSWORD => (string) $request->request->get('sftp_password', ''),
-            AppSettingsService::KEY_SFTP_PRIVATE_KEY => (string) $request->request->get('sftp_private_key', ''),
-            AppSettingsService::KEY_SFTP_PRIVATE_KEY_PATH => trim((string) $request->request->get('sftp_private_key_path', '')),
-            AppSettingsService::KEY_SFTP_PRIVATE_KEY_PASSPHRASE => (string) $request->request->get('sftp_private_key_passphrase', ''),
-        ]);
+        $payload = match ($activeTab) {
+            'general' => [
+                AppSettingsService::KEY_SITE_TITLE => trim((string) $request->request->get('site_title', '')),
+                AppSettingsService::KEY_BRANDING_NAME => trim((string) $request->request->get('branding_name', '')),
+                AppSettingsService::KEY_BRANDING_LOGO_URL => $brandingLogoUrl,
+                AppSettingsService::KEY_SUPPORT_EMAIL => $supportEmail,
+            ],
+            'email' => [
+                AppSettingsService::KEY_MAIL_FROM_NAME => trim((string) $request->request->get('mail_from_name', '')),
+                AppSettingsService::KEY_MAIL_FROM_ADDRESS => $mailFromAddress,
+                AppSettingsService::KEY_MAIL_REPLY_TO => $mailReplyTo,
+                AppSettingsService::KEY_MAIL_DEFAULT_LOCALE => $defaultLocale,
+            ],
+            'gameserver' => [
+                AppSettingsService::KEY_GAMESERVER_DEFAULT_SLOTS => $defaultSlotsRaw,
+                AppSettingsService::KEY_GAMESERVER_MIN_SLOTS => $minSlotsRaw,
+                AppSettingsService::KEY_GAMESERVER_MAX_SLOTS => $maxSlotsRaw,
+                AppSettingsService::KEY_GAMESERVER_SHOW_PORT_RANGE => $request->request->get('gameserver_show_port_range') === '1',
+                AppSettingsService::KEY_GAMESERVER_ALLOW_START_STOP => $request->request->get('gameserver_allow_start_stop') === '1',
+                AppSettingsService::KEY_INSTANCE_BASE_DIR => trim((string) $request->request->get('instance_base_dir', '')),
+                AppSettingsService::KEY_SFTP_HOST => trim((string) $request->request->get('sftp_host', '')),
+                AppSettingsService::KEY_SFTP_PORT => $sftpPortRaw,
+                AppSettingsService::KEY_SFTP_USERNAME => trim((string) $request->request->get('sftp_username', '')),
+                AppSettingsService::KEY_SFTP_PASSWORD => (string) $request->request->get('sftp_password', ''),
+                AppSettingsService::KEY_SFTP_PRIVATE_KEY => (string) $request->request->get('sftp_private_key', ''),
+                AppSettingsService::KEY_SFTP_PRIVATE_KEY_PATH => trim((string) $request->request->get('sftp_private_key_path', '')),
+                AppSettingsService::KEY_SFTP_PRIVATE_KEY_PASSPHRASE => (string) $request->request->get('sftp_private_key_passphrase', ''),
+            ],
+            'customer' => [
+                AppSettingsService::KEY_CUSTOMER_DATA_MANAGER_ENABLED => $request->request->get('customer_data_manager_enabled') === '1',
+                AppSettingsService::KEY_CUSTOMER_FILE_PUSH_ENABLED => $request->request->get('customer_file_push_enabled') === '1',
+                AppSettingsService::KEY_CUSTOMER_CONSOLE_LABEL => trim((string) $request->request->get('customer_console_label', '')),
+                AppSettingsService::KEY_CUSTOMER_LOGS_LABEL => trim((string) $request->request->get('customer_logs_label', '')),
+            ],
+            default => [],
+        };
+
+        $this->settingsService->updateSettings($payload);
 
         return new RedirectResponse(sprintf('/admin/settings?saved=1&tab=%s', $activeTab));
     }

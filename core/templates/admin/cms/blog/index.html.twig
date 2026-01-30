@@ -1,0 +1,67 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = t('cms_blog_title', page_locale()) %}
+{% set pageSubtitle = t('cms_blog_description', page_locale()) %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-semibold">{{ t('cms_blog_title', page_locale()) }}</h1>
+            <p class="text-sm text-slate-600">{{ t('cms_blog_description', page_locale()) }}</p>
+        </div>
+        <a href="/admin/cms/blog/new" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+            {{ t('cms_blog_new', page_locale()) }}
+        </a>
+    </div>
+
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                    <th class="px-4 py-3">{{ t('title', page_locale()) }}</th>
+                    <th class="px-4 py-3">{{ t('slug', page_locale()) }}</th>
+                    <th class="px-4 py-3">{{ t('status', page_locale()) }}</th>
+                    <th class="px-4 py-3">{{ t('updated', page_locale()) }}</th>
+                    <th class="px-4 py-3 text-right">{{ t('actions', page_locale()) }}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+                {% for post in posts %}
+                    <tr>
+                        <td class="px-4 py-3">
+                            <div class="font-semibold text-slate-900">{{ post.title }}</div>
+                            {% if post.excerpt %}
+                                <div class="mt-1 text-xs text-slate-500">{{ post.excerpt }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-600">/{{ post.slug }}</td>
+                        <td class="px-4 py-3">
+                            {% if post.is_published %}
+                                <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{{ t('published', page_locale()) }}</span>
+                            {% else %}
+                                <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{{ t('draft', page_locale()) }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-600">{{ post.updated_at ? post.updated_at|date('Y-m-d H:i') : '–' }}</td>
+                        <td class="px-4 py-3 text-right">
+                            <div class="flex flex-wrap justify-end gap-2">
+                                <a href="/admin/cms/blog/{{ post.id }}/edit" class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">{{ t('edit', page_locale()) }}</a>
+                                <form method="post" action="/admin/cms/blog/{{ post.id }}/delete" onsubmit="return confirm('{{ t('cms_blog_delete_confirm', page_locale()) }}');">
+                                    <button class="rounded-lg border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50" type="submit">{{ t('delete', page_locale()) }}</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">
+                            {{ t('cms_blog_empty', page_locale()) }}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

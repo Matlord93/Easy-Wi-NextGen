@@ -67,6 +67,14 @@ Die SinusBot-Installation wird ausschließlich durch den Easy-Wi Agent durchgef�
 - Start über systemd mit `--override-password`, damit das Admin-Passwort gesetzt wird.
 - Rückgabe der Admin-Zugangsdaten, wenn `return_admin_credentials=true` gesetzt ist.
 
+### TS3-Client Zusatzpakete (Ubuntu/Debian)
+
+Wenn der TeamSpeak-3-Client für SinusBot installiert wird, müssen zusätzlich folgende Pakete vorhanden sein:
+
+```bash
+apt install libqt5gui5 libqt5widgets5 libqt5network5 libqt5dbus5 libqt5core5a libstdc++6 libxcb-keysyms1 libxcb-image0 libxcb-shm0 libxcb-icccm4 libxcb-sync1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0
+```
+
 ## Fehlerbehebung bei Startproblemen
 
 Wenn SinusBot nach der Agent-Installation nicht startet, prüfe zuerst:

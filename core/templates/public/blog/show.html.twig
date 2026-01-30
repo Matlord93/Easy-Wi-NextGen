@@ -1,0 +1,40 @@
+{% extends 'public/base.html.twig' %}
+
+{% set showPortalShell = false %}
+{% set contentClass = 'mx-auto w-full max-w-5xl px-4 py-10 sm:px-8' %}
+
+{% block title %}{{ post.title }} · {{ siteTitle }}{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <nav class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-xs uppercase tracking-[0.2em] text-slate-500 shadow-sm">
+        <div class="font-semibold text-slate-700">Blog</div>
+        <div class="flex flex-wrap gap-4 text-[11px] text-slate-500">
+            {% for page in cms_pages %}
+                {% set link = page.slug == 'startseite' ? '/' : '/' ~ page.slug %}
+                <a href="{{ link }}" class="hover:text-slate-700">{{ page.title }}</a>
+            {% endfor %}
+            <a href="/blog" class="hover:text-slate-700">{{ t('cms_blog_title', page_locale()) }}</a>
+        </div>
+        <div class="flex items-center gap-2 text-xs normal-case">
+            <a href="/blog" class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300">{{ t('cms_blog_back', page_locale()) }}</a>
+        </div>
+    </nav>
+
+    <article class="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <header class="space-y-2">
+            <p class="text-xs uppercase tracking-[0.3em] text-indigo-500">{{ t('cms_blog_post', page_locale()) }}</p>
+            <h1 class="text-3xl font-semibold text-slate-900">{{ post.title }}</h1>
+            {% if post.published_at %}
+                <p class="text-xs text-slate-500">{{ post.published_at|date('d.m.Y') }}</p>
+            {% endif %}
+        </header>
+        {% if post.excerpt %}
+            <p class="mt-4 text-sm text-slate-600">{{ post.excerpt }}</p>
+        {% endif %}
+        <div class="prose mt-6 max-w-none text-slate-700">
+            {{ post.content|raw }}
+        </div>
+    </article>
+</div>
+{% endblock %}
