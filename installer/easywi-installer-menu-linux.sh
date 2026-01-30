@@ -2,7 +2,6 @@
 set -euo pipefail
 
 VERSION="0.1.0"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 LOG_PREFIX="[easywi-installer-menu]"
 STEP_COUNTER=0
