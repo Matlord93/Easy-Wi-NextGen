@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -198,6 +199,11 @@ func handleInstanceStart(job jobs.Job, logSender JobLogSender) (jobs.Result, fun
 		}, nil
 	}
 
+	runtimeUpdates, err := applyInstanceRuntimeOverrides(job.Payload)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+
 	if err := runCommand("systemctl", "start", serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -209,6 +215,9 @@ func handleInstanceStart(job jobs.Job, logSender JobLogSender) (jobs.Result, fun
 
 	diagnostics := collectServiceDiagnostics(serviceName)
 	diagnostics["service_name"] = serviceName
+	for key, value := range runtimeUpdates {
+		diagnostics[key] = value
+	}
 
 	return jobs.Result{
 		JobID:     job.ID,
@@ -273,6 +282,11 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 		}, nil
 	}
 
+	runtimeUpdates, err := applyInstanceRuntimeOverrides(job.Payload)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+
 	if err := runCommand("systemctl", "restart", serviceName); err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -284,6 +298,9 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 
 	diagnostics := collectServiceDiagnostics(serviceName)
 	diagnostics["service_name"] = serviceName
+	for key, value := range runtimeUpdates {
+		diagnostics[key] = value
+	}
 
 	return jobs.Result{
 		JobID:     job.ID,
@@ -382,7 +399,7 @@ func handleInstanceConsoleCommand(job jobs.Job, logSender JobLogSender) (jobs.Re
 	}
 
 	if logSender != nil {
-		logSender.Send(job.ID, []string{fmt.Sprintf("console command sent: %s", command)}, nil)
+		logSender.Send(job.ID, []string{"console command sent"}, nil)
 	}
 
 	return jobs.Result{
@@ -1012,6 +1029,105 @@ func parsePayloadPorts(payload map[string]any) []int {
 	}
 
 	return []int{}
+}
+
+type configOverrideFile struct {
+	path    string
+	content []byte
+}
+
+func applyInstanceRuntimeOverrides(payload map[string]any) (map[string]string, error) {
+	updates := map[string]string{}
+	if payload == nil {
+		return updates, nil
+	}
+
+	instanceDir, err := resolveInstanceDir(payload)
+	if err != nil {
+		return updates, err
+	}
+
+	if files := parseConfigOverrideFiles(payload); len(files) > 0 {
+		for _, entry := range files {
+			target, err := sanitizeInstancePath(instanceDir, entry.path)
+			if err != nil {
+				return updates, err
+			}
+			if err := os.MkdirAll(filepath.Dir(target), instanceDirMode); err != nil {
+				return updates, fmt.Errorf("create config dir: %w", err)
+			}
+			if err := os.WriteFile(target, entry.content, instanceFilesFileMode); err != nil {
+				return updates, fmt.Errorf("write config file %s: %w", target, err)
+			}
+			if err := chownToInstanceOwner(instanceDir, target); err != nil {
+				return updates, err
+			}
+		}
+		updates["config_files_applied"] = strconv.Itoa(len(files))
+	}
+
+	startParams := payloadValue(payload, "start_params")
+	if startParams != "" {
+		requiredPortsRaw := payloadValue(payload, "required_ports")
+		allocatedPorts := parsePayloadPorts(payload)
+		templateValues := buildInstanceTemplateValues(instanceDir, requiredPortsRaw, allocatedPorts, payload)
+		renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
+		if err != nil {
+			return updates, err
+		}
+		startScriptPath, err := writeStartScript(instanceDir, renderedStartParams)
+		if err != nil {
+			return updates, err
+		}
+		updates["start_script_path"] = startScriptPath
+	}
+
+	return updates, nil
+}
+
+func parseConfigOverrideFiles(payload map[string]any) []configOverrideFile {
+	raw, ok := payload["config_files"]
+	if !ok || raw == nil {
+		return nil
+	}
+
+	var entries []any
+	switch typed := raw.(type) {
+	case []any:
+		entries = typed
+	case string:
+		if typed == "" {
+			return nil
+		}
+		if err := json.Unmarshal([]byte(typed), &entries); err != nil {
+			return nil
+		}
+	default:
+		return nil
+	}
+
+	files := make([]configOverrideFile, 0, len(entries))
+	for _, entry := range entries {
+		entryMap, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		path := strings.TrimSpace(payloadString(entryMap["path"]))
+		contentEncoded := payloadString(entryMap["content_base64"])
+		if path == "" || contentEncoded == "" {
+			continue
+		}
+		content, err := base64.StdEncoding.DecodeString(contentEncoded)
+		if err != nil {
+			continue
+		}
+		files = append(files, configOverrideFile{
+			path:    path,
+			content: content,
+		})
+	}
+
+	return files
 }
 
 func parsePortsFromValue(value any) []int {

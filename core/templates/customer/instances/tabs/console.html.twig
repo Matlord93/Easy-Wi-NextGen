@@ -102,6 +102,47 @@
             logStatus.classList.toggle('text-slate-500', !isError);
         };
 
+        const pollCommandStatus = (jobId) => {
+            if (!jobId) {
+                return;
+            }
+            const jobUrl = jobUrlTemplate.replace('__JOB_ID__', jobId);
+            let attempts = 0;
+            const maxAttempts = 10;
+
+            const poll = async () => {
+                attempts += 1;
+                try {
+                    const response = await fetch(jobUrl, { credentials: 'same-origin' });
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        setFeedback(payload.error || 'Command failed.', true);
+                        return;
+                    }
+
+                    const status = (payload.status || '').toLowerCase();
+                    if (status === 'succeeded') {
+                        setFeedback('{{ t('customer_instance_console_send_status_sent', page_locale()) }}');
+                        return;
+                    }
+                    if (status === 'failed' || status === 'cancelled') {
+                        const message = payload.result?.output?.message || 'Command failed.';
+                        setFeedback(message, true);
+                        return;
+                    }
+                } catch (err) {
+                    setFeedback(err.message || 'Command failed.', true);
+                    return;
+                }
+
+                if (attempts < maxAttempts) {
+                    setTimeout(poll, 1000);
+                }
+            };
+
+            setTimeout(poll, 1000);
+        };
+
         let activeJobId = null;
         let lastLogId = null;
         let outputAppendedForJob = null;
@@ -338,6 +379,7 @@
 
                 input.value = '';
                 setFeedback('{{ t('customer_instance_console_send_status_sent', page_locale()) }}');
+                pollCommandStatus(payload.job_id);
             } catch (err) {
                 setFeedback(err.message || 'Command failed.', true);
             }

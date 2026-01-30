@@ -32,6 +32,7 @@ func TestLoadParsesConfigAndDefaults(t *testing.T) {
 		"api_url=https://api.example.test",
 		"poll_interval=45s",
 		"heartbeat_interval=90s",
+		"max_concurrency=5",
 	}, "\n")), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -55,6 +56,9 @@ func TestLoadParsesConfigAndDefaults(t *testing.T) {
 	if cfg.HeartbeatInterval != 90*time.Second {
 		t.Fatalf("HeartbeatInterval = %v, want %v", cfg.HeartbeatInterval, 90*time.Second)
 	}
+	if cfg.MaxConcurrency != 5 {
+		t.Fatalf("MaxConcurrency = %v, want %v", cfg.MaxConcurrency, 5)
+	}
 }
 
 func TestLoadMissingRequiredFields(t *testing.T) {
@@ -73,5 +77,51 @@ func TestLoadMissingRequiredFields(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "api_url") {
 		t.Fatalf("Load() error = %q, want missing api_url", err)
+	}
+}
+
+func TestLoadRejectsNegativeValues(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "agent.conf")
+	if err := os.WriteFile(configPath, []byte(strings.Join([]string{
+		"agent_id=agent-123",
+		"secret=super-secret",
+		"api_url=https://api.example.test",
+		"poll_interval=-5s",
+		"heartbeat_interval=60s",
+		"max_concurrency=2",
+	}, "\n")), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("Load() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "poll_interval") {
+		t.Fatalf("Load() error = %q, want poll_interval validation", err)
+	}
+}
+
+func TestLoadRejectsNegativeConcurrency(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "agent.conf")
+	if err := os.WriteFile(configPath, []byte(strings.Join([]string{
+		"agent_id=agent-123",
+		"secret=super-secret",
+		"api_url=https://api.example.test",
+		"poll_interval=30s",
+		"heartbeat_interval=60s",
+		"max_concurrency=-1",
+	}, "\n")), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("Load() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "max_concurrency") {
+		t.Fatalf("Load() error = %q, want max_concurrency validation", err)
 	}
 }

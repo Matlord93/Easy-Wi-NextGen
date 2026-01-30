@@ -112,6 +112,9 @@ class Instance implements ResourceEventSource
     #[ORM\Column(type: 'json')]
     private array $setupSecrets = [];
 
+    #[ORM\Column(type: 'json', name: 'config_overrides')]
+    private array $configOverrides = [];
+
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $lockedBuildId = null;
 
@@ -500,6 +503,37 @@ class Instance implements ResourceEventSource
     public function hasSetupSecret(string $key): bool
     {
         return array_key_exists($key, $this->setupSecrets);
+    }
+
+    /**
+     * @return array<string, array{content: string, updated_at: string}>
+     */
+    public function getConfigOverrides(): array
+    {
+        return $this->configOverrides;
+    }
+
+    /**
+     * @param array<string, array{content: string, updated_at: string}> $configOverrides
+     */
+    public function setConfigOverrides(array $configOverrides): void
+    {
+        $this->configOverrides = $configOverrides;
+        $this->touch();
+    }
+
+    public function setConfigOverride(string $filePath, string $content): void
+    {
+        $normalized = trim($filePath);
+        if ($normalized === '') {
+            return;
+        }
+
+        $this->configOverrides[$normalized] = [
+            'content' => $content,
+            'updated_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
+        ];
+        $this->touch();
     }
 
     public function setUpdatePolicy(InstanceUpdatePolicy $updatePolicy): void

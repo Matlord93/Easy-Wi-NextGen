@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -19,6 +20,7 @@ type Config struct {
 	APIURL            string
 	PollInterval      time.Duration
 	HeartbeatInterval time.Duration
+	MaxConcurrency    int
 	Version           string
 	UpdateURL         string
 	UpdateSHA256      string
@@ -86,6 +88,12 @@ func Load(path string) (Config, error) {
 			if err != nil {
 				return Config{}, fmt.Errorf("parse heartbeat_interval: %w", err)
 			}
+		case "max_concurrency":
+			parsed, parseErr := strconv.Atoi(value)
+			if parseErr != nil {
+				return Config{}, fmt.Errorf("parse max_concurrency: %w", parseErr)
+			}
+			cfg.MaxConcurrency = parsed
 		case "version":
 			cfg.Version = value
 		case "update_url":
@@ -121,6 +129,15 @@ func validate(cfg Config) error {
 	if len(missing) > 0 {
 		return errors.New("missing config values: " + strings.Join(missing, ", "))
 	}
+	if cfg.PollInterval < 0 {
+		return errors.New("poll_interval must be positive")
+	}
+	if cfg.HeartbeatInterval < 0 {
+		return errors.New("heartbeat_interval must be positive")
+	}
+	if cfg.MaxConcurrency < 0 {
+		return errors.New("max_concurrency must be positive")
+	}
 	return nil
 }
 
@@ -131,9 +148,19 @@ func applyDefaults(cfg *Config) {
 	if cfg.HeartbeatInterval == 0 {
 		cfg.HeartbeatInterval = 60 * time.Second
 	}
+	if cfg.MaxConcurrency == 0 {
+		cfg.MaxConcurrency = max(2, runtime.NumCPU())
+	}
 	if cfg.Version == "" {
 		cfg.Version = defaultVersion()
 	}
+}
+
+func max(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func defaultVersion() string {

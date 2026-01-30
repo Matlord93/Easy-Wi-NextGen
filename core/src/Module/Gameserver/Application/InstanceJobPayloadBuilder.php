@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Domain\Entity\Instance;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockFinderInterface;
 
 final class InstanceJobPayloadBuilder
 {
     public function __construct(
         private readonly TemplateInstallResolver $templateInstallResolver,
-        private readonly PortBlockRepository $portBlockRepository,
+        private readonly PortBlockFinderInterface $portBlockRepository,
     ) {
     }
 
@@ -36,6 +36,17 @@ final class InstanceJobPayloadBuilder
         if ($targetVersion !== null) {
             $payload['target_version'] = $targetVersion;
         }
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function buildRuntimePayload(Instance $instance): array
+    {
+        $payload = $this->buildBasePayload($instance);
+        $payload['config_files'] = $this->buildConfigOverridePayload($instance);
 
         return $payload;
     }
@@ -81,6 +92,33 @@ final class InstanceJobPayloadBuilder
         }
 
         return $payload;
+    }
+
+    /**
+     * @return array<int, array{path: string, content_base64: string}>
+     */
+    private function buildConfigOverridePayload(Instance $instance): array
+    {
+        $entries = [];
+        foreach ($instance->getConfigOverrides() as $path => $payload) {
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+            if (!is_array($payload)) {
+                continue;
+            }
+            $content = $payload['content'] ?? null;
+            if (!is_string($content)) {
+                continue;
+            }
+
+            $entries[] = [
+                'path' => $path,
+                'content_base64' => base64_encode($content),
+            ];
+        }
+
+        return $entries;
     }
 
     /**

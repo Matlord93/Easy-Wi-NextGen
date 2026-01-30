@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Module\Gameserver\Application\ConsoleCommandSettings;
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Repository\AppSettingRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
-final class AppSettingsService
+final class AppSettingsService implements ConsoleCommandSettings
 {
     public const KEY_SITE_TITLE = 'site_title';
     public const KEY_BRANDING_NAME = 'branding_name';
@@ -26,6 +27,7 @@ final class AppSettingsService
     public const KEY_CUSTOMER_DATA_MANAGER_ENABLED = 'customer_data_manager_enabled';
     public const KEY_CUSTOMER_FILE_PUSH_ENABLED = 'customer_file_push_enabled';
     public const KEY_CUSTOMER_CONSOLE_LABEL = 'customer_console_label';
+    public const KEY_CUSTOMER_CONSOLE_ALLOWED_COMMANDS = 'customer_console_allowed_commands';
     public const KEY_CUSTOMER_LOGS_LABEL = 'customer_logs_label';
     public const KEY_INSTANCE_BASE_DIR = 'instance_base_dir';
     public const KEY_SFTP_HOST = 'sftp_host';
@@ -99,6 +101,7 @@ TWIG;
         self::KEY_CUSTOMER_DATA_MANAGER_ENABLED => true,
         self::KEY_CUSTOMER_FILE_PUSH_ENABLED => true,
         self::KEY_CUSTOMER_CONSOLE_LABEL => null,
+        self::KEY_CUSTOMER_CONSOLE_ALLOWED_COMMANDS => null,
         self::KEY_CUSTOMER_LOGS_LABEL => null,
         self::KEY_INSTANCE_BASE_DIR => '/home',
         self::KEY_SFTP_HOST => null,
@@ -345,6 +348,25 @@ TWIG;
         $value = $settings[self::KEY_CUSTOMER_CONSOLE_LABEL] ?? null;
 
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getCustomerConsoleAllowedCommands(): array
+    {
+        $settings = $this->getSettings();
+        $value = $settings[self::KEY_CUSTOMER_CONSOLE_ALLOWED_COMMANDS] ?? null;
+        if (!is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\r\n,]+/', $value);
+        if ($parts === false) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', $parts), static fn (string $entry) => $entry !== ''));
     }
 
     public function getCustomerLogsLabel(): ?string

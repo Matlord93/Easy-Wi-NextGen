@@ -111,6 +111,8 @@ final class CustomerInstanceConfigApiController
         }
 
         $content = $this->configSchemaService->generate($configSchema, $values);
+        $instance->setConfigOverride($configSchema->getFilePath(), $content);
+        $this->entityManager->persist($instance);
         $job = $this->queueWriteJob($instance, $customer, $configSchema, $content, 'instance.configs.generated_requested');
         $this->entityManager->flush();
 
@@ -142,6 +144,8 @@ final class CustomerInstanceConfigApiController
             $this->entityManager->persist($instance);
         }
 
+        $instance->setConfigOverride($configSchema->getFilePath(), $content);
+        $this->entityManager->persist($instance);
         $job = $this->queueWriteJob($instance, $customer, $configSchema, $content, 'instance.configs.updated_requested');
         $this->entityManager->flush();
 

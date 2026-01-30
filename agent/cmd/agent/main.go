@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -54,9 +55,10 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 	defer heartbeatTicker.Stop()
 	defer pollTicker.Stop()
 
-	maxConcurrency := 1
+	maxConcurrency := resolveMaxConcurrency(cfg.MaxConcurrency, 0)
 	roles := collectRoles()
 	metadata := collectMetadata()
+	runner := newJobRunner(maxConcurrency)
 
 	if err := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); err != nil {
 		log.Printf("heartbeat failed: %v", err)
@@ -80,74 +82,172 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 			}
 			maxConcurrency = resolveMaxConcurrency(maxConcurrency, reportedConcurrency)
 			logSender := newApiJobLogSender(client)
-			runJobsConcurrently(maxConcurrency, jobsList, func(job jobs.Job) {
-				result, afterSubmit := handleJob(job, logSender)
-				if err := client.SubmitJobResult(ctx, result); err != nil {
-					log.Printf("submit job result failed: %v", err)
-					return
-				}
-				if afterSubmit != nil {
-					if err := afterSubmit(); err != nil {
-						log.Printf("post-submit job action failed: %v", err)
-					}
-				}
-			})
+			for _, job := range jobsList {
+				jobCopy := job
+				runner.Submit(jobTask{
+					job:     jobCopy,
+					lockKey: resolveJobLockKey(jobCopy),
+					handler: func(job jobs.Job) {
+						result, afterSubmit := handleJob(job, logSender)
+						if err := client.SubmitJobResult(ctx, result); err != nil {
+							log.Printf("submit job result failed: %v", err)
+							return
+						}
+						if afterSubmit != nil {
+							if err := afterSubmit(); err != nil {
+								log.Printf("post-submit job action failed: %v", err)
+							}
+						}
+					},
+				})
+			}
 
 			orchestratorJobs, reportedAgentConcurrency, err := client.PollAgentJobs(ctx, cfg.AgentID, maxConcurrency)
 			if err != nil {
 				log.Printf("poll orchestrator jobs failed: %v", err)
 				continue
 			}
-			maxConcurrency = resolveMaxConcurrency(maxConcurrency, reportedAgentConcurrency)
-			runJobsConcurrently(maxConcurrency, orchestratorJobs, func(job jobs.Job) {
-				if err := client.StartAgentJob(ctx, cfg.AgentID, job.ID); err != nil {
-					log.Printf("start orchestrator job failed: %v", err)
-					return
-				}
-				result := handleOrchestratorJob(job)
-				if err := client.FinishAgentJob(ctx, cfg.AgentID, job.ID, result.status, result.logText, result.errorText, result.resultPayload); err != nil {
-					log.Printf("finish orchestrator job failed: %v", err)
-				}
-			})
+			maxConcurrency = resolveMaxConcurrency(cfg.MaxConcurrency, reportedAgentConcurrency)
+			runner.SetLimit(maxConcurrency)
+			for _, job := range orchestratorJobs {
+				jobCopy := job
+				runner.Submit(jobTask{
+					job:     jobCopy,
+					lockKey: resolveJobLockKey(jobCopy),
+					handler: func(job jobs.Job) {
+						if err := client.StartAgentJob(ctx, cfg.AgentID, job.ID); err != nil {
+							log.Printf("start orchestrator job failed: %v", err)
+							return
+						}
+						result := handleOrchestratorJob(job)
+						if err := client.FinishAgentJob(ctx, cfg.AgentID, job.ID, result.status, result.logText, result.errorText, result.resultPayload); err != nil {
+							log.Printf("finish orchestrator job failed: %v", err)
+						}
+					},
+				})
+			}
 		}
 	}
 }
 
-func resolveMaxConcurrency(current int, reported int) int {
+func resolveMaxConcurrency(configured int, reported int) int {
+	if configured < 1 {
+		configured = 1
+	}
 	if reported <= 0 {
-		if current > 0 {
-			return current
-		}
-		return 1
+		return configured
 	}
-	if reported < 1 {
-		return 1
+	if reported < configured {
+		return reported
 	}
-	return reported
+	return configured
 }
 
-func runJobsConcurrently(limit int, jobsList []jobs.Job, handler func(jobs.Job)) {
-	if limit <= 0 {
+type jobTask struct {
+	job     jobs.Job
+	lockKey string
+	handler func(jobs.Job)
+}
+
+type jobRunner struct {
+	tasks      chan jobTask
+	stopWorker chan struct{}
+	locks      *instanceLockManager
+	mu         sync.Mutex
+	limit      int
+}
+
+func newJobRunner(limit int) *jobRunner {
+	runner := &jobRunner{
+		tasks:      make(chan jobTask, 200),
+		stopWorker: make(chan struct{}, 200),
+		locks:      newInstanceLockManager(),
+	}
+	runner.SetLimit(limit)
+	return runner
+}
+
+func (r *jobRunner) SetLimit(limit int) {
+	if limit < 1 {
 		limit = 1
 	}
-	if len(jobsList) == 0 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if limit == r.limit {
 		return
 	}
-
-	semaphore := make(chan struct{}, limit)
-	var wg sync.WaitGroup
-
-	for _, job := range jobsList {
-		wg.Add(1)
-		go func(job jobs.Job) {
-			defer wg.Done()
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
-			handler(job)
-		}(job)
+	if limit > r.limit {
+		for i := r.limit; i < limit; i++ {
+			go r.worker()
+		}
+	} else {
+		for i := limit; i < r.limit; i++ {
+			r.stopWorker <- struct{}{}
+		}
 	}
+	r.limit = limit
+}
 
-	wg.Wait()
+func (r *jobRunner) Submit(task jobTask) {
+	if task.handler == nil {
+		return
+	}
+	r.tasks <- task
+}
+
+func (r *jobRunner) worker() {
+	for {
+		select {
+		case task := <-r.tasks:
+			if task.lockKey != "" {
+				r.locks.WithLock(task.lockKey, func() {
+					task.handler(task.job)
+				})
+			} else {
+				task.handler(task.job)
+			}
+		case <-r.stopWorker:
+			return
+		}
+	}
+}
+
+type instanceLockManager struct {
+	mu    sync.Mutex
+	locks map[string]*sync.Mutex
+}
+
+func newInstanceLockManager() *instanceLockManager {
+	return &instanceLockManager{locks: map[string]*sync.Mutex{}}
+}
+
+func (m *instanceLockManager) WithLock(key string, fn func()) {
+	if key == "" {
+		fn()
+		return
+	}
+	m.mu.Lock()
+	lock, ok := m.locks[key]
+	if !ok {
+		lock = &sync.Mutex{}
+		m.locks[key] = lock
+	}
+	m.mu.Unlock()
+	lock.Lock()
+	defer lock.Unlock()
+	fn()
+}
+
+func resolveJobLockKey(job jobs.Job) string {
+	if job.Payload == nil {
+		return ""
+	}
+	if value, ok := job.Payload["instance_id"]; ok {
+		if key := strings.TrimSpace(payloadString(value)); key != "" {
+			return "instance:" + key
+		}
+	}
+	return ""
 }
 
 func collectStats(version string, roles []string) map[string]any {
@@ -313,6 +413,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceFileMkdir(job)
 	case "instance.sftp.credentials.reset":
 		return handleInstanceSftpCredentialsReset(job)
+	case "instance.query.check":
+		return handleInstanceQueryCheck(job)
 	case "instance.sftp.access.enable":
 		return handleInstanceSftpAccessEnable(job)
 	case "instance.sftp.access.reset_password":

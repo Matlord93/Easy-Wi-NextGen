@@ -115,6 +115,8 @@ services:
 
   App\Repository\MinecraftVersionCatalogRepositoryInterface: '@App\Repository\MinecraftVersionCatalogRepository'
 
+  App\Module\Gameserver\Application\ConsoleCommandSettings: '@App\Module\Core\Application\AppSettingsService'
+
   App\Extension\ExtensionMenuRegistry:
     arguments:
       $menuProviders: !tagged_iterator 'app.extension.menu_provider'

@@ -11,7 +11,7 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class PortBlockRepository extends ServiceEntityRepository
+final class PortBlockRepository extends ServiceEntityRepository implements PortBlockFinderInterface
 {
     public function __construct(ManagerRegistry $registry)
     {

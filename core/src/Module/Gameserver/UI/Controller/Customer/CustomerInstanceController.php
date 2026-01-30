@@ -595,12 +595,17 @@ final class CustomerInstanceController
             throw new BadRequestHttpException('Invalid action.');
         }
 
-        $job = new Job($jobType, [
+        $payload = [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
             'agent_id' => $instance->getNode()->getId(),
-        ]);
+        ];
+        if (in_array($jobType, ['instance.start', 'instance.restart'], true)) {
+            $payload = array_merge($this->instanceJobPayloadBuilder->buildRuntimePayload($instance), $payload);
+        }
+
+        $job = new Job($jobType, $payload);
         $this->entityManager->persist($job);
 
         $this->auditLogger->log($customer, 'instance.power.queued', [
@@ -719,6 +724,8 @@ final class CustomerInstanceController
         if ($runtimeStatus !== null && $runtimeStatus !== '') {
             if (in_array($runtimeStatus, ['error', 'crashed'], true)) {
                 $displayStatus = InstanceStatus::Error->value;
+            } elseif (in_array($runtimeStatus, ['starting', 'booting'], true)) {
+                $displayStatus = InstanceStatus::Provisioning->value;
             } elseif (in_array($runtimeStatus, ['online', 'running', 'up'], true)) {
                 $displayStatus = InstanceStatus::Running->value;
             } elseif (
@@ -1113,6 +1120,27 @@ final class CustomerInstanceController
         $existing = [];
         foreach (array_merge($requirements['vars'], $requirements['secrets']) as $entry) {
             $existing[$entry['key']] = true;
+        }
+
+        foreach ($template->getEnvVars() as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $key = trim((string) ($entry['key'] ?? ''));
+            if ($key === '' || isset($existing[$key])) {
+                continue;
+            }
+
+            $requirements['vars'][] = [
+                'key' => $key,
+                'label' => $entry['label'] ?? $key,
+                'type' => $entry['type'] ?? 'text',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => $entry['validation'] ?? null,
+                'helptext' => $entry['helptext'] ?? '',
+            ];
+            $existing[$key] = true;
         }
 
         foreach ($this->buildDefaultCustomerVars($template) as $entry) {

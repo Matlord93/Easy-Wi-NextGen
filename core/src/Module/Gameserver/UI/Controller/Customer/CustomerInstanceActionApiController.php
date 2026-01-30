@@ -21,6 +21,7 @@ use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Core\Application\DiskEnforcementService;
+use App\Module\Gameserver\Application\ConsoleCommandValidator;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Core\Application\SetupChecker;
 use Cron\CronExpression;
@@ -44,6 +45,7 @@ final class CustomerInstanceActionApiController
         private readonly PortBlockRepository $portBlockRepository,
         private readonly JobRepository $jobRepository,
         private readonly DiskEnforcementService $diskEnforcementService,
+        private readonly ConsoleCommandValidator $consoleCommandValidator,
         private readonly SetupChecker $setupChecker,
         private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
@@ -300,6 +302,10 @@ final class CustomerInstanceActionApiController
 
         if ($command === '') {
             return new JsonResponse(['error' => 'Command is required.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+        $validationError = $this->consoleCommandValidator->validate($command);
+        if ($validationError !== null) {
+            return new JsonResponse(['error' => $validationError], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $runtimeStatus = strtolower((string) ($instance->getQueryStatusCache()['status'] ?? ''));
