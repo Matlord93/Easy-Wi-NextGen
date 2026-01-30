@@ -827,8 +827,8 @@ register_agent_with_token() {
   local register_token="$2"
   local agent_id="$3"
   local agent_name="$4"
-  REGISTER_HTTP_STATUS=""
-  REGISTER_HTTP_BODY=""
+  export REGISTER_HTTP_STATUS=""
+  export REGISTER_HTTP_BODY=""
 
   if [[ "${register_url}" =~ ^https?://[^/]+/.+/$ ]]; then
     register_url="${register_url%/}"
