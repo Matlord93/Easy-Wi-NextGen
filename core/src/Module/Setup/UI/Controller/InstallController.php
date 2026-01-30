@@ -194,10 +194,10 @@ final class InstallController
                                 $step = 4;
                             } catch (DbalException $exception) {
                                 $this->installerService->logException($exception, 'Database migrations failed during installer.');
-                                $errors[] = ['key' => 'errors.db_migrations_failed'];
+                                $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
                             } catch (\Throwable $exception) {
                                 $this->installerService->logException($exception, 'Database migrations failed during installer.');
-                                $errors[] = ['key' => 'errors.db_migrations_failed'];
+                                $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
                             }
                         }
                     }
@@ -413,6 +413,24 @@ final class InstallController
         }
 
         return ['key' => 'errors.db_connection_failed'];
+    }
+
+    /**
+     * @param array<string, mixed> $databaseState
+     */
+    private function resolveDatabaseMigrationError(array $databaseState, \Throwable $exception): array
+    {
+        if ($this->isMissingDriverException($exception)) {
+            $extension = $this->resolveDriverExtension($databaseState);
+            if (!extension_loaded($extension)) {
+                return [
+                    'key' => 'errors.missing_extension',
+                    'params' => ['%extension%' => $extension],
+                ];
+            }
+        }
+
+        return ['key' => 'errors.db_migrations_failed'];
     }
 
     private function isMissingDriverException(\Throwable $exception): bool

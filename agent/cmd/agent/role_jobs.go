@@ -7,10 +7,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"easywi/agent/internal/jobs"
 )
+
+var roleEnsureMutex sync.Mutex
 
 func handleRoleEnsureBase(job jobs.Job) (jobs.Result, func() error) {
 	role := strings.ToLower(payloadValue(job.Payload, "role"))
@@ -23,23 +26,29 @@ func handleRoleEnsureBase(job jobs.Job) (jobs.Result, func() error) {
 		}, nil
 	}
 
-	return ensureBaseForRoleResult(role, job)
+	return ensureBaseForRoleResultSerialized(role, job)
 }
 
 func handleGameEnsureBase(job jobs.Job) (jobs.Result, func() error) {
-	return ensureBaseForRoleResult("game", job)
+	return ensureBaseForRoleResultSerialized("game", job)
 }
 
 func handleMailEnsureBase(job jobs.Job) (jobs.Result, func() error) {
-	return ensureBaseForRoleResult("mail", job)
+	return ensureBaseForRoleResultSerialized("mail", job)
 }
 
 func handleDnsEnsureBase(job jobs.Job) (jobs.Result, func() error) {
-	return ensureBaseForRoleResult("dns", job)
+	return ensureBaseForRoleResultSerialized("dns", job)
 }
 
 func handleDbEnsureBase(job jobs.Job) (jobs.Result, func() error) {
-	return ensureBaseForRoleResult("db", job)
+	return ensureBaseForRoleResultSerialized("db", job)
+}
+
+func ensureBaseForRoleResultSerialized(role string, job jobs.Job) (jobs.Result, func() error) {
+	roleEnsureMutex.Lock()
+	defer roleEnsureMutex.Unlock()
+	return ensureBaseForRoleResult(role, job)
 }
 
 func ensureBaseForRoleResult(role string, job jobs.Job) (jobs.Result, func() error) {

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -667,6 +668,8 @@ func installSinusbotDependencies() error {
 func sinusbotPackages(family string) []string {
 	switch family {
 	case "debian":
+		libegl := debianFirstAvailablePackage("libegl1-mesa", "libegl1")
+		libasound := debianFirstAvailablePackage("libasound2", "libasound2t64")
 		return []string{
 			"curl",
 			"ca-certificates",
@@ -684,9 +687,9 @@ func sinusbotPackages(family string) []string {
 			"iproute2",
 			"dbus",
 			"libnss3",
-			"libegl1-mesa",
+			libegl,
 			"x11-xkb-utils",
-			"libasound2",
+			libasound,
 			"libxcomposite1",
 			"libxi6",
 			"libpci3",
@@ -725,6 +728,24 @@ func sinusbotPackages(family string) []string {
 		}
 	}
 	return nil
+}
+
+func debianFirstAvailablePackage(candidates ...string) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+	if !commandExists("apt-cache") {
+		return candidates[0]
+	}
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if err := exec.Command("apt-cache", "show", candidate).Run(); err == nil {
+			return candidate
+		}
+	}
+	return candidates[0]
 }
 
 func ensureSinusbotConfig(installDir, serviceUser, webPortBase, webBindIP, ts3Path string) error {

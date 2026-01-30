@@ -30,8 +30,13 @@ final class AgentJobDispatcher
 
         $idempotencyKey = $this->buildIdempotencyKey($node->getId(), $type, $payload);
         $existing = $this->repository->findLatestByIdempotencyKey($idempotencyKey);
-        if ($existing instanceof AgentJob && $existing->getStatus()->value !== 'failed') {
-            return $existing;
+        if ($existing instanceof AgentJob) {
+            $status = $existing->getStatus();
+            if ($status === \App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus::Queued
+                || $status === \App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus::Running
+            ) {
+                return $existing;
+            }
         }
 
         $job = $this->factory->create($node, $type, $payload, $idempotencyKey);
