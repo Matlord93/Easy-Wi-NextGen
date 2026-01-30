@@ -741,11 +741,26 @@ func debianFirstAvailablePackage(candidates ...string) string {
 		if candidate == "" {
 			continue
 		}
-		if err := exec.Command("apt-cache", "show", candidate).Run(); err == nil {
+		if debianPackageHasCandidate(candidate) {
 			return candidate
 		}
 	}
 	return candidates[0]
+}
+
+func debianPackageHasCandidate(name string) bool {
+	if name == "" {
+		return false
+	}
+	output, err := exec.Command("apt-cache", "policy", name).Output()
+	if err != nil {
+		return false
+	}
+	policy := string(output)
+	if strings.Contains(policy, "Candidate: (none)") {
+		return false
+	}
+	return strings.Contains(policy, "Candidate:")
 }
 
 func ensureSinusbotConfig(installDir, serviceUser, webPortBase, webBindIP, ts3Path string) error {
