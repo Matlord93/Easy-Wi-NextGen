@@ -32,6 +32,20 @@ is_tty() {
   [[ -t 0 ]]
 }
 
+read_from_tty() {
+  local prompt="${1:-}"
+  local value=""
+
+  if [[ -e /dev/tty ]]; then
+    if [[ -n "${prompt}" ]]; then
+      printf '%s' "${prompt}" >/dev/tty
+    fi
+    IFS= read -r value </dev/tty || true
+  fi
+
+  echo "${value}"
+}
+
 menu_output() {
   if [[ -e /dev/tty ]]; then
     cat >/dev/tty
@@ -42,16 +56,7 @@ menu_output() {
 
 menu_prompt() {
   local prompt="$1"
-  local value=""
-
-  if [[ -e /dev/tty ]]; then
-    printf '%s' "${prompt}" >/dev/tty
-    IFS= read -r value </dev/tty || true
-  else
-    IFS= read -r -p "${prompt}" value || true
-  fi
-
-  echo "${value}"
+  read_from_tty "${prompt}"
 }
 
 require_command() {
@@ -71,7 +76,7 @@ detect_package_manager() {
 
 apt_update_once() {
   if [[ "${APT_UPDATED}" -eq 0 ]]; then
-    DEBIAN_FRONTEND=noninteractive apt-get update -y
+    DEBIAN_FRONTEND=noninteractive apt-get update -y 1>&2
     APT_UPDATED=1
   fi
 }
@@ -84,7 +89,20 @@ package_exists_apt() {
 resolve_php_version() {
   local requested="$1"
   local manager="$2"
-  local resolved="${requested}"
+  local resolved=""
+  local extracted=""
+
+  extracted="$(printf '%s' "${requested}" | tr -d '\r' | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1 || true)"
+  if [[ -z "${extracted}" ]]; then
+    requested="${DEFAULT_PHP_VERSION}"
+  else
+    requested="${extracted}"
+  fi
+  if [[ ! "${requested}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    log "Ungültige PHP-Version (${requested}), verwende ${DEFAULT_PHP_VERSION}."
+    requested="${DEFAULT_PHP_VERSION}"
+  fi
+  resolved="${requested}"
 
   if [[ "${manager}" == "apt" ]]; then
     apt_update_once
@@ -117,12 +135,26 @@ install_packages() {
 
   step "Installiere Systempakete."
   log "Folgende Pakete werden installiert:"
-  printf '%s\n' "${packages[@]}" | sed 's/^/  - /'
+  printf '%s\n' "${packages[@]}" | sed 's/^/  - /' >&2
+  printf '\n' >&2
 
   case "${manager}" in
     apt)
       apt_update_once
-      DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
+      local missing_packages=()
+      local package
+      for package in "${packages[@]}"; do
+        if [[ -z "${package}" ]]; then
+          continue
+        fi
+        if ! package_exists_apt "${package}"; then
+          missing_packages+=("${package}")
+        fi
+      done
+      if [[ "${#missing_packages[@]}" -gt 0 ]]; then
+        fatal "Folgende Pakete sind nicht verfügbar: ${missing_packages[*]}"
+      fi
+      DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" 1>&2
       ;;
     *)
       fatal "Unbekannter Paketmanager: ${manager}"
@@ -175,6 +207,29 @@ ensure_service_enabled() {
   fi
 }
 
+enable_universe_repo() {
+  local manager="$1"
+  if [[ "${manager}" != "apt" ]]; then
+    return
+  fi
+
+  step "Aktiviere Universe-Repository und PHP-PPA für PHP 8.4."
+  DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common 1>&2
+  add-apt-repository -y universe 1>&2
+  add-apt-repository -y ppa:ondrej/php 1>&2
+  APT_UPDATED=0
+  apt_update_once
+}
+
+install_composer() {
+  local php_bin="$1"
+
+  step "Installiere Composer."
+  "${php_bin}" -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+  "${php_bin}" composer-setup.php --install-dir=/usr/local/bin --filename=composer
+  "${php_bin}" -r "unlink('composer-setup.php');"
+}
+
 prompt_value() {
   local var_name="$1"
   local prompt="$2"
@@ -194,7 +249,7 @@ prompt_value() {
     prompt="${prompt} [${default}]"
   fi
 
-  read -r -p "${prompt}: " value
+  value="$(read_from_tty "${prompt}: ")"
   if [[ -z "${value}" ]]; then
     value="${default}"
   fi
@@ -359,13 +414,32 @@ ensure_filesvc_certificates() {
   local cert_path="$1"
   local key_path="$2"
   local hostname="$3"
+  local ip_addresses="$4"
 
   if [[ -f "${cert_path}" && -f "${key_path}" ]]; then
     return
   fi
 
   step "Erzeuge TLS-Zertifikat für File Service."
-  openssl req -x509 -newkey rsa:4096 -nodes -keyout "${key_path}" -out "${cert_path}" -days 3650 -subj "/CN=${hostname}"
+  local san_entries=()
+  if [[ -n "${hostname}" ]]; then
+    san_entries+=("DNS:${hostname}")
+  fi
+  if [[ -n "${ip_addresses}" ]]; then
+    local ip
+    for ip in ${ip_addresses}; do
+      san_entries+=("IP:${ip}")
+    done
+  fi
+  if [[ "${#san_entries[@]}" -gt 0 ]]; then
+    local san_list
+    san_list="$(IFS=,; echo "${san_entries[*]}")"
+    openssl req -x509 -newkey rsa:4096 -nodes -keyout "${key_path}" -out "${cert_path}" -days 3650 \
+      -subj "/CN=${hostname}" -addext "subjectAltName=${san_list}"
+  else
+    openssl req -x509 -newkey rsa:4096 -nodes -keyout "${key_path}" -out "${cert_path}" -days 3650 \
+      -subj "/CN=${hostname}"
+  fi
   chmod 600 "${key_path}"
   chmod 644 "${cert_path}"
 }
@@ -466,9 +540,10 @@ install_panel() {
   step "Prüfe Panel-Abhängigkeiten."
   local pkg_manager
   pkg_manager="$(detect_package_manager)"
+  enable_universe_repo "${pkg_manager}"
   php_version="$(resolve_php_version "${php_version}" "${pkg_manager}")"
 
-  local base_packages=(ca-certificates curl git unzip nginx openssl jq composer)
+  local base_packages=(ca-certificates curl git unzip nginx openssl jq)
   local php_packages=(
     "php${php_version}" "php${php_version}-fpm" "php${php_version}-cli"
     "php${php_version}-mbstring" "php${php_version}-xml" "php${php_version}-curl"
@@ -494,6 +569,10 @@ install_panel() {
   esac
 
   install_packages "${pkg_manager}" "${base_packages[@]}" "${php_packages[@]}" "${php_db_packages[@]}" "${db_packages[@]}"
+
+  local php_bin
+  php_bin="$(resolve_php_binary "${php_version}")"
+  install_composer "${php_bin}"
 
   ensure_service_enabled "php${php_version}-fpm.service"
   ensure_service_enabled nginx.service
@@ -536,8 +615,6 @@ install_panel() {
     fatal "Core-Verzeichnis nicht gefunden: ${core_dir}"
   fi
 
-  local php_bin
-  php_bin="$(resolve_php_binary "${php_version}")"
   COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --working-dir "${core_dir}"
 
   if [[ -z "${app_secret}" ]]; then
@@ -653,21 +730,77 @@ CONF
   systemctl enable --now easywi-filesvc.service
 }
 
+write_bootstrap_state() {
+  local state_file="$1"
+  local register_url="$2"
+  local register_token="$3"
+  local agent_id="$4"
+  local bootstrap_token="$5"
+  local lock_file="${state_file}.lock"
+
+  install -d -m 700 "$(dirname "${state_file}")"
+  {
+    flock -x 9
+    jq -n --arg url "${register_url}" --arg token "${register_token}" --arg agent "${agent_id}" --arg bootstrap "${bootstrap_token}" \
+      '{register_url:$url,register_token:$token,agent_id:$agent,bootstrap_token:$bootstrap}' >"${state_file}"
+    chmod 600 "${state_file}"
+  } 9>"${lock_file}"
+}
+
+read_bootstrap_state() {
+  local state_file="$1"
+  local lock_file="${state_file}.lock"
+
+  {
+    flock -x 9
+    if [[ ! -f "${state_file}" ]]; then
+      return 1
+    fi
+    jq -r '.register_url // empty, .register_token // empty, .agent_id // empty, .bootstrap_token // empty' "${state_file}"
+  } 9>"${lock_file}"
+}
+
+delete_bootstrap_state() {
+  local state_file="$1"
+  local lock_file="${state_file}.lock"
+
+  {
+    flock -x 9
+    rm -f "${state_file}"
+  } 9>"${lock_file}"
+}
+
 register_agent_with_core() {
   local core_url="$1"
   local bootstrap_token="$2"
   local agent_version="$3"
   local agent_name="$4"
+  local bootstrap_hostname="$5"
+  local state_file="$6"
 
   local hostname
-  hostname="$(hostname -f 2>/dev/null || hostname)"
+  if [[ -n "${bootstrap_hostname}" ]]; then
+    hostname="${bootstrap_hostname}"
+  else
+    hostname="$(hostname -f 2>/dev/null || hostname)"
+  fi
 
   local bootstrap_payload
   bootstrap_payload="$(jq -n --arg token "${bootstrap_token}" --arg hostname "${hostname}" --arg os "linux" --arg version "${agent_version}" '{bootstrap_token:$token,hostname:$hostname,os:$os,agent_version:$version}')"
 
   step "Registriere Agent am Core (Bootstrap)."
-  local bootstrap_response
-  bootstrap_response="$(curl -fsSL -X POST "${core_url}/api/v1/agent/bootstrap" -H "Content-Type: application/json" -d "${bootstrap_payload}")"
+  log "Bootstrap Debug: core_url=${core_url} hostname=${hostname}"
+  local bootstrap_response bootstrap_status
+  bootstrap_response="$(curl -sS -w '\n%{http_code}' -X POST "${core_url}/api/v1/agent/bootstrap" -H "Content-Type: application/json" -d "${bootstrap_payload}")"
+  bootstrap_status="${bootstrap_response##*$'\n'}"
+  bootstrap_response="${bootstrap_response%$'\n'*}"
+  if [[ "${bootstrap_status}" != "200" ]]; then
+    log "Bootstrap-Fehler (HTTP ${bootstrap_status})."
+    if [[ -n "${bootstrap_response}" ]]; then
+      log "Antwort: ${bootstrap_response}"
+    fi
+    fatal "Agent-Registrierung fehlgeschlagen."
+  fi
 
   local register_url register_token agent_id
   register_url="$(jq -r '.register_url // empty' <<<"${bootstrap_response}")"
@@ -676,6 +809,29 @@ register_agent_with_core() {
 
   if [[ -z "${register_url}" || -z "${register_token}" || -z "${agent_id}" ]]; then
     fatal "Ungültige Antwort vom Core Bootstrap-Endpunkt."
+  fi
+  if [[ -n "${state_file}" ]]; then
+    write_bootstrap_state "${state_file}" "${register_url}" "${register_token}" "${agent_id}" "${bootstrap_token}"
+    log "Bootstrap-State gespeichert: ${state_file}"
+  fi
+
+  local agent_secret
+  if ! agent_secret="$(register_agent_with_token "${register_url}" "${register_token}" "${agent_id}" "${agent_name}")"; then
+    fatal "Agent-Registrierung fehlgeschlagen."
+  fi
+  echo "${agent_id}|${agent_secret}"
+}
+
+register_agent_with_token() {
+  local register_url="$1"
+  local register_token="$2"
+  local agent_id="$3"
+  local agent_name="$4"
+  REGISTER_HTTP_STATUS=""
+  REGISTER_HTTP_BODY=""
+
+  if [[ "${register_url}" =~ ^https?://[^/]+/.+/$ ]]; then
+    register_url="${register_url%/}"
   fi
 
   local register_payload
@@ -688,27 +844,46 @@ register_agent_with_core() {
   if [[ -z "${path}" ]]; then
     path="/"
   fi
+  path="${path%%\?*}"
+  path="${path%%#*}"
+  if [[ "${path}" != "/" ]]; then
+    path="${path%/}"
+  fi
   body_hash="$(sha256_hex "${register_payload}")"
   payload="${agent_id}\nPOST\n${path}\n${body_hash}\n${timestamp}\n${nonce}"
   signature="$(hmac_sha256_hex "${register_token}" "${payload}")"
 
   step "Agent-Registrierung abschließen."
-  local register_response
-  register_response="$(curl -fsSL -X POST "${register_url}" \
+  log "Register Debug: agent_id=${agent_id} path=${path} body_hash=${body_hash} timestamp=${timestamp} nonce=${nonce} signature_prefix=${signature:0:12}"
+  local register_response register_status
+  register_response="$(curl -sS -w '\n%{http_code}' -X POST "${register_url}" \
     -H "Content-Type: application/json" \
     -H "X-Agent-ID: ${agent_id}" \
     -H "X-Timestamp: ${timestamp}" \
     -H "X-Nonce: ${nonce}" \
     -H "X-Signature: ${signature}" \
     -d "${register_payload}")"
+  register_status="${register_response##*$'\n'}"
+  register_response="${register_response%$'\n'*}"
+  if [[ "${register_status}" != "200" ]]; then
+    log "Registrierungsfehler (HTTP ${register_status})."
+    if [[ -n "${register_response}" ]]; then
+      log "Antwort: ${register_response}"
+    fi
+    REGISTER_HTTP_STATUS="${register_status}"
+    REGISTER_HTTP_BODY="${register_response}"
+    return 1
+  fi
 
   local agent_secret
   agent_secret="$(jq -r '.secret // empty' <<<"${register_response}")"
   if [[ -z "${agent_secret}" ]]; then
-    fatal "Agent-Registrierung fehlgeschlagen."
+    REGISTER_HTTP_STATUS="200"
+    REGISTER_HTTP_BODY="${register_response}"
+    return 1
   fi
 
-  echo "${agent_id}|${agent_secret}"
+  echo "${agent_secret}"
 }
 
 print_intro() {
@@ -849,6 +1024,12 @@ run_agent_install() {
   local agent_version="${EASYWI_AGENT_VERSION:-latest}"
   local filesvc_base_dir="${EASYWI_FILE_BASE_DIR:-/home}"
   local agent_name="${EASYWI_AGENT_NAME:-}"
+  local agent_hostname="${EASYWI_AGENT_HOSTNAME:-}"
+  local bootstrap_state_file="${EASYWI_BOOTSTRAP_STATE_FILE:-/etc/easywi/bootstrap-state.json}"
+  local register_token="${EASYWI_AGENT_REGISTER_TOKEN:-}"
+  local agent_id="${EASYWI_AGENT_ID:-}"
+  local register_url="${EASYWI_AGENT_REGISTER_URL:-}"
+  local filesvc_hostname="${EASYWI_FILESVC_HOSTNAME:-}"
 
   echo
   echo "Agent-Setup: Wir laden die Agent-Binaries."
@@ -859,6 +1040,8 @@ run_agent_install() {
   prompt_value agent_version "Agent Version (latest oder Tag)" "${agent_version}"
   prompt_value filesvc_base_dir "File Service Base Directory" "${filesvc_base_dir}"
   prompt_value agent_name "Agent Name (optional)" "${agent_name}"
+  prompt_value agent_hostname "Agent Hostname (optional)" "${agent_hostname}"
+  prompt_value filesvc_hostname "File Service Hostname (optional)" "${filesvc_hostname}"
 
   local pkg_manager
   pkg_manager="$(detect_package_manager)"
@@ -868,8 +1051,8 @@ run_agent_install() {
     core_url="${core_url%/}"
   fi
 
-  if [[ -z "${core_url}" || -z "${bootstrap_token}" ]]; then
-    log "Kein Core-URL/Token angegeben -> Installiere nur die Binaries."
+  if [[ -z "${core_url}" ]]; then
+    log "Kein Core-URL angegeben -> Installiere nur die Binaries."
     install_agent_binaries_only "${agent_version}"
     return
   fi
@@ -880,18 +1063,66 @@ run_agent_install() {
   if [[ -z "${agent_name}" ]]; then
     agent_name="$(hostname -f 2>/dev/null || hostname)"
   fi
+  if [[ -z "${filesvc_hostname}" ]]; then
+    filesvc_hostname="${agent_hostname:-${agent_name}}"
+  fi
 
-  local agent_identity
-  agent_identity="$(register_agent_with_core "${core_url}" "${bootstrap_token}" "${agent_version}" "${agent_name}")"
-  local agent_id="${agent_identity%%|*}"
-  local agent_secret="${agent_identity#*|}"
+  if [[ -z "${bootstrap_token}" && -z "${register_token}" && -f "${bootstrap_state_file}" ]]; then
+    log "Bootstrap-State gefunden: ${bootstrap_state_file}"
+    readarray -t bootstrap_state < <(read_bootstrap_state "${bootstrap_state_file}")
+    register_url="${bootstrap_state[0]:-}"
+    register_token="${bootstrap_state[1]:-}"
+    agent_id="${bootstrap_state[2]:-}"
+    if [[ -z "${bootstrap_token}" ]]; then
+      bootstrap_token="${bootstrap_state[3]:-}"
+    fi
+    if [[ -z "${register_url}" || -z "${register_token}" || -z "${agent_id}" ]]; then
+      fatal "Bootstrap-State ist unvollständig."
+    fi
+  fi
+
+  local agent_secret=""
+  if [[ -n "${register_token}" && -n "${agent_id}" ]]; then
+    log "Registrierung mit gespeicherten Register-Token."
+    if [[ -z "${register_url}" ]]; then
+      register_url="${core_url}/api/v1/agent/register"
+    fi
+    if ! agent_secret="$(register_agent_with_token "${register_url}" "${register_token}" "${agent_id}" "${agent_name}")"; then
+      log "Registrierung mit Register-Token fehlgeschlagen, versuche Bootstrap erneut."
+      delete_bootstrap_state "${bootstrap_state_file}"
+      register_url=""
+      register_token=""
+      agent_id=""
+    fi
+  else
+    if [[ -z "${bootstrap_token}" ]]; then
+      log "Kein Bootstrap-Token angegeben -> Installiere nur die Binaries."
+      install_agent_binaries_only "${agent_version}"
+      return
+    fi
+  fi
+
+  if [[ -z "${agent_secret}" ]]; then
+    if [[ -z "${bootstrap_token}" ]]; then
+      log "Kein Bootstrap-Token verfügbar -> Installiere nur die Binaries."
+      install_agent_binaries_only "${agent_version}"
+      return
+    fi
+    local agent_identity
+    agent_identity="$(register_agent_with_core "${core_url}" "${bootstrap_token}" "${agent_version}" "${agent_name}" "${agent_hostname}" "${bootstrap_state_file}")"
+    agent_id="${agent_identity%%|*}"
+    agent_secret="${agent_identity#*|}"
+  fi
 
   local filesvc_cert="/etc/easywi/filesvc.crt"
   local filesvc_key="/etc/easywi/filesvc.key"
   local filesvc_ca="/etc/easywi/filesvc.crt"
-  ensure_filesvc_certificates "${filesvc_cert}" "${filesvc_key}" "${agent_name}"
+  local filesvc_ips
+  filesvc_ips="$(hostname -I 2>/dev/null || true)"
+  ensure_filesvc_certificates "${filesvc_cert}" "${filesvc_key}" "${filesvc_hostname}" "${filesvc_ips}"
 
   install_agent_services "${agent_id}" "${agent_secret}" "${core_url}" "${filesvc_base_dir}" "${filesvc_cert}" "${filesvc_key}" "${filesvc_ca}"
+  delete_bootstrap_state "${bootstrap_state_file}"
 }
 
 main_menu() {

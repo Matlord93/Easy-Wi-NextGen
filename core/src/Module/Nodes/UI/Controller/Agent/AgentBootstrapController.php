@@ -98,6 +98,13 @@ final class AgentBootstrapController
             throw new UnauthorizedHttpException('bootstrap', 'Bootstrap token is not valid for this node name.');
         }
 
+        $now = new \DateTimeImmutable();
+        if (!$token->canAttempt($now)) {
+            throw new UnauthorizedHttpException('bootstrap', 'Invalid or expired bootstrap token.');
+        }
+
+        $token->recordAttempt($now);
+
         $agentId = $this->generateAgentId($hostname);
 
         try {
@@ -118,8 +125,6 @@ final class AgentBootstrapController
             $token,
         );
         $this->entityManager->persist($registrationToken);
-
-        $token->markUsed();
 
         $fingerprintPayload = [
             'hostname' => $hostname,

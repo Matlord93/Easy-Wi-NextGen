@@ -106,6 +106,14 @@ final class AgentRegistrationController
         ]);
         if ($registrationToken !== null) {
             $registrationToken->markUsed();
+            $bootstrapToken = $registrationToken->getBootstrapToken();
+            if ($bootstrapToken !== null) {
+                $bootstrapToken->invalidate();
+                $this->auditLogger->log(null, 'agent.bootstrap_token_invalidated', [
+                    'bootstrap_token_prefix' => $bootstrapToken->getTokenPrefix(),
+                    'agent_id' => $agentId,
+                ]);
+            }
             $this->auditLogger->log(null, 'agent.bootstrap_registration_token_used', [
                 'registration_token_prefix' => $registrationToken->getTokenPrefix(),
                 'agent_id' => $agentId,

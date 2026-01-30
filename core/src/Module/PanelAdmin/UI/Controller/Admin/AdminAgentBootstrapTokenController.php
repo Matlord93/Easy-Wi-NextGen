@@ -113,7 +113,7 @@ final class AdminAgentBootstrapTokenController
         $this->auditLogger->log($actor, 'agent.bootstrap_token_created', [
             'bootstrap_token_prefix' => $token->getTokenPrefix(),
             'name' => $token->getName(),
-            'expires_at' => $token->getExpiresAt()->format(DATE_ATOM),
+            'expires_at' => $token->getExpiresAt()?->format(DATE_ATOM),
             'bound_cidr' => $token->getBoundCidr(),
             'bound_node_name' => $token->getBoundNodeName(),
         ]);

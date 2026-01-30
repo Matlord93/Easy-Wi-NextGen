@@ -45,11 +45,23 @@ class AgentBootstrapToken
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
-    #[ORM\Column]
-    private \DateTimeImmutable $expiresAt;
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $expiresAt;
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $usedAt = null;
+
+    #[ORM\Column(name: 'invalidated_at', nullable: true)]
+    private ?\DateTimeImmutable $invalidatedAt = null;
+
+    #[ORM\Column(name: 'last_used_at', nullable: true)]
+    private ?\DateTimeImmutable $lastUsedAt = null;
+
+    #[ORM\Column(name: 'attempts_count')]
+    private int $attemptsCount = 0;
+
+    #[ORM\Column(name: 'max_attempts')]
+    private int $maxAttempts = 5;
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $revokedAt = null;
@@ -62,8 +74,9 @@ class AgentBootstrapToken
         string $tokenPrefix,
         string $tokenHash,
         array $encryptedToken,
-        \DateTimeImmutable $expiresAt,
+        ?\DateTimeImmutable $expiresAt,
         ?User $createdBy = null,
+        int $maxAttempts = 5,
     ) {
         $this->name = trim($name);
         $this->tokenPrefix = $tokenPrefix;
@@ -71,6 +84,7 @@ class AgentBootstrapToken
         $this->encryptedToken = $encryptedToken;
         $this->expiresAt = $expiresAt;
         $this->createdBy = $createdBy;
+        $this->maxAttempts = $maxAttempts;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -149,12 +163,12 @@ class AgentBootstrapToken
         return $this->updatedAt;
     }
 
-    public function getExpiresAt(): \DateTimeImmutable
+    public function getExpiresAt(): ?\DateTimeImmutable
     {
         return $this->expiresAt;
     }
 
-    public function setExpiresAt(\DateTimeImmutable $expiresAt): void
+    public function setExpiresAt(?\DateTimeImmutable $expiresAt): void
     {
         $this->expiresAt = $expiresAt;
         $this->touch();
@@ -180,6 +194,76 @@ class AgentBootstrapToken
         $this->touch();
     }
 
+    public function getInvalidatedAt(): ?\DateTimeImmutable
+    {
+        return $this->invalidatedAt;
+    }
+
+    public function isInvalidated(): bool
+    {
+        return $this->invalidatedAt !== null;
+    }
+
+    public function invalidate(?\DateTimeImmutable $now = null): void
+    {
+        if ($this->invalidatedAt !== null) {
+            return;
+        }
+
+        $now = $now ?? new \DateTimeImmutable();
+        $this->invalidatedAt = $now;
+        if ($this->usedAt === null) {
+            $this->usedAt = $now;
+        }
+        $this->touch();
+    }
+
+    public function getLastUsedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastUsedAt;
+    }
+
+    public function getAttemptsCount(): int
+    {
+        return $this->attemptsCount;
+    }
+
+    public function getMaxAttempts(): int
+    {
+        return $this->maxAttempts;
+    }
+
+    public function setMaxAttempts(int $maxAttempts): void
+    {
+        $this->maxAttempts = max(0, $maxAttempts);
+        $this->touch();
+    }
+
+    public function recordAttempt(?\DateTimeImmutable $now = null): void
+    {
+        $now = $now ?? new \DateTimeImmutable();
+        $this->attemptsCount++;
+        $this->lastUsedAt = $now;
+        $this->touch();
+    }
+
+    public function canAttempt(?\DateTimeImmutable $now = null): bool
+    {
+        if ($this->isRevoked() || $this->isInvalidated()) {
+            return false;
+        }
+
+        if ($this->isExpired($now)) {
+            return false;
+        }
+
+        if ($this->maxAttempts > 0 && $this->attemptsCount >= $this->maxAttempts) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function getRevokedAt(): ?\DateTimeImmutable
     {
         return $this->revokedAt;
@@ -203,6 +287,10 @@ class AgentBootstrapToken
     public function isExpired(?\DateTimeImmutable $now = null): bool
     {
         $now = $now ?? new \DateTimeImmutable();
+
+        if ($this->expiresAt === null) {
+            return false;
+        }
 
         return $this->expiresAt <= $now;
     }

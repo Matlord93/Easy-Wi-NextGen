@@ -23,8 +23,9 @@ final class AgentBootstrapTokenRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('token');
         $qb->andWhere('token.tokenHash = :hash')
             ->andWhere('token.revokedAt IS NULL')
-            ->andWhere('token.usedAt IS NULL')
-            ->andWhere('token.expiresAt > :now')
+            ->andWhere('token.invalidatedAt IS NULL')
+            ->andWhere('(token.expiresAt IS NULL OR token.expiresAt > :now)')
+            ->andWhere('(token.maxAttempts = 0 OR token.attemptsCount < token.maxAttempts)')
             ->setParameter('hash', $tokenHash)
             ->setParameter('now', new \DateTimeImmutable())
             ->setMaxResults(1);
