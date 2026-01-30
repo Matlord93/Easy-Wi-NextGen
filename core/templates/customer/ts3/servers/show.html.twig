@@ -21,7 +21,7 @@
         <div class="ts3-card">
             <div class="ts3-meta" data-summary-url="/customer/ts3/servers/{{ server.id }}/summary.json">
                 <div><strong>Status:</strong> {{ server.status }}</div>
-                <div><strong>Voice IP:</strong> {{ server.node.queryConnectIp }}:{{ server.voicePort ?? '—' }}</div>
+                <div><strong>Server IP:</strong> {{ connectIp }}:{{ server.voicePort ?? '—' }}</div>
                 <div><strong>Filetransfer Port:</strong> {{ server.filetransferPort ?? server.node.filetransferPort ?? 30033 }}</div>
                 <div><strong>Slots:</strong> <span data-slots>—</span></div>
             </div>
@@ -42,12 +42,54 @@
             </div>
         </div>
 
-        <div class="ts3-card" id="verwaltung">
-            <h2>Verwaltung</h2>
-            <p class="ts3-muted">Verwalte Token und Viewer direkt hier.</p>
-            <div class="ts3-grid">
-                <details class="ts3-card">
-                    <summary><strong>Token</strong></summary>
+        <section class="ts3-card" id="verwaltung">
+            <div class="ts3-section-header">
+                <div>
+                    <h2 class="ts3-section-title">Verwaltung</h2>
+                    <p class="ts3-muted">Alle Funktionen zentral, inklusive Tokens, Viewer und Live-Daten.</p>
+                </div>
+                <div class="ts3-actions">
+                    <a class="ts3-link" href="#live-daten">Live-Daten</a>
+                    <a class="ts3-link" href="#viewer">Viewer</a>
+                </div>
+            </div>
+
+            <div class="ts3-panel-grid">
+                <div class="ts3-panel">
+                    <h3>Server Aktionen</h3>
+                    <p class="ts3-muted">Direkte Steuerung deines Servers.</p>
+                    <div class="ts3-actions">
+                        <form method="post" action="/customer/ts3/servers/{{ server.id }}/start">
+                            <input type="hidden" name="_token" value="{{ csrf.start }}">
+                            <button class="ts3-button" type="submit">Start</button>
+                        </form>
+                        <form method="post" action="/customer/ts3/servers/{{ server.id }}/stop">
+                            <input type="hidden" name="_token" value="{{ csrf.stop }}">
+                            <button class="ts3-button" type="submit">Stop</button>
+                        </form>
+                        <form method="post" action="/customer/ts3/servers/{{ server.id }}/restart">
+                            <input type="hidden" name="_token" value="{{ csrf.restart }}">
+                            <button class="ts3-button" type="submit">Neustart</button>
+                        </form>
+                        <form method="post" action="/customer/ts3/servers/{{ server.id }}/recreate">
+                            <input type="hidden" name="_token" value="{{ csrf.recreate }}">
+                            <button class="ts3-button" type="submit">Neu erstellen</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="ts3-panel">
+                    <h3>Verbindung</h3>
+                    <p class="ts3-muted">Deine aktuelle Server-IP & Ports für den Client.</p>
+                    <div class="ts3-credentials">
+                        <div><strong>Adresse</strong></div>
+                        <div class="ts3-secret">{{ connectIp }}:{{ server.voicePort ?? '—' }}</div>
+                        <div class="ts3-muted">Filetransfer: {{ server.filetransferPort ?? server.node.filetransferPort ?? 30033 }}</div>
+                    </div>
+                </div>
+
+                <div class="ts3-panel ts3-panel--wide">
+                    <h3>Token Verwaltung</h3>
                     <div class="ts3-credentials">
                         <div><strong>Owner Token</strong></div>
                         <div class="ts3-secret">{{ token ?? '—' }}</div>
@@ -85,9 +127,11 @@
                             </tbody>
                         </table>
                     {% endif %}
-                </details>
-                <details class="ts3-card">
-                    <summary><strong>Viewer</strong></summary>
+                </div>
+
+                <div class="ts3-panel ts3-panel--wide" id="viewer">
+                    <h3>Viewer</h3>
+                    <p class="ts3-muted">Passe deinen Viewer an und nutze ihn als iFrame oder Widget.</p>
                     {{ form_start(form, { attr: { class: 'ts3-form' } }) }}
                         <div class="ts3-grid">
                             {{ form_row(form.enabled) }}
@@ -105,29 +149,33 @@
 &lt;script src="{{ app.request.schemeAndHttpHost }}/viewer/ts3/{{ viewer.publicId }}.js" async&gt;&lt;/script&gt;</pre>
                         </div>
                     {% endif %}
-                </details>
-                <details class="ts3-card">
+                </div>
+            </div>
+
+            <div class="ts3-section-divider" id="live-daten"></div>
+            <div class="ts3-panel-grid">
+                <details class="ts3-panel">
                     <summary><strong>Ban-Liste</strong></summary>
                     <div class="ts3-muted" data-query="bans" data-url="/customer/ts3/servers/{{ server.id }}/bans.json">Lade Daten…</div>
                 </details>
-                <details class="ts3-card">
+                <details class="ts3-panel">
                     <summary><strong>Channel</strong></summary>
                     <div class="ts3-muted" data-query="channels" data-url="/customer/ts3/servers/{{ server.id }}/channels.json">Lade Daten…</div>
                 </details>
-                <details class="ts3-card">
+                <details class="ts3-panel">
                     <summary><strong>Userverwaltung</strong></summary>
                     <div class="ts3-muted" data-query="clients" data-url="/customer/ts3/servers/{{ server.id }}/clients.json">Lade Daten…</div>
                 </details>
-                <details class="ts3-card">
+                <details class="ts3-panel">
                     <summary><strong>Logs</strong></summary>
                     <div class="ts3-muted" data-query="logs" data-url="/customer/ts3/servers/{{ server.id }}/logs.json">Lade Daten…</div>
                 </details>
-                <details class="ts3-card">
+                <details class="ts3-panel">
                     <summary><strong>Backup</strong></summary>
                     <div class="ts3-muted" data-query="snapshot" data-url="/customer/ts3/servers/{{ server.id }}/snapshot.json">Lade Daten…</div>
                 </details>
             </div>
-        </div>
+        </section>
     </div>
     <script>
         (function () {
@@ -198,11 +246,16 @@
             loadGroups();
         })();
         (function () {
-            const blocks = document.querySelectorAll('[data-query][data-url]');
-            if (!blocks.length) { return; }
-            blocks.forEach((block) => {
+            const panels = document.querySelectorAll('details.ts3-panel');
+            if (!panels.length) { return; }
+            const intervals = new Map();
+            const pollIntervalMs = 60000;
+            const registerPanel = (panel) => {
+                const block = panel.querySelector('[data-query][data-url]');
+                if (!block) { return; }
                 const url = block.dataset.url;
                 if (!url) { return; }
+                const queryType = block.dataset.query;
                 let attempts = 0;
                 const maxAttempts = 6;
                 const delayMs = 1500;
@@ -224,7 +277,9 @@
                             }
                             const items = payload.bans || payload.channels || payload.clients || payload.logs || [];
                             if (!Array.isArray(items) || items.length === 0) {
-                                block.textContent = 'Keine Einträge vorhanden.';
+                                block.textContent = queryType === 'bans'
+                                    ? 'Kein Bann gefunden.'
+                                    : 'Keine Einträge vorhanden.';
                                 return;
                             }
                             const list = document.createElement('ul');
@@ -248,7 +303,39 @@
                         })
                         .catch(() => {});
                 };
-                loadData();
+
+                const startPolling = () => {
+                    loadData();
+                    if (intervals.has(panel)) { return; }
+                    const id = setInterval(loadData, pollIntervalMs);
+                    intervals.set(panel, id);
+                };
+
+                const stopPolling = () => {
+                    const id = intervals.get(panel);
+                    if (id) {
+                        clearInterval(id);
+                        intervals.delete(panel);
+                    }
+                };
+
+                panel.addEventListener('toggle', () => {
+                    if (panel.open) {
+                        startPolling();
+                    } else {
+                        stopPolling();
+                    }
+                });
+
+                if (panel.open) {
+                    startPolling();
+                }
+            };
+
+            panels.forEach(registerPanel);
+            window.addEventListener('beforeunload', () => {
+                intervals.forEach((id) => clearInterval(id));
+                intervals.clear();
             });
         })();
     </script>

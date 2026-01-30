@@ -29,7 +29,7 @@
                         <div class="{{ cssPrefix }}-muted">#{{ server.sid }}</div>
                     </td>
                     <td>
-                        <div>IP: {{ server.node.queryConnectIp }}:{{ server.voicePort ?? '—' }}</div>
+                        <div>IP: {{ row.connectIp ?? server.node.queryConnectIp }}:{{ server.voicePort ?? '—' }}</div>
                         <div class="{{ cssPrefix }}-muted">FT {{ server.filetransferPort ?? 30033 }}</div>
                     </td>
                     <td>

@@ -59,6 +59,7 @@ final class CustomerTs3ServerController
             $id = (int) $server->getId();
             return [
                 'server' => $server,
+                'connectIp' => $this->resolveConnectIp($server),
                 'summaryUrl' => sprintf('/customer/ts3/servers/%d/summary.json', $id),
                 'csrf' => [
                     'start' => $this->csrfTokenManager->getToken('ts3_server_start_' . $id)->getValue(),
@@ -104,6 +105,7 @@ final class CustomerTs3ServerController
         return new Response($this->twig->render('customer/ts3/servers/show.html.twig', [
             'activeNav' => 'ts3',
             'server' => $server,
+            'connectIp' => $this->resolveConnectIp($server),
             'token' => $token instanceof Ts3Token ? $token->getToken($this->crypto) : null,
             'tokens' => $tokenRows,
             'viewer' => $viewer,
@@ -423,6 +425,25 @@ final class CustomerTs3ServerController
         if (!$this->csrfTokenManager->isTokenValid(new CsrfToken($tokenId, $token))) {
             throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
         }
+    }
+
+    private function resolveConnectIp(Ts3VirtualServer $server): string
+    {
+        $node = $server->getNode();
+        $agentIp = trim((string) $node->getAgent()->getLastHeartbeatIp());
+        if ($agentIp !== '') {
+            return $agentIp;
+        }
+
+        $agentBaseUrl = $node->getAgentBaseUrl();
+        if ($agentBaseUrl !== '') {
+            $host = parse_url($agentBaseUrl, PHP_URL_HOST);
+            if (is_string($host) && $host !== '') {
+                return $host;
+            }
+        }
+
+        return $node->getQueryConnectIp();
     }
 
 }

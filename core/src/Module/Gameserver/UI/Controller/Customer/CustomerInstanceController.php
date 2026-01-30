@@ -711,14 +711,18 @@ final class CustomerInstanceController
         $connection = $this->buildConnectionData($instance, $portBlock);
         $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, $queueQuery);
         $installStatus = $this->instanceInstallService->getInstallStatus($instance);
-        $displayStatus = $instance->getStatus()->value;
+        $instanceStatus = $instance->getStatus();
+        $displayStatus = $instanceStatus->value;
         $runtimeStatus = is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null;
         if ($runtimeStatus !== null && $runtimeStatus !== '') {
             if (in_array($runtimeStatus, ['error', 'crashed'], true)) {
                 $displayStatus = InstanceStatus::Error->value;
             } elseif (in_array($runtimeStatus, ['online', 'running', 'up'], true)) {
                 $displayStatus = InstanceStatus::Running->value;
-            } elseif (in_array($runtimeStatus, ['offline', 'unknown', 'stopped', 'hibernating', 'idle'], true)) {
+            } elseif (
+                $instanceStatus !== InstanceStatus::Running
+                && in_array($runtimeStatus, ['offline', 'unknown', 'stopped', 'hibernating', 'idle'], true)
+            ) {
                 $displayStatus = InstanceStatus::Stopped->value;
             }
         }
