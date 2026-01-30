@@ -674,6 +674,8 @@ func sinusbotPackages(family string) []string {
 			"curl",
 			"ca-certificates",
 			"bzip2",
+			"libatomic1",
+			"libevent-2.1-7",
 			"libqt5gui5",
 			"libqt5widgets5",
 			"libqt5network5",

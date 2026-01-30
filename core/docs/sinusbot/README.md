@@ -59,7 +59,7 @@ Der Agent muss folgende Endpunkte anbieten:
 
 Die SinusBot-Installation wird ausschließlich durch den Easy-Wi Agent durchgeführt. Es darf kein manueller Installationsablauf auf dem Node nötig sein. Der Agent übernimmt:
 
-- Installation der erforderlichen Systempakete (z. B. `ca-certificates`, `curl`, `tar`, `xz`, `bzip2`).
+- Installation der erforderlichen Systempakete (z. B. `ca-certificates`, `curl`, `tar`, `xz`, `bzip2`, `libatomic1`, `libevent-2.1-7`).
 - Download und Entpacken des SinusBot-Archivs.
 - Setzen der Rechte im Installationspfad.
 - Optionaler Download und Installation des TeamSpeak-Clients inkl. Plugin-Setup.
