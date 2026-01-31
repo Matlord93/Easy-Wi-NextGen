@@ -8,8 +8,8 @@ framework:
     fallbacks:
       - 'en'
   session:
-    handler_id: null
-    save_path: '%env(default::SESSION_SAVE_PATH)%'
+    handler_id: session.handler.native_file
+    save_path: '%kernel.project_dir%/var/sessions/%kernel.environment%'
     cookie_secure: auto
     cookie_samesite: lax
   php_errors:
