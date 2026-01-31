@@ -17,12 +17,21 @@ jobs:
           fetch-depth: 0
 
       - name: Set version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          else
+            VERSION="$(cat VERSION)"
+            TAG="v${VERSION}"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "TAG=${TAG}" >> $GITHUB_ENV
 
       - name: Determine previous tag
         run: |
           git fetch --tags --force
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${TAG}"
           PREV_TAG=$(git tag --sort=-v:refname | grep -Fv "${TAG}" | head -n 1 || true)
           echo "PREV_TAG=${PREV_TAG}" >> $GITHUB_ENV
           if [[ -n "${PREV_TAG}" ]]; then
@@ -57,7 +66,7 @@ jobs:
           import zipfile
           from pathlib import Path
 
-          tag = os.environ["GITHUB_REF_NAME"]
+          tag = os.environ["TAG"]
           prev_tag = os.environ["PREV_TAG"]
           version = os.environ["VERSION"]
           prev_version = os.environ.get("PREV_VERSION", prev_tag.lstrip("v"))
@@ -148,7 +157,7 @@ jobs:
       - name: Generate update manifest
         run: |
           ARCHIVE="easywi-webinterface-${VERSION}.zip"
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${TAG}"
           SHA256=$(sha256sum "dist/${ARCHIVE}" | awk '{print $1}')
           export VERSION TAG ARCHIVE SHA256
           if [[ -n "${PREV_TAG:-}" ]]; then
@@ -189,6 +198,8 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           files: |
             dist/easywi-webinterface-*.zip
             dist/checksums-webinterface.txt
