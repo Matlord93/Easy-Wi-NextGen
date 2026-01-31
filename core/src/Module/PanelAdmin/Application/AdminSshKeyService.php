@@ -24,29 +24,42 @@ final class AdminSshKeyService
             return false;
         }
 
-        $agent = $this->resolveAgent();
-        if ($agent === null) {
+        $agents = $this->resolveAgents();
+        if ($agents === []) {
             return false;
         }
 
-        $this->jobDispatcher->dispatch($agent, 'admin.ssh_key.store', [
-            'user_id' => $admin->getId(),
-            'admin_email' => $admin->getEmail(),
-            'authorized_keys_path' => $this->authorizedKeysPath,
-            'public_key' => $publicKey,
-        ]);
+        foreach ($agents as $agent) {
+            $this->jobDispatcher->dispatch($agent, 'admin.ssh_key.store', [
+                'user_id' => $admin->getId(),
+                'admin_email' => $admin->getEmail(),
+                'authorized_keys_path' => $this->authorizedKeysPath,
+                'public_key' => $publicKey,
+            ]);
+        }
 
         return true;
     }
 
-    private function resolveAgent(): ?\App\Module\Core\Domain\Entity\Agent
+    /**
+     * @return \App\Module\Core\Domain\Entity\Agent[]
+     */
+    private function resolveAgents(): array
     {
         $agents = $this->agentRepository->findBy([], ['lastSeenAt' => 'DESC', 'updatedAt' => 'DESC']);
-        $agent = $agents[0] ?? null;
-        if (!$agent instanceof \App\Module\Core\Domain\Entity\Agent) {
-            return null;
+        if ($agents === []) {
+            return [];
         }
 
-        return $agent;
+        $coreAgents = array_values(array_filter($agents, static function ($agent): bool {
+            return $agent instanceof \App\Module\Core\Domain\Entity\Agent
+                && in_array('Core', $agent->getRoles(), true);
+        }));
+
+        if ($coreAgents !== []) {
+            return $coreAgents;
+        }
+
+        return array_values(array_filter($agents, static fn ($agent): bool => $agent instanceof \App\Module\Core\Domain\Entity\Agent));
     }
 }

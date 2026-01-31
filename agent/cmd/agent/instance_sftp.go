@@ -28,6 +28,11 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 	group := payloadValue(job.Payload, "sftp_group", "group")
 	shell := payloadValue(job.Payload, "shell", "sftp_shell")
 	sftpBaseDir := payloadValue(job.Payload, "sftp_base_dir", "sftp_root")
+	instanceDir, instanceErr := resolveInstanceDir(job.Payload)
+	instanceUser := ""
+	if instanceErr == nil {
+		instanceUser = buildInstanceUsername(payloadValue(job.Payload, "customer_id"), payloadValue(job.Payload, "instance_id"))
+	}
 	if group == "" {
 		group = os.Getenv("EASYWI_SFTP_GROUP")
 	}
@@ -60,25 +65,44 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 	if err := ensureGroup(group); err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := ensureBaseDir(sftpBaseDir); err != nil {
-		return failureResult(job.ID, err)
-	}
 
-	chrootPath := filepath.Join(sftpBaseDir, username)
-	if err := ensureSftpChroot(chrootPath); err != nil {
-		return failureResult(job.ID, err)
-	}
-	homePath := filepath.Join(chrootPath, "data")
-	if err := ensureInstanceDir(homePath); err != nil {
-		return failureResult(job.ID, err)
+	useInstanceDir := instanceErr == nil
+	var chrootPath string
+	var homePath string
+	if useInstanceDir {
+		homePath = instanceDir
+		if _, err := os.Stat(homePath); err != nil {
+			return failureResult(job.ID, fmt.Errorf("instance directory unavailable: %w", err))
+		}
+	} else {
+		if err := ensureBaseDir(sftpBaseDir); err != nil {
+			return failureResult(job.ID, err)
+		}
+		chrootPath = filepath.Join(sftpBaseDir, username)
+		if err := ensureSftpChroot(chrootPath); err != nil {
+			return failureResult(job.ID, err)
+		}
+		homePath = filepath.Join(chrootPath, "data")
+		if err := ensureInstanceDir(homePath); err != nil {
+			return failureResult(job.ID, err)
+		}
 	}
 
 	if userExists(username) {
-		if err := runCommand("usermod", "--home", "/data", "--shell", shell, "--gid", group, username); err != nil {
+		if err := runCommand("usermod", "--home", homePath, "--shell", shell, "--gid", group, username); err != nil {
 			return failureResult(job.ID, err)
 		}
 	} else {
-		if err := runCommand("useradd", "--system", "--home-dir", "/data", "--shell", shell, "--gid", group, "--no-create-home", username); err != nil {
+		if err := runCommand("useradd", "--system", "--home-dir", homePath, "--shell", shell, "--gid", group, "--no-create-home", username); err != nil {
+			return failureResult(job.ID, err)
+		}
+	}
+
+	if useInstanceDir && instanceUser != "" {
+		if err := ensureGroup(instanceUser); err != nil {
+			return failureResult(job.ID, err)
+		}
+		if err := runCommand("usermod", "-aG", instanceUser, username); err != nil {
 			return failureResult(job.ID, err)
 		}
 	}
@@ -87,11 +111,13 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := os.Chown(homePath, uid, gid); err != nil {
-		return failureResult(job.ID, fmt.Errorf("chown %s: %w", homePath, err))
-	}
-	if err := os.Chmod(homePath, instanceDirMode); err != nil {
-		return failureResult(job.ID, fmt.Errorf("chmod %s: %w", homePath, err))
+	if !useInstanceDir {
+		if err := os.Chown(homePath, uid, gid); err != nil {
+			return failureResult(job.ID, fmt.Errorf("chown %s: %w", homePath, err))
+		}
+		if err := os.Chmod(homePath, instanceDirMode); err != nil {
+			return failureResult(job.ID, fmt.Errorf("chmod %s: %w", homePath, err))
+		}
 	}
 
 	if err := setUserPassword(username, password); err != nil {

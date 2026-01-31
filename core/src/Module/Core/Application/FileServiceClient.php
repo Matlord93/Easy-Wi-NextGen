@@ -179,14 +179,29 @@ final class FileServiceClient
     private function requestJson(Instance $instance, string $method, string $endpoint, array $query = [], ?array $json = null): array
     {
         $response = $this->requestRaw($instance, $method, $endpoint, $query, $json);
-        $status = $response->getStatusCode();
+        try {
+            $status = $response->getStatusCode();
+        } catch (TransportExceptionInterface $exception) {
+            throw new \RuntimeException('File service unavailable.', 0, $exception);
+        }
+        if ($status >= 500) {
+            throw new \RuntimeException('File service unavailable.');
+        }
         if ($status < 200 || $status >= 300) {
-            $payload = $response->toArray(false);
+            try {
+                $payload = $response->toArray(false);
+            } catch (\Throwable $exception) {
+                throw new \RuntimeException('File service error.', 0, $exception);
+            }
             $message = is_array($payload) ? (string) ($payload['error'] ?? 'File service error.') : 'File service error.';
             throw new \RuntimeException($message);
         }
 
-        $payload = $response->toArray(false);
+        try {
+            $payload = $response->toArray(false);
+        } catch (\Throwable $exception) {
+            throw new \RuntimeException('File service unavailable.', 0, $exception);
+        }
         return is_array($payload) ? $payload : [];
     }
 
@@ -198,9 +213,20 @@ final class FileServiceClient
         $options['body'] = $formData->bodyToIterable();
 
         $response = $this->httpClient->request('POST', $this->resolveBaseUrl($instance->getNode()) . $config['endpoint'], $options);
-        $status = $response->getStatusCode();
+        try {
+            $status = $response->getStatusCode();
+        } catch (TransportExceptionInterface $exception) {
+            throw new \RuntimeException('File service unavailable.', 0, $exception);
+        }
+        if ($status >= 500) {
+            throw new \RuntimeException('File service unavailable.');
+        }
         if ($status < 200 || $status >= 300) {
-            $payload = $response->toArray(false);
+            try {
+                $payload = $response->toArray(false);
+            } catch (\Throwable $exception) {
+                throw new \RuntimeException('File service error.', 0, $exception);
+            }
             $message = is_array($payload) ? (string) ($payload['error'] ?? 'File service error.') : 'File service error.';
             throw new \RuntimeException($message);
         }
@@ -243,6 +269,7 @@ final class FileServiceClient
         $options = [
             'headers' => $headers,
             'timeout' => $this->timeoutSeconds,
+            'max_duration' => $this->timeoutSeconds,
         ];
 
         if ($json !== null) {

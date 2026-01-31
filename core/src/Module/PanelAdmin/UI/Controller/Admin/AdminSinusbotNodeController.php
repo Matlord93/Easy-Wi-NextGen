@@ -11,9 +11,11 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Form\SinusbotNodeType;
 use App\Repository\AgentRepository;
 use App\Repository\AgentJobRepository;
+use App\Repository\SinusbotInstanceRepository;
 use App\Repository\SinusbotNodeRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\Sinusbot\SinusbotQuotaValidator;
 use App\Module\Core\Application\Sinusbot\SinusbotNodeService;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
@@ -33,12 +35,14 @@ final class AdminSinusbotNodeController
 {
     public function __construct(
         private readonly SinusbotNodeRepository $nodeRepository,
+        private readonly SinusbotInstanceRepository $instanceRepository,
         private readonly AgentRepository $agentRepository,
         private readonly AgentJobRepository $agentJobRepository,
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly SecretsCrypto $crypto,
         private readonly SinusbotNodeService $nodeService,
+        private readonly SinusbotQuotaValidator $quotaValidator,
         private readonly FormFactoryInterface $formFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
@@ -132,6 +136,10 @@ final class AdminSinusbotNodeController
         $this->requireAdmin($request);
 
         $node = $this->findNode($id);
+        $instances = $this->instanceRepository->findBy(
+            ['node' => $node, 'archivedAt' => null],
+            ['updatedAt' => 'DESC'],
+        );
 
         return new Response($this->twig->render('admin/sinusbot/nodes/show.html.twig', [
             'activeNav' => 'sinusbot',
@@ -140,6 +148,11 @@ final class AdminSinusbotNodeController
             'management_url' => $this->buildManagementUrl($node),
             'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
+            'instances' => $instances,
+            'instance_csrf' => $this->instanceCsrfTokens($instances),
+            'customers' => $this->userRepository->findCustomers(),
+            'quota_min' => $this->quotaValidator->getMinQuota(),
+            'quota_max' => $this->quotaValidator->getMaxQuota(),
         ]));
     }
 
@@ -279,6 +292,7 @@ final class AdminSinusbotNodeController
             'restart' => $this->csrfTokenManager->getToken('sinusbot_restart_' . $id)->getValue(),
             'delete' => $this->csrfTokenManager->getToken('sinusbot_delete_' . $id)->getValue(),
             'reveal' => $this->csrfTokenManager->getToken('sinusbot_reveal_credentials_' . $id)->getValue(),
+            'instance_create' => $this->csrfTokenManager->getToken('sinusbot_instance_create')->getValue(),
         ];
     }
 
@@ -384,6 +398,28 @@ final class AdminSinusbotNodeController
         }
 
         return sprintf('%s://%s:%d', $scheme, $host, $node->getWebPortBase());
+    }
+
+    /**
+     * @param array<int, \App\Module\Core\Domain\Entity\SinusbotInstance> $instances
+     * @return array<int, array<string, string>>
+     */
+    private function instanceCsrfTokens(array $instances): array
+    {
+        $tokens = [];
+        foreach ($instances as $instance) {
+            $id = (string) $instance->getId();
+            $tokens[(int) $instance->getId()] = [
+                'start' => $this->csrfTokenManager->getToken('sinusbot_instance_start_' . $id)->getValue(),
+                'stop' => $this->csrfTokenManager->getToken('sinusbot_instance_stop_' . $id)->getValue(),
+                'restart' => $this->csrfTokenManager->getToken('sinusbot_instance_restart_' . $id)->getValue(),
+                'delete' => $this->csrfTokenManager->getToken('sinusbot_instance_delete_' . $id)->getValue(),
+                'reset' => $this->csrfTokenManager->getToken('sinusbot_instance_reset_password_' . $id)->getValue(),
+                'quota' => $this->csrfTokenManager->getToken('sinusbot_instance_quota_' . $id)->getValue(),
+            ];
+        }
+
+        return $tokens;
     }
 
     /**

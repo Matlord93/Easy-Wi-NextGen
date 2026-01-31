@@ -33,6 +33,7 @@ use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Application\NodeDiskProtectionService;
+use App\Module\Gameserver\Application\Query\QueryResultNormalizer;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -1327,6 +1328,14 @@ final class AgentApiController
         $cache['map'] = $resultStatus === JobResultStatus::Succeeded && is_string($output['map'] ?? null)
             ? (string) $output['map']
             : null;
+        $cache['version'] = $resultStatus === JobResultStatus::Succeeded && is_string($output['version'] ?? null)
+            ? (string) $output['version']
+            : null;
+        $cache['motd'] = $resultStatus === JobResultStatus::Succeeded && is_string($output['motd'] ?? null)
+            ? (string) $output['motd']
+            : null;
+        $cache['latency_ms'] = is_numeric($output['latency_ms'] ?? null) ? (int) $output['latency_ms'] : null;
+        $cache['result'] = QueryResultNormalizer::fromAgentOutput($output, $payload['query_type'] ?? null, $resultStatus);
         $cache['checked_at'] = $completedAt->format(DATE_RFC3339);
         unset($cache['queued_at']);
 

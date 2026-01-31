@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
-use App\Repository\SinusbotInstanceRepository;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Repository\SinusbotInstanceRepository;
+use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: SinusbotInstanceRepository::class)]
 #[ORM\Table(name: 'sinusbot_instances')]
+#[ORM\UniqueConstraint(name: 'uniq_sinusbot_instance_customer', columns: ['customer_id'])]
 class SinusbotInstance
 {
     #[ORM\Id]
@@ -21,50 +23,27 @@ class SinusbotInstance
     #[ORM\JoinColumn(nullable: false)]
     private SinusbotNode $node;
 
-    #[ORM\Column]
-    private int $customerId;
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $customer = null;
 
     #[ORM\Column(length: 64, unique: true)]
     private string $instanceId;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $manageUrl = null;
+
     #[ORM\Column(length: 120)]
-    private string $name;
-
-    #[ORM\Column]
-    private bool $running = false;
-
-    #[ORM\Column]
-    private int $webPort;
-
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $publicUrl = null;
-
-    #[ORM\Column(length: 8)]
-    private string $connectType;
-
-    #[ORM\Column(length: 255)]
-    private string $connectHost;
-
-    #[ORM\Column]
-    private int $connectVoicePort;
+    private string $sinusbotUsername;
 
     #[ORM\Column(type: 'text', nullable: true)]
-    private ?string $connectServerPasswordEncrypted = null;
-
-    #[ORM\Column(type: 'text', nullable: true)]
-    private ?string $connectPrivilegeKeyEncrypted = null;
-
-    #[ORM\Column(length: 120, nullable: true)]
-    private ?string $nickname = null;
-
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $defaultChannel = null;
-
-    #[ORM\Column(nullable: true)]
-    private ?int $volume = null;
+    private ?string $sinusbotPasswordEncrypted = null;
 
     #[ORM\Column]
-    private bool $autostart = false;
+    private int $botQuota;
+
+    #[ORM\Column(length: 16)]
+    private string $status;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -77,22 +56,18 @@ class SinusbotInstance
 
     public function __construct(
         SinusbotNode $node,
-        int $customerId,
+        ?User $customer,
         string $instanceId,
-        string $name,
-        int $webPort,
-        string $connectType,
-        string $connectHost,
-        int $connectVoicePort,
+        string $sinusbotUsername,
+        int $botQuota,
+        string $status,
     ) {
         $this->node = $node;
-        $this->customerId = $customerId;
+        $this->customer = $customer;
         $this->instanceId = $instanceId;
-        $this->name = $name;
-        $this->webPort = $webPort;
-        $this->connectType = $connectType;
-        $this->connectHost = $connectHost;
-        $this->connectVoicePort = $connectVoicePort;
+        $this->sinusbotUsername = $sinusbotUsername;
+        $this->botQuota = $botQuota;
+        $this->status = $status;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -113,14 +88,14 @@ class SinusbotInstance
         $this->touch();
     }
 
-    public function getCustomerId(): int
+    public function getCustomer(): ?User
     {
-        return $this->customerId;
+        return $this->customer;
     }
 
-    public function setCustomerId(int $customerId): void
+    public function setCustomer(?User $customer): void
     {
-        $this->customerId = $customerId;
+        $this->customer = $customer;
         $this->touch();
     }
 
@@ -135,154 +110,62 @@ class SinusbotInstance
         $this->touch();
     }
 
-    public function getName(): string
+    public function getManageUrl(): ?string
     {
-        return $this->name;
+        return $this->manageUrl;
     }
 
-    public function setName(string $name): void
+    public function setManageUrl(?string $manageUrl): void
     {
-        $this->name = $name;
+        $this->manageUrl = $manageUrl !== '' ? $manageUrl : null;
         $this->touch();
     }
 
-    public function isRunning(): bool
+    public function getSinusbotUsername(): string
     {
-        return $this->running;
+        return $this->sinusbotUsername;
     }
 
-    public function setRunning(bool $running): void
+    public function setSinusbotUsername(string $sinusbotUsername): void
     {
-        $this->running = $running;
+        $this->sinusbotUsername = $sinusbotUsername;
         $this->touch();
     }
 
-    public function getWebPort(): int
+    public function setSinusbotPassword(?string $password, SecretsCrypto $crypto): void
     {
-        return $this->webPort;
-    }
-
-    public function setWebPort(int $webPort): void
-    {
-        $this->webPort = $webPort;
+        $this->sinusbotPasswordEncrypted = $password !== null ? $crypto->encrypt($password) : null;
         $this->touch();
     }
 
-    public function getPublicUrl(): ?string
+    public function getSinusbotPassword(?SecretsCrypto $crypto): ?string
     {
-        return $this->publicUrl;
-    }
-
-    public function setPublicUrl(?string $publicUrl): void
-    {
-        $this->publicUrl = $publicUrl !== '' ? $publicUrl : null;
-        $this->touch();
-    }
-
-    public function getConnectType(): string
-    {
-        return $this->connectType;
-    }
-
-    public function setConnectType(string $connectType): void
-    {
-        $this->connectType = $connectType;
-        $this->touch();
-    }
-
-    public function getConnectHost(): string
-    {
-        return $this->connectHost;
-    }
-
-    public function setConnectHost(string $connectHost): void
-    {
-        $this->connectHost = $connectHost;
-        $this->touch();
-    }
-
-    public function getConnectVoicePort(): int
-    {
-        return $this->connectVoicePort;
-    }
-
-    public function setConnectVoicePort(int $connectVoicePort): void
-    {
-        $this->connectVoicePort = $connectVoicePort;
-        $this->touch();
-    }
-
-    public function setConnectServerPassword(?string $password, SecretsCrypto $crypto): void
-    {
-        $this->connectServerPasswordEncrypted = $password !== null ? $crypto->encrypt($password) : null;
-        $this->touch();
-    }
-
-    public function getConnectServerPassword(?SecretsCrypto $crypto): ?string
-    {
-        if ($crypto === null || $this->connectServerPasswordEncrypted === null) {
+        if ($crypto === null || $this->sinusbotPasswordEncrypted === null) {
             return null;
         }
 
-        return $crypto->decrypt($this->connectServerPasswordEncrypted);
+        return $crypto->decrypt($this->sinusbotPasswordEncrypted);
     }
 
-    public function setConnectPrivilegeKey(?string $key, SecretsCrypto $crypto): void
+    public function getBotQuota(): int
     {
-        $this->connectPrivilegeKeyEncrypted = $key !== null ? $crypto->encrypt($key) : null;
+        return $this->botQuota;
+    }
+
+    public function setBotQuota(int $botQuota): void
+    {
+        $this->botQuota = $botQuota;
         $this->touch();
     }
 
-    public function getConnectPrivilegeKey(?SecretsCrypto $crypto): ?string
+    public function getStatus(): string
     {
-        if ($crypto === null || $this->connectPrivilegeKeyEncrypted === null) {
-            return null;
-        }
-
-        return $crypto->decrypt($this->connectPrivilegeKeyEncrypted);
+        return $this->status;
     }
 
-    public function getNickname(): ?string
+    public function setStatus(string $status): void
     {
-        return $this->nickname;
-    }
-
-    public function setNickname(?string $nickname): void
-    {
-        $this->nickname = $nickname !== '' ? $nickname : null;
-        $this->touch();
-    }
-
-    public function getDefaultChannel(): ?string
-    {
-        return $this->defaultChannel;
-    }
-
-    public function setDefaultChannel(?string $defaultChannel): void
-    {
-        $this->defaultChannel = $defaultChannel !== '' ? $defaultChannel : null;
-        $this->touch();
-    }
-
-    public function getVolume(): ?int
-    {
-        return $this->volume;
-    }
-
-    public function setVolume(?int $volume): void
-    {
-        $this->volume = $volume;
-        $this->touch();
-    }
-
-    public function isAutostart(): bool
-    {
-        return $this->autostart;
-    }
-
-    public function setAutostart(bool $autostart): void
-    {
-        $this->autostart = $autostart;
+        $this->status = $status;
         $this->touch();
     }
 

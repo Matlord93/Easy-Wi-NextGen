@@ -53,6 +53,29 @@ final class HttpQueryAdapter implements QueryAdapterInterface
             $status = 'online';
         }
 
-        return new QueryResult($status, $players, $maxPlayers);
+        $capabilities = [
+            'players' => array_key_exists('players', $payload),
+            'slots' => array_key_exists('max_players', $payload) || array_key_exists('maxPlayers', $payload),
+            'map' => array_key_exists('map', $payload),
+            'version' => array_key_exists('version', $payload),
+            'motd' => array_key_exists('motd', $payload),
+        ];
+
+        $normalized = QueryResultNormalizer::build(
+            in_array($status, ['online', 'running', 'up'], true),
+            'http',
+            isset($payload['latency_ms']) && is_numeric($payload['latency_ms']) ? (int) $payload['latency_ms'] : null,
+            is_string($payload['error'] ?? null) ? (string) $payload['error'] : null,
+            [
+                'players' => $players,
+                'max_players' => $maxPlayers,
+                'map' => is_string($payload['map'] ?? null) ? (string) $payload['map'] : null,
+                'version' => is_string($payload['version'] ?? null) ? (string) $payload['version'] : null,
+                'motd' => is_string($payload['motd'] ?? null) ? (string) $payload['motd'] : null,
+            ],
+            $capabilities,
+        );
+
+        return new QueryResult($status, $players, $maxPlayers, null, $normalized);
     }
 }

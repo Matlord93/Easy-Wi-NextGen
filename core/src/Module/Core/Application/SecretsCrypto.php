@@ -6,7 +6,7 @@ namespace App\Module\Core\Application;
 
 use RuntimeException;
 
-final class SecretsCrypto
+class SecretsCrypto
 {
     private const PREFIX = 'v1';
 

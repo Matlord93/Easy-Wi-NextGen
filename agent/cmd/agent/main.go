@@ -413,6 +413,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceFileMkdir(job)
 	case "instance.sftp.credentials.reset":
 		return handleInstanceSftpCredentialsReset(job)
+	case "core.ssh.policy.apply":
+		return handleCoreSshPolicyApply(job)
 	case "instance.query.check":
 		return handleInstanceQueryCheck(job)
 	case "instance.sftp.access.enable":

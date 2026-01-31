@@ -30,7 +30,7 @@
 {% set isInstalled = instance.is_installed|default(instance.current_build_id ?? false) %}
 {% set displayName = instance.server_name ?? instance.template.name %}
 {% set query = instance.query ?? {} %}
-{% set configuredSlots = query.max_players ?? instance.current_slots %}
+{% set configuredSlots = instance.current_slots %}
 {% set queryStatusLabels = {
     'online': t('customer_instance_query_status_online', page_locale()),
     'running': t('customer_instance_query_status_running', page_locale()),

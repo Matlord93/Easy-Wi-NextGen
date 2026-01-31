@@ -23,7 +23,9 @@ use App\Repository\InstanceRepository;
 use App\Repository\MetricSampleRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts6InstanceRepository;
+use App\Repository\UserRepository;
 use App\Repository\WebspaceRepository;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -53,6 +55,9 @@ final class AdminNodeController
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
         private readonly FirewallStateRepository $firewallStateRepository,
+        private readonly UserRepository $userRepository,
+        #[Autowire(param: 'app.admin_authorized_keys_path')]
+        private readonly string $adminAuthorizedKeysPath,
     ) {
     }
 
@@ -274,6 +279,8 @@ final class AdminNodeController
         if ($error === null && in_array('Core', $rolesToStore, true)) {
             if ($normalizedCoreAccessMode === null) {
                 $error = 'Select an SSH access mode for the Core role.';
+            } elseif ($normalizedCoreAccessMode === 'ssh_key_only' && !$this->hasAdminSshKey()) {
+                $error = 'At least one admin SSH key must be stored before enabling key-only access.';
             } else {
                 $metadata['core_access_mode'] = $normalizedCoreAccessMode;
             }
@@ -296,6 +303,14 @@ final class AdminNodeController
                 $job = new Job('role.ensure_base', [
                     'agent_id' => $node->getId(),
                     'role' => $role,
+                ]);
+                $this->entityManager->persist($job);
+            }
+            if ($normalizedCoreAccessMode !== null && in_array('Core', $rolesToStore, true)) {
+                $job = new Job('core.ssh.policy.apply', [
+                    'agent_id' => $node->getId(),
+                    'access_mode' => $normalizedCoreAccessMode,
+                    'authorized_keys_path' => $this->adminAuthorizedKeysPath,
                 ]);
                 $this->entityManager->persist($job);
             }
@@ -844,6 +859,19 @@ final class AdminNodeController
         }
 
         return $this->resolveStatus($node->getLastHeartbeatAt());
+    }
+
+    private function hasAdminSshKey(): bool
+    {
+        $qb = $this->userRepository->createQueryBuilder('user');
+        $qb->select('COUNT(user.id)')
+            ->andWhere('user.type IN (:types)')
+            ->andWhere('user.adminSshPublicKey IS NOT NULL')
+            ->andWhere('(user.adminSshKeyEnabled = true OR user.type = :superadmin)')
+            ->setParameter('types', [UserType::Admin->value, UserType::Superadmin->value])
+            ->setParameter('superadmin', UserType::Superadmin->value);
+
+        return (int) $qb->getQuery()->getSingleScalarResult() > 0;
     }
 
     /**

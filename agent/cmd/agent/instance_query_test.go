@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"easywi/agent/internal/jobs"
@@ -50,5 +51,44 @@ func TestHandleInstanceQueryCheckInvalidPortReturnsOffline(t *testing.T) {
 	}
 	if status := result.Output["status"]; status != "offline" {
 		t.Fatalf("output status=%v, want offline", status)
+	}
+}
+
+func TestParseMinecraftStatus(t *testing.T) {
+	response := map[string]any{
+		"players": map[string]any{
+			"online": float64(7),
+			"max":    float64(20),
+		},
+		"version": map[string]any{
+			"name": "1.20.4",
+		},
+		"description": "Hello",
+	}
+	jsonPayload, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("json marshal: %v", err)
+	}
+
+	payload := &bytes.Buffer{}
+	if err := writeVarInt(payload, 0x00); err != nil {
+		t.Fatalf("write packet id: %v", err)
+	}
+	if err := writeVarString(payload, string(jsonPayload)); err != nil {
+		t.Fatalf("write json: %v", err)
+	}
+
+	status, err := parseMinecraftStatus(payload.Bytes())
+	if err != nil {
+		t.Fatalf("parseMinecraftStatus error: %v", err)
+	}
+	if status.Players != 7 || status.MaxPlayers != 20 {
+		t.Fatalf("players=%d max=%d, want 7/20", status.Players, status.MaxPlayers)
+	}
+	if status.Version != "1.20.4" {
+		t.Fatalf("version=%q, want 1.20.4", status.Version)
+	}
+	if status.Motd != "Hello" {
+		t.Fatalf("motd=%q, want Hello", status.Motd)
 	}
 }

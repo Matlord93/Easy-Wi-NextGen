@@ -14,6 +14,7 @@ use App\Module\Gameserver\Application\Query\NoneQueryAdapter;
 use App\Module\Gameserver\Application\Query\QueryAdapterInterface;
 use App\Module\Gameserver\Application\Query\QueryContext;
 use App\Module\Gameserver\Application\Query\QueryResult;
+use App\Module\Gameserver\Application\Query\QueryResultNormalizer;
 use App\Module\Gameserver\Application\Query\RconQueryAdapter;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use Doctrine\ORM\EntityManagerInterface;
@@ -212,12 +213,18 @@ final class InstanceQueryService
      */
     private function buildSnapshot(array $cache, ?\DateTimeImmutable $checkedAt, string $type): array
     {
+        $normalized = is_array($cache['result'] ?? null)
+            ? $cache['result']
+            : QueryResultNormalizer::fromLegacyCache($cache, $type);
+
         return [
             'available' => $type !== 'none',
             'status' => $cache['status'] ?? 'unknown',
             'players' => isset($cache['players']) && is_numeric($cache['players']) ? (int) $cache['players'] : null,
             'max_players' => isset($cache['max_players']) && is_numeric($cache['max_players']) ? (int) $cache['max_players'] : null,
             'map' => is_string($cache['map'] ?? null) ? (string) $cache['map'] : null,
+            'error' => is_string($cache['message'] ?? null) ? (string) $cache['message'] : null,
+            'result' => $normalized,
             'checked_at' => $checkedAt?->format(DATE_ATOM),
             'queued_at' => $cache['queued_at'] ?? null,
         ];

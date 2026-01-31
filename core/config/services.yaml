@@ -34,6 +34,10 @@ parameters:
   app.payment_dummy_enabled: '%env(bool:default:app.payment_dummy_enabled_default:APP_PAYMENT_DUMMY_ENABLED)%'
   app.admin_authorized_keys_path_default: '/home/easywi/.ssh/authorized_keys'
   app.admin_authorized_keys_path: '%env(default:app.admin_authorized_keys_path_default:APP_ADMIN_AUTHORIZED_KEYS_PATH)%'
+  app.sinusbot_quota_min_default: '1'
+  app.sinusbot_quota_min: '%env(int:default:app.sinusbot_quota_min_default:APP_SINUSBOT_QUOTA_MIN)%'
+  app.sinusbot_quota_max_default: '100'
+  app.sinusbot_quota_max: '%env(int:default:app.sinusbot_quota_max_default:APP_SINUSBOT_QUOTA_MAX)%'
 
 services:
   _defaults:
@@ -73,6 +77,11 @@ services:
       $clientCertPath: '%app.filesvc_client_cert%'
       $clientKeyPath: '%app.filesvc_client_key%'
       $clientCaPath: '%app.filesvc_ca_cert%'
+
+  App\Module\Core\Application\Sinusbot\SinusbotQuotaValidator:
+    arguments:
+      $minQuota: '%app.sinusbot_quota_min%'
+      $maxQuota: '%app.sinusbot_quota_max%'
 
   App\Module\Core\Application\AgentReleaseChecker:
     arguments:

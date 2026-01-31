@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Instance;
+use App\Repository\InstanceSftpCredentialRepository;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
 
@@ -13,6 +14,8 @@ final class SftpFileService
     public function __construct(
         private readonly InstanceFilesystemResolver $filesystemResolver,
         private readonly AppSettingsService $settingsService,
+        private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
+        private readonly EncryptionService $encryptionService,
     ) {
     }
 
@@ -23,9 +26,10 @@ final class SftpFileService
     {
         $normalizedPath = $this->normalizeRelativePath($path);
         $rootPath = $this->filesystemResolver->resolveInstanceDir($instance);
-        $remotePath = $this->joinRemotePath($rootPath, $normalizedPath);
 
         $sftp = $this->connect($instance);
+        $remoteRoot = $this->resolveRemoteRoot($sftp, $rootPath);
+        $remotePath = $this->joinRemotePath($remoteRoot, $normalizedPath);
         if (!$sftp->is_dir($remotePath)) {
             throw new \RuntimeException('Directory not found.');
         }
@@ -65,8 +69,8 @@ final class SftpFileService
 
     public function readFile(Instance $instance, string $path, string $name): string
     {
-        $remotePath = $this->resolveFilePath($instance, $path, $name);
         $sftp = $this->connect($instance);
+        $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         $content = $sftp->get($remotePath);
         if ($content === false) {
             throw new \RuntimeException('Failed to download file.');
@@ -77,8 +81,8 @@ final class SftpFileService
 
     public function writeFile(Instance $instance, string $path, string $name, string $content): void
     {
-        $remotePath = $this->resolveFilePath($instance, $path, $name);
         $sftp = $this->connect($instance);
+        $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         if (!$sftp->put($remotePath, $content, SFTP::SOURCE_STRING)) {
             throw new \RuntimeException('Failed to save file.');
         }
@@ -86,8 +90,8 @@ final class SftpFileService
 
     public function makeDirectory(Instance $instance, string $path, string $name): void
     {
-        $remotePath = $this->resolveFilePath($instance, $path, $name);
         $sftp = $this->connect($instance);
+        $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         if (!$sftp->mkdir($remotePath, -1, true)) {
             throw new \RuntimeException('Failed to create directory.');
         }
@@ -95,8 +99,8 @@ final class SftpFileService
 
     public function delete(Instance $instance, string $path, string $name): void
     {
-        $remotePath = $this->resolveFilePath($instance, $path, $name);
         $sftp = $this->connect($instance);
+        $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         if (!$sftp->delete($remotePath, true)) {
             throw new \RuntimeException('Failed to delete entry.');
         }
@@ -104,9 +108,9 @@ final class SftpFileService
 
     public function rename(Instance $instance, string $path, string $name, string $newName): void
     {
-        $remotePath = $this->resolveFilePath($instance, $path, $name);
-        $newPath = $this->resolveFilePath($instance, $path, $newName);
         $sftp = $this->connect($instance);
+        $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
+        $newPath = $this->resolveFilePath($instance, $sftp, $path, $newName);
         if (!$sftp->rename($remotePath, $newPath)) {
             throw new \RuntimeException('Failed to rename entry.');
         }
@@ -114,8 +118,8 @@ final class SftpFileService
 
     public function chmod(Instance $instance, string $path, string $name, int $mode): void
     {
-        $remotePath = $this->resolveFilePath($instance, $path, $name);
         $sftp = $this->connect($instance);
+        $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         if (!$sftp->chmod($mode, $remotePath, true)) {
             throw new \RuntimeException('Failed to update permissions.');
         }
@@ -123,12 +127,13 @@ final class SftpFileService
 
     public function extract(Instance $instance, string $path, string $name, string $destination): void
     {
-        $remoteArchivePath = $this->resolveFilePath($instance, $path, $name);
         $normalizedDestination = $this->normalizeRelativePath($destination);
         $rootPath = $this->filesystemResolver->resolveInstanceDir($instance);
-        $destinationPath = $this->joinRemotePath($rootPath, $normalizedDestination);
 
         $sftp = $this->connect($instance);
+        $remoteRoot = $this->resolveRemoteRoot($sftp, $rootPath);
+        $remoteArchivePath = $this->resolveFilePath($instance, $sftp, $path, $name, $remoteRoot);
+        $destinationPath = $this->joinRemotePath($remoteRoot, $normalizedDestination);
         $content = $sftp->get($remoteArchivePath);
         if ($content === false) {
             throw new \RuntimeException('Failed to download archive.');
@@ -179,13 +184,14 @@ final class SftpFileService
         $host = $this->resolveHost($instance);
         $port = $this->resolvePort($instance);
         $username = $this->resolveUsername($instance);
-        $auth = $this->resolveAuthentication();
+        $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
+        $auth = $credential === null ? $this->resolveAuthentication() : null;
 
         $sftp = new SFTP($host, $port, 10);
         if ($auth !== null) {
             $loggedIn = $sftp->login($username, $auth);
         } else {
-            $loggedIn = $sftp->login($username, $this->resolvePassword());
+            $loggedIn = $sftp->login($username, $this->resolvePassword($instance));
         }
 
         if (!$loggedIn) {
@@ -229,6 +235,11 @@ final class SftpFileService
 
     private function resolveUsername(Instance $instance): string
     {
+        $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
+        if ($credential !== null) {
+            return $credential->getUsername();
+        }
+
         $metadata = $instance->getNode()->getMetadata();
         $username = is_array($metadata) ? ($metadata['sftp_username'] ?? null) : null;
         if (is_string($username) && $username !== '') {
@@ -243,8 +254,13 @@ final class SftpFileService
         return basename($this->filesystemResolver->resolveInstanceDir($instance));
     }
 
-    private function resolvePassword(): string
+    private function resolvePassword(Instance $instance): string
     {
+        $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
+        if ($credential !== null) {
+            return $this->encryptionService->decrypt($credential->getEncryptedPassword());
+        }
+
         $password = $this->settingsService->getSftpPassword();
         if (is_string($password) && $password !== '') {
             return $password;
@@ -273,22 +289,36 @@ final class SftpFileService
         return PublicKeyLoader::load($key);
     }
 
-    private function resolveFilePath(Instance $instance, string $path, string $name): string
+    private function resolveFilePath(Instance $instance, SFTP $sftp, string $path, string $name, ?string $remoteRoot = null): string
     {
         $this->assertValidName($name);
-        $rootPath = $this->filesystemResolver->resolveInstanceDir($instance);
         $normalizedPath = $this->normalizeRelativePath($path);
         $relative = $normalizedPath === '' ? $name : $normalizedPath . '/' . $name;
+        $rootPath = $this->filesystemResolver->resolveInstanceDir($instance);
+        $remoteRoot = $remoteRoot ?? $this->resolveRemoteRoot($sftp, $rootPath);
 
-        return $this->joinRemotePath($rootPath, $relative);
+        return $this->joinRemotePath($remoteRoot, $relative);
     }
 
     private function joinRemotePath(string $rootPath, string $relative): string
     {
-        $rootPath = rtrim($rootPath, '/');
         $relative = ltrim($relative, '/');
+        if ($rootPath === '' || $rootPath === '/') {
+            return $relative === '' ? '/' : '/' . $relative;
+        }
 
+        $rootPath = rtrim($rootPath, '/');
         return $relative === '' ? $rootPath : $rootPath . '/' . $relative;
+    }
+
+    private function resolveRemoteRoot(SFTP $sftp, string $rootPath): string
+    {
+        $rootPath = rtrim($rootPath, '/');
+        if ($rootPath !== '' && $sftp->is_dir($rootPath)) {
+            return $rootPath;
+        }
+
+        return '';
     }
 
     private function normalizeRelativePath(string $path): string

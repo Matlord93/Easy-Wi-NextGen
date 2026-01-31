@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"easywi/agent/internal/jobs"
@@ -29,6 +30,11 @@ func handleAdminSshKeyStore(job jobs.Job) orchestratorResult {
 	dir := filepath.Dir(authorizedKeysPath)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if uid, gid, ok := resolveOwner(filepath.Dir(dir)); ok {
+		if err := os.Chown(dir, uid, gid); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
 	}
 
 	existing, err := os.ReadFile(authorizedKeysPath)
@@ -56,6 +62,11 @@ func handleAdminSshKeyStore(job jobs.Job) orchestratorResult {
 
 	if err := os.Chmod(authorizedKeysPath, 0o600); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if uid, gid, ok := resolveOwner(filepath.Dir(dir)); ok {
+		if err := os.Chown(authorizedKeysPath, uid, gid); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
 	}
 
 	return orchestratorResult{
@@ -110,4 +121,16 @@ func keyAlreadyPresent(existing, normalizedKey string) bool {
 	}
 
 	return false
+}
+
+func resolveOwner(path string) (int, int, bool) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, false
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, 0, false
+	}
+	return int(stat.Uid), int(stat.Gid), true
 }

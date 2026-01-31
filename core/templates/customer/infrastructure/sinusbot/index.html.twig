@@ -2,73 +2,61 @@
 
 {% set activeNav = 'sinusbot' %}
 {% set pageTitle = 'SinusBot' %}
-{% set pageSubtitle = 'Gleiche Struktur wie TeamSpeak, mit Bot-spezifischen Aktionen.' %}
-{% set topbarActions = [
-    { label: 'Bot bestellen', href: '#', variant: 'primary', size: 'sm' },
-    { label: 'Instanzen', href: '#', variant: 'secondary', size: 'sm' }
-] %}
+{% set pageSubtitle = 'Deine Instanz inkl. Status, Zugangsdaten und Bot-Limit.' %}
 
 {% block content %}
-    {% embed 'components/_card.html.twig' with { title: 'Deine SinusBot Nodes', subtitle: 'Verwaltung, Status und Zugangsdaten.' } %}
+    {% embed 'components/_card.html.twig' with { title: 'Deine SinusBot Instanz', subtitle: 'Verwaltung, Status und Zugangsdaten.' } %}
         {% block card_body %}
-            {% if nodes is not empty %}
-                <div class="space-y-4">
-                    {% for node in nodes %}
-                        <div class="rounded-lg border border-slate-200 p-4">
-                            <div class="flex flex-wrap items-start justify-between gap-4">
-                                <div>
-                                    <h3 class="text-base font-semibold text-slate-900">{{ node.name }}</h3>
-                                    <p class="text-sm text-slate-600">
-                                        Status:
-                                        {% if node.installStatus == 'installed' %}
-                                            {{ node.running ? 'läuft' : 'gestoppt' }}
-                                        {% else %}
-                                            {{ node.installStatus }}
-                                        {% endif %}
-                                    </p>
-                                    <p class="text-sm text-slate-600">Version: {{ node.installedVersion ?? '–' }}</p>
-                                </div>
-                                <div class="flex flex-wrap gap-2">
-                                    <form method="post" action="/customer/infrastructure/sinusbot/nodes/{{ node.id }}/start">
-                                        <input type="hidden" name="_token" value="{{ csrf[node.id].start }}">
-                                        <button class="ng-button ng-button--primary ng-button--sm" type="submit">Starten</button>
-                                    </form>
-                                    <form method="post" action="/customer/infrastructure/sinusbot/nodes/{{ node.id }}/stop">
-                                        <input type="hidden" name="_token" value="{{ csrf[node.id].stop }}">
-                                        <button class="ng-button ng-button--secondary ng-button--sm" type="submit">Stoppen</button>
-                                    </form>
-                                </div>
-                            </div>
-                            <div class="mt-4 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
-                                <div>
-                                    <p class="font-medium text-slate-900">Verwaltungs-URL</p>
-                                    {% set managementUrl = management_urls[node.id]|default(null) %}
-                                    {% if managementUrl %}
-                                        <a class="text-blue-600 hover:underline" href="{{ managementUrl }}" target="_blank" rel="noopener">{{ managementUrl }}</a>
-                                    {% else %}
-                                        <span>–</span>
-                                    {% endif %}
-                                </div>
-                                <div>
-                                    <p class="font-medium text-slate-900">Admin-Zugang</p>
-                                    <div>Benutzername: {{ node.adminUsername ?? '–' }}</div>
-                                    {% set adminPassword = admin_passwords[node.id]|default(null) %}
-                                    {% if adminPassword %}
-                                        <div>Passwort: <span class="font-mono text-slate-900">{{ adminPassword }}</span></div>
-                                    {% else %}
-                                        <div>Passwort: ••••••••</div>
-                                        <form class="mt-2" method="post" action="/customer/infrastructure/sinusbot/nodes/{{ node.id }}/reveal-credentials">
-                                            <input type="hidden" name="_token" value="{{ csrf[node.id].reveal }}">
-                                            <button class="ng-button ng-button--secondary ng-button--sm" type="submit">Passwort anzeigen</button>
-                                        </form>
-                                    {% endif %}
-                                </div>
-                            </div>
+            {% if instance %}
+                <div class="rounded-lg border border-slate-200 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-base font-semibold text-slate-900">Instanz {{ instance.instanceId }}</h3>
+                            <p class="text-sm text-slate-600">Status: {{ instance.status }}</p>
+                            <p class="text-sm text-slate-600">Bots: {{ bots_used }}/{{ instance.botQuota }}</p>
                         </div>
-                    {% endfor %}
+                        <div class="flex flex-wrap gap-2">
+                            <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/start">
+                                <input type="hidden" name="_token" value="{{ csrf.start }}">
+                                <button class="ng-button ng-button--primary ng-button--sm" type="submit">Starten</button>
+                            </form>
+                            <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/stop">
+                                <input type="hidden" name="_token" value="{{ csrf.stop }}">
+                                <button class="ng-button ng-button--secondary ng-button--sm" type="submit">Stoppen</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="mt-4 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
+                        <div>
+                            <p class="font-medium text-slate-900">Verwaltungs-URL</p>
+                            {% if instance.manageUrl %}
+                                <a class="text-blue-600 hover:underline" href="{{ instance.manageUrl }}" target="_blank" rel="noopener">{{ instance.manageUrl }}</a>
+                                <p class="mt-1 text-xs text-amber-600">Hinweis: Bei direktem WebUI-Zugriff kann das Bot-Limit nur garantiert werden, wenn Bots über unseren Kundenbereich verwaltet werden.</p>
+                            {% else %}
+                                <span>–</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <p class="font-medium text-slate-900">Login</p>
+                            <div>Benutzername: {{ instance.sinusbotUsername }}</div>
+                            {% if password %}
+                                <div>Passwort: <span class="font-mono text-slate-900">{{ password }}</span></div>
+                            {% else %}
+                                <div>Passwort: ••••••••</div>
+                                <form class="mt-2" method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/reveal-credentials">
+                                    <input type="hidden" name="_token" value="{{ csrf.reveal }}">
+                                    <button class="ng-button ng-button--secondary ng-button--sm" type="submit">Passwort anzeigen</button>
+                                </form>
+                            {% endif %}
+                            <form class="mt-2" method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/reset-password">
+                                <input type="hidden" name="_token" value="{{ csrf.reset }}">
+                                <button class="ng-button ng-button--secondary ng-button--sm" type="submit">Passwort neu setzen</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             {% else %}
-                <p class="text-sm text-slate-600">Aktuell sind keine SinusBot Nodes für dein Konto vorhanden.</p>
+                <p class="text-sm text-slate-600">Aktuell ist keine SinusBot Instanz für dein Konto vorhanden.</p>
             {% endif %}
         {% endblock %}
     {% endembed %}

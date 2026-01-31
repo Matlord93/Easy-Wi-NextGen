@@ -11,7 +11,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<SinusbotNode>
  */
-final class SinusbotNodeRepository extends ServiceEntityRepository
+class SinusbotNodeRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

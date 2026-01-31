@@ -133,6 +133,11 @@
     color: #065f46;
     border: 1px solid #a7f3d0;
 }
+.sinusbot-alert-error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
 
 .sinusbot-pill {
     display: inline-flex;
