@@ -15,10 +15,13 @@ use App\Repository\SinusbotInstanceRepository;
 use App\Repository\SinusbotNodeRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\AgentConfigurationException;
+use App\Module\Core\Application\Sinusbot\AgentBadResponseException;
+use App\Module\Core\Application\Sinusbot\AgentUnavailableException;
 use App\Module\Core\Application\Sinusbot\SinusbotQuotaValidator;
 use App\Module\Core\Application\Sinusbot\SinusbotNodeService;
+use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
 use Doctrine\ORM\EntityManagerInterface;
-use RuntimeException;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -43,6 +46,7 @@ final class AdminSinusbotNodeController
         private readonly SecretsCrypto $crypto,
         private readonly SinusbotNodeService $nodeService,
         private readonly SinusbotQuotaValidator $quotaValidator,
+        private readonly SinusbotInstanceProvisioner $instanceProvisioner,
         private readonly FormFactoryInterface $formFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
@@ -140,16 +144,39 @@ final class AdminSinusbotNodeController
             ['node' => $node, 'archivedAt' => null],
             ['updatedAt' => 'DESC'],
         );
+        $syncError = null;
+        foreach ($instances as $instance) {
+            try {
+                $this->instanceProvisioner->syncStatus($instance);
+            } catch (AgentConfigurationException | AgentBadResponseException | AgentUnavailableException $exception) {
+                $syncError = $exception->getMessage();
+                break;
+            }
+        }
+        if ($syncError !== null) {
+            $request->getSession()->getFlashBag()->add('error', $syncError);
+        }
+
+        $instancePasswords = [];
+        foreach ($instances as $instance) {
+            $password = $instance->getSinusbotPassword($this->crypto);
+            if ($password !== null) {
+                $instancePasswords[$instance->getId() ?? 0] = $password;
+            }
+        }
 
         return new Response($this->twig->render('admin/sinusbot/nodes/show.html.twig', [
             'activeNav' => 'sinusbot',
             'node' => $node,
+            'agent_base_url' => $node->getAgent()->getServiceBaseUrl(),
+            'agent_id' => $node->getAgent()->getId(),
             'admin_password' => null,
             'management_url' => $this->buildManagementUrl($node),
             'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
             'instances' => $instances,
             'instance_csrf' => $this->instanceCsrfTokens($instances),
+            'instance_passwords' => $instancePasswords,
             'customers' => $this->userRepository->findCustomers(),
             'quota_min' => $this->quotaValidator->getMinQuota(),
             'quota_max' => $this->quotaValidator->getMaxQuota(),
@@ -246,14 +273,46 @@ final class AdminSinusbotNodeController
         $this->validateCsrf($request, 'sinusbot_reveal_credentials_' . $id);
 
         $adminPassword = $node->getAdminPassword($this->crypto);
+        $instances = $this->instanceRepository->findBy(
+            ['node' => $node, 'archivedAt' => null],
+            ['updatedAt' => 'DESC'],
+        );
+        $syncError = null;
+        foreach ($instances as $instance) {
+            try {
+                $this->instanceProvisioner->syncStatus($instance);
+            } catch (AgentConfigurationException | AgentBadResponseException | AgentUnavailableException $exception) {
+                $syncError = $exception->getMessage();
+                break;
+            }
+        }
+        if ($syncError !== null) {
+            $request->getSession()->getFlashBag()->add('error', $syncError);
+        }
+
+        $instancePasswords = [];
+        foreach ($instances as $instance) {
+            $password = $instance->getSinusbotPassword($this->crypto);
+            if ($password !== null) {
+                $instancePasswords[$instance->getId() ?? 0] = $password;
+            }
+        }
 
         return new Response($this->twig->render('admin/sinusbot/nodes/show.html.twig', [
             'activeNav' => 'sinusbot',
             'node' => $node,
+            'agent_base_url' => $node->getAgent()->getServiceBaseUrl(),
+            'agent_id' => $node->getAgent()->getId(),
             'admin_password' => $adminPassword,
             'management_url' => $this->buildManagementUrl($node),
             'agent_jobs' => $this->loadAgentJobs($node),
             'csrf' => $this->csrfTokens($node),
+            'instances' => $instances,
+            'instance_csrf' => $this->instanceCsrfTokens($instances),
+            'instance_passwords' => $instancePasswords,
+            'customers' => $this->userRepository->findCustomers(),
+            'quota_min' => $this->quotaValidator->getMinQuota(),
+            'quota_max' => $this->quotaValidator->getMaxQuota(),
         ]));
     }
 
@@ -355,23 +414,21 @@ final class AdminSinusbotNodeController
             return;
         }
 
-        $dto->agentBaseUrl = $agent->getAgentBaseUrl();
-        try {
-            $dto->agentApiToken = $agent->getAgentApiToken($this->crypto);
-        } catch (RuntimeException $exception) {
-            $dto->agentApiToken = '';
-            $form->addError(new FormError('Unable to decrypt agent API token. Check APP_SECRET and APP_SECRET_FALLBACKS.'));
-        }
+        $dto->agentBaseUrl = '';
+        $dto->agentApiToken = '';
 
         if (trim($dto->installPath) === '') {
-            $dto->installPath = '/home/sinusbot';
+            $dto->installPath = '/opt/sinusbot';
         }
         if (trim($dto->instanceRoot) === '') {
-            $dto->instanceRoot = '/home/sinusbot/instances';
+            $dto->instanceRoot = '/opt/sinusbot/instances';
         }
 
         if (trim($dto->installPath) === '') {
             $form->addError(new FormError('Install path is required.'));
+        }
+        if (!$this->isValidInstallPath($dto->installPath)) {
+            $form->addError(new FormError('Installationspfad muss absolut sein und darf kein "..", "~" oder Nullbytes enthalten.'));
         }
     }
 
@@ -384,7 +441,7 @@ final class AdminSinusbotNodeController
             $host = trim((string) $node->getAgent()->getLastHeartbeatIp());
         }
 
-        $agentBaseUrl = $node->getAgentBaseUrl();
+        $agentBaseUrl = $node->getAgent()->getServiceBaseUrl();
         if (($host === '' || $host === '0.0.0.0' || $host === '::') && $agentBaseUrl !== '') {
             $parts = parse_url($agentBaseUrl);
             if (is_array($parts)) {
@@ -398,6 +455,28 @@ final class AdminSinusbotNodeController
         }
 
         return sprintf('%s://%s:%d', $scheme, $host, $node->getWebPortBase());
+    }
+
+    private function isValidInstallPath(string $installPath): bool
+    {
+        $trimmed = trim($installPath);
+        if ($trimmed === '') {
+            return false;
+        }
+        if (!str_starts_with($trimmed, '/')) {
+            return false;
+        }
+        if (str_contains($trimmed, '..')) {
+            return false;
+        }
+        if (str_contains($trimmed, "\0")) {
+            return false;
+        }
+        if (str_contains($trimmed, '~')) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

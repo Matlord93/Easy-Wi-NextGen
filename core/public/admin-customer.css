@@ -891,6 +891,19 @@ html.dark .admin-interface {
     gap: 0.4rem;
 }
 
+.nodes-role-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.role-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+}
+
 .role-chip {
     display: inline-flex;
     align-items: center;
@@ -906,6 +919,30 @@ html.dark .admin-interface {
     border-color: rgba(99, 102, 241, 0.45);
     background: rgba(99, 102, 241, 0.2);
     color: #c7d2fe;
+}
+
+.nodes-time {
+    font-weight: 600;
+    color: var(--nodes-text);
+}
+
+.nodes-actions-col {
+    width: 1%;
+    white-space: nowrap;
+}
+
+.nodes-row-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.nodes-table tr:hover .nodes-row-actions {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .badge {

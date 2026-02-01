@@ -607,6 +607,26 @@ final class WebinterfaceUpdateService
             return false;
         }
 
+        if ($this->isInitialInstall()) {
+            $this->log($logPath, 'Initiale Installation erkannt. Webinterface wird erstmals bereitgestellt.');
+            if (!is_dir($this->installDir)) {
+                mkdir($this->installDir, 0775, true);
+            }
+
+            if (!$this->runRsync($sourceDir, $this->installDir, $excludes, $logPath, true)) {
+                $this->log($logPath, 'Initiale Installation fehlgeschlagen.');
+                return false;
+            }
+
+            $this->writeVersionFile($this->installDir, $version);
+            if (!$this->runPostDeploy($this->installDir, $logPath)) {
+                $this->log($logPath, 'Post-Deploy fehlgeschlagen. Initiale Installation unvollständig.');
+                return false;
+            }
+
+            return true;
+        }
+
         $backupDir = rtrim(sys_get_temp_dir(), '/\\') . '/webinterface_backup_' . bin2hex(random_bytes(6));
         mkdir($backupDir, 0770, true);
 
@@ -629,6 +649,16 @@ final class WebinterfaceUpdateService
         }
 
         return true;
+    }
+
+    private function isInitialInstall(): bool
+    {
+        if (!is_dir($this->installDir)) {
+            return true;
+        }
+
+        $entries = array_filter(scandir($this->installDir) ?: [], static fn (string $entry): bool => $entry !== '.' && $entry !== '..');
+        return $entries === [];
     }
 
     private function runPostDeploy(string $baseDir, string $logPath): bool

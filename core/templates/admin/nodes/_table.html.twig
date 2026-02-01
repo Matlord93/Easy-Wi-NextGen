@@ -23,6 +23,10 @@
     'cancelled': 'bg-amber-50 text-amber-700 border-amber-200'
 } %}
 
+{% set infraRoles = ['core', 'db', 'dns'] %}
+{% set serviceRoles = ['web', 'mail'] %}
+{% set voiceRoles = ['ts3', 'ts6', 'sinusbot'] %}
+
 <div id="nodes-table" class="overflow-x-auto" hx-get="/admin/nodes/table" hx-trigger="every 15s" hx-swap="outerHTML">
     {% if (notice is defined and notice) or (error is defined and error) %}
         {% if app.request.headers.get('HX-Request') %}
@@ -57,46 +61,52 @@
         <thead>
         <tr>
             <th>{{ t('admin_nodes_table_node', page_locale()) }}</th>
-            <th>{{ t('admin_nodes_table_role', page_locale()) }}</th>
             <th>{{ t('status', page_locale()) }}</th>
-            <th>{{ t('admin_nodes_table_ddos', page_locale()) }}</th>
             <th>{{ t('admin_nodes_table_last_seen', page_locale()) }}</th>
-            <th>{{ t('admin_nodes_table_version', page_locale()) }}</th>
+            <th>{{ t('admin_nodes_table_role', page_locale()) }}</th>
+            <th>Info</th>
+            <th class="nodes-actions-col">Aktionen</th>
         </tr>
         </thead>
         <tbody>
         {% for node in nodes %}
+            {% set roleGroups = { infra: [], services: [], voice: [], other: [] } %}
+            {% for role in node.roles %}
+                {% set roleKey = role|lower %}
+                {% if roleKey in infraRoles %}
+                    {% set roleGroups = roleGroups|merge({ infra: roleGroups.infra|merge([role]) }) %}
+                {% elseif roleKey in serviceRoles %}
+                    {% set roleGroups = roleGroups|merge({ services: roleGroups.services|merge([role]) }) %}
+                {% elseif roleKey in voiceRoles %}
+                    {% set roleGroups = roleGroups|merge({ voice: roleGroups.voice|merge([role]) }) %}
+                {% else %}
+                    {% set roleGroups = roleGroups|merge({ other: roleGroups.other|merge([role]) }) %}
+                {% endif %}
+            {% endfor %}
             <tr>
                 <td>
                     <div class="nodes-node__name">{{ node.name ?? t('admin_nodes_unnamed', page_locale()) }}</div>
-                    <div class="nodes-node__meta">{{ node.id }}</div>
-                    {% if node.lastHeartbeatIp %}
-                        <div class="nodes-node__meta">{{ t('admin_nodes_last_ip', page_locale())|replace({'%ip%': node.lastHeartbeatIp}) }}</div>
-                    {% endif %}
-                </td>
-                <td>
-                    <div class="nodes-role-list">
-                        {% for role in node.roles %}
-                            <span class="role-chip role-chip--active">{{ role }}</span>
-                        {% endfor %}
-                    </div>
+                    <div class="nodes-node__meta">ID {{ node.id }}</div>
                 </td>
                 <td>
                     {% set style = statusStyles[node.status] ?? 'badge badge--neutral' %}
                     <span class="{{ style }}">{{ node.status|title }}</span>
-                </td>
-                <td>
                     {% if node.ddos %}
-                        <span class="badge {{ node.ddos.attackActive ? 'badge--danger' : 'badge--success' }}">
-                            {{ node.ddos.attackActive ? t('admin_nodes_ddos_attack_active', page_locale()) : t('admin_nodes_ddos_idle', page_locale()) }}
-                        </span>
-                    {% else %}
-                        <span class="badge badge--neutral">{{ t('admin_nodes_ddos_no_data', page_locale()) }}</span>
+                        <div class="nodes-node__meta mt-1">
+                            <span class="badge {{ node.ddos.attackActive ? 'badge--danger' : 'badge--success' }}">
+                                {{ node.ddos.attackActive ? t('admin_nodes_ddos_attack_active', page_locale()) : t('admin_nodes_ddos_idle', page_locale()) }}
+                            </span>
+                        </div>
                     {% endif %}
                 </td>
                 <td>
                     {% if node.lastSeenAt %}
-                        <div class="nodes-node__name">{{ node.lastSeenAt|date('Y-m-d H:i') }}</div>
+                        <time
+                            class="nodes-time"
+                            datetime="{{ node.lastSeenAt|date('c') }}"
+                            title="{{ node.lastSeenAt|date('Y-m-d H:i') }}"
+                            data-relative-time
+                        >{{ node.lastSeenAt|date('Y-m-d H:i') }}</time>
                         <div class="nodes-node__meta">
                             {{ t('admin_nodes_heartbeat', page_locale())|replace({'%time%': node.lastHeartbeatAt ? node.lastHeartbeatAt|date('Y-m-d H:i') : '—'}) }}
                         </div>
@@ -105,9 +115,74 @@
                     {% endif %}
                 </td>
                 <td>
-                    <div class="nodes-node__name">{{ node.lastHeartbeatVersion ?? '—' }}</div>
+                    <div class="nodes-role-group">
+                        {% if roleGroups.infra is not empty %}
+                            <button class="role-chip role-chip--active" type="button" data-role-toggle>
+                                Infra ({{ roleGroups.infra|length }}) ▾
+                            </button>
+                            <div class="role-chip-list" data-role-list hidden>
+                                {% for role in roleGroups.infra %}
+                                    <span class="role-chip role-chip--active">{{ role }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if roleGroups.services is not empty %}
+                            <button class="role-chip role-chip--active" type="button" data-role-toggle>
+                                Services ({{ roleGroups.services|length }}) ▾
+                            </button>
+                            <div class="role-chip-list" data-role-list hidden>
+                                {% for role in roleGroups.services %}
+                                    <span class="role-chip role-chip--active">{{ role }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if roleGroups.voice is not empty %}
+                            <button class="role-chip role-chip--active" type="button" data-role-toggle>
+                                Voice ({{ roleGroups.voice|length }}) ▾
+                            </button>
+                            <div class="role-chip-list" data-role-list hidden>
+                                {% for role in roleGroups.voice %}
+                                    <span class="role-chip role-chip--active">{{ role }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if roleGroups.other is not empty %}
+                            <button class="role-chip" type="button" data-role-toggle>
+                                Other ({{ roleGroups.other|length }}) ▾
+                            </button>
+                            <div class="role-chip-list" data-role-list hidden>
+                                {% for role in roleGroups.other %}
+                                    <span class="role-chip">{{ role }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if node.roles is empty %}
+                            <span class="nodes-node__meta">{{ t('admin_nodes_roles_empty', page_locale()) }}</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>
+                    {% if node.lastHeartbeatIp %}
+                        <div class="nodes-node__meta">{{ t('admin_nodes_last_ip', page_locale())|replace({'%ip%': node.lastHeartbeatIp}) }}</div>
+                    {% endif %}
+                    <div class="nodes-node__meta">{{ node.lastHeartbeatVersion ?? '—' }}</div>
                     <div class="nodes-node__meta">
                         {{ updateChannel is defined ? t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) : t('admin_nodes_unknown', page_locale()) }}
+                    </div>
+                </td>
+                <td class="nodes-actions-col">
+                    <div class="nodes-row-actions">
+                        <a class="btn btn--tertiary" href="/admin/nodes?node={{ node.id }}">Details</a>
+                        <a class="btn btn--tertiary" href="/admin/nodes/{{ node.id }}/roles">Konfigurieren</a>
+                        <button
+                            class="btn btn--tertiary"
+                            hx-post="/admin/nodes/{{ node.id }}/reboot"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                            hx-confirm="{{ t('admin_nodes_reboot_confirm', page_locale()) }}"
+                            type="button"
+                        >Neustarten</button>
+                        <a class="btn btn--tertiary" href="/admin/jobs">Logs</a>
                     </div>
                 </td>
             </tr>

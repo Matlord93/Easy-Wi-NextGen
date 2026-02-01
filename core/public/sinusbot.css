@@ -31,6 +31,20 @@
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+.sinusbot-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.sinusbot-card-header h2,
+.sinusbot-card-header h3 {
+    margin: 0;
+}
+
 .sinusbot-table {
     width: 100%;
     border-collapse: collapse;
@@ -100,10 +114,35 @@
     margin-bottom: 16px;
 }
 
+.sinusbot-status-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 .sinusbot-grid {
     display: grid;
     gap: 16px;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.sinusbot-instance-list {
+    display: grid;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.sinusbot-instance-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px;
+    background: #f9fafb;
+}
+
+.sinusbot-form-inline {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
 }
 
 .sinusbot-form label {
@@ -139,6 +178,12 @@
     border: 1px solid #fecaca;
 }
 
+.sinusbot-alert-warning {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+}
+
 .sinusbot-pill {
     display: inline-flex;
     align-items: center;
@@ -148,6 +193,92 @@
     color: #4338ca;
     font-weight: 600;
     font-size: 0.8rem;
+}
+
+.sinusbot-pill--success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.sinusbot-pill--warning {
+    background: #fef9c3;
+    color: #92400e;
+}
+
+.sinusbot-pill--danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.sinusbot-instance-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    margin-bottom: 16px;
+}
+
+.sinusbot-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sinusbot-field__label {
+    font-weight: 600;
+    color: #111827;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.sinusbot-field__value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 0.95rem;
+}
+
+.sinusbot-hint {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.sinusbot-copy {
+    border: 1px solid #d1d5db;
+    border-radius: 999px;
+    padding: 4px 10px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sinusbot-copy:hover {
+    background: #f3f4f6;
+}
+
+.sinusbot-button--ghost {
+    background: transparent;
+    color: #4f46e5;
+    border: 1px solid #c7d2fe;
+}
+
+.sinusbot-button--ghost:hover {
+    background: #eef2ff;
+}
+
+.sinusbot-secret-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sinusbot-button.is-loading {
+    opacity: 0.6;
+    pointer-events: none;
 }
 
 .sinusbot-credentials {
@@ -221,15 +352,68 @@
     color: #e2e8f0;
 }
 
+.dark .sinusbot-instance-card {
+    background: #111827;
+    border-color: #1f2937;
+}
+
 .dark .sinusbot-alert-success {
     background: rgba(16, 185, 129, 0.12);
     border-color: rgba(16, 185, 129, 0.4);
     color: #a7f3d0;
 }
 
+.dark .sinusbot-alert-warning {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #fcd34d;
+}
+
 .dark .sinusbot-pill {
     background: rgba(99, 102, 241, 0.2);
     color: #c7d2fe;
+}
+
+.dark .sinusbot-pill--success {
+    background: rgba(34, 197, 94, 0.2);
+    color: #bbf7d0;
+}
+
+.dark .sinusbot-pill--warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fde68a;
+}
+
+.dark .sinusbot-pill--danger {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fecaca;
+}
+
+.dark .sinusbot-field__label {
+    color: #e2e8f0;
+}
+
+.dark .sinusbot-hint {
+    color: #94a3b8;
+}
+
+.dark .sinusbot-copy {
+    background: #0b1120;
+    border-color: #1f2937;
+    color: #e2e8f0;
+}
+
+.dark .sinusbot-copy:hover {
+    background: #111827;
+}
+
+.dark .sinusbot-button--ghost {
+    border-color: #4338ca;
+    color: #c7d2fe;
+}
+
+.dark .sinusbot-button--ghost:hover {
+    background: rgba(99, 102, 241, 0.2);
 }
 
 .dark .sinusbot-secret {

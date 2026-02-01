@@ -474,4 +474,62 @@
         </aside>
     </div>
 </section>
+<script>
+    const formatRelativeTime = (date) => {
+        const diffMs = date.getTime() - Date.now();
+        const diffSeconds = Math.round(diffMs / 1000);
+        const absSeconds = Math.abs(diffSeconds);
+        const rtf = new Intl.RelativeTimeFormat('de', { numeric: 'auto' });
+        if (absSeconds < 60) {
+            return rtf.format(Math.round(diffSeconds), 'second');
+        }
+        const diffMinutes = Math.round(diffSeconds / 60);
+        if (Math.abs(diffMinutes) < 60) {
+            return rtf.format(diffMinutes, 'minute');
+        }
+        const diffHours = Math.round(diffMinutes / 60);
+        if (Math.abs(diffHours) < 24) {
+            return rtf.format(diffHours, 'hour');
+        }
+        const diffDays = Math.round(diffHours / 24);
+        return rtf.format(diffDays, 'day');
+    };
+
+    const updateRelativeTimes = (root = document) => {
+        root.querySelectorAll('[data-relative-time]').forEach((el) => {
+            const datetime = el.getAttribute('datetime');
+            if (!datetime) {
+                return;
+            }
+            const parsed = new Date(datetime);
+            if (Number.isNaN(parsed.getTime())) {
+                return;
+            }
+            el.textContent = formatRelativeTime(parsed);
+        });
+    };
+
+    const bindRoleToggles = (root = document) => {
+        root.querySelectorAll('[data-role-toggle]').forEach((button) => {
+            if (button.dataset.roleToggleBound) {
+                return;
+            }
+            button.dataset.roleToggleBound = 'true';
+            button.addEventListener('click', () => {
+                const list = button.nextElementSibling;
+                if (list && list.hasAttribute('data-role-list')) {
+                    list.hidden = !list.hidden;
+                }
+            });
+        });
+    };
+
+    updateRelativeTimes();
+    bindRoleToggles();
+
+    document.body.addEventListener('htmx:afterSwap', (event) => {
+        updateRelativeTimes(event.target);
+        bindRoleToggles(event.target);
+    });
+</script>
 {% endblock %}

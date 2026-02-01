@@ -5,29 +5,22 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Sinusbot;
 
 use App\Module\Core\Application\SecretsCrypto;
-use App\Module\Core\Application\Sinusbot\AgentBadResponseException;
-use App\Module\Core\Application\Sinusbot\AgentUnavailableException;
+use App\Module\Core\Application\Sinusbot\AgentClient;
+use App\Module\Core\Application\AgentEndpointResolver;
+use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
-use Psr\Log\LoggerInterface;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class SinusbotInstanceProvisioner
 {
-    private const HEADER_AGENT_ID = 'X-Agent-ID';
-    private const HEADER_TIMESTAMP = 'X-Timestamp';
-    private const HEADER_SIGNATURE = 'X-Signature';
-
     public function __construct(
-        private readonly HttpClientInterface $httpClient,
         private readonly EntityManagerInterface $entityManager,
         private readonly SecretsCrypto $crypto,
+        private readonly AgentClient $agentClient,
+        private readonly AgentEndpointResolver $endpointResolver,
         private readonly SinusbotQuotaValidator $quotaValidator,
-        private readonly LoggerInterface $logger,
-        private readonly int $timeoutSeconds = 10,
     ) {
     }
 
@@ -47,17 +40,23 @@ class SinusbotInstanceProvisioner
 
         $response = $this->requestJson($node, 'POST', '/internal/sinusbot/instances', $payload);
 
+        $instanceId = (string) ($response['instanceId'] ?? '');
+        $username = $this->resolveUsername($response, $username, $customer);
+        $status = $this->normalizeOptional($response['status'] ?? null) ?? 'unknown';
+
         $instance = new SinusbotInstance(
             $node,
             $customer,
-            (string) ($response['instanceId'] ?? ''),
-            (string) ($response['username'] ?? ''),
+            $instanceId,
+            $username,
             $quota,
-            (string) ($response['status'] ?? 'stopped'),
+            $status,
         );
 
-        $instance->setManageUrl($this->normalizeOptional($response['manageUrl'] ?? null));
-        $instance->setSinusbotPassword($this->normalizeOptional($response['password'] ?? null), $this->crypto);
+        $this->applyInstancePayload($instance, $response);
+        if ($instance->getManageUrl() === null && $instance->getWebPort() !== null) {
+            $instance->setManageUrl($this->buildManageUrl($node, $instance->getWebPort()));
+        }
 
         $this->entityManager->persist($instance);
         $this->entityManager->flush();
@@ -68,19 +67,19 @@ class SinusbotInstanceProvisioner
     public function startInstance(SinusbotInstance $instance): void
     {
         $payload = $this->requestJson($instance->getNode(), 'POST', sprintf('/internal/sinusbot/instances/%s/start', $instance->getInstanceId()), []);
-        $this->applyStatus($instance, $payload);
+        $this->applyInstancePayload($instance, $payload);
     }
 
     public function stopInstance(SinusbotInstance $instance): void
     {
         $payload = $this->requestJson($instance->getNode(), 'POST', sprintf('/internal/sinusbot/instances/%s/stop', $instance->getInstanceId()), []);
-        $this->applyStatus($instance, $payload);
+        $this->applyInstancePayload($instance, $payload);
     }
 
     public function restartInstance(SinusbotInstance $instance): void
     {
         $payload = $this->requestJson($instance->getNode(), 'POST', sprintf('/internal/sinusbot/instances/%s/restart', $instance->getInstanceId()), []);
-        $this->applyStatus($instance, $payload);
+        $this->applyInstancePayload($instance, $payload);
     }
 
     public function deleteInstance(SinusbotInstance $instance): void
@@ -97,6 +96,7 @@ class SinusbotInstanceProvisioner
 
         $instance->setSinusbotPassword($password, $this->crypto);
         $instance->setSinusbotUsername((string) ($payload['username'] ?? $instance->getSinusbotUsername()));
+        $this->applyInstancePayload($instance, $payload);
         $this->entityManager->flush();
 
         return $password ?? '';
@@ -104,8 +104,8 @@ class SinusbotInstanceProvisioner
 
     public function syncStatus(SinusbotInstance $instance): void
     {
-        $payload = $this->requestJson($instance->getNode(), 'GET', sprintf('/internal/sinusbot/instances/%s/status', $instance->getInstanceId()), []);
-        $this->applyStatus($instance, $payload);
+        $payload = $this->requestJson($instance->getNode(), 'GET', sprintf('/internal/sinusbot/instances/%s', $instance->getInstanceId()), []);
+        $this->applyInstancePayload($instance, $payload);
     }
 
     public function updateQuota(SinusbotInstance $instance, int $quota): void
@@ -120,7 +120,7 @@ class SinusbotInstanceProvisioner
         );
 
         $instance->setBotQuota($quota);
-        $this->applyStatus($instance, $payload);
+        $this->applyInstancePayload($instance, $payload);
     }
 
     /**
@@ -128,77 +128,112 @@ class SinusbotInstanceProvisioner
      */
     private function requestJson(SinusbotNode $node, string $method, string $path, array $payload): array
     {
-        $agentBaseUrl = rtrim($node->getAgentBaseUrl(), '/');
-        if ($agentBaseUrl === '') {
-            throw new AgentUnavailableException('Agent base URL missing for node.');
-        }
-
-        $body = $payload !== [] ? json_encode($payload, JSON_THROW_ON_ERROR) : '';
-        $url = $agentBaseUrl . $path;
-
-        $agentId = (string) $node->getAgent()->getId();
-        $timestamp = (new \DateTimeImmutable())->format(\DateTimeImmutable::RFC3339);
-        $signature = $this->signPayload($agentId, $method, $path, $timestamp, $body, $node);
-
-        $attempts = 0;
-        do {
-            $attempts++;
-            try {
-                $response = $this->httpClient->request($method, $url, [
-                    'headers' => [
-                        self::HEADER_AGENT_ID => $agentId,
-                        self::HEADER_TIMESTAMP => $timestamp,
-                        self::HEADER_SIGNATURE => $signature,
-                        'Content-Type' => 'application/json',
-                    ],
-                    'body' => $body,
-                    'timeout' => $this->timeoutSeconds,
-                ]);
-
-                $statusCode = $response->getStatusCode();
-                $content = $response->getContent(false);
-                $data = $content !== '' ? json_decode($content, true) : [];
-
-                if ($statusCode >= 400) {
-                    $errorCode = is_array($data) ? ($data['error_code'] ?? 'agent_error') : 'agent_error';
-                    $message = is_array($data) ? ($data['error'] ?? 'Agent error') : 'Agent error';
-                    throw new AgentBadResponseException(sprintf('%s (%s)', $message, (string) $errorCode));
-                }
-
-                return is_array($data) ? $data : [];
-            } catch (TransportExceptionInterface $exception) {
-                $this->logger->warning('Sinusbot agent request failed.', [
-                    'path' => $path,
-                    'attempt' => $attempts,
-                    'error' => $exception->getMessage(),
-                ]);
-                if ($attempts >= 2) {
-                    throw new AgentUnavailableException('Sinusbot agent unavailable.', previous: $exception);
-                }
-            }
-        } while ($attempts < 2);
-
-        return [];
+        return $this->agentClient->requestJson($node, $method, $path, $payload);
     }
 
-    private function signPayload(string $agentId, string $method, string $path, string $timestamp, string $body, SinusbotNode $node): string
-    {
-        $token = $node->getAgentApiToken($this->crypto);
-        $payload = sprintf("%s\n%s\n%s\n%s\n%s", $agentId, strtoupper($method), $path, $timestamp, $body);
-
-        return hash_hmac('sha256', $payload, $token);
-    }
-
-    private function applyStatus(SinusbotInstance $instance, array $payload): void
+    private function applyInstancePayload(SinusbotInstance $instance, array $payload): void
     {
         if (isset($payload['status']) && is_string($payload['status'])) {
             $instance->setStatus($payload['status']);
         }
+        if (isset($payload['username']) && is_string($payload['username']) && $payload['username'] !== '') {
+            $instance->setSinusbotUsername($payload['username']);
+        }
+        if (array_key_exists('password', $payload)) {
+            $instance->setSinusbotPassword($this->normalizeOptional($payload['password'] ?? null), $this->crypto);
+        }
+
+        $botId = $this->normalizeOptional($payload['botId'] ?? $payload['bot_id'] ?? null);
+        if ($botId !== null) {
+            $instance->setBotId($botId);
+        }
+
+        $webPort = $this->normalizeInt($payload['webPort'] ?? $payload['web_port'] ?? null);
+        if ($webPort !== null) {
+            $instance->setWebPort($webPort);
+        }
+
+        $manageUrl = $this->normalizeOptional($payload['manageUrl'] ?? $payload['manage_url'] ?? null);
+        if ($manageUrl === null) {
+            $manageUrl = $this->buildManageUrl($instance->getNode(), $instance->getWebPort());
+        }
+        $instance->setManageUrl($manageUrl);
+        if ($instance->getBotId() === null && $instance->getInstanceId() !== '') {
+            $instance->setBotId($instance->getInstanceId());
+        }
+        $instance->setLastSeenAt(new \DateTimeImmutable());
         $this->entityManager->flush();
     }
 
     private function normalizeOptional(mixed $value): ?string
     {
         return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    private function normalizeInt(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+        if (is_string($value) && ctype_digit($value)) {
+            $parsed = (int) $value;
+            return $parsed > 0 ? $parsed : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function resolveUsername(array $payload, ?string $requestedUsername, User $customer): string
+    {
+        $responseUsername = $this->normalizeOptional($payload['username'] ?? null);
+        if ($responseUsername !== null) {
+            return $responseUsername;
+        }
+
+        $requested = $this->normalizeOptional($requestedUsername);
+        if ($requested !== null) {
+            return $requested;
+        }
+
+        return sprintf('customer-%d', $customer->getId());
+    }
+
+    private function buildManageUrl(SinusbotNode $node, ?int $webPort): ?string
+    {
+        if ($webPort === null) {
+            return null;
+        }
+
+        $host = trim($node->getWebBindIp());
+        $scheme = 'http';
+
+        if ($host === '' || $host === '0.0.0.0' || $host === '::') {
+            $host = trim((string) $node->getAgent()->getLastHeartbeatIp());
+        }
+
+        $baseUrl = $node->getAgent()->getServiceBaseUrl();
+        if ($baseUrl === '') {
+            try {
+                $baseUrl = $this->endpointResolver->resolveForNode($node)->getBaseUrl();
+            } catch (AgentConfigurationException) {
+                $baseUrl = '';
+            }
+        }
+        if (($host === '' || $host === '0.0.0.0' || $host === '::') && $baseUrl !== '') {
+            $parts = parse_url($baseUrl);
+            if (is_array($parts)) {
+                $host = $parts['host'] ?? $host;
+                $scheme = $parts['scheme'] ?? $scheme;
+            }
+        }
+
+        if ($host === '' || $host === '0.0.0.0' || $host === '::') {
+            return null;
+        }
+
+        return sprintf('%s://%s:%d', $scheme, $host, $webPort);
     }
 }

@@ -24,9 +24,21 @@
             <div class="sinusbot-alert sinusbot-alert-error">{{ message }}</div>
         {% endfor %}
 
+        {% set runtimeLabel = node.running ? 'Online' : 'Offline' %}
+        {% set runtimeClass = node.running ? 'sinusbot-pill--success' : 'sinusbot-pill--danger' %}
+
         <div class="sinusbot-grid">
             <div class="sinusbot-card">
-                <h2>{{ t('admin_sinusbot_installation_title', page_locale()) }}</h2>
+                <div class="sinusbot-card-header">
+                    <div>
+                        <h2>{{ t('admin_sinusbot_installation_title', page_locale()) }}</h2>
+                        <p class="sinusbot-muted">Status und Steuerung für die Node.</p>
+                    </div>
+                    <div class="sinusbot-status-group">
+                        <span class="sinusbot-pill">{{ node.installStatus }}</span>
+                        <span class="sinusbot-pill {{ runtimeClass }}">{{ runtimeLabel }}</span>
+                    </div>
+                </div>
                 <div class="sinusbot-meta">
                     <div><strong>{{ t('admin_sinusbot_status_label', page_locale()) }}</strong> {{ node.installStatus }}</div>
                     <div><strong>Runtime:</strong> {{ node.running ? 'running' : 'stopped' }}</div>
@@ -36,32 +48,36 @@
                 <div class="sinusbot-actions">
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/install">
                         <input type="hidden" name="_token" value="{{ csrf.install }}">
-                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_install_repair', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Installiere…">{{ t('admin_sinusbot_install_repair', page_locale()) }}</button>
                     </form>
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/refresh">
                         <input type="hidden" name="_token" value="{{ csrf.refresh }}">
-                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_refresh_status', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Aktualisiere…">{{ t('admin_sinusbot_refresh_status', page_locale()) }}</button>
                     </form>
                 </div>
                 <div class="sinusbot-actions">
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/start">
                         <input type="hidden" name="_token" value="{{ csrf.start }}">
-                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_start', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Starte…">{{ t('admin_sinusbot_start', page_locale()) }}</button>
                     </form>
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/stop">
                         <input type="hidden" name="_token" value="{{ csrf.stop }}">
-                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_stop', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Stoppe…">{{ t('admin_sinusbot_stop', page_locale()) }}</button>
                     </form>
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/restart">
                         <input type="hidden" name="_token" value="{{ csrf.restart }}">
-                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_restart', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Starte neu…">{{ t('admin_sinusbot_restart', page_locale()) }}</button>
                     </form>
                 </div>
             </div>
 
             <div class="sinusbot-card">
-                <h2>Kunden-Instanzen</h2>
-                <p class="sinusbot-muted">Pro Kunde wird eine eigene SinusBot-Instanz mit Bot-Quota verwaltet.</p>
+                <div class="sinusbot-card-header">
+                    <div>
+                        <h2>Kunden-Instanzen</h2>
+                        <p class="sinusbot-muted">Pro Kunde wird eine eigene SinusBot-Instanz mit Bot-Quota verwaltet.</p>
+                    </div>
+                </div>
                 <form class="sinusbot-form" method="post" action="/admin/sinusbot/instances/create">
                     <input type="hidden" name="_token" value="{{ csrf.instance_create }}">
                     <input type="hidden" name="node_id" value="{{ node.id }}">
@@ -88,64 +104,120 @@
                 </form>
 
                 {% if instances is not empty %}
-                    <div class="sinusbot-meta">
+                    <div class="sinusbot-instance-list">
                         {% for instance in instances %}
-                            <div class="sinusbot-meta">
-                                <div><strong>Kunde:</strong> {{ instance.customer ? instance.customer.email : '–' }}</div>
-                                <div><strong>Instanz-ID:</strong> {{ instance.instanceId }}</div>
-                                <div><strong>Status:</strong> {{ instance.status }}</div>
-                                <div><strong>Quota:</strong> {{ instance.botQuota }}</div>
-                                <div><strong>Benutzername:</strong> {{ instance.sinusbotUsername }}</div>
-                                <div>
-                                    <strong>Verwaltungs-URL:</strong>
-                                    {% if instance.manageUrl %}
-                                        <a class="sinusbot-link" href="{{ instance.manageUrl }}" target="_blank" rel="noopener">{{ instance.manageUrl }}</a>
-                                    {% else %}
-                                        –
-                                    {% endif %}
+                            {% set instanceStatusLabel = instance.status == 'running' ? 'Online' : (instance.status == 'stopped' ? 'Offline' : 'Unbekannt') %}
+                            {% set instanceStatusClass = instance.status == 'running' ? 'sinusbot-pill--success' : (instance.status == 'stopped' ? 'sinusbot-pill--danger' : 'sinusbot-pill--warning') %}
+                            {% set instancePassword = instance_passwords[instance.id] ?? null %}
+                            {% set botId = instance.botId ?? instance.instanceId %}
+                            <div class="sinusbot-instance-card">
+                                <div class="sinusbot-card-header">
+                                    <div>
+                                        <h3>{{ instance.customer ? instance.customer.email : 'Unbekannter Kunde' }}</h3>
+                                        <p class="sinusbot-muted">Instanz-ID {{ instance.instanceId }}</p>
+                                    </div>
+                                    <span class="sinusbot-pill {{ instanceStatusClass }}">{{ instanceStatusLabel }}</span>
                                 </div>
-                            </div>
-                            <div class="sinusbot-actions">
-                                <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/start">
-                                    <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].start }}">
-                                    <button class="sinusbot-button" type="submit">Starten</button>
-                                </form>
-                                <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/stop">
-                                    <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].stop }}">
-                                    <button class="sinusbot-button" type="submit">Stoppen</button>
-                                </form>
-                                <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/restart">
-                                    <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].restart }}">
-                                    <button class="sinusbot-button" type="submit">Restart</button>
-                                </form>
-                                <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/reset-password">
-                                    <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].reset }}">
-                                    <button class="sinusbot-button" type="submit">Passwort reset</button>
-                                </form>
-                            </div>
-                            <form class="sinusbot-form" method="post" action="/admin/sinusbot/instances/{{ instance.id }}/quota">
-                                <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].quota }}">
-                                <label for="quota_{{ instance.id }}">Bot-Quota</label>
-                                <input id="quota_{{ instance.id }}" name="quota" type="number" min="{{ quota_min }}" max="{{ quota_max }}" value="{{ instance.botQuota }}" required>
-                                <button class="sinusbot-button" type="submit">Quota aktualisieren</button>
-                            </form>
-                            <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/delete" onsubmit="return confirm('SinusBot-Instanz wirklich löschen?');">
-                                <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].delete }}">
+                                <div class="sinusbot-instance-grid">
+                                    <div class="sinusbot-field">
+                                        <span class="sinusbot-field__label">Status</span>
+                                        <span class="sinusbot-field__value">{{ instance.status }}</span>
+                                    </div>
+                                    <div class="sinusbot-field">
+                                        <span class="sinusbot-field__label">Letzter Check</span>
+                                        <span class="sinusbot-field__value">
+                                            {{ instance.lastSeenAt ? instance.lastSeenAt|date('Y-m-d H:i') : '—' }}
+                                        </span>
+                                    </div>
+                                    <div class="sinusbot-field">
+                                        <span class="sinusbot-field__label">Bot-ID</span>
+                                        {% if botId %}
+                                            <span class="sinusbot-field__value">{{ botId }}</span>
+                                        {% else %}
+                                            <span class="sinusbot-field__value">—</span>
+                                            <span class="sinusbot-hint">Noch keine Bot-ID gemeldet (Status-Refresh ausführen).</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="sinusbot-field">
+                                        <span class="sinusbot-field__label">Verwaltungs-URL</span>
+                                        {% if instance.manageUrl %}
+                                            <div class="sinusbot-field__value">
+                                                <a class="sinusbot-link" href="{{ instance.manageUrl }}" target="_blank" rel="noopener">{{ instance.manageUrl }}</a>
+                                                <button class="sinusbot-copy" type="button" data-sinusbot-copy="{{ instance.manageUrl }}">Kopieren</button>
+                                            </div>
+                                        {% else %}
+                                            <span class="sinusbot-field__value">—</span>
+                                            <span class="sinusbot-hint">URL fehlt: WebBind-IP/Port wurde vom Agenten noch nicht gemeldet.</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="sinusbot-field">
+                                        <span class="sinusbot-field__label">Benutzername</span>
+                                        {% if instance.sinusbotUsername %}
+                                            <div class="sinusbot-field__value">
+                                                <span>{{ instance.sinusbotUsername }}</span>
+                                                <button class="sinusbot-copy" type="button" data-sinusbot-copy="{{ instance.sinusbotUsername }}">Kopieren</button>
+                                            </div>
+                                        {% else %}
+                                            <span class="sinusbot-field__value">—</span>
+                                            <span class="sinusbot-hint">Noch kein Username gemeldet (Provisioning läuft oder Status-Refresh).</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="sinusbot-field">
+                                        <span class="sinusbot-field__label">Passwort</span>
+                                        {% if instancePassword %}
+                                            <div class="sinusbot-field__value sinusbot-secret-row">
+                                                <span class="sinusbot-secret" data-sinusbot-secret="{{ instancePassword }}">••••••••</span>
+                                                <button class="sinusbot-button sinusbot-button--ghost" type="button" data-sinusbot-reveal>Passwort anzeigen</button>
+                                            </div>
+                                        {% else %}
+                                            <span class="sinusbot-field__value">—</span>
+                                            <span class="sinusbot-hint">Passwort noch nicht gespeichert (Provisioning-Result fehlt).</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="sinusbot-field">
+                                        <span class="sinusbot-field__label">Quota</span>
+                                        <span class="sinusbot-field__value">{{ instance.botQuota }}</span>
+                                    </div>
+                                </div>
                                 <div class="sinusbot-actions">
-                                    <label>
-                                        <input type="radio" name="mode" value="delete" checked>
-                                        Löschen inkl. Agent
-                                    </label>
-                                    <label>
-                                        <input type="radio" name="mode" value="detach">
-                                        Nur Zuordnung entfernen
-                                    </label>
-                                    <button class="sinusbot-button" type="submit">Instanz löschen</button>
+                                    <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/start">
+                                        <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].start }}">
+                                        <button class="sinusbot-button" type="submit" data-loading-text="Starte…">Starten</button>
+                                    </form>
+                                    <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/stop">
+                                        <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].stop }}">
+                                        <button class="sinusbot-button" type="submit" data-loading-text="Stoppe…">Stoppen</button>
+                                    </form>
+                                    <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/restart">
+                                        <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].restart }}">
+                                        <button class="sinusbot-button" type="submit" data-loading-text="Starte neu…">Restart</button>
+                                    </form>
+                                    <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/reset-password">
+                                        <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].reset }}">
+                                        <button class="sinusbot-button" type="submit" data-loading-text="Setze zurück…">Passwort reset</button>
+                                    </form>
                                 </div>
-                            </form>
-                            {% if not loop.last %}
-                                <p class="sinusbot-muted">—</p>
-                            {% endif %}
+                                <form class="sinusbot-form sinusbot-form-inline" method="post" action="/admin/sinusbot/instances/{{ instance.id }}/quota">
+                                    <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].quota }}">
+                                    <label for="quota_{{ instance.id }}">Bot-Quota</label>
+                                    <input id="quota_{{ instance.id }}" name="quota" type="number" min="{{ quota_min }}" max="{{ quota_max }}" value="{{ instance.botQuota }}" required>
+                                    <button class="sinusbot-button" type="submit">Quota aktualisieren</button>
+                                </form>
+                                <form class="sinusbot-form" method="post" action="/admin/sinusbot/instances/{{ instance.id }}/delete" onsubmit="return confirm('SinusBot-Instanz wirklich löschen?');">
+                                    <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].delete }}">
+                                    <div class="sinusbot-actions">
+                                        <label>
+                                            <input type="radio" name="mode" value="delete" checked>
+                                            Löschen inkl. Agent
+                                        </label>
+                                        <label>
+                                            <input type="radio" name="mode" value="detach">
+                                            Nur Zuordnung entfernen
+                                        </label>
+                                        <button class="sinusbot-button" type="submit">Instanz löschen</button>
+                                    </div>
+                                </form>
+                            </div>
                         {% endfor %}
                     </div>
                 {% else %}
@@ -154,7 +226,12 @@
             </div>
 
             <div class="sinusbot-card">
-                <h2>Letzte Jobs</h2>
+                <div class="sinusbot-card-header">
+                    <div>
+                        <h2>Letzte Jobs</h2>
+                        <p class="sinusbot-muted">Agent-Protokolle zur Fehlersuche.</p>
+                    </div>
+                </div>
                 {% if agent_jobs is not empty %}
                     {% for job in agent_jobs %}
                         <div class="sinusbot-meta">
@@ -180,10 +257,19 @@
             </div>
 
             <div class="sinusbot-card">
-                <h2>{{ t('admin_sinusbot_agent_config_title', page_locale()) }}</h2>
+                <div class="sinusbot-card-header">
+                    <div>
+                        <h2>Sinusbot-Service</h2>
+                        <p class="sinusbot-muted">Management-Zugriff und Service-Konfiguration der Node.</p>
+                    </div>
+                </div>
+                {% if agent_base_url is empty %}
+                    <div class="sinusbot-alert sinusbot-alert-warning">Agent-Konfiguration unvollständig: Service-URL fehlt.</div>
+                {% endif %}
                 <div class="sinusbot-meta">
                     <div><strong>Zugewiesener Kunde:</strong> {{ node.customer ? node.customer.email : '–' }}</div>
-                    <div><strong>{{ t('admin_sinusbot_agent_url_label', page_locale()) }}</strong> {{ node.agentBaseUrl }}</div>
+                    <div><strong>Agent-ID:</strong> {{ agent_id }}</div>
+                    <div><strong>{{ t('admin_sinusbot_agent_url_label', page_locale()) }}</strong> {{ agent_base_url ?: '–' }}</div>
                     <div><strong>{{ t('admin_sinusbot_install_path_label', page_locale()) }}</strong> {{ node.installPath }}</div>
                     <div><strong>{{ t('admin_sinusbot_web_bind_label', page_locale()) }}</strong> {{ node.webBindIp }}:{{ node.webPortBase }}</div>
                     <div><strong>TS3-Client:</strong> {{ node.ts3ClientInstalled ? 'Installiert (Installed)' : 'Nicht installiert (Not installed)' }}</div>
@@ -201,8 +287,8 @@
             </div>
 
             <div class="sinusbot-card">
-                <h2>{{ t('admin_sinusbot_admin_credentials_title', page_locale()) }}</h2>
-                <p class="sinusbot-muted">{{ t('admin_sinusbot_admin_credentials_note', page_locale()) }}</p>
+                <h2>Login-Daten (Admin)</h2>
+                <p class="sinusbot-muted">Zugangsdaten für den globalen SinusBot-Admin auf dieser Node.</p>
                 {% if admin_password %}
                     <div class="sinusbot-credentials">
                         <div><strong>{{ t('admin_sinusbot_username_label', page_locale()) }}</strong> {{ node.adminUsername ?? '–' }}</div>
@@ -235,10 +321,59 @@
     </div>
 
     <script>
-        document.querySelectorAll('[data-sinusbot-copy]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                navigator.clipboard?.writeText(button.dataset.sinusbotCopy || '');
+        const bindSinusbotActions = (root = document) => {
+            root.querySelectorAll('[data-sinusbot-copy]').forEach((button) => {
+                if (button.dataset.sinusbotCopyBound) {
+                    return;
+                }
+                button.dataset.sinusbotCopyBound = 'true';
+                button.addEventListener('click', () => {
+                    navigator.clipboard?.writeText(button.dataset.sinusbotCopy || '');
+                });
             });
-        });
+
+            root.querySelectorAll('[data-sinusbot-reveal]').forEach((button) => {
+                if (button.dataset.sinusbotRevealBound) {
+                    return;
+                }
+                button.dataset.sinusbotRevealBound = 'true';
+                button.addEventListener('click', () => {
+                    const container = button.closest('.sinusbot-field');
+                    const secret = container?.querySelector('[data-sinusbot-secret]');
+                    if (!secret) {
+                        return;
+                    }
+                    const value = secret.dataset.sinusbotSecret || '';
+                    const revealed = secret.dataset.revealed === 'true';
+                    if (revealed) {
+                        secret.textContent = '••••••••';
+                        secret.dataset.revealed = 'false';
+                        button.textContent = 'Passwort anzeigen';
+                        return;
+                    }
+                    secret.textContent = value;
+                    secret.dataset.revealed = 'true';
+                    button.textContent = 'Passwort verbergen';
+                });
+            });
+
+            root.querySelectorAll('form').forEach((form) => {
+                if (form.dataset.sinusbotLoadingBound) {
+                    return;
+                }
+                form.dataset.sinusbotLoadingBound = 'true';
+                form.addEventListener('submit', () => {
+                    const button = form.querySelector('button[data-loading-text]');
+                    if (!button) {
+                        return;
+                    }
+                    button.dataset.originalText = button.textContent || '';
+                    button.textContent = button.dataset.loadingText || button.textContent;
+                    button.classList.add('is-loading');
+                });
+            });
+        };
+
+        bindSinusbotActions();
     </script>
 {% endblock %}

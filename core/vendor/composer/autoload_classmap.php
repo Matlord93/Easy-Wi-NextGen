@@ -693,6 +693,7 @@ return array(
     'PHPUnit\\Runner\\ClassDoesNotExtendTestCaseException' => $vendorDir . '/phpunit/phpunit/src/Runner/Exception/ClassDoesNotExtendTestCaseException.php',
     'PHPUnit\\Runner\\ClassIsAbstractException' => $vendorDir . '/phpunit/phpunit/src/Runner/Exception/ClassIsAbstractException.php',
     'PHPUnit\\Runner\\CodeCoverage' => $vendorDir . '/phpunit/phpunit/src/Runner/CodeCoverage.php',
+    'PHPUnit\\Runner\\CodeCoverageFileExistsException' => $vendorDir . '/phpunit/phpunit/src/Runner/Exception/CodeCoverageFileExistsException.php',
     'PHPUnit\\Runner\\CodeCoverageInitializationStatus' => $vendorDir . '/phpunit/phpunit/src/Runner/CodeCoverageInitializationStatus.php',
     'PHPUnit\\Runner\\DeprecationCollector\\Collector' => $vendorDir . '/phpunit/phpunit/src/Runner/DeprecationCollector/Collector.php',
     'PHPUnit\\Runner\\DeprecationCollector\\Facade' => $vendorDir . '/phpunit/phpunit/src/Runner/DeprecationCollector/Facade.php',

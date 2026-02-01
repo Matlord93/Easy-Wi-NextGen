@@ -63,7 +63,7 @@ func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() 
 		serviceName = fmt.Sprintf("ts3-%s", instanceID)
 	}
 	if startCommand == "" {
-		startCommand = "./ts3server inifile=ts3server.ini license_accepted=1"
+		startCommand = "/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1"
 		if adminPassword != "" {
 			startCommand = fmt.Sprintf("%s serveradmin_password=%s", startCommand, adminPassword)
 		}

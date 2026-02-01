@@ -20,6 +20,7 @@ type sinusbotsvcServer struct {
 
 type instanceMeta struct {
 	InstanceID string    `json:"instance_id"`
+	BotID      string    `json:"bot_id"`
 	CustomerID int       `json:"customer_id"`
 	Username   string    `json:"username"`
 	Password   string    `json:"password"`
@@ -87,10 +88,12 @@ func (s *sinusbotsvcServer) handleInstances(w http.ResponseWriter, r *http.Reque
 
 	respondJSON(w, http.StatusCreated, map[string]any{
 		"instanceId": meta.InstanceID,
+		"botId":      meta.BotID,
 		"username":   meta.Username,
 		"password":   meta.Password,
 		"manageUrl":  meta.ManageURL,
 		"status":     meta.Status,
+		"webPort":    meta.WebPort,
 	})
 }
 
@@ -139,6 +142,10 @@ func (s *sinusbotsvcServer) handleInstance(w http.ResponseWriter, r *http.Reques
 	case http.MethodGet:
 		if action == "status" {
 			s.handleStatus(w, instanceID)
+			return
+		}
+		if action == "" {
+			s.handleInfo(w, instanceID)
 			return
 		}
 		respondError(w, http.StatusNotFound, "not_found", "unknown action")
@@ -268,6 +275,31 @@ func (s *sinusbotsvcServer) handleStatus(w http.ResponseWriter, instanceID strin
 	respondJSON(w, http.StatusOK, map[string]any{"status": meta.Status})
 }
 
+func (s *sinusbotsvcServer) handleInfo(w http.ResponseWriter, instanceID string) {
+	meta, err := s.loadInstance(instanceID)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "not_found", err.Error())
+		return
+	}
+	if meta.BotID == "" {
+		meta.BotID = meta.InstanceID
+	}
+	status := serviceStatus(instanceServiceName(instanceID))
+	if status != "" {
+		meta.Status = status
+	}
+	_ = s.saveInstance(meta)
+	respondJSON(w, http.StatusOK, map[string]any{
+		"instanceId": meta.InstanceID,
+		"botId":      meta.BotID,
+		"username":   meta.Username,
+		"password":   meta.Password,
+		"manageUrl":  meta.ManageURL,
+		"status":     meta.Status,
+		"webPort":    meta.WebPort,
+	})
+}
+
 func (s *sinusbotsvcServer) createInstance(instanceRoot, installDir, webBindIP string, webPortBase int, req createInstanceRequest) (instanceMeta, error) {
 	if err := os.MkdirAll(instanceRoot, 0o755); err != nil {
 		return instanceMeta{}, err
@@ -319,6 +351,7 @@ func (s *sinusbotsvcServer) createInstance(instanceRoot, installDir, webBindIP s
 
 	meta := instanceMeta{
 		InstanceID: instanceID,
+		BotID:      instanceID,
 		CustomerID: req.CustomerID,
 		Username:   username,
 		Password:   password,

@@ -34,7 +34,7 @@
                         <tr>
                             <td>
                                 <div>{{ node.name }}</div>
-                                <div class="sinusbot-muted">{{ node.agentBaseUrl }}</div>
+                                <div class="sinusbot-muted">{{ node.agent.serviceBaseUrl ?: 'Keine Agent-URL hinterlegt' }}</div>
                             </td>
                             {% set sinusStatusLabel = node.installStatus %}
                             {% if node.installStatus == 'installed' %}

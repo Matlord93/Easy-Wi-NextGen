@@ -11,6 +11,7 @@ use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints as Assert;
 
 final class SinusbotNodeType extends AbstractType
 {
@@ -39,8 +40,15 @@ final class SinusbotNodeType extends AbstractType
             ])
             ->add('downloadUrl', TextType::class)
             ->add('installPath', TextType::class, [
-                'required' => false,
-                'empty_data' => '',
+                'required' => true,
+                'help' => 'Muss absolut sein, kein "..", "~" oder Nullbytes.',
+                'constraints' => [
+                    new Assert\NotBlank(message: 'Installationspfad darf nicht leer sein.'),
+                    new Assert\Regex(pattern: '/^\\//', message: 'Installationspfad muss mit "/" beginnen.'),
+                    new Assert\Regex(pattern: '/\\.\\./', match: false, message: 'Installationspfad darf kein ".." enthalten.'),
+                    new Assert\Regex(pattern: '/\\x00/', match: false, message: 'Installationspfad darf keine Nullbytes enthalten.'),
+                    new Assert\Regex(pattern: '/~/', match: false, message: 'Installationspfad darf kein "~" enthalten.'),
+                ],
             ])
             ->add('instanceRoot', TextType::class, [
                 'required' => false,

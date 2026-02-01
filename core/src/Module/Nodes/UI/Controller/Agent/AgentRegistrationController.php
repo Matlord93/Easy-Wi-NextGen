@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller\Agent;
 
-use App\Module\Core\Domain\Entity\Agent;
 use App\Repository\AgentRepository;
 use App\Repository\AgentRegistrationTokenRepository;
+use App\Module\Core\Application\AgentConfigurationException;
+use App\Module\Core\Application\AgentCreator;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
@@ -31,6 +32,7 @@ final class AgentRegistrationController
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
+        private readonly AgentCreator $agentCreator,
         private readonly AuditLogger $auditLogger,
         #[Autowire('%env(default::AGENT_REGISTRATION_TOKEN)%')]
         private readonly string $registrationToken,
@@ -98,7 +100,11 @@ final class AgentRegistrationController
             );
         }
 
-        $agent = new Agent($agentId, $secretPayload, $name);
+        try {
+            $agent = $this->agentCreator->create($agentId, $secretPayload, $name);
+        } catch (AgentConfigurationException $exception) {
+            throw new BadRequestHttpException($exception->getMessage(), $exception);
+        }
         $this->entityManager->persist($agent);
         $this->auditLogger->log(null, 'agent.registered', [
             'agent_id' => $agentId,

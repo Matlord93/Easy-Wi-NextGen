@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AgentConfigurationException;
+use App\Module\Core\Application\Sinusbot\AgentBadResponseException;
+use App\Module\Core\Application\Sinusbot\AgentUnavailableException;
 use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
 use App\Module\Core\Domain\Entity\User;
@@ -72,6 +75,9 @@ final class AdminSinusbotInstanceController
                 $username !== '' ? $username : null,
             );
         } catch (\InvalidArgumentException $exception) {
+            $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
+            return $this->redirectToNode($nodeId);
+        } catch (AgentConfigurationException | AgentBadResponseException | AgentUnavailableException $exception) {
             $request->getSession()->getFlashBag()->add('error', $exception->getMessage());
             return $this->redirectToNode($nodeId);
         } catch (UniqueConstraintViolationException) {

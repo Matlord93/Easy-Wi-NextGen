@@ -33,6 +33,12 @@ class SinusbotInstance
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $manageUrl = null;
 
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $botId = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $webPort = null;
+
     #[ORM\Column(length: 120)]
     private string $sinusbotUsername;
 
@@ -44,6 +50,9 @@ class SinusbotInstance
 
     #[ORM\Column(length: 16)]
     private string $status;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastSeenAt = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -121,6 +130,28 @@ class SinusbotInstance
         $this->touch();
     }
 
+    public function getBotId(): ?string
+    {
+        return $this->botId;
+    }
+
+    public function setBotId(?string $botId): void
+    {
+        $this->botId = $botId !== '' ? $botId : null;
+        $this->touch();
+    }
+
+    public function getWebPort(): ?int
+    {
+        return $this->webPort;
+    }
+
+    public function setWebPort(?int $webPort): void
+    {
+        $this->webPort = $webPort;
+        $this->touch();
+    }
+
     public function getSinusbotUsername(): string
     {
         return $this->sinusbotUsername;
@@ -166,6 +197,17 @@ class SinusbotInstance
     public function setStatus(string $status): void
     {
         $this->status = $status;
+        $this->touch();
+    }
+
+    public function getLastSeenAt(): ?\DateTimeImmutable
+    {
+        return $this->lastSeenAt;
+    }
+
+    public function setLastSeenAt(?\DateTimeImmutable $lastSeenAt): void
+    {
+        $this->lastSeenAt = $lastSeenAt;
         $this->touch();
     }
 
