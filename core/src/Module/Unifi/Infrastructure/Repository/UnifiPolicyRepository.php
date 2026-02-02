@@ -21,13 +21,18 @@ class UnifiPolicyRepository extends ServiceEntityRepository
     public function getPolicy(): UnifiPolicy
     {
         $policy = $this->findOneBy([]);
-        if ($policy instanceof UnifiPolicy) {
+        if ($policy === null) {
+            $policy = new UnifiPolicy();
+            $entityManager = $this->getEntityManager();
+            $entityManager->persist($policy);
+            $entityManager->flush();
+
             return $policy;
         }
 
-        $policy = new UnifiPolicy();
-        $this->_em->persist($policy);
-        $this->_em->flush();
+        if (! $policy instanceof UnifiPolicy) {
+            throw new \RuntimeException('Unexpected Unifi policy type.');
+        }
 
         return $policy;
     }

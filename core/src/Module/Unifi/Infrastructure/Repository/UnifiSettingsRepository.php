@@ -21,13 +21,18 @@ class UnifiSettingsRepository extends ServiceEntityRepository
     public function getSettings(): UnifiSettings
     {
         $settings = $this->findOneBy([]);
-        if ($settings instanceof UnifiSettings) {
+        if ($settings === null) {
+            $settings = new UnifiSettings();
+            $entityManager = $this->getEntityManager();
+            $entityManager->persist($settings);
+            $entityManager->flush();
+
             return $settings;
         }
 
-        $settings = new UnifiSettings();
-        $this->_em->persist($settings);
-        $this->_em->flush();
+        if (! $settings instanceof UnifiSettings) {
+            throw new \RuntimeException('Unexpected Unifi settings type.');
+        }
 
         return $settings;
     }
