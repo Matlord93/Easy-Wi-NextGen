@@ -156,6 +156,7 @@ final class CustomerJobApiController
 
         if (!in_array($job->getStatus(), [
             \App\Module\Core\Domain\Enum\JobStatus::Queued,
+            \App\Module\Core\Domain\Enum\JobStatus::Claimed,
             \App\Module\Core\Domain\Enum\JobStatus::Running,
         ], true)) {
             return new JsonResponse(['error' => 'Only queued or running jobs can be cancelled.'], JsonResponse::HTTP_CONFLICT);

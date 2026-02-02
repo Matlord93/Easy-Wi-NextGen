@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Module\Core\Application\Exception\FileServiceException;
+use App\Module\Core\Application\Exception\SftpException;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -12,6 +14,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Application\SftpFileService;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,6 +34,7 @@ final class CustomerInstanceFileApiController
         private readonly SftpFileService $sftpFileService,
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $appSettingsService,
+        private readonly LoggerInterface $logger,
         #[Autowire(service: 'limiter.instance_files_uploads')]
         private readonly RateLimiterFactory $uploadsLimiter,
         #[Autowire(service: 'limiter.instance_files_commands')]
@@ -42,24 +46,53 @@ final class CustomerInstanceFileApiController
     #[Route(path: '/api/v1/customer/instances/{id}/files', name: 'customer_instance_files_api_list_v1', methods: ['GET'])]
     public function list(Request $request, int $id): JsonResponse
     {
-        $this->assertDataManagerEnabled();
-        $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
-        $path = trim((string) $request->query->get('path', ''));
+        $startedAt = microtime(true);
+        $source = 'filesvc';
+        $statusCode = JsonResponse::HTTP_OK;
+        try {
+            $this->assertDataManagerEnabled();
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+            $path = trim((string) $request->query->get('path', ''));
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
+            return $this->handleHttpError($request, $exception);
+        }
 
         try {
-            $listing = $this->withFileFallback(
-                fn () => $this->fileService->list($instance, $path),
-                fn () => $this->sftpFileService->list($instance, $path),
-            );
+            $listing = $this->fileService->list($instance, $path);
+        } catch (FileServiceException $exception) {
+            if (!$this->shouldFallback($exception)) {
+                return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $exception, $startedAt);
+            }
+            $source = 'sftp';
+            try {
+                $listing = $this->sftpFileService->list($instance, $path);
+            } catch (SftpException $sftpException) {
+                return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $sftpException, $startedAt);
+            }
+        } catch (SftpException $exception) {
+            $source = 'sftp';
+            return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $exception, $startedAt);
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $exception, $startedAt);
         }
+
+        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        $this->logger->info('instance.files.list', [
+            'request_id' => $this->getRequestId($request),
+            'user_id' => $customer->getId(),
+            'instance_id' => $instance->getId(),
+            'path' => $path,
+            'source' => $source,
+            'status_code' => $statusCode,
+            'duration_ms' => $durationMs,
+        ]);
 
         return new JsonResponse([
             'root_path' => $listing['root_path'],
             'path' => $listing['path'],
             'entries' => array_map(fn (array $entry) => $this->normalizeEntry($entry), $listing['entries']),
+            'request_id' => $this->getRequestId($request),
         ]);
     }
 
@@ -500,11 +533,96 @@ final class CustomerInstanceFileApiController
 
     private function shouldFallback(\RuntimeException $exception): bool
     {
+        if ($exception instanceof FileServiceException) {
+            return in_array($exception->getErrorCode(), [
+                'filesvc_unreachable',
+                'filesvc_misconfigured',
+                'filesvc_timeout',
+            ], true);
+        }
+
         $message = $exception->getMessage();
 
         return str_contains($message, 'File service unavailable')
             || str_contains($message, 'File service host not configured')
             || str_contains($message, 'File service TLS client certificates are not configured');
+    }
+
+    private function handleListingError(
+        Request $request,
+        int $userId,
+        int $instanceId,
+        string $path,
+        string $source,
+        \RuntimeException $exception,
+        float $startedAt,
+    ): JsonResponse {
+        $requestId = $this->getRequestId($request);
+        $statusCode = JsonResponse::HTTP_BAD_GATEWAY;
+        $errorCode = 'files_listing_failed';
+        $details = [];
+
+        if ($exception instanceof FileServiceException) {
+            $statusCode = $exception->getStatusCode();
+            $errorCode = $exception->getErrorCode();
+            $details = $exception->getDetails();
+        } elseif ($exception instanceof SftpException) {
+            $statusCode = $exception->getStatusCode();
+            $errorCode = $exception->getErrorCode();
+            $details = $exception->getDetails();
+        }
+
+        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        $this->logger->warning('instance.files.list', [
+            'request_id' => $requestId,
+            'user_id' => $userId,
+            'instance_id' => $instanceId,
+            'path' => $path,
+            'source' => $source,
+            'status_code' => $statusCode,
+            'duration_ms' => $durationMs,
+            'error_code' => $errorCode,
+            'error' => $exception->getMessage(),
+        ]);
+
+        return new JsonResponse([
+            'error_code' => $errorCode,
+            'message' => $exception->getMessage(),
+            'request_id' => $requestId,
+            'details' => $details,
+        ], $statusCode);
+    }
+
+    private function getRequestId(Request $request): string
+    {
+        $requestId = $request->headers->get('X-Request-ID');
+        if (is_string($requestId) && $requestId !== '') {
+            return $requestId;
+        }
+
+        $attribute = $request->attributes->get('request_id');
+        if (is_string($attribute) && $attribute !== '') {
+            return $attribute;
+        }
+
+        return '';
+    }
+
+    private function handleHttpError(Request $request, \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception): JsonResponse
+    {
+        $status = $exception->getStatusCode();
+        $errorCode = match (true) {
+            $exception instanceof \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException => 'files_forbidden',
+            $exception instanceof \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException => 'files_unauthorized',
+            $exception instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException => 'files_not_found',
+            default => 'files_request_failed',
+        };
+
+        return new JsonResponse([
+            'error_code' => $errorCode,
+            'message' => $exception->getMessage(),
+            'request_id' => $this->getRequestId($request),
+        ], $status);
     }
 
     private function uploadViaSftp(Instance $instance, string $path, \Symfony\Component\HttpFoundation\File\UploadedFile $upload): void

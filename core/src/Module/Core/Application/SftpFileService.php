@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Module\Core\Application\Exception\SftpException;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Repository\InstanceSftpCredentialRepository;
 use phpseclib3\Crypt\PublicKeyLoader;
@@ -31,12 +32,16 @@ final class SftpFileService
         $remoteRoot = $this->resolveRemoteRoot($sftp, $rootPath);
         $remotePath = $this->joinRemotePath($remoteRoot, $normalizedPath);
         if (!$sftp->is_dir($remotePath)) {
-            throw new \RuntimeException('Directory not found.');
+            throw new SftpException('sftp_path_not_found', 'Directory not found.', 404, [
+                'path' => $normalizedPath,
+            ]);
         }
 
         $listing = $sftp->rawlist($remotePath, true);
         if ($listing === false) {
-            throw new \RuntimeException('Unable to list directory.');
+            throw new SftpException('sftp_list_failed', 'Unable to list directory.', 502, [
+                'path' => $normalizedPath,
+            ]);
         }
 
         $entries = [];
@@ -195,7 +200,11 @@ final class SftpFileService
         }
 
         if (!$loggedIn) {
-            throw new \RuntimeException('Unable to authenticate with SFTP server.');
+            throw new SftpException('sftp_auth_failed', 'Unable to authenticate with SFTP server.', 502, [
+                'host' => $host,
+                'port' => $port,
+                'username' => $username,
+            ]);
         }
 
         return $sftp;
@@ -219,7 +228,7 @@ final class SftpFileService
             return $host;
         }
 
-        throw new \RuntimeException('SFTP host not configured.');
+        throw new SftpException('sftp_misconfigured', 'SFTP host not configured.', 422);
     }
 
     private function resolvePort(Instance $instance): int
@@ -266,7 +275,7 @@ final class SftpFileService
             return $password;
         }
 
-        throw new \RuntimeException('SFTP password not configured.');
+        throw new SftpException('sftp_misconfigured', 'SFTP password not configured.', 422);
     }
 
     private function resolveAuthentication(): ?\phpseclib3\Crypt\PublicKey

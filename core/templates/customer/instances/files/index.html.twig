@@ -208,6 +208,7 @@
 
 {% block javascripts %}
     {{ parent() }}
+    <script src="/js/file-manager-errors.js"></script>
     <script>
         (() => {
             const app = document.getElementById('file-manager-app');
@@ -248,6 +249,20 @@
                 sftpReady: "{{ t('customer_instance_files_sftp_ready', page_locale())|e('js') }}",
                 sftpResetting: "{{ t('customer_instance_files_sftp_resetting', page_locale())|e('js') }}",
                 sftpFailed: "{{ t('customer_instance_files_sftp_failed', page_locale())|e('js') }}",
+                sftpForbidden: "{{ t('customer_instance_files_sftp_forbidden', page_locale())|e('js') }}",
+                sftpPending: "{{ t('customer_instance_files_sftp_pending', page_locale())|e('js') }}",
+                sftpFailedReason: "{{ t('customer_instance_files_sftp_failed_reason', page_locale())|e('js') }}",
+                sftpAgentOffline: "{{ t('customer_instance_files_sftp_agent_offline', page_locale())|e('js') }}",
+                requestIdLabel: "{{ t('customer_instance_files_request_id', page_locale())|e('js') }}",
+                listingFilesvcMisconfigured: "{{ t('customer_instance_files_listing_filesvc_misconfigured', page_locale())|e('js') }}",
+                listingFilesvcTimeout: "{{ t('customer_instance_files_listing_filesvc_timeout', page_locale())|e('js') }}",
+                listingFilesvcUnreachable: "{{ t('customer_instance_files_listing_filesvc_unreachable', page_locale())|e('js') }}",
+                listingFilesvcUnauthorized: "{{ t('customer_instance_files_listing_filesvc_unauthorized', page_locale())|e('js') }}",
+                listingSftpMisconfigured: "{{ t('customer_instance_files_listing_sftp_misconfigured', page_locale())|e('js') }}",
+                listingSftpAuthFailed: "{{ t('customer_instance_files_listing_sftp_auth_failed', page_locale())|e('js') }}",
+                listingPathNotFound: "{{ t('customer_instance_files_listing_path_not_found', page_locale())|e('js') }}",
+                listingForbidden: "{{ t('customer_instance_files_listing_forbidden', page_locale())|e('js') }}",
+                listingUnauthorized: "{{ t('customer_instance_files_listing_unauthorized', page_locale())|e('js') }}",
             };
             const listingBody = document.getElementById('file-listing-body');
             const rootPathEl = document.getElementById('file-root-path');
@@ -274,6 +289,23 @@
             const sftpReset = document.getElementById('sftp-reset');
 
             let currentPath = pathInput.value || '';
+            const helpers = window.EasyWiFileManager || {};
+            const buildRequestId = helpers.buildRequestId || (() => `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`);
+            const normalizeErrorPayload = helpers.normalizeErrorPayload || ((payload, fallbackMessage, requestId) => ({
+                message: (payload && payload.message) || fallbackMessage,
+                errorCode: (payload && payload.error_code) || 'unknown_error',
+                details: payload && payload.details ? payload.details : {},
+                requestId: (payload && payload.request_id) || requestId || '',
+            }));
+            const formatErrorMessage = helpers.formatErrorMessage || ((error, suffixLabel) => {
+                if (!error) {
+                    return '';
+                }
+                if (!error.requestId) {
+                    return error.message;
+                }
+                return `${error.message} (${suffixLabel} ${error.requestId})`;
+            });
 
             const setFeedback = (message, type = 'info') => {
                 if (!feedbackEl) {
@@ -309,28 +341,92 @@
                 if (sftpUpdated) sftpUpdated.textContent = credential.updated_at || '—';
             };
 
+            const updateSftpState = (payload, errorInfo = null) => {
+                if (payload && payload.error_code) {
+                    errorInfo = normalizeErrorPayload(payload, labels.sftpFailed, payload.request_id);
+                }
+                if (errorInfo) {
+                    if (['sftp_forbidden', 'sftp_unauthorized'].includes(errorInfo.errorCode)) {
+                        setSftpStatus(labels.sftpForbidden, 'error');
+                        return;
+                    }
+                    if (['sftp_credentials_missing', 'sftp_provisioning_pending'].includes(errorInfo.errorCode)) {
+                        const pendingJob = errorInfo.details && errorInfo.details.job;
+                        const agent = errorInfo.details && errorInfo.details.agent;
+                        if (pendingJob && ['queued', 'claimed', 'running'].includes(pendingJob.status)) {
+                            if (agent && agent.status !== 'online') {
+                                setSftpStatus(labels.sftpAgentOffline, 'error');
+                                return;
+                            }
+                            setSftpStatus(labels.sftpPending);
+                            return;
+                        }
+                        setSftpStatus(labels.sftpUnavailable, 'error');
+                        return;
+                    }
+                    const message = formatErrorMessage(errorInfo, labels.requestIdLabel);
+                    setSftpStatus(message || labels.sftpFailed, 'error');
+                    return;
+                }
+
+                const job = payload?.job || null;
+                const agent = payload?.agent || null;
+                if (job && ['queued', 'claimed', 'running'].includes(job.status)) {
+                    if (agent && agent.status !== 'online') {
+                        setSftpStatus(labels.sftpAgentOffline, 'error');
+                        return;
+                    }
+                    setSftpStatus(labels.sftpPending);
+                    return;
+                }
+                if (job && job.status === 'failed') {
+                    const detail = job.last_error || job.last_error_code || '';
+                    setSftpStatus(detail ? `${labels.sftpFailedReason} ${detail}` : labels.sftpFailed, 'error');
+                    return;
+                }
+                setSftpStatus(labels.sftpReady);
+            };
+
+            const readErrorPayload = async (response, fallbackMessage) => {
+                const requestId = response.headers.get('X-Request-ID') || '';
+                const payload = await response.json().catch(() => null);
+                return normalizeErrorPayload(payload, fallbackMessage, requestId);
+            };
+
             const loadSftpCredentials = async () => {
                 if (!sftpStatus) {
                     return;
                 }
                 setSftpStatus(labels.sftpLoading);
+                if (sftpRefresh) {
+                    sftpRefresh.disabled = true;
+                }
                 try {
+                    const requestId = buildRequestId();
                     const response = await fetch(sftpShowUrl, {
-                        headers: { 'Accept': 'application/json' },
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Request-ID': requestId,
+                        },
                     });
-                    if (response.status === 404) {
-                        updateSftpFields(null);
-                        setSftpStatus(labels.sftpUnavailable, 'error');
-                        return;
-                    }
                     if (!response.ok) {
-                        throw new Error('request failed');
+                        const errorInfo = await readErrorPayload(response, labels.sftpFailed);
+                        updateSftpFields(null);
+                        updateSftpState(null, errorInfo);
+                        return;
                     }
                     const data = await response.json();
                     updateSftpFields(data.credential || null);
-                    setSftpStatus(labels.sftpReady);
+                    updateSftpState(data, null);
                 } catch (error) {
                     setSftpStatus(labels.sftpFailed, 'error');
+                } finally {
+                    if (sftpRefresh) {
+                        sftpRefresh.disabled = false;
+                    }
+                    if (sftpStatus && sftpStatus.textContent === labels.sftpLoading) {
+                        setSftpStatus(labels.sftpFailed, 'error');
+                    }
                 }
             };
 
@@ -339,19 +435,36 @@
                     return;
                 }
                 setSftpStatus(labels.sftpResetting);
+                if (sftpReset) {
+                    sftpReset.disabled = true;
+                }
                 try {
+                    const requestId = buildRequestId();
                     const response = await fetch(sftpResetUrl, {
                         method: 'POST',
-                        headers: { 'Accept': 'application/json' },
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Request-ID': requestId,
+                        },
                     });
                     if (!response.ok) {
-                        throw new Error('request failed');
+                        const errorInfo = await readErrorPayload(response, labels.sftpFailed);
+                        updateSftpFields(null);
+                        updateSftpState(null, errorInfo);
+                        return;
                     }
                     const data = await response.json();
                     updateSftpFields(data.credential || null);
-                    setSftpStatus(labels.sftpReady);
+                    updateSftpState(data, null);
                 } catch (error) {
                     setSftpStatus(labels.sftpFailed, 'error');
+                } finally {
+                    if (sftpReset) {
+                        sftpReset.disabled = false;
+                    }
+                    if (sftpStatus && sftpStatus.textContent === labels.sftpResetting) {
+                        setSftpStatus(labels.sftpFailed, 'error');
+                    }
                 }
             };
 
@@ -445,12 +558,18 @@
                 setFeedback(labels.loading);
                 listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-700">${labels.loading}</td></tr>`;
                 try {
+                    const requestId = buildRequestId();
                     const response = await fetchWithTimeout(`${listUrl}${buildQuery({ path })}`, {
-                        headers: { 'Accept': 'application/json' },
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Request-ID': requestId,
+                        },
                     });
                     const data = await response.json().catch(() => ({}));
                     if (!response.ok) {
-                        throw new Error(data.error || labels.listingFailedDefault);
+                        const errorInfo = normalizeErrorPayload(data, labels.listingFailedDefault, response.headers.get('X-Request-ID'));
+                        const message = resolveListingError(errorInfo);
+                        throw new Error(message);
                     }
                     updatePathDisplay(data.root_path, data.path);
                     renderEntries(data.entries || []);
@@ -461,12 +580,39 @@
                         : (error.message || labels.listingFailed);
                     listingBody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-rose-600">${message}</td></tr>`;
                     setFeedback(message, 'error');
+                } finally {
+                    if (feedbackEl && feedbackEl.textContent === labels.loading) {
+                        setFeedback('');
+                    }
                 }
             };
 
             const downloadFile = (path, name) => {
                 const url = `${downloadUrl}${buildQuery({ path, name })}`;
                 window.location.assign(url);
+            };
+
+            const resolveListingError = (errorInfo) => {
+                if (!errorInfo) {
+                    return labels.listingFailedDefault;
+                }
+                const mapping = {
+                    filesvc_misconfigured: labels.listingFilesvcMisconfigured,
+                    filesvc_timeout: labels.listingFilesvcTimeout,
+                    filesvc_unreachable: labels.listingFilesvcUnreachable,
+                    filesvc_unauthorized: labels.listingFilesvcUnauthorized,
+                    filesvc_not_found: labels.listingFailedDefault,
+                    filesvc_error: labels.listingFailedDefault,
+                    sftp_misconfigured: labels.listingSftpMisconfigured,
+                    sftp_auth_failed: labels.listingSftpAuthFailed,
+                    sftp_path_not_found: labels.listingPathNotFound,
+                    sftp_list_failed: labels.listingFailedDefault,
+                    files_listing_failed: labels.listingFailedDefault,
+                    files_forbidden: labels.listingForbidden,
+                    files_unauthorized: labels.listingUnauthorized,
+                };
+                const message = mapping[errorInfo.errorCode] || errorInfo.message || labels.listingFailedDefault;
+                return formatErrorMessage({ ...errorInfo, message }, labels.requestIdLabel);
             };
 
             const readFile = async (path, name) => {

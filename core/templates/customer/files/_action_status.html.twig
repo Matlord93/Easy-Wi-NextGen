@@ -1,4 +1,4 @@
-{% if status == 'queued' %}
+{% if status in ['queued', 'claimed', 'running'] %}
     <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
         {{ message|default(t('customer_files_action_queued', page_locale())) }}
     </div>

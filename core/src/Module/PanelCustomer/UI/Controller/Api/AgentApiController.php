@@ -36,6 +36,7 @@ use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Gameserver\Application\Query\QueryResultNormalizer;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -78,6 +79,7 @@ final class AgentApiController
         private readonly InstanceFilesystemResolver $filesystemResolver,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly JobLogger $jobLogger,
+        private readonly LoggerInterface $logger,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%app.windows_nodes_enabled%')]
         private readonly bool $windowsNodesEnabled,
     ) {
@@ -137,6 +139,7 @@ final class AgentApiController
         $this->expireStaleJobs($now);
 
         $jobs = $this->jobRepository->findQueuedForDispatch(20);
+        $totalQueued = count($jobs);
         $jobPayloads = [];
         $updateJobTypes = ['sniper.update', 'agent.update', 'agent.self_update'];
         $nonBlockingJobTypes = ['instance.logs.tail', 'webspace.logs.tail'];
@@ -146,12 +149,27 @@ final class AgentApiController
         $runningJobs = $this->jobRepository->countRunningByAgentExcludingTypes($agent->getId(), $nonBlockingJobTypes);
         $availableSlots = max(0, $maxConcurrency - $runningJobs);
         $isWindowsAgent = $this->isWindowsAgent($agent);
+        $backoffSeconds = 30;
+        $rejections = [
+            'not_queued' => 0,
+            'agent_mismatch' => 0,
+            'slots_full' => 0,
+            'update_limit' => 0,
+            'windows_unsupported' => 0,
+            'backoff' => 0,
+        ];
 
         if ($isWindowsAgent && !$this->windowsNodesEnabled) {
             throw new ServiceUnavailableHttpException(null, 'Windows nodes are currently disabled.');
         }
 
         if ($availableSlots === 0) {
+            $this->logger->info('agent.jobs.poll', [
+                'agent_id' => $agent->getId(),
+                'queued_jobs' => $totalQueued,
+                'available_slots' => 0,
+                'rejections' => $rejections,
+            ]);
             return new JsonResponse([
                 'jobs' => [],
                 'max_concurrency' => $maxConcurrency,
@@ -161,30 +179,44 @@ final class AgentApiController
         $dispatched = 0;
         foreach ($jobs as $job) {
             if ($dispatched >= $availableSlots) {
+                $rejections['slots_full'] += max(0, $totalQueued - $dispatched);
                 break;
             }
             if ($job->getStatus() !== JobStatus::Queued) {
+                $rejections['not_queued']++;
                 continue;
+            }
+
+            if ($job->getAttempts() > 0 && $job->getLastAttemptAt() !== null) {
+                $retryAt = $job->getLastAttemptAt()->modify(sprintf('+%d seconds', $backoffSeconds));
+                if ($retryAt > $now) {
+                    $rejections['backoff']++;
+                    continue;
+                }
             }
 
             $payload = $job->getPayload();
             $targetAgentId = is_string($payload['agent_id'] ?? null) ? $payload['agent_id'] : '';
             if ($targetAgentId !== '' && $targetAgentId !== $agent->getId()) {
+                $rejections['agent_mismatch']++;
                 continue;
             }
 
             if (in_array($job->getType(), $updateJobTypes, true) && $runningUpdateJobs >= $maxUpdateJobsPerAgent) {
+                $rejections['update_limit']++;
                 continue;
             }
 
             if ($isWindowsAgent && !in_array($job->getType(), self::WINDOWS_SAFE_JOB_TYPES, true)) {
+                $rejections['windows_unsupported']++;
                 continue;
             }
 
             $lockToken = bin2hex(random_bytes(16));
             $job->lock($agent->getId(), $lockToken, $now->modify('+10 minutes'));
-            $job->transitionTo(JobStatus::Running);
-            $this->jobLogger->log($job, 'Job started.', 10);
+            $job->claim($agent->getId(), $now);
+            $job->transitionTo(JobStatus::Claimed);
+            $this->jobLogger->log($job, 'Job claimed.', 5);
 
             $this->eventDispatcher->dispatch(
                 new \App\Extension\Event\JobBeforeDispatchEvent($job, $agent),
@@ -212,10 +244,46 @@ final class AgentApiController
 
         $this->entityManager->flush();
 
+        $this->logger->info('agent.jobs.poll', [
+            'agent_id' => $agent->getId(),
+            'queued_jobs' => $totalQueued,
+            'assigned_jobs' => $dispatched,
+            'available_slots' => $availableSlots,
+            'rejections' => $rejections,
+        ]);
+
         return new JsonResponse([
             'jobs' => $jobPayloads,
             'max_concurrency' => $maxConcurrency,
         ]);
+    }
+
+    #[Route(path: '/agent/jobs/{id}/start', name: 'agent_job_start', methods: ['POST'])]
+    #[Route(path: '/api/v1/agent/jobs/{id}/start', name: 'agent_job_start_v1', methods: ['POST'])]
+    public function jobStart(Request $request, string $id): JsonResponse
+    {
+        $agent = $this->requireAgent($request);
+        $job = $this->jobRepository->find($id);
+
+        if ($job === null) {
+            throw new NotFoundHttpException('Job not found.');
+        }
+
+        if (!in_array($job->getStatus(), [JobStatus::Claimed, JobStatus::Running], true)) {
+            throw new ConflictHttpException('Job is not claimed.');
+        }
+
+        if ($job->getLockedBy() !== $agent->getId()) {
+            throw new ConflictHttpException('Job is not locked by this agent.');
+        }
+
+        if ($job->getStatus() === JobStatus::Claimed) {
+            $job->transitionTo(JobStatus::Running);
+            $this->jobLogger->log($job, 'Job started.', 10);
+            $this->entityManager->flush();
+        }
+
+        return new JsonResponse(['status' => 'ok']);
     }
 
     #[Route(path: '/agent/jobs/{id}/result', name: 'agent_job_result', methods: ['POST'])]
@@ -229,7 +297,7 @@ final class AgentApiController
             throw new NotFoundHttpException('Job not found.');
         }
 
-        if ($job->getStatus() !== JobStatus::Running) {
+        if (!in_array($job->getStatus(), [JobStatus::Claimed, JobStatus::Running], true)) {
             throw new ConflictHttpException('Job is not running.');
         }
 
@@ -263,6 +331,7 @@ final class AgentApiController
         $this->appendJobLogsFromOutput($job, $output);
 
         $jobResult = new JobResult($job, $resultStatus, $output, $completedAt);
+        $this->applyJobFailureContext($job, $resultStatus, $output);
         $job->transitionTo(match ($resultStatus) {
             JobResultStatus::Succeeded => JobStatus::Succeeded,
             JobResultStatus::Failed => JobStatus::Failed,
@@ -274,6 +343,7 @@ final class AgentApiController
         if ($lockToken !== null) {
             $job->unlock($lockToken);
         }
+        $job->clearClaim();
 
         $this->entityManager->persist($jobResult);
         $this->applyDomainUpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
@@ -322,7 +392,7 @@ final class AgentApiController
             throw new NotFoundHttpException('Job not found.');
         }
 
-        if ($job->getStatus() !== JobStatus::Running) {
+        if (!in_array($job->getStatus(), [JobStatus::Claimed, JobStatus::Running], true)) {
             throw new ConflictHttpException('Job is not running.');
         }
 
@@ -343,6 +413,11 @@ final class AgentApiController
 
         if ($job->getLockExpiresAt() === null || $job->getLockExpiresAt() <= new DateTimeImmutable()) {
             throw new ConflictHttpException('Job lock expired.');
+        }
+
+        if ($job->getStatus() === JobStatus::Claimed) {
+            $job->transitionTo(JobStatus::Running);
+            $this->jobLogger->log($job, 'Job started.', 10);
         }
 
         $job->extendLock(new DateTimeImmutable('+10 minutes'));
@@ -488,15 +563,55 @@ final class AgentApiController
         }
 
         foreach ($staleJobs as $job) {
-            if ($job->getStatus() !== JobStatus::Running) {
+            if (!in_array($job->getStatus(), [JobStatus::Running, JobStatus::Claimed], true)) {
+                continue;
+            }
+            $job->clearLock();
+            $job->clearClaim();
+            if ($job->getAttempts() < $job->getMaxAttempts()) {
+                $job->transitionTo(JobStatus::Queued);
+                $this->jobLogger->log($job, 'Job lock expired; re-queued for retry.', 0);
                 continue;
             }
             $job->transitionTo(JobStatus::Failed);
-            $job->clearLock();
-            $this->jobLogger->log($job, 'Job lock expired.', 100);
+            $job->recordFailure('job_timeout', 'Job lock expired.');
+            $this->jobLogger->log($job, 'Job lock expired; retries exhausted.', 100);
         }
 
         $this->entityManager->flush();
+    }
+
+    private function applyJobFailureContext(\App\Module\Core\Domain\Entity\Job $job, JobResultStatus $status, array $output): void
+    {
+        if ($status !== JobResultStatus::Failed) {
+            return;
+        }
+
+        $errorCode = is_string($output['error_code'] ?? null) ? (string) $output['error_code'] : null;
+        $message = null;
+        foreach (['message', 'stderr', 'error'] as $key) {
+            $value = $output[$key] ?? null;
+            if (is_string($value) && trim($value) !== '') {
+                $message = trim($value);
+                break;
+            }
+        }
+
+        if ($message !== null) {
+            $message = $this->truncateError($message);
+        }
+
+        $job->recordFailure($errorCode, $message);
+    }
+
+    private function truncateError(string $message): string
+    {
+        $message = trim($message);
+        if (strlen($message) <= 8192) {
+            return $message;
+        }
+
+        return substr($message, 0, 8192);
     }
 
     private function isWindowsStats(array $stats): bool
@@ -1082,7 +1197,7 @@ final class AgentApiController
             if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
                 continue;
             }
-            if (in_array($job->getStatus(), [JobStatus::Queued, JobStatus::Running], true)) {
+            if (in_array($job->getStatus(), [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running], true)) {
                 return;
             }
         }

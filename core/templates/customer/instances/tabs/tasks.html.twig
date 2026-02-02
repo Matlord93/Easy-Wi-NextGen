@@ -162,7 +162,7 @@
             const data = await response.json();
             jobStatus.textContent = data.status ?? '—';
             updateProgress(data.progress ?? null);
-            jobCancel.disabled = !['queued', 'running'].includes(data.status);
+            jobCancel.disabled = !['queued', 'claimed', 'running'].includes(data.status);
         };
 
         const fetchLogs = async () => {

@@ -1,0 +1,42 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = 'UniFi Audit Logs' %}
+{% set pageSubtitle = 'Sync Aktivitäten & Fehler' %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'audit' } %}
+
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700">Audit Logs</div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-left text-sm">
+                <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-4 py-3">Zeit</th>
+                        <th class="px-4 py-3">Action</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3">Request ID</th>
+                        <th class="px-4 py-3">Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                        <tr class="border-t border-slate-200">
+                            <td class="px-4 py-3">{{ log.createdAt|date('Y-m-d H:i') }}</td>
+                            <td class="px-4 py-3">{{ log.action }}</td>
+                            <td class="px-4 py-3">{{ log.status }}</td>
+                            <td class="px-4 py-3">{{ log.requestId ?? '—' }}</td>
+                            <td class="px-4 py-3">{{ log.error ?? '—' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">Keine Logs vorhanden.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

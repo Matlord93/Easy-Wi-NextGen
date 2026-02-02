@@ -1,0 +1,17 @@
+{% set items = [
+    { label: 'Dashboard', href: '/admin/unifi', key: 'dashboard' },
+    { label: 'Verbindung', href: '/admin/unifi/connection', key: 'connection' },
+    { label: 'Policy', href: '/admin/unifi/policy', key: 'policy' },
+    { label: 'Manuelle Regeln', href: '/admin/unifi/rules', key: 'rules' },
+    { label: 'Auto-Preview', href: '/admin/unifi/auto-preview', key: 'auto-preview' },
+    { label: 'Audit Logs', href: '/admin/unifi/audit', key: 'audit' },
+    { label: 'How it works', href: '/admin/unifi/docs', key: 'docs' }
+] %}
+
+<div class="flex flex-wrap gap-2">
+    {% for item in items %}
+        <a href="{{ item.href }}" class="rounded-lg px-4 py-2 text-sm font-semibold {{ unifiNav == item.key ? 'bg-slate-900 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50' }}">
+            {{ item.label }}
+        </a>
+    {% endfor %}
+</div>

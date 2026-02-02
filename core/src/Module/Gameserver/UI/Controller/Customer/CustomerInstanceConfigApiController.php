@@ -382,7 +382,7 @@ final class CustomerInstanceConfigApiController
         $status = $job->getStatus();
         $result = $job->getResult();
 
-        if (in_array($status, [JobStatus::Queued, JobStatus::Running], true)) {
+        if (in_array($status, [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running], true)) {
             return new JsonResponse([
                 'status' => 'pending',
                 'job_id' => $job->getId(),

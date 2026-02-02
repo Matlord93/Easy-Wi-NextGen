@@ -1,7 +1,7 @@
 {% set status = status|default('queued') %}
 
 <div>
-    {% if status in ['queued', 'running'] %}
+{% if status in ['queued', 'claimed', 'running'] %}
         <span
             class="text-xs text-slate-600"
             hx-get="{{ path('customer_instance_files_download_status', {id: instanceId, jobId: jobId}) }}"

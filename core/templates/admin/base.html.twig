@@ -62,7 +62,8 @@
     { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') },
     { key: 'nodes', label: 'Agent', href: path('admin_nodes') },
     { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()), href: path('admin_agent_bootstrap_tokens') },
-    { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: path('admin_ddos') }
+    { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: path('admin_ddos') },
+    { key: 'unifi', label: 'UniFi', href: path('admin_unifi_dashboard') }
 ]|filter(v => v) %}
 
 {% set webinterfaceModuleItems = [

@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Mime\Part\DataPart;
 use Symfony\Component\Mime\Part\Multipart\FormDataPart;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TimeoutExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class FileServiceClient
@@ -29,6 +33,8 @@ final class FileServiceClient
         private readonly string $clientCertPath,
         private readonly string $clientKeyPath,
         private readonly string $clientCaPath,
+        private readonly LoggerInterface $logger,
+        private readonly RequestStack $requestStack,
     ) {
     }
 
@@ -182,25 +188,36 @@ final class FileServiceClient
         try {
             $status = $response->getStatusCode();
         } catch (TransportExceptionInterface $exception) {
-            throw new \RuntimeException('File service unavailable.', 0, $exception);
+            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [], $exception);
         }
         if ($status >= 500) {
-            throw new \RuntimeException('File service unavailable.');
+            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [
+                'status_code' => $status,
+            ]);
         }
         if ($status < 200 || $status >= 300) {
             try {
                 $payload = $response->toArray(false);
             } catch (\Throwable $exception) {
-                throw new \RuntimeException('File service error.', 0, $exception);
+                throw new FileServiceException('filesvc_error', 'File service error.', 502, [
+                    'status_code' => $status,
+                ], $exception);
             }
             $message = is_array($payload) ? (string) ($payload['error'] ?? 'File service error.') : 'File service error.';
-            throw new \RuntimeException($message);
+            $errorCode = match ($status) {
+                401, 403 => 'filesvc_unauthorized',
+                404 => 'filesvc_not_found',
+                default => 'filesvc_error',
+            };
+            throw new FileServiceException($errorCode, $message, 502, [
+                'status_code' => $status,
+            ]);
         }
 
         try {
             $payload = $response->toArray(false);
         } catch (\Throwable $exception) {
-            throw new \RuntimeException('File service unavailable.', 0, $exception);
+            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [], $exception);
         }
         return is_array($payload) ? $payload : [];
     }
@@ -240,13 +257,78 @@ final class FileServiceClient
     {
         $options = $this->buildRequestOptions($instance, $method, $endpoint, $query, $json);
         $baseUrl = $this->resolveBaseUrl($instance->getNode());
+        $fullUrl = $baseUrl . $options['endpoint'];
         $this->assertTlsConfigured($baseUrl);
+        $startedAt = microtime(true);
+
+        $this->logger->debug('filesvc.request', [
+            'agent_id' => $instance->getNode()->getId(),
+            'instance_id' => $instance->getId(),
+            'customer_id' => $instance->getCustomer()->getId(),
+            'method' => $method,
+            'url' => $fullUrl,
+            'timeout_seconds' => $this->timeoutSeconds,
+        ]);
 
         try {
-            return $this->httpClient->request($method, $baseUrl . $options['endpoint'], $options['options']);
+            $response = $this->httpClient->request($method, $fullUrl, $options['options']);
+        } catch (TimeoutExceptionInterface $exception) {
+            $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+            $this->logger->error('filesvc.transport_error', [
+                'agent_id' => $instance->getNode()->getId(),
+                'instance_id' => $instance->getId(),
+                'customer_id' => $instance->getCustomer()->getId(),
+                'method' => $method,
+                'url' => $fullUrl,
+                'timeout_seconds' => $this->timeoutSeconds,
+                'duration_ms' => $durationMs,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new FileServiceException('filesvc_timeout', 'File service timed out.', 504, [], $exception);
         } catch (TransportExceptionInterface $exception) {
-            throw new \RuntimeException('File service unavailable.', 0, $exception);
+            $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+            $this->logger->error('filesvc.transport_error', [
+                'agent_id' => $instance->getNode()->getId(),
+                'instance_id' => $instance->getId(),
+                'customer_id' => $instance->getCustomer()->getId(),
+                'method' => $method,
+                'url' => $fullUrl,
+                'timeout_seconds' => $this->timeoutSeconds,
+                'duration_ms' => $durationMs,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [], $exception);
         }
+
+        try {
+            $status = $response->getStatusCode();
+        } catch (TransportExceptionInterface $exception) {
+            $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+            $this->logger->error('filesvc.status_error', [
+                'agent_id' => $instance->getNode()->getId(),
+                'instance_id' => $instance->getId(),
+                'customer_id' => $instance->getCustomer()->getId(),
+                'method' => $method,
+                'url' => $fullUrl,
+                'timeout_seconds' => $this->timeoutSeconds,
+                'duration_ms' => $durationMs,
+                'error' => $exception->getMessage(),
+            ]);
+            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [], $exception);
+        }
+
+        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        $this->logger->debug('filesvc.response', [
+            'agent_id' => $instance->getNode()->getId(),
+            'instance_id' => $instance->getId(),
+            'customer_id' => $instance->getCustomer()->getId(),
+            'method' => $method,
+            'url' => $fullUrl,
+            'status_code' => $status,
+            'duration_ms' => $durationMs,
+        ]);
+
+        return $response;
     }
 
     /**
@@ -270,6 +352,7 @@ final class FileServiceClient
             'headers' => $headers,
             'timeout' => $this->timeoutSeconds,
             'max_duration' => $this->timeoutSeconds,
+            'connect_timeout' => min(3, $this->timeoutSeconds),
         ];
 
         if ($json !== null) {
@@ -280,6 +363,13 @@ final class FileServiceClient
         if ($tlsOptions !== []) {
             $options = array_merge($options, $tlsOptions);
         }
+
+        $requestId = $this->requestStack->getCurrentRequest()?->headers->get('X-Request-ID');
+        if (is_string($requestId) && $requestId !== '') {
+            $headers['X-Request-ID'] = $requestId;
+        }
+
+        $options['headers'] = $headers;
 
         return [
             'endpoint' => $endpointWithQuery,
@@ -350,7 +440,7 @@ final class FileServiceClient
             $host = $node->getLastHeartbeatIp();
         }
         if (!is_string($host) || $host === '') {
-            throw new \RuntimeException('File service host not configured.');
+            throw new FileServiceException('filesvc_misconfigured', 'File service host not configured.', 422);
         }
 
         $port = $metadata['filesvc_port'] ?? null;
@@ -433,6 +523,6 @@ final class FileServiceClient
             return;
         }
 
-        throw new \RuntimeException('File service TLS client certificates are not configured.');
+        throw new FileServiceException('filesvc_misconfigured', 'File service TLS client certificates are not configured.', 422);
     }
 }

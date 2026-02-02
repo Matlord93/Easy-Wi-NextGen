@@ -13,7 +13,8 @@ use Doctrine\ORM\Mapping as ORM;
 class Job
 {
     private const ALLOWED_TRANSITIONS = [
-        JobStatus::Queued->value => [JobStatus::Running, JobStatus::Cancelled],
+        JobStatus::Queued->value => [JobStatus::Claimed, JobStatus::Running, JobStatus::Cancelled],
+        JobStatus::Claimed->value => [JobStatus::Running, JobStatus::Failed, JobStatus::Cancelled],
         JobStatus::Running->value => [JobStatus::Succeeded, JobStatus::Failed, JobStatus::Cancelled],
         JobStatus::Succeeded->value => [],
         JobStatus::Failed->value => [],
@@ -35,6 +36,27 @@ class Job
 
     #[ORM\Column(nullable: true)]
     private ?int $progress = null;
+
+    #[ORM\Column(options: ['default' => 0])]
+    private int $attempts = 0;
+
+    #[ORM\Column(options: ['default' => 3])]
+    private int $maxAttempts = 3;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $claimedBy = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $claimedAt = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $lastError = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $lastErrorCode = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastAttemptAt = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -91,6 +113,47 @@ class Job
     public function getProgress(): ?int
     {
         return $this->progress;
+    }
+
+    public function getAttempts(): int
+    {
+        return $this->attempts;
+    }
+
+    public function getMaxAttempts(): int
+    {
+        return $this->maxAttempts;
+    }
+
+    public function setMaxAttempts(int $maxAttempts): void
+    {
+        $this->maxAttempts = max(1, $maxAttempts);
+        $this->touch();
+    }
+
+    public function getClaimedBy(): ?string
+    {
+        return $this->claimedBy;
+    }
+
+    public function getClaimedAt(): ?\DateTimeImmutable
+    {
+        return $this->claimedAt;
+    }
+
+    public function getLastError(): ?string
+    {
+        return $this->lastError;
+    }
+
+    public function getLastErrorCode(): ?string
+    {
+        return $this->lastErrorCode;
+    }
+
+    public function getLastAttemptAt(): ?\DateTimeImmutable
+    {
+        return $this->lastAttemptAt;
     }
 
     public function getCreatedAt(): \DateTimeImmutable
@@ -159,6 +222,29 @@ class Job
         $this->lockedAt = new \DateTimeImmutable();
         $this->lockToken = $token;
         $this->lockExpiresAt = $expiresAt;
+        $this->touch();
+    }
+
+    public function claim(string $agentId, \DateTimeImmutable $claimedAt): void
+    {
+        $this->claimedBy = $agentId;
+        $this->claimedAt = $claimedAt;
+        $this->attempts++;
+        $this->lastAttemptAt = $claimedAt;
+        $this->touch();
+    }
+
+    public function recordFailure(?string $errorCode, ?string $errorMessage): void
+    {
+        $this->lastErrorCode = $errorCode;
+        $this->lastError = $errorMessage;
+        $this->touch();
+    }
+
+    public function clearClaim(): void
+    {
+        $this->claimedBy = null;
+        $this->claimedAt = null;
         $this->touch();
     }
 

@@ -7,6 +7,7 @@ namespace App\Module\Core\Domain\Enum;
 enum JobStatus: string
 {
     case Queued = 'queued';
+    case Claimed = 'claimed';
     case Running = 'running';
     case Succeeded = 'succeeded';
     case Failed = 'failed';

@@ -8,7 +8,7 @@
 <div
     id="file-listing"
     class="mt-4"
-    {% if status in ['queued', 'running'] %}
+{% if status in ['queued', 'claimed', 'running'] %}
         hx-get="/files/listing/{{ jobId }}"
         hx-trigger="load, every 2s"
         hx-swap="outerHTML"
@@ -18,7 +18,7 @@
         hx-swap="outerHTML"
     {% endif %}
 >
-    {% if status in ['queued', 'running'] %}
+{% if status in ['queued', 'claimed', 'running'] %}
         <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
             <div class="flex flex-col items-center gap-3">
                 <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">

@@ -1,0 +1,42 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = 'UniFi' %}
+{% set pageSubtitle = 'UDM Pro Portfreigaben' %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'dashboard' } %}
+
+    <div class="grid gap-6 lg:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs uppercase text-slate-500">Modulstatus</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900">
+                {{ settings.enabled ? 'Aktiviert' : 'Deaktiviert' }}
+            </p>
+            <p class="mt-2 text-sm text-slate-600">Der UniFi-Sync läuft nur, wenn das Modul aktiviert ist.</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs uppercase text-slate-500">Policy</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900">{{ policy.mode|capitalize }}</p>
+            <p class="mt-2 text-sm text-slate-600">Auto: Panel-Ports, Manual: nur Regeln, Hybrid: beides.</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs uppercase text-slate-500">Letzter Sync</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900">{{ latestAudit ? latestAudit.createdAt|date('Y-m-d H:i') : '—' }}</p>
+            <p class="mt-2 text-sm text-slate-600">Request ID: {{ latestAudit ? latestAudit.requestId : '—' }}</p>
+            <p class="mt-1 text-sm text-slate-600">Status: {{ latestAudit ? latestAudit.status : '—' }}</p>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Anleitung (Kurzfassung)</h2>
+        <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
+            <li>Der Controller wird per Cookie-Session authentifiziert. Die Zugangsdaten werden verschlüsselt gespeichert.</li>
+            <li>Beim Sync werden nur Regeln mit dem Prefix <code>PANEL-</code> oder <code>MANUAL-</code> verwaltet.</li>
+            <li>Die Policy filtert, welche Ports automatisch geöffnet werden (Ports, Ranges, Tags, Protokolle).</li>
+            <li>Manuelle Regeln bleiben immer editierbar und werden nicht von Auto-Regeln überschrieben.</li>
+        </ul>
+        <a href="/admin/unifi/docs" class="mt-4 inline-flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-500">How it works →</a>
+    </div>
+</div>
+{% endblock %}

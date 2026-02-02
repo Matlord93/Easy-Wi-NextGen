@@ -1,0 +1,29 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = 'UniFi How it works' %}
+{% set pageSubtitle = 'Technische Details' %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'docs' } %}
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+        <h2 class="text-lg font-semibold text-slate-900">Verbindung zur UDM</h2>
+        <p class="text-sm text-slate-700">Das Panel meldet sich am UniFi OS Controller an (Cookie-Session). Die Zugangsdaten werden verschlüsselt gespeichert und nie geloggt.</p>
+
+        <h2 class="text-lg font-semibold text-slate-900">Site-Auswahl</h2>
+        <p class="text-sm text-slate-700">Der Site-Key wird in den Verbindungseinstellungen gesetzt. Standard ist <code>default</code>.</p>
+
+        <h2 class="text-lg font-semibold text-slate-900">Reconcile / Sync</h2>
+        <ul class="list-disc space-y-2 pl-5 text-sm text-slate-700">
+            <li>Ist das Modul deaktiviert, wird kein Sync ausgeführt.</li>
+            <li>Das Panel liest bestehende Port-Forward-Regeln aus und filtert auf Prefix <code>PANEL-</code> und <code>MANUAL-</code>.</li>
+            <li>Die Zielmenge wird aus den Port-Zuweisungen (Auto) und manuellen Regeln (Manual) berechnet.</li>
+            <li>Der Diff berechnet Create/Update/Delete Aktionen und schreibt Ergebnisse ins Audit-Log.</li>
+        </ul>
+
+        <h2 class="text-lg font-semibold text-slate-900">Audit Logs</h2>
+        <p class="text-sm text-slate-700">Jeder Sync schreibt einen Audit-Eintrag mit Request ID, Status und möglichen Fehlercodes (unifi_offline, auth_failed, tls_failed, policy_denied).</p>
+    </div>
+</div>
+{% endblock %}

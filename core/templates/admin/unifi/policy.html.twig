@@ -1,0 +1,65 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = 'UniFi Policy' %}
+{% set pageSubtitle = 'Auto/Manual/Hybrid Regeln' %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'policy' } %}
+
+    {% if notice %}
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ notice }}</div>
+    {% endif %}
+
+    {% if errors is not empty %}
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <ul class="list-disc pl-5">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post" action="/admin/unifi/policy" class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <label class="block text-sm font-semibold text-slate-700">
+            Modus
+            <select name="mode" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                <option value="auto" {{ policy.mode == 'auto' ? 'selected' : '' }}>Auto</option>
+                <option value="manual" {{ policy.mode == 'manual' ? 'selected' : '' }}>Manual</option>
+                <option value="hybrid" {{ policy.mode == 'hybrid' ? 'selected' : '' }}>Hybrid</option>
+            </select>
+        </label>
+
+        <div class="grid gap-4 md:grid-cols-2">
+            <label class="block text-sm font-semibold text-slate-700">
+                Erlaubte Ports (CSV)
+                <input type="text" name="allowed_ports" value="{{ policy.allowedPorts|join(', ') }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="25565, 27015" />
+            </label>
+            <label class="block text-sm font-semibold text-slate-700">
+                Erlaubte Ranges (z.B. 1000-2000)
+                <input type="text" name="allowed_ranges" value="{{ policy.allowedRanges|map(r => r.start ~ '-' ~ r.end)|join(', ') }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="1000-2000, 3000-3100" />
+            </label>
+        </div>
+
+        <label class="block text-sm font-semibold text-slate-700">
+            Erlaubte Tags (Port-Pool Tags)
+            <input type="text" name="allowed_tags" value="{{ policy.allowedTags|join(', ') }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="public, voice" />
+        </label>
+
+        <div>
+            <p class="text-sm font-semibold text-slate-700">Protokolle</p>
+            <div class="mt-2 flex gap-4">
+                {% for proto in protocolOptions %}
+                    <label class="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" name="allowed_protocols[]" value="{{ proto }}" {{ proto in policy.allowedProtocols ? 'checked' : '' }} />
+                        {{ proto|upper }}
+                    </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="submit">Speichern</button>
+    </form>
+</div>
+{% endblock %}

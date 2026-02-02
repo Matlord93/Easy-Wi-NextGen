@@ -88,6 +88,10 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 					job:     jobCopy,
 					lockKey: resolveJobLockKey(jobCopy),
 					handler: func(job jobs.Job) {
+						if err := client.StartJob(ctx, job.ID); err != nil {
+							log.Printf("start job failed: %v", err)
+							return
+						}
 						result, afterSubmit := handleJob(job, logSender)
 						if err := client.SubmitJobResult(ctx, result); err != nil {
 							log.Printf("submit job result failed: %v", err)

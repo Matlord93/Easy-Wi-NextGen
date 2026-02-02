@@ -1,0 +1,90 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = 'UniFi Verbindung' %}
+{% set pageSubtitle = 'UDM Pro Controller & Ziele' %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'connection' } %}
+
+    {% if notice %}
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ notice }}</div>
+    {% endif %}
+
+    {% if errors is not empty %}
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <p class="font-semibold">Bitte korrigieren:</p>
+            <ul class="mt-2 list-disc pl-5">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if connectionResult is defined %}
+        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <p class="font-semibold">Test Verbindung:</p>
+            <ul class="mt-2 list-disc pl-5">
+                {% for code in connectionResult %}
+                    <li>{{ code }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form method="post" action="/admin/unifi/connection" class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="grid gap-4 md:grid-cols-2">
+            <label class="text-sm font-semibold text-slate-700">
+                Controller URL
+                <input type="text" name="base_url" value="{{ settings.baseUrl }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="https://udm-pro.local" />
+            </label>
+            <label class="text-sm font-semibold text-slate-700">
+                Site
+                <input type="text" name="site" value="{{ settings.site }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="default" />
+            </label>
+            <label class="text-sm font-semibold text-slate-700">
+                Benutzername
+                <input type="text" name="username" value="{{ settings.username }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            </label>
+            <label class="text-sm font-semibold text-slate-700">
+                Passwort (wird verschlüsselt)
+                <input type="password" name="password" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Nur eingeben, wenn ändern" />
+            </label>
+        </div>
+        <div class="flex flex-wrap gap-6">
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" name="enabled" value="1" {{ settings.enabled ? 'checked' : '' }} />
+                Modul aktivieren
+            </label>
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" name="verify_tls" value="1" {{ settings.verifyTls ? 'checked' : '' }} />
+                TLS prüfen
+            </label>
+        </div>
+
+        <div>
+            <h3 class="text-sm font-semibold text-slate-700">Ziel-IP pro Node (für Auto-Regeln)</h3>
+            <p class="mt-1 text-xs text-slate-500">Hier trägst du die interne IP des Nodes ein, auf die die Ports weitergeleitet werden.</p>
+            <div class="mt-4 space-y-3">
+                {% for node in nodes %}
+                    <div class="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-800">{{ node.name ?? 'Unnamed node' }}</p>
+                            <p class="text-xs text-slate-500">ID: {{ node.id }}</p>
+                        </div>
+                        <input type="text" name="node_targets[{{ node.id }}]" value="{{ settings.nodeTargets[node.id] ?? '' }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm md:w-64" placeholder="10.0.0.10" />
+                    </div>
+                {% else %}
+                    <p class="text-sm text-slate-600">Keine Nodes gefunden.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="submit">Speichern</button>
+            <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700" type="submit" formaction="/admin/unifi/connection/test">Test Verbindung</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

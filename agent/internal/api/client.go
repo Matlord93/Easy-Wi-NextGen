@@ -121,6 +121,13 @@ func (c *Client) SubmitJobResult(ctx context.Context, result jobs.Result) error 
 	return err
 }
 
+// StartJob marks a core job as running.
+func (c *Client) StartJob(ctx context.Context, jobID string) error {
+	path := fmt.Sprintf("/agent/jobs/%s/start", url.PathEscape(jobID))
+	_, err := c.doSignedJSON(ctx, http.MethodPost, path, map[string]any{}, nil)
+	return err
+}
+
 func (c *Client) SubmitJobLogs(ctx context.Context, jobID string, logs []string, progress *int) error {
 	path := fmt.Sprintf("/agent/jobs/%s/logs", url.PathEscape(jobID))
 	payload := map[string]any{

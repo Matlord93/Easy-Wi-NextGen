@@ -102,10 +102,10 @@ final class JobRepository extends ServiceEntityRepository
 
         return (int) $this->createQueryBuilder('job')
             ->select('COUNT(job.id)')
-            ->andWhere('job.status = :status')
+            ->andWhere('job.status IN (:statuses)')
             ->andWhere('job.lockedBy = :agent')
             ->andWhere('job.type IN (:types)')
-            ->setParameter('status', JobStatus::Running)
+            ->setParameter('statuses', [JobStatus::Running, JobStatus::Claimed])
             ->setParameter('agent', $agentId)
             ->setParameter('types', $types)
             ->getQuery()
@@ -116,9 +116,9 @@ final class JobRepository extends ServiceEntityRepository
     {
         return (int) $this->createQueryBuilder('job')
             ->select('COUNT(job.id)')
-            ->andWhere('job.status = :status')
+            ->andWhere('job.status IN (:statuses)')
             ->andWhere('job.lockedBy = :agent')
-            ->setParameter('status', JobStatus::Running)
+            ->setParameter('statuses', [JobStatus::Running, JobStatus::Claimed])
             ->setParameter('agent', $agentId)
             ->getQuery()
             ->getSingleScalarResult();
@@ -131,9 +131,9 @@ final class JobRepository extends ServiceEntityRepository
     {
         $builder = $this->createQueryBuilder('job')
             ->select('COUNT(job.id)')
-            ->andWhere('job.status = :status')
+            ->andWhere('job.status IN (:statuses)')
             ->andWhere('job.lockedBy = :agent')
-            ->setParameter('status', JobStatus::Running)
+            ->setParameter('statuses', [JobStatus::Running, JobStatus::Claimed])
             ->setParameter('agent', $agentId);
 
         if ($excludedTypes !== []) {
@@ -153,14 +153,27 @@ final class JobRepository extends ServiceEntityRepository
     public function findRunningWithExpiredLock(\DateTimeImmutable $now, int $limit = 200): array
     {
         return $this->createQueryBuilder('job')
-            ->andWhere('job.status = :status')
+            ->andWhere('job.status IN (:statuses)')
             ->andWhere('job.lockExpiresAt IS NOT NULL')
             ->andWhere('job.lockExpiresAt < :now')
-            ->setParameter('status', JobStatus::Running)
+            ->setParameter('statuses', [JobStatus::Running, JobStatus::Claimed])
             ->setParameter('now', $now)
             ->orderBy('job.lockExpiresAt', 'ASC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+    }
+
+    public function findLatestByTypeAndInstanceId(string $type, int $instanceId, int $limit = 50): ?Job
+    {
+        $jobs = $this->findLatestByType($type, $limit);
+        foreach ($jobs as $job) {
+            $payload = $job->getPayload();
+            if ((int) ($payload['instance_id'] ?? 0) === $instanceId) {
+                return $job;
+            }
+        }
+
+        return null;
     }
 }

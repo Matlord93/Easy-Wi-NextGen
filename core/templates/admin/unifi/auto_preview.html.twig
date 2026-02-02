@@ -1,0 +1,80 @@
+{% extends 'admin/base.html.twig' %}
+
+{% set pageTitle = 'UniFi Auto-Preview' %}
+{% set pageSubtitle = 'Vorschau & Sync' %}
+
+{% block content %}
+<div class="space-y-6">
+    {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'auto-preview' } %}
+
+    {% if preview.errors is not empty %}
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <p class="font-semibold">Fehler:</p>
+            <ul class="mt-2 list-disc pl-5">
+                {% for error in preview.errors %}
+                    <li>{{ error.code }} - {{ error.message }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <p class="text-xs uppercase text-slate-500">Request ID</p>
+                <p class="text-sm font-semibold text-slate-900">{{ preview.request_id }}</p>
+            </div>
+            <div>
+                <p class="text-xs uppercase text-slate-500">Letzter Sync</p>
+                <p class="text-sm font-semibold text-slate-900">{{ latestAudit ? latestAudit.createdAt|date('Y-m-d H:i') : '—' }}</p>
+                <p class="text-xs text-slate-500">{{ latestAudit ? latestAudit.status : '' }}</p>
+            </div>
+            <form method="post" action="/admin/unifi/auto-preview/sync" class="flex gap-2">
+                <button type="submit" name="dry_run" value="1" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Dry Run</button>
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Sync ausführen</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">Neu</div>
+            <div class="p-4 text-sm text-slate-700">
+                {% for rule in preview.diff.create %}
+                    <div class="mb-2">
+                        <p class="font-semibold">{{ rule.name }}</p>
+                        <p class="text-xs text-slate-500">{{ rule.port }}/{{ rule.protocol|upper }} → {{ rule.targetIp }}:{{ rule.targetPort }}</p>
+                    </div>
+                {% else %}
+                    <p class="text-sm text-slate-500">Keine neuen Regeln.</p>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">Updates</div>
+            <div class="p-4 text-sm text-slate-700">
+                {% for entry in preview.diff.update %}
+                    <div class="mb-2">
+                        <p class="font-semibold">{{ entry.rule.name }}</p>
+                        <p class="text-xs text-slate-500">{{ entry.rule.port }}/{{ entry.rule.protocol|upper }} → {{ entry.rule.targetIp }}:{{ entry.rule.targetPort }}</p>
+                    </div>
+                {% else %}
+                    <p class="text-sm text-slate-500">Keine Updates.</p>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">Löschen</div>
+            <div class="p-4 text-sm text-slate-700">
+                {% for entry in preview.diff.delete %}
+                    <div class="mb-2">
+                        <p class="font-semibold">{{ entry.name }}</p>
+                    </div>
+                {% else %}
+                    <p class="text-sm text-slate-500">Keine Regeln zum Löschen.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

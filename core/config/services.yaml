@@ -83,6 +83,8 @@ services:
       $clientCertPath: '%app.filesvc_client_cert%'
       $clientKeyPath: '%app.filesvc_client_key%'
       $clientCaPath: '%app.filesvc_ca_cert%'
+      $logger: '@logger'
+      $requestStack: '@request_stack'
 
   App\Module\Core\Application\Sinusbot\SinusbotQuotaValidator:
     arguments:
