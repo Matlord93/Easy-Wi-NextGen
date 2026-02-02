@@ -1,0 +1,157 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}TS6 Backups · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts6-page">
+        <div class="ts6-header">
+            <div>
+                <h1>{{ server.name }}</h1>
+                <p>Backups · {{ externalHost }}:{{ server.voicePort ?? '—' }}</p>
+            </div>
+            <div class="ts6-actions">
+                <a class="ts6-link" href="/customer/ts6/servers/{{ server.id }}">Zurück</a>
+            </div>
+        </div>
+
+        <div class="ts6-card">
+            <div class="ts6-section-header">
+                <div>
+                    <h2 class="ts6-section-title">Backups</h2>
+                    <p class="ts6-muted">Snapshots erstellen und exportieren.</p>
+                </div>
+                <div class="ts6-actions">
+                    <button class="ts6-button" type="button" data-create>Snapshot erstellen</button>
+                    <button class="ts6-button" type="button" data-copy disabled>Copy</button>
+                    <button class="ts6-button" type="button" data-download disabled>Download</button>
+                </div>
+            </div>
+            <div class="ts6-backup-panel" data-backup-panel data-url="/customer/ts6/servers/{{ server.id }}/snapshot.json">
+                <div class="ts6-empty-state">Keine Backups vorhanden.</div>
+            </div>
+            <div class="ts6-muted">Restore/Import ist abhängig von der ServerQuery-Unterstützung.</div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const panel = document.querySelector('[data-backup-panel]');
+            if (!panel) { return; }
+            const url = panel.dataset.url;
+            const createButton = document.querySelector('[data-create]');
+            const copyButton = document.querySelector('[data-copy]');
+            const downloadButton = document.querySelector('[data-download]');
+            let snapshotText = '';
+            let loading = false;
+            let attempts = 0;
+            const maxAttempts = 6;
+            const delayMs = 1500;
+
+            const setState = (state, message, actionId) => {
+                panel.innerHTML = '';
+                if (state === 'loading') {
+                    const spinner = document.createElement('div');
+                    spinner.className = 'ts6-spinner';
+                    panel.appendChild(spinner);
+                    return;
+                }
+                if (state === 'empty') {
+                    const empty = document.createElement('div');
+                    empty.className = 'ts6-empty-state';
+                    empty.textContent = 'Keine Backups vorhanden.';
+                    panel.appendChild(empty);
+                    return;
+                }
+                if (state === 'error') {
+                    const error = document.createElement('div');
+                    error.className = 'ts6-error-state';
+                    error.innerHTML = `<strong>Fehler:</strong> ${message ?? 'Unbekannt'}${actionId ? ` (Action ID: ${actionId})` : ''}`;
+                    const retry = document.createElement('button');
+                    retry.type = 'button';
+                    retry.className = 'ts6-button';
+                    retry.textContent = 'Retry';
+                    retry.addEventListener('click', () => {
+                        attempts = 0;
+                        loadSnapshot();
+                    });
+                    panel.appendChild(error);
+                    panel.appendChild(retry);
+                }
+            };
+
+            const updateActions = () => {
+                const hasSnapshot = snapshotText.trim().length > 0;
+                if (copyButton) { copyButton.disabled = !hasSnapshot; }
+                if (downloadButton) { downloadButton.disabled = !hasSnapshot; }
+            };
+
+            const renderSnapshot = (snapshot) => {
+                panel.innerHTML = '';
+                snapshotText = snapshot ?? '';
+                if (!snapshotText) {
+                    setState('empty');
+                    updateActions();
+                    return;
+                }
+                const pre = document.createElement('pre');
+                pre.className = 'ts6-code-block';
+                pre.textContent = snapshotText;
+                panel.appendChild(pre);
+                updateActions();
+            };
+
+            const loadSnapshot = () => {
+                if (!url || loading) { return; }
+                loading = true;
+                setState('loading');
+                fetch(url)
+                    .then((response) => response.json())
+                    .then((data) => {
+                        loading = false;
+                        if (!data) { return; }
+                        if (data.status === 'pending' && attempts < maxAttempts) {
+                            attempts += 1;
+                            setTimeout(loadSnapshot, delayMs);
+                            return;
+                        }
+                        if (data.status === 'error') {
+                            setState('error', data.message, data.action_id);
+                            return;
+                        }
+                        if (data.status !== 'ok') { return; }
+                        const payload = data.payload || {};
+                        renderSnapshot(payload.snapshot ?? '');
+                    })
+                    .catch(() => {
+                        loading = false;
+                        setState('error', 'Netzwerkfehler');
+                    });
+            };
+
+            if (createButton) {
+                createButton.addEventListener('click', () => {
+                    attempts = 0;
+                    loadSnapshot();
+                });
+            }
+
+            if (copyButton) {
+                copyButton.addEventListener('click', () => {
+                    navigator.clipboard?.writeText(snapshotText);
+                });
+            }
+
+            if (downloadButton) {
+                downloadButton.addEventListener('click', () => {
+                    const blob = new Blob([snapshotText], { type: 'text/plain' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'ts6-server-{{ server.id }}-snapshot.txt';
+                    link.click();
+                });
+            }
+
+            updateActions();
+        })();
+    </script>
+{% endblock %}

@@ -70,6 +70,6 @@ class SecretsCrypto
             }
         }
 
-        throw new RuntimeException('Unable to decrypt secret payload.');
+        throw new RuntimeException('Unable to decrypt secret payload. Ensure APP_SECRET from the active app environment is loaded (routing) or add prior secrets to APP_SECRET_FALLBACKS.');
     }
 }

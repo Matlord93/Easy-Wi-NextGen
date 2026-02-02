@@ -1,0 +1,56 @@
+<div class="ts6-settings-panel">
+    <div class="ts6-settings-header">
+        <div>
+            <h3>Einstellungen</h3>
+            <p class="ts6-muted">Verwalte die externe Adresse und Query-Details für TS6.</p>
+        </div>
+        <button class="ts6-link" type="button" data-settings-close>Schließen</button>
+    </div>
+    <form class="ts6-form ts6-settings-form" method="post" action="/customer/ts6/servers/{{ server.id }}/settings/save" data-settings-form>
+        <input type="hidden" name="_token" value="{{ csrf.settings }}">
+        <label for="ts6-public-host">Externe Adresse (publicHost)</label>
+        <input id="ts6-public-host" name="public_host" value="{{ server.publicHost ?? connectIp }}" placeholder="voice.example.com">
+        <p class="ts6-muted">Standard: {{ connectIp }} (wenn kein publicHost gesetzt).</p>
+
+        <div class="ts6-settings-section">
+            <h4>Flood-Limits (SSH Query)</h4>
+            <p class="ts6-muted">TS6 nutzt SSH-only Query. Limits werden serverseitig gesetzt.</p>
+            <div class="ts6-grid">
+                <div>
+                    <label for="ts6-flood-commands">Max Commands</label>
+                    <input id="ts6-flood-commands" name="flood_commands" value="80" {% if not isAdmin %}disabled{% endif %}>
+                </div>
+                <div>
+                    <label for="ts6-flood-time">Time Window (s)</label>
+                    <input id="ts6-flood-time" name="flood_time" value="2" {% if not isAdmin %}disabled{% endif %}>
+                </div>
+                <div>
+                    <label for="ts6-flood-ban">Ban Time (s)</label>
+                    <input id="ts6-flood-ban" name="flood_ban_time" value="10" {% if not isAdmin %}disabled{% endif %}>
+                </div>
+            </div>
+        </div>
+
+        <div class="ts6-settings-section">
+            <h4>Safe-Mode & Permission Limits</h4>
+            <p class="ts6-muted">Optional: beschränke riskante Actions.</p>
+            <label class="ts6-toggle">
+                <input type="checkbox" disabled checked>
+                <span>Safe-Mode aktiv (Demo)</span>
+            </label>
+        </div>
+
+        {% if isAdmin %}
+            <div class="ts6-settings-section">
+                <h4>Debug</h4>
+                <div class="ts6-muted">Interne Agent-Adresse: {{ server.node.agentBaseUrl ?: '—' }}</div>
+                <div class="ts6-muted">Server ID: {{ server.sid }}</div>
+            </div>
+        {% endif %}
+
+        <div class="ts6-actions">
+            <button class="ts6-button" type="submit">Einstellungen speichern</button>
+        </div>
+        <div class="ts6-settings-message" data-settings-message hidden></div>
+    </form>
+</div>

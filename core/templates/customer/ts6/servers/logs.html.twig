@@ -1,0 +1,158 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block title %}TS6 Logs · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+    <div class="ts6-page">
+        <div class="ts6-header">
+            <div>
+                <h1>{{ server.name }}</h1>
+                <p>Logs · {{ externalHost }}:{{ server.voicePort ?? '—' }}</p>
+            </div>
+            <div class="ts6-actions">
+                <a class="ts6-link" href="/customer/ts6/servers/{{ server.id }}">Zurück</a>
+            </div>
+        </div>
+
+        <div class="ts6-card">
+            <div class="ts6-section-header">
+                <div>
+                    <h2 class="ts6-section-title">Server-Logs</h2>
+                    <p class="ts6-muted">Tail, Copy & Download mit Error-States.</p>
+                </div>
+                <div class="ts6-actions">
+                    <button class="ts6-button" type="button" data-reload>Neu laden</button>
+                    <button class="ts6-button" type="button" data-copy disabled>Copy</button>
+                    <button class="ts6-button" type="button" data-download disabled>Download</button>
+                </div>
+            </div>
+            <div class="ts6-log-panel" data-log-panel data-url="/customer/ts6/servers/{{ server.id }}/logs.json">
+                <div class="ts6-spinner" data-state="loading"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const panel = document.querySelector('[data-log-panel]');
+            if (!panel) { return; }
+            const url = panel.dataset.url;
+            const reloadButton = document.querySelector('[data-reload]');
+            const copyButton = document.querySelector('[data-copy]');
+            const downloadButton = document.querySelector('[data-download]');
+            let logText = '';
+            let loading = false;
+            let attempts = 0;
+            const maxAttempts = 6;
+            const delayMs = 1500;
+
+            const setState = (state, message, actionId) => {
+                panel.innerHTML = '';
+                if (state === 'loading') {
+                    const spinner = document.createElement('div');
+                    spinner.className = 'ts6-spinner';
+                    panel.appendChild(spinner);
+                    return;
+                }
+                if (state === 'empty') {
+                    const empty = document.createElement('div');
+                    empty.className = 'ts6-empty-state';
+                    empty.textContent = 'Keine Einträge.';
+                    panel.appendChild(empty);
+                    return;
+                }
+                if (state === 'error') {
+                    const error = document.createElement('div');
+                    error.className = 'ts6-error-state';
+                    error.innerHTML = `<strong>Fehler:</strong> ${message ?? 'Unbekannt'}${actionId ? ` (Action ID: ${actionId})` : ''}`;
+                    const retry = document.createElement('button');
+                    retry.type = 'button';
+                    retry.className = 'ts6-button';
+                    retry.textContent = 'Retry';
+                    retry.addEventListener('click', () => {
+                        attempts = 0;
+                        loadLogs();
+                    });
+                    panel.appendChild(error);
+                    panel.appendChild(retry);
+                }
+            };
+
+            const updateActions = () => {
+                const hasLogs = logText.trim().length > 0;
+                if (copyButton) { copyButton.disabled = !hasLogs; }
+                if (downloadButton) { downloadButton.disabled = !hasLogs; }
+            };
+
+            const renderLogs = (logs) => {
+                panel.innerHTML = '';
+                if (!logs || logs.length === 0) {
+                    setState('empty');
+                    logText = '';
+                    updateActions();
+                    return;
+                }
+                logText = logs.join('\n');
+                const pre = document.createElement('pre');
+                pre.className = 'ts6-code-block';
+                pre.textContent = logText;
+                panel.appendChild(pre);
+                updateActions();
+            };
+
+            const loadLogs = () => {
+                if (!url || loading) { return; }
+                loading = true;
+                setState('loading');
+                fetch(url)
+                    .then((response) => response.json())
+                    .then((data) => {
+                        loading = false;
+                        if (!data) { return; }
+                        if (data.status === 'pending' && attempts < maxAttempts) {
+                            attempts += 1;
+                            setTimeout(loadLogs, delayMs);
+                            return;
+                        }
+                        if (data.status === 'error') {
+                            setState('error', data.message, data.action_id);
+                            return;
+                        }
+                        if (data.status !== 'ok') { return; }
+                        const payload = data.payload || {};
+                        const logs = Array.isArray(payload.logs) ? payload.logs : [];
+                        renderLogs(logs);
+                    })
+                    .catch(() => {
+                        loading = false;
+                        setState('error', 'Netzwerkfehler');
+                    });
+            };
+
+            if (reloadButton) {
+                reloadButton.addEventListener('click', () => {
+                    attempts = 0;
+                    loadLogs();
+                });
+            }
+
+            if (copyButton) {
+                copyButton.addEventListener('click', () => {
+                    navigator.clipboard?.writeText(logText);
+                });
+            }
+
+            if (downloadButton) {
+                downloadButton.addEventListener('click', () => {
+                    const blob = new Blob([logText], { type: 'text/plain' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'ts6-server-{{ server.id }}-logs.txt';
+                    link.click();
+                });
+            }
+
+            loadLogs();
+        })();
+    </script>
+{% endblock %}

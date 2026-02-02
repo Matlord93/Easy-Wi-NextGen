@@ -9,6 +9,7 @@ use App\Module\Core\Domain\Entity\Ts3Node;
 use App\Module\Core\Domain\Entity\Ts3Token;
 use App\Module\Core\Domain\Entity\Ts3VirtualServer;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class Ts3VirtualServerService
@@ -61,19 +62,19 @@ final class Ts3VirtualServerService
         return $virtualServer;
     }
 
-    public function start(Ts3VirtualServer $server): void
+    public function start(Ts3VirtualServer $server): AgentJob
     {
-        $this->applyServerAction($server, 'start');
+        return $this->applyServerAction($server, 'start');
     }
 
-    public function stop(Ts3VirtualServer $server): void
+    public function stop(Ts3VirtualServer $server): AgentJob
     {
-        $this->applyServerAction($server, 'stop');
+        return $this->applyServerAction($server, 'stop');
     }
 
-    public function restart(Ts3VirtualServer $server): void
+    public function restart(Ts3VirtualServer $server): AgentJob
     {
-        $this->applyServerAction($server, 'restart');
+        return $this->applyServerAction($server, 'restart');
     }
 
     public function recreate(Ts3VirtualServer $server): Ts3VirtualServer
@@ -89,7 +90,7 @@ final class Ts3VirtualServerService
         return $replacement;
     }
 
-    public function rotateToken(Ts3VirtualServer $server, int $serverGroupId = 6): Ts3Token
+    public function rotateToken(Ts3VirtualServer $server, int $serverGroupId = 6): AgentJob
     {
         if ($serverGroupId <= 0) {
             $serverGroupId = 6;
@@ -106,14 +107,14 @@ final class Ts3VirtualServerService
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
 
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.token.rotate', $jobPayload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.token.rotate', $jobPayload);
 
         $token = new Ts3Token($server, $this->crypto->encrypt('pending'), $tokenType);
         $token->deactivate();
         $this->entityManager->persist($token);
         $this->entityManager->flush();
 
-        return $token;
+        return $job;
     }
 
     public function delete(Ts3VirtualServer $server): void
@@ -122,7 +123,7 @@ final class Ts3VirtualServerService
         $this->applyServerAction($server, 'delete');
     }
 
-    public function queueServerGroupList(Ts3VirtualServer $server, string $cacheKey): void
+    public function queueServerGroupList(Ts3VirtualServer $server, string $cacheKey): AgentJob
     {
         $jobPayload = [
             'virtual_server_id' => $server->getId(),
@@ -135,11 +136,12 @@ final class Ts3VirtualServerService
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
 
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.servergroup.list', $jobPayload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.servergroup.list', $jobPayload);
         $this->entityManager->flush();
+        return $job;
     }
 
-    public function queueServerSummary(Ts3VirtualServer $server, string $cacheKey): void
+    public function queueServerSummary(Ts3VirtualServer $server, string $cacheKey): AgentJob
     {
         $jobPayload = [
             'virtual_server_id' => $server->getId(),
@@ -152,11 +154,12 @@ final class Ts3VirtualServerService
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
 
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.summary', $jobPayload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.summary', $jobPayload);
         $this->entityManager->flush();
+        return $job;
     }
 
-    public function queueServerQuery(Ts3VirtualServer $server, string $cacheKey, string $jobType): void
+    public function queueServerQuery(Ts3VirtualServer $server, string $cacheKey, string $jobType): AgentJob
     {
         $jobPayload = [
             'virtual_server_id' => $server->getId(),
@@ -169,11 +172,12 @@ final class Ts3VirtualServerService
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
 
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), $jobType, $jobPayload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), $jobType, $jobPayload);
         $this->entityManager->flush();
+        return $job;
     }
 
-    private function applyServerAction(Ts3VirtualServer $server, string $action): void
+    private function applyServerAction(Ts3VirtualServer $server, string $action): AgentJob
     {
         $payload = [
             'virtual_server_id' => $server->getId(),
@@ -185,8 +189,9 @@ final class Ts3VirtualServerService
             'admin_username' => $server->getNode()->getAdminUsername(),
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.action', $payload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.virtual.action', $payload);
         $this->entityManager->flush();
+        return $job;
     }
 
 }

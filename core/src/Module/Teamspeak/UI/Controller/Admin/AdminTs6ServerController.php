@@ -23,6 +23,7 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Uid\Uuid;
 use Twig\Environment;
 
 #[Route(path: '/admin/ts6/servers')]
@@ -150,6 +151,15 @@ final class AdminTs6ServerController
             throw new BadRequestHttpException('Customer not found.');
         }
 
+        $guard = $this->resolveAssignGuardReason($server->getSid(), $server->getStatus());
+        if ($guard !== null) {
+            $actionId = Uuid::v4()->toRfc4122();
+            $request->getSession()->getFlashBag()->add('error', sprintf('Assign blocked (%s). Action ID: %s', $guard, $actionId));
+            return new Response('', Response::HTTP_FOUND, [
+                'Location' => '/admin/ts6/servers',
+            ]);
+        }
+
         $server->setCustomerId($customerId);
         $this->virtualServerRepository->getEntityManager()->flush();
         $request->getSession()->getFlashBag()->add('success', 'TS6 virtual server assigned.');
@@ -199,6 +209,20 @@ final class AdminTs6ServerController
         if (!$this->csrfTokenManager->isTokenValid($token)) {
             throw new BadRequestHttpException('Invalid CSRF token.');
         }
+    }
+
+    private function resolveAssignGuardReason(int $sid, string $status): ?string
+    {
+        if ($sid <= 0) {
+            return 'SID missing (provisioning not finished)';
+        }
+
+        $normalized = strtolower($status);
+        if (in_array($normalized, ['provisioning', 'deleting', 'deleted', 'error'], true)) {
+            return sprintf('status %s', $normalized);
+        }
+
+        return null;
     }
 
     /**

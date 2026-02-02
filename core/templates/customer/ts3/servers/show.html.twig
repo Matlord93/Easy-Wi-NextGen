@@ -3,7 +3,9 @@
 {% block title %}{{ server.name }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
-    <div class="ts3-page">
+    {% set status = server.status|lower %}
+    {% set statusClass = status in ['online', 'running', 'active'] ? 'online' : (status in ['offline', 'stopped', 'stopping'] ? 'offline' : (status == 'error' ? 'error' : 'unknown')) %}
+    <div class="ts3-page" data-server-id="{{ server.id }}">
         <div class="ts3-header">
             <div>
                 <h1>{{ server.name }}</h1>
@@ -17,13 +19,33 @@
         {% for message in app.flashes('success') %}
             <div class="ts3-alert ts3-alert-success">{{ message }}</div>
         {% endfor %}
+        {% for message in app.flashes('error') %}
+            <div class="ts3-alert ts3-alert-error">{{ message }}</div>
+        {% endfor %}
 
-        <div class="ts3-card">
+        {% if status == 'error' %}
+            <div class="ts3-alert ts3-alert-error ts3-error-banner">
+                <strong>Serverfehler:</strong> Bitte überprüfe die Logs. Status: {{ server.status }}.
+            </div>
+        {% endif %}
+
+        <div class="ts3-card ts3-server-card">
             <div class="ts3-meta" data-summary-url="/customer/ts3/servers/{{ server.id }}/summary.json">
-                <div><strong>Status:</strong> {{ server.status }}</div>
-                <div><strong>Server IP:</strong> {{ connectIp }}:{{ server.voicePort ?? '—' }}</div>
-                <div><strong>Filetransfer Port:</strong> {{ server.filetransferPort ?? server.node.filetransferPort ?? 30033 }}</div>
-                <div><strong>Slots:</strong> <span data-slots>—</span></div>
+                <div>
+                    <span class="ts3-status ts3-status-{{ statusClass }}">{{ server.status }}</span>
+                </div>
+                <div>
+                    <strong>Externe Adresse</strong>
+                    <div>{{ externalHost }}:{{ server.voicePort ?? '—' }}</div>
+                </div>
+                <div>
+                    <strong>Server ID (SID)</strong>
+                    <div>{{ server.sid }}</div>
+                </div>
+                <div>
+                    <strong>Slots</strong>
+                    <div data-slots>—</div>
+                </div>
             </div>
             <div class="ts3-actions">
                 <form method="post" action="/customer/ts3/servers/{{ server.id }}/start">
@@ -38,26 +60,27 @@
                     <input type="hidden" name="_token" value="{{ csrf.restart }}">
                     <button class="ts3-button" type="submit">Neustart</button>
                 </form>
-                <a class="ts3-link" href="#verwaltung">Einstellung</a>
+                <button class="ts3-button ts3-button-secondary" type="button" data-settings-trigger> Einstellung</button>
             </div>
         </div>
 
-        <section class="ts3-card" id="verwaltung">
-            <div class="ts3-section-header">
-                <div>
-                    <h2 class="ts3-section-title">Verwaltung</h2>
-                    <p class="ts3-muted">Alle Funktionen zentral, inklusive Tokens, Viewer und Live-Daten.</p>
-                </div>
-                <div class="ts3-actions">
-                    <a class="ts3-link" href="#live-daten">Live-Daten</a>
-                    <a class="ts3-link" href="#viewer">Viewer</a>
-                </div>
-            </div>
+        <div class="ts3-tabs">
+            <button class="ts3-tab is-active" type="button" data-tab="server">Server</button>
+            <button class="ts3-tab" type="button" data-tab="viewer">Live Viewer</button>
+            <button class="ts3-tab" type="button" data-tab="clients">Clients</button>
+            <button class="ts3-tab" type="button" data-tab="channels">Channels</button>
+            <button class="ts3-tab" type="button" data-tab="permissions">Permissions</button>
+            <button class="ts3-tab" type="button" data-tab="tokens">Tokens</button>
+            <button class="ts3-tab" type="button" data-tab="bans">Bans</button>
+            <a class="ts3-tab ts3-tab-link" href="/customer/ts3/servers/{{ server.id }}/logs">Logs</a>
+            <a class="ts3-tab ts3-tab-link" href="/customer/ts3/servers/{{ server.id }}/backups">Backups</a>
+        </div>
 
+        <div class="ts3-tab-content is-active" data-tab-content="server">
             <div class="ts3-panel-grid">
                 <div class="ts3-panel">
                     <h3>Server Aktionen</h3>
-                    <p class="ts3-muted">Direkte Steuerung deines Servers.</p>
+                    <p class="ts3-muted">Steuere deinen Server direkt.</p>
                     <div class="ts3-actions">
                         <form method="post" action="/customer/ts3/servers/{{ server.id }}/start">
                             <input type="hidden" name="_token" value="{{ csrf.start }}">
@@ -71,117 +94,214 @@
                             <input type="hidden" name="_token" value="{{ csrf.restart }}">
                             <button class="ts3-button" type="submit">Neustart</button>
                         </form>
-                        <form method="post" action="/customer/ts3/servers/{{ server.id }}/recreate">
-                            <input type="hidden" name="_token" value="{{ csrf.recreate }}">
-                            <button class="ts3-button" type="submit">Neu erstellen</button>
-                        </form>
                     </div>
                 </div>
 
                 <div class="ts3-panel">
                     <h3>Verbindung</h3>
-                    <p class="ts3-muted">Deine aktuelle Server-IP & Ports für den Client.</p>
+                    <p class="ts3-muted">Externe Adresse und Ports.</p>
                     <div class="ts3-credentials">
                         <div><strong>Adresse</strong></div>
                         <div class="ts3-secret">{{ connectIp }}:{{ server.voicePort ?? '—' }}</div>
-                        <div class="ts3-muted">Filetransfer: {{ server.filetransferPort ?? server.node.filetransferPort ?? 30033 }}</div>
                     </div>
                 </div>
 
-                <div class="ts3-panel ts3-panel--wide">
-                    <h3>Token Verwaltung</h3>
-                    <div class="ts3-credentials">
-                        <div><strong>Owner Token</strong></div>
-                        <div class="ts3-secret">{{ token ?? '—' }}</div>
+                <div class="ts3-panel">
+                    <h3>Status</h3>
+                    <p class="ts3-muted">Schnellstatus & Slots.</p>
+                    <div class="ts3-status-row">
+                        <span class="ts3-status ts3-status-{{ statusClass }}">{{ server.status }}</span>
+                        <span data-slots-inline>—</span>
                     </div>
-                    <form class="ts3-form" method="post" action="/customer/ts3/servers/{{ server.id }}/token/rotate">
-                        <input type="hidden" name="_token" value="{{ csrf.rotate }}">
-                        <label for="ts3-server-group">Servergruppe (SGID)</label>
-                        <select id="ts3-server-group" name="server_group_id" data-url="/customer/ts3/servers/{{ server.id }}/server-groups.json">
-                            <option value="6">Lade Servergruppen…</option>
-                        </select>
-                        <p class="ts3-muted">Nutze die SGID aus <code>servergrouplist</code>, z.B. 6 für Server Admin.</p>
-                        <button class="ts3-button" type="submit">Token rotieren</button>
-                    </form>
-                    {% if tokens is empty %}
-                        <div class="ts3-muted">Keine Tokens vorhanden.</div>
-                    {% else %}
-                        <table class="ts3-table">
-                            <thead>
+                </div>
+            </div>
+        </div>
+
+        <div class="ts3-tab-content" data-tab-content="viewer">
+            <div class="ts3-viewer-grid">
+                <div class="ts3-card ts3-viewer-tree">
+                    <div class="ts3-section-header">
+                        <h3 class="ts3-section-title">Channel Tree</h3>
+                        <span class="ts3-muted" data-viewer-status>Loading…</span>
+                    </div>
+                    <div class="ts3-tree" data-viewer-tree>
+                        <div class="ts3-spinner"></div>
+                    </div>
+                </div>
+                <div class="ts3-card ts3-viewer-details">
+                    <div class="ts3-section-header">
+                        <h3 class="ts3-section-title">Client Details</h3>
+                        <span class="ts3-muted" data-viewer-selected>Kein Client gewählt.</span>
+                    </div>
+                    <div class="ts3-viewer-actions">
+                        <button class="ts3-button" type="button" disabled>Kick</button>
+                        <button class="ts3-button" type="button" disabled>Ban</button>
+                        <button class="ts3-button" type="button" disabled>Move</button>
+                        <button class="ts3-button" type="button" disabled>Mute</button>
+                        <button class="ts3-button" type="button" disabled>Deafen</button>
+                    </div>
+                    <div class="ts3-viewer-info" data-viewer-info>
+                        <div class="ts3-muted">Wähle einen Client aus der Liste.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ts3-tab-content" data-tab-content="clients" data-query-url="/customer/ts3/servers/{{ server.id }}/clients.json">
+            <div class="ts3-card">
+                <div class="ts3-section-header">
+                    <div>
+                        <h3 class="ts3-section-title">Online Clients</h3>
+                        <p class="ts3-muted">Aktive Nutzer mit Aktionen.</p>
+                    </div>
+                </div>
+                <div class="ts3-data-state" data-state="loading">
+                    <div class="ts3-spinner"></div>
+                </div>
+                <table class="ts3-table" data-table hidden>
+                    <thead>
+                    <tr>
+                        <th>Nickname</th>
+                        <th>CLID</th>
+                        <th>Aktionen</th>
+                    </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="ts3-tab-content" data-tab-content="channels" data-query-url="/customer/ts3/servers/{{ server.id }}/channels.json">
+            <div class="ts3-card">
+                <div class="ts3-section-header">
+                    <div>
+                        <h3 class="ts3-section-title">Channels</h3>
+                        <p class="ts3-muted">Channel-Übersicht (CRUD + Order folgt).</p>
+                    </div>
+                </div>
+                <div class="ts3-data-state" data-state="loading">
+                    <div class="ts3-spinner"></div>
+                </div>
+                <table class="ts3-table" data-table hidden>
+                    <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>CID</th>
+                    </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="ts3-tab-content" data-tab-content="permissions" data-query-url="/customer/ts3/servers/{{ server.id }}/server-groups.json">
+            <div class="ts3-card">
+                <div class="ts3-section-header">
+                    <div>
+                        <h3 class="ts3-section-title">Permissions</h3>
+                        <p class="ts3-muted">Server-/Channel-Gruppen & Explorer.</p>
+                    </div>
+                    <div>
+                        <input class="ts3-input" type="search" placeholder="Suche..." data-permission-search>
+                    </div>
+                </div>
+                <div class="ts3-data-state" data-state="loading">
+                    <div class="ts3-spinner"></div>
+                </div>
+                <ul class="ts3-list" data-list hidden></ul>
+            </div>
+        </div>
+
+        <div class="ts3-tab-content" data-tab-content="tokens">
+            <div class="ts3-card">
+                <div class="ts3-section-header">
+                    <div>
+                        <h3 class="ts3-section-title">Token Verwaltung</h3>
+                        <p class="ts3-muted">Owner Token und Token Liste.</p>
+                    </div>
+                </div>
+                <div class="ts3-credentials">
+                    <div><strong>Owner Token</strong></div>
+                    <div class="ts3-secret">{{ token ?? '—' }}</div>
+                </div>
+                <form class="ts3-form" method="post" action="/customer/ts3/servers/{{ server.id }}/token/rotate">
+                    <input type="hidden" name="_token" value="{{ csrf.rotate }}">
+                    <label for="ts3-server-group">Servergruppe (SGID)</label>
+                    <select id="ts3-server-group" name="server_group_id" data-url="/customer/ts3/servers/{{ server.id }}/server-groups.json">
+                        <option value="6">Lade Servergruppen…</option>
+                    </select>
+                    <p class="ts3-muted">Nutze die SGID aus <code>servergrouplist</code>, z.B. 6 für Server Admin.</p>
+                    <button class="ts3-button" type="submit">Token rotieren</button>
+                </form>
+                {% if tokens is empty %}
+                    <div class="ts3-empty-state">Keine Tokens vorhanden.</div>
+                {% else %}
+                    <table class="ts3-table">
+                        <thead>
+                        <tr>
+                            <th>Token</th>
+                            <th>Typ</th>
+                            <th>Status</th>
+                            <th>Erstellt</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for entry in tokens %}
                             <tr>
-                                <th>Token</th>
-                                <th>Typ</th>
-                                <th>Status</th>
-                                <th>Erstellt</th>
+                                <td class="ts3-secret">{{ entry.token }}</td>
+                                <td>{{ entry.type }}</td>
+                                <td>{{ entry.active ? 'Aktiv' : 'Inaktiv' }}</td>
+                                <td>{{ entry.createdAt|date('Y-m-d H:i') }}</td>
                             </tr>
-                            </thead>
-                            <tbody>
-                            {% for entry in tokens %}
-                                <tr>
-                                    <td class="ts3-secret">{{ entry.token }}</td>
-                                    <td>{{ entry.type }}</td>
-                                    <td>{{ entry.active ? 'Aktiv' : 'Inaktiv' }}</td>
-                                    <td>{{ entry.createdAt|date('Y-m-d H:i') }}</td>
-                                </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    {% endif %}
-                </div>
-
-                <div class="ts3-panel ts3-panel--wide" id="viewer">
-                    <h3>Viewer</h3>
-                    <p class="ts3-muted">Passe deinen Viewer an und nutze ihn als iFrame oder Widget.</p>
-                    {{ form_start(form, { attr: { class: 'ts3-form' } }) }}
-                        <div class="ts3-grid">
-                            {{ form_row(form.enabled) }}
-                            {{ form_row(form.cacheTtlMs) }}
-                            {{ form_row(form.domainAllowlist) }}
-                        </div>
-                        <button class="ts3-button" type="submit">Viewer speichern</button>
-                    {{ form_end(form) }}
-                    {% if viewer %}
-                        <div class="ts3-code">
-                            <pre>&lt;iframe src="{{ app.request.schemeAndHttpHost }}/viewer/ts3/{{ viewer.publicId }}" width="100%" height="600" loading="lazy"&gt;&lt;/iframe&gt;</pre>
-                        </div>
-                        <div class="ts3-code">
-                            <pre>&lt;div id="ts3-viewer" data-id="{{ viewer.publicId }}"&gt;&lt;/div&gt;
-&lt;script src="{{ app.request.schemeAndHttpHost }}/viewer/ts3/{{ viewer.publicId }}.js" async&gt;&lt;/script&gt;</pre>
-                        </div>
-                    {% endif %}
-                </div>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
             </div>
+        </div>
 
-            <div class="ts3-section-divider" id="live-daten"></div>
-            <div class="ts3-panel-grid">
-                <details class="ts3-panel">
-                    <summary><strong>Ban-Liste</strong></summary>
-                    <div class="ts3-muted" data-query="bans" data-url="/customer/ts3/servers/{{ server.id }}/bans.json">Lade Daten…</div>
-                </details>
-                <details class="ts3-panel">
-                    <summary><strong>Channel</strong></summary>
-                    <div class="ts3-muted" data-query="channels" data-url="/customer/ts3/servers/{{ server.id }}/channels.json">Lade Daten…</div>
-                </details>
-                <details class="ts3-panel">
-                    <summary><strong>Userverwaltung</strong></summary>
-                    <div class="ts3-muted" data-query="clients" data-url="/customer/ts3/servers/{{ server.id }}/clients.json">Lade Daten…</div>
-                </details>
-                <details class="ts3-panel">
-                    <summary><strong>Logs</strong></summary>
-                    <div class="ts3-muted" data-query="logs" data-url="/customer/ts3/servers/{{ server.id }}/logs.json">Lade Daten…</div>
-                </details>
-                <details class="ts3-panel">
-                    <summary><strong>Backup</strong></summary>
-                    <div class="ts3-muted" data-query="snapshot" data-url="/customer/ts3/servers/{{ server.id }}/snapshot.json">Lade Daten…</div>
-                </details>
+        <div class="ts3-tab-content" data-tab-content="bans" data-query-url="/customer/ts3/servers/{{ server.id }}/bans.json">
+            <div class="ts3-card">
+                <div class="ts3-section-header">
+                    <div>
+                        <h3 class="ts3-section-title">Bans</h3>
+                        <p class="ts3-muted">Aktive Banns (ServerQuery).</p>
+                    </div>
+                </div>
+                <div class="ts3-data-state" data-state="loading">
+                    <div class="ts3-spinner"></div>
+                </div>
+                <ul class="ts3-list" data-list hidden></ul>
             </div>
-        </section>
+        </div>
+
+        <div class="ts3-drawer" data-settings-drawer hidden>
+            <div class="ts3-drawer-overlay" data-settings-close></div>
+            <div class="ts3-drawer-content">
+                <div class="ts3-spinner"></div>
+            </div>
+        </div>
     </div>
+
     <script>
+        (function () {
+            const tabs = document.querySelectorAll('.ts3-tab[data-tab]');
+            const contents = document.querySelectorAll('.ts3-tab-content');
+            const activateTab = (name) => {
+                tabs.forEach((tab) => tab.classList.toggle('is-active', tab.dataset.tab === name));
+                contents.forEach((content) => content.classList.toggle('is-active', content.dataset.tabContent === name));
+            };
+            tabs.forEach((tab) => {
+                tab.addEventListener('click', () => activateTab(tab.dataset.tab));
+            });
+            activateTab('server');
+        })();
+
         (function () {
             const meta = document.querySelector('.ts3-meta[data-summary-url]');
             if (!meta) { return; }
             const slots = meta.querySelector('[data-slots]');
+            const inlineSlots = document.querySelector('[data-slots-inline]');
             const url = meta.dataset.summaryUrl;
             if (!slots || !url) { return; }
             let attempts = 0;
@@ -197,13 +317,21 @@
                             setTimeout(loadSummary, delayMs);
                             return;
                         }
+                        if (data.status === 'error') {
+                            slots.textContent = 'Fehler';
+                            if (inlineSlots) { inlineSlots.textContent = 'Fehler'; }
+                            return;
+                        }
                         if (data.status !== 'ok') { return; }
-                        slots.textContent = `${data.clients_online ?? 0}/${data.max_clients ?? 0}`;
+                        const slotText = `${data.clients_online ?? 0}/${data.max_clients ?? 0}`;
+                        slots.textContent = slotText;
+                        if (inlineSlots) { inlineSlots.textContent = slotText; }
                     })
                     .catch(() => {});
             };
             loadSummary();
         })();
+
         (function () {
             const select = document.getElementById('ts3-server-group');
             if (!select) { return; }
@@ -220,6 +348,14 @@
                         if (data.status === 'pending' && attempts < maxAttempts) {
                             attempts += 1;
                             setTimeout(loadGroups, delayMs);
+                            return;
+                        }
+                        if (data.status === 'error') {
+                            const option = document.createElement('option');
+                            option.value = '6';
+                            option.textContent = `Fehler: ${data.message ?? 'Unbekannt'} (${data.action_id ?? 'n/a'})`;
+                            select.innerHTML = '';
+                            select.appendChild(option);
                             return;
                         }
                         if (data.status !== 'ok') { return; }
@@ -245,98 +381,332 @@
             };
             loadGroups();
         })();
+
         (function () {
-            const panels = document.querySelectorAll('details.ts3-panel');
-            if (!panels.length) { return; }
-            const intervals = new Map();
-            const pollIntervalMs = 60000;
-            const registerPanel = (panel) => {
-                const block = panel.querySelector('[data-query][data-url]');
-                if (!block) { return; }
-                const url = block.dataset.url;
-                if (!url) { return; }
-                const queryType = block.dataset.query;
+            const sections = document.querySelectorAll('.ts3-tab-content[data-query-url]');
+            const fetchQuery = (url, onSuccess, onError) => {
                 let attempts = 0;
                 const maxAttempts = 6;
                 const delayMs = 1500;
-                const loadData = () => {
+                const execute = () => {
                     fetch(url)
                         .then((response) => response.json())
                         .then((data) => {
                             if (!data) { return; }
                             if (data.status === 'pending' && attempts < maxAttempts) {
                                 attempts += 1;
-                                setTimeout(loadData, delayMs);
+                                setTimeout(execute, delayMs);
+                                return;
+                            }
+                            if (data.status === 'error') {
+                                onError(data.message, data.action_id);
                                 return;
                             }
                             if (data.status !== 'ok') { return; }
-                            const payload = data.payload || {};
-                            if (payload.snapshot) {
-                                block.innerHTML = `<pre>${payload.snapshot}</pre>`;
-                                return;
-                            }
-                            const items = payload.bans || payload.channels || payload.clients || payload.logs || [];
-                            if (!Array.isArray(items) || items.length === 0) {
-                                block.textContent = queryType === 'bans'
-                                    ? 'Kein Bann gefunden.'
-                                    : 'Keine Einträge vorhanden.';
-                                return;
-                            }
-                            const list = document.createElement('ul');
-                            items.forEach((item) => {
-                                const entry = document.createElement('li');
-                                if (item.client_nickname) {
-                                    entry.textContent = `${item.client_nickname} (ID ${item.clid ?? '-'})`;
-                                } else if (item.channel_name) {
-                                    entry.textContent = `${item.channel_name} (ID ${item.cid ?? '-'})`;
-                                } else if (item.ban_reason || item.ip || item.name) {
-                                    entry.textContent = `${item.name ?? item.ip ?? 'Ban'} ${item.ban_reason ?? ''}`.trim();
-                                } else if (item.msg || item.message) {
-                                    entry.textContent = item.msg ?? item.message;
-                                } else {
-                                    entry.textContent = JSON.stringify(item);
-                                }
-                                list.appendChild(entry);
-                            });
-                            block.innerHTML = '';
-                            block.appendChild(list);
+                            onSuccess(data.payload ?? data.groups ?? {});
                         })
-                        .catch(() => {});
+                        .catch(() => {
+                            onError('Netzwerkfehler');
+                        });
+                };
+                execute();
+            };
+
+            sections.forEach((section) => {
+                const url = section.dataset.queryUrl;
+                const state = section.querySelector('[data-state]');
+                const table = section.querySelector('[data-table]');
+                const list = section.querySelector('[data-list]');
+                const search = section.querySelector('[data-permission-search]');
+                if (!url || !state) { return; }
+
+                const showError = (message, actionId) => {
+                    state.innerHTML = '';
+                    state.dataset.state = 'error';
+                    const error = document.createElement('div');
+                    error.className = 'ts3-error-state';
+                    error.innerHTML = `<strong>Fehler:</strong> ${message ?? 'Unbekannt'}${actionId ? ` (Action ID: ${actionId})` : ''}`;
+                    const retry = document.createElement('button');
+                    retry.className = 'ts3-button';
+                    retry.type = 'button';
+                    retry.textContent = 'Retry';
+                    retry.addEventListener('click', () => load());
+                    state.appendChild(error);
+                    state.appendChild(retry);
                 };
 
-                const startPolling = () => {
-                    loadData();
-                    if (intervals.has(panel)) { return; }
-                    const id = setInterval(loadData, pollIntervalMs);
-                    intervals.set(panel, id);
+                const showEmpty = (text) => {
+                    state.innerHTML = '';
+                    state.dataset.state = 'empty';
+                    const empty = document.createElement('div');
+                    empty.className = 'ts3-empty-state';
+                    empty.textContent = text;
+                    state.appendChild(empty);
                 };
 
-                const stopPolling = () => {
-                    const id = intervals.get(panel);
-                    if (id) {
-                        clearInterval(id);
-                        intervals.delete(panel);
+                const renderList = (items, formatter) => {
+                    if (!list) { return; }
+                    list.innerHTML = '';
+                    if (!items.length) {
+                        list.hidden = true;
+                        showEmpty('Keine Einträge');
+                        return;
                     }
+                    items.forEach((item) => {
+                        const li = document.createElement('li');
+                        li.textContent = formatter(item);
+                        list.appendChild(li);
+                    });
+                    list.hidden = false;
+                    state.innerHTML = '';
                 };
 
-                panel.addEventListener('toggle', () => {
-                    if (panel.open) {
-                        startPolling();
-                    } else {
-                        stopPolling();
-                    }
-                });
+                const load = () => {
+                    state.innerHTML = '<div class="ts3-spinner"></div>';
+                    state.dataset.state = 'loading';
+                    fetchQuery(url, (payload) => {
+                        const data = payload.bans || payload.channels || payload.clients || payload.logs || payload.snapshot || payload.groups || payload;
+                        if (table && Array.isArray(data)) {
+                            const tbody = table.querySelector('tbody');
+                            tbody.innerHTML = '';
+                            if (data.length === 0) {
+                                table.hidden = true;
+                                showEmpty('Keine Einträge');
+                                return;
+                            }
+                            if (section.dataset.tabContent === 'clients') {
+                                data.forEach((client) => {
+                                    const row = document.createElement('tr');
+                                    row.innerHTML = `
+                                        <td>${client.client_nickname ?? '—'}</td>
+                                        <td>${client.clid ?? '—'}</td>
+                                        <td><span class="ts3-muted">Actions via Query folgen</span></td>
+                                    `;
+                                    tbody.appendChild(row);
+                                });
+                            } else {
+                                data.forEach((channel) => {
+                                    const row = document.createElement('tr');
+                                    row.innerHTML = `
+                                        <td>${channel.channel_name ?? '—'}</td>
+                                        <td>${channel.cid ?? '—'}</td>
+                                    `;
+                                    tbody.appendChild(row);
+                                });
+                            }
+                            table.hidden = false;
+                            state.innerHTML = '';
+                            return;
+                        }
+                        if (list && Array.isArray(data)) {
+                            if (section.dataset.tabContent === 'bans') {
+                                renderList(data, (ban) => `${ban.name ?? ban.ip ?? 'Ban'} ${ban.ban_reason ?? ''}`.trim());
+                                return;
+                            }
+                            if (section.dataset.tabContent === 'permissions') {
+                                const entries = data.map((group) => `${group.name} (SGID ${group.id})`);
+                                renderList(entries, (entry) => entry);
+                                if (search) {
+                                    search.addEventListener('input', (event) => {
+                                        const term = event.target.value.toLowerCase();
+                                        const filtered = entries.filter((entry) => entry.toLowerCase().includes(term));
+                                        renderList(filtered, (entry) => entry);
+                                    });
+                                }
+                                return;
+                            }
+                        }
+                        showEmpty('Keine Einträge');
+                    }, showError);
+                };
 
-                if (panel.open) {
-                    startPolling();
+                load();
+            });
+        })();
+
+        (function () {
+            const drawer = document.querySelector('[data-settings-drawer]');
+            const trigger = document.querySelector('[data-settings-trigger]');
+            if (!drawer || !trigger) { return; }
+            const content = drawer.querySelector('.ts3-drawer-content');
+            let loaded = false;
+
+            const openDrawer = () => {
+                drawer.hidden = false;
+                drawer.classList.add('is-open');
+                if (!loaded) {
+                    content.innerHTML = '<div class="ts3-spinner"></div>';
+                    fetch('/customer/ts3/servers/{{ server.id }}/settings')
+                        .then((response) => response.text())
+                        .then((html) => {
+                            content.innerHTML = html;
+                            loaded = true;
+                            registerSettingsForm();
+                        })
+                        .catch(() => {
+                            content.innerHTML = '<div class="ts3-error-state">Einstellungen konnten nicht geladen werden.</div>';
+                        });
                 }
             };
 
-            panels.forEach(registerPanel);
-            window.addEventListener('beforeunload', () => {
-                intervals.forEach((id) => clearInterval(id));
-                intervals.clear();
+            const closeDrawer = () => {
+                drawer.classList.remove('is-open');
+                drawer.hidden = true;
+            };
+
+            const registerSettingsForm = () => {
+                const form = drawer.querySelector('[data-settings-form]');
+                const message = drawer.querySelector('[data-settings-message]');
+                if (!form) { return; }
+                form.addEventListener('submit', (event) => {
+                    event.preventDefault();
+                    const data = new FormData(form);
+                    fetch(form.action, {
+                        method: 'POST',
+                        body: data,
+                    })
+                        .then((response) => response.json())
+                        .then((payload) => {
+                            if (!message) { return; }
+                            message.hidden = false;
+                            if (payload.status !== 'ok') {
+                                message.className = 'ts3-settings-message ts3-error-state';
+                                message.textContent = payload.message ?? 'Fehler beim Speichern.';
+                                return;
+                            }
+                            message.className = 'ts3-settings-message ts3-success-state';
+                            message.textContent = payload.message ?? 'Gespeichert.';
+                        })
+                        .catch(() => {
+                            if (!message) { return; }
+                            message.hidden = false;
+                            message.className = 'ts3-settings-message ts3-error-state';
+                            message.textContent = 'Netzwerkfehler beim Speichern.';
+                        });
+                });
+                drawer.querySelectorAll('[data-settings-close]').forEach((button) => {
+                    button.addEventListener('click', closeDrawer);
+                });
+            };
+
+            trigger.addEventListener('click', openDrawer);
+            drawer.querySelectorAll('[data-settings-close]').forEach((button) => {
+                button.addEventListener('click', closeDrawer);
             });
+        })();
+
+        (function () {
+            const tree = document.querySelector('[data-viewer-tree]');
+            const status = document.querySelector('[data-viewer-status]');
+            const info = document.querySelector('[data-viewer-info]');
+            const selected = document.querySelector('[data-viewer-selected]');
+            if (!tree || !status) { return; }
+            const channelsUrl = '/customer/ts3/servers/{{ server.id }}/channels.json';
+            const clientsUrl = '/customer/ts3/servers/{{ server.id }}/clients.json';
+            let lastFetch = 0;
+            let inFlight = false;
+            let cached = { channels: [], clients: [] };
+
+            const buildTree = () => {
+                const { channels, clients } = cached;
+                tree.innerHTML = '';
+                if (!channels.length) {
+                    tree.innerHTML = '<div class="ts3-empty-state">Keine Channels</div>';
+                    return;
+                }
+                const byChannel = new Map();
+                channels.forEach((channel) => {
+                    byChannel.set(channel.cid, { channel, clients: [] });
+                });
+                clients.forEach((client) => {
+                    const cid = client.cid;
+                    if (byChannel.has(cid)) {
+                        byChannel.get(cid).clients.push(client);
+                    }
+                });
+                byChannel.forEach((entry) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'ts3-tree-channel';
+                    const title = document.createElement('div');
+                    title.className = 'ts3-tree-title';
+                    title.textContent = entry.channel.channel_name;
+                    wrapper.appendChild(title);
+                    const list = document.createElement('ul');
+                    list.className = 'ts3-tree-list';
+                    entry.clients.forEach((client) => {
+                        const li = document.createElement('li');
+                        li.textContent = client.client_nickname ?? 'Unknown';
+                        li.addEventListener('click', () => {
+                            selected.textContent = client.client_nickname ?? 'Client';
+                            info.innerHTML = `<div><strong>CLID:</strong> ${client.clid ?? '—'}</div><div><strong>Type:</strong> ${client.client_type ?? '—'}</div>`;
+                        });
+                        list.appendChild(li);
+                    });
+                    if (!entry.clients.length) {
+                        const empty = document.createElement('li');
+                        empty.className = 'ts3-muted';
+                        empty.textContent = 'Keine Clients';
+                        list.appendChild(empty);
+                    }
+                    wrapper.appendChild(list);
+                    tree.appendChild(wrapper);
+                });
+            };
+
+            const fetchQuery = (url, setter) => {
+                return new Promise((resolve, reject) => {
+                    let attempts = 0;
+                    const maxAttempts = 6;
+                    const delayMs = 1500;
+                    const execute = () => {
+                        fetch(url)
+                            .then((response) => response.json())
+                            .then((data) => {
+                                if (!data) { return; }
+                                if (data.status === 'pending' && attempts < maxAttempts) {
+                                    attempts += 1;
+                                    setTimeout(execute, delayMs);
+                                    return;
+                                }
+                                if (data.status === 'error') {
+                                    reject(data);
+                                    return;
+                                }
+                                if (data.status !== 'ok') { return; }
+                                setter(Array.isArray(data.payload?.channels || data.payload?.clients || data.payload) ? (data.payload.channels || data.payload.clients || data.payload) : []);
+                                resolve();
+                            })
+                            .catch(reject);
+                    };
+                    execute();
+                });
+            };
+
+            const refreshViewer = () => {
+                const now = Date.now();
+                if (inFlight || now - lastFetch < 1500) { return; }
+                inFlight = true;
+                lastFetch = now;
+                status.textContent = 'Loading…';
+                Promise.all([
+                    fetchQuery(channelsUrl, (data) => { cached.channels = data; }),
+                    fetchQuery(clientsUrl, (data) => { cached.clients = data; }),
+                ])
+                    .then(() => {
+                        status.textContent = 'Aktualisiert';
+                        buildTree();
+                    })
+                    .catch((error) => {
+                        status.textContent = 'Fehler';
+                        tree.innerHTML = `<div class="ts3-error-state">Fehler beim Laden${error?.action_id ? ` (Action ID: ${error.action_id})` : ''}</div>`;
+                    })
+                    .finally(() => {
+                        inFlight = false;
+                    });
+            };
+
+            refreshViewer();
+            setInterval(refreshViewer, 2000);
         })();
     </script>
 {% endblock %}

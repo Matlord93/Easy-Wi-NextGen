@@ -13,9 +13,11 @@ use App\Module\Core\Form\Ts6ViewerType;
 use App\Repository\Ts6TokenRepository;
 use App\Repository\Ts6VirtualServerRepository;
 use App\Repository\Ts6ViewerRepository;
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Ts6\Ts6VirtualServerService;
 use App\Module\Core\Application\Ts6\Ts6ViewerService;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -25,6 +27,7 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\Uid\Uuid;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Twig\Environment;
@@ -39,6 +42,8 @@ final class CustomerTs6ServerController
         private readonly Ts6VirtualServerService $virtualServerService,
         private readonly Ts6ViewerService $viewerService,
         private readonly SecretsCrypto $crypto,
+        private readonly AuditLogger $auditLogger,
+        private readonly EntityManagerInterface $entityManager,
         private readonly FormFactoryInterface $formFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
@@ -59,6 +64,7 @@ final class CustomerTs6ServerController
             $id = (int) $server->getId();
             return [
                 'server' => $server,
+                'connectIp' => $this->resolveExternalHost($server),
                 'summaryUrl' => sprintf('/customer/ts6/servers/%d/summary.json', $id),
                 'csrf' => [
                     'start' => $this->csrfTokenManager->getToken('ts6_server_start_' . $id)->getValue(),
@@ -104,12 +110,73 @@ final class CustomerTs6ServerController
         return new Response($this->twig->render('customer/ts6/servers/show.html.twig', [
             'activeNav' => 'ts6',
             'server' => $server,
+            'externalHost' => $this->resolveExternalHost($server),
             'token' => $token instanceof Ts6Token ? $token->getToken($this->crypto) : null,
             'tokens' => $tokenRows,
             'viewer' => $viewer,
             'form' => $form->createView(),
             'csrf' => $this->csrfTokens($server),
         ]));
+    }
+
+    #[Route(path: '/{id}/logs', name: 'customer_ts6_servers_logs_page', methods: ['GET'])]
+    public function logsPage(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $server = $this->findServer($customer, $id);
+
+        return new Response($this->twig->render('customer/ts6/servers/logs.html.twig', [
+            'activeNav' => 'ts6',
+            'server' => $server,
+            'externalHost' => $this->resolveExternalHost($server),
+        ]));
+    }
+
+    #[Route(path: '/{id}/backups', name: 'customer_ts6_servers_backups_page', methods: ['GET'])]
+    public function backupsPage(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $server = $this->findServer($customer, $id);
+
+        return new Response($this->twig->render('customer/ts6/servers/backups.html.twig', [
+            'activeNav' => 'ts6',
+            'server' => $server,
+            'externalHost' => $this->resolveExternalHost($server),
+            'csrf' => $this->csrfTokens($server),
+        ]));
+    }
+
+    #[Route(path: '/{id}/settings', name: 'customer_ts6_servers_settings', methods: ['GET'])]
+    public function settings(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $server = $this->findServer($customer, $id);
+
+        return new Response($this->twig->render('customer/ts6/servers/_settings.html.twig', [
+            'server' => $server,
+            'connectIp' => $this->resolveExternalHost($server),
+            'csrf' => [
+                'settings' => $this->csrfTokenManager->getToken('ts6_server_settings_' . $id)->getValue(),
+            ],
+            'isAdmin' => $customer->isAdmin(),
+        ]));
+    }
+
+    #[Route(path: '/{id}/settings/save', name: 'customer_ts6_servers_settings_save', methods: ['POST'])]
+    public function saveSettings(Request $request, int $id): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $server = $this->findServer($customer, $id);
+        $this->validateCsrf($request, 'ts6_server_settings_' . $id);
+
+        $server->setPublicHost((string) $request->request->get('public_host'));
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'status' => 'ok',
+            'message' => 'Einstellungen gespeichert.',
+            'public_host' => $server->getPublicHost() ?? $this->resolveExternalHost($server),
+        ]);
     }
 
     #[Route(path: '/{id}/start', name: 'customer_ts6_servers_start', methods: ['POST'])]
@@ -119,8 +186,20 @@ final class CustomerTs6ServerController
         $server = $this->findServer($customer, $id);
         $this->validateCsrf($request, 'ts6_server_start_' . $id);
 
-        $this->virtualServerService->start($server);
-        $request->getSession()->getFlashBag()->add('success', 'Server gestartet.');
+        if ($this->rejectIfNotReady($customer, $server, $request, 'start') !== null) {
+            return $this->redirectToServer($server);
+        }
+
+        $job = $this->virtualServerService->start($server);
+        $this->auditLogger->log($customer, 'ts6.virtual.start', [
+            'action_id' => $job->getId(),
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'job_id' => $job->getId(),
+        ]);
+        $this->entityManager->flush();
+        $request->getSession()->getFlashBag()->add('success', sprintf('Server gestartet. Action ID: %s', $job->getId()));
 
         return $this->redirectToServer($server);
     }
@@ -132,8 +211,20 @@ final class CustomerTs6ServerController
         $server = $this->findServer($customer, $id);
         $this->validateCsrf($request, 'ts6_server_stop_' . $id);
 
-        $this->virtualServerService->stop($server);
-        $request->getSession()->getFlashBag()->add('success', 'Server gestoppt.');
+        if ($this->rejectIfNotReady($customer, $server, $request, 'stop') !== null) {
+            return $this->redirectToServer($server);
+        }
+
+        $job = $this->virtualServerService->stop($server);
+        $this->auditLogger->log($customer, 'ts6.virtual.stop', [
+            'action_id' => $job->getId(),
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'job_id' => $job->getId(),
+        ]);
+        $this->entityManager->flush();
+        $request->getSession()->getFlashBag()->add('success', sprintf('Server gestoppt. Action ID: %s', $job->getId()));
 
         return $this->redirectToServer($server);
     }
@@ -145,8 +236,20 @@ final class CustomerTs6ServerController
         $server = $this->findServer($customer, $id);
         $this->validateCsrf($request, 'ts6_server_restart_' . $id);
 
-        $this->virtualServerService->restart($server);
-        $request->getSession()->getFlashBag()->add('success', 'Server neu gestartet.');
+        if ($this->rejectIfNotReady($customer, $server, $request, 'restart') !== null) {
+            return $this->redirectToServer($server);
+        }
+
+        $job = $this->virtualServerService->restart($server);
+        $this->auditLogger->log($customer, 'ts6.virtual.restart', [
+            'action_id' => $job->getId(),
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'job_id' => $job->getId(),
+        ]);
+        $this->entityManager->flush();
+        $request->getSession()->getFlashBag()->add('success', sprintf('Server neu gestartet. Action ID: %s', $job->getId()));
 
         return $this->redirectToServer($server);
     }
@@ -198,9 +301,22 @@ final class CustomerTs6ServerController
         $server = $this->findServer($customer, $id);
         $this->validateCsrf($request, 'ts6_server_token_rotate_' . $id);
 
+        if ($this->rejectIfNotReady($customer, $server, $request, 'token.rotate') !== null) {
+            return $this->redirectToToken($server);
+        }
+
         $serverGroupId = (int) $request->request->get('server_group_id', 6);
-        $this->virtualServerService->rotateToken($server, $serverGroupId);
-        $request->getSession()->getFlashBag()->add('success', 'Token rotiert.');
+        $job = $this->virtualServerService->rotateToken($server, $serverGroupId);
+        $this->auditLogger->log($customer, 'ts6.virtual.token.rotate', [
+            'action_id' => $job->getId(),
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'server_group_id' => $serverGroupId,
+            'job_id' => $job->getId(),
+        ]);
+        $this->entityManager->flush();
+        $request->getSession()->getFlashBag()->add('success', sprintf('Token rotiert. Action ID: %s', $job->getId()));
 
         return $this->redirectToToken($server);
     }
@@ -264,14 +380,34 @@ final class CustomerTs6ServerController
         $server = $this->findServer($customer, $id);
         $cacheKey = sprintf('ts6_server_groups_%d', $server->getId());
 
+        $guard = $this->resolveGuardReason($server);
+        if ($guard !== null) {
+            $actionId = $this->rejectServerAction($customer, $server, 'servergroup.list', $guard);
+            $this->entityManager->flush();
+            return new JsonResponse([
+                'status' => 'error',
+                'message' => $guard,
+                'action_id' => $actionId,
+                'groups' => [],
+            ]);
+        }
+
         $payload = $this->cache->get($cacheKey, function (ItemInterface $item): array {
             $item->expiresAfter(60);
             return ['status' => 'pending', 'groups' => []];
         });
 
         if (!is_array($payload) || ($payload['status'] ?? 'pending') !== 'ok') {
-            $this->virtualServerService->queueServerGroupList($server, $cacheKey);
-            return new JsonResponse(['status' => 'pending', 'groups' => []]);
+            $job = $this->virtualServerService->queueServerGroupList($server, $cacheKey);
+            $this->auditLogger->log($customer, 'ts6.virtual.servergroup.list', [
+                'action_id' => $job->getId(),
+                'virtual_server_id' => $server->getId(),
+                'node_id' => $server->getNode()->getId(),
+                'sid' => $server->getSid(),
+                'job_id' => $job->getId(),
+            ]);
+            $this->entityManager->flush();
+            return new JsonResponse(['status' => 'pending', 'groups' => [], 'action_id' => $job->getId()]);
         }
 
         return new JsonResponse([
@@ -287,14 +423,33 @@ final class CustomerTs6ServerController
         $server = $this->findServer($customer, $id);
         $cacheKey = sprintf('ts6_server_summary_%d', $server->getId());
 
+        $guard = $this->resolveGuardReason($server);
+        if ($guard !== null) {
+            $actionId = $this->rejectServerAction($customer, $server, 'summary', $guard);
+            $this->entityManager->flush();
+            return new JsonResponse([
+                'status' => 'error',
+                'message' => $guard,
+                'action_id' => $actionId,
+            ]);
+        }
+
         $payload = $this->cache->get($cacheKey, function (ItemInterface $item): array {
             $item->expiresAfter(30);
             return ['status' => 'pending'];
         });
 
         if (!is_array($payload) || ($payload['status'] ?? 'pending') !== 'ok') {
-            $this->virtualServerService->queueServerSummary($server, $cacheKey);
-            return new JsonResponse(['status' => 'pending']);
+            $job = $this->virtualServerService->queueServerSummary($server, $cacheKey);
+            $this->auditLogger->log($customer, 'ts6.virtual.summary', [
+                'action_id' => $job->getId(),
+                'virtual_server_id' => $server->getId(),
+                'node_id' => $server->getNode()->getId(),
+                'sid' => $server->getSid(),
+                'job_id' => $job->getId(),
+            ]);
+            $this->entityManager->flush();
+            return new JsonResponse(['status' => 'pending', 'action_id' => $job->getId()]);
         }
 
         return new JsonResponse([
@@ -353,14 +508,34 @@ final class CustomerTs6ServerController
         $server = $this->findServer($customer, $id);
         $cacheKey = sprintf($cachePattern, $server->getId());
 
+        $guard = $this->resolveGuardReason($server);
+        if ($guard !== null) {
+            $actionId = $this->rejectServerAction($customer, $server, $jobType, $guard);
+            $this->entityManager->flush();
+            return new JsonResponse([
+                'status' => 'error',
+                'message' => $guard,
+                'action_id' => $actionId,
+            ]);
+        }
+
         $payload = $this->cache->get($cacheKey, function (ItemInterface $item): array {
             $item->expiresAfter(30);
             return ['status' => 'pending'];
         });
 
         if (!is_array($payload) || ($payload['status'] ?? 'pending') !== 'ok') {
-            $this->virtualServerService->queueServerQuery($server, $cacheKey, $jobType);
-            return new JsonResponse(['status' => 'pending']);
+            $job = $this->virtualServerService->queueServerQuery($server, $cacheKey, $jobType);
+            $this->auditLogger->log($customer, 'ts6.virtual.query', [
+                'action_id' => $job->getId(),
+                'virtual_server_id' => $server->getId(),
+                'node_id' => $server->getNode()->getId(),
+                'sid' => $server->getSid(),
+                'job_id' => $job->getId(),
+                'job_type' => $jobType,
+            ]);
+            $this->entityManager->flush();
+            return new JsonResponse(['status' => 'pending', 'action_id' => $job->getId()]);
         }
 
         return new JsonResponse([
@@ -385,6 +560,30 @@ final class CustomerTs6ServerController
         }
 
         return $server;
+    }
+
+    private function resolveExternalHost(Ts6VirtualServer $server): string
+    {
+        $publicHost = $server->getPublicHost();
+        if ($publicHost !== null && $publicHost !== '') {
+            return $publicHost;
+        }
+
+        $node = $server->getNode();
+        $agentIp = trim((string) $node->getAgent()->getLastHeartbeatIp());
+        if ($agentIp !== '') {
+            return $agentIp;
+        }
+
+        $agentBaseUrl = $node->getAgentBaseUrl();
+        if ($agentBaseUrl !== '') {
+            $host = parse_url($agentBaseUrl, PHP_URL_HOST);
+            if (is_string($host) && $host !== '') {
+                return $host;
+            }
+        }
+
+        return $node->getQueryConnectIp();
     }
 
     private function redirectToServer(Ts6VirtualServer $server): Response
@@ -414,6 +613,7 @@ final class CustomerTs6ServerController
             'restart' => $this->csrfTokenManager->getToken('ts6_server_restart_' . $id)->getValue(),
             'recreate' => $this->csrfTokenManager->getToken('ts6_server_recreate_' . $id)->getValue(),
             'rotate' => $this->csrfTokenManager->getToken('ts6_server_token_rotate_' . $id)->getValue(),
+            'settings' => $this->csrfTokenManager->getToken('ts6_server_settings_' . $id)->getValue(),
         ];
     }
 
@@ -423,6 +623,54 @@ final class CustomerTs6ServerController
         if (!$this->csrfTokenManager->isTokenValid(new CsrfToken($tokenId, $token))) {
             throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
         }
+    }
+
+    private function rejectIfNotReady(User $customer, Ts6VirtualServer $server, Request $request, string $action): ?string
+    {
+        $reason = $this->resolveGuardReason($server);
+        if ($reason === null) {
+            return null;
+        }
+
+        $actionId = $this->rejectServerAction($customer, $server, $action, $reason);
+        $request->getSession()->getFlashBag()->add('error', sprintf('Aktion abgebrochen (%s). Action ID: %s', $reason, $actionId));
+        $this->entityManager->flush();
+
+        return $actionId;
+    }
+
+    private function rejectServerAction(User $customer, Ts6VirtualServer $server, string $action, string $reason): string
+    {
+        $actionId = $this->createActionId();
+        $this->auditLogger->log($customer, 'ts6.virtual.rejected', [
+            'action_id' => $actionId,
+            'virtual_server_id' => $server->getId(),
+            'node_id' => $server->getNode()->getId(),
+            'sid' => $server->getSid(),
+            'action' => $action,
+            'reason' => $reason,
+        ]);
+
+        return $actionId;
+    }
+
+    private function resolveGuardReason(Ts6VirtualServer $server): ?string
+    {
+        if ($server->getSid() <= 0) {
+            return 'Server-ID fehlt (Provisionierung läuft noch)';
+        }
+
+        $status = strtolower($server->getStatus());
+        if (in_array($status, ['provisioning', 'deleting', 'deleted', 'error'], true)) {
+            return sprintf('Serverstatus %s', $status);
+        }
+
+        return null;
+    }
+
+    private function createActionId(): string
+    {
+        return Uuid::v4()->toRfc4122();
     }
 
 }

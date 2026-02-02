@@ -38,6 +38,9 @@ class Ts6VirtualServer
     #[ORM\Column(nullable: true)]
     private ?int $filetransferPort = null;
 
+    #[ORM\Column(nullable: true, length: 190)]
+    private ?string $publicHost = null;
+
     #[ORM\Column(length: 32)]
     private string $status = 'unknown';
 
@@ -134,6 +137,18 @@ class Ts6VirtualServer
     public function setFiletransferPort(?int $filetransferPort): void
     {
         $this->filetransferPort = $filetransferPort !== null ? max(1, $filetransferPort) : null;
+        $this->touch();
+    }
+
+    public function getPublicHost(): ?string
+    {
+        return $this->publicHost;
+    }
+
+    public function setPublicHost(?string $publicHost): void
+    {
+        $trimmed = $publicHost !== null ? trim($publicHost) : null;
+        $this->publicHost = $trimmed !== '' ? $trimmed : null;
         $this->touch();
     }
 

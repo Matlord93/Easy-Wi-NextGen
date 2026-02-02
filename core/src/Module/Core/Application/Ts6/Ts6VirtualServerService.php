@@ -67,19 +67,19 @@ final class Ts6VirtualServerService
         return $virtualServer;
     }
 
-    public function start(Ts6VirtualServer $server): void
+    public function start(Ts6VirtualServer $server): AgentJob
     {
-        $this->applyServerAction($server, 'start');
+        return $this->applyServerAction($server, 'start');
     }
 
-    public function stop(Ts6VirtualServer $server): void
+    public function stop(Ts6VirtualServer $server): AgentJob
     {
-        $this->applyServerAction($server, 'stop');
+        return $this->applyServerAction($server, 'stop');
     }
 
-    public function restart(Ts6VirtualServer $server): void
+    public function restart(Ts6VirtualServer $server): AgentJob
     {
-        $this->applyServerAction($server, 'restart');
+        return $this->applyServerAction($server, 'restart');
     }
 
     public function recreate(Ts6VirtualServer $server): Ts6VirtualServer
@@ -95,7 +95,7 @@ final class Ts6VirtualServerService
         return $replacement;
     }
 
-    public function rotateToken(Ts6VirtualServer $server, int $serverGroupId = 6): Ts6Token
+    public function rotateToken(Ts6VirtualServer $server, int $serverGroupId = 6): AgentJob
     {
         if ($serverGroupId <= 0) {
             $serverGroupId = 6;
@@ -111,14 +111,14 @@ final class Ts6VirtualServerService
             'install_dir' => $server->getNode()->getInstallPath(),
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.token.rotate', $payload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.token.rotate', $payload);
 
         $token = new Ts6Token($server, $this->crypto->encrypt('pending'), $tokenType);
         $token->deactivate();
         $this->entityManager->persist($token);
         $this->entityManager->flush();
 
-        return $token;
+        return $job;
     }
 
     public function delete(Ts6VirtualServer $server): void
@@ -148,7 +148,7 @@ final class Ts6VirtualServerService
         return $this->jobDispatcher->dispatch($node->getAgent(), 'ts6.virtual.list', $payload);
     }
 
-    public function queueServerGroupList(Ts6VirtualServer $server, string $cacheKey): void
+    public function queueServerGroupList(Ts6VirtualServer $server, string $cacheKey): AgentJob
     {
         $payload = [
             'virtual_server_id' => $server->getId(),
@@ -161,11 +161,12 @@ final class Ts6VirtualServerService
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
 
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.servergroup.list', $payload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.servergroup.list', $payload);
         $this->entityManager->flush();
+        return $job;
     }
 
-    public function queueServerSummary(Ts6VirtualServer $server, string $cacheKey): void
+    public function queueServerSummary(Ts6VirtualServer $server, string $cacheKey): AgentJob
     {
         $payload = [
             'virtual_server_id' => $server->getId(),
@@ -178,11 +179,12 @@ final class Ts6VirtualServerService
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
 
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.summary', $payload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.summary', $payload);
         $this->entityManager->flush();
+        return $job;
     }
 
-    public function queueServerQuery(Ts6VirtualServer $server, string $cacheKey, string $jobType): void
+    public function queueServerQuery(Ts6VirtualServer $server, string $cacheKey, string $jobType): AgentJob
     {
         $payload = [
             'virtual_server_id' => $server->getId(),
@@ -195,11 +197,12 @@ final class Ts6VirtualServerService
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
 
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), $jobType, $payload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), $jobType, $payload);
         $this->entityManager->flush();
+        return $job;
     }
 
-    private function applyServerAction(Ts6VirtualServer $server, string $action): void
+    private function applyServerAction(Ts6VirtualServer $server, string $action): AgentJob
     {
         $payload = [
             'virtual_server_id' => $server->getId(),
@@ -211,8 +214,9 @@ final class Ts6VirtualServerService
             'install_dir' => $server->getNode()->getInstallPath(),
             'admin_password' => $server->getNode()->getAdminPassword($this->crypto),
         ];
-        $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.action', $payload);
+        $job = $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.virtual.action', $payload);
         $this->entityManager->flush();
+        return $job;
     }
 
 }

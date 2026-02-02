@@ -1,0 +1,56 @@
+<div class="ts3-settings-panel">
+    <div class="ts3-settings-header">
+        <div>
+            <h3>Einstellungen</h3>
+            <p class="ts3-muted">Ändere die externe Adresse und prüfe die ServerQuery-Limits.</p>
+        </div>
+        <button class="ts3-link" type="button" data-settings-close>Schließen</button>
+    </div>
+    <form class="ts3-form ts3-settings-form" method="post" action="/customer/ts3/servers/{{ server.id }}/settings/save" data-settings-form>
+        <input type="hidden" name="_token" value="{{ csrf.settings }}">
+        <label for="ts3-public-host">Externe Adresse (publicHost)</label>
+        <input id="ts3-public-host" name="public_host" value="{{ server.publicHost ?? connectIp }}" placeholder="voice.example.com">
+        <p class="ts3-muted">Standard: {{ connectIp }} (wenn kein publicHost gesetzt).</p>
+
+        <div class="ts3-settings-section">
+            <h4>Flood-Limits (ServerQuery)</h4>
+            <p class="ts3-muted">Limits werden beim Provisioning gesetzt. Admins können sie überschreiben.</p>
+            <div class="ts3-grid">
+                <div>
+                    <label for="ts3-flood-commands">Max Commands</label>
+                    <input id="ts3-flood-commands" name="flood_commands" value="100" {% if not isAdmin %}disabled{% endif %}>
+                </div>
+                <div>
+                    <label for="ts3-flood-time">Time Window (s)</label>
+                    <input id="ts3-flood-time" name="flood_time" value="2" {% if not isAdmin %}disabled{% endif %}>
+                </div>
+                <div>
+                    <label for="ts3-flood-ban">Ban Time (s)</label>
+                    <input id="ts3-flood-ban" name="flood_ban_time" value="10" {% if not isAdmin %}disabled{% endif %}>
+                </div>
+            </div>
+        </div>
+
+        <div class="ts3-settings-section">
+            <h4>Safe-Mode & Permission Limits</h4>
+            <p class="ts3-muted">Optional: begrenze risikoreiche Aktionen für Standardnutzer.</p>
+            <label class="ts3-toggle">
+                <input type="checkbox" disabled checked>
+                <span>Safe-Mode aktiv (Demo)</span>
+            </label>
+        </div>
+
+        {% if isAdmin %}
+            <div class="ts3-settings-section">
+                <h4>Debug</h4>
+                <div class="ts3-muted">Interne Agent-Adresse: {{ server.node.agentBaseUrl ?: '—' }}</div>
+                <div class="ts3-muted">Server ID: {{ server.sid }}</div>
+            </div>
+        {% endif %}
+
+        <div class="ts3-actions">
+            <button class="ts3-button" type="submit">Einstellungen speichern</button>
+        </div>
+        <div class="ts3-settings-message" data-settings-message hidden></div>
+    </form>
+</div>
