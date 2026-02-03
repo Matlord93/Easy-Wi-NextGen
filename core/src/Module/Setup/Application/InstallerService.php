@@ -99,6 +99,11 @@ final class InstallerService
             $this->getSetupStateDirPath(),
             'hints.writable_var',
         );
+        $requirements[] = $this->buildWritableRequirement(
+            'db_config',
+            dirname($this->configProvider->getConfigPath()),
+            'hints.writable_var',
+        );
 
         return $requirements;
     }
@@ -261,9 +266,38 @@ final class InstallerService
      */
     public function storeDatabaseConfig(array $payload): void
     {
+        $this->ensureSecretKeyExists();
         $this->configProvider->store($payload);
     }
 
+    private function ensureSecretKeyExists(): void
+    {
+        if ($this->configProvider->isKeyReadable()) {
+            return;
+        }
+
+        $keyPath = $this->configProvider->getKeyPath();
+        if (is_file($keyPath)) {
+            throw new \RuntimeException('Secret key file is not readable.');
+        }
+
+        $directory = dirname($keyPath);
+        if (!is_dir($directory) && !@mkdir($directory, 0750, true) && !is_dir($directory)) {
+            throw new \RuntimeException('Unable to create secret key directory.');
+        }
+
+        $key = base64_encode(random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES));
+        if (file_put_contents($keyPath, $key . "\n") === false) {
+            throw new \RuntimeException('Unable to write secret key file.');
+        }
+
+        @chmod($keyPath, 0600);
+    }
+
+    public function getDatabaseConfigPath(): string
+    {
+        return $this->configProvider->getConfigPath();
+    }
 
     public function clearCache(): void
     {
@@ -628,7 +662,7 @@ final class InstallerService
      */
     private function buildWritableRequirement(string $key, string $path, string $hintKey): array
     {
-        $ok = is_dir($path) && is_writable($path);
+        $ok = $this->isDirectoryWritable($path);
 
         return [
             'key' => $key,
@@ -639,6 +673,17 @@ final class InstallerService
             'fixHintKey' => $ok ? null : $hintKey,
             'fixHintParams' => ['%path%' => $path],
         ];
+    }
+
+    private function isDirectoryWritable(string $path): bool
+    {
+        if (is_dir($path)) {
+            return is_writable($path);
+        }
+
+        $parent = dirname($path);
+
+        return is_dir($parent) && is_writable($parent);
     }
 
 }

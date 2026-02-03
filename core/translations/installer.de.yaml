@@ -76,7 +76,7 @@ errors:
   db_connection_failed: "Datenbankverbindung fehlgeschlagen. Bitte Zugangsdaten und Host prüfen."
   db_privileges_failed: "Datenbankrechteprüfung fehlgeschlagen. Stellen Sie CREATE-, ALTER- und INDEX-Rechte sicher."
   db_migrations_failed: "Datenbank-Migrationen fehlgeschlagen. Prüfen Sie die Logs und versuchen Sie es erneut."
-  db_config_write_failed: "Die Datenbankkonfiguration konnte nicht gespeichert werden. Prüfen Sie die Rechte für /etc/easywi."
+  db_config_write_failed: "Die Datenbankkonfiguration konnte nicht gespeichert werden. Prüfen Sie die Rechte für %path%."
   site_required: "Site-Name und Host sind erforderlich."
   email_invalid: "Bitte eine gültige Superadmin-E-Mail-Adresse angeben."
   admin_name_required: "Bitte einen Namen für den Superadmin angeben."

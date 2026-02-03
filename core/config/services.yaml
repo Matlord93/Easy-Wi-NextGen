@@ -68,14 +68,6 @@ services:
       - '../src/DependencyInjection/'
       - '../src/Kernel.php'
 
-  App\Infrastructure\Security\EncryptionKeyLoader:
-    arguments:
-      $keyPath: '/etc/easywi/secret.key'
-
-  App\Infrastructure\Security\SecretKeyLoader:
-    arguments:
-      $keyPath: '/etc/easywi/secret.key'
-
   App\Module\Core\Application\EncryptionService:
     factory: ['@App\Infrastructure\Security\EncryptionServiceFactory', 'create']
 

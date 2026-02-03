@@ -187,7 +187,10 @@ final class InstallController
                                 $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
                             } catch (\RuntimeException $exception) {
                                 $this->installerService->logException($exception, 'Database config persistence failed during installer.');
-                                $errors[] = ['key' => 'errors.db_config_write_failed'];
+                                $errors[] = [
+                                    'key' => 'errors.db_config_write_failed',
+                                    'params' => ['%path%' => $this->installerService->getDatabaseConfigPath()],
+                                ];
                             } catch (\Throwable $exception) {
                                 $this->installerService->logException($exception, 'Database migrations failed during installer.');
                                 $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
@@ -314,7 +317,10 @@ final class InstallController
                                 $errors[] = $this->resolveDatabaseConnectionError($databaseState, $exception);
                             } catch (\RuntimeException $exception) {
                                 $this->installerService->logException($exception, 'Database config persistence failed during installation.');
-                                $errors[] = ['key' => 'errors.db_config_write_failed'];
+                                $errors[] = [
+                                    'key' => 'errors.db_config_write_failed',
+                                    'params' => ['%path%' => $this->installerService->getDatabaseConfigPath()],
+                                ];
                             } catch (\Throwable $exception) {
                                 $this->installerService->logException($exception, 'Installer failed during install step.');
                                 $errors[] = ['key' => 'errors.install_failed'];

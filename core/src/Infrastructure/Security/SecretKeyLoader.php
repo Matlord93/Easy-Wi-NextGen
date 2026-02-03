@@ -7,11 +7,18 @@ namespace App\Infrastructure\Security;
 final class SecretKeyLoader
 {
     private const DEFAULT_KEY_PATH = '/etc/easywi/secret.key';
+    private const FALLBACK_KEY_DIR = 'var/easywi';
 
     public function __construct(
-        private readonly string $keyPath = self::DEFAULT_KEY_PATH,
+        #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%env(default::EASYWI_SECRET_KEY_PATH)%')]
+        ?string $envPath = null,
+        #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%kernel.project_dir%')]
+        ?string $projectDir = null,
     ) {
+        $this->keyPath = $this->resolveKeyPath($envPath, $projectDir);
     }
+
+    private string $keyPath;
 
     public function getKeyPath(): string
     {
@@ -49,5 +56,19 @@ final class SecretKeyLoader
         }
 
         throw new \RuntimeException('Secret key has invalid length.');
+    }
+
+    private function resolveKeyPath(?string $envPath, ?string $projectDir): string
+    {
+        $envPath = $envPath === null ? '' : trim($envPath);
+        if ($envPath !== '') {
+            return $envPath;
+        }
+
+        if (!is_readable(self::DEFAULT_KEY_PATH) && $projectDir !== null) {
+            return rtrim($projectDir, '/') . '/' . self::FALLBACK_KEY_DIR . '/secret.key';
+        }
+
+        return self::DEFAULT_KEY_PATH;
     }
 }

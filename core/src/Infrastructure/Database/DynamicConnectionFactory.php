@@ -27,7 +27,7 @@ final class DynamicConnectionFactory
         array $mappingTypes = [],
     ): Connection {
         if (!$this->configProvider->exists()) {
-            throw new DatabaseNotConfiguredException('Database configuration is missing.');
+            return $this->inner->createConnection($params, $config, $mappingTypes);
         }
 
         $payload = $this->configProvider->load();

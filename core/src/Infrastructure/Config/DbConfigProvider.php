@@ -9,22 +9,30 @@ use App\Infrastructure\Security\SecretKeyLoader;
 
 final class DbConfigProvider
 {
-    private const DB_CONFIG_PATH = '/etc/easywi/db.json';
+    private const DEFAULT_DB_CONFIG_PATH = '/etc/easywi/db.json';
+    private const FALLBACK_DB_CONFIG_DIR = 'var/easywi';
+
+    private string $configPath;
 
     public function __construct(
         private readonly CryptoService $crypto,
         private readonly SecretKeyLoader $keyLoader,
+        #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%env(default::EASYWI_DB_CONFIG_PATH)%')]
+        ?string $envPath = null,
+        #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%kernel.project_dir%')]
+        ?string $projectDir = null,
     ) {
+        $this->configPath = $this->resolveConfigPath($envPath, $projectDir);
     }
 
     public function getConfigPath(): string
     {
-        return self::DB_CONFIG_PATH;
+        return $this->configPath;
     }
 
     public function exists(): bool
     {
-        return is_file(self::DB_CONFIG_PATH);
+        return is_file($this->configPath);
     }
 
     public function isKeyReadable(): bool
@@ -46,7 +54,7 @@ final class DbConfigProvider
             throw new \RuntimeException('Database configuration file not found.');
         }
 
-        $contents = file_get_contents(self::DB_CONFIG_PATH);
+        $contents = file_get_contents($this->configPath);
         if ($contents === false) {
             throw new \RuntimeException('Unable to read database configuration file.');
         }
@@ -97,7 +105,7 @@ final class DbConfigProvider
      */
     public function store(array $payload): void
     {
-        $directory = dirname(self::DB_CONFIG_PATH);
+        $directory = dirname($this->configPath);
         if (!is_dir($directory) && !@mkdir($directory, 0750, true) && !is_dir($directory)) {
             throw new \RuntimeException('Unable to create database config directory.');
         }
@@ -108,17 +116,17 @@ final class DbConfigProvider
             throw new \RuntimeException('Unable to encode database configuration.');
         }
 
-        $tempPath = self::DB_CONFIG_PATH . '.' . bin2hex(random_bytes(6)) . '.tmp';
+        $tempPath = $this->configPath . '.' . bin2hex(random_bytes(6)) . '.tmp';
         if (file_put_contents($tempPath, $contents . "\n") === false) {
             throw new \RuntimeException('Unable to write database configuration file.');
         }
 
-        if (!@rename($tempPath, self::DB_CONFIG_PATH)) {
+        if (!@rename($tempPath, $this->configPath)) {
             @unlink($tempPath);
             throw new \RuntimeException('Unable to persist database configuration file.');
         }
 
-        @chmod(self::DB_CONFIG_PATH, 0640);
+        @chmod($this->configPath, 0640);
     }
 
     /**
@@ -156,5 +164,35 @@ final class DbConfigProvider
         }
 
         return $encoded;
+    }
+
+    private function resolveConfigPath(?string $envPath, ?string $projectDir): string
+    {
+        $envPath = $envPath === null ? '' : trim($envPath);
+        if ($envPath !== '') {
+            return $envPath;
+        }
+
+        if (!$this->isPathWritable(self::DEFAULT_DB_CONFIG_PATH) && $projectDir !== null) {
+            return rtrim($projectDir, '/') . '/' . self::FALLBACK_DB_CONFIG_DIR . '/db.json';
+        }
+
+        return self::DEFAULT_DB_CONFIG_PATH;
+    }
+
+    private function isPathWritable(string $path): bool
+    {
+        if (is_file($path)) {
+            return is_writable($path);
+        }
+
+        $directory = dirname($path);
+        if (is_dir($directory)) {
+            return is_writable($directory);
+        }
+
+        $parent = dirname($directory);
+
+        return is_dir($parent) && is_writable($parent);
     }
 }

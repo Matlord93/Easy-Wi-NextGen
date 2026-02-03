@@ -76,7 +76,7 @@ errors:
   db_connection_failed: "Database connection failed. Please verify the credentials and host."
   db_privileges_failed: "Database privilege test failed. Ensure CREATE, ALTER, and INDEX rights."
   db_migrations_failed: "Database migrations failed. Check logs for details and try again."
-  db_config_write_failed: "Database configuration could not be saved. Check file permissions for /etc/easywi."
+  db_config_write_failed: "Database configuration could not be saved. Check file permissions for %path%."
   site_required: "Site name and host are required."
   email_invalid: "Enter a valid superadmin email address."
   admin_name_required: "Enter a name for the superadmin."
