@@ -33,4 +33,27 @@ final class MetricSampleRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * @return array<int, array{recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int}>
+     */
+    public function findSeriesForAgentSince(Agent $agent, \DateTimeImmutable $since): array
+    {
+        return $this->createQueryBuilder('sample')
+            ->select(
+                'sample.recordedAt AS recordedAt',
+                'sample.cpuPercent AS cpuPercent',
+                'sample.memoryPercent AS memoryPercent',
+                'sample.diskPercent AS diskPercent',
+                'sample.netBytesSent AS netBytesSent',
+                'sample.netBytesRecv AS netBytesRecv',
+            )
+            ->andWhere('sample.agent = :agent')
+            ->andWhere('sample.recordedAt >= :since')
+            ->setParameter('agent', $agent)
+            ->setParameter('since', $since)
+            ->orderBy('sample.recordedAt', 'ASC')
+            ->getQuery()
+            ->getArrayResult();
+    }
 }

@@ -4,378 +4,455 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
-use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Entity\Webspace;
-use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\JobRepository;
+use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\WebspaceSftpProvisioner;
 use App\Repository\WebspaceRepository;
-use App\Module\Core\Application\AuditLogger;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Module\PanelCustomer\Application\SftpFilesystemService;
+use App\Module\PanelCustomer\Form\EditFileType;
+use App\Module\PanelCustomer\Form\RenameFileType;
+use App\Module\PanelCustomer\Form\UploadFileType;
+use Psr\Log\LoggerInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
-use Twig\Environment;
 
 #[Route(path: '/files')]
-final class CustomerFileManagerController
+final class CustomerFileManagerController extends AbstractController
 {
     public function __construct(
+        private readonly SftpFilesystemService $filesystem,
         private readonly WebspaceRepository $webspaceRepository,
-        private readonly JobRepository $jobRepository,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly AuditLogger $auditLogger,
-        private readonly Environment $twig,
+        private readonly WebspaceSftpProvisioner $sftpProvisioner,
+        private readonly AppSettingsService $settingsService,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
     #[Route(path: '', name: 'customer_files', methods: ['GET'])]
     public function index(Request $request): Response
     {
+        return $this->browse($request);
+    }
+
+    #[Route(path: '/browse', name: 'customer_files_browse', methods: ['GET'])]
+    public function browse(Request $request): Response
+    {
         $customer = $this->requireCustomer($request);
+
         $webspaces = $this->webspaceRepository->findByCustomer($customer);
         $selectedId = (string) $request->query->get('webspace', '');
-        $path = trim((string) $request->query->get('path', ''));
-        $selected = $this->resolveSelectedWebspace($webspaces, $selectedId);
-
-        return new Response($this->twig->render('customer/files/index.html.twig', [
-            'webspaces' => $this->normalizeWebspaces($webspaces),
-            'selectedWebspace' => $selected === null ? null : $this->normalizeWebspace($selected),
-            'path' => $path,
-            'activeNav' => 'files',
-        ]));
-    }
-
-    #[Route(path: '/listing', name: 'customer_files_listing', methods: ['GET'])]
-    public function listing(Request $request): Response
-    {
-        $customer = $this->requireCustomer($request);
-        $webspaceId = (string) $request->query->get('webspace_id', '');
-        $path = trim((string) $request->query->get('path', ''));
-        $webspace = $this->findCustomerWebspace($customer, $webspaceId);
-
-        $job = $this->queueListingJob($webspace, $customer, $path);
-        $this->entityManager->flush();
-
-        return new Response($this->twig->render('customer/files/_listing.html.twig', [
-            'jobId' => $job->getId(),
-            'status' => $job->getStatus()->value,
-            'path' => $path,
-            'webspaceId' => $webspace->getId(),
-        ]));
-    }
-
-    #[Route(path: '/listing/{id}', name: 'customer_files_listing_status', methods: ['GET'])]
-    public function listingStatus(Request $request, string $id): Response
-    {
-        $customer = $this->requireCustomer($request);
-        $job = $this->jobRepository->find($id);
-        if ($job === null || $job->getType() !== 'webspace.files.list') {
-            throw new NotFoundHttpException('Listing not found.');
+        $webspace = $this->resolveWebspace($webspaces, $selectedId);
+        if ($webspace === null) {
+            return $this->render('customer/files/index.html.twig', [
+                'activeNav' => 'files',
+                'pageTitle' => 'Dateimanager',
+                'currentPath' => '',
+                'breadcrumbs' => [],
+                'entries' => [],
+                'listError' => 'Kein Webspace verfügbar.',
+                'uploadForm' => null,
+                'webspaces' => [],
+                'selectedWebspace' => null,
+            ]);
         }
 
-        $payload = $job->getPayload();
-        $payloadCustomerId = (string) ($payload['customer_id'] ?? '');
-        if ($payloadCustomerId !== (string) $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
-        }
-
-        $status = $job->getStatus();
-        $result = $job->getResult();
+        $pathInput = (string) $request->query->get('path', '');
+        $path = '';
         $entries = [];
-        $error = null;
-        $rootPath = (string) ($payload['root_path'] ?? '');
-        $path = (string) ($payload['path'] ?? '');
-        $webspaceId = (string) ($payload['webspace_id'] ?? '');
+        $listError = null;
 
-        if ($status === JobStatus::Succeeded && $result !== null) {
-            $entries = $this->parseEntries((string) ($result->getOutput()['entries'] ?? ''));
-        } elseif ($status === JobStatus::Failed || $status === JobStatus::Cancelled) {
-            $error = (string) ($result?->getOutput()['message'] ?? 'Listing failed.');
+        try {
+            $this->sftpProvisioner->ensureCredential($customer, $webspace);
+            $path = $this->filesystem->normalizePath($pathInput);
+            $entries = $this->filesystem->list($webspace, $path);
+            $entries = array_map(function (array $entry): array {
+                $entry['editable'] = $entry['type'] === 'file' && $this->filesystem->isEditable($entry['path']);
+                return $entry;
+            }, $entries);
+        } catch (\Throwable $exception) {
+            $listError = $exception->getMessage();
+            $this->logger->error('files.list_failed', [
+                'path' => $pathInput,
+                'exception' => $exception,
+            ]);
         }
 
-        return new Response($this->twig->render('customer/files/_listing.html.twig', [
-            'jobId' => $job->getId(),
-            'status' => $status->value,
+        $uploadForm = $this->createForm(UploadFileType::class, [
             'path' => $path,
-            'rootPath' => $rootPath,
+        ], [
+            'action' => $this->generateUrl('customer_files_upload', [
+                'webspace' => $webspace->getId(),
+            ]),
+        ]);
+
+        return $this->render('customer/files/index.html.twig', [
+            'activeNav' => 'files',
+            'pageTitle' => 'Dateimanager',
+            'currentPath' => $path,
+            'breadcrumbs' => $this->buildBreadcrumbs($path),
             'entries' => $entries,
-            'error' => $error,
-            'webspaceId' => $webspaceId,
-        ]));
+            'listError' => $listError,
+            'uploadForm' => $uploadForm->createView(),
+            'webspaces' => $this->normalizeWebspaces($webspaces),
+            'selectedWebspace' => $this->normalizeWebspace($webspace),
+        ]);
     }
 
-    #[Route(path: '/read', name: 'customer_files_read', methods: ['GET'])]
-    public function read(Request $request): Response
+    #[Route(path: '/test-connection', name: 'customer_files_test_connection', methods: ['POST'])]
+    public function testConnection(Request $request): RedirectResponse
     {
         $customer = $this->requireCustomer($request);
-        $webspaceId = (string) $request->query->get('webspace_id', '');
-        $path = trim((string) $request->query->get('path', ''));
-        $name = trim((string) $request->query->get('name', ''));
-        if ($name === '') {
-            throw new BadRequestHttpException('Missing file name.');
-        }
 
+        $path = (string) $request->request->get('path', '');
+        $webspaceId = (string) $request->request->get('webspace', '');
         $webspace = $this->findCustomerWebspace($customer, $webspaceId);
-        $job = $this->queueFileJob('webspace.files.read', $webspace, $customer, $path, [
-            'name' => $name,
-        ], 'webspace.files.read_requested');
-        $this->entityManager->flush();
 
-        return new Response($this->twig->render('customer/files/_editor.html.twig', [
-            'jobId' => $job->getId(),
-            'status' => $job->getStatus()->value,
+        try {
+            $this->sftpProvisioner->ensureCredential($customer, $webspace);
+            $entries = $this->filesystem->testConnection($webspace);
+            $this->addFlash('sftp_test', [
+                'status' => 'ok',
+                'message' => 'SFTP-Verbindung erfolgreich. Root kann gelesen werden.',
+                'entries' => array_slice($entries, 0, 25),
+            ]);
+        } catch (\Throwable $exception) {
+            $this->logger->error('files.test_connection_failed', [
+                'exception' => $exception,
+            ]);
+            $this->addFlash('sftp_test', [
+                'status' => 'error',
+                'message' => sprintf('SFTP-Verbindung fehlgeschlagen: %s', $exception->getMessage()),
+                'entries' => [],
+            ]);
+        }
+
+        return $this->redirectToRoute('customer_files_browse', [
             'path' => $path,
-            'name' => $name,
-            'webspaceId' => $webspace->getId(),
-        ]));
-    }
-
-    #[Route(path: '/read/{id}', name: 'customer_files_read_status', methods: ['GET'])]
-    public function readStatus(Request $request, string $id): Response
-    {
-        $customer = $this->requireCustomer($request);
-        $job = $this->jobRepository->find($id);
-        if ($job === null || $job->getType() !== 'webspace.files.read') {
-            throw new NotFoundHttpException('Read job not found.');
-        }
-
-        $payload = $job->getPayload();
-        $payloadCustomerId = (string) ($payload['customer_id'] ?? '');
-        if ($payloadCustomerId !== (string) $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
-        }
-
-        $status = $job->getStatus();
-        $result = $job->getResult();
-        $error = null;
-        $content = '';
-        $path = (string) ($payload['path'] ?? '');
-        $name = (string) ($payload['name'] ?? '');
-        $webspaceId = (string) ($payload['webspace_id'] ?? '');
-
-        if ($status === JobStatus::Succeeded && $result !== null) {
-            $content = $this->decodeFileContent((string) ($result->getOutput()['content_base64'] ?? ''), $error);
-        } elseif ($status === JobStatus::Failed || $status === JobStatus::Cancelled) {
-            $error = (string) ($result?->getOutput()['message'] ?? 'File read failed.');
-        }
-
-        return new Response($this->twig->render('customer/files/_editor.html.twig', [
-            'jobId' => $job->getId(),
-            'status' => $status->value,
-            'path' => $path,
-            'name' => $name,
-            'content' => $content,
-            'error' => $error,
-            'webspaceId' => $webspaceId,
-        ]));
-    }
-
-    #[Route(path: '/save', name: 'customer_files_save', methods: ['POST'])]
-    public function save(Request $request): Response
-    {
-        $customer = $this->requireCustomer($request);
-        $webspaceId = (string) $request->request->get('webspace_id', '');
-        $path = trim((string) $request->request->get('path', ''));
-        $name = trim((string) $request->request->get('name', ''));
-        $content = (string) $request->request->get('content', '');
-        if ($name === '') {
-            throw new BadRequestHttpException('Missing file name.');
-        }
-
-        $webspace = $this->findCustomerWebspace($customer, $webspaceId);
-        $job = $this->queueFileJob('webspace.files.write', $webspace, $customer, $path, [
-            'name' => $name,
-            'content_base64' => base64_encode($content),
-        ], 'webspace.files.write_requested');
-        $this->entityManager->flush();
-
-        $response = new Response($this->twig->render('customer/files/_action_status.html.twig', [
-            'status' => 'queued',
-            'message' => 'File save queued.',
-        ]));
-        $response->headers->set('HX-Trigger', 'files-refresh');
-
-        return $response;
+            'webspace' => $webspace->getId(),
+        ]);
     }
 
     #[Route(path: '/upload', name: 'customer_files_upload', methods: ['POST'])]
-    public function upload(Request $request): Response
+    public function upload(Request $request): RedirectResponse
     {
         $customer = $this->requireCustomer($request);
-        $webspaceId = (string) $request->request->get('webspace_id', '');
-        $path = trim((string) $request->request->get('path', ''));
-        $upload = $request->files->get('upload');
+        $webspaceId = (string) $request->request->get('webspace', '');
+        $webspace = $this->findCustomerWebspace($customer, $webspaceId);
+
+        $form = $this->createForm(UploadFileType::class);
+        $form->handleRequest($request);
+
+        $path = '';
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            $this->addFlash('error', 'Upload fehlgeschlagen: ungültige Eingabe.');
+            return $this->redirectToRoute('customer_files_browse', [
+                'webspace' => $webspace->getId(),
+            ]);
+        }
+
+        $path = (string) $form->get('path')->getData();
+        $upload = $form->get('upload')->getData();
+
         if (!$upload instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
-            throw new BadRequestHttpException('Missing upload.');
+            $this->addFlash('error', 'Upload fehlgeschlagen: keine Datei gefunden.');
+            return $this->redirectToRoute('customer_files_browse', [
+                'path' => $path,
+                'webspace' => $webspace->getId(),
+            ]);
         }
 
-        $webspace = $this->findCustomerWebspace($customer, $webspaceId);
-        $contents = file_get_contents($upload->getPathname());
-        if ($contents === false) {
-            throw new BadRequestHttpException('Failed to read upload.');
+        try {
+            $this->sftpProvisioner->ensureCredential($customer, $webspace);
+            $targetPath = $this->filesystem->buildChildPath($path, $upload->getClientOriginalName());
+            $stream = fopen($upload->getPathname(), 'rb');
+            if ($stream === false) {
+                throw new \RuntimeException('Upload-Stream konnte nicht geöffnet werden.');
+            }
+            try {
+                $this->filesystem->writeStream($webspace, $targetPath, $stream);
+            } finally {
+                fclose($stream);
+            }
+            $this->addFlash('success', 'Upload erfolgreich.');
+        } catch (\Throwable $exception) {
+            $this->logger->error('files.upload_failed', [
+                'path' => $path,
+                'exception' => $exception,
+            ]);
+            $this->addFlash('error', sprintf('Upload fehlgeschlagen: %s', $exception->getMessage()));
         }
 
-        $job = $this->queueFileJob('webspace.files.write', $webspace, $customer, $path, [
-            'name' => $upload->getClientOriginalName(),
-            'content_base64' => base64_encode($contents),
-        ], 'webspace.files.upload_requested');
-        $this->entityManager->flush();
-
-        $response = new Response($this->twig->render('customer/files/_action_status.html.twig', [
-            'status' => 'queued',
-            'message' => 'Upload queued.',
-        ]));
-        $response->headers->set('HX-Trigger', 'files-refresh');
-
-        return $response;
-    }
-
-    #[Route(path: '/mkdir', name: 'customer_files_mkdir', methods: ['POST'])]
-    public function mkdir(Request $request): Response
-    {
-        $customer = $this->requireCustomer($request);
-        $webspaceId = (string) $request->request->get('webspace_id', '');
-        $path = trim((string) $request->request->get('path', ''));
-        $name = trim((string) $request->request->get('name', ''));
-        if ($name === '') {
-            throw new BadRequestHttpException('Missing folder name.');
-        }
-
-        $webspace = $this->findCustomerWebspace($customer, $webspaceId);
-        $job = $this->queueFileJob('webspace.files.mkdir', $webspace, $customer, $path, [
-            'name' => $name,
-        ], 'webspace.files.mkdir_requested');
-        $this->entityManager->flush();
-
-        $response = new Response($this->twig->render('customer/files/_action_status.html.twig', [
-            'status' => 'queued',
-            'message' => 'Folder creation queued.',
-        ]));
-        $response->headers->set('HX-Trigger', 'files-refresh');
-
-        return $response;
-    }
-
-    #[Route(path: '/delete', name: 'customer_files_delete', methods: ['POST'])]
-    public function delete(Request $request): Response
-    {
-        $customer = $this->requireCustomer($request);
-        $webspaceId = (string) $request->request->get('webspace_id', '');
-        $path = trim((string) $request->request->get('path', ''));
-        $name = trim((string) $request->request->get('name', ''));
-        if ($name === '') {
-            throw new BadRequestHttpException('Missing target name.');
-        }
-
-        $webspace = $this->findCustomerWebspace($customer, $webspaceId);
-        $job = $this->queueFileJob('webspace.files.delete', $webspace, $customer, $path, [
-            'name' => $name,
-        ], 'webspace.files.delete_requested');
-        $this->entityManager->flush();
-
-        $response = new Response($this->twig->render('customer/files/_action_status.html.twig', [
-            'status' => 'queued',
-            'message' => 'Delete queued.',
-        ]));
-        $response->headers->set('HX-Trigger', 'files-refresh');
-
-        return $response;
+        return $this->redirectToRoute('customer_files_browse', [
+            'path' => $path,
+            'webspace' => $webspace->getId(),
+        ]);
     }
 
     #[Route(path: '/download', name: 'customer_files_download', methods: ['GET'])]
     public function download(Request $request): Response
     {
         $customer = $this->requireCustomer($request);
-        $webspaceId = (string) $request->query->get('webspace_id', '');
-        $path = trim((string) $request->query->get('path', ''));
-        $name = trim((string) $request->query->get('name', ''));
-        if ($name === '') {
-            throw new BadRequestHttpException('Missing file name.');
-        }
 
+        $path = (string) $request->query->get('path', '');
+        $webspaceId = (string) $request->query->get('webspace', '');
         $webspace = $this->findCustomerWebspace($customer, $webspaceId);
-        $job = $this->queueFileJob('webspace.files.read', $webspace, $customer, $path, [
-            'name' => $name,
-        ], 'webspace.files.download_requested');
-        $this->entityManager->flush();
 
-        return new Response($this->twig->render('customer/files/_download.html.twig', [
-            'jobId' => $job->getId(),
-            'status' => $job->getStatus()->value,
-            'name' => $name,
-        ]));
+        try {
+            $this->sftpProvisioner->ensureCredential($customer, $webspace);
+            $normalized = $this->filesystem->normalizePath($path);
+            if ($normalized === '') {
+                throw new \RuntimeException('Dateipfad fehlt.');
+            }
+            $stream = $this->filesystem->readStream($webspace, $normalized);
+            $response = new StreamedResponse(static function () use ($stream): void {
+                fpassthru($stream);
+                fclose($stream);
+            });
+            $disposition = $response->headers->makeDisposition(
+                ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+                basename($normalized),
+            );
+            $response->headers->set('Content-Disposition', $disposition);
+            $response->headers->set('Content-Type', 'application/octet-stream');
+            $response->headers->set('X-Content-Type-Options', 'nosniff');
+
+            return $response;
+        } catch (\Throwable $exception) {
+            $this->logger->error('files.download_failed', [
+                'path' => $path,
+                'exception' => $exception,
+            ]);
+            $this->addFlash('error', sprintf('Download fehlgeschlagen: %s', $exception->getMessage()));
+        }
+
+        return $this->redirectToRoute('customer_files_browse', [
+            'webspace' => $webspace->getId(),
+        ]);
     }
 
-    #[Route(path: '/download/{id}', name: 'customer_files_download_status', methods: ['GET'])]
-    public function downloadStatus(Request $request, string $id): Response
+    #[Route(path: '/delete', name: 'customer_files_delete', methods: ['POST'])]
+    public function delete(Request $request): RedirectResponse
     {
         $customer = $this->requireCustomer($request);
-        $job = $this->jobRepository->find($id);
-        if ($job === null || $job->getType() !== 'webspace.files.read') {
-            throw new NotFoundHttpException('Download job not found.');
+
+        $path = (string) $request->request->get('path', '');
+        $webspaceId = (string) $request->request->get('webspace', '');
+        $webspace = $this->findCustomerWebspace($customer, $webspaceId);
+        $parent = '';
+
+        try {
+            $parent = $this->resolveParentPath($path);
+            if (trim($path) === '') {
+                throw new \RuntimeException('Pfad fehlt.');
+            }
+            $this->sftpProvisioner->ensureCredential($customer, $webspace);
+            $this->filesystem->delete($webspace, $path);
+            $this->addFlash('success', 'Eintrag wurde gelöscht.');
+        } catch (\Throwable $exception) {
+            $this->logger->error('files.delete_failed', [
+                'path' => $path,
+                'exception' => $exception,
+            ]);
+            $this->addFlash('error', sprintf('Löschen fehlgeschlagen: %s', $exception->getMessage()));
         }
 
-        $payload = $job->getPayload();
-        $payloadCustomerId = (string) ($payload['customer_id'] ?? '');
-        if ($payloadCustomerId !== (string) $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+        return $this->redirectToRoute('customer_files_browse', [
+            'path' => $parent,
+            'webspace' => $webspace->getId(),
+        ]);
+    }
+
+    #[Route(path: '/rename', name: 'customer_files_rename', methods: ['GET', 'POST'])]
+    public function rename(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+
+        $path = (string) $request->query->get('path', '');
+        $webspaceId = (string) $request->query->get('webspace', '');
+        $webspace = $this->findCustomerWebspace($customer, $webspaceId);
+        $form = $this->createForm(RenameFileType::class, [
+            'path' => $path,
+        ], [
+            'action' => $this->generateUrl('customer_files_rename', ['path' => $path, 'webspace' => $webspace->getId()]),
+        ]);
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $path = (string) $form->get('path')->getData();
+            $newName = (string) $form->get('newName')->getData();
+
+            try {
+                $normalized = $this->filesystem->normalizePath($path);
+                if ($normalized === '') {
+                    throw new \RuntimeException('Pfad fehlt.');
+                }
+                $parent = $this->resolveParentPath($normalized);
+                $newPath = $this->filesystem->buildChildPath($parent, $newName);
+                $this->sftpProvisioner->ensureCredential($customer, $webspace);
+                $this->filesystem->move($webspace, $normalized, $newPath);
+                $this->addFlash('success', 'Eintrag wurde umbenannt.');
+                return $this->redirectToRoute('customer_files_browse', [
+                    'path' => $parent,
+                    'webspace' => $webspace->getId(),
+                ]);
+            } catch (\Throwable $exception) {
+                $this->logger->error('files.rename_failed', [
+                    'path' => $path,
+                    'exception' => $exception,
+                ]);
+                $this->addFlash('error', sprintf('Umbenennen fehlgeschlagen: %s', $exception->getMessage()));
+            }
         }
 
-        $status = $job->getStatus();
-        $name = (string) ($payload['name'] ?? '');
+        return $this->render('customer/files/rename.html.twig', [
+            'activeNav' => 'files',
+            'pageTitle' => 'Datei umbenennen',
+            'path' => $path,
+            'form' => $form->createView(),
+            'webspace' => $this->normalizeWebspace($webspace),
+        ]);
+    }
+
+    #[Route(path: '/edit', name: 'customer_files_edit', methods: ['GET', 'POST'])]
+    public function edit(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+
+        $path = (string) $request->query->get('path', '');
+        $webspaceId = (string) $request->query->get('webspace', '');
+        $webspace = $this->findCustomerWebspace($customer, $webspaceId);
+        $normalized = '';
+        $content = '';
         $error = null;
-        if ($status === JobStatus::Failed || $status === JobStatus::Cancelled) {
-            $error = (string) ($job->getResult()?->getOutput()['message'] ?? 'Download failed.');
+
+        if ($request->isMethod('GET')) {
+            try {
+                if (trim($path) === '') {
+                    throw new \RuntimeException('Dateipfad fehlt.');
+                }
+                $normalized = $this->filesystem->normalizePath($path);
+                $this->sftpProvisioner->ensureCredential($customer, $webspace);
+                $size = $this->filesystem->fileSize($webspace, $normalized);
+                $this->filesystem->assertEditable($normalized, $size);
+                $content = $this->filesystem->read($webspace, $normalized);
+            } catch (\Throwable $exception) {
+                $error = $exception->getMessage();
+                $this->logger->error('files.edit_load_failed', [
+                    'path' => $path,
+                    'exception' => $exception,
+                ]);
+            }
         }
 
-        return new Response($this->twig->render('customer/files/_download.html.twig', [
-            'jobId' => $job->getId(),
-            'status' => $status->value,
-            'name' => $name,
+        $form = $this->createForm(EditFileType::class, [
+            'path' => $path,
+            'content' => $content,
+        ], [
+            'action' => $this->generateUrl('customer_files_edit', ['path' => $path, 'webspace' => $webspace->getId()]),
+        ]);
+
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $path = (string) $form->get('path')->getData();
+            $content = (string) $form->get('content')->getData();
+
+            try {
+                $normalized = $this->filesystem->normalizePath($path);
+                $this->filesystem->assertEditable($normalized, strlen($content));
+                $this->sftpProvisioner->ensureCredential($customer, $webspace);
+                $this->filesystem->write($webspace, $normalized, $content);
+                $this->addFlash('success', 'Datei gespeichert.');
+                return $this->redirectToRoute('customer_files_browse', [
+                    'path' => $this->resolveParentPath($normalized),
+                    'webspace' => $webspace->getId(),
+                ]);
+            } catch (\Throwable $exception) {
+                $error = $exception->getMessage();
+                $this->logger->error('files.edit_save_failed', [
+                    'path' => $path,
+                    'exception' => $exception,
+                ]);
+            }
+        }
+
+        return $this->render('customer/files/edit.html.twig', [
+            'activeNav' => 'files',
+            'pageTitle' => 'Datei bearbeiten',
+            'path' => $path,
             'error' => $error,
-        ]));
+            'form' => $form->createView(),
+            'webspace' => $this->normalizeWebspace($webspace),
+        ]);
     }
 
-    #[Route(path: '/download/{id}/file', name: 'customer_files_download_file', methods: ['GET'])]
-    public function downloadFile(Request $request, string $id): Response
+    #[Route(path: '/health', name: 'customer_files_health', methods: ['GET'])]
+    public function health(Request $request): JsonResponse
     {
-        $customer = $this->requireCustomer($request);
-        $job = $this->jobRepository->find($id);
-        if ($job === null || $job->getType() !== 'webspace.files.read') {
-            throw new NotFoundHttpException('Download job not found.');
+        $host = $this->settingsService->getSftpHost();
+        if ($host === null || $host === '') {
+            return new JsonResponse([
+                'ok' => false,
+                'message' => 'SFTP host is not configured.',
+                'missing' => ['EASYWI_SFTP_HOST'],
+                'sftp_reachable' => false,
+                'root_readable' => false,
+            ]);
         }
 
-        $payload = $job->getPayload();
-        $payloadCustomerId = (string) ($payload['customer_id'] ?? '');
-        if ($payloadCustomerId !== (string) $customer->getId()) {
-            throw new AccessDeniedHttpException('Forbidden.');
+        $webspaceId = (string) $request->query->get('webspace', '');
+        if ($webspaceId === '') {
+            return new JsonResponse([
+                'ok' => false,
+                'message' => 'Missing required webspace parameter.',
+                'missing' => ['webspace'],
+                'sftp_reachable' => false,
+                'root_readable' => false,
+            ]);
         }
 
-        if ($job->getStatus() !== JobStatus::Succeeded) {
-            throw new BadRequestHttpException('Download not ready.');
+        $webspace = $this->webspaceRepository->find($webspaceId);
+        if ($webspace === null) {
+            return new JsonResponse([
+                'ok' => false,
+                'message' => 'Webspace not found.',
+                'missing' => [],
+                'sftp_reachable' => false,
+                'root_readable' => false,
+            ]);
         }
 
-        $result = $job->getResult();
-        $error = null;
-        $content = $this->decodeFileContent((string) ($result?->getOutput()['content_base64'] ?? ''), $error);
-        if ($content === '' && $error !== null) {
-            throw new BadRequestHttpException('Download failed.');
+        try {
+            $entries = $this->filesystem->testConnection($webspace);
+            return new JsonResponse([
+                'ok' => true,
+                'message' => 'SFTP reachable and root readable.',
+                'missing' => [],
+                'sftp_reachable' => true,
+                'root_readable' => true,
+                'entries' => $entries,
+            ]);
+        } catch (\Throwable $exception) {
+            $this->logger->error('files.health_failed', [
+                'exception' => $exception,
+            ]);
+
+            return new JsonResponse([
+                'ok' => false,
+                'message' => sprintf('SFTP check failed: %s', $exception->getMessage()),
+                'missing' => [],
+                'sftp_reachable' => false,
+                'root_readable' => false,
+            ]);
         }
-
-        $name = (string) ($payload['name'] ?? 'download.bin');
-        $response = new Response($content);
-        $disposition = $response->headers->makeDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $name);
-        $response->headers->set('Content-Disposition', $disposition);
-        $response->headers->set('Content-Type', 'application/octet-stream');
-        $response->headers->set('X-Content-Type-Options', 'nosniff');
-
-        return $response;
     }
 
     private function requireCustomer(Request $request): User
@@ -389,9 +466,9 @@ final class CustomerFileManagerController
     }
 
     /**
-     * @param Webspace[] $webspaces
+     * @param array<int, \App\Module\Core\Domain\Entity\Webspace> $webspaces
      */
-    private function resolveSelectedWebspace(array $webspaces, string $selectedId): ?Webspace
+    private function resolveWebspace(array $webspaces, string $selectedId): ?\App\Module\Core\Domain\Entity\Webspace
     {
         if ($selectedId !== '') {
             foreach ($webspaces as $webspace) {
@@ -405,150 +482,76 @@ final class CustomerFileManagerController
     }
 
     /**
-     * @param Webspace[] $webspaces
+     * @return array<int, array{id: int, domain: string, system_username: string}>
      */
     private function normalizeWebspaces(array $webspaces): array
     {
-        return array_map(fn (Webspace $webspace) => $this->normalizeWebspace($webspace), $webspaces);
+        return array_map(fn ($webspace) => $this->normalizeWebspace($webspace), $webspaces);
     }
 
-    private function normalizeWebspace(Webspace $webspace): array
+    /**
+     * @return array{id: int, domain: string, system_username: string}
+     */
+    private function normalizeWebspace(\App\Module\Core\Domain\Entity\Webspace $webspace): array
     {
         return [
             'id' => $webspace->getId(),
-            'node' => [
-                'id' => $webspace->getNode()->getId(),
-                'name' => $webspace->getNode()->getName(),
-            ],
-            'path' => $webspace->getPath(),
-            'docroot' => $webspace->getDocroot(),
-            'php_version' => $webspace->getPhpVersion(),
-            'quota' => $webspace->getQuota(),
-            'disk_limit_bytes' => $webspace->getDiskLimitBytes(),
-            'ftp_enabled' => $webspace->isFtpEnabled(),
-            'sftp_enabled' => $webspace->isSftpEnabled(),
-            'status' => $webspace->getStatus(),
+            'domain' => $webspace->getDomain(),
+            'system_username' => $webspace->getSystemUsername(),
         ];
     }
 
-    private function findCustomerWebspace(User $customer, string $webspaceId): Webspace
+    private function findCustomerWebspace(User $customer, string $webspaceId): \App\Module\Core\Domain\Entity\Webspace
     {
         $webspace = $this->webspaceRepository->find($webspaceId);
         if ($webspace === null || $webspace->getCustomer()->getId() !== $customer->getId()) {
-            throw new NotFoundHttpException('Webspace not found.');
+            throw $this->createNotFoundException('Webspace not found.');
         }
 
         return $webspace;
     }
 
-    private function queueListingJob(Webspace $webspace, User $actor, string $path): Job
+    /**
+     * @return array<int, array{label: string, path: string}>
+     */
+    private function buildBreadcrumbs(string $path): array
     {
-        $payload = [
-            'webspace_id' => (string) ($webspace->getId() ?? ''),
-            'customer_id' => (string) $actor->getId(),
-            'agent_id' => $webspace->getNode()->getId(),
-            'root_path' => $webspace->getPath(),
-            'path' => $path,
+        $crumbs = [
+            [
+                'label' => 'Root',
+                'path' => '',
+            ],
         ];
 
-        $job = new Job('webspace.files.list', $payload);
-        $this->entityManager->persist($job);
-
-        $this->auditLogger->log($actor, 'webspace.files.list_requested', [
-            'job_id' => $job->getId(),
-            'webspace_id' => $webspace->getId(),
-            'node_id' => $webspace->getNode()->getId(),
-            'path' => $path,
-        ]);
-
-        return $job;
-    }
-
-    /**
-     * @param array<string, string> $extraPayload
-     */
-    private function queueFileJob(string $type, Webspace $webspace, User $actor, string $path, array $extraPayload, string $auditEvent): Job
-    {
-        $payload = array_merge([
-            'webspace_id' => (string) ($webspace->getId() ?? ''),
-            'customer_id' => (string) $actor->getId(),
-            'agent_id' => $webspace->getNode()->getId(),
-            'root_path' => $webspace->getPath(),
-            'path' => $path,
-        ], $extraPayload);
-
-        $job = new Job($type, $payload);
-        $this->entityManager->persist($job);
-
-        $this->auditLogger->log($actor, $auditEvent, [
-            'job_id' => $job->getId(),
-            'webspace_id' => $webspace->getId(),
-            'node_id' => $webspace->getNode()->getId(),
-            'path' => $path,
-            'name' => $extraPayload['name'] ?? null,
-        ]);
-
-        return $job;
-    }
-
-    private function parseEntries(string $rawEntries): array
-    {
-        $entries = [];
-        if ($rawEntries === '') {
-            return $entries;
+        if ($path === '') {
+            return $crumbs;
         }
 
-        foreach (preg_split('/\\r?\\n/', $rawEntries) as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-
-            $parts = explode('|', $line, 5);
-            if (count($parts) !== 5) {
-                continue;
-            }
-
-            [$name, $size, $mode, $modifiedAt, $isDir] = $parts;
-
-            $entries[] = [
-                'name' => $name,
-                'size' => (int) $size,
-                'size_human' => $this->formatBytes((int) $size),
-                'mode' => $mode,
-                'modified_at' => $modifiedAt,
-                'is_dir' => filter_var($isDir, FILTER_VALIDATE_BOOLEAN),
+        $segments = explode('/', $path);
+        $current = '';
+        foreach ($segments as $segment) {
+            $current = $current === '' ? $segment : sprintf('%s/%s', $current, $segment);
+            $crumbs[] = [
+                'label' => $segment,
+                'path' => $current,
             ];
         }
 
-        return $entries;
+        return $crumbs;
     }
 
-    private function decodeFileContent(string $encoded, ?string &$error): string
+    private function resolveParentPath(string $path): string
     {
-        if ($encoded === '') {
+        $path = $this->filesystem->normalizePath($path);
+        if ($path === '') {
             return '';
         }
 
-        $decoded = base64_decode($encoded, true);
-        if ($decoded === false) {
-            $error = 'Invalid file content.';
+        $parent = dirname($path);
+        if ($parent === '.' || $parent === DIRECTORY_SEPARATOR) {
             return '';
         }
 
-        return $decoded;
-    }
-
-    private function formatBytes(int $bytes): string
-    {
-        if ($bytes <= 0) {
-            return '0 B';
-        }
-
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $index = (int) floor(log($bytes, 1024));
-        $value = $bytes / (1024 ** $index);
-
-        return sprintf('%.1f %s', $value, $units[$index] ?? 'B');
+        return $parent;
     }
 }

@@ -96,6 +96,35 @@ final class CustomerInstanceFileApiController
         ]);
     }
 
+    #[Route(path: '/api/instances/{id}/files/diagnostics', name: 'customer_instance_files_api_diagnostics', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/diagnostics', name: 'customer_instance_files_api_diagnostics_v1', methods: ['GET'])]
+    public function diagnostics(Request $request, int $id): JsonResponse
+    {
+        try {
+            $this->assertDataManagerEnabled();
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+            $path = trim((string) $request->query->get('path', ''));
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
+            return $this->handleHttpError($request, $exception);
+        }
+
+        $filesvc = $this->runDiagnosticsProbe(
+            'filesvc',
+            fn () => $this->fileService->list($instance, $path),
+        );
+        $sftp = $this->runDiagnosticsProbe(
+            'sftp',
+            fn () => $this->sftpFileService->list($instance, $path),
+        );
+
+        return new JsonResponse([
+            'filesvc' => $filesvc,
+            'sftp' => $sftp,
+            'request_id' => $this->getRequestId($request),
+        ]);
+    }
+
     #[Route(path: '/api/instances/{id}/files/download', name: 'customer_instance_files_api_download', methods: ['GET'])]
     #[Route(path: '/api/v1/customer/instances/{id}/files/download', name: 'customer_instance_files_api_download_v1', methods: ['GET'])]
     public function download(Request $request, int $id): Response
@@ -591,6 +620,59 @@ final class CustomerInstanceFileApiController
             'request_id' => $requestId,
             'details' => $details,
         ], $statusCode);
+    }
+
+    /**
+     * @param callable(): array{root_path: string, path: string, entries: array<int, array{name: string, size: int, mode: string, modified_at: string, is_dir: bool}>} $probe
+     * @return array<string, mixed>
+     */
+    private function runDiagnosticsProbe(string $source, callable $probe): array
+    {
+        $startedAt = microtime(true);
+        try {
+            $listing = $probe();
+            return [
+                'source' => $source,
+                'status' => 'ok',
+                'root_path' => $listing['root_path'] ?? '',
+                'path' => $listing['path'] ?? '',
+                'entry_count' => count($listing['entries'] ?? []),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ];
+        } catch (FileServiceException $exception) {
+            return $this->diagnosticsErrorResult($source, $exception, $startedAt);
+        } catch (SftpException $exception) {
+            return $this->diagnosticsErrorResult($source, $exception, $startedAt);
+        } catch (\RuntimeException $exception) {
+            return $this->diagnosticsErrorResult($source, $exception, $startedAt);
+        }
+    }
+
+    private function diagnosticsErrorResult(string $source, \RuntimeException $exception, float $startedAt): array
+    {
+        $statusCode = JsonResponse::HTTP_BAD_GATEWAY;
+        $errorCode = $source === 'sftp' ? 'sftp_error' : 'filesvc_error';
+        $details = [];
+
+        if ($exception instanceof FileServiceException) {
+            $statusCode = $exception->getStatusCode();
+            $errorCode = $exception->getErrorCode();
+            $details = $exception->getDetails();
+        } elseif ($exception instanceof SftpException) {
+            $statusCode = $exception->getStatusCode();
+            $errorCode = $exception->getErrorCode();
+            $details = $exception->getDetails();
+        }
+
+        return [
+            'source' => $source,
+            'status' => 'error',
+            'error_code' => $errorCode,
+            'message' => $exception->getMessage(),
+            'status_code' => $statusCode,
+            'details' => $details,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ];
     }
 
     private function getRequestId(Request $request): string

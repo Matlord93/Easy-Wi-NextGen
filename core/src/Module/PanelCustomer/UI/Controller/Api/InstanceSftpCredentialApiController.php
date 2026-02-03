@@ -8,6 +8,7 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceSftpCredentialRepository;
 use App\Repository\JobRepository;

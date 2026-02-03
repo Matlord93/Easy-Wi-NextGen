@@ -14,8 +14,8 @@ class Job
 {
     private const ALLOWED_TRANSITIONS = [
         JobStatus::Queued->value => [JobStatus::Claimed, JobStatus::Running, JobStatus::Cancelled],
-        JobStatus::Claimed->value => [JobStatus::Running, JobStatus::Failed, JobStatus::Cancelled],
-        JobStatus::Running->value => [JobStatus::Succeeded, JobStatus::Failed, JobStatus::Cancelled],
+        JobStatus::Claimed->value => [JobStatus::Queued, JobStatus::Running, JobStatus::Failed, JobStatus::Cancelled],
+        JobStatus::Running->value => [JobStatus::Queued, JobStatus::Succeeded, JobStatus::Failed, JobStatus::Cancelled],
         JobStatus::Succeeded->value => [],
         JobStatus::Failed->value => [],
         JobStatus::Cancelled->value => [],

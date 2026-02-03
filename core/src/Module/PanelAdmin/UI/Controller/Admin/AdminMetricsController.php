@@ -44,7 +44,7 @@ final class AdminMetricsController
 
         $samples = $selectedAgent === null
             ? []
-            : $this->metricSampleRepository->findForAgentSince($selectedAgent, $since);
+            : $this->metricSampleRepository->findSeriesForAgentSince($selectedAgent, $since);
 
         $cpuSeries = $this->buildSeries($samples, 'cpu');
         $memorySeries = $this->buildSeries($samples, 'memory');
@@ -65,11 +65,11 @@ final class AdminMetricsController
             'diskPoints' => $this->buildSparklinePoints($diskSeries),
             'netSentPoints' => $this->buildSparklinePoints($netSentSeries),
             'netRecvPoints' => $this->buildSparklinePoints($netRecvSeries),
-            'latestCpu' => $latest?->getCpuPercent(),
-            'latestMemory' => $latest?->getMemoryPercent(),
-            'latestDisk' => $latest?->getDiskPercent(),
-            'latestNetSent' => $latest?->getNetBytesSent(),
-            'latestNetRecv' => $latest?->getNetBytesRecv(),
+            'latestCpu' => $latest['cpuPercent'] ?? null,
+            'latestMemory' => $latest['memoryPercent'] ?? null,
+            'latestDisk' => $latest['diskPercent'] ?? null,
+            'latestNetSent' => $latest['netBytesSent'] ?? null,
+            'latestNetRecv' => $latest['netBytesRecv'] ?? null,
         ]));
     }
 
@@ -100,11 +100,11 @@ final class AdminMetricsController
         $values = [];
         foreach ($samples as $sample) {
             $value = match ($metric) {
-                'cpu' => $sample->getCpuPercent(),
-                'memory' => $sample->getMemoryPercent(),
-                'disk' => $sample->getDiskPercent(),
-                'net_sent' => $sample->getNetBytesSent(),
-                'net_recv' => $sample->getNetBytesRecv(),
+                'cpu' => $sample['cpuPercent'] ?? null,
+                'memory' => $sample['memoryPercent'] ?? null,
+                'disk' => $sample['diskPercent'] ?? null,
+                'net_sent' => $sample['netBytesSent'] ?? null,
+                'net_recv' => $sample['netBytesRecv'] ?? null,
                 default => null,
             };
 

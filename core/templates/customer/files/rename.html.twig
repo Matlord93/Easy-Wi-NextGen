@@ -1,0 +1,25 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block content %}
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h1 class="text-xl font-semibold text-slate-900">Eintrag umbenennen</h1>
+                <p class="text-sm text-slate-600">Pfad: <span class="font-mono text-slate-900">{{ path }}</span></p>
+            </div>
+            <a href="{{ path('customer_files_browse', { path: path|split('/')|slice(0, -1)|join('/'), webspace: webspace.id }) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">
+                Zurück zur Liste
+            </a>
+        </div>
+
+        {% for message in app.flashes('error') %}
+            <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{{ message }}</div>
+        {% endfor %}
+
+        {{ form_start(form, { attr: { class: 'mt-6 space-y-4' } }) }}
+            {{ form_widget(form.path) }}
+            {{ form_row(form.newName) }}
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700">Umbenennen</button>
+        {{ form_end(form) }}
+    </section>
+{% endblock %}

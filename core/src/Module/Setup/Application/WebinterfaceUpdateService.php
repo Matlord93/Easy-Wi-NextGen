@@ -29,6 +29,8 @@ final class WebinterfaceUpdateService
         private readonly string $lockFile,
         private readonly string $excludes,
         private readonly string $fallbackVersion,
+        private readonly string $kernelEnvironment,
+        private readonly bool $kernelDebug,
     ) {
     }
 
@@ -664,11 +666,19 @@ final class WebinterfaceUpdateService
     private function runPostDeploy(string $baseDir, string $logPath): bool
     {
         $appRoot = $this->resolveAppRoot($baseDir);
+        $debugFlag = $this->kernelDebug ? '' : ' --no-debug';
+        $envFlag = sprintf(' --env=%s', escapeshellarg($this->kernelEnvironment));
 
         if ($this->commandExists('composer') && is_file($appRoot . '/composer.json')) {
             $result = $this->runCommand('composer install --no-dev --optimize-autoloader --no-interaction', $appRoot);
             $this->logCommandResult($logPath, 'composer install', $result);
             if ($result['exitCode'] !== 0) {
+                return false;
+            }
+
+            $autoload = $this->runCommand('composer dump-autoload --no-dev --optimize --no-interaction', $appRoot);
+            $this->logCommandResult($logPath, 'composer dump-autoload', $autoload);
+            if ($autoload['exitCode'] !== 0) {
                 return false;
             }
         } else {
@@ -686,16 +696,25 @@ final class WebinterfaceUpdateService
             return true;
         }
 
-        $migrate = $this->runCommand('php bin/console doctrine:migrations:migrate --no-interaction', $appRoot);
+        $migrate = $this->runCommand(
+            sprintf('php bin/console doctrine:migrations:migrate --no-interaction%s%s', $envFlag, $debugFlag),
+            $appRoot,
+        );
         $this->logCommandResult($logPath, 'doctrine:migrations:migrate', $migrate);
         if ($migrate['exitCode'] !== 0) {
             return false;
         }
 
-        $schema = $this->runCommand('php bin/console doctrine:schema:validate --no-interaction', $appRoot);
+        $schema = $this->runCommand(
+            sprintf('php bin/console doctrine:schema:validate --no-interaction%s%s', $envFlag, $debugFlag),
+            $appRoot,
+        );
         $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema, true);
 
-        $cache = $this->runCommand('php bin/console cache:clear', $appRoot);
+        $cache = $this->runCommand(
+            sprintf('php bin/console cache:clear%s%s', $envFlag, $debugFlag),
+            $appRoot,
+        );
         $this->logCommandResult($logPath, 'cache:clear', $cache);
         if ($cache['exitCode'] !== 0) {
             return false;
