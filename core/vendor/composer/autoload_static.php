@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit36c449b85dbf40821ca24764e03081cb
+class ComposerStaticInit69bfc016e122af62ad2f2e0143154491
 {
     public static $files = array (
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
@@ -1849,15 +1849,15 @@ class ComposerStaticInit36c449b85dbf40821ca24764e03081cb
         'TheSeer\\Tokenizer\\XMLSerializer' => __DIR__ . '/..' . '/theseer/tokenizer/src/XMLSerializer.php',
         'staabm\\SideEffectsDetector\\SideEffect' => __DIR__ . '/..' . '/staabm/side-effects-detector/lib/SideEffect.php',
         'staabm\\SideEffectsDetector\\SideEffectsDetector' => __DIR__ . '/..' . '/staabm/side-effects-detector/lib/SideEffectsDetector.php',
-        'Â©' => __DIR__ . '/..' . '/symfony/cache/Traits/ValueWrapper.php',
+        '©' => __DIR__ . '/..' . '/symfony/cache/Traits/ValueWrapper.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit36c449b85dbf40821ca24764e03081cb::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit36c449b85dbf40821ca24764e03081cb::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit36c449b85dbf40821ca24764e03081cb::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit69bfc016e122af62ad2f2e0143154491::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit69bfc016e122af62ad2f2e0143154491::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit69bfc016e122af62ad2f2e0143154491::$classMap;
 
         }, null, ClassLoader::class);
     }
