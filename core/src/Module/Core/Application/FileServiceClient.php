@@ -18,7 +18,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class FileServiceClient
 {
-    private const DEFAULT_EDITOR_LIMIT = 2_097_152;
+    private const DEFAULT_EDITOR_LIMIT = 1_048_576;
     private const HEADER_AGENT_ID = 'X-Agent-ID';
     private const HEADER_CUSTOMER_ID = 'X-Customer-ID';
     private const HEADER_TIMESTAMP = 'X-Timestamp';
@@ -472,8 +472,7 @@ final class FileServiceClient
                 continue;
             }
             if ($segment === '..') {
-                array_pop($safe);
-                continue;
+                throw new \RuntimeException('Path traversal is not allowed.');
             }
             $safe[] = $segment;
         }

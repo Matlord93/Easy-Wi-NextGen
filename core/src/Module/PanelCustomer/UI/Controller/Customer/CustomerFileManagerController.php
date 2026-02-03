@@ -9,6 +9,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\WebspaceSftpProvisioner;
 use App\Repository\WebspaceRepository;
+use App\Repository\WebspaceSftpCredentialRepository;
 use App\Module\PanelCustomer\Application\SftpFilesystemService;
 use App\Module\PanelCustomer\Form\EditFileType;
 use App\Module\PanelCustomer\Form\RenameFileType;
@@ -29,6 +30,7 @@ final class CustomerFileManagerController extends AbstractController
     public function __construct(
         private readonly SftpFilesystemService $filesystem,
         private readonly WebspaceRepository $webspaceRepository,
+        private readonly WebspaceSftpCredentialRepository $sftpCredentialRepository,
         private readonly WebspaceSftpProvisioner $sftpProvisioner,
         private readonly AppSettingsService $settingsService,
         private readonly LoggerInterface $logger,
@@ -398,6 +400,9 @@ final class CustomerFileManagerController extends AbstractController
     public function health(Request $request): JsonResponse
     {
         $host = $this->settingsService->getSftpHost();
+        $port = $this->settingsService->getSftpPort();
+        $settings = $this->settingsService->getSettings();
+
         if ($host === null || $host === '') {
             return new JsonResponse([
                 'ok' => false,
@@ -405,6 +410,12 @@ final class CustomerFileManagerController extends AbstractController
                 'missing' => ['EASYWI_SFTP_HOST'],
                 'sftp_reachable' => false,
                 'root_readable' => false,
+                'config' => [
+                    'host' => null,
+                    'port' => $port,
+                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
+                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
+                ],
             ]);
         }
 
@@ -427,6 +438,33 @@ final class CustomerFileManagerController extends AbstractController
                 'missing' => [],
                 'sftp_reachable' => false,
                 'root_readable' => false,
+                'config' => [
+                    'host' => $host,
+                    'port' => $port,
+                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
+                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
+                ],
+            ]);
+        }
+
+        $credential = $this->sftpCredentialRepository->findOneByWebspace($webspace);
+        if ($credential === null) {
+            return new JsonResponse([
+                'ok' => false,
+                'message' => 'SFTP credentials are not provisioned yet.',
+                'missing' => ['webspace_sftp_credentials'],
+                'sftp_reachable' => false,
+                'root_readable' => false,
+                'config' => [
+                    'host' => $host,
+                    'port' => $port,
+                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
+                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
+                ],
+                'webspace' => [
+                    'id' => $webspace->getId(),
+                    'path' => $webspace->getPath(),
+                ],
             ]);
         }
 
@@ -439,9 +477,22 @@ final class CustomerFileManagerController extends AbstractController
                 'sftp_reachable' => true,
                 'root_readable' => true,
                 'entries' => $entries,
+                'config' => [
+                    'host' => $host,
+                    'port' => $port,
+                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
+                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
+                ],
+                'webspace' => [
+                    'id' => $webspace->getId(),
+                    'path' => $webspace->getPath(),
+                ],
             ]);
         } catch (\Throwable $exception) {
             $this->logger->error('files.health_failed', [
+                'webspace_id' => $webspace->getId(),
+                'host' => $host,
+                'port' => $port,
                 'exception' => $exception,
             ]);
 
@@ -451,8 +502,46 @@ final class CustomerFileManagerController extends AbstractController
                 'missing' => [],
                 'sftp_reachable' => false,
                 'root_readable' => false,
+                'config' => [
+                    'host' => $host,
+                    'port' => $port,
+                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
+                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
+                ],
+                'webspace' => [
+                    'id' => $webspace->getId(),
+                    'path' => $webspace->getPath(),
+                ],
             ]);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     */
+    private function resolveSettingSource(string $key, array $settings): string
+    {
+        $envKey = match ($key) {
+            AppSettingsService::KEY_SFTP_HOST => 'EASYWI_SFTP_HOST',
+            AppSettingsService::KEY_SFTP_PORT => 'EASYWI_SFTP_PORT',
+            AppSettingsService::KEY_SFTP_USERNAME => 'EASYWI_SFTP_USERNAME',
+            AppSettingsService::KEY_SFTP_PASSWORD => 'EASYWI_SFTP_PASSWORD',
+            AppSettingsService::KEY_SFTP_PRIVATE_KEY => 'EASYWI_SFTP_PRIVATE_KEY',
+            AppSettingsService::KEY_SFTP_PRIVATE_KEY_PATH => 'EASYWI_SFTP_PRIVATE_KEY_PATH',
+            AppSettingsService::KEY_SFTP_PRIVATE_KEY_PASSPHRASE => 'EASYWI_SFTP_PRIVATE_KEY_PASSPHRASE',
+            default => strtoupper($key),
+        };
+        $env = $_ENV[$envKey] ?? $_SERVER[$envKey] ?? null;
+        if (is_string($env) && $env !== '') {
+            return 'env';
+        }
+
+        $value = $settings[$key] ?? null;
+        if ($value !== null && $value !== '') {
+            return 'settings';
+        }
+
+        return 'default';
     }
 
     private function requireCustomer(Request $request): User

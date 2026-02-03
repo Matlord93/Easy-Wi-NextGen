@@ -12,6 +12,8 @@ use phpseclib3\Net\SFTP;
 
 final class SftpFileService
 {
+    public const int EDITOR_MAX_BYTES = 1048576;
+
     public function __construct(
         private readonly InstanceFilesystemResolver $filesystemResolver,
         private readonly AppSettingsService $settingsService,
@@ -72,16 +74,38 @@ final class SftpFileService
         ];
     }
 
-    public function readFile(Instance $instance, string $path, string $name): string
+    public function readFile(Instance $instance, string $path, string $name, ?int $maxBytes = null): string
     {
         $sftp = $this->connect($instance);
         $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
+        if ($maxBytes !== null && $maxBytes > 0) {
+            $size = $sftp->filesize($remotePath);
+            if (is_int($size) && $size > $maxBytes) {
+                throw new SftpException('sftp_file_too_large', 'File is too large to edit (max 1 MB).', 413, [
+                    'size_bytes' => $size,
+                    'max_bytes' => $maxBytes,
+                ]);
+            }
+        }
         $content = $sftp->get($remotePath);
         if ($content === false) {
-            throw new \RuntimeException('Failed to download file.');
+            throw new SftpException('sftp_read_failed', 'Failed to download file.', 502, [
+                'path' => $remotePath,
+            ]);
+        }
+        if ($maxBytes !== null && $maxBytes > 0 && strlen($content) > $maxBytes) {
+            throw new SftpException('sftp_file_too_large', 'File is too large to edit (max 1 MB).', 413, [
+                'size_bytes' => strlen($content),
+                'max_bytes' => $maxBytes,
+            ]);
         }
 
         return $content;
+    }
+
+    public function readFileForEditor(Instance $instance, string $path, string $name): string
+    {
+        return $this->readFile($instance, $path, $name, self::EDITOR_MAX_BYTES);
     }
 
     public function writeFile(Instance $instance, string $path, string $name, string $content): void
@@ -89,7 +113,9 @@ final class SftpFileService
         $sftp = $this->connect($instance);
         $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         if (!$sftp->put($remotePath, $content, SFTP::SOURCE_STRING)) {
-            throw new \RuntimeException('Failed to save file.');
+            throw new SftpException('sftp_write_failed', 'Failed to save file.', 502, [
+                'path' => $remotePath,
+            ]);
         }
     }
 
@@ -98,7 +124,9 @@ final class SftpFileService
         $sftp = $this->connect($instance);
         $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         if (!$sftp->mkdir($remotePath, -1, true)) {
-            throw new \RuntimeException('Failed to create directory.');
+            throw new SftpException('sftp_mkdir_failed', 'Failed to create directory.', 502, [
+                'path' => $remotePath,
+            ]);
         }
     }
 
@@ -107,7 +135,9 @@ final class SftpFileService
         $sftp = $this->connect($instance);
         $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         if (!$sftp->delete($remotePath, true)) {
-            throw new \RuntimeException('Failed to delete entry.');
+            throw new SftpException('sftp_delete_failed', 'Failed to delete entry.', 502, [
+                'path' => $remotePath,
+            ]);
         }
     }
 
@@ -117,7 +147,10 @@ final class SftpFileService
         $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         $newPath = $this->resolveFilePath($instance, $sftp, $path, $newName);
         if (!$sftp->rename($remotePath, $newPath)) {
-            throw new \RuntimeException('Failed to rename entry.');
+            throw new SftpException('sftp_rename_failed', 'Failed to rename entry.', 502, [
+                'path' => $remotePath,
+                'new_path' => $newPath,
+            ]);
         }
     }
 
@@ -126,7 +159,10 @@ final class SftpFileService
         $sftp = $this->connect($instance);
         $remotePath = $this->resolveFilePath($instance, $sftp, $path, $name);
         if (!$sftp->chmod($mode, $remotePath, true)) {
-            throw new \RuntimeException('Failed to update permissions.');
+            throw new SftpException('sftp_chmod_failed', 'Failed to update permissions.', 502, [
+                'path' => $remotePath,
+                'mode' => $mode,
+            ]);
         }
     }
 
@@ -141,7 +177,9 @@ final class SftpFileService
         $destinationPath = $this->joinRemotePath($remoteRoot, $normalizedDestination);
         $content = $sftp->get($remoteArchivePath);
         if ($content === false) {
-            throw new \RuntimeException('Failed to download archive.');
+            throw new SftpException('sftp_read_failed', 'Failed to download archive.', 502, [
+                'path' => $remoteArchivePath,
+            ]);
         }
 
         $workDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'easywi_extract_' . bin2hex(random_bytes(6));
@@ -149,12 +187,12 @@ final class SftpFileService
         $extractPath = $workDir . DIRECTORY_SEPARATOR . 'extract';
 
         if (!mkdir($extractPath, 0755, true) && !is_dir($extractPath)) {
-            throw new \RuntimeException('Failed to prepare extraction directory.');
+            throw new SftpException('sftp_extract_failed', 'Failed to prepare extraction directory.', 500);
         }
 
         if (file_put_contents($archivePath, $content) === false) {
             $this->cleanupWorkDir($workDir);
-            throw new \RuntimeException('Failed to store archive.');
+            throw new SftpException('sftp_extract_failed', 'Failed to store archive.', 500);
         }
 
         try {
@@ -162,7 +200,7 @@ final class SftpFileService
             if (str_ends_with($lowerName, '.zip')) {
                 $zip = new \ZipArchive();
                 if ($zip->open($archivePath) !== true) {
-                    throw new \RuntimeException('Failed to open zip archive.');
+                    throw new SftpException('sftp_extract_failed', 'Failed to open zip archive.', 500);
                 }
                 $zip->extractTo($extractPath);
                 $zip->close();
@@ -175,7 +213,7 @@ final class SftpFileService
                 }
                 $phar->extractTo($extractPath, null, true);
             } else {
-                throw new \RuntimeException('Unsupported archive format.');
+                throw new SftpException('sftp_extract_failed', 'Unsupported archive format.', 422);
             }
 
             $this->uploadExtracted($sftp, $extractPath, $destinationPath);
@@ -346,8 +384,9 @@ final class SftpFileService
                 continue;
             }
             if ($segment === '..') {
-                array_pop($safe);
-                continue;
+                throw new SftpException('sftp_path_invalid', 'Path traversal is not allowed.', 400, [
+                    'path' => $path,
+                ]);
             }
             $safe[] = $segment;
         }
@@ -397,7 +436,9 @@ final class SftpFileService
 
             $content = file_get_contents($item->getPathname());
             if ($content === false || !$sftp->put($targetPath, $content, SFTP::SOURCE_STRING)) {
-                throw new \RuntimeException('Failed to upload extracted file.');
+                throw new SftpException('sftp_extract_failed', 'Failed to upload extracted file.', 502, [
+                    'path' => $targetPath,
+                ]);
             }
         }
     }

@@ -28,6 +28,7 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 
 final class CustomerInstanceFileApiController
 {
+    private const int EDITOR_MAX_BYTES = 1_048_576;
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly FileServiceClient $fileService,
@@ -144,7 +145,9 @@ final class CustomerInstanceFileApiController
                 fn () => $this->sftpFileService->readFile($instance, $path, $name),
             );
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleActionError($request, 'download', $customer->getId(), $instance->getId(), $path, $exception, [
+                'name' => $name,
+            ]);
         }
 
         $response = new Response($content);
@@ -172,10 +175,13 @@ final class CustomerInstanceFileApiController
         try {
             $content = $this->withFileFallback(
                 fn () => $this->fileService->readFileForEditor($instance, $path, $name),
-                fn () => $this->sftpFileService->readFile($instance, $path, $name),
+                fn () => $this->sftpFileService->readFileForEditor($instance, $path, $name),
             );
+            $this->assertEditorContent($content);
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleActionError($request, 'read', $customer->getId(), $instance->getId(), $path, $exception, [
+                'name' => $name,
+            ]);
         }
 
         $response = new Response($content);
@@ -213,7 +219,9 @@ final class CustomerInstanceFileApiController
                 fn () => $this->uploadViaSftp($instance, $path, $upload),
             );
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleActionError($request, 'upload', $customer->getId(), $instance->getId(), $path, $exception, [
+                'name' => $upload->getClientOriginalName(),
+            ]);
         }
 
         $this->auditLogger->log($customer, 'instance.files.uploaded', [
@@ -250,12 +258,15 @@ final class CustomerInstanceFileApiController
         }
 
         try {
+            $this->assertEditorContent($content);
             $this->withFileFallback(
                 fn () => $this->fileService->writeFile($instance, $path, $name, $content),
                 fn () => $this->sftpFileService->writeFile($instance, $path, $name, $content),
             );
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleActionError($request, 'save', $customer->getId(), $instance->getId(), $path, $exception, [
+                'name' => $name,
+            ]);
         }
 
         $this->auditLogger->log($customer, 'instance.files.saved', [
@@ -293,7 +304,9 @@ final class CustomerInstanceFileApiController
                 fn () => $this->sftpFileService->makeDirectory($instance, $path, $name),
             );
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleActionError($request, 'mkdir', $customer->getId(), $instance->getId(), $path, $exception, [
+                'name' => $name,
+            ]);
         }
 
         $this->auditLogger->log($customer, 'instance.files.mkdir', [
@@ -335,7 +348,10 @@ final class CustomerInstanceFileApiController
                 fn () => $this->sftpFileService->rename($instance, $path, $name, $newName),
             );
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleActionError($request, 'rename', $customer->getId(), $instance->getId(), $path, $exception, [
+                'name' => $name,
+                'new_name' => $newName,
+            ]);
         }
 
         $this->auditLogger->log($customer, 'instance.files.rename', [
@@ -377,7 +393,9 @@ final class CustomerInstanceFileApiController
                 fn () => $this->sftpFileService->delete($instance, $path, $name),
             );
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleActionError($request, 'delete', $customer->getId(), $instance->getId(), $path, $exception, [
+                'name' => $name,
+            ]);
         }
 
         $this->auditLogger->log($customer, 'instance.files.delete', [
@@ -421,7 +439,10 @@ final class CustomerInstanceFileApiController
                 fn () => $this->sftpFileService->chmod($instance, $path, $name, $mode),
             );
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleActionError($request, 'chmod', $customer->getId(), $instance->getId(), $path, $exception, [
+                'name' => $name,
+                'mode' => $mode,
+            ]);
         }
 
         $this->auditLogger->log($customer, 'instance.files.chmod', [
@@ -461,7 +482,10 @@ final class CustomerInstanceFileApiController
                 fn () => $this->sftpFileService->extract($instance, $path, $name, $destination),
             );
         } catch (\RuntimeException $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->handleActionError($request, 'extract', $customer->getId(), $instance->getId(), $path, $exception, [
+                'name' => $name,
+                'destination' => $destination,
+            ]);
         }
 
         $this->auditLogger->log($customer, 'instance.files.extract', [
@@ -673,6 +697,77 @@ final class CustomerInstanceFileApiController
             'details' => $details,
             'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $details
+     */
+    private function handleActionError(
+        Request $request,
+        string $action,
+        int $userId,
+        int $instanceId,
+        string $path,
+        \RuntimeException $exception,
+        array $details = [],
+    ): JsonResponse {
+        $requestId = $this->getRequestId($request);
+        $statusCode = JsonResponse::HTTP_BAD_REQUEST;
+        $errorCode = 'files_action_failed';
+        $errorDetails = $details;
+
+        if ($exception instanceof FileServiceException) {
+            $statusCode = $exception->getStatusCode();
+            $errorCode = $exception->getErrorCode();
+            $errorDetails = array_merge($details, $exception->getDetails());
+        } elseif ($exception instanceof SftpException) {
+            $statusCode = $exception->getStatusCode();
+            $errorCode = $exception->getErrorCode();
+            $errorDetails = array_merge($details, $exception->getDetails());
+        }
+
+        $this->logger->warning('instance.files.action_failed', [
+            'request_id' => $requestId,
+            'user_id' => $userId,
+            'instance_id' => $instanceId,
+            'path' => $path,
+            'action' => $action,
+            'error_code' => $errorCode,
+            'error' => $exception->getMessage(),
+            'details' => $errorDetails,
+        ]);
+
+        return new JsonResponse([
+            'error_code' => $errorCode,
+            'message' => $exception->getMessage(),
+            'details' => $errorDetails,
+            'request_id' => $requestId,
+        ], $statusCode);
+    }
+
+    private function assertEditorContent(string $content): void
+    {
+        if (strlen($content) > self::EDITOR_MAX_BYTES) {
+            throw new \RuntimeException('File is too large to edit (max 1 MB).');
+        }
+
+        if (!$this->isTextContent($content)) {
+            throw new \RuntimeException('Binary files cannot be edited.');
+        }
+    }
+
+    private function isTextContent(string $content): bool
+    {
+        if ($content === '') {
+            return true;
+        }
+
+        if (str_contains($content, "\0")) {
+            return false;
+        }
+
+        $sample = substr($content, 0, 2048);
+        return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $sample) !== 1;
     }
 
     private function getRequestId(Request $request): string

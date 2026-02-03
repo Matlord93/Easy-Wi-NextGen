@@ -6,6 +6,7 @@ namespace App\Tests\Controller;
 
 use App\Module\PanelCustomer\Application\SftpFilesystemService;
 use App\Repository\WebspaceRepository;
+use App\Repository\WebspaceSftpCredentialRepository;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 final class FilesHealthTest extends WebTestCase
@@ -33,15 +34,22 @@ final class FilesHealthTest extends WebTestCase
 
         $webspace = $this->createMock(\App\Module\Core\Domain\Entity\Webspace::class);
         $webspace->method('getId')->willReturn(42);
+        $webspace->method('getPath')->willReturn('/srv/webspace');
 
         $repo = $this->createMock(WebspaceRepository::class);
         $repo->method('find')->with('42')->willReturn($webspace);
+
+        $credentialRepo = $this->createMock(WebspaceSftpCredentialRepository::class);
+        $credentialRepo->method('findOneByWebspace')->with($webspace)->willReturn(
+            $this->createMock(\App\Module\Core\Domain\Entity\WebspaceSftpCredential::class),
+        );
 
         $mock = $this->createMock(SftpFilesystemService::class);
         $mock->method('testConnection')->with($webspace)->willThrowException(new \RuntimeException('Connection failed'));
 
         $client = static::createClient();
         static::getContainer()->set(WebspaceRepository::class, $repo);
+        static::getContainer()->set(WebspaceSftpCredentialRepository::class, $credentialRepo);
         static::getContainer()->set(SftpFilesystemService::class, $mock);
 
         $client->request('GET', '/files/health?webspace=42');
