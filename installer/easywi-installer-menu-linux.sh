@@ -1036,7 +1036,7 @@ run_panel_install() {
 
   local install_dir="${EASYWI_INSTALL_DIR:-/var/www/easywi}"
   local repo_url="${EASYWI_REPO_URL:-}"
-  local repo_ref="${EASYWI_REPO_REF:-Beta}"
+  local repo_ref="${EASYWI_REPO_REF:-Dev}"
   local db_driver="${EASYWI_DB_DRIVER:-mysql}"
   local db_system="${EASYWI_DB_SYSTEM:-}"
   local db_root_password="${EASYWI_DB_ROOT_PASSWORD:-}"
