@@ -8,6 +8,7 @@ use App\Module\Gameserver\Application\ConsoleCommandSettings;
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Repository\AppSettingRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 
 final class AppSettingsService implements ConsoleCommandSettings
 {
@@ -126,6 +127,8 @@ TWIG;
     public function __construct(
         private readonly AppSettingRepository $repository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly EncryptionService $encryptionService,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -142,7 +145,8 @@ TWIG;
 
         try {
             foreach ($this->repository->findAll() as $setting) {
-                $settings[$setting->getSettingKey()] = $setting->getValue();
+                $key = $setting->getSettingKey();
+                $settings[$key] = $this->decryptSetting($key, $setting->getValue());
             }
         } catch (\Throwable) {
             $this->cachedSettings = $this->normalizeSettings($settings);
@@ -403,11 +407,6 @@ TWIG;
             return $value;
         }
 
-        $env = $_ENV['EASYWI_SFTP_HOST'] ?? $_SERVER['EASYWI_SFTP_HOST'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
-        }
-
         return null;
     }
 
@@ -418,11 +417,6 @@ TWIG;
 
         if (is_numeric($value)) {
             return max(1, (int) $value);
-        }
-
-        $env = $_ENV['EASYWI_SFTP_PORT'] ?? $_SERVER['EASYWI_SFTP_PORT'] ?? null;
-        if (is_numeric($env)) {
-            return max(1, (int) $env);
         }
 
         return self::DEFAULTS[self::KEY_SFTP_PORT];
@@ -437,11 +431,6 @@ TWIG;
             return $value;
         }
 
-        $env = $_ENV['EASYWI_SFTP_USERNAME'] ?? $_SERVER['EASYWI_SFTP_USERNAME'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
-        }
-
         return null;
     }
 
@@ -452,11 +441,6 @@ TWIG;
 
         if (is_string($value) && $value !== '') {
             return $value;
-        }
-
-        $env = $_ENV['EASYWI_SFTP_PASSWORD'] ?? $_SERVER['EASYWI_SFTP_PASSWORD'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
         }
 
         return null;
@@ -471,11 +455,6 @@ TWIG;
             return $value;
         }
 
-        $env = $_ENV['EASYWI_SFTP_PRIVATE_KEY'] ?? $_SERVER['EASYWI_SFTP_PRIVATE_KEY'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
-        }
-
         return null;
     }
 
@@ -488,11 +467,6 @@ TWIG;
             return $value;
         }
 
-        $env = $_ENV['EASYWI_SFTP_PRIVATE_KEY_PATH'] ?? $_SERVER['EASYWI_SFTP_PRIVATE_KEY_PATH'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
-        }
-
         return null;
     }
 
@@ -503,11 +477,6 @@ TWIG;
 
         if (is_string($value) && $value !== '') {
             return $value;
-        }
-
-        $env = $_ENV['EASYWI_SFTP_PRIVATE_KEY_PASSPHRASE'] ?? $_SERVER['EASYWI_SFTP_PRIVATE_KEY_PASSPHRASE'] ?? null;
-        if (is_string($env) && $env !== '') {
-            return $env;
         }
 
         return null;
@@ -617,6 +586,7 @@ TWIG;
     private function persistSettings(array $settings): void
     {
         foreach ($settings as $key => $value) {
+            $value = $this->encryptSetting($key, $value);
             $setting = $this->repository->find($key);
             if ($setting === null) {
                 $setting = new AppSetting($key, $value);
@@ -628,5 +598,49 @@ TWIG;
         }
 
         $this->entityManager->flush();
+    }
+
+    private function decryptSetting(string $key, mixed $value): mixed
+    {
+        if (!in_array($key, self::SECRET_KEYS, true)) {
+            return $value;
+        }
+
+        if (is_array($value)) {
+            try {
+                return $this->encryptionService->decrypt($value);
+            } catch (\Throwable $exception) {
+                $this->logger->error('settings.decrypt_failed', [
+                    'key' => $key,
+                    'exception' => $exception,
+                ]);
+
+                return null;
+            }
+        }
+
+        return is_string($value) ? $value : null;
+    }
+
+    private function encryptSetting(string $key, mixed $value): mixed
+    {
+        if (!in_array($key, self::SECRET_KEYS, true)) {
+            return $value;
+        }
+
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        return $this->encryptionService->encrypt($value);
     }
 }

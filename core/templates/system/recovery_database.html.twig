@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="{{ page_locale() }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Datenbank-Upgrade erforderlich</title>
+    <link rel="stylesheet" href="{{ asset('ui.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
+</head>
+<body class="bg-slate-100 text-slate-900">
+<main class="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-4 py-10">
+    <div class="rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+        <h1 class="text-xl font-semibold">Datenbank-Upgrade erforderlich</h1>
+        <p class="mt-2 text-sm text-rose-700">
+            Die Datenbank-Schemastruktur ist nicht kompatibel mit dem aktuellen Core. Bitte führen Sie die Migrationen aus.
+        </p>
+    </div>
+
+    {% if notice == 'job_created' %}
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            Migrations-Job wurde gestartet. Bitte warten Sie, bis der Runner fertig ist.
+        </div>
+    {% endif %}
+
+    <div class="grid gap-4 md:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-slate-500">Version</p>
+            <p class="mt-2 text-sm font-semibold">{{ versionInfo.version ?? '—' }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-slate-500">Commit</p>
+            <p class="mt-2 text-sm font-semibold">{{ versionInfo.commit ?? '—' }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-slate-500">Build</p>
+            <p class="mt-2 text-sm font-semibold">{{ versionInfo.build ?? '—' }}</p>
+        </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold">Migrationsstatus</h2>
+        {% if migrationStatus.error %}
+            <p class="mt-2 text-sm text-rose-700">
+                Datenbank ist nicht erreichbar oder nicht konfiguriert ({{ migrationStatus.error }}).
+            </p>
+        {% else %}
+            <p class="mt-2 text-sm text-slate-700">
+                Offene Migrationen: <strong>{{ migrationStatus.pending }}</strong><br>
+                Ausgeführte, aber fehlende Migrationen: <strong>{{ migrationStatus.executedUnavailable }}</strong>
+            </p>
+        {% endif %}
+
+        <form method="post" action="/system/recovery/database/migrate" class="mt-4">
+            <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+            <button
+                class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm"
+                {% if migrationStatus.error %}
+                    disabled
+                {% endif %}
+            >
+                Migrationen starten
+            </button>
+        </form>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold">Letzter Job</h2>
+        {% if latestJob %}
+            <dl class="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                <div><dt class="font-semibold text-slate-500">ID</dt><dd>{{ latestJob.id }}</dd></div>
+                <div><dt class="font-semibold text-slate-500">Status</dt><dd>{{ latestJob.status }}</dd></div>
+                <div><dt class="font-semibold text-slate-500">Typ</dt><dd>{{ latestJob.type }}</dd></div>
+                <div><dt class="font-semibold text-slate-500">Start</dt><dd>{{ latestJob.startedAt ?? '—' }}</dd></div>
+                <div><dt class="font-semibold text-slate-500">Ende</dt><dd>{{ latestJob.finishedAt ?? '—' }}</dd></div>
+                <div><dt class="font-semibold text-slate-500">Exit</dt><dd>{{ latestJob.exitCode ?? '—' }}</dd></div>
+            </dl>
+        {% else %}
+            <p class="mt-2 text-sm text-slate-700">Noch keine Jobs vorhanden.</p>
+        {% endif %}
+
+        <div class="mt-4">
+            <p class="text-xs font-semibold uppercase text-slate-500">Log (letzte 200 Zeilen)</p>
+            <pre class="mt-2 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">{{ logLines|join("\n") }}</pre>
+        </div>
+    </div>
+</main>
+</body>
+</html>

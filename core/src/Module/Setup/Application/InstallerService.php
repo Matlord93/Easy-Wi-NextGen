@@ -9,12 +9,12 @@ use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\Application\AdminSshKeyService;
-use App\Module\Setup\Runtime\DatabaseConfig;
+use App\Infrastructure\Config\DbConfigProvider;
 use App\Module\Setup\Application\InstallerSshKeyException;
+use App\Module\Core\Application\EncryptionService;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\DBAL\Exception\TableExistsException;
-use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\Migrations\Configuration\EntityManager\ExistingEntityManager;
 use Doctrine\Migrations\Configuration\Migration\ConfigurationArray;
 use Doctrine\Migrations\DependencyFactory;
@@ -33,8 +33,12 @@ final class InstallerService
     private const STATE_FILE = self::SETUP_DIR . '/state/install.state.json';
     private const LOCK_FILE = self::SETUP_DIR . '/state/install.lock';
     private const DEBUG_REPORT_FILE = self::SETUP_DIR . '/state/install.debug.json';
-    private const SQLITE_DATA_FILE = self::SETUP_DIR . '/data/data.db';
     private const LOCALE_SESSION_KEY = 'installer.locale';
+    private const SECRET_SETTING_KEYS = [
+        'sftp_password',
+        'sftp_private_key',
+        'sftp_private_key_passphrase',
+    ];
 
     public function __construct(
         private readonly EntityManagerInterface $defaultEntityManager,
@@ -42,6 +46,8 @@ final class InstallerService
         private readonly LoggerInterface $logger,
         private readonly \App\Module\Core\Application\GameTemplateSeeder $templateSeeder,
         private readonly AdminSshKeyService $sshKeyService,
+        private readonly DbConfigProvider $configProvider,
+        private readonly EncryptionService $encryptionService,
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
     ) {
@@ -53,6 +59,8 @@ final class InstallerService
     public function checkRequirements(): array
     {
         $requirements = [];
+
+        $this->ensureSetupStateDirectory();
 
         $requirements[] = [
             'key' => 'php_version',
@@ -79,22 +87,16 @@ final class InstallerService
             ];
         }
 
-        $sqliteAvailable = extension_loaded('pdo_sqlite');
-        $requirements[] = [
-            'key' => 'ext_pdo_sqlite',
-            'ok' => $sqliteAvailable,
-            'required' => false,
-            'messageKey' => 'requirements.extension_optional',
-            'messageParams' => ['%extension%' => 'pdo_sqlite'],
-            'fixHintKey' => $sqliteAvailable ? null : 'hints.enable_extension',
-            'fixHintParams' => ['%extension%' => 'pdo_sqlite'],
-        ];
-
         $requirements[] = $this->buildWritableRequirement('var', $this->projectDir . '/var', 'hints.writable_var');
         $requirements[] = $this->buildWritableRequirement('var_cache', $this->projectDir . '/var/cache', 'hints.writable_cache');
         $requirements[] = $this->buildWritableRequirement(
             'srv_setup',
             $this->projectDir . '/' . self::SETUP_DIR,
+            'hints.writable_var',
+        );
+        $requirements[] = $this->buildWritableRequirement(
+            'srv_setup_state',
+            $this->getSetupStateDirPath(),
             'hints.writable_var',
         );
 
@@ -139,26 +141,11 @@ final class InstallerService
     {
         $errors = [];
 
-        if (!in_array($databaseState['driver'], ['mysql', 'sqlite'], true)) {
-            $errors[] = ['key' => 'errors.db_driver_invalid'];
-            return $errors;
-        }
-
-        $requiredExtension = $databaseState['driver'] === 'sqlite' ? 'pdo_sqlite' : 'pdo_mysql';
-        if (!extension_loaded($requiredExtension)) {
+        if (!extension_loaded('pdo_mysql')) {
             $errors[] = [
                 'key' => 'errors.missing_extension',
-                'params' => ['%extension%' => $requiredExtension],
+                'params' => ['%extension%' => 'pdo_mysql'],
             ];
-        }
-
-        if ($databaseState['driver'] === 'sqlite') {
-            $sqliteError = $this->getSqlitePathError((string) $databaseState['path']);
-            if ($sqliteError !== null) {
-                $errors[] = $sqliteError;
-            }
-
-            return $errors;
         }
 
         if ($databaseState['host'] === '' || $databaseState['name'] === '' || $databaseState['user'] === '') {
@@ -175,18 +162,6 @@ final class InstallerService
      */
     public function buildDatabaseConfig(array $databaseState): array
     {
-        if ($databaseState['driver'] === 'sqlite') {
-            $path = $this->resolveSqlitePath((string) $databaseState['path']);
-
-            return [
-                'url' => 'sqlite:///' . ltrim($path, '/'),
-                'connection' => [
-                    'driver' => 'pdo_sqlite',
-                    'path' => $path,
-                ],
-            ];
-        }
-
         $port = null;
         if ($databaseState['port'] !== '' && is_numeric($databaseState['port'])) {
             $port = (int) $databaseState['port'];
@@ -223,9 +198,22 @@ final class InstallerService
     /**
      * @param array<string, mixed> $databaseState
      */
-    public function buildDatabaseUrl(array $databaseState): string
+    public function buildPersistentDatabaseConfig(array $databaseState): array
     {
-        return $this->buildDatabaseConfig($databaseState)['url'];
+        $port = null;
+        if ($databaseState['port'] !== '' && is_numeric($databaseState['port'])) {
+            $port = (int) $databaseState['port'];
+        }
+
+        return array_filter([
+            'host' => (string) $databaseState['host'],
+            'port' => $port,
+            'dbname' => (string) $databaseState['name'],
+            'user' => (string) $databaseState['user'],
+            'password' => (string) $databaseState['password'],
+            'serverVersion' => isset($databaseState['version']) ? (string) $databaseState['version'] : null,
+            'charset' => 'utf8mb4',
+        ], static fn ($value) => $value !== null && $value !== '');
     }
 
     /**
@@ -237,11 +225,6 @@ final class InstallerService
     {
         $connection = DriverManager::getConnection($databaseConfig['connection']);
         $connection->executeQuery('SELECT 1');
-
-        $platform = $connection->getDatabasePlatform();
-        if ($platform instanceof SQLitePlatform) {
-            return (string) $connection->fetchOne('SELECT sqlite_version()');
-        }
 
         return (string) $connection->fetchOne('SELECT VERSION()');
     }
@@ -255,18 +238,13 @@ final class InstallerService
     {
         $connection = DriverManager::getConnection($databaseConfig['connection']);
 
-        $platform = $connection->getDatabasePlatform();
         $tableName = '_install_priv_test';
 
         try {
-            if ($platform instanceof SQLitePlatform) {
-                $connection->executeStatement(sprintf('CREATE TABLE %s (id INTEGER PRIMARY KEY)', $tableName));
-            } else {
-                $connection->executeStatement(sprintf(
-                    'CREATE TABLE %s (id INT PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
-                    $tableName,
-                ));
-            }
+            $connection->executeStatement(sprintf(
+                'CREATE TABLE %s (id INT PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+                $tableName,
+            ));
         } finally {
             try {
                 $connection->executeStatement(sprintf('DROP TABLE IF EXISTS %s', $tableName));
@@ -281,22 +259,11 @@ final class InstallerService
     /**
      * @param array<string, mixed> $databaseState
      */
-    public function storeDatabaseConfig(string $databaseUrl, array $databaseState): void
+    public function storeDatabaseConfig(array $payload): void
     {
-        DatabaseConfig::write($this->projectDir, [
-            'database_url' => $databaseUrl,
-            'driver' => $databaseState['driver'] ?? null,
-            'host' => $databaseState['host'] ?? null,
-            'port' => $databaseState['port'] ?? null,
-            'name' => $databaseState['name'] ?? null,
-            'user' => $databaseState['user'] ?? null,
-            'path' => $databaseState['path'] ?? null,
-            'stored_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
-        ]);
-
-        $_ENV['DATABASE_URL'] = $databaseUrl;
-        $_SERVER['DATABASE_URL'] = $databaseUrl;
+        $this->configProvider->store($payload);
     }
+
 
     public function clearCache(): void
     {
@@ -447,6 +414,10 @@ final class InstallerService
                 continue;
             }
 
+            if (in_array($key, self::SECRET_SETTING_KEYS, true) && is_string($value)) {
+                $value = trim($value) === '' ? null : $this->encryptionService->encrypt($value);
+            }
+
             $setting = $entityManager->find(AppSetting::class, $key);
             if ($setting instanceof AppSetting) {
                 $setting->setValue($value);
@@ -557,9 +528,30 @@ final class InstallerService
         return $this->projectDir . '/' . self::DEBUG_REPORT_FILE;
     }
 
+    public function getSetupStateDirPath(): string
+    {
+        return $this->projectDir . '/' . self::SETUP_DIR . '/state';
+    }
+
     public function isLocked(): bool
     {
         return file_exists($this->projectDir . '/' . self::LOCK_FILE);
+    }
+
+    public function ensureSetupStateDirectory(): void
+    {
+        $path = $this->getSetupStateDirPath();
+        if (is_dir($path)) {
+            return;
+        }
+
+        if (@mkdir($path, 0775, true) || is_dir($path)) {
+            return;
+        }
+
+        $this->logger->error('Unable to create setup state directory.', [
+            'path' => $path,
+        ]);
     }
 
     public function writeLock(): void
@@ -649,50 +641,4 @@ final class InstallerService
         ];
     }
 
-    private function resolveSqlitePath(string $path): string
-    {
-        if ($path === '') {
-            return $this->projectDir . '/' . self::SQLITE_DATA_FILE;
-        }
-
-        if (!str_starts_with($path, '/')) {
-            return $this->projectDir . '/' . $path;
-        }
-
-        return $path;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function getSqlitePathError(string $path): ?array
-    {
-        if ($path === '') {
-            return ['key' => 'errors.sqlite_path_required'];
-        }
-
-        $path = $this->resolveSqlitePath($path);
-
-        if (file_exists($path)) {
-            return is_writable($path) ? null : ['key' => 'errors.sqlite_file_not_writable'];
-        }
-
-        $directory = dirname($path);
-        if (!is_dir($directory)) {
-            return ['key' => 'errors.sqlite_directory_missing'];
-        }
-
-        if (!is_writable($directory)) {
-            return ['key' => 'errors.sqlite_directory_not_writable'];
-        }
-
-        $handle = @fopen($path, 'c');
-        if ($handle === false) {
-            return ['key' => 'errors.sqlite_file_create_failed'];
-        }
-
-        fclose($handle);
-
-        return null;
-    }
 }

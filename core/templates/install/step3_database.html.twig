@@ -17,22 +17,13 @@
         <input type="hidden" name="step" value="{{ step }}">
 
         <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
-            <div class="grid gap-4 sm:grid-cols-2">
-                <div>
-                    <label class="text-sm font-medium text-slate-700" for="db_driver">{{ 'database.driver'|trans }}</label>
-                    <select id="db_driver" name="db_driver" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                        <option value="mysql" {% if database.driver == 'mysql' %}selected{% endif %}>{{ 'database.mysql'|trans }}</option>
-                        <option value="sqlite" {% if database.driver == 'sqlite' %}selected{% endif %}>{{ 'database.sqlite'|trans }}</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-slate-700" for="db_name">{{ 'database.name'|trans }}</label>
-                    <input id="db_name" name="db_name" type="text" value="{{ database.name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.name_placeholder'|trans }}">
-                </div>
+            <div>
+                <label class="text-sm font-medium text-slate-700" for="db_name">{{ 'database.name'|trans }}</label>
+                <input id="db_name" name="db_name" type="text" value="{{ database.name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.name_placeholder'|trans }}">
             </div>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white px-6 py-5" data-driver-section="mysql">
+        <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
             <h3 class="text-sm font-semibold text-slate-900">{{ 'database.mysql'|trans }}</h3>
             <p class="mt-2 text-sm text-slate-600">{{ 'database.host_hint'|trans }}</p>
             <div class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -55,16 +46,6 @@
                         <p class="mt-1 text-xs text-slate-700">{{ 'database.password_stored_hint'|trans }}</p>
                     {% endif %}
                 </div>
-            </div>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white px-6 py-5" data-driver-section="sqlite">
-            <h3 class="text-sm font-semibold text-slate-900">{{ 'database.sqlite'|trans }}</h3>
-            <p class="mt-2 text-sm text-slate-600">{{ 'database.sqlite_hint'|trans }}</p>
-            <div class="mt-4">
-                <label class="text-sm font-medium text-slate-700" for="db_path">{{ 'database.path'|trans }}</label>
-                <input id="db_path" name="db_path" type="text" value="{{ database.path }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ 'database.path_placeholder'|trans }}">
-                <p class="mt-1 text-xs text-slate-700">{{ 'database.path_help'|trans }}</p>
             </div>
         </div>
 
@@ -91,18 +72,4 @@
     </form>
 </div>
 
-<script>
-    const driverSelect = document.getElementById('db_driver');
-    const sections = document.querySelectorAll('[data-driver-section]');
-
-    const toggleSections = () => {
-        const selected = driverSelect.value;
-        sections.forEach((section) => {
-            section.style.display = section.dataset.driverSection === selected ? 'block' : 'none';
-        });
-    };
-
-    driverSelect.addEventListener('change', toggleSections);
-    toggleSections();
-</script>
 {% endblock %}

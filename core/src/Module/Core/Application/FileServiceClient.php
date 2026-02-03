@@ -174,7 +174,101 @@ final class FileServiceClient
 
     public function downloadFile(Instance $instance, string $path, string $name): string
     {
-        return $this->readFile($instance, $path, $name, null);
+        $this->assertValidName($name);
+        $relative = $this->combinePath($path, $name);
+        $endpoint = $this->buildEndpoint($instance, '/download');
+
+        $response = $this->requestRaw($instance, 'GET', $endpoint, [
+            'path' => $relative,
+        ]);
+
+        return $response->getContent(false);
+    }
+
+    /**
+     * @return array{ok: bool, status_code: int|null, error: string|null, url: string}
+     */
+    public function ping(Instance $instance): array
+    {
+        $baseUrl = $this->getBaseUrlForInstance($instance);
+        $healthUrl = $baseUrl . '/health';
+
+        try {
+            $this->assertTlsConfigured($baseUrl);
+        } catch (FileServiceException $exception) {
+            return [
+                'ok' => false,
+                'status_code' => $exception->getStatusCode(),
+                'error' => $exception->getMessage(),
+                'url' => $healthUrl,
+            ];
+        }
+
+        $options = [
+            'timeout' => min(5, $this->timeoutSeconds),
+            'max_duration' => min(5, $this->timeoutSeconds),
+        ];
+        $tlsOptions = $this->buildTlsOptions();
+        if ($tlsOptions !== []) {
+            $options = array_merge($options, $tlsOptions);
+        }
+
+        try {
+            $response = $this->httpClient->request('GET', $healthUrl, $options);
+            $statusCode = $response->getStatusCode();
+            $body = $response->getContent(false);
+            $decoded = json_decode($body, true);
+        } catch (TimeoutExceptionInterface $exception) {
+            return [
+                'ok' => false,
+                'status_code' => null,
+                'error' => 'timeout',
+                'url' => $healthUrl,
+                'body' => null,
+            ];
+        } catch (TransportExceptionInterface $exception) {
+            return [
+                'ok' => false,
+                'status_code' => null,
+                'error' => 'unreachable',
+                'url' => $healthUrl,
+                'body' => null,
+            ];
+        }
+
+        return [
+            'ok' => $statusCode >= 200 && $statusCode < 300,
+            'status_code' => $statusCode,
+            'error' => $statusCode >= 200 && $statusCode < 300 ? null : 'bad_status',
+            'url' => $healthUrl,
+            'body' => is_array($decoded) ? $decoded : $body,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @return array<string, string>
+     */
+    public function getMaskedAuthHeaders(Instance $instance, string $method, string $endpoint, array $query = []): array
+    {
+        $endpointWithQuery = $endpoint;
+        if ($query !== []) {
+            $queryString = http_build_query($query);
+            $endpointWithQuery = $queryString !== '' ? $endpoint . '?' . $queryString : $endpoint;
+        }
+
+        $headers = $this->buildAuthHeaders($instance, $method, $endpointWithQuery);
+        $masked = [];
+        foreach ($headers as $name => $value) {
+            $masked[$name] = $this->maskHeaderValue($value);
+        }
+
+        return $masked;
+    }
+
+    public function getBaseUrlForInstance(Instance $instance): string
+    {
+        return $this->resolveBaseUrl($instance->getNode());
     }
 
     /**
@@ -199,8 +293,10 @@ final class FileServiceClient
             try {
                 $payload = $response->toArray(false);
             } catch (\Throwable $exception) {
+                $body = $response->getContent(false);
                 throw new FileServiceException('filesvc_error', 'File service error.', 502, [
                     'status_code' => $status,
+                    'response_body' => $body,
                 ], $exception);
             }
             $message = is_array($payload) ? (string) ($payload['error'] ?? 'File service error.') : 'File service error.';
@@ -211,6 +307,7 @@ final class FileServiceClient
             };
             throw new FileServiceException($errorCode, $message, 502, [
                 'status_code' => $status,
+                'response_body' => $payload,
             ]);
         }
 
@@ -236,16 +333,30 @@ final class FileServiceClient
             throw new \RuntimeException('File service unavailable.', 0, $exception);
         }
         if ($status >= 500) {
-            throw new \RuntimeException('File service unavailable.');
+            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [
+                'status_code' => $status,
+            ]);
         }
         if ($status < 200 || $status >= 300) {
             try {
                 $payload = $response->toArray(false);
             } catch (\Throwable $exception) {
-                throw new \RuntimeException('File service error.', 0, $exception);
+                $body = $response->getContent(false);
+                throw new FileServiceException('filesvc_error', 'File service error.', 502, [
+                    'status_code' => $status,
+                    'response_body' => $body,
+                ], $exception);
             }
             $message = is_array($payload) ? (string) ($payload['error'] ?? 'File service error.') : 'File service error.';
-            throw new \RuntimeException($message);
+            $errorCode = match ($status) {
+                401, 403 => 'filesvc_unauthorized',
+                404 => 'filesvc_not_found',
+                default => 'filesvc_error',
+            };
+            throw new FileServiceException($errorCode, $message, 502, [
+                'status_code' => $status,
+                'response_body' => $payload,
+            ]);
         }
     }
 
@@ -523,5 +634,17 @@ final class FileServiceClient
         }
 
         throw new FileServiceException('filesvc_misconfigured', 'File service TLS client certificates are not configured.', 422);
+    }
+
+    private function maskHeaderValue(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '<empty>';
+        }
+        if (strlen($value) <= 8) {
+            return str_repeat('*', strlen($value));
+        }
+        return substr($value, 0, 4) . str_repeat('*', strlen($value) - 8) . substr($value, -4);
     }
 }

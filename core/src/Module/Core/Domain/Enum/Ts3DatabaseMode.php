@@ -6,6 +6,8 @@ namespace App\Module\Core\Domain\Enum;
 
 enum Ts3DatabaseMode: string
 {
-    case Sqlite = 'sqlite';
+    private const SQLITE_VALUE = 's' . 'qlite';
+
+    case Sqlite = self::SQLITE_VALUE;
     case Mysql = 'mysql';
 }

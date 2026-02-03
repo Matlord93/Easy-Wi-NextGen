@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\PanelCustomer\Application\SftpFilesystemService;
+use App\Module\Core\Application\AppSettingsService;
 use App\Repository\WebspaceRepository;
 use App\Repository\WebspaceSftpCredentialRepository;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -14,9 +15,13 @@ final class FilesHealthTest extends WebTestCase
     public function testHealthReportsMissingEnv(): void
     {
         self::ensureKernelShutdown();
-        $this->unsetEnv();
+        $settingsService = $this->createMock(AppSettingsService::class);
+        $settingsService->method('getSftpHost')->willReturn(null);
+        $settingsService->method('getSftpPort')->willReturn(22);
+        $settingsService->method('getSettings')->willReturn([]);
 
         $client = static::createClient();
+        static::getContainer()->set(AppSettingsService::class, $settingsService);
         $client->request('GET', '/files/health');
 
         $this->assertResponseIsSuccessful();
@@ -24,13 +29,19 @@ final class FilesHealthTest extends WebTestCase
 
         $this->assertIsArray($payload);
         $this->assertFalse($payload['ok']);
-        $this->assertContains('EASYWI_SFTP_HOST', $payload['missing']);
+        $this->assertContains('sftp_host', $payload['missing']);
     }
 
     public function testHealthReportsUnreachableSftp(): void
     {
         self::ensureKernelShutdown();
-        $this->setEnv();
+        $settingsService = $this->createMock(AppSettingsService::class);
+        $settingsService->method('getSftpHost')->willReturn('localhost');
+        $settingsService->method('getSftpPort')->willReturn(22);
+        $settingsService->method('getSettings')->willReturn([
+            AppSettingsService::KEY_SFTP_HOST => 'localhost',
+            AppSettingsService::KEY_SFTP_PORT => 22,
+        ]);
 
         $webspace = $this->createMock(\App\Module\Core\Domain\Entity\Webspace::class);
         $webspace->method('getId')->willReturn(42);
@@ -51,6 +62,7 @@ final class FilesHealthTest extends WebTestCase
         static::getContainer()->set(WebspaceRepository::class, $repo);
         static::getContainer()->set(WebspaceSftpCredentialRepository::class, $credentialRepo);
         static::getContainer()->set(SftpFilesystemService::class, $mock);
+        static::getContainer()->set(AppSettingsService::class, $settingsService);
 
         $client->request('GET', '/files/health?webspace=42');
 
@@ -62,23 +74,4 @@ final class FilesHealthTest extends WebTestCase
         $this->assertStringContainsString('Connection failed', $payload['message']);
     }
 
-    private function unsetEnv(): void
-    {
-        foreach (['EASYWI_SFTP_HOST', 'EASYWI_SFTP_PORT'] as $name) {
-            putenv($name);
-            unset($_ENV[$name], $_SERVER[$name]);
-        }
-    }
-
-    private function setEnv(): void
-    {
-        putenv('EASYWI_SFTP_HOST=localhost');
-        putenv('EASYWI_SFTP_PORT=22');
-
-        $_ENV['EASYWI_SFTP_HOST'] = 'localhost';
-        $_ENV['EASYWI_SFTP_PORT'] = '22';
-
-        $_SERVER['EASYWI_SFTP_HOST'] = 'localhost';
-        $_SERVER['EASYWI_SFTP_PORT'] = '22';
-    }
 }

@@ -1,4 +1,6 @@
 {
+  "name": "easywi/webinterface-core",
+  "description": "Easy-Wi NextGen Symfony 8 core webinterface.",
   "type": "project",
   "license": "proprietary",
   "require": {
@@ -33,8 +35,8 @@
     "twig/twig": "^3.0",
     "symfony/flex": "^2.0",
     "phpseclib/phpseclib": "^3.0",
-    "league/flysystem-bundle": "*",
-    "league/flysystem-sftp-v3": "*"
+    "league/flysystem-bundle": "^3.0",
+    "league/flysystem-sftp-v3": "^3.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^12.5"

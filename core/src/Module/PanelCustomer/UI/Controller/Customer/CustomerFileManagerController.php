@@ -407,7 +407,7 @@ final class CustomerFileManagerController extends AbstractController
             return new JsonResponse([
                 'ok' => false,
                 'message' => 'SFTP host is not configured.',
-                'missing' => ['EASYWI_SFTP_HOST'],
+                'missing' => ['sftp_host'],
                 'sftp_reachable' => false,
                 'root_readable' => false,
                 'config' => [
@@ -521,21 +521,6 @@ final class CustomerFileManagerController extends AbstractController
      */
     private function resolveSettingSource(string $key, array $settings): string
     {
-        $envKey = match ($key) {
-            AppSettingsService::KEY_SFTP_HOST => 'EASYWI_SFTP_HOST',
-            AppSettingsService::KEY_SFTP_PORT => 'EASYWI_SFTP_PORT',
-            AppSettingsService::KEY_SFTP_USERNAME => 'EASYWI_SFTP_USERNAME',
-            AppSettingsService::KEY_SFTP_PASSWORD => 'EASYWI_SFTP_PASSWORD',
-            AppSettingsService::KEY_SFTP_PRIVATE_KEY => 'EASYWI_SFTP_PRIVATE_KEY',
-            AppSettingsService::KEY_SFTP_PRIVATE_KEY_PATH => 'EASYWI_SFTP_PRIVATE_KEY_PATH',
-            AppSettingsService::KEY_SFTP_PRIVATE_KEY_PASSPHRASE => 'EASYWI_SFTP_PRIVATE_KEY_PASSPHRASE',
-            default => strtoupper($key),
-        };
-        $env = $_ENV[$envKey] ?? $_SERVER[$envKey] ?? null;
-        if (is_string($env) && $env !== '') {
-            return 'env';
-        }
-
         $value = $settings[$key] ?? null;
         if ($value !== null && $value !== '') {
             return 'settings';

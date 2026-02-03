@@ -7,8 +7,10 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\UpdateJobService;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
 use App\Repository\AgentRepository;
@@ -18,7 +20,13 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Twig\Environment;
 
 #[Route(path: '/admin/updates')]
@@ -32,6 +40,10 @@ final class AdminUpdateController
         private readonly AgentReleaseChecker $releaseChecker,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly UpdateJobService $updateJobService,
+        private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        #[Autowire(service: 'limiter.admin_update_jobs')]
+        private readonly RateLimiterFactory $updateLimiter,
         private readonly Environment $twig,
     ) {
     }
@@ -39,7 +51,7 @@ final class AdminUpdateController
     #[Route(path: '', name: 'admin_updates', methods: ['GET'])]
     public function index(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isSuperAdmin($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -53,48 +65,87 @@ final class AdminUpdateController
         ]));
     }
 
-    #[Route(path: '/webinterface', name: 'admin_updates_webinterface', methods: ['POST'])]
-    public function updateWebinterface(Request $request): Response
+    #[Route(path: '/job', name: 'admin_updates_job', methods: ['POST'])]
+    public function createJob(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isSuperAdmin($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $result = $this->updateService->applyUpdate();
-        $summary = $this->buildCoreUpdateSummary();
-        if ($result->success) {
-            $summary['notice'] = $result->message;
-        } else {
-            $summary['error'] = $result->error ?? $result->message;
+        if (!$this->consumeLimiter($request)) {
+            throw new TooManyRequestsHttpException();
         }
-        $summary['logPath'] = $result->logPath;
+
+        $type = (string) $request->request->get('type');
+        $allowed = ['update', 'migrate', 'both', 'rollback'];
+        if (!in_array($type, $allowed, true)) {
+            return new Response('Invalid type.', Response::HTTP_BAD_REQUEST);
+        }
+
+        $token = new CsrfToken('admin_update_' . $type, (string) $request->request->get('csrf_token'));
+        if (!$this->csrfTokenManager->isTokenValid($token)) {
+            throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
+        }
+
+        $actor = $request->attributes->get('current_user');
+        $createdBy = $actor instanceof User ? $actor->getEmail() : 'system';
+        $payload = [];
+        if ($type === 'rollback') {
+            $payload['backup_path'] = (string) $request->request->get('backup_path');
+        }
+
+        $job = $this->updateJobService->createJob($type, $createdBy, $payload);
+        $this->updateJobService->triggerRunner($job['id']);
+
+        $summary = $this->buildCoreUpdateSummary();
+        $summary['notice'] = 'Job wurde gestartet.';
 
         return $this->renderUpdateCard($summary);
     }
 
-    #[Route(path: '/webinterface/migrate', name: 'admin_updates_webinterface_migrate', methods: ['POST'])]
-    public function migrateWebinterface(Request $request): Response
+    #[Route(path: '/job/{id}', name: 'admin_updates_job_status', methods: ['GET'])]
+    public function jobStatus(Request $request, string $id): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isSuperAdmin($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $result = $this->updateService->applyMigrations();
-        $summary = $this->buildCoreUpdateSummary();
-        if ($result->success) {
-            $summary['notice'] = $result->message;
-        } else {
-            $summary['error'] = $result->error ?? $result->message;
+        $job = $this->updateJobService->getJob($id);
+        if ($job === null) {
+            return new Response('Not Found.', Response::HTTP_NOT_FOUND);
         }
-        $summary['logPath'] = $result->logPath;
 
-        return $this->renderUpdateCard($summary);
+        return new Response(json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}', HttpResponse::HTTP_OK, [
+            ResponseHeaderBag::CONTENT_TYPE => 'application/json; charset=UTF-8',
+        ]);
+    }
+
+    #[Route(path: '/job/{id}/log', name: 'admin_updates_job_log', methods: ['GET'])]
+    public function jobLog(Request $request, string $id): Response
+    {
+        if (!$this->isSuperAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $job = $this->updateJobService->getJob($id);
+        if ($job === null) {
+            return new Response('Not Found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $lines = $this->updateJobService->tailLog($job['logPath'] ?? null);
+
+        return new Response(json_encode([
+            'job_id' => $id,
+            'lines' => $lines,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}', HttpResponse::HTTP_OK, [
+            ResponseHeaderBag::CONTENT_TYPE => 'application/json; charset=UTF-8',
+        ]);
     }
 
     #[Route(path: '/webinterface/auto', name: 'admin_updates_webinterface_auto', methods: ['POST'])]
     public function toggleAutoUpdates(Request $request): Response
     {
-        if (!$this->isAdmin($request)) {
+        if (!$this->isSuperAdmin($request)) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -108,7 +159,7 @@ final class AdminUpdateController
     public function updateAgents(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User || !$actor->isAdmin()) {
+        if (!$actor instanceof User || $actor->getType() !== UserType::Superadmin) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -124,28 +175,45 @@ final class AdminUpdateController
         return $this->renderAgentUpdateCard($summary);
     }
 
-    private function isAdmin(Request $request): bool
+    private function isSuperAdmin(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
-        return $actor instanceof User && $actor->isAdmin();
+        return $actor instanceof User && $actor->getType() === UserType::Superadmin;
     }
 
     private function buildCoreUpdateSummary(): array
     {
         $status = $this->updateService->checkForUpdate();
         $settings = $this->updateSettingsService->getSettings();
+        $versionInfo = $this->updateJobService->getVersionInfo();
+        $migrationStatus = $this->updateJobService->getMigrationStatus();
+        $latestJob = $this->updateJobService->getLatestJob();
+        $logLines = $this->updateJobService->tailLog($latestJob['logPath'] ?? null);
+        $backups = $this->updateJobService->listBackups();
 
         return [
             'currentVersion' => $status->installedVersion,
+            'currentCommit' => $versionInfo['commit'],
+            'currentBuild' => $versionInfo['build'],
             'latestVersion' => $status->latestVersion,
             'updateAvailable' => $status->updateAvailable,
             'notes' => $status->notes,
             'notesList' => $this->normalizeNotesList($status->notes),
             'manifestError' => $status->error,
             'logPath' => null,
+            'latestJob' => $latestJob,
+            'logLines' => $logLines,
+            'migrationStatus' => $migrationStatus,
+            'backups' => $backups,
             'notice' => null,
             'error' => null,
             'autoEnabled' => $settings['autoEnabled'],
+            'csrf' => [
+                'update' => $this->csrfTokenManager->getToken('admin_update_update')->getValue(),
+                'migrate' => $this->csrfTokenManager->getToken('admin_update_migrate')->getValue(),
+                'both' => $this->csrfTokenManager->getToken('admin_update_both')->getValue(),
+                'rollback' => $this->csrfTokenManager->getToken('admin_update_rollback')->getValue(),
+            ],
         ];
     }
 
@@ -187,6 +255,13 @@ final class AdminUpdateController
         ]), HttpResponse::HTTP_OK, [
             ResponseHeaderBag::CONTENT_TYPE => 'text/html; charset=UTF-8',
         ]);
+    }
+
+    private function consumeLimiter(Request $request): bool
+    {
+        $key = $request->getClientIp() ?? 'unknown';
+        $limiter = $this->updateLimiter->create($key);
+        return $limiter->consume(1)->isAccepted();
     }
 
     /**

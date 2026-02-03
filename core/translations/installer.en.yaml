@@ -11,7 +11,7 @@ step1:
   title: "Welcome"
   lead: "This installer will configure your application and prepare the database."
   points:
-    write_config: "Stores database configuration in var/config/database.json."
+    write_config: "Stores database configuration in /etc/easywi/db.json (encrypted)."
     run_migrations: "Runs Doctrine migrations to set up the database schema."
     create_admin: "Creates the first superadmin account and the default site entry."
     write_lock: "Writes var/install.lock to disable the installer after completion."
@@ -50,9 +50,7 @@ step3:
   lead: "Provide database credentials and verify connectivity."
 
 database:
-  driver: "Database driver"
   mysql: "MariaDB / MySQL"
-  sqlite: "SQLite"
   name: "Database name"
   name_placeholder: "easywi"
   host: "Host"
@@ -64,11 +62,7 @@ database:
   password: "Password"
   password_placeholder: "Leave empty to keep current"
   password_stored_hint: "A password is stored from a previous step. Leave this blank to keep it."
-  path: "SQLite file path"
-  path_placeholder: "/var/www/vhosts/example.com/httpdocs/var/data.db"
-  path_help: "Use an absolute path inside your hosting directory."
   host_hint: "Tip: use 127.0.0.1 instead of localhost for best compatibility."
-  sqlite_hint: "SQLite stores data in a local file instead of a server."
 
 messages:
   db_connection_success: "Database connection successful."
@@ -77,17 +71,12 @@ messages:
 
 errors:
   requirements_not_met: "Please fix the missing requirements before continuing."
-  db_driver_invalid: "Select a supported database driver."
   missing_extension: "The required PHP extension %extension% is not available."
   db_missing_fields: "Please fill in host, database name, and username."
   db_connection_failed: "Database connection failed. Please verify the credentials and host."
   db_privileges_failed: "Database privilege test failed. Ensure CREATE, ALTER, and INDEX rights."
   db_migrations_failed: "Database migrations failed. Check logs for details and try again."
-  sqlite_path_required: "Provide a SQLite database path."
-  sqlite_file_not_writable: "SQLite database file is not writable."
-  sqlite_directory_missing: "SQLite directory does not exist."
-  sqlite_directory_not_writable: "SQLite directory is not writable."
-  sqlite_file_create_failed: "SQLite database file could not be created."
+  db_config_write_failed: "Database configuration could not be saved. Check file permissions for /etc/easywi."
   site_required: "Site name and host are required."
   email_invalid: "Enter a valid superadmin email address."
   admin_name_required: "Enter a name for the superadmin."

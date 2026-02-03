@@ -7,9 +7,12 @@ parameters:
   app.filesvc_port: '%env(int:default:app.filesvc_port_default:APP_FILESVC_PORT)%'
   app.filesvc_scheme_default: 'https'
   app.filesvc_scheme: '%env(default:app.filesvc_scheme_default:APP_FILESVC_SCHEME)%'
-  app.filesvc_client_cert: '%env(default::APP_FILESVC_CLIENT_CERT)%'
-  app.filesvc_client_key: '%env(default::APP_FILESVC_CLIENT_KEY)%'
-  app.filesvc_ca_cert: '%env(default::APP_FILESVC_CA_CERT)%'
+  app.filesvc_client_cert_default: ''
+  app.filesvc_client_key_default: ''
+  app.filesvc_ca_cert_default: ''
+  app.filesvc_client_cert: '%env(default:app.filesvc_client_cert_default:APP_FILESVC_CLIENT_CERT)%'
+  app.filesvc_client_key: '%env(default:app.filesvc_client_key_default:APP_FILESVC_CLIENT_KEY)%'
+  app.filesvc_ca_cert: '%env(default:app.filesvc_ca_cert_default:APP_FILESVC_CA_CERT)%'
   app.agent_release_channel_default: 'stable'
   app.agent_release_repository: '%env(default::APP_AGENT_RELEASE_REPOSITORY)%'
   app.agent_release_channel: '%env(default:app.agent_release_channel_default:APP_AGENT_RELEASE_CHANNEL)%'
@@ -28,6 +31,17 @@ parameters:
   app.core_update_lock_file: '%env(APP_CORE_UPDATE_LOCK_FILE)%'
   app.core_update_excludes_default: '.env,config/local*,var/,storage/,uploads/'
   app.core_update_excludes: '%env(default:app.core_update_excludes_default:APP_CORE_UPDATE_EXCLUDES)%'
+  app.core_update_jobs_dir_default: '%kernel.project_dir%/srv/update/jobs'
+  app.core_update_logs_dir_default: '%kernel.project_dir%/srv/update/logs'
+  app.core_update_backups_dir_default: '%kernel.project_dir%/srv/update/backups'
+  app.core_update_jobs_dir: '%env(default:app.core_update_jobs_dir_default:APP_CORE_UPDATE_JOBS_DIR)%'
+  app.core_update_logs_dir: '%env(default:app.core_update_logs_dir_default:APP_CORE_UPDATE_LOGS_DIR)%'
+  app.core_update_backups_dir: '%env(default:app.core_update_backups_dir_default:APP_CORE_UPDATE_BACKUPS_DIR)%'
+  app.core_update_runner_command_default: '/usr/local/bin/easywi-core-runner'
+  app.core_update_runner_command: '%env(default:app.core_update_runner_command_default:APP_CORE_UPDATE_RUNNER)%'
+  app.core_update_package_url: '%env(default::APP_CORE_UPDATE_PACKAGE_URL)%'
+  app.recovery_allowed_ips_default: '127.0.0.1,::1'
+  app.recovery_allowed_ips: '%env(csv:default:app.recovery_allowed_ips_default:APP_RECOVERY_ALLOWED_IPS)%'
   app.windows_nodes_enabled_default: '0'
   app.windows_nodes_enabled: '%env(bool:default:app.windows_nodes_enabled_default:APP_WINDOWS_NODES_ENABLED)%'
   app.payment_dummy_enabled_default: '0'
@@ -54,10 +68,22 @@ services:
       - '../src/DependencyInjection/'
       - '../src/Kernel.php'
 
-  App\Module\Core\Application\EncryptionService:
+  App\Infrastructure\Security\EncryptionKeyLoader:
     arguments:
-      $activeKeyId: '%env(default::APP_ENCRYPTION_KEY_ID)%'
-      $keyring: '%env(default::APP_ENCRYPTION_KEYS)%'
+      $keyPath: '/etc/easywi/secret.key'
+
+  App\Infrastructure\Security\SecretKeyLoader:
+    arguments:
+      $keyPath: '/etc/easywi/secret.key'
+
+  App\Module\Core\Application\EncryptionService:
+    factory: ['@App\Infrastructure\Security\EncryptionServiceFactory', 'create']
+
+  App\Infrastructure\Database\DynamicConnectionFactory:
+    decorates: doctrine.dbal.connection_factory
+    arguments:
+      $inner: '@App\Infrastructure\Database\DynamicConnectionFactory.inner'
+      $configProvider: '@App\Infrastructure\Config\DbConfigProvider'
 
   Symfony\Component\Mailer\MailerInterface: '@App\Module\Core\Application\NullMailer'
 
@@ -125,6 +151,15 @@ services:
       $fallbackVersion: '%app.core_version%'
       $kernelEnvironment: '%kernel.environment%'
       $kernelDebug: '%kernel.debug%'
+
+  App\Module\Core\Application\UpdateJobService:
+    arguments:
+      $runnerCommand: '%app.core_update_runner_command%'
+      $jobsDir: '%app.core_update_jobs_dir%'
+      $logsDir: '%app.core_update_logs_dir%'
+      $backupsDir: '%app.core_update_backups_dir%'
+      $coreDir: '%kernel.project_dir%'
+      $defaultPackageUrl: '%app.core_update_package_url%'
 
   App\Module\PanelAdmin\Application\AdminSshKeyService:
     arguments:

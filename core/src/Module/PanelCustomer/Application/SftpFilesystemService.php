@@ -12,6 +12,7 @@ use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\PhpseclibV3\SftpAdapter;
 use League\Flysystem\PhpseclibV3\SftpConnectionProvider;
+use Psr\Log\LoggerInterface;
 
 final class SftpFilesystemService
 {
@@ -33,6 +34,7 @@ final class SftpFilesystemService
         private readonly AppSettingsService $settingsService,
         private readonly WebspaceSftpCredentialRepository $credentialRepository,
         private readonly EncryptionService $encryptionService,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -226,32 +228,41 @@ final class SftpFilesystemService
 
     private function buildFilesystem(Webspace $webspace): FilesystemOperator
     {
-        $credential = $this->credentialRepository->findOneByWebspace($webspace);
-        if ($credential === null) {
-            throw new \RuntimeException('SFTP credentials are not provisioned yet.');
+        try {
+            $credential = $this->credentialRepository->findOneByWebspace($webspace);
+            if ($credential === null) {
+                throw new \RuntimeException('SFTP credentials are not provisioned yet.');
+            }
+
+            $host = $this->settingsService->getSftpHost();
+            if ($host === null || $host === '') {
+                throw new \RuntimeException('SFTP host is not configured.');
+            }
+
+            $port = $this->settingsService->getSftpPort();
+            $username = $credential->getUsername();
+            $password = $this->encryptionService->decrypt($credential->getEncryptedPassword());
+            $root = rtrim($webspace->getPath(), '/');
+
+            $provider = new SftpConnectionProvider(
+                $host,
+                $username,
+                $password,
+                $port,
+                false,
+                10,
+            );
+
+            $adapter = new SftpAdapter($provider, $root);
+
+            return new Filesystem($adapter);
+        } catch (\Throwable $exception) {
+            $this->logger->error('sftp.filesystem_build_failed', [
+                'webspace_id' => $webspace->getId(),
+                'exception' => $exception,
+            ]);
+
+            throw new \RuntimeException($exception->getMessage(), 0, $exception);
         }
-
-        $host = $this->settingsService->getSftpHost();
-        if ($host === null || $host === '') {
-            throw new \RuntimeException('SFTP host is not configured.');
-        }
-
-        $port = $this->settingsService->getSftpPort();
-        $username = $credential->getUsername();
-        $password = $this->encryptionService->decrypt($credential->getEncryptedPassword());
-        $root = rtrim($webspace->getPath(), '/');
-
-        $provider = new SftpConnectionProvider(
-            $host,
-            $username,
-            $password,
-            $port,
-            false,
-            10,
-        );
-
-        $adapter = new SftpAdapter($provider, $root);
-
-        return new Filesystem($adapter);
     }
 }

@@ -52,3 +52,11 @@ framework:
             policy: 'fixed_window'
             limit: 120
             interval: '1 minute'
+        admin_update_jobs:
+            policy: 'fixed_window'
+            limit: 6
+            interval: '1 minute'
+        recovery_db:
+            policy: 'fixed_window'
+            limit: 6
+            interval: '1 minute'

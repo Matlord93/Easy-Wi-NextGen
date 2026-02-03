@@ -5,34 +5,32 @@
             <p class="text-sm text-slate-700">{{ t('admin_dashboard_core_updates_intro', page_locale()) }}</p>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button
-                class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm"
-                hx-post="/admin/updates/webinterface"
-                hx-target="#core-update-card"
-                hx-swap="outerHTML"
-                {% if coreUpdate.latestVersion is empty or coreUpdate.updateAvailable is same as(false) %}
-                    disabled
-                {% endif %}
-            >
-                {{ t('admin_dashboard_core_updates_action', page_locale()) }}
-            </button>
-            <button
-                class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
-                hx-post="/admin/updates/webinterface/migrate"
-                hx-target="#core-update-card"
-                hx-swap="outerHTML"
-            >
-                {{ t('admin_dashboard_core_updates_migrate_action', page_locale()) }}
-            </button>
-            <button
-                class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
-                hx-post="/admin/updates/webinterface/auto"
-                hx-vals='{"enabled": {{ coreUpdate.autoEnabled ? "false" : "true" }} }'
-                hx-target="#core-update-card"
-                hx-swap="outerHTML"
-            >
-                {{ coreUpdate.autoEnabled ? t('admin_dashboard_core_updates_auto_disable', page_locale()) : t('admin_dashboard_core_updates_auto_enable', page_locale()) }}
-            </button>
+            <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML">
+                <input type="hidden" name="type" value="update">
+                <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.update }}">
+                <button
+                    class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm"
+                    {% if coreUpdate.latestVersion is empty or coreUpdate.updateAvailable is same as(false) %}
+                        disabled
+                    {% endif %}
+                >
+                    {{ t('admin_dashboard_core_updates_action', page_locale()) }}
+                </button>
+            </form>
+            <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML">
+                <input type="hidden" name="type" value="migrate">
+                <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.migrate }}">
+                <button class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
+                    {{ t('admin_dashboard_core_updates_migrate_action', page_locale()) }}
+                </button>
+            </form>
+            <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML">
+                <input type="hidden" name="type" value="both">
+                <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.both }}">
+                <button class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
+                    {{ t('admin_dashboard_core_updates_both_action', page_locale()) }}
+                </button>
+            </form>
         </div>
     </div>
 
@@ -59,11 +57,24 @@
         </div>
     </div>
 
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_current_commit', page_locale()) }}</p>
+            <p class="mt-2 font-semibold">{{ coreUpdate.currentCommit ?? '—' }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_current_build', page_locale()) }}</p>
+            <p class="mt-2 font-semibold">{{ coreUpdate.currentBuild ?? '—' }}</p>
+        </div>
+    </div>
+
     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
-        <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_updates_mode', page_locale()) }}</p>
-        <p class="mt-2">
-            {{ coreUpdate.autoEnabled ? t('admin_dashboard_core_updates_mode_auto', page_locale()) : t('admin_dashboard_core_updates_mode_manual', page_locale()) }}
-        </p>
+        <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_migration_dry_run', page_locale()) }}</p>
+        {% if coreUpdate.migrationStatus.error %}
+            <p class="mt-2 text-rose-700">{{ t('admin_dashboard_core_migration_error', page_locale()) }}</p>
+        {% else %}
+            <p class="mt-2">{{ t('admin_dashboard_core_migration_pending', page_locale())|replace({'%count%': coreUpdate.migrationStatus.pending}) }}</p>
+        {% endif %}
     </div>
 
     {% if coreUpdate.autoEnabled and coreUpdate.notesList is not empty %}
@@ -94,9 +105,40 @@
         </div>
     {% endif %}
 
-    {% if coreUpdate.logPath %}
-        <p class="mt-4 text-xs text-slate-500">
-            {{ t('admin_dashboard_core_update_log_path', page_locale())|replace({'%path%': coreUpdate.logPath}) }}
-        </p>
+    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+        <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_last_job', page_locale()) }}</p>
+        {% if coreUpdate.latestJob %}
+            <div class="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                <div><span class="font-semibold text-slate-600">ID</span> {{ coreUpdate.latestJob.id }}</div>
+                <div><span class="font-semibold text-slate-600">Status</span> {{ coreUpdate.latestJob.status }}</div>
+                <div><span class="font-semibold text-slate-600">Typ</span> {{ coreUpdate.latestJob.type }}</div>
+                <div><span class="font-semibold text-slate-600">Exit</span> {{ coreUpdate.latestJob.exitCode ?? '—' }}</div>
+            </div>
+        {% else %}
+            <p class="mt-2 text-xs text-slate-600">{{ t('admin_dashboard_core_no_jobs', page_locale()) }}</p>
+        {% endif %}
+    </div>
+
+    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+        <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_update_logs', page_locale()) }}</p>
+        <pre class="mt-2 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700">{{ coreUpdate.logLines|join("\n") }}</pre>
+    </div>
+
+    {% if coreUpdate.backups is not empty %}
+        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_rollback', page_locale()) }}</p>
+            <form method="post" hx-post="/admin/updates/job" hx-target="#core-update-card" hx-swap="outerHTML" class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input type="hidden" name="type" value="rollback">
+                <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.rollback }}">
+                <select name="backup_path" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                    {% for backup in coreUpdate.backups %}
+                        <option value="{{ backup.path }}">{{ backup.path }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+                    {{ t('admin_dashboard_core_rollback_action', page_locale()) }}
+                </button>
+            </form>
+        </div>
     {% endif %}
 </div>

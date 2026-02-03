@@ -8,7 +8,6 @@ use App\Module\Core\Application\CmsTemplateCatalog;
 use App\Module\Setup\Application\InstallerService;
 use App\Module\Setup\Application\InstallerSshKeyException;
 use Doctrine\DBAL\Exception as DbalException;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -21,8 +20,6 @@ final class InstallController
         private readonly InstallerService $installerService,
         private readonly CmsTemplateCatalog $cmsTemplateCatalog,
         private readonly Environment $twig,
-        #[Autowire('%kernel.project_dir%')]
-        private readonly string $projectDir,
     ) {
     }
 
@@ -49,13 +46,11 @@ final class InstallController
         $debugAvailable = file_exists($this->installerService->getDebugReportPath());
 
         $databaseDefaults = [
-            'driver' => 'mysql',
             'host' => '127.0.0.1',
             'port' => '3306',
             'name' => 'easywi',
             'user' => '',
             'password' => '',
-            'path' => $this->projectDir . '/srv/setup/data/data.db',
         ];
         $applicationDefaults = [
             'site_name' => 'Default Site',
@@ -67,13 +62,13 @@ final class InstallController
         ];
         $settingsDefaults = [
             'instance_base_dir' => $this->envValue('EASYWI_INSTANCE_BASE_DIR', '/home'),
-            'sftp_host' => $this->envValue('EASYWI_SFTP_HOST', ''),
-            'sftp_port' => $this->envValue('EASYWI_SFTP_PORT', '22'),
-            'sftp_username' => $this->envValue('EASYWI_SFTP_USERNAME', ''),
-            'sftp_password' => $this->envValue('EASYWI_SFTP_PASSWORD', ''),
-            'sftp_private_key' => $this->envValue('EASYWI_SFTP_PRIVATE_KEY', ''),
-            'sftp_private_key_path' => $this->envValue('EASYWI_SFTP_PRIVATE_KEY_PATH', ''),
-            'sftp_private_key_passphrase' => $this->envValue('EASYWI_SFTP_PRIVATE_KEY_PASSPHRASE', ''),
+            'sftp_host' => '',
+            'sftp_port' => '22',
+            'sftp_username' => '',
+            'sftp_password' => '',
+            'sftp_private_key' => '',
+            'sftp_private_key_path' => '',
+            'sftp_private_key_passphrase' => '',
         ];
 
         $databaseState = array_merge($databaseDefaults, $state['database'] ?? []);
@@ -107,13 +102,11 @@ final class InstallController
 
             elseif ($step === 3) {
                 $databaseState = array_merge($databaseState, [
-                    'driver' => (string) ($payload['db_driver'] ?? $databaseState['driver']),
                     'host' => trim((string) ($payload['db_host'] ?? $databaseState['host'])),
                     'port' => trim((string) ($payload['db_port'] ?? $databaseState['port'])),
                     'name' => trim((string) ($payload['db_name'] ?? $databaseState['name'])),
                     'user' => trim((string) ($payload['db_user'] ?? $databaseState['user'])),
                     'password' => (string) ($payload['db_password'] ?? ''),
-                    'path' => trim((string) ($payload['db_path'] ?? $databaseState['path'])),
                 ]);
 
                 if ($databaseState['password'] === '' && $storedPassword !== '') {
@@ -132,12 +125,10 @@ final class InstallController
                     $attemptedHost = $databaseState['host'];
                     $fallbackHost = null;
 
-                    if ($databaseState['driver'] === 'mysql') {
-                        if ($databaseState['host'] === '127.0.0.1') {
-                            $fallbackHost = 'localhost';
-                        } elseif ($databaseState['host'] === 'localhost') {
-                            $fallbackHost = '127.0.0.1';
-                        }
+                    if ($databaseState['host'] === '127.0.0.1') {
+                        $fallbackHost = 'localhost';
+                    } elseif ($databaseState['host'] === 'localhost') {
+                        $fallbackHost = '127.0.0.1';
                     }
 
                     try {
@@ -183,9 +174,8 @@ final class InstallController
 
                         if ($action === 'continue' && $errors === []) {
                             try {
-                                $databaseUrl = $this->installerService->buildDatabaseUrl($databaseState);
-                                $this->installerService->storeDatabaseConfig($databaseUrl, $databaseState);
-
+                                $persistentConfig = $this->installerService->buildPersistentDatabaseConfig($databaseState);
+                                $this->installerService->storeDatabaseConfig($persistentConfig);
                                 $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
                                 $this->installerService->initializeDatabase($entityManager);
                                 $entityManager->clear();
@@ -195,6 +185,9 @@ final class InstallController
                             } catch (DbalException $exception) {
                                 $this->installerService->logException($exception, 'Database migrations failed during installer.');
                                 $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
+                            } catch (\RuntimeException $exception) {
+                                $this->installerService->logException($exception, 'Database config persistence failed during installer.');
+                                $errors[] = ['key' => 'errors.db_config_write_failed'];
                             } catch (\Throwable $exception) {
                                 $this->installerService->logException($exception, 'Database migrations failed during installer.');
                                 $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
@@ -287,10 +280,10 @@ final class InstallController
                         } else {
                             try {
                                 $dbConfig = $this->installerService->buildDatabaseConfig($databaseState);
-                                $this->installerService->testDbConnection($dbConfig);
-                                $databaseUrl = $this->installerService->buildDatabaseUrl($databaseState);
-
-                                $this->installerService->storeDatabaseConfig($databaseUrl, $databaseState);
+                                $dbVersion = $this->installerService->testDbConnection($dbConfig);
+                                $databaseState['version'] = $dbVersion;
+                                $persistentConfig = $this->installerService->buildPersistentDatabaseConfig($databaseState);
+                                $this->installerService->storeDatabaseConfig($persistentConfig);
 
                                 if (($databaseState['initialized'] ?? false) !== true) {
                                     $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
@@ -319,6 +312,9 @@ final class InstallController
                             } catch (DbalException $exception) {
                                 $this->installerService->logException($exception, 'Database connection failed during installation.');
                                 $errors[] = $this->resolveDatabaseConnectionError($databaseState, $exception);
+                            } catch (\RuntimeException $exception) {
+                                $this->installerService->logException($exception, 'Database config persistence failed during installation.');
+                                $errors[] = ['key' => 'errors.db_config_write_failed'];
                             } catch (\Throwable $exception) {
                                 $this->installerService->logException($exception, 'Installer failed during install step.');
                                 $errors[] = ['key' => 'errors.install_failed'];
@@ -421,11 +417,10 @@ final class InstallController
     private function resolveDatabaseMigrationError(array $databaseState, \Throwable $exception): array
     {
         if ($this->isMissingDriverException($exception)) {
-            $extension = $this->resolveDriverExtension($databaseState);
-            if (!extension_loaded($extension)) {
+            if (!extension_loaded('pdo_mysql')) {
                 return [
                     'key' => 'errors.missing_extension',
-                    'params' => ['%extension%' => $extension],
+                    'params' => ['%extension%' => 'pdo_mysql'],
                 ];
             }
         }
@@ -461,14 +456,6 @@ final class InstallController
             '/^(ssh-(?:rsa|ed25519)|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh\\.com|sk-ecdsa-sha2-nistp256@openssh\\.com)\\s+[A-Za-z0-9+\\/=]+(?:\\s+.+)?$/',
             $sshKey,
         );
-    }
-
-    /**
-     * @param array<string, mixed> $databaseState
-     */
-    private function resolveDriverExtension(array $databaseState): string
-    {
-        return ($databaseState['driver'] ?? 'mysql') === 'sqlite' ? 'pdo_sqlite' : 'pdo_mysql';
     }
 
     private function envValue(string $key, string $default): string

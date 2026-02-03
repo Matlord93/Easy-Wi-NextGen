@@ -283,7 +283,7 @@ final class AdminTs3InstanceController
 
         $dbMode = Ts3DatabaseMode::tryFrom($dbModeValue);
         if ($dbMode === null) {
-            $errors[] = 'DB mode must be sqlite or mysql.';
+            $errors[] = 'DB mode must be file-based or mysql.';
         }
 
         $dbPort = null;

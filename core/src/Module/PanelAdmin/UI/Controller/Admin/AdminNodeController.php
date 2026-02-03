@@ -35,7 +35,7 @@ use Twig\Environment;
 final class AdminNodeController
 {
     private const ROLE_OPTIONS = ['Core', 'Web', 'Mail', 'DNS', 'Game', 'DB', 'TS3', 'TS6', 'Sinusbot'];
-    private const ENCRYPTION_CONFIG_ERROR = 'Encryption key configuration is invalid: %s Set APP_ENCRYPTION_KEY_ID to match a key in APP_ENCRYPTION_KEYS (format: key_id:base64_32_byte_key). Example: APP_ENCRYPTION_KEY_ID=v1 and APP_ENCRYPTION_KEYS=v1:<base64 key>.';
+    private const ENCRYPTION_CONFIG_ERROR = 'Encryption key configuration is invalid: %s Ensure /etc/easywi/secret.key is readable and contains a base64 key (JSON with active_key_id/keys or "v1:<base64>").';
 
     public function __construct(
         private readonly AgentRepository $agentRepository,
