@@ -24,6 +24,7 @@ type Config struct {
 	Version           string
 	UpdateURL         string
 	UpdateSHA256      string
+	HealthListen      string
 }
 
 // DefaultPath returns the default configuration path for the host OS.
@@ -100,6 +101,8 @@ func Load(path string) (Config, error) {
 			cfg.UpdateURL = value
 		case "update_sha256":
 			cfg.UpdateSHA256 = value
+		case "health_listen":
+			cfg.HealthListen = value
 		}
 	}
 
@@ -153,6 +156,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Version == "" {
 		cfg.Version = defaultVersion()
+	}
+	if cfg.HealthListen == "" {
+		cfg.HealthListen = "127.0.0.1:8088"
 	}
 }
 

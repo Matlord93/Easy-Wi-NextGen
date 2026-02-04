@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type fileEntry struct {
@@ -20,6 +21,14 @@ type fileEntry struct {
 	IsDir      bool   `json:"is_dir"`
 }
 
+type filesvcHealthResponse struct {
+	Status       string          `json:"status"`
+	Version      string          `json:"version"`
+	Root         string          `json:"root"`
+	Capabilities map[string]bool `json:"capabilities"`
+	TimeUTC      string          `json:"time_utc"`
+}
+
 type filesvcServer struct {
 	config filesvcConfig
 	cache  *listingCache
@@ -28,10 +37,24 @@ type filesvcServer struct {
 func (s *filesvcServer) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/servers/", s.handleServers)
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	mux.HandleFunc("/health", s.handleHealth)
+	mux.HandleFunc("/healthz", s.handleHealth)
 	return mux
+}
+
+func (s *filesvcServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	payload := filesvcHealthResponse{
+		Status:  "ok",
+		Version: filesvcVersion(),
+		Root:    s.config.BaseDir,
+		Capabilities: map[string]bool{
+			"edit":     true,
+			"upload":   true,
+			"download": true,
+		},
+		TimeUTC: time.Now().UTC().Format(time.RFC3339),
+	}
+	respondJSON(w, http.StatusOK, payload)
 }
 
 func (s *filesvcServer) handleServers(w http.ResponseWriter, r *http.Request) {
