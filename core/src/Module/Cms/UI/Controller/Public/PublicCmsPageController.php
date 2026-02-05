@@ -6,9 +6,12 @@ namespace App\Module\Cms\UI\Controller\Public;
 
 use App\Module\Core\Domain\Entity\CmsBlock;
 use App\Module\Core\Domain\Entity\PublicServer;
+use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Repository\CmsBlockRepository;
 use App\Repository\CmsPageRepository;
 use App\Repository\PublicServerRepository;
+use App\Repository\ShopCategoryRepository;
+use App\Repository\ShopProductRepository;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Setup\Application\InstallerService;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -23,6 +26,8 @@ final class PublicCmsPageController
         private readonly CmsPageRepository $pageRepository,
         private readonly CmsBlockRepository $blockRepository,
         private readonly PublicServerRepository $publicServerRepository,
+        private readonly ShopCategoryRepository $shopCategoryRepository,
+        private readonly ShopProductRepository $shopProductRepository,
         private readonly SiteResolver $siteResolver,
         private readonly InstallerService $installerService,
         private readonly Environment $twig,
@@ -73,6 +78,20 @@ final class PublicCmsPageController
         );
         $cmsPages = $this->normalizePages($cmsPages, $page->getSlug());
 
+        $shopCategories = null;
+        if ($slug === 'shop') {
+            $categories = $this->shopCategoryRepository->findBy(
+                ['siteId' => $site->getId()],
+                ['sortOrder' => 'ASC'],
+            );
+            $products = $this->shopProductRepository->findBy([
+                'siteId' => $site->getId(),
+                'isActive' => true,
+                'isPublicActive' => true,
+            ]);
+            $shopCategories = $this->normalizeShopCategories($categories, $products);
+        }
+
         $templateKey = $site->getCmsTemplateKey() ?? 'hosting';
 
         return new Response($this->twig->render($this->resolveTemplate($templateKey, $slug), [
@@ -83,6 +102,7 @@ final class PublicCmsPageController
             'blocks' => $this->normalizeBlocks($blocks, $site->getId() ?? 0),
             'cms_pages' => $cmsPages,
             'template_key' => $templateKey,
+            'shop_categories' => $shopCategories,
         ]));
     }
 
@@ -183,6 +203,42 @@ final class PublicCmsPageController
                 'last_checked_at' => $server->getLastCheckedAt(),
             ];
         }, $servers);
+    }
+
+    /**
+     * @param array<int, \App\Module\Core\Domain\Entity\ShopCategory> $categories
+     * @param array<int, ShopProduct> $products
+     */
+    private function normalizeShopCategories(array $categories, array $products): array
+    {
+        $productsByCategory = [];
+        foreach ($products as $product) {
+            $productsByCategory[$product->getCategory()->getId()][] = $product;
+        }
+
+        return array_map(function ($category) use ($productsByCategory): array {
+            $categoryProducts = $productsByCategory[$category->getId()] ?? [];
+
+            return [
+                'id' => $category->getId(),
+                'name' => $category->getName(),
+                'products' => array_map([$this, 'normalizeShopProduct'], $categoryProducts),
+            ];
+        }, $categories);
+    }
+
+    private function normalizeShopProduct(ShopProduct $product): array
+    {
+        return [
+            'id' => $product->getId(),
+            'name' => $product->getName(),
+            'description' => $product->getDescription(),
+            'image_url' => $product->getImageUrl(),
+            'price_monthly' => number_format($product->getPriceMonthlyCents() / 100, 2, '.', ''),
+            'cpu_limit' => $product->getCpuLimit(),
+            'ram_limit' => $product->getRamLimit(),
+            'disk_limit' => $product->getDiskLimit(),
+        ];
     }
 
     private function normalizeStatus(mixed $statusValue): string

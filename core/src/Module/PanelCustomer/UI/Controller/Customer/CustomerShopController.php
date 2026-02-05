@@ -41,7 +41,11 @@ final class CustomerShopController
         }
 
         $categories = $this->categoryRepository->findBy(['siteId' => $site->getId()], ['sortOrder' => 'ASC']);
-        $products = $this->productRepository->findBy(['siteId' => $site->getId(), 'isActive' => true]);
+        $products = $this->productRepository->findBy([
+            'siteId' => $site->getId(),
+            'isActive' => true,
+            'isCustomerActive' => true,
+        ]);
         $rentals = $this->rentalRepository->findBy(['customer' => $customer], ['expiresAt' => 'ASC']);
 
         return new Response($this->twig->render('customer/shop/index.html.twig', [
@@ -64,7 +68,7 @@ final class CustomerShopController
         $months = (int) $request->request->get('months', 1);
 
         $product = $this->productRepository->find($productId);
-        if ($product === null || $product->getSiteId() !== $site->getId() || !$product->isActive()) {
+        if ($product === null || $product->getSiteId() !== $site->getId() || !$product->isActive() || !$product->isCustomerActive()) {
             return new Response('Product not found.', Response::HTTP_NOT_FOUND);
         }
 
@@ -77,7 +81,7 @@ final class CustomerShopController
         }
 
         return new Response('', Response::HTTP_NO_CONTENT, [
-            'HX-Redirect' => '/marketplace',
+            'HX-Redirect' => '/dashboard',
         ]);
     }
 

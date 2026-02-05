@@ -9,7 +9,7 @@
         </div>
     {% endif %}
 
-    <form method="post" action="/admin/shop/products{% if form.action == 'update' %}/{{ form.id }}{% endif %}" class="space-y-4">
+    <form method="post" action="/admin/shop/products{% if form.action == 'update' %}/{{ form.id }}{% endif %}" hx-post="/admin/shop/products{% if form.action == 'update' %}/{{ form.id }}{% endif %}" hx-target="#shop-products-form" hx-swap="outerHTML" class="space-y-4">
         <div>
             <label class="text-xs font-semibold uppercase text-slate-700">Kategorie</label>
             <select name="category_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
@@ -36,9 +36,22 @@
                 <label class="text-xs font-semibold uppercase text-slate-700">Preis/Monat (€)</label>
                 <input name="price_monthly" type="number" step="0.01" min="0" value="{{ form.price_monthly }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
             </div>
-            <div class="flex items-center gap-2 pt-6">
-                <input type="checkbox" name="is_active" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ form.is_active ? 'checked' : '' }}>
-                <span class="text-sm text-slate-700">Aktiv</span>
+            <div class="space-y-2 pt-2">
+                <label class="text-xs font-semibold uppercase text-slate-700">Sichtbarkeit</label>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" name="is_active" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ form.is_active ? 'checked' : '' }}>
+                        Allgemein aktiv
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" name="is_public_active" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ form.is_public_active ? 'checked' : '' }}>
+                        Auf der Seite anzeigen
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" name="is_customer_active" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ form.is_customer_active ? 'checked' : '' }}>
+                        Im Kundenbereich anbieten
+                    </label>
+                </div>
             </div>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">

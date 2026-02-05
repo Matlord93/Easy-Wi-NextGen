@@ -7,6 +7,7 @@ namespace App\Module\Core\Command;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Application\SftpFileService;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\PanelCustomer\Application\SftpFilesystemService;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceSftpCredentialRepository;
@@ -21,7 +22,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
-    name: 'app:files:diagnose',
+    name: 'app:diagnose:files',
     description: 'Diagnose file manager storage configuration and SFTP connectivity.',
 )]
 final class FilesDiagnoseCommand extends Command
@@ -36,6 +37,7 @@ final class FilesDiagnoseCommand extends Command
         private readonly SftpFilesystemService $sftpFilesystemService,
         private readonly AppSettingsService $settingsService,
         private readonly LoggerInterface $logger,
+        private readonly GameServerPathResolver $gameServerPathResolver,
     ) {
         parent::__construct();
     }
@@ -44,6 +46,8 @@ final class FilesDiagnoseCommand extends Command
     {
         $this
             ->addOption('instance-id', null, InputOption::VALUE_REQUIRED, 'Instance ID to diagnose')
+            ->addOption('server', null, InputOption::VALUE_REQUIRED, 'Alias for instance-id')
+            ->addOption('server-id', null, InputOption::VALUE_REQUIRED, 'Alias for instance-id')
             ->addOption('webspace-id', null, InputOption::VALUE_REQUIRED, 'Webspace ID to diagnose')
             ->addOption('path', null, InputOption::VALUE_REQUIRED, 'Relative path to probe', '');
     }
@@ -52,7 +56,7 @@ final class FilesDiagnoseCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $path = trim((string) $input->getOption('path'));
-        $instanceId = $input->getOption('instance-id');
+        $instanceId = $input->getOption('instance-id') ?? $input->getOption('server') ?? $input->getOption('server-id');
         $webspaceId = $input->getOption('webspace-id');
         $settings = $this->settingsService->getSettings();
 
@@ -109,6 +113,34 @@ final class FilesDiagnoseCommand extends Command
                     'Instance SFTP credential: %s',
                     $instanceCredential === null ? 'missing' : sprintf('present (%s)', $instanceCredential->getUsername()),
                 ));
+
+                $resolvedRoot = '';
+                $owner = '<unknown>';
+                $perms = '<unknown>';
+                $accessible = 'no';
+                try {
+                    $resolvedRoot = $this->gameServerPathResolver->resolveRoot($instance);
+                    $this->gameServerPathResolver->assertExistsAndAccessible($resolvedRoot);
+                    $accessible = 'yes';
+                    $ownerId = @fileowner($resolvedRoot);
+                    if ($ownerId !== false) {
+                        $owner = (string) $ownerId;
+                    }
+                    $permValue = @fileperms($resolvedRoot);
+                    if ($permValue !== false) {
+                        $perms = substr(sprintf('%o', $permValue), -4);
+                    }
+                } catch (\Throwable $exception) {
+                    $resolvedRoot = trim((string) $instance->getInstallPath());
+                    $io->warning(sprintf('Resolved root validation failed: %s', $exception->getMessage()));
+                }
+
+                $io->definitionList(
+                    ['resolved_server_root' => $resolvedRoot !== '' ? $resolvedRoot : '<unset>'],
+                    ['root_accessible' => $accessible],
+                    ['root_owner_uid' => $owner],
+                    ['root_permissions' => $perms],
+                );
 
                 $filesvcProbe = $this->runInstanceProbe('filesvc', $instance, $path);
                 $sftpProbe = $this->runInstanceProbe('sftp', $instance, $path);

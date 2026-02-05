@@ -106,6 +106,9 @@ class Instance implements ResourceEventSource
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $instanceBaseDir = null;
 
+    #[ORM\Column(length: 1024, nullable: true)]
+    private ?string $installPath = null;
+
     #[ORM\Column(type: 'json')]
     private array $setupVars = [];
 
@@ -460,6 +463,23 @@ class Instance implements ResourceEventSource
     {
         $normalized = $instanceBaseDir !== null ? trim($instanceBaseDir) : null;
         $this->instanceBaseDir = $normalized !== '' ? $normalized : null;
+        $this->touch();
+    }
+
+
+    public function getInstallPath(): ?string
+    {
+        return $this->installPath;
+    }
+
+    public function setInstallPath(?string $installPath): void
+    {
+        $normalized = $installPath !== null ? trim($installPath) : null;
+        if ($normalized !== null && $normalized !== '' && !str_starts_with($normalized, '/')) {
+            throw new \InvalidArgumentException('install_path must be absolute.');
+        }
+
+        $this->installPath = $normalized !== '' ? $normalized : null;
         $this->touch();
     }
 

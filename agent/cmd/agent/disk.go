@@ -151,22 +151,17 @@ func handleNodeDiskStat(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func resolveInstanceDir(payload map[string]any) (string, error) {
-	instanceDir := payloadValue(payload, "instance_dir")
+	instanceDir := payloadValue(payload, "instance_dir", "install_path")
+	if instanceDir == "" {
+		return "", fmt.Errorf("instance_dir is required")
+	}
+
 	baseDir := payloadValue(payload, "base_dir")
 	if baseDir == "" {
 		baseDir = os.Getenv("EASYWI_INSTANCE_BASE_DIR")
 	}
 	if baseDir == "" {
-		baseDir = "/home"
-	}
-	if instanceDir == "" {
-		instanceID := payloadValue(payload, "instance_id")
-		customerID := payloadValue(payload, "customer_id")
-		if instanceID == "" || customerID == "" {
-			return "", fmt.Errorf("instance_dir or instance identifiers required")
-		}
-		osUsername := buildInstanceUsername(customerID, instanceID)
-		instanceDir = filepath.Join(baseDir, osUsername)
+		baseDir = "/"
 	}
 
 	return ensureSafePath(instanceDir, baseDir)

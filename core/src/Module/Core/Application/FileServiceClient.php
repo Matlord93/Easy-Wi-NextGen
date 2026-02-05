@@ -7,6 +7,7 @@ namespace App\Module\Core\Application;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -35,6 +36,7 @@ final class FileServiceClient
         private readonly string $clientCaPath,
         private readonly LoggerInterface $logger,
         private readonly RequestStack $requestStack,
+        private readonly GameServerPathResolver $gameServerPathResolver,
     ) {
     }
 
@@ -299,7 +301,15 @@ final class FileServiceClient
                     'response_body' => $body,
                 ], $exception);
             }
-            $message = is_array($payload) ? (string) ($payload['error'] ?? 'File service error.') : 'File service error.';
+            $message = 'File service error.';
+            if (is_array($payload)) {
+                $errorField = $payload['error'] ?? null;
+                if (is_string($errorField) && $errorField !== '') {
+                    $message = $errorField;
+                } elseif (is_array($errorField) && is_string($errorField['message'] ?? null) && $errorField['message'] !== '') {
+                    $message = $errorField['message'];
+                }
+            }
             $errorCode = match ($status) {
                 401, 403 => 'filesvc_unauthorized',
                 404 => 'filesvc_not_found',
@@ -347,7 +357,15 @@ final class FileServiceClient
                     'response_body' => $body,
                 ], $exception);
             }
-            $message = is_array($payload) ? (string) ($payload['error'] ?? 'File service error.') : 'File service error.';
+            $message = 'File service error.';
+            if (is_array($payload)) {
+                $errorField = $payload['error'] ?? null;
+                if (is_string($errorField) && $errorField !== '') {
+                    $message = $errorField;
+                } elseif (is_array($errorField) && is_string($errorField['message'] ?? null) && $errorField['message'] !== '') {
+                    $message = $errorField['message'];
+                }
+            }
             $errorCode = match ($status) {
                 401, 403 => 'filesvc_unauthorized',
                 404 => 'filesvc_not_found',
@@ -372,10 +390,13 @@ final class FileServiceClient
         $this->assertTlsConfigured($baseUrl);
         $startedAt = microtime(true);
 
+        $resolvedPath = $this->gameServerPathResolver->resolveRoot($instance);
+
         $this->logger->debug('filesvc.request', [
             'agent_id' => $instance->getNode()->getId(),
             'instance_id' => $instance->getId(),
             'customer_id' => $instance->getCustomer()->getId(),
+            'resolved_path' => $resolvedPath,
             'method' => $method,
             'url' => $fullUrl,
             'timeout_seconds' => $this->timeoutSeconds,
@@ -458,6 +479,11 @@ final class FileServiceClient
 
         $headers = $this->buildAuthHeaders($instance, $method, $endpointWithQuery);
         $headers['Accept'] = 'application/json';
+        try {
+            $headers['X-Server-Root'] = $this->gameServerPathResolver->resolveRoot($instance);
+        } catch (\RuntimeException $exception) {
+            throw new FileServiceException('INVALID_SERVER_ROOT', 'Canonical server root is invalid or missing.', 422, [], $exception);
+        }
 
         $options = [
             'headers' => $headers,

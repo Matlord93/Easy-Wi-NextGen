@@ -29,7 +29,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\FirewallStateManager;
 use App\Module\Core\Application\GdprAnonymizer;
-use App\Module\Core\Application\InstanceFilesystemResolver;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Application\NodeDiskProtectionService;
@@ -76,7 +76,7 @@ final class AgentApiController
         private readonly GdprAnonymizer $gdprAnonymizer,
         private readonly NotificationService $notificationService,
         private readonly NodeDiskProtectionService $nodeDiskProtectionService,
-        private readonly InstanceFilesystemResolver $filesystemResolver,
+        private readonly GameServerPathResolver $filesystemResolver,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly JobLogger $jobLogger,
         private readonly LoggerInterface $logger,
@@ -1206,7 +1206,7 @@ final class AgentApiController
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'agent_id' => $instance->getNode()->getId(),
-            'instance_dir' => $this->filesystemResolver->resolveInstanceDir($instance),
+            'instance_dir' => $this->filesystemResolver->resolveRoot($instance),
         ];
 
         $job = new \App\Module\Core\Domain\Entity\Job('instance.disk.scan', $payload);

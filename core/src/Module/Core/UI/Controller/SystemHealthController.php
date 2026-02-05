@@ -8,6 +8,7 @@ use App\Infrastructure\Config\DbConfigProvider;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Application\UpdateJobService;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\AgentRepository;
@@ -31,6 +32,7 @@ final class SystemHealthController
         private readonly HttpClientInterface $httpClient,
         private readonly LoggerInterface $logger,
         private readonly UpdateJobService $updateJobService,
+        private readonly GameServerPathResolver $gameServerPathResolver,
     ) {
     }
 
@@ -46,6 +48,7 @@ final class SystemHealthController
         $filesvcHealth = ['status' => 'skipped', 'message' => 'db_not_configured'];
         $migrationStatus = ['pending' => null, 'executedUnavailable' => null, 'error' => null];
         $latestJob = $this->updateJobService->getLatestJob();
+        $invalidRoots = null;
 
         if ($dbConfigured) {
             $sftpHost = $this->settingsService->getSftpHost();
@@ -53,6 +56,7 @@ final class SystemHealthController
             $agentHealth = $this->probeAgentHealth();
             $filesvcHealth = $this->probeFilesvcHealth();
             $migrationStatus = $this->updateJobService->getMigrationStatus();
+            $invalidRoots = $this->countInvalidServerRoots();
         }
 
         $versionInfo = $this->updateJobService->getVersionInfo();
@@ -98,6 +102,9 @@ final class SystemHealthController
             ],
             'agent_health' => $agentHealth,
             'filesvc_health' => $filesvcHealth,
+            'server_root_validity' => [
+                'invalid_count' => $invalidRoots,
+            ],
         ]);
     }
 
@@ -227,5 +234,21 @@ final class SystemHealthController
             'auth_ok' => $authOk,
             'instance_id' => $instance->getId(),
         ];
+    }
+
+    private function countInvalidServerRoots(): int
+    {
+        $invalid = 0;
+        $instances = $this->instanceRepository->findBy([], ['id' => 'DESC']);
+        foreach ($instances as $instance) {
+            try {
+                $root = $this->gameServerPathResolver->resolveRoot($instance);
+                $this->gameServerPathResolver->assertExistsAndAccessible($root);
+            } catch (\Throwable) {
+                $invalid++;
+            }
+        }
+
+        return $invalid;
     }
 }

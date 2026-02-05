@@ -13,6 +13,8 @@ parameters:
   app.filesvc_client_cert: '%env(default:app.filesvc_client_cert_default:APP_FILESVC_CLIENT_CERT)%'
   app.filesvc_client_key: '%env(default:app.filesvc_client_key_default:APP_FILESVC_CLIENT_KEY)%'
   app.filesvc_ca_cert: '%env(default:app.filesvc_ca_cert_default:APP_FILESVC_CA_CERT)%'
+  app.files_allow_sftp_fallback_default: '0'
+  app.files_allow_sftp_fallback: '%env(bool:default:app.files_allow_sftp_fallback_default:APP_FILES_ALLOW_SFTP_FALLBACK)%'
   app.agent_release_channel_default: 'stable'
   app.agent_release_repository: '%env(default::APP_AGENT_RELEASE_REPOSITORY)%'
   app.agent_release_channel: '%env(default:app.agent_release_channel_default:APP_AGENT_RELEASE_CHANNEL)%'
@@ -103,6 +105,7 @@ services:
       $clientCaPath: '%app.filesvc_ca_cert%'
       $logger: '@logger'
       $requestStack: '@request_stack'
+      $gameServerPathResolver: '@App\Module\Gameserver\Application\GameServerPathResolver'
 
   App\Module\Core\Application\Sinusbot\SinusbotQuotaValidator:
     arguments:

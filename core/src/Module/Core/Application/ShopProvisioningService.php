@@ -13,6 +13,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\ShopOrderStatus;
 use App\Module\Core\Domain\Enum\ShopOrderType;
+use App\Module\Gameserver\Application\GameServerInstallPathManager;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class ShopProvisioningService
@@ -22,6 +23,7 @@ final class ShopProvisioningService
         private readonly AppSettingsService $appSettingsService,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
+        private readonly GameServerInstallPathManager $installPathManager,
     ) {
     }
 
@@ -75,6 +77,8 @@ final class ShopProvisioningService
             'months' => $months,
         ]);
 
+        $this->entityManager->flush();
+        $this->installPathManager->ensureInstallPath($instance);
         $this->entityManager->flush();
 
         return $rental;

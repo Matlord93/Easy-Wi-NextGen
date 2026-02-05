@@ -185,6 +185,46 @@ final class Version20250307120000 extends AbstractMigration
     }
 }
 
+final class Version20250310121000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add visibility flags for public site and customer marketplace shop products.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('shop_products')) {
+            return;
+        }
+
+        $table = $schema->getTable('shop_products');
+        if (!$table->hasColumn('is_public_active')) {
+            $this->addSql('ALTER TABLE shop_products ADD is_public_active TINYINT(1) NOT NULL DEFAULT 1');
+        }
+
+        if (!$table->hasColumn('is_customer_active')) {
+            $this->addSql('ALTER TABLE shop_products ADD is_customer_active TINYINT(1) NOT NULL DEFAULT 1');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('shop_products')) {
+            return;
+        }
+
+        $table = $schema->getTable('shop_products');
+        if ($table->hasColumn('is_public_active')) {
+            $this->addSql('ALTER TABLE shop_products DROP is_public_active');
+        }
+
+        if ($table->hasColumn('is_customer_active')) {
+            $this->addSql('ALTER TABLE shop_products DROP is_customer_active');
+        }
+    }
+}
+
 final class Version20250302110000 extends AbstractMigration
 {
     public function getDescription(): string
@@ -5745,5 +5785,41 @@ final class Version20260702090000 extends AbstractMigration
         if ($table->hasColumn('last_attempt_at')) {
             $this->addSql('ALTER TABLE jobs DROP last_attempt_at');
         }
+    }
+}
+
+final class Version20260701110000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add canonical install_path for gameserver instances.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('instances')) {
+            return;
+        }
+
+        $table = $schema->getTable('instances');
+        if ($table->hasColumn('install_path')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE instances ADD install_path VARCHAR(1024) DEFAULT NULL');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('instances')) {
+            return;
+        }
+
+        $table = $schema->getTable('instances');
+        if (!$table->hasColumn('install_path')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE instances DROP install_path');
     }
 }

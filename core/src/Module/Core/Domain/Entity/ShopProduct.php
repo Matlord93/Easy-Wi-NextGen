@@ -56,6 +56,12 @@ class ShopProduct
     private bool $isActive = true;
 
     #[ORM\Column]
+    private bool $isPublicActive = true;
+
+    #[ORM\Column]
+    private bool $isCustomerActive = true;
+
+    #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
@@ -74,6 +80,8 @@ class ShopProduct
         int $diskLimit,
         ?string $imageUrl = null,
         bool $isActive = true,
+        bool $isPublicActive = true,
+        bool $isCustomerActive = true,
     ) {
         $this->siteId = $siteId;
         $this->category = $category;
@@ -87,6 +95,8 @@ class ShopProduct
         $this->diskLimit = $diskLimit;
         $this->imageUrl = $imageUrl;
         $this->isActive = $isActive;
+        $this->isPublicActive = $isPublicActive;
+        $this->isCustomerActive = $isCustomerActive;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -219,6 +229,28 @@ class ShopProduct
     public function setIsActive(bool $isActive): void
     {
         $this->isActive = $isActive;
+        $this->touch();
+    }
+
+    public function isPublicActive(): bool
+    {
+        return $this->isPublicActive;
+    }
+
+    public function setIsPublicActive(bool $isPublicActive): void
+    {
+        $this->isPublicActive = $isPublicActive;
+        $this->touch();
+    }
+
+    public function isCustomerActive(): bool
+    {
+        return $this->isCustomerActive;
+    }
+
+    public function setIsCustomerActive(bool $isCustomerActive): void
+    {
+        $this->isCustomerActive = $isCustomerActive;
         $this->touch();
     }
 

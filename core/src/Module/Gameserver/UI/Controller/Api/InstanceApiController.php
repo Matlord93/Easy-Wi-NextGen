@@ -21,6 +21,7 @@ use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Gameserver\Application\GameServerInstallPathManager;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\DiskEnforcementService;
 use Cron\CronExpression;
@@ -44,6 +45,7 @@ final class InstanceApiController
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly AppSettingsService $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
+        private readonly GameServerInstallPathManager $installPathManager,
     ) {
     }
 
@@ -190,6 +192,7 @@ final class InstanceApiController
             $this->entityManager->persist($portBlock);
         }
         $this->entityManager->flush();
+        $this->installPathManager->ensureInstallPath($instance);
 
         if ($portBlock !== null) {
             $portBlock->assignInstance($instance);
@@ -197,6 +200,7 @@ final class InstanceApiController
             $this->auditLogger->log($actor, 'port_block.assigned', [
                 'port_block_id' => $portBlock->getId(),
                 'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
                 'customer_id' => $customer->getId(),
             ]);
         }
@@ -217,6 +221,7 @@ final class InstanceApiController
 
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
             'customer_id' => $customer->getId(),
             'template_id' => $template->getId(),
             'node_id' => $node->getId(),
@@ -239,6 +244,7 @@ final class InstanceApiController
             'disk_limit' => $instance->getDiskLimit(),
             'port_block_id' => $instance->getPortBlockId(),
             'status' => $instance->getStatus()->value,
+            'install_path' => $instance->getInstallPath(),
         ], JsonResponse::HTTP_CREATED);
     }
 
@@ -283,6 +289,7 @@ final class InstanceApiController
                 $this->auditLogger->log($actor, 'port_block.released', [
                     'port_block_id' => $portBlock->getId(),
                     'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
                     'customer_id' => $instance->getCustomer()->getId(),
                 ]);
             }
@@ -306,6 +313,7 @@ final class InstanceApiController
 
         $this->auditLogger->log($actor, 'instance.deleted', [
             'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
             'customer_id' => $instance->getCustomer()->getId(),
             'template_id' => $instance->getTemplate()->getId(),
             'node_id' => $instance->getNode()->getId(),
@@ -386,6 +394,7 @@ final class InstanceApiController
 
         $this->auditLogger->log($actor, 'instance.update.settings_overridden', [
             'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
             'customer_id' => $instance->getCustomer()->getId(),
             'policy' => $policy->value,
             'locked_build_id' => $instance->getLockedBuildId(),
@@ -400,6 +409,7 @@ final class InstanceApiController
         return new JsonResponse([
             'status' => 'updated',
             'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
             'policy' => $instance->getUpdatePolicy()->value,
             'locked_build_id' => $instance->getLockedBuildId(),
             'locked_version' => $instance->getLockedVersion(),
@@ -440,6 +450,7 @@ final class InstanceApiController
                 'disk_limit' => $instance->getDiskLimit(),
                 'port_block_id' => $instance->getPortBlockId(),
                 'status' => $instance->getStatus()->value,
+            'install_path' => $instance->getInstallPath(),
             ];
         }
 

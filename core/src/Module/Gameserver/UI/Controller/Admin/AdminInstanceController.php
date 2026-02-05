@@ -20,6 +20,7 @@ use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Gameserver\Application\GameServerInstallPathManager;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\DiskUsageFormatter;
@@ -52,6 +53,7 @@ final class AdminInstanceController
         private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
+        private readonly GameServerInstallPathManager $installPathManager,
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly AppSettingsService $appSettingsService,
@@ -212,6 +214,7 @@ final class AdminInstanceController
             $this->entityManager->persist($portBlock);
         }
         $this->entityManager->flush();
+        $this->installPathManager->ensureInstallPath($instance);
 
         if ($portBlock !== null) {
             $portBlock->assignInstance($instance);

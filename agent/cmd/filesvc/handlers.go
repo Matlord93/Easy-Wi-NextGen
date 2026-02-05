@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,12 +26,15 @@ type fileEntry struct {
 }
 
 type filesvcHealthResponse struct {
-	Status       string          `json:"status"`
-	Version      string          `json:"version"`
-	Root         string          `json:"root"`
-	Capabilities map[string]bool `json:"capabilities"`
-	TimeUTC      string          `json:"time_utc"`
+	Status        string          `json:"status"`
+	Version       string          `json:"version"`
+	Root          string          `json:"root"`
+	RootReachable bool            `json:"root_reachable"`
+	Capabilities  map[string]bool `json:"capabilities"`
+	TimeUTC       string          `json:"time_utc"`
 }
+
+const headerServerRoot = "X-Server-Root"
 
 type filesvcServer struct {
 	config filesvcConfig
@@ -39,14 +46,16 @@ func (s *filesvcServer) routes() http.Handler {
 	mux.HandleFunc("/v1/servers/", s.handleServers)
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/healthz", s.handleHealth)
-	return mux
+	return withRequestContext(mux)
 }
 
-func (s *filesvcServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
+func (s *filesvcServer) handleHealth(w http.ResponseWriter, r *http.Request) {
+	_, rootErr := validateServerRootAgainstBase(s.config.BaseDir, s.config.BaseDir)
 	payload := filesvcHealthResponse{
-		Status:  "ok",
-		Version: filesvcVersion(),
-		Root:    s.config.BaseDir,
+		Status:        "ok",
+		Version:       filesvcVersion(),
+		Root:          s.config.BaseDir,
+		RootReachable: rootErr == nil,
 		Capabilities: map[string]bool{
 			"edit":     true,
 			"upload":   true,
@@ -54,19 +63,20 @@ func (s *filesvcServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
 		},
 		TimeUTC: time.Now().UTC().Format(time.RFC3339),
 	}
+	log.Printf("filesvc.health request_id=%s status=ok", requestIDFromContext(r.Context()))
 	respondJSON(w, http.StatusOK, payload)
 }
 
 func (s *filesvcServer) handleServers(w http.ResponseWriter, r *http.Request) {
 	customerID, err := verifyRequestSignature(r, s.config)
 	if err != nil {
-		respondError(w, http.StatusUnauthorized, err.Error())
+		respondError(r, w, http.StatusUnauthorized, "unauthorized", err.Error())
 		return
 	}
 
 	instanceID, action, err := parseServerPath(r.URL.Path)
 	if err != nil {
-		respondError(w, http.StatusNotFound, "invalid path")
+		respondError(r, w, http.StatusNotFound, "not_found", "invalid path")
 		return
 	}
 
@@ -92,8 +102,21 @@ func (s *filesvcServer) handleServers(w http.ResponseWriter, r *http.Request) {
 	case "extract":
 		s.handleExtract(w, r, customerID, instanceID)
 	default:
-		respondError(w, http.StatusNotFound, "unknown endpoint")
+		respondError(r, w, http.StatusNotFound, "not_found", "unknown endpoint")
 	}
+}
+
+func (s *filesvcServer) resolveServerRoot(r *http.Request) (string, error) {
+	serverRoot := strings.TrimSpace(r.Header.Get(headerServerRoot))
+	if serverRoot == "" {
+		return "", fmt.Errorf("INVALID_SERVER_ROOT")
+	}
+
+	rootPath, err := validateServerRootAgainstBase(serverRoot, s.config.BaseDir)
+	if err != nil {
+		return "", err
+	}
+	return rootPath, nil
 }
 
 func parseServerPath(path string) (string, string, error) {
@@ -107,13 +130,13 @@ func parseServerPath(path string) (string, string, error) {
 
 func (s *filesvcServer) handleList(w http.ResponseWriter, r *http.Request, customerID, instanceID string) {
 	if r.Method != http.MethodGet {
-		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		respondError(r, w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
-	rootPath, err := resolveInstanceRoot(s.config.BaseDir, customerID, instanceID)
+	rootPath, err := s.resolveServerRoot(r)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
@@ -126,13 +149,13 @@ func (s *filesvcServer) handleList(w http.ResponseWriter, r *http.Request, custo
 
 	target, err := sanitizeInstancePath(rootPath, relativePath)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	entries, err := os.ReadDir(target)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, fmt.Sprintf("read dir: %v", err))
+		respondError(r, w, http.StatusBadRequest, "bad_request", fmt.Sprintf("read dir: %v", err))
 		return
 	}
 
@@ -140,7 +163,7 @@ func (s *filesvcServer) handleList(w http.ResponseWriter, r *http.Request, custo
 	for _, entry := range entries {
 		info, err := entry.Info()
 		if err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Sprintf("stat %s: %v", entry.Name(), err))
+			respondError(r, w, http.StatusBadRequest, "bad_request", fmt.Sprintf("stat %s: %v", entry.Name(), err))
 			return
 		}
 		fileEntries = append(fileEntries, fileEntry{
@@ -172,35 +195,35 @@ func (s *filesvcServer) handleList(w http.ResponseWriter, r *http.Request, custo
 
 func (s *filesvcServer) handleRead(w http.ResponseWriter, r *http.Request, customerID, instanceID string, download bool) {
 	if r.Method != http.MethodGet {
-		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		respondError(r, w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
-	rootPath, err := resolveInstanceRoot(s.config.BaseDir, customerID, instanceID)
+	rootPath, err := s.resolveServerRoot(r)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	path := sanitizeRelativePath(r.URL.Query().Get("path"))
 	if path == "" {
-		respondError(w, http.StatusBadRequest, "missing path")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "missing path")
 		return
 	}
 
 	target, err := sanitizeInstancePath(rootPath, path)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	info, err := os.Stat(target)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, fmt.Sprintf("stat file: %v", err))
+		respondError(r, w, http.StatusBadRequest, "bad_request", fmt.Sprintf("stat file: %v", err))
 		return
 	}
 	if info.IsDir() {
-		respondError(w, http.StatusBadRequest, "path is a directory")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "path is a directory")
 		return
 	}
 
@@ -214,7 +237,7 @@ func (s *filesvcServer) handleRead(w http.ResponseWriter, r *http.Request, custo
 
 func (s *filesvcServer) handleWrite(w http.ResponseWriter, r *http.Request, customerID, instanceID string) {
 	if r.Method != http.MethodPost {
-		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		respondError(r, w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
@@ -223,36 +246,36 @@ func (s *filesvcServer) handleWrite(w http.ResponseWriter, r *http.Request, cust
 		Content string `json:"content"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
-	rootPath, err := resolveInstanceRoot(s.config.BaseDir, customerID, instanceID)
+	rootPath, err := s.resolveServerRoot(r)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	cleanPath := sanitizeRelativePath(payload.Path)
 	if cleanPath == "" {
-		respondError(w, http.StatusBadRequest, "missing path")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "missing path")
 		return
 	}
 
 	target, err := sanitizeInstancePath(rootPath, cleanPath)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	if err := ensureParentExists(target); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	reader := strings.NewReader(payload.Content)
 	if err := writeFileAtomic(target, reader, 0o640); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
@@ -262,36 +285,36 @@ func (s *filesvcServer) handleWrite(w http.ResponseWriter, r *http.Request, cust
 
 func (s *filesvcServer) handleUpload(w http.ResponseWriter, r *http.Request, customerID, instanceID string) {
 	if r.Method != http.MethodPost {
-		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		respondError(r, w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid multipart payload")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "invalid multipart payload")
 		return
 	}
 
-	rootPath, err := resolveInstanceRoot(s.config.BaseDir, customerID, instanceID)
+	rootPath, err := s.resolveServerRoot(r)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	directory := sanitizeRelativePath(r.FormValue("path"))
 	file, header, err := r.FormFile("upload")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "missing upload")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "missing upload")
 		return
 	}
 	defer file.Close()
 
 	if header.Filename == "" {
-		respondError(w, http.StatusBadRequest, "missing filename")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "missing filename")
 		return
 	}
 
 	if err := validateRelativePathInput(header.Filename); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
@@ -303,17 +326,17 @@ func (s *filesvcServer) handleUpload(w http.ResponseWriter, r *http.Request, cus
 
 	target, err := sanitizeInstancePath(rootPath, targetRelative)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	if err := ensureParentExists(target); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	if err := writeFileAtomic(target, file, 0o640); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
@@ -323,7 +346,7 @@ func (s *filesvcServer) handleUpload(w http.ResponseWriter, r *http.Request, cus
 
 func (s *filesvcServer) handleMkdir(w http.ResponseWriter, r *http.Request, customerID, instanceID string) {
 	if r.Method != http.MethodPost {
-		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		respondError(r, w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
@@ -331,30 +354,30 @@ func (s *filesvcServer) handleMkdir(w http.ResponseWriter, r *http.Request, cust
 		Path string `json:"path"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
-	rootPath, err := resolveInstanceRoot(s.config.BaseDir, customerID, instanceID)
+	rootPath, err := s.resolveServerRoot(r)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	cleanPath := sanitizeRelativePath(payload.Path)
 	if cleanPath == "" {
-		respondError(w, http.StatusBadRequest, "missing path")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "missing path")
 		return
 	}
 
 	target, err := sanitizeInstancePath(rootPath, cleanPath)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	if err := os.MkdirAll(target, 0o750); err != nil {
-		respondError(w, http.StatusBadRequest, fmt.Sprintf("mkdir failed: %v", err))
+		respondError(r, w, http.StatusBadRequest, "bad_request", fmt.Sprintf("mkdir failed: %v", err))
 		return
 	}
 
@@ -364,7 +387,7 @@ func (s *filesvcServer) handleMkdir(w http.ResponseWriter, r *http.Request, cust
 
 func (s *filesvcServer) handleDelete(w http.ResponseWriter, r *http.Request, customerID, instanceID string) {
 	if r.Method != http.MethodPost {
-		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		respondError(r, w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
@@ -372,42 +395,42 @@ func (s *filesvcServer) handleDelete(w http.ResponseWriter, r *http.Request, cus
 		Path string `json:"path"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
-	rootPath, err := resolveInstanceRoot(s.config.BaseDir, customerID, instanceID)
+	rootPath, err := s.resolveServerRoot(r)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	cleanPath := sanitizeRelativePath(payload.Path)
 	if cleanPath == "" || cleanPath == "." {
-		respondError(w, http.StatusBadRequest, "invalid path")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "invalid path")
 		return
 	}
 
 	target, err := sanitizeInstancePath(rootPath, cleanPath)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	info, err := os.Stat(target)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, fmt.Sprintf("stat failed: %v", err))
+		respondError(r, w, http.StatusBadRequest, "bad_request", fmt.Sprintf("stat failed: %v", err))
 		return
 	}
 
 	if info.IsDir() {
 		if err := os.RemoveAll(target); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Sprintf("delete failed: %v", err))
+			respondError(r, w, http.StatusBadRequest, "bad_request", fmt.Sprintf("delete failed: %v", err))
 			return
 		}
 	} else {
 		if err := os.Remove(target); err != nil {
-			respondError(w, http.StatusBadRequest, fmt.Sprintf("delete failed: %v", err))
+			respondError(r, w, http.StatusBadRequest, "bad_request", fmt.Sprintf("delete failed: %v", err))
 			return
 		}
 	}
@@ -418,7 +441,7 @@ func (s *filesvcServer) handleDelete(w http.ResponseWriter, r *http.Request, cus
 
 func (s *filesvcServer) handleRename(w http.ResponseWriter, r *http.Request, customerID, instanceID string) {
 	if r.Method != http.MethodPost {
-		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		respondError(r, w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
@@ -427,36 +450,36 @@ func (s *filesvcServer) handleRename(w http.ResponseWriter, r *http.Request, cus
 		NewPath string `json:"new_path"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
-	rootPath, err := resolveInstanceRoot(s.config.BaseDir, customerID, instanceID)
+	rootPath, err := s.resolveServerRoot(r)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	cleanPath := sanitizeRelativePath(payload.Path)
 	cleanNew := sanitizeRelativePath(payload.NewPath)
 	if cleanPath == "" || cleanNew == "" {
-		respondError(w, http.StatusBadRequest, "missing path")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "missing path")
 		return
 	}
 
 	src, err := sanitizeInstancePath(rootPath, cleanPath)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 	dst, err := sanitizeInstancePath(rootPath, cleanNew)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	if err := os.Rename(src, dst); err != nil {
-		respondError(w, http.StatusBadRequest, fmt.Sprintf("rename failed: %v", err))
+		respondError(r, w, http.StatusBadRequest, "bad_request", fmt.Sprintf("rename failed: %v", err))
 		return
 	}
 
@@ -466,7 +489,7 @@ func (s *filesvcServer) handleRename(w http.ResponseWriter, r *http.Request, cus
 
 func (s *filesvcServer) handleChmod(w http.ResponseWriter, r *http.Request, customerID, instanceID string) {
 	if r.Method != http.MethodPost {
-		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		respondError(r, w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
@@ -475,36 +498,36 @@ func (s *filesvcServer) handleChmod(w http.ResponseWriter, r *http.Request, cust
 		Mode interface{} `json:"mode"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	mode, err := parseMode(payload.Mode)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid permissions")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "invalid permissions")
 		return
 	}
 
-	rootPath, err := resolveInstanceRoot(s.config.BaseDir, customerID, instanceID)
+	rootPath, err := s.resolveServerRoot(r)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	cleanPath := sanitizeRelativePath(payload.Path)
 	if cleanPath == "" {
-		respondError(w, http.StatusBadRequest, "missing path")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "missing path")
 		return
 	}
 
 	target, err := sanitizeInstancePath(rootPath, cleanPath)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	if err := os.Chmod(target, os.FileMode(mode)); err != nil {
-		respondError(w, http.StatusBadRequest, fmt.Sprintf("chmod failed: %v", err))
+		respondError(r, w, http.StatusBadRequest, "bad_request", fmt.Sprintf("chmod failed: %v", err))
 		return
 	}
 
@@ -513,7 +536,7 @@ func (s *filesvcServer) handleChmod(w http.ResponseWriter, r *http.Request, cust
 
 func (s *filesvcServer) handleExtract(w http.ResponseWriter, r *http.Request, customerID, instanceID string) {
 	if r.Method != http.MethodPost {
-		respondError(w, http.StatusMethodNotAllowed, "method not allowed")
+		respondError(r, w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 		return
 	}
 
@@ -522,37 +545,37 @@ func (s *filesvcServer) handleExtract(w http.ResponseWriter, r *http.Request, cu
 		Destination string `json:"destination"`
 	}
 	if err := decodeJSON(r, &payload); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
-	rootPath, err := resolveInstanceRoot(s.config.BaseDir, customerID, instanceID)
+	rootPath, err := s.resolveServerRoot(r)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	cleanPath := sanitizeRelativePath(payload.Path)
 	cleanDestination := sanitizeRelativePath(payload.Destination)
 	if cleanPath == "" {
-		respondError(w, http.StatusBadRequest, "missing path")
+		respondError(r, w, http.StatusBadRequest, "bad_request", "missing path")
 		return
 	}
 
 	archivePath, err := sanitizeInstancePath(rootPath, cleanPath)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	destinationPath, err := sanitizeInstancePath(rootPath, cleanDestination)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
 	if err := extractArchive(archivePath, destinationPath); err != nil {
-		respondError(w, http.StatusBadRequest, err.Error())
+		respondServerRootError(r, w, err)
 		return
 	}
 
@@ -585,11 +608,36 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func respondError(w http.ResponseWriter, status int, message string) {
-	respondJSON(w, status, map[string]string{"error": message})
+func respondError(r *http.Request, w http.ResponseWriter, status int, code string, message string) {
+	requestID := ""
+	if r != nil {
+		requestID = requestIDFromContext(r.Context())
+	}
+	respondJSON(w, status, map[string]any{
+		"error": map[string]any{
+			"code":       code,
+			"message":    message,
+			"request_id": requestID,
+		},
+	})
+}
+
+func respondServerRootError(r *http.Request, w http.ResponseWriter, err error) {
+	message := strings.TrimSpace(err.Error())
+	switch message {
+	case "INVALID_SERVER_ROOT":
+		respondError(r, w, http.StatusBadRequest, "INVALID_SERVER_ROOT", "invalid or missing canonical server root")
+	case "SERVER_ROOT_NOT_FOUND":
+		respondError(r, w, http.StatusNotFound, "SERVER_ROOT_NOT_FOUND", "server root not found")
+	case "SERVER_ROOT_NOT_ACCESSIBLE":
+		respondError(r, w, http.StatusForbidden, "SERVER_ROOT_NOT_ACCESSIBLE", "server root not accessible")
+	default:
+		respondError(r, w, http.StatusBadRequest, "INVALID_SERVER_ROOT", message)
+	}
 }
 
 func parseMode(value interface{}) (int64, error) {
+
 	switch v := value.(type) {
 	case float64:
 		return int64(v), nil
@@ -656,4 +704,54 @@ func writeFileAtomic(target string, reader io.Reader, perm os.FileMode) error {
 		return fmt.Errorf("rename temp file: %w", err)
 	}
 	return nil
+}
+
+type requestIDContextKey struct{}
+
+func withRequestContext(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+		if requestID == "" {
+			requestID = generateRequestID()
+		}
+		w.Header().Set("X-Request-ID", requestID)
+		r.Header.Set("X-Request-ID", requestID)
+		ctx := context.WithValue(r.Context(), requestIDContextKey{}, requestID)
+		startedAt := time.Now()
+		next.ServeHTTP(w, r.WithContext(ctx))
+		log.Printf("filesvc.request request_id=%s method=%s path=%s duration_ms=%d", requestID, r.Method, r.URL.Path, time.Since(startedAt).Milliseconds())
+	})
+}
+
+func requestIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if value, ok := ctx.Value(requestIDContextKey{}).(string); ok {
+		return value
+	}
+	return ""
+}
+
+func generateRequestID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+	return hex.EncodeToString(b)
+}
+
+func mapStatusToCode(status int) string {
+	switch status {
+	case http.StatusUnauthorized:
+		return "unauthorized"
+	case http.StatusNotFound:
+		return "not_found"
+	case http.StatusMethodNotAllowed:
+		return "method_not_allowed"
+	case http.StatusBadRequest:
+		return "bad_request"
+	default:
+		return "request_failed"
+	}
 }

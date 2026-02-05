@@ -8,6 +8,11 @@ use App\Module\Core\Domain\Entity\Instance;
 
 final class InstanceFilesystemResolver
 {
+    /**
+     * LEGACY helper for provisioning/migration only.
+     * DO NOT use this class for runtime file operations.
+     * Runtime access must resolve persisted install_path via GameServerPathResolver.
+     */
     public function __construct(
         private readonly AppSettingsService $settingsService,
     ) {
@@ -15,6 +20,7 @@ final class InstanceFilesystemResolver
 
     public function resolveInstanceDir(Instance $instance, ?string $baseDir = null): string
     {
+        // LEGACY path builder: used only to bootstrap install_path for existing servers.
         $baseDir = $baseDir !== null && $baseDir !== '' ? $baseDir : ($instance->getInstanceBaseDir() ?? $this->getDefaultBaseDir());
         $username = $this->buildInstanceUsername((string) $instance->getCustomer()->getId(), (string) $instance->getId());
 

@@ -163,6 +163,8 @@ final class AdminShopProductController
             $formData['disk_limit'],
             $formData['image_url'],
             $formData['is_active'],
+            $formData['is_public_active'],
+            $formData['is_customer_active'],
         );
 
         $this->entityManager->persist($product);
@@ -221,6 +223,8 @@ final class AdminShopProductController
         $product->setRamLimit($formData['ram_limit']);
         $product->setDiskLimit($formData['disk_limit']);
         $product->setIsActive($formData['is_active']);
+        $product->setIsPublicActive($formData['is_public_active']);
+        $product->setIsCustomerActive($formData['is_customer_active']);
 
         $this->entityManager->persist($product);
         $this->entityManager->flush();
@@ -274,15 +278,13 @@ final class AdminShopProductController
         $cpuLimit = (int) $request->request->get('cpu_limit', 0);
         $ramLimit = (int) $request->request->get('ram_limit', 0);
         $diskLimit = (int) $request->request->get('disk_limit', 0);
-        $isActive = $request->request->getBoolean('is_active', true);
+        $isActive = $request->request->getBoolean('is_active', false);
+        $isPublicActive = $request->request->getBoolean('is_public_active', false);
+        $isCustomerActive = $request->request->getBoolean('is_customer_active', false);
         $errors = [];
 
         if ($name === '') {
             $errors[] = 'Name is required.';
-        }
-
-        if ($description === '') {
-            $errors[] = 'Description is required.';
         }
 
         if ($priceMonthly <= 0) {
@@ -309,6 +311,8 @@ final class AdminShopProductController
             'ram_limit' => $ramLimit,
             'disk_limit' => $diskLimit,
             'is_active' => $isActive,
+            'is_public_active' => $isPublicActive,
+            'is_customer_active' => $isCustomerActive,
             'errors' => $errors,
         ];
     }
@@ -329,6 +333,8 @@ final class AdminShopProductController
             'ram_limit' => $product?->getRamLimit() ?? 0,
             'disk_limit' => $product?->getDiskLimit() ?? 0,
             'is_active' => $product?->isActive() ?? true,
+            'is_public_active' => $product?->isPublicActive() ?? true,
+            'is_customer_active' => $product?->isCustomerActive() ?? true,
             'errors' => $errors,
         ];
     }
@@ -364,6 +370,8 @@ final class AdminShopProductController
             'ram_limit' => $product->getRamLimit(),
             'disk_limit' => $product->getDiskLimit(),
             'is_active' => $product->isActive(),
+            'is_public_active' => $product->isPublicActive(),
+            'is_customer_active' => $product->isCustomerActive(),
         ], $products);
     }
 

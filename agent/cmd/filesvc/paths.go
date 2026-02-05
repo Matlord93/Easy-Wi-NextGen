@@ -2,21 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
-
-func resolveInstanceRoot(baseDir, customerID, instanceID string) (string, error) {
-	if customerID == "" || instanceID == "" {
-		return "", fmt.Errorf("missing instance or customer id")
-	}
-	if !filepath.IsAbs(baseDir) {
-		return "", fmt.Errorf("base dir must be absolute")
-	}
-	username := buildInstanceUsername(customerID, instanceID)
-	root := filepath.Join(baseDir, username)
-	return ensureSafePath(root, baseDir)
-}
 
 func sanitizeRelativePath(path string) string {
 	clean := filepath.Clean("/" + path)
@@ -61,46 +50,36 @@ func validateRelativePathInput(path string) error {
 	return nil
 }
 
-func buildInstanceUsername(customerID, instanceID string) string {
-	sanitizedInstance := sanitizeIdentifier(instanceID)
-	if len(sanitizedInstance) > 8 {
-		sanitizedInstance = sanitizedInstance[:8]
+// DO NOT BUILD SERVER PATHS HERE.
+// Filesvc must use the canonical install root supplied via X-Server-Root.
+func validateServerRootAgainstBase(serverRoot, baseDir string) (string, error) {
+	cleanRoot := filepath.Clean(strings.TrimSpace(serverRoot))
+	cleanBase := filepath.Clean(strings.TrimSpace(baseDir))
+	if cleanRoot == "" || !filepath.IsAbs(cleanRoot) {
+		return "", fmt.Errorf("INVALID_SERVER_ROOT")
 	}
-	return fmt.Sprintf("gs%s%s", customerID, sanitizedInstance)
-}
-
-func sanitizeIdentifier(value string) string {
-	value = strings.ToLower(value)
-	var builder strings.Builder
-	for _, r := range value {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			builder.WriteRune(r)
-		}
+	if cleanBase == "" || !filepath.IsAbs(cleanBase) {
+		return "", fmt.Errorf("INVALID_SERVER_ROOT")
 	}
-	if builder.Len() == 0 {
-		return "instance"
-	}
-	return builder.String()
-}
-
-func ensureSafePath(path, baseDir string) (string, error) {
-	cleanPath := filepath.Clean(path)
-	cleanBase := filepath.Clean(baseDir)
-	if !filepath.IsAbs(cleanPath) {
-		return "", fmt.Errorf("path must be absolute")
-	}
-	if !filepath.IsAbs(cleanBase) {
-		return "", fmt.Errorf("base dir must be absolute")
-	}
-	rel, err := filepath.Rel(cleanBase, cleanPath)
+	rel, err := filepath.Rel(cleanBase, cleanRoot)
 	if err != nil {
-		return "", fmt.Errorf("resolve path: %w", err)
+		return "", fmt.Errorf("INVALID_SERVER_ROOT")
 	}
-	if rel == "." {
-		return cleanPath, nil
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("INVALID_SERVER_ROOT")
 	}
-	if strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("path escapes base dir")
+	info, err := os.Stat(cleanRoot)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("SERVER_ROOT_NOT_FOUND")
+		}
+		return "", fmt.Errorf("SERVER_ROOT_NOT_ACCESSIBLE")
 	}
-	return cleanPath, nil
+	if !info.IsDir() {
+		return "", fmt.Errorf("SERVER_ROOT_NOT_ACCESSIBLE")
+	}
+	if _, err := os.ReadDir(cleanRoot); err != nil {
+		return "", fmt.Errorf("SERVER_ROOT_NOT_ACCESSIBLE")
+	}
+	return cleanRoot, nil
 }

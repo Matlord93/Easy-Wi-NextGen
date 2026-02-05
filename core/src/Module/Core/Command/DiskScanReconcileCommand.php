@@ -7,7 +7,7 @@ namespace App\Module\Core\Command;
 use App\Module\Core\Domain\Entity\Job;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
-use App\Module\Core\Application\InstanceFilesystemResolver;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -25,7 +25,7 @@ final class DiskScanReconcileCommand extends Command
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly InstanceRepository $instanceRepository,
-        private readonly InstanceFilesystemResolver $filesystemResolver,
+        private readonly GameServerPathResolver $filesystemResolver,
         private readonly EntityManagerInterface $entityManager,
     ) {
         parent::__construct();
@@ -52,7 +52,7 @@ final class DiskScanReconcileCommand extends Command
                     'instance_id' => (string) ($instance->getId() ?? ''),
                     'customer_id' => (string) $instance->getCustomer()->getId(),
                     'agent_id' => $node->getId(),
-                    'instance_dir' => $this->filesystemResolver->resolveInstanceDir($instance),
+                    'instance_dir' => $this->filesystemResolver->resolveRoot($instance),
                 ];
 
                 $job = new Job('instance.disk.scan', $payload);

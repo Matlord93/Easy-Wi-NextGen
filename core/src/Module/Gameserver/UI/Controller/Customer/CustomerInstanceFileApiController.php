@@ -40,6 +40,8 @@ final class CustomerInstanceFileApiController
         private readonly RateLimiterFactory $uploadsLimiter,
         #[Autowire(service: 'limiter.instance_files_commands')]
         private readonly RateLimiterFactory $commandsLimiter,
+        #[Autowire('%app.files_allow_sftp_fallback%')]
+        private readonly bool $allowSftpFallback,
     ) {
     }
 
@@ -201,7 +203,7 @@ final class CustomerInstanceFileApiController
         $instance = $this->findCustomerInstance($customer, $id);
 
         if (!$this->consumeLimiter($this->uploadsLimiter, $request, $instance, $customer)) {
-            return $this->rateLimitResponse();
+            return $this->rateLimitResponse($request);
         }
 
         $path = trim((string) $request->request->get('path', ''));
@@ -210,7 +212,7 @@ final class CustomerInstanceFileApiController
             throw new BadRequestHttpException('Missing upload.');
         }
         if ($this->isProtectedFilename($upload->getClientOriginalName())) {
-            return new JsonResponse(['error' => 'File is protected.'], JsonResponse::HTTP_FORBIDDEN);
+            return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
         }
 
         try {
@@ -243,7 +245,7 @@ final class CustomerInstanceFileApiController
         $instance = $this->findCustomerInstance($customer, $id);
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
-            return $this->rateLimitResponse();
+            return $this->rateLimitResponse($request);
         }
 
         $payload = $this->parsePayload($request);
@@ -254,7 +256,7 @@ final class CustomerInstanceFileApiController
             throw new BadRequestHttpException('Missing file name.');
         }
         if ($this->isProtectedFilename($name)) {
-            return new JsonResponse(['error' => 'File is protected.'], JsonResponse::HTTP_FORBIDDEN);
+            return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
         }
 
         try {
@@ -288,7 +290,7 @@ final class CustomerInstanceFileApiController
         $instance = $this->findCustomerInstance($customer, $id);
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
-            return $this->rateLimitResponse();
+            return $this->rateLimitResponse($request);
         }
 
         $payload = $this->parsePayload($request);
@@ -328,7 +330,7 @@ final class CustomerInstanceFileApiController
         $instance = $this->findCustomerInstance($customer, $id);
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
-            return $this->rateLimitResponse();
+            return $this->rateLimitResponse($request);
         }
 
         $payload = $this->parsePayload($request);
@@ -339,7 +341,7 @@ final class CustomerInstanceFileApiController
             throw new BadRequestHttpException('Missing rename target.');
         }
         if ($this->isProtectedFilename($name) || $this->isProtectedFilename($newName)) {
-            return new JsonResponse(['error' => 'File is protected.'], JsonResponse::HTTP_FORBIDDEN);
+            return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
         }
 
         try {
@@ -374,7 +376,7 @@ final class CustomerInstanceFileApiController
         $instance = $this->findCustomerInstance($customer, $id);
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
-            return $this->rateLimitResponse();
+            return $this->rateLimitResponse($request);
         }
 
         $payload = $this->parsePayload($request);
@@ -384,7 +386,7 @@ final class CustomerInstanceFileApiController
             throw new BadRequestHttpException('Missing target name.');
         }
         if ($this->isProtectedFilename($name)) {
-            return new JsonResponse(['error' => 'File is protected.'], JsonResponse::HTTP_FORBIDDEN);
+            return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
         }
 
         try {
@@ -417,7 +419,7 @@ final class CustomerInstanceFileApiController
         $instance = $this->findCustomerInstance($customer, $id);
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
-            return $this->rateLimitResponse();
+            return $this->rateLimitResponse($request);
         }
 
         $payload = $this->parsePayload($request);
@@ -465,7 +467,7 @@ final class CustomerInstanceFileApiController
         $instance = $this->findCustomerInstance($customer, $id);
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
-            return $this->rateLimitResponse();
+            return $this->rateLimitResponse($request);
         }
 
         $payload = $this->parsePayload($request);
@@ -586,6 +588,10 @@ final class CustomerInstanceFileApiController
 
     private function shouldFallback(\RuntimeException $exception): bool
     {
+        if (!$this->allowSftpFallback) {
+            return false;
+        }
+
         if ($exception instanceof FileServiceException) {
             return in_array($exception->getErrorCode(), [
                 'filesvc_unreachable',
@@ -638,12 +644,7 @@ final class CustomerInstanceFileApiController
             'error' => $exception->getMessage(),
         ]);
 
-        return new JsonResponse([
-            'error_code' => $errorCode,
-            'message' => $exception->getMessage(),
-            'request_id' => $requestId,
-            'details' => $details,
-        ], $statusCode);
+        return $this->errorResponse($request, $errorCode, $exception->getMessage(), $statusCode, $details);
     }
 
     /**
@@ -737,12 +738,7 @@ final class CustomerInstanceFileApiController
             'details' => $errorDetails,
         ]);
 
-        return new JsonResponse([
-            'error_code' => $errorCode,
-            'message' => $exception->getMessage(),
-            'details' => $errorDetails,
-            'request_id' => $requestId,
-        ], $statusCode);
+        return $this->errorResponse($request, $errorCode, $exception->getMessage(), $statusCode, $errorDetails);
     }
 
     private function assertEditorContent(string $content): void
@@ -795,11 +791,7 @@ final class CustomerInstanceFileApiController
             default => 'files_request_failed',
         };
 
-        return new JsonResponse([
-            'error_code' => $errorCode,
-            'message' => $exception->getMessage(),
-            'request_id' => $this->getRequestId($request),
-        ], $status);
+        return $this->errorResponse($request, $errorCode, $exception->getMessage(), $status);
     }
 
     private function uploadViaSftp(Instance $instance, string $path, \Symfony\Component\HttpFoundation\File\UploadedFile $upload): void
@@ -826,9 +818,29 @@ final class CustomerInstanceFileApiController
         return strtolower(trim($name)) === 'start.sh';
     }
 
-    private function rateLimitResponse(): JsonResponse
+    private function rateLimitResponse(Request $request): JsonResponse
     {
-        return new JsonResponse(['error' => 'Too Many Requests.'], JsonResponse::HTTP_TOO_MANY_REQUESTS);
+        return $this->errorResponse($request, 'rate_limited', 'Too Many Requests.', JsonResponse::HTTP_TOO_MANY_REQUESTS);
+    }
+
+    /**
+     * @param array<string, mixed> $details
+     */
+    private function errorResponse(Request $request, string $code, string $message, int $statusCode, array $details = []): JsonResponse
+    {
+        $payload = [
+            'error' => [
+                'code' => $code,
+                'message' => $message,
+                'request_id' => $this->getRequestId($request),
+            ],
+        ];
+
+        if ($details !== []) {
+            $payload['error']['details'] = $details;
+        }
+
+        return new JsonResponse($payload, $statusCode);
     }
 
     /**

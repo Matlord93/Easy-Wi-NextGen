@@ -15,6 +15,7 @@ use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Gameserver\Application\GameServerInstallPathManager;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\DiskEnforcementService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -35,6 +36,7 @@ final class AdminShopProvisioningController
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly AppSettingsService $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
+        private readonly GameServerInstallPathManager $installPathManager,
     ) {
     }
 
@@ -154,6 +156,7 @@ final class AdminShopProvisioningController
 
         $this->entityManager->persist($instance);
         $this->entityManager->flush();
+        $this->installPathManager->ensureInstallPath($instance);
 
         if ($portBlock !== null) {
             $portBlock->assignInstance($instance);
@@ -161,12 +164,14 @@ final class AdminShopProvisioningController
             $this->auditLogger->log($actor, 'port_block.assigned', [
                 'port_block_id' => $portBlock->getId(),
                 'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
                 'customer_id' => $customer->getId(),
             ]);
         }
 
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
             'customer_id' => $customer->getId(),
             'template_id' => $template->getId(),
             'node_id' => $node->getId(),
@@ -180,6 +185,7 @@ final class AdminShopProvisioningController
         $this->auditLogger->log($actor, 'shop.checkout.provisioned', [
             'customer_id' => $customer->getId(),
             'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
             'template_id' => $template->getId(),
             'node_id' => $node->getId(),
             'email' => $customer->getEmail(),
@@ -190,6 +196,7 @@ final class AdminShopProvisioningController
         $response = [
             'customer_id' => $customer->getId(),
             'instance_id' => $instance->getId(),
+            'install_path' => $instance->getInstallPath(),
             'customer_created' => $isNewCustomer,
         ];
 

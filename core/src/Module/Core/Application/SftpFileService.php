@@ -6,6 +6,7 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Application\Exception\SftpException;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Repository\InstanceSftpCredentialRepository;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
@@ -15,7 +16,7 @@ final class SftpFileService
     public const int EDITOR_MAX_BYTES = 1048576;
 
     public function __construct(
-        private readonly InstanceFilesystemResolver $filesystemResolver,
+        private readonly GameServerPathResolver $filesystemResolver,
         private readonly AppSettingsService $settingsService,
         private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly EncryptionService $encryptionService,
@@ -28,7 +29,7 @@ final class SftpFileService
     public function list(Instance $instance, string $path): array
     {
         $normalizedPath = $this->normalizeRelativePath($path);
-        $rootPath = $this->filesystemResolver->resolveInstanceDir($instance);
+        $rootPath = $this->filesystemResolver->resolveRoot($instance);
 
         $sftp = $this->connect($instance);
         $remoteRoot = $this->resolveRemoteRoot($sftp, $rootPath);
@@ -169,7 +170,7 @@ final class SftpFileService
     public function extract(Instance $instance, string $path, string $name, string $destination): void
     {
         $normalizedDestination = $this->normalizeRelativePath($destination);
-        $rootPath = $this->filesystemResolver->resolveInstanceDir($instance);
+        $rootPath = $this->filesystemResolver->resolveRoot($instance);
 
         $sftp = $this->connect($instance);
         $remoteRoot = $this->resolveRemoteRoot($sftp, $rootPath);
@@ -298,7 +299,7 @@ final class SftpFileService
             return $username;
         }
 
-        return basename($this->filesystemResolver->resolveInstanceDir($instance));
+        return basename($this->filesystemResolver->resolveRoot($instance));
     }
 
     private function resolvePassword(Instance $instance): string
@@ -341,7 +342,7 @@ final class SftpFileService
         $this->assertValidName($name);
         $normalizedPath = $this->normalizeRelativePath($path);
         $relative = $normalizedPath === '' ? $name : $normalizedPath . '/' . $name;
-        $rootPath = $this->filesystemResolver->resolveInstanceDir($instance);
+        $rootPath = $this->filesystemResolver->resolveRoot($instance);
         $remoteRoot = $remoteRoot ?? $this->resolveRemoteRoot($sftp, $rootPath);
 
         return $this->joinRemotePath($remoteRoot, $relative);
