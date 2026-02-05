@@ -6,6 +6,7 @@ namespace App\Module\Core\Command;
 
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
+use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Repository\InstanceScheduleRepository;
 use App\Module\Core\Application\AuditLogger;
@@ -79,6 +80,7 @@ final class InstanceUpdateQueueCommand extends Command
             ));
             $this->entityManager->persist($job);
             $instance->setLastUpdateQueuedAt($now);
+            $instance->setStatus(InstanceStatus::Provisioning);
             $this->entityManager->persist($instance);
 
             $this->auditLogger->log(null, 'instance.update.queued', [

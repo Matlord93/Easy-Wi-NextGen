@@ -84,6 +84,8 @@ final class InstanceJobPayloadBuilder
 
         $payload = array_merge($payload, $this->buildPortPayload($instance));
 
+        $payload['autostart'] = 'false';
+
         if ($instance->getLockedBuildId() !== null) {
             $payload['locked_build_id'] = $instance->getLockedBuildId();
         }

@@ -304,6 +304,9 @@ final class CustomerInstanceController
         ], $install['payload'] ?? []));
         $this->entityManager->persist($job);
 
+        $instance->setStatus(InstanceStatus::Provisioning);
+        $this->entityManager->persist($instance);
+
         $this->auditLogger->log($customer, 'instance.install.queued', [
             'instance_id' => $instance->getId(),
             'customer_id' => $customer->getId(),
@@ -398,6 +401,7 @@ final class CustomerInstanceController
         $job = new Job('sniper.update', $this->instanceJobPayloadBuilder->buildSniperUpdatePayload($instance, $targetBuildId, $targetVersion));
         $this->entityManager->persist($job);
         $instance->setLastUpdateQueuedAt(new \DateTimeImmutable());
+        $instance->setStatus(InstanceStatus::Provisioning);
         $this->entityManager->persist($instance);
 
         $this->auditLogger->log($customer, 'instance.update.queued', [

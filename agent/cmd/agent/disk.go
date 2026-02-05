@@ -153,7 +153,10 @@ func handleNodeDiskStat(job jobs.Job) (jobs.Result, func() error) {
 func resolveInstanceDir(payload map[string]any) (string, error) {
 	instanceDir := payloadValue(payload, "instance_dir", "install_path")
 	if instanceDir == "" {
-		return "", fmt.Errorf("instance_dir is required")
+		instanceDir = buildLegacyInstanceDir(payload)
+	}
+	if instanceDir == "" {
+		return "", fmt.Errorf("instance_dir is required (or provide customer_id + instance_id)")
 	}
 
 	baseDir := payloadValue(payload, "base_dir")
@@ -166,6 +169,33 @@ func resolveInstanceDir(payload map[string]any) (string, error) {
 
 	return ensureSafePath(instanceDir, baseDir)
 }
+
+func buildLegacyInstanceDir(payload map[string]any) string {
+	customerID := payloadValue(payload, "customer_id")
+	instanceID := payloadValue(payload, "instance_id")
+	if customerID == "" || instanceID == "" {
+		return ""
+	}
+
+	sanitized := sanitizeIdentifier(instanceID)
+	if len(sanitized) > 8 {
+		sanitized = sanitized[:8]
+	}
+	if sanitized == "" {
+		sanitized = "instance"
+	}
+
+	baseDir := payloadValue(payload, "base_dir")
+	if baseDir == "" {
+		baseDir = os.Getenv("EASYWI_INSTANCE_BASE_DIR")
+	}
+	if baseDir == "" {
+		baseDir = "/"
+	}
+
+	return filepath.Join(baseDir, fmt.Sprintf("gs%s%s", customerID, sanitized))
+}
+
 
 func ensureSafePath(path, baseDir string) (string, error) {
 	cleanPath := filepath.Clean(path)

@@ -10,6 +10,7 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\BackupStatus;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
+use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Repository\BackupScheduleRepository;
 use App\Repository\InstanceRepository;
@@ -193,6 +194,7 @@ final class RunSchedulesCommand extends Command
         ));
         $this->entityManager->persist($job);
         $instance->setLastUpdateQueuedAt($queuedAt);
+        $instance->setStatus(InstanceStatus::Provisioning);
         $this->entityManager->persist($instance);
 
         return $job;

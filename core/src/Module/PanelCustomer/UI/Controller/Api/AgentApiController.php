@@ -1127,8 +1127,8 @@ final class AgentApiController
             }
         } elseif ($resultStatus === JobResultStatus::Succeeded) {
             $newStatus = match ($job->getType()) {
-                'instance.create', 'instance.start', 'instance.restart', 'instance.reinstall', 'sniper.install' => \App\Module\Core\Domain\Enum\InstanceStatus::Running,
-                'instance.stop' => \App\Module\Core\Domain\Enum\InstanceStatus::Stopped,
+                'instance.create', 'instance.start', 'instance.restart' => \App\Module\Core\Domain\Enum\InstanceStatus::Running,
+                'instance.stop', 'instance.reinstall', 'sniper.install', 'sniper.update' => \App\Module\Core\Domain\Enum\InstanceStatus::Stopped,
                 default => null,
             };
         }
