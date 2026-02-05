@@ -9,7 +9,7 @@ use App\Infrastructure\Security\SecretKeyLoader;
 
 final class DbConfigProvider
 {
-    private const DEFAULT_DB_CONFIG_PATH = '/etc/easywi/db.json';
+    private const DEFAULT_DB_CONFIG_PATH = 'var/easywi/db.json';
     private const FALLBACK_DB_CONFIG_DIR = 'var/easywi';
 
     private string $configPath;

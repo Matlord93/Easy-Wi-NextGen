@@ -51,7 +51,18 @@ final class DatabaseDiagnoseCommand extends Command
 
         $io->section('Config file');
         if (!$this->configProvider->exists()) {
-            $io->error('DB nicht konfiguriert.');
+            $expectedConfigPath = $this->configProvider->getConfigPath();
+            $io->error(sprintf('DB nicht konfiguriert. Konfigurationsdatei fehlt: %s', $expectedConfigPath));
+
+            $projectConfigPath = rtrim($this->projectDir, '/') . '/var/easywi/db.json';
+            if ($projectConfigPath !== $expectedConfigPath && is_file($projectConfigPath)) {
+                $io->text(sprintf('Gefundene lokale Konfiguration: %s', $projectConfigPath));
+                $io->text('Setze EASYWI_DB_CONFIG_PATH auf diesen Pfad oder verschiebe die Datei an den erwarteten Ort.');
+            } else {
+                $io->text(sprintf('Führe zuerst den Installer aus, damit %s geschrieben wird.', $expectedConfigPath));
+            }
+
+            $io->text('Danach funktionieren auch doctrine:migrations:status und doctrine:migrations:migrate wieder.');
             return Command::FAILURE;
         }
 

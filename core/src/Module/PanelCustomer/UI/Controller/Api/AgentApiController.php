@@ -29,6 +29,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\FirewallStateManager;
 use App\Module\Core\Application\GdprAnonymizer;
+use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\NotificationService;
@@ -76,7 +77,7 @@ final class AgentApiController
         private readonly GdprAnonymizer $gdprAnonymizer,
         private readonly NotificationService $notificationService,
         private readonly NodeDiskProtectionService $nodeDiskProtectionService,
-        private readonly GameServerPathResolver $filesystemResolver,
+        private readonly object $filesystemResolver,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly JobLogger $jobLogger,
         private readonly LoggerInterface $logger,
@@ -1206,7 +1207,7 @@ final class AgentApiController
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'agent_id' => $instance->getNode()->getId(),
-            'instance_dir' => $this->filesystemResolver->resolveRoot($instance),
+            'instance_dir' => $this->resolveInstanceDir($instance),
         ];
 
         $job = new \App\Module\Core\Domain\Entity\Job('instance.disk.scan', $payload);
@@ -1537,4 +1538,19 @@ final class AgentApiController
             'agent_id' => $agentId,
         ]);
     }
+
+    private function resolveInstanceDir(\App\Module\Core\Domain\Entity\Instance $instance): string
+    {
+        if ($this->filesystemResolver instanceof GameServerPathResolver) {
+            return $this->filesystemResolver->resolveRoot($instance);
+        }
+
+        if ($this->filesystemResolver instanceof InstanceFilesystemResolver) {
+            // Backward compatibility for stale compiled containers during rolling deploys.
+            return $this->filesystemResolver->resolveInstanceDir($instance);
+        }
+
+        throw new \RuntimeException('Unsupported filesystem resolver implementation.');
+    }
+
 }

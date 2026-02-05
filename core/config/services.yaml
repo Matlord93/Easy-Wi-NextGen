@@ -169,3 +169,8 @@ services:
   App\Extension\ExtensionMenuRegistry:
     arguments:
       $menuProviders: !tagged_iterator 'app.extension.menu_provider'
+
+  App\Module\PanelCustomer\UI\Controller\Api\AgentApiController:
+    arguments:
+      $filesystemResolver: '@App\Module\Gameserver\Application\GameServerPathResolver'
+

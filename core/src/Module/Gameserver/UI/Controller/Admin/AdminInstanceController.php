@@ -39,6 +39,7 @@ use Twig\Environment;
 #[Route(path: '/admin/instances')]
 final class AdminInstanceController
 {
+    private readonly ?GameServerInstallPathManager $installPathManager;
     private const DEFAULT_PORT_POOL_START = 27015;
     private const DEFAULT_PORT_POOL_END = 27115;
     private const DEFAULT_PORT_POOL_TAG = 'gameserver';
@@ -53,7 +54,6 @@ final class AdminInstanceController
         private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
-        private readonly GameServerInstallPathManager $installPathManager,
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly AppSettingsService $appSettingsService,
@@ -63,7 +63,9 @@ final class AdminInstanceController
         private readonly PortPoolRepository $portPoolRepository,
         private readonly PortLeaseManager $portLeaseManager,
         private readonly Environment $twig,
+        ?GameServerInstallPathManager $installPathManager = null,
     ) {
+        $this->installPathManager = $installPathManager;
     }
 
     #[Route(path: '', name: 'admin_instances', methods: ['GET'])]
@@ -214,7 +216,7 @@ final class AdminInstanceController
             $this->entityManager->persist($portBlock);
         }
         $this->entityManager->flush();
-        $this->installPathManager->ensureInstallPath($instance);
+        $this->installPathManager?->ensureInstallPath($instance);
 
         if ($portBlock !== null) {
             $portBlock->assignInstance($instance);
