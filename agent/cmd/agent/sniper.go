@@ -253,9 +253,17 @@ func instanceDirSteamCmdPath(instanceDir string) string {
 func steamCmdInstallSnippet(steamCmdDir, steamCmdPath string) string {
 	escapedDir := strings.ReplaceAll(steamCmdDir, "$", "$$")
 	escapedPath := strings.ReplaceAll(steamCmdPath, "$", "$$")
+	wrapperContent := strings.Join([]string{
+		"#!/bin/sh",
+		fmt.Sprintf("if [ -x %[1]s/linux64/steamcmd ]; then exec %[1]s/linux64/steamcmd \"$@\"; fi", escapedDir),
+		fmt.Sprintf("if [ -x %[1]s/linux32/steamcmd ]; then exec %[1]s/linux32/steamcmd \"$@\"; fi", escapedDir),
+		fmt.Sprintf("if [ -x %[1]s/steamcmd.sh ]; then exec %[1]s/steamcmd.sh \"$@\"; fi", escapedDir),
+		"echo \"steamcmd executable not found\" >&2",
+		"exit 1",
+	}, "\n")
 	return fmt.Sprintf(
-		"if [ ! -x %[2]s ]; then "+
-			"mkdir -p %[1]s; "+
+		"mkdir -p %[1]s; "+
+			"if [ ! -x %[1]s/steamcmd.sh ] && [ ! -x %[1]s/linux64/steamcmd ] && [ ! -x %[1]s/linux32/steamcmd ]; then "+
 			"archive=%[1]s/steamcmd_linux.tar.gz; "+
 			"if command -v curl >/dev/null 2>&1; then "+
 			"curl -fsSL %[3]q -o $archive; "+
@@ -266,12 +274,14 @@ func steamCmdInstallSnippet(steamCmdDir, steamCmdPath string) string {
 			"fi; "+
 			"tar -xzf $archive -C %[1]s; "+
 			"rm -f $archive; "+
-			"chmod 755 %[2]s; "+
-			"fi; ",
+			"fi; "+
+			"cat > %[2]s <<'EASYWISTEAMCMD'\n%[5]s\nEASYWISTEAMCMD\n"+
+			"chmod 755 %[2]s; ",
 		escapedDir,
 		escapedPath,
 		steamcmdArchiveURL,
 		steamcmdArchiveURL,
+		wrapperContent,
 	)
 }
 

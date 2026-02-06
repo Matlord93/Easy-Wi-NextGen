@@ -1,4 +1,4 @@
-package main
+package fileapi
 
 import (
 	"crypto/hmac"
@@ -18,7 +18,7 @@ const (
 	headerSignature  = "X-Signature"
 )
 
-func verifyRequestSignature(r *http.Request, cfg filesvcConfig) (string, error) {
+func verifyRequestSignature(r *http.Request, cfg Config) (string, error) {
 	agentID := strings.TrimSpace(r.Header.Get(headerAgentID))
 	if agentID == "" || agentID != cfg.AgentID {
 		return "", errors.New("missing or mismatched agent id")

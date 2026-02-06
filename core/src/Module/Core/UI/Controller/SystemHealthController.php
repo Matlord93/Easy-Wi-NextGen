@@ -45,7 +45,7 @@ final class SystemHealthController
         $appDebug = $_SERVER['APP_DEBUG'] ?? $_ENV['APP_DEBUG'] ?? '0';
         $setupStateDir = $this->installerService->getSetupStateDirPath();
         $agentHealth = ['status' => 'skipped', 'message' => 'db_not_configured'];
-        $filesvcHealth = ['status' => 'skipped', 'message' => 'db_not_configured'];
+        $fileApiHealth = ['status' => 'skipped', 'message' => 'db_not_configured'];
         $migrationStatus = ['pending' => null, 'executedUnavailable' => null, 'error' => null];
         $latestJob = $this->updateJobService->getLatestJob();
         $invalidRoots = null;
@@ -54,7 +54,7 @@ final class SystemHealthController
             $sftpHost = $this->settingsService->getSftpHost();
             $sftpConfigured = $sftpHost !== null && $sftpHost !== '';
             $agentHealth = $this->probeAgentHealth();
-            $filesvcHealth = $this->probeFilesvcHealth();
+            $fileApiHealth = $this->probeFileApiHealth();
             $migrationStatus = $this->updateJobService->getMigrationStatus();
             $invalidRoots = $this->countInvalidServerRoots();
         }
@@ -101,7 +101,7 @@ final class SystemHealthController
                 'error' => $migrationStatus['error'],
             ],
             'agent_health' => $agentHealth,
-            'filesvc_health' => $filesvcHealth,
+            'file_api_health' => $fileApiHealth,
             'server_root_validity' => [
                 'invalid_count' => $invalidRoots,
             ],
@@ -175,7 +175,7 @@ final class SystemHealthController
     /**
      * @return array<string, mixed>
      */
-    private function probeFilesvcHealth(): array
+    private function probeFileApiHealth(): array
     {
         try {
             $instance = $this->instanceRepository
@@ -185,12 +185,12 @@ final class SystemHealthController
                 ->getQuery()
                 ->getOneOrNullResult();
         } catch (\Throwable $exception) {
-            $this->logger->warning('filesvc.health_query_failed', [
+            $this->logger->warning('file_api.health_query_failed', [
                 'exception' => $exception,
             ]);
             return [
                 'status' => 'error',
-                'message' => 'filesvc_probe_failed',
+                'message' => 'file_api_probe_failed',
             ];
         }
 
@@ -204,14 +204,14 @@ final class SystemHealthController
         try {
             $ping = $this->fileServiceClient->ping($instance);
         } catch (\Throwable $exception) {
-            $this->logger->warning('filesvc.health_probe_failed', [
+            $this->logger->warning('file_api.health_probe_failed', [
                 'instance_id' => $instance->getId(),
                 'exception' => $exception,
             ]);
             return [
                 'status' => 'error',
                 'instance_id' => $instance->getId(),
-                'message' => 'filesvc_probe_failed',
+                'message' => 'file_api_probe_failed',
             ];
         }
 
@@ -221,7 +221,7 @@ final class SystemHealthController
                 $this->fileServiceClient->list($instance, '');
                 $authOk = true;
             } catch (\Throwable $exception) {
-                $this->logger->warning('filesvc.auth_probe_failed', [
+                $this->logger->warning('file_api.auth_probe_failed', [
                     'instance_id' => $instance->getId(),
                     'exception' => $exception,
                 ]);

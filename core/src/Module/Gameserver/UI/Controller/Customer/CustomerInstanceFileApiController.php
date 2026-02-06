@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Module\Core\Application\Exception\FileServiceException;
-use App\Module\Core\Application\Exception\SftpException;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -13,7 +12,6 @@ use App\Repository\InstanceRepository;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\FileServiceClient;
-use App\Module\Core\Application\SftpFileService;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -32,7 +30,6 @@ final class CustomerInstanceFileApiController
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly FileServiceClient $fileService,
-        private readonly SftpFileService $sftpFileService,
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $appSettingsService,
         private readonly LoggerInterface $logger,
@@ -40,8 +37,6 @@ final class CustomerInstanceFileApiController
         private readonly RateLimiterFactory $uploadsLimiter,
         #[Autowire(service: 'limiter.instance_files_commands')]
         private readonly RateLimiterFactory $commandsLimiter,
-        #[Autowire('%app.files_allow_sftp_fallback%')]
-        private readonly bool $allowSftpFallback,
     ) {
     }
 
@@ -50,7 +45,7 @@ final class CustomerInstanceFileApiController
     public function list(Request $request, int $id): JsonResponse
     {
         $startedAt = microtime(true);
-        $source = 'filesvc';
+        $source = 'agent';
         $statusCode = JsonResponse::HTTP_OK;
         try {
             $this->assertDataManagerEnabled();
@@ -63,19 +58,6 @@ final class CustomerInstanceFileApiController
 
         try {
             $listing = $this->fileService->list($instance, $path);
-        } catch (FileServiceException $exception) {
-            if (!$this->shouldFallback($exception)) {
-                return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $exception, $startedAt);
-            }
-            $source = 'sftp';
-            try {
-                $listing = $this->sftpFileService->list($instance, $path);
-            } catch (SftpException $sftpException) {
-                return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $sftpException, $startedAt);
-            }
-        } catch (SftpException $exception) {
-            $source = 'sftp';
-            return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $exception, $startedAt);
         } catch (\RuntimeException $exception) {
             return $this->handleListingError($request, $customer->getId(), $instance->getId(), $path, $source, $exception, $startedAt);
         }
@@ -112,18 +94,13 @@ final class CustomerInstanceFileApiController
             return $this->handleHttpError($request, $exception);
         }
 
-        $filesvc = $this->runDiagnosticsProbe(
-            'filesvc',
+        $agent = $this->runDiagnosticsProbe(
+            'agent',
             fn () => $this->fileService->list($instance, $path),
-        );
-        $sftp = $this->runDiagnosticsProbe(
-            'sftp',
-            fn () => $this->sftpFileService->list($instance, $path),
         );
 
         return new JsonResponse([
-            'filesvc' => $filesvc,
-            'sftp' => $sftp,
+            'agent' => $agent,
             'request_id' => $this->getRequestId($request),
         ]);
     }
@@ -142,10 +119,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $content = $this->withFileFallback(
-                fn () => $this->fileService->downloadFile($instance, $path, $name),
-                fn () => $this->sftpFileService->readFile($instance, $path, $name),
-            );
+            $content = $this->fileService->downloadFile($instance, $path, $name);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'download', $customer->getId(), $instance->getId(), $path, $exception, [
                 'name' => $name,
@@ -175,10 +149,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $content = $this->withFileFallback(
-                fn () => $this->fileService->readFileForEditor($instance, $path, $name),
-                fn () => $this->sftpFileService->readFileForEditor($instance, $path, $name),
-            );
+            $content = $this->fileService->readFileForEditor($instance, $path, $name);
             $this->assertEditorContent($content);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'read', $customer->getId(), $instance->getId(), $path, $exception, [
@@ -216,10 +187,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->withFileFallback(
-                fn () => $this->fileService->uploadFile($instance, $path, $upload),
-                fn () => $this->uploadViaSftp($instance, $path, $upload),
-            );
+            $this->fileService->uploadFile($instance, $path, $upload);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'upload', $customer->getId(), $instance->getId(), $path, $exception, [
                 'name' => $upload->getClientOriginalName(),
@@ -261,10 +229,7 @@ final class CustomerInstanceFileApiController
 
         try {
             $this->assertEditorContent($content);
-            $this->withFileFallback(
-                fn () => $this->fileService->writeFile($instance, $path, $name, $content),
-                fn () => $this->sftpFileService->writeFile($instance, $path, $name, $content),
-            );
+            $this->fileService->writeFile($instance, $path, $name, $content);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'save', $customer->getId(), $instance->getId(), $path, $exception, [
                 'name' => $name,
@@ -301,10 +266,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->withFileFallback(
-                fn () => $this->fileService->makeDirectory($instance, $path, $name),
-                fn () => $this->sftpFileService->makeDirectory($instance, $path, $name),
-            );
+            $this->fileService->makeDirectory($instance, $path, $name);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'mkdir', $customer->getId(), $instance->getId(), $path, $exception, [
                 'name' => $name,
@@ -345,10 +307,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->withFileFallback(
-                fn () => $this->fileService->rename($instance, $path, $name, $newName),
-                fn () => $this->sftpFileService->rename($instance, $path, $name, $newName),
-            );
+            $this->fileService->rename($instance, $path, $name, $newName);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'rename', $customer->getId(), $instance->getId(), $path, $exception, [
                 'name' => $name,
@@ -390,10 +349,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->withFileFallback(
-                fn () => $this->fileService->delete($instance, $path, $name),
-                fn () => $this->sftpFileService->delete($instance, $path, $name),
-            );
+            $this->fileService->delete($instance, $path, $name);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'delete', $customer->getId(), $instance->getId(), $path, $exception, [
                 'name' => $name,
@@ -436,10 +392,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->withFileFallback(
-                fn () => $this->fileService->chmod($instance, $path, $name, $mode),
-                fn () => $this->sftpFileService->chmod($instance, $path, $name, $mode),
-            );
+            $this->fileService->chmod($instance, $path, $name, $mode);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'chmod', $customer->getId(), $instance->getId(), $path, $exception, [
                 'name' => $name,
@@ -479,10 +432,7 @@ final class CustomerInstanceFileApiController
         }
 
         try {
-            $this->withFileFallback(
-                fn () => $this->fileService->extract($instance, $path, $name, $destination),
-                fn () => $this->sftpFileService->extract($instance, $path, $name, $destination),
-            );
+            $this->fileService->extract($instance, $path, $name, $destination);
         } catch (\RuntimeException $exception) {
             return $this->handleActionError($request, 'extract', $customer->getId(), $instance->getId(), $path, $exception, [
                 'name' => $name,
@@ -567,46 +517,6 @@ final class CustomerInstanceFileApiController
         return null;
     }
 
-    /**
-     * @template T
-     * @param callable(): T $primary
-     * @param callable(): T $fallback
-     * @return T
-     */
-    private function withFileFallback(callable $primary, callable $fallback)
-    {
-        try {
-            return $primary();
-        } catch (\RuntimeException $exception) {
-            if (!$this->shouldFallback($exception)) {
-                throw $exception;
-            }
-        }
-
-        return $fallback();
-    }
-
-    private function shouldFallback(\RuntimeException $exception): bool
-    {
-        if (!$this->allowSftpFallback) {
-            return false;
-        }
-
-        if ($exception instanceof FileServiceException) {
-            return in_array($exception->getErrorCode(), [
-                'filesvc_unreachable',
-                'filesvc_misconfigured',
-                'filesvc_timeout',
-            ], true);
-        }
-
-        $message = $exception->getMessage();
-
-        return str_contains($message, 'File service unavailable')
-            || str_contains($message, 'File service host not configured')
-            || str_contains($message, 'File service TLS client certificates are not configured');
-    }
-
     private function handleListingError(
         Request $request,
         int $userId,
@@ -622,10 +532,6 @@ final class CustomerInstanceFileApiController
         $details = [];
 
         if ($exception instanceof FileServiceException) {
-            $statusCode = $exception->getStatusCode();
-            $errorCode = $exception->getErrorCode();
-            $details = $exception->getDetails();
-        } elseif ($exception instanceof SftpException) {
             $statusCode = $exception->getStatusCode();
             $errorCode = $exception->getErrorCode();
             $details = $exception->getDetails();
@@ -666,8 +572,6 @@ final class CustomerInstanceFileApiController
             ];
         } catch (FileServiceException $exception) {
             return $this->diagnosticsErrorResult($source, $exception, $startedAt);
-        } catch (SftpException $exception) {
-            return $this->diagnosticsErrorResult($source, $exception, $startedAt);
         } catch (\RuntimeException $exception) {
             return $this->diagnosticsErrorResult($source, $exception, $startedAt);
         }
@@ -676,14 +580,10 @@ final class CustomerInstanceFileApiController
     private function diagnosticsErrorResult(string $source, \RuntimeException $exception, float $startedAt): array
     {
         $statusCode = JsonResponse::HTTP_BAD_GATEWAY;
-        $errorCode = $source === 'sftp' ? 'sftp_error' : 'filesvc_error';
+        $errorCode = 'agent_error';
         $details = [];
 
         if ($exception instanceof FileServiceException) {
-            $statusCode = $exception->getStatusCode();
-            $errorCode = $exception->getErrorCode();
-            $details = $exception->getDetails();
-        } elseif ($exception instanceof SftpException) {
             $statusCode = $exception->getStatusCode();
             $errorCode = $exception->getErrorCode();
             $details = $exception->getDetails();
@@ -718,10 +618,6 @@ final class CustomerInstanceFileApiController
         $errorDetails = $details;
 
         if ($exception instanceof FileServiceException) {
-            $statusCode = $exception->getStatusCode();
-            $errorCode = $exception->getErrorCode();
-            $errorDetails = array_merge($details, $exception->getDetails());
-        } elseif ($exception instanceof SftpException) {
             $statusCode = $exception->getStatusCode();
             $errorCode = $exception->getErrorCode();
             $errorDetails = array_merge($details, $exception->getDetails());
@@ -792,16 +688,6 @@ final class CustomerInstanceFileApiController
         };
 
         return $this->errorResponse($request, $errorCode, $exception->getMessage(), $status);
-    }
-
-    private function uploadViaSftp(Instance $instance, string $path, \Symfony\Component\HttpFoundation\File\UploadedFile $upload): void
-    {
-        $contents = file_get_contents($upload->getPathname());
-        if ($contents === false) {
-            throw new \RuntimeException('Failed to read upload.');
-        }
-
-        $this->sftpFileService->writeFile($instance, $path, $upload->getClientOriginalName(), $contents);
     }
 
     private function consumeLimiter(RateLimiterFactory $limiterFactory, Request $request, Instance $instance, User $customer): bool

@@ -276,14 +276,22 @@
                 diagnosticsLoading: "{{ t('customer_instance_files_diagnostics_loading', page_locale())|e('js') }}",
                 diagnosticsFailed: "{{ t('customer_instance_files_diagnostics_failed', page_locale())|e('js') }}",
                 diagnosticsReady: "{{ t('customer_instance_files_diagnostics_ready', page_locale())|e('js') }}",
-                diagnosticsFilesvc: "{{ t('customer_instance_files_diagnostics_filesvc', page_locale())|e('js') }}",
+                diagnosticsAgent: "{{ t('customer_instance_files_diagnostics_agent', page_locale())|e('js') }}",
                 diagnosticsSftp: "{{ t('customer_instance_files_diagnostics_sftp', page_locale())|e('js') }}",
                 diagnosticsEntries: "{{ t('customer_instance_files_diagnostics_entries', page_locale())|e('js') }}",
                 diagnosticsDuration: "{{ t('customer_instance_files_diagnostics_duration', page_locale())|e('js') }}",
-                listingFilesvcMisconfigured: "{{ t('customer_instance_files_listing_filesvc_misconfigured', page_locale())|e('js') }}",
-                listingFilesvcTimeout: "{{ t('customer_instance_files_listing_filesvc_timeout', page_locale())|e('js') }}",
-                listingFilesvcUnreachable: "{{ t('customer_instance_files_listing_filesvc_unreachable', page_locale())|e('js') }}",
-                listingFilesvcUnauthorized: "{{ t('customer_instance_files_listing_filesvc_unauthorized', page_locale())|e('js') }}",
+                listingAgentMisconfigured: "{{ t('customer_instance_files_listing_agent_misconfigured', page_locale())|e('js') }}",
+                listingAgentTimeout: "{{ t('customer_instance_files_listing_agent_timeout', page_locale())|e('js') }}",
+                listingAgentUnreachable: "{{ t('customer_instance_files_listing_agent_unreachable', page_locale())|e('js') }}",
+                listingAgentUnauthorized: "{{ t('customer_instance_files_listing_agent_unauthorized', page_locale())|e('js') }}",
+                listingInvalidServerRoot: "{{ t('customer_instance_files_listing_invalid_server_root', page_locale())|e('js') }}",
+                listingRootNotFound: "{{ t('customer_instance_files_listing_root_not_found', page_locale())|e('js') }}",
+                listingRootNotAccessible: "{{ t('customer_instance_files_listing_root_not_accessible', page_locale())|e('js') }}",
+                listingPermissionDenied: "{{ t('customer_instance_files_listing_permission_denied', page_locale())|e('js') }}",
+                listingInvalidPath: "{{ t('customer_instance_files_listing_invalid_path', page_locale())|e('js') }}",
+                listingTooLarge: "{{ t('customer_instance_files_listing_too_large', page_locale())|e('js') }}",
+                listingTimeout: "{{ t('customer_instance_files_listing_timeout', page_locale())|e('js') }}",
+                listingInternal: "{{ t('customer_instance_files_listing_internal', page_locale())|e('js') }}",
                 listingSftpMisconfigured: "{{ t('customer_instance_files_listing_sftp_misconfigured', page_locale())|e('js') }}",
                 listingSftpAuthFailed: "{{ t('customer_instance_files_listing_sftp_auth_failed', page_locale())|e('js') }}",
                 listingPathNotFound: "{{ t('customer_instance_files_listing_path_not_found', page_locale())|e('js') }}",
@@ -402,8 +410,7 @@
                     `;
                 };
                 diagnosticsResults.innerHTML = `
-                    ${renderProbe(data.filesvc, labels.diagnosticsFilesvc)}
-                    ${renderProbe(data.sftp, labels.diagnosticsSftp)}
+                    ${renderProbe(data.agent, labels.diagnosticsAgent)}
                 `;
             };
 
@@ -723,12 +730,21 @@
                     return labels.listingFailedDefault;
                 }
                 const mapping = {
-                    filesvc_misconfigured: labels.listingFilesvcMisconfigured,
-                    filesvc_timeout: labels.listingFilesvcTimeout,
-                    filesvc_unreachable: labels.listingFilesvcUnreachable,
-                    filesvc_unauthorized: labels.listingFilesvcUnauthorized,
-                    filesvc_not_found: labels.listingFailedDefault,
-                    filesvc_error: labels.listingFailedDefault,
+                    agent_misconfigured: labels.listingAgentMisconfigured,
+                    agent_timeout: labels.listingAgentTimeout,
+                    agent_unreachable: labels.listingAgentUnreachable,
+                    agent_unauthorized: labels.listingAgentUnauthorized,
+                    agent_not_found: labels.listingFailedDefault,
+                    agent_error: labels.listingFailedDefault,
+                    INVALID_SERVER_ROOT: labels.listingInvalidServerRoot,
+                    SERVER_ROOT_NOT_FOUND: labels.listingRootNotFound,
+                    SERVER_ROOT_NOT_ACCESSIBLE: labels.listingRootNotAccessible,
+                    PERMISSION_DENIED: labels.listingPermissionDenied,
+                    NOT_FOUND: labels.listingPathNotFound,
+                    INVALID_PATH: labels.listingInvalidPath,
+                    TOO_LARGE: labels.listingTooLarge,
+                    TIMEOUT: labels.listingTimeout,
+                    INTERNAL: labels.listingInternal,
                     sftp_misconfigured: labels.listingSftpMisconfigured,
                     sftp_auth_failed: labels.listingSftpAuthFailed,
                     sftp_path_not_found: labels.listingPathNotFound,

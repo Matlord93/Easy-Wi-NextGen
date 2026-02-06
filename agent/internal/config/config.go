@@ -24,7 +24,15 @@ type Config struct {
 	Version           string
 	UpdateURL         string
 	UpdateSHA256      string
+	ServiceListen     string
 	HealthListen      string
+	FileBaseDir       string
+	FileCacheSize     int
+	FileMaxSkew       time.Duration
+	FileReadTimeout   time.Duration
+	FileWriteTimeout  time.Duration
+	FileIdleTimeout   time.Duration
+	FileMaxUploadMB   int64
 }
 
 // DefaultPath returns the default configuration path for the host OS.
@@ -103,6 +111,46 @@ func Load(path string) (Config, error) {
 			cfg.UpdateSHA256 = value
 		case "health_listen":
 			cfg.HealthListen = value
+		case "service_listen":
+			cfg.ServiceListen = value
+		case "file_base_dir":
+			cfg.FileBaseDir = value
+		case "file_cache_size":
+			parsed, parseErr := strconv.Atoi(value)
+			if parseErr != nil {
+				return Config{}, fmt.Errorf("parse file_cache_size: %w", parseErr)
+			}
+			cfg.FileCacheSize = parsed
+		case "file_max_skew_seconds":
+			parsed, parseErr := strconv.Atoi(value)
+			if parseErr != nil {
+				return Config{}, fmt.Errorf("parse file_max_skew_seconds: %w", parseErr)
+			}
+			cfg.FileMaxSkew = time.Duration(parsed) * time.Second
+		case "file_read_timeout_seconds":
+			parsed, parseErr := strconv.Atoi(value)
+			if parseErr != nil {
+				return Config{}, fmt.Errorf("parse file_read_timeout_seconds: %w", parseErr)
+			}
+			cfg.FileReadTimeout = time.Duration(parsed) * time.Second
+		case "file_write_timeout_seconds":
+			parsed, parseErr := strconv.Atoi(value)
+			if parseErr != nil {
+				return Config{}, fmt.Errorf("parse file_write_timeout_seconds: %w", parseErr)
+			}
+			cfg.FileWriteTimeout = time.Duration(parsed) * time.Second
+		case "file_idle_timeout_seconds":
+			parsed, parseErr := strconv.Atoi(value)
+			if parseErr != nil {
+				return Config{}, fmt.Errorf("parse file_idle_timeout_seconds: %w", parseErr)
+			}
+			cfg.FileIdleTimeout = time.Duration(parsed) * time.Second
+		case "file_max_upload_mb":
+			parsed, parseErr := strconv.ParseInt(value, 10, 64)
+			if parseErr != nil {
+				return Config{}, fmt.Errorf("parse file_max_upload_mb: %w", parseErr)
+			}
+			cfg.FileMaxUploadMB = parsed
 		}
 	}
 
@@ -141,6 +189,15 @@ func validate(cfg Config) error {
 	if cfg.MaxConcurrency < 0 {
 		return errors.New("max_concurrency must be positive")
 	}
+	if cfg.FileBaseDir != "" && !filepath.IsAbs(cfg.FileBaseDir) {
+		return errors.New("file_base_dir must be absolute")
+	}
+	if cfg.FileCacheSize < 0 {
+		return errors.New("file_cache_size must be positive")
+	}
+	if cfg.FileMaxUploadMB < 0 {
+		return errors.New("file_max_upload_mb must be positive")
+	}
 	return nil
 }
 
@@ -158,7 +215,32 @@ func applyDefaults(cfg *Config) {
 		cfg.Version = defaultVersion()
 	}
 	if cfg.HealthListen == "" {
-		cfg.HealthListen = "127.0.0.1:8088"
+		cfg.HealthListen = ""
+	}
+	if cfg.ServiceListen == "" {
+		if cfg.HealthListen != "" {
+			cfg.ServiceListen = cfg.HealthListen
+		} else {
+			cfg.ServiceListen = "0.0.0.0:8087"
+		}
+	}
+	if cfg.FileBaseDir == "" {
+		cfg.FileBaseDir = "/home"
+	}
+	if cfg.FileCacheSize == 0 {
+		cfg.FileCacheSize = 256
+	}
+	if cfg.FileMaxSkew == 0 {
+		cfg.FileMaxSkew = 45 * time.Second
+	}
+	if cfg.FileReadTimeout == 0 {
+		cfg.FileReadTimeout = 15 * time.Second
+	}
+	if cfg.FileWriteTimeout == 0 {
+		cfg.FileWriteTimeout = 30 * time.Second
+	}
+	if cfg.FileIdleTimeout == 0 {
+		cfg.FileIdleTimeout = 60 * time.Second
 	}
 }
 

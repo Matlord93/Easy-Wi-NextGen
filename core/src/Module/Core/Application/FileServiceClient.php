@@ -29,11 +29,8 @@ final class FileServiceClient
         private readonly HttpClientInterface $httpClient,
         private readonly EncryptionService $encryptionService,
         private readonly int $timeoutSeconds,
-        private readonly int $defaultPort,
-        private readonly string $defaultScheme,
-        private readonly string $clientCertPath,
-        private readonly string $clientKeyPath,
-        private readonly string $clientCaPath,
+        private readonly int $defaultServicePort,
+        private readonly string $defaultServiceScheme,
         private readonly LoggerInterface $logger,
         private readonly RequestStack $requestStack,
         private readonly GameServerPathResolver $gameServerPathResolver,
@@ -195,25 +192,10 @@ final class FileServiceClient
         $baseUrl = $this->getBaseUrlForInstance($instance);
         $healthUrl = $baseUrl . '/health';
 
-        try {
-            $this->assertTlsConfigured($baseUrl);
-        } catch (FileServiceException $exception) {
-            return [
-                'ok' => false,
-                'status_code' => $exception->getStatusCode(),
-                'error' => $exception->getMessage(),
-                'url' => $healthUrl,
-            ];
-        }
-
         $options = [
             'timeout' => min(5, $this->timeoutSeconds),
             'max_duration' => min(5, $this->timeoutSeconds),
         ];
-        $tlsOptions = $this->buildTlsOptions();
-        if ($tlsOptions !== []) {
-            $options = array_merge($options, $tlsOptions);
-        }
 
         try {
             $response = $this->httpClient->request('GET', $healthUrl, $options);
@@ -284,10 +266,10 @@ final class FileServiceClient
         try {
             $status = $response->getStatusCode();
         } catch (TransportExceptionInterface $exception) {
-            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [], $exception);
+            throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [], $exception);
         }
         if ($status >= 500) {
-            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [
+            throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [
                 'status_code' => $status,
             ]);
         }
@@ -296,12 +278,12 @@ final class FileServiceClient
                 $payload = $response->toArray(false);
             } catch (\Throwable $exception) {
                 $body = $response->getContent(false);
-                throw new FileServiceException('filesvc_error', 'File service error.', 502, [
+                throw new FileServiceException('agent_error', 'Agent file API error.', 502, [
                     'status_code' => $status,
                     'response_body' => $body,
                 ], $exception);
             }
-            $message = 'File service error.';
+            $message = 'Agent file API error.';
             if (is_array($payload)) {
                 $errorField = $payload['error'] ?? null;
                 if (is_string($errorField) && $errorField !== '') {
@@ -310,10 +292,10 @@ final class FileServiceClient
                     $message = $errorField['message'];
                 }
             }
-            $errorCode = match ($status) {
-                401, 403 => 'filesvc_unauthorized',
-                404 => 'filesvc_not_found',
-                default => 'filesvc_error',
+            $errorCode = $this->extractErrorCode($payload) ?? match ($status) {
+                401, 403 => 'agent_unauthorized',
+                404 => 'agent_not_found',
+                default => 'agent_error',
             };
             throw new FileServiceException($errorCode, $message, 502, [
                 'status_code' => $status,
@@ -324,7 +306,7 @@ final class FileServiceClient
         try {
             $payload = $response->toArray(false);
         } catch (\Throwable $exception) {
-            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [], $exception);
+            throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [], $exception);
         }
         return is_array($payload) ? $payload : [];
     }
@@ -340,10 +322,10 @@ final class FileServiceClient
         try {
             $status = $response->getStatusCode();
         } catch (TransportExceptionInterface $exception) {
-            throw new \RuntimeException('File service unavailable.', 0, $exception);
+            throw new \RuntimeException('Agent file API unavailable.', 0, $exception);
         }
         if ($status >= 500) {
-            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [
+            throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [
                 'status_code' => $status,
             ]);
         }
@@ -352,12 +334,12 @@ final class FileServiceClient
                 $payload = $response->toArray(false);
             } catch (\Throwable $exception) {
                 $body = $response->getContent(false);
-                throw new FileServiceException('filesvc_error', 'File service error.', 502, [
+                throw new FileServiceException('agent_error', 'Agent file API error.', 502, [
                     'status_code' => $status,
                     'response_body' => $body,
                 ], $exception);
             }
-            $message = 'File service error.';
+            $message = 'Agent file API error.';
             if (is_array($payload)) {
                 $errorField = $payload['error'] ?? null;
                 if (is_string($errorField) && $errorField !== '') {
@@ -366,10 +348,10 @@ final class FileServiceClient
                     $message = $errorField['message'];
                 }
             }
-            $errorCode = match ($status) {
-                401, 403 => 'filesvc_unauthorized',
-                404 => 'filesvc_not_found',
-                default => 'filesvc_error',
+            $errorCode = $this->extractErrorCode($payload) ?? match ($status) {
+                401, 403 => 'agent_unauthorized',
+                404 => 'agent_not_found',
+                default => 'agent_error',
             };
             throw new FileServiceException($errorCode, $message, 502, [
                 'status_code' => $status,
@@ -387,12 +369,11 @@ final class FileServiceClient
         $options = $this->buildRequestOptions($instance, $method, $endpoint, $query, $json);
         $baseUrl = $this->resolveBaseUrl($instance->getNode());
         $fullUrl = $baseUrl . $options['endpoint'];
-        $this->assertTlsConfigured($baseUrl);
         $startedAt = microtime(true);
 
         $resolvedPath = $this->gameServerPathResolver->resolveRoot($instance);
 
-        $this->logger->debug('filesvc.request', [
+        $this->logger->debug('agent.file_api.request', [
             'agent_id' => $instance->getNode()->getId(),
             'instance_id' => $instance->getId(),
             'customer_id' => $instance->getCustomer()->getId(),
@@ -406,7 +387,7 @@ final class FileServiceClient
             $response = $this->httpClient->request($method, $fullUrl, $options['options']);
         } catch (TimeoutExceptionInterface $exception) {
             $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
-            $this->logger->error('filesvc.transport_error', [
+            $this->logger->error('agent.file_api.transport_error', [
                 'agent_id' => $instance->getNode()->getId(),
                 'instance_id' => $instance->getId(),
                 'customer_id' => $instance->getCustomer()->getId(),
@@ -416,10 +397,10 @@ final class FileServiceClient
                 'duration_ms' => $durationMs,
                 'error' => $exception->getMessage(),
             ]);
-            throw new FileServiceException('filesvc_timeout', 'File service timed out.', 504, [], $exception);
+            throw new FileServiceException('agent_timeout', 'Agent file API timed out.', 504, [], $exception);
         } catch (TransportExceptionInterface $exception) {
             $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
-            $this->logger->error('filesvc.transport_error', [
+            $this->logger->error('agent.file_api.transport_error', [
                 'agent_id' => $instance->getNode()->getId(),
                 'instance_id' => $instance->getId(),
                 'customer_id' => $instance->getCustomer()->getId(),
@@ -429,14 +410,14 @@ final class FileServiceClient
                 'duration_ms' => $durationMs,
                 'error' => $exception->getMessage(),
             ]);
-            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [], $exception);
+            throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [], $exception);
         }
 
         try {
             $status = $response->getStatusCode();
         } catch (TransportExceptionInterface $exception) {
             $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
-            $this->logger->error('filesvc.status_error', [
+            $this->logger->error('agent.file_api.status_error', [
                 'agent_id' => $instance->getNode()->getId(),
                 'instance_id' => $instance->getId(),
                 'customer_id' => $instance->getCustomer()->getId(),
@@ -446,11 +427,11 @@ final class FileServiceClient
                 'duration_ms' => $durationMs,
                 'error' => $exception->getMessage(),
             ]);
-            throw new FileServiceException('filesvc_unreachable', 'File service unavailable.', 502, [], $exception);
+            throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [], $exception);
         }
 
         $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
-        $this->logger->debug('filesvc.response', [
+        $this->logger->debug('agent.file_api.response', [
             'agent_id' => $instance->getNode()->getId(),
             'instance_id' => $instance->getId(),
             'customer_id' => $instance->getCustomer()->getId(),
@@ -496,11 +477,6 @@ final class FileServiceClient
             $options['json'] = $json;
         }
 
-        $tlsOptions = $this->buildTlsOptions();
-        if ($tlsOptions !== []) {
-            $options = array_merge($options, $tlsOptions);
-        }
-
         $requestId = $this->requestStack->getCurrentRequest()?->headers->get('X-Request-ID');
         if (is_string($requestId) && $requestId !== '') {
             $headers['X-Request-ID'] = $requestId;
@@ -543,49 +519,41 @@ final class FileServiceClient
         ];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function buildTlsOptions(): array
-    {
-        $options = [];
-        if ($this->clientCertPath !== '') {
-            $options['local_cert'] = $this->clientCertPath;
-        }
-        if ($this->clientKeyPath !== '') {
-            $options['local_pk'] = $this->clientKeyPath;
-        }
-        if ($this->clientCaPath !== '') {
-            $options['cafile'] = $this->clientCaPath;
-        }
-
-        return $options;
-    }
-
     private function resolveBaseUrl(Agent $node): string
     {
-        $metadata = $node->getMetadata();
-        $metadata = is_array($metadata) ? $metadata : [];
-
-        $url = $metadata['filesvc_url'] ?? null;
-        if (is_string($url) && $url !== '') {
-            return rtrim($url, '/');
+        $baseUrl = $node->getServiceBaseUrl();
+        if ($baseUrl !== '') {
+            return rtrim($baseUrl, '/');
         }
 
-        $host = $metadata['filesvc_host'] ?? null;
+        $host = $node->getLastHeartbeatIp();
         if (!is_string($host) || $host === '') {
-            $host = $node->getLastHeartbeatIp();
-        }
-        if (!is_string($host) || $host === '') {
-            throw new FileServiceException('filesvc_misconfigured', 'File service host not configured.', 422);
+            throw new FileServiceException('agent_misconfigured', 'Agent service host not configured.', 422);
         }
 
-        $port = $metadata['filesvc_port'] ?? null;
-        $port = is_numeric($port) ? (int) $port : $this->defaultPort;
-        $scheme = $metadata['filesvc_scheme'] ?? null;
-        $scheme = is_string($scheme) && $scheme !== '' ? $scheme : $this->defaultScheme;
+        $port = $this->defaultServicePort > 0 ? $this->defaultServicePort : 8087;
+        $scheme = $this->defaultServiceScheme !== '' ? $this->defaultServiceScheme : 'http';
 
         return sprintf('%s://%s:%d', $scheme, $host, $port);
+    }
+
+    /**
+     * @param array<string, mixed>|null $payload
+     */
+    private function extractErrorCode(?array $payload): ?string
+    {
+        if ($payload === null) {
+            return null;
+        }
+        $error = $payload['error'] ?? null;
+        if (is_array($error)) {
+            $code = $error['code'] ?? null;
+            return is_string($code) && $code !== '' ? $code : null;
+        }
+        if (is_string($error) && $error !== '') {
+            return $error;
+        }
+        return null;
     }
 
     private function buildEndpoint(Instance $instance, string $suffix): string
@@ -648,18 +616,6 @@ final class FileServiceClient
         if (str_contains($name, '/') || str_contains($name, '\\') || str_contains($name, "\0")) {
             throw new \RuntimeException('Invalid name.');
         }
-    }
-
-    private function assertTlsConfigured(string $baseUrl): void
-    {
-        if (!str_starts_with($baseUrl, 'https://')) {
-            return;
-        }
-        if ($this->clientCertPath !== '' && $this->clientKeyPath !== '' && $this->clientCaPath !== '') {
-            return;
-        }
-
-        throw new FileServiceException('filesvc_misconfigured', 'File service TLS client certificates are not configured.', 422);
     }
 
     private function maskHeaderValue(string $value): string

@@ -22,7 +22,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(
     name: 'app:diagnose:files',
-    description: 'End-to-end diagnostics for the file manager (filesvc chain).',
+    description: 'End-to-end diagnostics for the file manager (agent file API).',
 )]
 final class FilesAgentDiagnoseCommand extends Command
 {
@@ -82,7 +82,7 @@ final class FilesAgentDiagnoseCommand extends Command
             ));
             if (is_array($agentHealth['body'] ?? null)) {
                 $io->text(sprintf('Agent version: %s', (string) ($agentHealth['body']['version'] ?? 'unknown')));
-                $io->text(sprintf('Filesvc status (agent view): %s', (string) ($agentHealth['body']['filesvc_status'] ?? 'unknown')));
+                $io->text(sprintf('File API enabled: %s', ($agentHealth['body']['file_api'] ?? false) ? 'yes' : 'no'));
             }
         } else {
             $io->warning(sprintf(
@@ -94,27 +94,27 @@ final class FilesAgentDiagnoseCommand extends Command
             ));
         }
 
-        $io->section('File service health');
-        $filesvcStart = microtime(true);
-        $filesvcHealth = $this->fileServiceClient->ping($instance);
-        $filesvcLatency = (int) round((microtime(true) - $filesvcStart) * 1000);
-        if ($filesvcHealth['ok']) {
+        $io->section('File API health');
+        $fileApiStart = microtime(true);
+        $fileApiHealth = $this->fileServiceClient->ping($instance);
+        $fileApiLatency = (int) round((microtime(true) - $fileApiStart) * 1000);
+        if ($fileApiHealth['ok']) {
             $io->success(sprintf(
-                'Filesvc health OK (%s, %d ms, HTTP %s).',
-                $filesvcHealth['url'],
-                $filesvcLatency,
-                $filesvcHealth['status_code'] ?? 'n/a',
+                'File API health OK (%s, %d ms, HTTP %s).',
+                $fileApiHealth['url'],
+                $fileApiLatency,
+                $fileApiHealth['status_code'] ?? 'n/a',
             ));
-            if (is_array($filesvcHealth['body'] ?? null)) {
-                $io->text(sprintf('Filesvc version: %s', (string) ($filesvcHealth['body']['version'] ?? 'unknown')));
-                $io->text(sprintf('Filesvc root: %s', (string) ($filesvcHealth['body']['root'] ?? 'unknown')));
+            if (is_array($fileApiHealth['body'] ?? null)) {
+                $io->text(sprintf('File API version: %s', (string) ($fileApiHealth['body']['version'] ?? 'unknown')));
+                $io->text(sprintf('File API root: %s', (string) ($fileApiHealth['body']['root'] ?? 'unknown')));
             }
         } else {
             $io->warning(sprintf(
-                'Filesvc health failed (%s, %d ms, HTTP %s).',
-                $filesvcHealth['url'],
-                $filesvcLatency,
-                $filesvcHealth['status_code'] ?? 'n/a',
+                'File API health failed (%s, %d ms, HTTP %s).',
+                $fileApiHealth['url'],
+                $fileApiLatency,
+                $fileApiHealth['status_code'] ?? 'n/a',
             ));
         }
 
@@ -342,7 +342,7 @@ final class FilesAgentDiagnoseCommand extends Command
                 $io->text('Hint: HTTP 413 - check nginx client_max_body_size and PHP post_max_size/upload_max_filesize.');
                 return;
             }
-            if ($exception->getErrorCode() === 'filesvc_timeout' || $statusCode === 504) {
+            if ($exception->getErrorCode() === 'agent_timeout' || $statusCode === 504) {
                 $io->text('Hint: timeout - check fastcgi_read_timeout and PHP max_execution_time.');
                 return;
             }

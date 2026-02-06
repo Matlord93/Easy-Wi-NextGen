@@ -1,4 +1,4 @@
-package main
+package fileapi
 
 import (
 	"container/list"

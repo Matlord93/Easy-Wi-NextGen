@@ -412,10 +412,6 @@ final class AdminNodeController
         $agentApiToken = trim((string) $request->request->get('agent_api_token', ''));
         $jobConcurrency = (int) $request->request->get('job_concurrency', $node->getJobConcurrency());
         $clearToken = $request->request->getBoolean('clear_agent_token');
-        $filesvcUrl = trim((string) $request->request->get('filesvc_url', ''));
-        $filesvcHost = trim((string) $request->request->get('filesvc_host', ''));
-        $filesvcPort = trim((string) $request->request->get('filesvc_port', ''));
-        $filesvcScheme = trim((string) $request->request->get('filesvc_scheme', ''));
         $instanceBaseDirsRaw = (string) $request->request->get('instance_base_dirs', '');
 
         $node->setAgentBaseUrl($agentBaseUrl !== '' ? $agentBaseUrl : null);
@@ -429,7 +425,6 @@ final class AdminNodeController
 
         $metadata = $node->getMetadata();
         $metadata = is_array($metadata) ? $metadata : [];
-        $metadata = $this->applyFilesvcMetadata($metadata, $filesvcUrl, $filesvcHost, $filesvcPort, $filesvcScheme);
         $baseDirResult = $this->parseInstanceBaseDirs($instanceBaseDirsRaw);
         if ($baseDirResult['errors'] !== []) {
             return $this->renderNodesTable(null, implode(' ', $baseDirResult['errors']));
@@ -448,10 +443,6 @@ final class AdminNodeController
             'agent_api_token_updated' => $agentApiToken !== '' ? true : null,
             'agent_api_token_cleared' => $clearToken ?: null,
             'job_concurrency' => $node->getJobConcurrency(),
-            'filesvc_url' => $filesvcUrl !== '' ? $filesvcUrl : null,
-            'filesvc_host' => $filesvcHost !== '' ? $filesvcHost : null,
-            'filesvc_port' => $filesvcPort !== '' ? $filesvcPort : null,
-            'filesvc_scheme' => $filesvcScheme !== '' ? $filesvcScheme : null,
             'instance_base_dirs' => $baseDirResult['dirs'] !== [] ? $baseDirResult['dirs'] : null,
         ]);
 
@@ -875,41 +866,6 @@ final class AdminNodeController
     }
 
     /**
-     * @param array<string, mixed> $metadata
-     * @return array<string, mixed>
-     */
-    private function applyFilesvcMetadata(array $metadata, string $url, string $host, string $port, string $scheme): array
-    {
-        if ($url !== '') {
-            $metadata['filesvc_url'] = $url;
-            unset($metadata['filesvc_host'], $metadata['filesvc_port'], $metadata['filesvc_scheme']);
-            return $metadata;
-        }
-
-        unset($metadata['filesvc_url']);
-
-        if ($host !== '') {
-            $metadata['filesvc_host'] = $host;
-        } else {
-            unset($metadata['filesvc_host']);
-        }
-
-        if ($port !== '') {
-            $metadata['filesvc_port'] = is_numeric($port) ? (int) $port : $port;
-        } else {
-            unset($metadata['filesvc_port']);
-        }
-
-        if ($scheme !== '') {
-            $metadata['filesvc_scheme'] = strtolower($scheme);
-        } else {
-            unset($metadata['filesvc_scheme']);
-        }
-
-        return $metadata;
-    }
-
-    /**
      * @return array{dirs: array<int, string>, errors: array<int, string>}
      */
     private function parseInstanceBaseDirs(string $raw): array
@@ -1112,10 +1068,6 @@ final class AdminNodeController
             $agentTokenConfigured = $node->getAgentApiTokenEncrypted() !== '';
             $metadata = $node->getMetadata() ?? [];
             $coreAccessMode = $metadata['core_access_mode'] ?? null;
-            $filesvcUrl = $metadata['filesvc_url'] ?? null;
-            $filesvcHost = $metadata['filesvc_host'] ?? null;
-            $filesvcPort = $metadata['filesvc_port'] ?? null;
-            $filesvcScheme = $metadata['filesvc_scheme'] ?? null;
             $instanceBaseDirs = $this->normalizeInstanceBaseDirs($metadata['instance_base_dirs'] ?? null);
 
             return [
@@ -1148,12 +1100,6 @@ final class AdminNodeController
                     'base_url' => $agentBaseUrl !== '' ? $agentBaseUrl : null,
                     'token_configured' => $agentTokenConfigured,
                     'job_concurrency' => $node->getJobConcurrency(),
-                    'filesvc' => [
-                        'url' => is_string($filesvcUrl) ? $filesvcUrl : null,
-                        'host' => is_string($filesvcHost) ? $filesvcHost : null,
-                        'port' => is_numeric($filesvcPort) ? (int) $filesvcPort : null,
-                        'scheme' => is_string($filesvcScheme) ? $filesvcScheme : null,
-                    ],
                     'instance_base_dirs' => $instanceBaseDirs,
                 ],
                 'coreAccessMode' => is_string($coreAccessMode) ? $coreAccessMode : null,

@@ -4,14 +4,14 @@ const helpers = require('../../public/js/file-manager-errors.js');
 (() => {
     const fallback = 'Listing failed.';
     const payload = {
-        error_code: 'filesvc_timeout',
+        error_code: 'agent_timeout',
         message: 'timeout',
         request_id: 'req-123',
         details: { status_code: 504 },
     };
 
     const normalized = helpers.normalizeErrorPayload(payload, fallback, '');
-    assert.strictEqual(normalized.errorCode, 'filesvc_timeout');
+    assert.strictEqual(normalized.errorCode, 'agent_timeout');
     assert.strictEqual(normalized.message, 'timeout');
     assert.strictEqual(normalized.requestId, 'req-123');
 })();

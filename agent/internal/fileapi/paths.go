@@ -1,4 +1,4 @@
-package main
+package fileapi
 
 import (
 	"fmt"
@@ -51,7 +51,7 @@ func validateRelativePathInput(path string) error {
 }
 
 // DO NOT BUILD SERVER PATHS HERE.
-// Filesvc must use the canonical install root supplied via X-Server-Root.
+// File API must use the canonical install root supplied via X-Server-Root.
 func validateServerRootAgainstBase(serverRoot, baseDir string) (string, error) {
 	cleanRoot := filepath.Clean(strings.TrimSpace(serverRoot))
 	cleanBase := filepath.Clean(strings.TrimSpace(baseDir))

@@ -51,7 +51,7 @@ final class RoutesDiagnoseCommand extends Command
         usort($rows, static fn (array $a, array $b): int => strcmp((string) $a[0], (string) $b[0]));
 
         $io->title('Route diagnostics');
-        $io->text('Active file flow: Core -> FileServiceClient (filesvc). SFTP fallback is controlled via APP_FILES_ALLOW_SFTP_FALLBACK.');
+        $io->text('Active file flow: Core -> FileServiceClient -> Agent file API.');
         $io->table(['Route', 'Methods', 'Path', 'Controller'], $rows);
 
         return Command::SUCCESS;

@@ -60,7 +60,7 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 	metadata := collectMetadata()
 	runner := newJobRunner(maxConcurrency)
 
-	startHealthServer(ctx, cfg)
+	startServiceServer(ctx, cfg)
 
 	if err := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); err != nil {
 		log.Printf("heartbeat failed: %v", err)

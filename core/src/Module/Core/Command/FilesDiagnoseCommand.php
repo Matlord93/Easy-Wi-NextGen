@@ -6,11 +6,9 @@ namespace App\Module\Core\Command;
 
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\FileServiceClient;
-use App\Module\Core\Application\SftpFileService;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\PanelCustomer\Application\SftpFilesystemService;
 use App\Repository\InstanceRepository;
-use App\Repository\InstanceSftpCredentialRepository;
 use App\Repository\WebspaceRepository;
 use App\Repository\WebspaceSftpCredentialRepository;
 use Psr\Log\LoggerInterface;
@@ -23,17 +21,15 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:diagnose:files',
-    description: 'Diagnose file manager storage configuration and SFTP connectivity.',
+    description: 'Diagnose file manager storage configuration and agent file API connectivity.',
 )]
 final class FilesDiagnoseCommand extends Command
 {
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly WebspaceRepository $webspaceRepository,
-        private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly WebspaceSftpCredentialRepository $webspaceSftpCredentialRepository,
         private readonly FileServiceClient $fileServiceClient,
-        private readonly SftpFileService $sftpFileService,
         private readonly SftpFilesystemService $sftpFilesystemService,
         private readonly AppSettingsService $settingsService,
         private readonly LoggerInterface $logger,
@@ -93,26 +89,19 @@ final class FilesDiagnoseCommand extends Command
                 $overallOk = false;
             } else {
                 $io->section('Instance file manager');
-                $io->text('Primary: FileServiceClient (filesvc). Fallback: SftpFileService (phpseclib).');
+                $io->text('File API: Core -> Agent (HTTP) -> File operations.');
                 $io->text(sprintf('Instance ID: %d | Node ID: %d', $instance->getId(), $instance->getNode()->getId()));
 
                 $metadata = $instance->getNode()->getMetadata();
                 $metadata = is_array($metadata) ? $metadata : [];
+                $agentBaseUrl = $instance->getNode()->getServiceBaseUrl();
                 $io->definitionList(
-                    ['filesvc_url' => $metadata['filesvc_url'] ?? '<unset>'],
-                    ['filesvc_host' => $metadata['filesvc_host'] ?? '<unset>'],
-                    ['filesvc_port' => $metadata['filesvc_port'] ?? '<unset>'],
-                    ['filesvc_scheme' => $metadata['filesvc_scheme'] ?? '<unset>'],
+                    ['agent_base_url' => $agentBaseUrl !== '' ? $agentBaseUrl : '<unset>'],
+                    ['agent_last_ip' => $instance->getNode()->getLastHeartbeatIp() ?? '<unset>'],
                     ['sftp_host_override' => $metadata['sftp_host'] ?? '<unset>'],
                     ['sftp_port_override' => $metadata['sftp_port'] ?? '<unset>'],
                     ['sftp_username_override' => $metadata['sftp_username'] ?? '<unset>'],
                 );
-
-                $instanceCredential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
-                $io->text(sprintf(
-                    'Instance SFTP credential: %s',
-                    $instanceCredential === null ? 'missing' : sprintf('present (%s)', $instanceCredential->getUsername()),
-                ));
 
                 $resolvedRoot = '';
                 $owner = '<unknown>';
@@ -142,18 +131,16 @@ final class FilesDiagnoseCommand extends Command
                     ['root_permissions' => $perms],
                 );
 
-                $filesvcProbe = $this->runInstanceProbe('filesvc', $instance, $path);
-                $sftpProbe = $this->runInstanceProbe('sftp', $instance, $path);
+                $agentProbe = $this->runInstanceProbe('agent', $instance, $path);
 
                 $io->table(
                     ['Source', 'Status', 'Message', 'Entry count'],
                     [
-                        [$filesvcProbe['source'], $filesvcProbe['status'], $filesvcProbe['message'], $filesvcProbe['entry_count']],
-                        [$sftpProbe['source'], $sftpProbe['status'], $sftpProbe['message'], $sftpProbe['entry_count']],
+                        [$agentProbe['source'], $agentProbe['status'], $agentProbe['message'], $agentProbe['entry_count']],
                     ],
                 );
 
-                if ($filesvcProbe['status'] !== 'ok' || $sftpProbe['status'] !== 'ok') {
+                if ($agentProbe['status'] !== 'ok') {
                     $overallOk = false;
                 }
             }
@@ -217,9 +204,7 @@ final class FilesDiagnoseCommand extends Command
     private function runInstanceProbe(string $source, \App\Module\Core\Domain\Entity\Instance $instance, string $path): array
     {
         try {
-            $listing = $source === 'filesvc'
-                ? $this->fileServiceClient->list($instance, $path)
-                : $this->sftpFileService->list($instance, $path);
+            $listing = $this->fileServiceClient->list($instance, $path);
 
             return [
                 'source' => $source,

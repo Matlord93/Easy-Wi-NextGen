@@ -549,6 +549,20 @@ func ensureTemurinRepoDebian(output *strings.Builder) error {
 		return fmt.Errorf("adoptium repo setup failed: missing curl or wget")
 	}
 
+	if !commandExists("gpg") {
+		if commandExists("apt-get") {
+			if err := runCommandWithOutput("apt-get", []string{"update"}, output); err != nil {
+				return err
+			}
+			if err := runCommandWithOutput("apt-get", []string{"install", "-y", "gnupg"}, output); err != nil {
+				return err
+			}
+		}
+	}
+	if !commandExists("gpg") {
+		return fmt.Errorf("adoptium repo setup failed: gpg not available")
+	}
+
 	if err := runCommandWithOutput("gpg", []string{"--dearmor", "-o", keyringPath, keyPath}, output); err != nil {
 		return err
 	}
