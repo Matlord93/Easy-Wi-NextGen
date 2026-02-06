@@ -6,11 +6,8 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\WebspaceSftpProvisioner;
+use App\Module\Core\Application\WebspaceFileServiceClient;
 use App\Repository\WebspaceRepository;
-use App\Repository\WebspaceSftpCredentialRepository;
-use App\Module\PanelCustomer\Application\SftpFilesystemService;
 use App\Module\PanelCustomer\Form\EditFileType;
 use App\Module\PanelCustomer\Form\RenameFileType;
 use App\Module\PanelCustomer\Form\UploadFileType;
@@ -21,18 +18,27 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route(path: '/files')]
 final class CustomerFileManagerController extends AbstractController
 {
+    private const int MAX_EDIT_SIZE_BYTES = 1_048_576;
+    private const array ALLOWED_EDIT_EXTENSIONS = [
+        'txt',
+        'log',
+        'json',
+        'yml',
+        'yaml',
+        'md',
+        'php',
+        'go',
+        'env',
+    ];
+
     public function __construct(
-        private readonly SftpFilesystemService $filesystem,
+        private readonly WebspaceFileServiceClient $fileService,
         private readonly WebspaceRepository $webspaceRepository,
-        private readonly WebspaceSftpCredentialRepository $sftpCredentialRepository,
-        private readonly WebspaceSftpProvisioner $sftpProvisioner,
-        private readonly AppSettingsService $settingsService,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -71,13 +77,9 @@ final class CustomerFileManagerController extends AbstractController
         $listError = null;
 
         try {
-            $this->sftpProvisioner->ensureCredential($customer, $webspace);
-            $path = $this->filesystem->normalizePath($pathInput);
-            $entries = $this->filesystem->list($webspace, $path);
-            $entries = array_map(function (array $entry): array {
-                $entry['editable'] = $entry['type'] === 'file' && $this->filesystem->isEditable($entry['path']);
-                return $entry;
-            }, $entries);
+            $path = $this->normalizePath($pathInput);
+            $listing = $this->fileService->list($webspace, $path);
+            $entries = $this->normalizeEntries($listing['entries'], $path);
         } catch (\Throwable $exception) {
             $listError = $exception->getMessage();
             $this->logger->error('files.list_failed', [
@@ -117,20 +119,20 @@ final class CustomerFileManagerController extends AbstractController
         $webspace = $this->findCustomerWebspace($customer, $webspaceId);
 
         try {
-            $this->sftpProvisioner->ensureCredential($customer, $webspace);
-            $entries = $this->filesystem->testConnection($webspace);
-            $this->addFlash('sftp_test', [
+            $entries = $this->fileService->list($webspace, '');
+            $sample = array_slice(array_map(static fn (array $entry): string => $entry['name'], $entries['entries']), 0, 25);
+            $this->addFlash('agent_test', [
                 'status' => 'ok',
-                'message' => 'SFTP-Verbindung erfolgreich. Root kann gelesen werden.',
-                'entries' => array_slice($entries, 0, 25),
+                'message' => 'Agent-Verbindung erfolgreich. Root kann gelesen werden.',
+                'entries' => $sample,
             ]);
         } catch (\Throwable $exception) {
             $this->logger->error('files.test_connection_failed', [
                 'exception' => $exception,
             ]);
-            $this->addFlash('sftp_test', [
+            $this->addFlash('agent_test', [
                 'status' => 'error',
-                'message' => sprintf('SFTP-Verbindung fehlgeschlagen: %s', $exception->getMessage()),
+                'message' => sprintf('Agent-Verbindung fehlgeschlagen: %s', $exception->getMessage()),
                 'entries' => [],
             ]);
         }
@@ -172,17 +174,7 @@ final class CustomerFileManagerController extends AbstractController
         }
 
         try {
-            $this->sftpProvisioner->ensureCredential($customer, $webspace);
-            $targetPath = $this->filesystem->buildChildPath($path, $upload->getClientOriginalName());
-            $stream = fopen($upload->getPathname(), 'rb');
-            if ($stream === false) {
-                throw new \RuntimeException('Upload-Stream konnte nicht geöffnet werden.');
-            }
-            try {
-                $this->filesystem->writeStream($webspace, $targetPath, $stream);
-            } finally {
-                fclose($stream);
-            }
+            $this->fileService->uploadFile($webspace, $path, $upload);
             $this->addFlash('success', 'Upload erfolgreich.');
         } catch (\Throwable $exception) {
             $this->logger->error('files.upload_failed', [
@@ -208,16 +200,14 @@ final class CustomerFileManagerController extends AbstractController
         $webspace = $this->findCustomerWebspace($customer, $webspaceId);
 
         try {
-            $this->sftpProvisioner->ensureCredential($customer, $webspace);
-            $normalized = $this->filesystem->normalizePath($path);
+            $normalized = $this->normalizePath($path);
             if ($normalized === '') {
                 throw new \RuntimeException('Dateipfad fehlt.');
             }
-            $stream = $this->filesystem->readStream($webspace, $normalized);
-            $response = new StreamedResponse(static function () use ($stream): void {
-                fpassthru($stream);
-                fclose($stream);
-            });
+            $parent = $this->resolveParentPath($normalized);
+            $name = basename($normalized);
+            $content = $this->fileService->downloadFile($webspace, $parent, $name);
+            $response = new Response($content);
             $disposition = $response->headers->makeDisposition(
                 ResponseHeaderBag::DISPOSITION_ATTACHMENT,
                 basename($normalized),
@@ -255,8 +245,10 @@ final class CustomerFileManagerController extends AbstractController
             if (trim($path) === '') {
                 throw new \RuntimeException('Pfad fehlt.');
             }
-            $this->sftpProvisioner->ensureCredential($customer, $webspace);
-            $this->filesystem->delete($webspace, $path);
+            $normalized = $this->normalizePath($path);
+            $name = basename($normalized);
+            $parent = $this->resolveParentPath($normalized);
+            $this->fileService->delete($webspace, $parent, $name);
             $this->addFlash('success', 'Eintrag wurde gelöscht.');
         } catch (\Throwable $exception) {
             $this->logger->error('files.delete_failed', [
@@ -292,14 +284,13 @@ final class CustomerFileManagerController extends AbstractController
             $newName = (string) $form->get('newName')->getData();
 
             try {
-                $normalized = $this->filesystem->normalizePath($path);
+                $normalized = $this->normalizePath($path);
                 if ($normalized === '') {
                     throw new \RuntimeException('Pfad fehlt.');
                 }
                 $parent = $this->resolveParentPath($normalized);
-                $newPath = $this->filesystem->buildChildPath($parent, $newName);
-                $this->sftpProvisioner->ensureCredential($customer, $webspace);
-                $this->filesystem->move($webspace, $normalized, $newPath);
+                $name = basename($normalized);
+                $this->fileService->rename($webspace, $parent, $name, $newName);
                 $this->addFlash('success', 'Eintrag wurde umbenannt.');
                 return $this->redirectToRoute('customer_files_browse', [
                     'path' => $parent,
@@ -340,11 +331,11 @@ final class CustomerFileManagerController extends AbstractController
                 if (trim($path) === '') {
                     throw new \RuntimeException('Dateipfad fehlt.');
                 }
-                $normalized = $this->filesystem->normalizePath($path);
-                $this->sftpProvisioner->ensureCredential($customer, $webspace);
-                $size = $this->filesystem->fileSize($webspace, $normalized);
-                $this->filesystem->assertEditable($normalized, $size);
-                $content = $this->filesystem->read($webspace, $normalized);
+                $normalized = $this->normalizePath($path);
+                $this->assertEditable($normalized, null);
+                $parent = $this->resolveParentPath($normalized);
+                $name = basename($normalized);
+                $content = $this->fileService->readFileForEditor($webspace, $parent, $name);
             } catch (\Throwable $exception) {
                 $error = $exception->getMessage();
                 $this->logger->error('files.edit_load_failed', [
@@ -368,10 +359,11 @@ final class CustomerFileManagerController extends AbstractController
             $content = (string) $form->get('content')->getData();
 
             try {
-                $normalized = $this->filesystem->normalizePath($path);
-                $this->filesystem->assertEditable($normalized, strlen($content));
-                $this->sftpProvisioner->ensureCredential($customer, $webspace);
-                $this->filesystem->write($webspace, $normalized, $content);
+                $normalized = $this->normalizePath($path);
+                $this->assertEditable($normalized, strlen($content));
+                $parent = $this->resolveParentPath($normalized);
+                $name = basename($normalized);
+                $this->fileService->writeFile($webspace, $parent, $name, $content);
                 $this->addFlash('success', 'Datei gespeichert.');
                 return $this->redirectToRoute('customer_files_browse', [
                     'path' => $this->resolveParentPath($normalized),
@@ -399,33 +391,12 @@ final class CustomerFileManagerController extends AbstractController
     #[Route(path: '/health', name: 'customer_files_health', methods: ['GET'])]
     public function health(Request $request): JsonResponse
     {
-        $host = $this->settingsService->getSftpHost();
-        $port = $this->settingsService->getSftpPort();
-        $settings = $this->settingsService->getSettings();
-
-        if ($host === null || $host === '') {
-            return new JsonResponse([
-                'ok' => false,
-                'message' => 'SFTP host is not configured.',
-                'missing' => ['sftp_host'],
-                'sftp_reachable' => false,
-                'root_readable' => false,
-                'config' => [
-                    'host' => null,
-                    'port' => $port,
-                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
-                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
-                ],
-            ]);
-        }
-
         $webspaceId = (string) $request->query->get('webspace', '');
         if ($webspaceId === '') {
             return new JsonResponse([
                 'ok' => false,
                 'message' => 'Missing required webspace parameter.',
                 'missing' => ['webspace'],
-                'sftp_reachable' => false,
                 'root_readable' => false,
             ]);
         }
@@ -436,53 +407,18 @@ final class CustomerFileManagerController extends AbstractController
                 'ok' => false,
                 'message' => 'Webspace not found.',
                 'missing' => [],
-                'sftp_reachable' => false,
                 'root_readable' => false,
-                'config' => [
-                    'host' => $host,
-                    'port' => $port,
-                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
-                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
-                ],
-            ]);
-        }
-
-        $credential = $this->sftpCredentialRepository->findOneByWebspace($webspace);
-        if ($credential === null) {
-            return new JsonResponse([
-                'ok' => false,
-                'message' => 'SFTP credentials are not provisioned yet.',
-                'missing' => ['webspace_sftp_credentials'],
-                'sftp_reachable' => false,
-                'root_readable' => false,
-                'config' => [
-                    'host' => $host,
-                    'port' => $port,
-                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
-                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
-                ],
-                'webspace' => [
-                    'id' => $webspace->getId(),
-                    'path' => $webspace->getPath(),
-                ],
             ]);
         }
 
         try {
-            $entries = $this->filesystem->testConnection($webspace);
+            $entries = $this->fileService->list($webspace, '');
             return new JsonResponse([
                 'ok' => true,
-                'message' => 'SFTP reachable and root readable.',
+                'message' => 'Agent reachable and root readable.',
                 'missing' => [],
-                'sftp_reachable' => true,
                 'root_readable' => true,
                 'entries' => $entries,
-                'config' => [
-                    'host' => $host,
-                    'port' => $port,
-                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
-                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
-                ],
                 'webspace' => [
                     'id' => $webspace->getId(),
                     'path' => $webspace->getPath(),
@@ -491,42 +427,20 @@ final class CustomerFileManagerController extends AbstractController
         } catch (\Throwable $exception) {
             $this->logger->error('files.health_failed', [
                 'webspace_id' => $webspace->getId(),
-                'host' => $host,
-                'port' => $port,
                 'exception' => $exception,
             ]);
 
             return new JsonResponse([
                 'ok' => false,
-                'message' => sprintf('SFTP check failed: %s', $exception->getMessage()),
+                'message' => sprintf('Agent check failed: %s', $exception->getMessage()),
                 'missing' => [],
-                'sftp_reachable' => false,
                 'root_readable' => false,
-                'config' => [
-                    'host' => $host,
-                    'port' => $port,
-                    'host_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_HOST, $settings),
-                    'port_source' => $this->resolveSettingSource(AppSettingsService::KEY_SFTP_PORT, $settings),
-                ],
                 'webspace' => [
                     'id' => $webspace->getId(),
                     'path' => $webspace->getPath(),
                 ],
             ]);
         }
-    }
-
-    /**
-     * @param array<string, mixed> $settings
-     */
-    private function resolveSettingSource(string $key, array $settings): string
-    {
-        $value = $settings[$key] ?? null;
-        if ($value !== null && $value !== '') {
-            return 'settings';
-        }
-
-        return 'default';
     }
 
     private function requireCustomer(Request $request): User
@@ -616,7 +530,7 @@ final class CustomerFileManagerController extends AbstractController
 
     private function resolveParentPath(string $path): string
     {
-        $path = $this->filesystem->normalizePath($path);
+        $path = $this->normalizePath($path);
         if ($path === '') {
             return '';
         }
@@ -627,5 +541,124 @@ final class CustomerFileManagerController extends AbstractController
         }
 
         return $parent;
+    }
+
+    private function normalizePath(string $path): string
+    {
+        $path = str_replace('\\', '/', trim($path));
+
+        if ($path === '' || $path === '/') {
+            return '';
+        }
+
+        if (str_contains($path, "\0")) {
+            throw new \InvalidArgumentException('Invalid path.');
+        }
+
+        if (str_starts_with($path, '/')) {
+            throw new \InvalidArgumentException('Absolute paths are not allowed.');
+        }
+
+        if (preg_match('/^[A-Za-z]:/', $path) === 1) {
+            throw new \InvalidArgumentException('Absolute paths are not allowed.');
+        }
+
+        $segments = array_filter(explode('/', $path), static fn (string $segment): bool => $segment !== '');
+        $safe = [];
+
+        foreach ($segments as $segment) {
+            if ($segment === '.' || $segment === '') {
+                continue;
+            }
+
+            if ($segment === '..') {
+                throw new \InvalidArgumentException('Path traversal is not allowed.');
+            }
+
+            $safe[] = $segment;
+        }
+
+        return implode('/', $safe);
+    }
+
+    private function normalizeEntries(array $entries, string $path): array
+    {
+        $normalized = [];
+        foreach ($entries as $entry) {
+            $name = (string) ($entry['name'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $entryPath = $this->buildChildPath($path, $name);
+            $type = !empty($entry['is_dir']) ? 'dir' : 'file';
+            $normalized[] = [
+                'name' => $name,
+                'path' => $entryPath,
+                'type' => $type,
+                'size' => $type === 'file' ? (int) ($entry['size'] ?? 0) : null,
+                'last_modified' => $this->parseModifiedAt($entry['modified_at'] ?? null),
+                'editable' => $type === 'file' && $this->isEditable($entryPath),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function buildChildPath(string $directory, string $name): string
+    {
+        $directory = $this->normalizePath($directory);
+        $name = $this->normalizeName($name);
+
+        return $directory === '' ? $name : sprintf('%s/%s', $directory, $name);
+    }
+
+    private function normalizeName(string $name): string
+    {
+        $name = trim($name);
+        if ($name === '' || $name === '.' || $name === '..') {
+            throw new \InvalidArgumentException('Invalid name.');
+        }
+
+        if (str_contains($name, '/') || str_contains($name, '\\') || str_contains($name, "\0")) {
+            throw new \InvalidArgumentException('Invalid name.');
+        }
+
+        return $name;
+    }
+
+    private function parseModifiedAt(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_string($value) && $value !== '') {
+            $timestamp = strtotime($value);
+            if ($timestamp !== false) {
+                return $timestamp;
+            }
+        }
+
+        return null;
+    }
+
+    private function isEditable(string $path): bool
+    {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if ($extension === '') {
+            return false;
+        }
+
+        return in_array($extension, self::ALLOWED_EDIT_EXTENSIONS, true);
+    }
+
+    private function assertEditable(string $path, ?int $sizeBytes): void
+    {
+        if (!$this->isEditable($path)) {
+            throw new \RuntimeException('File type is not editable.');
+        }
+
+        if ($sizeBytes !== null && $sizeBytes > self::MAX_EDIT_SIZE_BYTES) {
+            throw new \RuntimeException('File is too large to edit (max 1 MB).');
+        }
     }
 }

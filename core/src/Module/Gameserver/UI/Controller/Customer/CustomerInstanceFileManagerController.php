@@ -10,6 +10,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Module\Core\Application\AuditLogger;
@@ -30,6 +31,7 @@ final class CustomerInstanceFileManagerController
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly JobRepository $jobRepository,
+        private readonly GamePluginRepository $gamePluginRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $appSettingsService,
@@ -48,6 +50,7 @@ final class CustomerInstanceFileManagerController
         return new Response($this->twig->render('customer/instances/files/index.html.twig', [
             'instance' => $this->normalizeInstance($instance),
             'configFiles' => $this->normalizeConfigFiles($instance->getTemplate()->getConfigFiles()),
+            'availablePlugins' => $this->normalizePlugins($instance),
             'path' => $path,
             'activeNav' => 'instances',
         ]));
@@ -459,6 +462,24 @@ final class CustomerInstanceFileManagerController
         }
 
         return $normalized;
+    }
+
+    /**
+     * @return array<int, array{id: int, name: string, version: string, description: ?string}>
+     */
+    private function normalizePlugins(Instance $instance): array
+    {
+        $plugins = $this->gamePluginRepository->findBy(
+            ['template' => $instance->getTemplate()],
+            ['name' => 'ASC'],
+        );
+
+        return array_map(static fn ($plugin) => [
+            'id' => $plugin->getId(),
+            'name' => $plugin->getName(),
+            'version' => $plugin->getVersion(),
+            'description' => $plugin->getDescription(),
+        ], $plugins);
     }
 
     private function queueListingJob(Instance $instance, User $actor, string $path): Job

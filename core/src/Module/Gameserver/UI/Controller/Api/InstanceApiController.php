@@ -289,12 +289,20 @@ final class InstanceApiController
                 $this->auditLogger->log($actor, 'port_block.released', [
                     'port_block_id' => $portBlock->getId(),
                     'instance_id' => $instance->getId(),
-            'install_path' => $instance->getInstallPath(),
+                    'install_path' => $instance->getInstallPath(),
                     'customer_id' => $instance->getCustomer()->getId(),
                 ]);
             }
         }
 
+        $deleteJob = new Job('instance.delete', [
+            'agent_id' => $instance->getNode()->getId(),
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $instance->getCustomer()->getId(),
+            'install_path' => $instance->getInstallPath(),
+            'base_dir' => $instance->getInstanceBaseDir(),
+        ]);
+        $this->entityManager->persist($deleteJob);
         $this->entityManager->remove($instance);
 
         $job = null;
@@ -319,6 +327,7 @@ final class InstanceApiController
             'node_id' => $instance->getNode()->getId(),
             'port_block_id' => $instance->getPortBlockId(),
             'firewall_job_id' => $job?->getId(),
+            'delete_job_id' => $deleteJob->getId(),
         ]);
 
         $this->entityManager->flush();

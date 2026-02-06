@@ -323,10 +323,24 @@ final class WebspaceApiController
         $webspace->setDeletedAt(new \DateTimeImmutable());
         $this->entityManager->persist($webspace);
 
+        $systemUsername = $webspace->getSystemUsername();
+        $deleteJob = new Job('webspace.delete', [
+            'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => (string) $webspace->getId(),
+            'web_root' => $webspace->getPath(),
+            'docroot' => $webspace->getDocroot(),
+            'owner_user' => $systemUsername,
+            'owner_group' => $systemUsername,
+            'php_fpm_pool_path' => sprintf('/etc/easywi/web/php-fpm/%s.conf', $systemUsername),
+            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $systemUsername),
+        ]);
+        $this->entityManager->persist($deleteJob);
+
         $this->auditLogger->log($actor, 'webspace.deleted', [
             'webspace_id' => $webspace->getId(),
             'customer_id' => $webspace->getCustomer()->getId(),
             'node_id' => $webspace->getNode()->getId(),
+            'delete_job_id' => $deleteJob->getId(),
         ]);
         $this->entityManager->flush();
 

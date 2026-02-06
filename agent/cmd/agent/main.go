@@ -385,6 +385,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceStop(job, logSender)
 	case "instance.restart":
 		return handleInstanceRestart(job, logSender)
+	case "instance.delete":
+		return handleInstanceDelete(job)
 	case "instance.logs.tail":
 		return handleInstanceLogsTail(job, logSender)
 	case "instance.console.command":
@@ -451,6 +453,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleWebspaceFileWrite(job)
 	case "webspace.files.delete":
 		return handleWebspaceFileDelete(job)
+	case "webspace.delete":
+		return handleWebspaceDelete(job)
 	case "webspace.files.mkdir":
 		return handleWebspaceFileMkdir(job)
 	case "windows.service.start":

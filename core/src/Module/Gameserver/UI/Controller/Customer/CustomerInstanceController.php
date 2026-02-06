@@ -15,6 +15,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\BackupDefinitionRepository;
+use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceScheduleRepository;
 use App\Repository\JobRepository;
@@ -49,6 +50,7 @@ final class CustomerInstanceController
         private readonly PortBlockRepository $portBlockRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly JobRepository $jobRepository,
+        private readonly GamePluginRepository $gamePluginRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly InstanceQueryService $instanceQueryService,
         private readonly AuditLogger $auditLogger,
@@ -822,6 +824,24 @@ final class CustomerInstanceController
         ];
     }
 
+    /**
+     * @return array<int, array{id: int, name: string, version: string, description: ?string}>
+     */
+    private function normalizePlugins(Instance $instance): array
+    {
+        $plugins = $this->gamePluginRepository->findBy(
+            ['template' => $instance->getTemplate()],
+            ['name' => 'ASC'],
+        );
+
+        return array_map(static fn ($plugin) => [
+            'id' => $plugin->getId(),
+            'name' => $plugin->getName(),
+            'version' => $plugin->getVersion(),
+            'description' => $plugin->getDescription(),
+        ], $plugins);
+    }
+
     private function normalizeBackupDefinitions(User $customer, Instance $instance): array
     {
         $definitions = $this->backupDefinitionRepository->findByCustomer($customer);
@@ -989,6 +1009,7 @@ final class CustomerInstanceController
             ],
             'configFiles' => $configFiles,
             'pluginPaths' => $instance->getTemplate()->getPluginPaths(),
+            'availablePlugins' => $this->normalizePlugins($instance),
             'fastdl' => $this->normalizeFastdlSettings($instance->getTemplate()->getFastdlSettings()),
             'restartSchedule' => $restartScheduleView,
             'backups' => $this->normalizeBackupDefinitions($customer, $instance),

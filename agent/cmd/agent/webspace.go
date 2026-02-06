@@ -146,6 +146,68 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 	}, nil
 }
 
+func handleWebspaceDelete(job jobs.Job) (jobs.Result, func() error) {
+	webRoot := payloadValue(job.Payload, "web_root", "path")
+	ownerUser := payloadValue(job.Payload, "owner_user", "user")
+	ownerGroup := payloadValue(job.Payload, "owner_group", "group")
+	phpFpmPoolPath := payloadValue(job.Payload, "php_fpm_pool_path", "fpm_pool_path")
+	nginxIncludePath := payloadValue(job.Payload, "nginx_include_path", "nginx_include")
+
+	missing := missingValues([]requiredValue{
+		{key: "web_root", value: webRoot},
+	})
+	if len(missing) > 0 {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	baseDir := payloadValue(job.Payload, "base_dir")
+	if baseDir == "" {
+		baseDir = "/"
+	}
+
+	safeRoot, err := ensureSafePath(webRoot, baseDir)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	if filepath.Clean(safeRoot) == "/" {
+		return failureResult(job.ID, fmt.Errorf("refusing to remove root path"))
+	}
+
+	for _, path := range []string{phpFpmPoolPath, nginxIncludePath} {
+		if path == "" {
+			continue
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return failureResult(job.ID, fmt.Errorf("remove %s: %w", path, err))
+		}
+	}
+
+	if err := os.RemoveAll(safeRoot); err != nil {
+		return failureResult(job.ID, fmt.Errorf("remove web root: %w", err))
+	}
+
+	if ownerUser != "" {
+		_ = runCommand("userdel", "--remove", ownerUser)
+	}
+	if ownerGroup != "" {
+		_ = runCommand("groupdel", ownerGroup)
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"web_root": safeRoot,
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
 func ensureDir(path string) error {
 	if err := os.MkdirAll(path, webspaceDirMode); err != nil {
 		return fmt.Errorf("create dir %s: %w", path, err)

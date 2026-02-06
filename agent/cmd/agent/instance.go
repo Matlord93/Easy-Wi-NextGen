@@ -310,6 +310,69 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 	}, nil
 }
 
+func handleInstanceDelete(job jobs.Job) (jobs.Result, func() error) {
+	instanceID := payloadValue(job.Payload, "instance_id")
+	customerID := payloadValue(job.Payload, "customer_id")
+	serviceName := payloadValue(job.Payload, "service_name")
+	if serviceName == "" && instanceID != "" {
+		serviceName = fmt.Sprintf("gs-%s", instanceID)
+	}
+
+	missing := missingValues([]requiredValue{
+		{key: "instance_id", value: instanceID},
+	})
+	if len(missing) > 0 {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	instanceDir, err := resolveInstanceDir(job.Payload)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+	if filepath.Clean(instanceDir) == "/" {
+		return failureResult(job.ID, fmt.Errorf("refusing to remove root path"))
+	}
+
+	if commandExists("systemctl") {
+		_ = runCommand("systemctl", "stop", serviceName)
+		_ = runCommand("systemctl", "disable", serviceName)
+	}
+
+	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
+	if err := os.Remove(unitPath); err != nil && !os.IsNotExist(err) {
+		return failureResult(job.ID, fmt.Errorf("remove unit %s: %w", unitPath, err))
+	}
+
+	if commandExists("systemctl") {
+		_ = runCommand("systemctl", "daemon-reload")
+	}
+
+	if err := os.RemoveAll(instanceDir); err != nil {
+		return failureResult(job.ID, fmt.Errorf("remove instance dir: %w", err))
+	}
+
+	if customerID != "" {
+		osUsername := buildInstanceUsername(customerID, instanceID)
+		_ = runCommand("userdel", "--remove", osUsername)
+		_ = runCommand("groupdel", osUsername)
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"instance_dir": instanceDir,
+			"service_name": serviceName,
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
 func handleInstanceLogsTail(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")

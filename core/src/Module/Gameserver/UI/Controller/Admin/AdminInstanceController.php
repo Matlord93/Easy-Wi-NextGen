@@ -26,6 +26,7 @@ use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Gameserver\Application\InstanceInstallService;
+use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
@@ -60,6 +61,7 @@ final class AdminInstanceController
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly EncryptionService $encryptionService,
         private readonly InstanceInstallService $instanceInstallService,
+        private readonly InstanceQueryService $instanceQueryService,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly PortLeaseManager $portLeaseManager,
         private readonly Environment $twig,
@@ -76,10 +78,11 @@ final class AdminInstanceController
         }
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
+        $normalizedInstances = $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances));
 
         return new Response($this->twig->render('admin/instances/index.html.twig', [
-            'instances' => $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances)),
-            'summary' => $this->buildSummary($instances),
+            'instances' => $normalizedInstances,
+            'summary' => $this->buildSummary($normalizedInstances),
             'activeNav' => 'game-instances',
         ]));
     }
@@ -333,6 +336,14 @@ final class AdminInstanceController
             }
         }
 
+        $deleteJob = new Job('instance.delete', [
+            'agent_id' => $instance->getNode()->getId(),
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $instance->getCustomer()->getId(),
+            'install_path' => $instance->getInstallPath(),
+            'base_dir' => $instance->getInstanceBaseDir(),
+        ]);
+        $this->entityManager->persist($deleteJob);
         $this->entityManager->remove($instance);
 
         $job = null;
@@ -356,6 +367,7 @@ final class AdminInstanceController
             'node_id' => $instance->getNode()->getId(),
             'port_block_id' => $instance->getPortBlockId(),
             'firewall_job_id' => $job?->getId(),
+            'delete_job_id' => $deleteJob->getId(),
         ]);
 
         $this->entityManager->flush();
@@ -909,12 +921,27 @@ final class AdminInstanceController
      */
     private function normalizeInstances(array $instances, array $sftpCredentials): array
     {
-        return array_map(function (Instance $instance) use ($sftpCredentials): array {
+        $portBlocks = $this->portBlockRepository->findByInstances($instances);
+        $portBlockIndex = [];
+        foreach ($portBlocks as $portBlock) {
+            $assignedInstance = $portBlock->getInstance();
+            if ($assignedInstance !== null) {
+                $portBlockIndex[$assignedInstance->getId()] = $portBlock;
+            }
+        }
+
+        return array_map(function (Instance $instance) use ($sftpCredentials, $portBlockIndex): array {
             $diskLimitBytes = $instance->getDiskLimitBytes();
             $diskUsedBytes = $instance->getDiskUsedBytes();
             $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
             $credential = $sftpCredentials[$instance->getId()] ?? null;
             $installStatus = $this->instanceInstallService->getInstallStatus($instance);
+            $portBlock = $portBlockIndex[$instance->getId()] ?? null;
+            $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, false);
+            $runtimeStatus = is_string($querySnapshot['status'] ?? null)
+                ? strtolower((string) $querySnapshot['status'])
+                : null;
+            $displayStatus = $this->resolveDisplayStatus($instance, $runtimeStatus);
 
             return [
                 'id' => $instance->getId(),
@@ -934,6 +961,7 @@ final class AdminInstanceController
                 'disk_last_scanned_at' => $instance->getDiskLastScannedAt(),
                 'disk_scan_error' => $instance->getDiskScanError(),
                 'status' => $instance->getStatus()->value,
+                'display_status' => $displayStatus,
                 'current_slots' => $instance->getCurrentSlots(),
                 'max_slots' => $instance->getMaxSlots(),
                 'lock_slots' => $instance->isLockSlots(),
@@ -945,6 +973,28 @@ final class AdminInstanceController
                 'install_error_code' => $installStatus['error_code'] ?? null,
             ];
         }, $instances);
+    }
+
+    private function resolveDisplayStatus(Instance $instance, ?string $runtimeStatus): string
+    {
+        $instanceStatus = $instance->getStatus();
+        $displayStatus = $instanceStatus->value;
+        if ($runtimeStatus !== null && $runtimeStatus !== '') {
+            if (in_array($runtimeStatus, ['error', 'crashed'], true)) {
+                $displayStatus = InstanceStatus::Error->value;
+            } elseif (in_array($runtimeStatus, ['starting', 'booting'], true)) {
+                $displayStatus = InstanceStatus::Provisioning->value;
+            } elseif (in_array($runtimeStatus, ['online', 'running', 'up'], true)) {
+                $displayStatus = InstanceStatus::Running->value;
+            } elseif (
+                $instanceStatus !== InstanceStatus::Running
+                && in_array($runtimeStatus, ['offline', 'unknown', 'stopped', 'hibernating', 'idle'], true)
+            ) {
+                $displayStatus = InstanceStatus::Stopped->value;
+            }
+        }
+
+        return $displayStatus;
     }
 
     /**
@@ -977,9 +1027,6 @@ final class AdminInstanceController
         return bin2hex(random_bytes(12));
     }
 
-    /**
-     * @param Instance[] $instances
-     */
     private function buildSummary(array $instances): array
     {
         $summary = [
@@ -993,18 +1040,18 @@ final class AdminInstanceController
         ];
 
         foreach ($instances as $instance) {
-            $status = $instance->getStatus();
-            if ($status === InstanceStatus::Running) {
+            $status = $instance['display_status'] ?? $instance['status'] ?? null;
+            if ($status === InstanceStatus::Running->value) {
                 $summary['running']++;
-            } elseif ($status === InstanceStatus::PendingSetup) {
+            } elseif ($status === InstanceStatus::PendingSetup->value) {
                 $summary['pending_setup']++;
-            } elseif ($status === InstanceStatus::Stopped) {
+            } elseif ($status === InstanceStatus::Stopped->value) {
                 $summary['stopped']++;
-            } elseif ($status === InstanceStatus::Suspended) {
+            } elseif ($status === InstanceStatus::Suspended->value) {
                 $summary['suspended'] = ($summary['suspended'] ?? 0) + 1;
-            } elseif ($status === InstanceStatus::Provisioning) {
+            } elseif ($status === InstanceStatus::Provisioning->value) {
                 $summary['provisioning']++;
-            } elseif ($status === InstanceStatus::Error) {
+            } elseif ($status === InstanceStatus::Error->value) {
                 $summary['error']++;
             }
         }
