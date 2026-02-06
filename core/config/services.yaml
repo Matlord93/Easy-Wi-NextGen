@@ -92,6 +92,14 @@ services:
       $requestStack: '@request_stack'
       $gameServerPathResolver: '@App\Module\Gameserver\Application\GameServerPathResolver'
 
+  App\Module\Core\Application\WebspaceFileServiceClient:
+    arguments:
+      $timeoutSeconds: '%app.agent_file_timeout_seconds%'
+      $defaultServicePort: '%app.agent_service_port%'
+      $defaultServiceScheme: 'http'
+      $logger: '@logger'
+      $requestStack: '@request_stack'
+
   App\Module\Core\Application\Sinusbot\SinusbotQuotaValidator:
     arguments:
       $minQuota: '%app.sinusbot_quota_min%'
