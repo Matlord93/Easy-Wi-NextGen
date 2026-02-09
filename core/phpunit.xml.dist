@@ -5,6 +5,12 @@
       <directory>tests</directory>
     </testsuite>
   </testsuites>
+  <extensions>
+    <bootstrap class="Symfony\Bridge\PhpUnit\SymfonyExtension">
+      <parameter name="clock-mock-namespaces" value="App" />
+      <parameter name="dns-mock-namespaces" value="App" />
+    </bootstrap>
+  </extensions>
   <php>
     <env name="APP_ENV" value="test"/>
     <env name="APP_DEBUG" value="1"/>
