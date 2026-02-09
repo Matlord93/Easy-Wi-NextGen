@@ -10,9 +10,12 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\TicketStatus;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Core\Application\DiskUsageFormatter;
 use App\Repository\CustomerProfileRepository;
 use App\Repository\DatabaseRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\InvoiceRepository;
+use App\Repository\ShopRentalRepository;
 use App\Repository\TicketRepository;
 use App\Repository\WebspaceRepository;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,7 +31,10 @@ final class CustomerDashboardController
         private readonly WebspaceRepository $webspaceRepository,
         private readonly DatabaseRepository $databaseRepository,
         private readonly TicketRepository $ticketRepository,
+        private readonly InvoiceRepository $invoiceRepository,
+        private readonly ShopRentalRepository $rentalRepository,
         private readonly CustomerProfileRepository $profileRepository,
+        private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly Environment $twig,
     ) {
     }
@@ -39,6 +45,8 @@ final class CustomerDashboardController
         $customer = $this->requireCustomer($request);
         $instances = $this->instanceRepository->findByCustomer($customer);
         $tickets = $this->ticketRepository->findByCustomer($customer);
+        $rentals = $this->rentalRepository->findBy(['customer' => $customer], ['expiresAt' => 'DESC'], 1);
+        $invoices = $this->invoiceRepository->findByCustomer($customer);
 
         $summary = [
             'instances_total' => count($instances),
@@ -47,9 +55,15 @@ final class CustomerDashboardController
             'databases_total' => count($this->databaseRepository->findByCustomer($customer)),
             'tickets_total' => count($tickets),
             'tickets_open' => $this->countTicketsByStatus($tickets, TicketStatus::Open),
+            'tickets_pending' => $this->countTicketsByStatus($tickets, TicketStatus::Pending),
         ];
 
         $resourceUsage = $this->calculateResourceUsage($instances);
+        $resourceUsage['disk_used_human'] = $this->diskUsageFormatter->formatBytes($resourceUsage['disk_used_bytes']);
+        $resourceUsage['disk_limit_human'] = $resourceUsage['disk_limit_bytes'] > 0
+            ? $this->diskUsageFormatter->formatBytes($resourceUsage['disk_limit_bytes'])
+            : null;
+        $nextPayment = $this->resolveNextPayment($invoices);
 
         return new Response($this->twig->render('customer/dashboard/index.html.twig', [
             'activeNav' => 'dashboard',
@@ -58,6 +72,9 @@ final class CustomerDashboardController
             'instances' => $this->normalizeInstances(array_slice($instances, 0, 3)),
             'tickets' => $this->normalizeTickets(array_slice($tickets, 0, 3)),
             'resourceUsage' => $resourceUsage,
+            'activePlan' => $this->resolveActivePlan($rentals),
+            'nextPayment' => $nextPayment,
+            'invoices' => $this->normalizeInvoices(array_slice($invoices, 0, 5)),
         ]));
     }
 
@@ -78,12 +95,19 @@ final class CustomerDashboardController
     {
         return array_map(static function (Instance $instance): array {
             $statusLabel = ucwords(str_replace('_', ' ', $instance->getStatus()->value));
+            $queryCache = $instance->getQueryStatusCache();
+            $latencyMs = isset($queryCache['latency_ms']) && is_numeric($queryCache['latency_ms'])
+                ? (int) $queryCache['latency_ms']
+                : null;
 
             return [
                 'id' => $instance->getId(),
-                'name' => $instance->getTemplate()->getName(),
+                'name' => $instance->getTemplate()->getDisplayName(),
+                'game_key' => $instance->getTemplate()->getGameKey(),
+                'server_name' => $instance->getServerName(),
                 'status' => $instance->getStatus()->value,
                 'status_label' => $statusLabel,
+                'latency_ms' => $latencyMs,
             ];
         }, $instances);
     }
@@ -192,6 +216,8 @@ final class CustomerDashboardController
             'cpu' => $this->formatUsagePercent($cpuWeighted, $cpuTotal),
             'ram' => $this->formatUsagePercent($ramWeighted, $ramTotal),
             'disk' => $this->formatUsagePercent($diskUsedBytes, $diskLimitBytes),
+            'disk_used_bytes' => (int) $diskUsedBytes,
+            'disk_limit_bytes' => (int) $diskLimitBytes,
         ];
     }
 
@@ -213,5 +239,60 @@ final class CustomerDashboardController
         }
 
         return is_numeric($metric) ? (float) $metric : null;
+    }
+
+    private function resolveActivePlan(array $rentals): ?array
+    {
+        $rental = $rentals[0] ?? null;
+        if (!$rental instanceof \App\Module\Core\Domain\Entity\ShopRental) {
+            return null;
+        }
+
+        return [
+            'name' => $rental->getProduct()->getName(),
+            'expires_at' => $rental->getExpiresAt(),
+        ];
+    }
+
+    private function resolveNextPayment(array $invoices): ?array
+    {
+        $next = null;
+        foreach ($invoices as $invoice) {
+            if (!$invoice instanceof \App\Module\Core\Domain\Entity\Invoice) {
+                continue;
+            }
+            if ($invoice->getStatus() === \App\Module\Core\Domain\Enum\InvoiceStatus::Paid) {
+                continue;
+            }
+            if ($next === null || $invoice->getDueDate() < $next->getDueDate()) {
+                $next = $invoice;
+            }
+        }
+
+        if ($next === null) {
+            return null;
+        }
+
+        return [
+            'number' => $next->getNumber(),
+            'amount_due' => $next->getAmountDueCents(),
+            'currency' => $next->getCurrency(),
+            'due_date' => $next->getDueDate(),
+            'status' => $next->getStatus()->value,
+        ];
+    }
+
+    private function normalizeInvoices(array $invoices): array
+    {
+        return array_map(static function (\App\Module\Core\Domain\Entity\Invoice $invoice): array {
+            return [
+                'id' => $invoice->getId(),
+                'number' => $invoice->getNumber(),
+                'status' => $invoice->getStatus()->value,
+                'amount_due' => $invoice->getAmountDueCents(),
+                'currency' => $invoice->getCurrency(),
+                'due_date' => $invoice->getDueDate(),
+            ];
+        }, $invoices);
     }
 }

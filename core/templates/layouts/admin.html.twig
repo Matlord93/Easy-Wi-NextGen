@@ -1,0 +1,217 @@
+{% extends 'layouts/base.html.twig' %}
+
+{% block body_class %}admin-interface ng-shell{% endblock %}
+
+{% block body %}
+{% set activeNav = activeNav|default('') %}
+{% set extensionItems = extension_menu_items('admin') %}
+{% set gdprItems = extensionItems is not empty
+    ? extensionItems|filter(item => item.href starts with '/admin/gdpr')
+    : []
+%}
+{% set marketplaceItems = extensionItems is not empty
+    ? extensionItems|filter(item => not (item.href starts with '/admin/gdpr'))
+    : []
+%}
+{% set moduleGame = module_enabled('game') %}
+{% set moduleTs = module_enabled('ts') %}
+{% set moduleTs6 = module_enabled('ts6') %}
+{% set moduleTsCombined = moduleTs or moduleTs6 %}
+{% set moduleWeb = module_enabled('web') %}
+{% set moduleMail = module_enabled('mail') %}
+{% set moduleDns = module_enabled('dns') %}
+{% set moduleBilling = module_enabled('billing') %}
+
+{% set customerItems = [
+    { key: 'users', label: t('admin_nav_users', page_locale()), href: path('admin_users') },
+    moduleBilling ? { key: 'billing', label: t('admin_nav_billing', page_locale()), href: path('admin_billing') } : null
+]|filter(v => v) %}
+
+{% set gameModuleItems = [
+    moduleGame ? { key: 'game-instances', label: t('admin_nav_game_instances', page_locale()), href: path('admin_instances') } : null,
+    moduleGame ? { key: 'templates', label: t('admin_nav_templates', page_locale()), href: path('admin_templates') } : null,
+    moduleGame ? { key: 'plugins', label: t('admin_nav_plugins', page_locale()), href: path('admin_plugins') } : null
+]|filter(v => v) %}
+
+{% set voiceModuleItems = [
+    moduleTsCombined ? { key: 'ts-nodes', label: t('admin_nav_ts_nodes', page_locale()), href: path('admin_ts_nodes_index') } : null,
+    moduleTs ? { key: 'ts3-servers', label: t('admin_nav_ts3_servers', page_locale()), href: path('admin_ts3_servers_index') } : null,
+    moduleTs6 ? { key: 'ts6-servers', label: t('admin_nav_ts6_servers', page_locale()), href: path('admin_ts6_servers_index') } : null,
+    moduleGame ? { key: 'sinusbot', label: t('admin_nav_sinusbot', page_locale()), href: path('admin_sinusbot_nodes_index') } : null
+]|filter(v => v) %}
+
+{% set systemModuleItems = [
+    { key: 'firewall', label: t('admin_nav_firewall', page_locale()), href: path('admin_security') },
+    { key: 'port-pools', label: t('admin_nav_port_pools', page_locale()), href: path('admin_port_pools') },
+    { key: 'port-blocks', label: t('admin_nav_port_blocks', page_locale()), href: path('admin_port_blocks') },
+    { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') },
+    { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: path('admin_nodes') },
+    { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()), href: path('admin_agent_bootstrap_tokens') },
+    { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: path('admin_ddos') },
+    { key: 'unifi', label: t('admin_nav_unifi', page_locale()), href: path('admin_unifi_dashboard') }
+]|filter(v => v) %}
+
+{% set webinterfaceModuleItems = [
+    { key: 'settings', label: t('admin_nav_webinterface_settings', page_locale()), href: path('admin_settings') },
+    { key: 'modules', label: t('admin_nav_modules', page_locale()), href: path('admin_modules') },
+    { key: 'updates', label: t('admin_updates_title', page_locale()), href: path('admin_updates') }
+] %}
+
+{% set servicesItems = [
+    moduleWeb ? { key: 'webspaces', label: t('admin_nav_webspaces', page_locale()), href: path('admin_webspaces') } : null,
+    { key: 'databases', label: t('admin_nav_databases', page_locale()), href: path('admin_databases') }
+]|filter(v => v) %}
+
+{% set shopItems = moduleBilling ? [
+    { key: 'shop-categories', label: t('admin_nav_shop_categories', page_locale()), href: path('admin_shop_categories') },
+    { key: 'shop-products', label: t('admin_nav_shop_products', page_locale()), href: path('admin_shop_products') }
+] : [] %}
+
+{% set cmsItems = [
+    { key: 'cms-pages', label: t('cms_pages_title', page_locale()), href: path('admin_cms_pages') },
+    { key: 'cms-blog', label: t('cms_blog_nav', page_locale()), href: path('admin_cms_blog_index') },
+    { key: 'public-servers', label: t('admin_nav_cms_gameservers', page_locale()), href: path('admin_public_servers') }
+] %}
+
+{% set domainItems = [
+    moduleDns ? { key: 'dns-records', label: t('admin_nav_dns_records', page_locale()), href: path('admin_dns_records') } : null,
+    moduleMail ? { key: 'mailboxes', label: t('admin_nav_mailboxes', page_locale()), href: path('admin_mailboxes') } : null,
+    moduleMail ? { key: 'mail-aliases', label: t('admin_nav_mail_aliases', page_locale()), href: path('admin_mail_aliases') } : null
+]|filter(v => v) %}
+
+{% set sidebarGroups = [
+    {
+        label: t('admin_nav_group_overview', page_locale()),
+        open: true,
+        items: [
+            { key: 'dashboard', label: t('admin_nav_dashboard', page_locale()), href: path('admin_dashboard') },
+            { key: 'activity', label: t('activity', page_locale()), href: path('admin_activity') },
+            { key: 'audit-logs', label: t('admin_nav_audit_logs', page_locale()), href: path('admin_audit_logs') }
+        ]
+    },
+    customerItems is not empty ? {
+        label: t('admin_nav_group_accounts', page_locale()),
+        open: true,
+        items: customerItems
+    } : null,
+    gameModuleItems is not empty ? {
+        label: t('admin_nav_group_games', page_locale()),
+        open: true,
+        items: gameModuleItems
+    } : null,
+    voiceModuleItems is not empty ? {
+        label: t('admin_nav_group_voice', page_locale()),
+        open: true,
+        items: voiceModuleItems
+    } : null,
+    systemModuleItems is not empty ? {
+        label: t('admin_nav_group_system', page_locale()),
+        open: true,
+        items: systemModuleItems
+    } : null,
+    webinterfaceModuleItems is not empty ? {
+        label: t('admin_nav_group_webinterface', page_locale()),
+        open: true,
+        items: webinterfaceModuleItems
+    } : null,
+    servicesItems is not empty ? {
+        label: t('admin_nav_group_services', page_locale()),
+        open: true,
+        items: servicesItems
+    } : null,
+    shopItems is not empty ? {
+        label: t('admin_nav_group_shop', page_locale()),
+        open: true,
+        items: shopItems
+    } : null,
+    cmsItems is not empty ? {
+        label: t('admin_nav_group_cms', page_locale()),
+        open: true,
+        items: cmsItems
+    } : null,
+    domainItems is not empty ? {
+        label: t('admin_nav_group_domains_mail', page_locale()),
+        open: true,
+        items: domainItems
+    } : null,
+    {
+        label: t('admin_nav_group_support', page_locale()),
+        open: true,
+        items: [
+            { key: 'tickets', label: t('admin_nav_tickets', page_locale()), href: path('admin_tickets') }
+        ]
+    },
+    gdprItems is not empty ? {
+        label: t('admin_nav_group_gdpr', page_locale()),
+        open: true,
+        items: gdprItems
+    } : null,
+    marketplaceItems is not empty ? {
+        label: t('admin_nav_group_extensions', page_locale()),
+        open: false,
+        items: marketplaceItems
+    } : null,
+    null
+]|filter(v => v) %}
+
+<div class="ng-layout">
+    {% include 'components/_sidebar.html.twig' with {
+        title: brandingName,
+        logoUrl: brandingLogo ?: asset('easywi-nextgen-logo.svg'),
+        activeNav: activeNav,
+        groups: sidebarGroups,
+        footer: ''
+    } %}
+    <div class="ng-sidebar-backdrop" data-sidebar-backdrop></div>
+
+    <main class="ng-main">
+        {% include 'components/_topbar.html.twig' with {
+            title: pageTitle|default(''),
+            subtitle: pageSubtitle|default(''),
+            actions: topbarActions|default([])
+        } %}
+        <div class="ng-content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+</div>
+<script>
+    (() => {
+        const body = document.body;
+        const toggles = document.querySelectorAll('.ng-sidebar-toggle');
+        const backdrop = document.querySelector('[data-sidebar-backdrop]');
+        if (toggles.length === 0) {
+            return;
+        }
+        const toggleSidebar = () => {
+            if (window.matchMedia('(max-width: 768px)').matches) {
+                body.classList.toggle('is-sidebar-open');
+                return;
+            }
+            body.classList.toggle('is-sidebar-collapsed');
+        };
+        toggles.forEach((toggle) => toggle.addEventListener('click', toggleSidebar));
+        if (backdrop) {
+            backdrop.addEventListener('click', () => body.classList.remove('is-sidebar-open'));
+        }
+        window.addEventListener('resize', () => {
+            if (!window.matchMedia('(max-width: 768px)').matches) {
+                body.classList.remove('is-sidebar-open');
+            }
+        });
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                body.classList.remove('is-sidebar-open');
+            }
+        });
+
+        const userMenuToggle = document.querySelector('[data-user-menu-toggle]');
+        const userMenu = document.querySelector('[data-user-menu]');
+        if (userMenuToggle && userMenu) {
+            userMenuToggle.addEventListener('click', () => {
+                userMenu.open = !userMenu.open;
+            });
+        }
+    })();
+</script>
+{% endblock %}

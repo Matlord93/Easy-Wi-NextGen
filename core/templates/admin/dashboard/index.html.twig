@@ -1,302 +1,300 @@
 {% extends 'admin/base.html.twig' %}
 
-
 {% block content %}
+{% set primaryNode = nodes|first %}
+{% set cpuValue = primaryNode and primaryNode.cpu ? primaryNode.cpu : '—' %}
+{% set ramValue = primaryNode and primaryNode.memory ? primaryNode.memory : '—' %}
+{% set ticketsTotal = overview.tickets_total|default(overview.tickets_open) %}
+{% set ticketsInProgress = ticketsTotal > overview.tickets_open ? (ticketsTotal - overview.tickets_open) : 0 %}
+
+{% set kpiItems = [
+    {
+        label: t('admin_dashboard_kpi_online', page_locale()),
+        value: agentSummary.online,
+        icon: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 8 8 8 8 0 0 0-8-8Zm3.53 6.47a.75.75 0 0 1 0 1.06l-4 4a.75.75 0 0 1-1.06 0l-2-2a.75.75 0 0 1 1.06-1.06l1.47 1.47 3.47-3.47a.75.75 0 0 1 1.06 0Z"/></svg>',
+        tone: 'success'
+    },
+    {
+        label: t('admin_dashboard_kpi_warnings', page_locale()),
+        value: agentSummary.degraded,
+        icon: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l5.604 9.966c.75 1.334-.213 2.985-1.742 2.985H4.395c-1.53 0-2.492-1.651-1.742-2.985L8.257 3.1Zm1.743 9.651a.75.75 0 0 0 .75-.75v-3.5a.75.75 0 0 0-1.5 0v3.5c0 .414.336.75.75.75Zm0 2.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"/></svg>',
+        tone: 'warning'
+    },
+    {
+        label: t('admin_dashboard_kpi_critical', page_locale()),
+        value: agentSummary.offline,
+        icon: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 1 0 8 8 8 8 0 0 0-8-8Zm0 4.5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6.5Zm0 8a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"/></svg>',
+        tone: 'danger'
+    },
+    {
+        label: t('admin_dashboard_kpi_maintenance', page_locale()),
+        value: jobSummary.queued,
+        icon: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4.75 3A1.75 1.75 0 0 0 3 4.75v10.5C3 16.216 3.784 17 4.75 17h10.5A1.75 1.75 0 0 0 17 15.25V4.75A1.75 1.75 0 0 0 15.25 3H4.75Zm3 3.25a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1-.75-.75Zm0 4a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1-.75-.75Z"/></svg>',
+        tone: 'info'
+    },
+    {
+        label: t('admin_dashboard_kpi_customers', page_locale()),
+        value: overview.customers,
+        icon: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 10a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-6 7a6 6 0 0 1 12 0v.25a.75.75 0 0 1-.75.75h-10.5A.75.75 0 0 1 4 17.25Z"/></svg>',
+        tone: 'primary'
+    }
+] %}
+
 <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-            <h1 class="text-2xl font-semibold">{{ t('admin_dashboard_welcome', page_locale()) }}</h1>
-            <p class="text-sm text-slate-700">{{ t('admin_dashboard_intro', page_locale()) }}</p>
+            <h1 class="text-2xl font-semibold text-slate-100">{{ t('admin_dashboard_title', page_locale()) }}</h1>
+            <p class="text-sm text-slate-400">{{ t('admin_dashboard_subtitle', page_locale()) }}</p>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
-            <a href="/admin/jobs/new" class="btn rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm">{{ t('admin_dashboard_create_job', page_locale()) }}</a>
-            <a href="/admin/users" class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_dashboard_invite_operator', page_locale()) }}</a>
-            <a href="/admin/security" class="btn rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">{{ t('admin_dashboard_security_center', page_locale()) }}</a>
-        </div>
-    </div>
-
-    {% set healthStyles = {
-        'healthy': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        'degraded': 'bg-amber-50 text-amber-700 border-amber-200',
-        'critical': 'bg-rose-50 text-rose-700 border-rose-200'
-    } %}
-    {% set nodeState = agentSummary.offline > 0 ? 'critical' : (agentSummary.degraded > 0 ? 'degraded' : 'healthy') %}
-    {% set jobState = jobSummary.failed > 0 ? 'degraded' : 'healthy' %}
-    {% set ticketState = overview.tickets_open > 0 ? 'degraded' : 'healthy' %}
-    {% set incidentState = overview.tickets_open > 8 or agentSummary.offline > 0 ? 'critical' : 'healthy' %}
-
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h2 class="text-lg font-semibold">{{ t('admin_dashboard_system_health', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('admin_dashboard_system_health_intro', page_locale()) }}</p>
-            </div>
-            <a href="/admin/status/incidents" class="btn rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">
-                {{ t('admin_dashboard_view_status', page_locale()) }}
-            </a>
-        </div>
-        <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_nodes', page_locale()) }}</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ agentSummary.online }}</p>
-                <p class="mt-1 text-xs text-slate-600">{{ t('admin_dashboard_degraded_offline', page_locale())|replace({'%degraded%': agentSummary.degraded, '%offline%': agentSummary.offline}) }}</p>
-                <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[nodeState] }}">
-                    {{ nodeState|title }}
-                </span>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_jobs', page_locale()) }}</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ jobSummary.running + jobSummary.queued }}</p>
-                <p class="mt-1 text-xs text-slate-600">{{ t('admin_dashboard_failed_total', page_locale())|replace({'%failed%': jobSummary.failed, '%total%': jobSummary.total}) }}</p>
-                <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[jobState] }}">
-                    {{ jobState|title }}
-                </span>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_support', page_locale()) }}</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ overview.tickets_open }}</p>
-                <p class="mt-1 text-xs text-slate-600">{{ t('admin_dashboard_open_tickets', page_locale()) }}</p>
-                <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[ticketState] }}">
-                    {{ ticketState|title }}
-                </span>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_incidents', page_locale()) }}</p>
-                <p class="mt-2 text-2xl font-semibold text-slate-900">
-                    {{ incidentState == 'healthy' ? t('admin_dashboard_all_clear', page_locale()) : t('admin_dashboard_attention_needed', page_locale()) }}
-                </p>
-                <p class="mt-1 text-xs text-slate-600">{{ t('admin_dashboard_incidents_hint', page_locale()) }}</p>
-                <span class="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ healthStyles[incidentState] }}">
-                    {{ incidentState|title }}
-                </span>
-            </div>
+        <div class="flex flex-wrap items-center gap-2">
+            {% include 'components/ui/_button.html.twig' with {
+                label: t('admin_dashboard_action_job', page_locale()),
+                href: '/admin/jobs/new',
+                variant: 'primary'
+            } %}
+            {% include 'components/ui/_button.html.twig' with {
+                label: t('admin_dashboard_action_operator', page_locale()),
+                href: '/admin/users',
+                variant: 'ghost'
+            } %}
+            {% include 'components/ui/_button.html.twig' with {
+                label: t('admin_dashboard_action_security', page_locale()),
+                href: '/admin/security',
+                variant: 'ghost'
+            } %}
         </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <a href="/admin/users" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-600">{{ t('admin_dashboard_customers', page_locale()) }}</p>
-            <p class="mt-3 text-2xl font-semibold text-slate-900">{{ overview.customers }}</p>
-            <p class="mt-2 text-xs text-slate-700">{{ t('admin_dashboard_customers_description', page_locale()) }}</p>
-        </a>
-        <a href="/admin/instances" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-600">{{ t('admin_dashboard_game_instances', page_locale()) }}</p>
-            <p class="mt-3 text-2xl font-semibold text-slate-900">{{ overview.instances }}</p>
-            <p class="mt-2 text-xs text-slate-700">{{ t('admin_dashboard_game_instances_description', page_locale()) }}</p>
-        </a>
-        <a href="/admin/tickets" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-600">{{ t('admin_dashboard_open_tickets', page_locale()) }}</p>
-            <p class="mt-3 text-2xl font-semibold text-slate-900">{{ overview.tickets_open }}</p>
-            <p class="mt-2 text-xs text-slate-700">{{ t('admin_dashboard_open_tickets_description', page_locale()) }}</p>
-        </a>
-        <a href="/admin/jobs" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <p class="text-xs uppercase text-slate-600">{{ t('admin_dashboard_jobs_in_progress', page_locale()) }}</p>
-            <p class="mt-3 text-2xl font-semibold text-slate-900">{{ jobSummary.running + jobSummary.queued }}</p>
-            <p class="mt-2 text-xs text-slate-700">{{ t('admin_dashboard_failed_total', page_locale())|replace({'%failed%': jobSummary.failed, '%total%': jobSummary.total}) }}</p>
-        </a>
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {% for item in kpiItems %}
+            {% include 'components/ui/_kpi_card.html.twig' with item %}
+        {% endfor %}
     </div>
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div class="rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-5 text-white shadow-md">
-            <p class="text-xs uppercase text-slate-200/80">{{ t('admin_dashboard_nodes_online', page_locale()) }}</p>
-            <p class="mt-3 text-2xl font-semibold">{{ agentSummary.online }}</p>
-            <p class="mt-2 text-xs text-slate-200/80">{{ t('admin_dashboard_degraded_offline', page_locale())|replace({'%degraded%': agentSummary.degraded, '%offline%': agentSummary.offline}) }}</p>
-        </div>
-        <div class="rounded-xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-indigo-800 p-5 text-white shadow-md">
-            <p class="text-xs uppercase text-indigo-200/90">{{ t('admin_dashboard_queued_jobs', page_locale()) }}</p>
-            <p class="mt-3 text-2xl font-semibold">{{ jobSummary.queued }}</p>
-            <p class="mt-2 text-xs text-indigo-200/90">{{ t('admin_dashboard_running_failed', page_locale())|replace({'%running%': jobSummary.running, '%failed%': jobSummary.failed}) }}</p>
-        </div>
-        <div class="rounded-xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 p-5 text-white shadow-md">
-            <p class="text-xs uppercase text-emerald-200/90">{{ t('admin_dashboard_active_operators', page_locale()) }}</p>
-            <p class="mt-3 text-2xl font-semibold">{{ agentSummary.total }}</p>
-            <p class="mt-2 text-xs text-emerald-200/90">{{ t('admin_dashboard_nodes_reporting', page_locale()) }}</p>
-        </div>
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        {% embed 'components/ui/_card.html.twig' with {
+            title: t('admin_dashboard_cpu_title', page_locale()),
+            subtitle: t('admin_dashboard_cpu_subtitle', page_locale())
+        } %}
+            {% block content %}
+                <div class="flex items-center justify-between">
+                    <div class="text-3xl font-semibold text-emerald-300">{{ cpuValue }}</div>
+                    <div class="text-xs text-slate-400">{{ t('admin_dashboard_cpu_trend', page_locale()) }}</div>
+                </div>
+                <div class="mt-4">
+                    {% include 'components/ui/_sparkline.html.twig' with {
+                        data: cpuSeries,
+                        tone: 'success',
+                        empty: t('admin_metrics_no_data', page_locale())
+                    } %}
+                </div>
+            {% endblock %}
+        {% endembed %}
+
+        {% embed 'components/ui/_card.html.twig' with {
+            title: t('admin_dashboard_ram_title', page_locale()),
+            subtitle: t('admin_dashboard_ram_subtitle', page_locale())
+        } %}
+            {% block content %}
+                <div class="flex items-center justify-between">
+                    <div class="text-3xl font-semibold text-rose-300">{{ ramValue }}</div>
+                    <div class="text-xs text-slate-400">{{ t('admin_dashboard_ram_trend', page_locale()) }}</div>
+                </div>
+                <div class="mt-4">
+                    {% include 'components/ui/_sparkline.html.twig' with {
+                        data: memorySeries,
+                        tone: 'danger',
+                        empty: t('admin_metrics_no_data', page_locale())
+                    } %}
+                </div>
+            {% endblock %}
+        {% endembed %}
+
+        {% embed 'components/ui/_card.html.twig' with {
+            title: t('admin_dashboard_bandwidth_title', page_locale()),
+            subtitle: t('admin_dashboard_bandwidth_subtitle', page_locale())
+        } %}
+            {% block content %}
+                <div class="flex items-center justify-between">
+                    <div class="text-3xl font-semibold text-sky-300">{{ bandwidthValue ?? '—' }}</div>
+                    <div class="text-xs text-slate-400">{{ t('admin_dashboard_bandwidth_trend', page_locale()) }}</div>
+                </div>
+                <div class="mt-4">
+                    {% include 'components/ui/_sparkline.html.twig' with {
+                        data: bandwidthSeries,
+                        tone: 'info',
+                        empty: t('admin_metrics_no_data', page_locale())
+                    } %}
+                </div>
+            {% endblock %}
+        {% endembed %}
     </div>
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <a href="/admin/nodes" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
-            <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
-                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M4 4.75A.75.75 0 0 1 4.75 4h10.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75H4.75A.75.75 0 0 1 4 7.25v-2.5Zm0 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-.75.75H4.75a.75.75 0 0 1-.75-.75v-2.5Z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_server_overview', page_locale()) }}</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_manage_nodes', page_locale()) }}</p>
-                </div>
-            </div>
-        </a>
-        <a href="/admin/users" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
-            <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
-                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M10 10a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-6 7a6 6 0 0 1 12 0v.25a.75.75 0 0 1-.75.75h-10.5A.75.75 0 0 1 4 17.25Z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_client_management', page_locale()) }}</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_manage_users', page_locale()) }}</p>
-                </div>
-            </div>
-        </a>
-        <a href="/admin/instances" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
-            <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
-                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_game_servers', page_locale()) }}</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_instances_active', page_locale())|replace({'%count%': overview.instances}) }}</p>
-                </div>
-            </div>
-        </a>
-        <a href="/admin/billing" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
-            <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
-                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M4 3.75A1.75 1.75 0 0 1 5.75 2h5.5A1.75 1.75 0 0 1 13 3.75v2h1.25A1.75 1.75 0 0 1 16 7.5v8.75A1.75 1.75 0 0 1 14.25 18H5.75A1.75 1.75 0 0 1 4 16.25V3.75Z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_billing', page_locale()) }}</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_invoices_payments', page_locale()) }}</p>
-                </div>
-            </div>
-        </a>
-        <a href="/admin/security" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
-            <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
-                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M10 2.75a.75.75 0 0 1 .75.75v1.06a5.5 5.5 0 0 1 4 5.3v3.5a2.75 2.75 0 0 1-1.94 2.62l-2.64.88a.75.75 0 0 1-.47 0l-2.64-.88A2.75 2.75 0 0 1 5.25 13.36v-3.5a5.5 5.5 0 0 1 4-5.3V3.5a.75.75 0 0 1 .75-.75Zm-3.25 7.11v3.5c0 .54.34 1.03.86 1.2l2.39.8 2.39-.8c.52-.17.86-.66.86-1.2v-3.5a4 4 0 1 0-8 0Z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_security_center', page_locale()) }}</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_security_center_description', page_locale()) }}</p>
-                </div>
-            </div>
-        </a>
-        <a href="/admin/templates" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
-            <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
-                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M3 5.75A2.75 2.75 0 0 1 5.75 3h8.5A2.75 2.75 0 0 1 17 5.75v8.5A2.75 2.75 0 0 1 14.25 17h-8.5A2.75 2.75 0 0 1 3 14.25v-8.5Zm2.75-1.25a1.25 1.25 0 0 0-1.25 1.25v8.5a1.25 1.25 0 0 0 1.25 1.25h8.5a1.25 1.25 0 0 0 1.25-1.25v-8.5a1.25 1.25 0 0 0-1.25-1.25h-8.5Zm1.75 2.25h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 4h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_templates', page_locale()) }}</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_templates_description', page_locale()) }}</p>
-                </div>
-            </div>
-        </a>
-        <a href="/admin/status/components" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
-            <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
-                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M4.75 3A1.75 1.75 0 0 0 3 4.75v10.5C3 16.216 3.784 17 4.75 17h10.5A1.75 1.75 0 0 0 17 15.25V9.5a.75.75 0 0 0-.75-.75h-4.5A1.25 1.25 0 0 1 10.5 7.5V3.75A.75.75 0 0 0 9.75 3h-5ZM6 12.75a.75.75 0 0 1 .75-.75h6.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1-.75-.75Zm0-3.5a.75.75 0 0 1 .75-.75h4a.75.75 0 0 1 0 1.5h-4A.75.75 0 0 1 6 9.25Z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_status_page', page_locale()) }}</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_status_page_description', page_locale()) }}</p>
-                </div>
-            </div>
-        </a>
-        <a href="/admin/jobs" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
-            <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-slate-100 p-2 text-slate-600">
-                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path d="M3 4.75A1.75 1.75 0 0 1 4.75 3h10.5A1.75 1.75 0 0 1 17 4.75v10.5A1.75 1.75 0 0 1 15.25 17H4.75A1.75 1.75 0 0 1 3 15.25V4.75Zm3 2.75a.75.75 0 0 0 0 1.5h8a.75.75 0 0 0 0-1.5H6Zm0 4a.75.75 0 0 0 0 1.5h5a.75.75 0 0 0 0-1.5H6Z"/>
-                    </svg>
-                </div>
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ t('admin_dashboard_jobs_automation', page_locale()) }}</p>
-                    <p class="text-xs text-slate-600">{{ t('admin_dashboard_jobs_automation_description', page_locale()) }}</p>
-                </div>
-            </div>
-        </a>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {% set moduleCards = [
+            { label: t('admin_dashboard_module_webspaces', page_locale()), value: overview.customers, icon: '🗂️' },
+            { label: t('admin_dashboard_module_databases', page_locale()), value: overview.instances, icon: '🗄️' },
+            { label: t('admin_dashboard_module_games', page_locale()), value: overview.instances, icon: '🎮' },
+            { label: t('admin_dashboard_module_mail', page_locale()), value: jobSummary.total, icon: '✉️' },
+            { label: t('admin_dashboard_module_voice', page_locale()), value: agentSummary.total, icon: '🎧' }
+        ] %}
+        {% for card in moduleCards %}
+            {% embed 'components/ui/_card.html.twig' with { variant: 'soft' } %}
+                {% block content %}
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-xs uppercase tracking-wide text-slate-400">{{ card.label }}</div>
+                            <div class="mt-2 text-2xl font-semibold text-slate-100">{{ card.value }}</div>
+                        </div>
+                        <div class="text-2xl">{{ card.icon }}</div>
+                    </div>
+                {% endblock %}
+            {% endembed %}
+        {% endfor %}
     </div>
 
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
-            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                <div>
-                    <h2 class="text-lg font-semibold">{{ t('admin_dashboard_recent_activity', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-700">{{ t('admin_dashboard_recent_activity_description', page_locale()) }}</p>
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        {% embed 'components/ui/_card.html.twig' with {
+            title: t('admin_dashboard_customers_tickets_title', page_locale()),
+            subtitle: t('admin_dashboard_customers_tickets_subtitle', page_locale())
+        } %}
+            {% block content %}
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-slate-400">{{ t('admin_dashboard_customers_total', page_locale()) }}</div>
+                        <div class="mt-2 text-2xl font-semibold text-slate-100">{{ overview.customers }}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-slate-400">{{ t('admin_dashboard_tickets_open', page_locale()) }}</div>
+                        <div class="mt-2 text-2xl font-semibold text-slate-100">{{ overview.tickets_open }}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wide text-slate-400">{{ t('admin_dashboard_tickets_in_progress', page_locale()) }}</div>
+                        <div class="mt-2 text-2xl font-semibold text-slate-100">{{ ticketsInProgress }}</div>
+                    </div>
                 </div>
-                <button
-                    class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-                    hx-get="/admin/jobs/table"
-                    hx-target="#jobs-table"
-                    hx-swap="outerHTML"
-                >{{ t('admin_dashboard_refresh', page_locale()) }}</button>
-            </div>
-            {% include 'admin/jobs/_table.html.twig' with { jobs: jobs } %}
-        </div>
+            {% endblock %}
+        {% endembed %}
 
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-5 py-4">
-                <h2 class="text-lg font-semibold">{{ t('admin_dashboard_system_load', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('admin_dashboard_system_load_description', page_locale()) }}</p>
-            </div>
-            <div class="divide-y divide-slate-200">
-                {% set statusStyles = {
-                    'online': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                    'degraded': 'bg-amber-50 text-amber-700 border-amber-200',
-                    'offline': 'bg-rose-50 text-rose-700 border-rose-200'
+        {% embed 'components/ui/_card.html.twig' with {
+            title: t('admin_dashboard_system_messages_title', page_locale()),
+            subtitle: t('admin_dashboard_system_messages_subtitle', page_locale())
+        } %}
+            {% block content %}
+                {% set messageItems = [] %}
+                {% for job in jobs|slice(0, 3) %}
+                    {% set messageItems = messageItems|merge([
+                        {
+                            title: t('admin_dashboard_system_message_job', page_locale())|replace({'%id%': job.id}),
+                            description: job.type,
+                            time: job.createdAt ? job.createdAt|date('H:i') : t('admin_dashboard_time_unknown', page_locale()),
+                            icon: '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4.75 3A1.75 1.75 0 0 0 3 4.75v10.5C3 16.216 3.784 17 4.75 17h10.5A1.75 1.75 0 0 0 17 15.25V4.75A1.75 1.75 0 0 0 15.25 3H4.75Zm2.5 3.25h5.5a.75.75 0 0 1 0 1.5H7.25a.75.75 0 0 1 0-1.5Zm0 4h8a.75.75 0 0 1 0 1.5h-8a.75.75 0 0 1 0-1.5Z"/></svg>'
+                        }
+                    ]) %}
+                {% endfor %}
+                {% include 'components/ui/_system_messages.html.twig' with { messages: messageItems } %}
+            {% endblock %}
+        {% endembed %}
+
+        {% embed 'components/ui/_card.html.twig' with {
+            title: t('admin_dashboard_queue_title', page_locale()),
+            subtitle: t('admin_dashboard_queue_subtitle', page_locale())
+        } %}
+            {% block content %}
+                {% set queueRows = [] %}
+                {% for job in jobs|slice(0, 4) %}
+                    {% set badge = job.status == 'failed'
+                        ? include('components/ui/_badge.html.twig', { label: t('admin_dashboard_status_failed', page_locale()), tone: 'danger' })
+                        : include('components/ui/_badge.html.twig', { label: t('admin_dashboard_status_running', page_locale()), tone: 'info' })
+                    %}
+                    {% set queueRows = queueRows|merge([
+                        [
+                            '#' ~ job.id,
+                            job.type,
+                            badge
+                        ]
+                    ]) %}
+                {% endfor %}
+                {% include 'components/ui/_table.html.twig' with {
+                    headers: [t('admin_dashboard_table_job', page_locale()), t('admin_dashboard_table_type', page_locale()), t('admin_dashboard_table_status', page_locale())],
+                    rows: queueRows,
+                    empty: t('admin_dashboard_queue_empty', page_locale())
                 } %}
+            {% endblock %}
+        {% endembed %}
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        {% embed 'components/ui/_card.html.twig' with {
+            title: t('admin_dashboard_storage_title', page_locale()),
+            subtitle: t('admin_dashboard_storage_subtitle', page_locale())
+        } %}
+            {% block content %}
                 {% for node in nodes %}
-                    {% set style = statusStyles[node.status] ?? 'bg-slate-100 text-slate-600 border-slate-200' %}
-                    <div class="px-5 py-4">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <p class="text-sm font-semibold text-slate-900">{{ node.name }}</p>
-                                <p class="text-xs text-slate-600">{{ t('admin_dashboard_node_id', page_locale())|replace({'%id%': node.id}) }}</p>
-                            </div>
-                            <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ style }}">
-                                {{ node.status|title }}
-                            </span>
+                    {% set memoryValue = node.memory ?? '—' %}
+                    {% set memoryPercent = node.memory ? node.memory|replace({'%': ''}) : null %}
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span>{{ node.name }}</span>
+                            <span>{{ memoryValue }}</span>
                         </div>
-                        <div class="mt-3 space-y-2 text-xs text-slate-700">
-                            <div class="flex items-center justify-between">
-                                <span>{{ t('admin_dashboard_cpu', page_locale()) }}</span>
-                                <span class="font-medium text-slate-700">{{ node.cpu ?? '—' }}</span>
+                        {% if memoryPercent is not null %}
+                            <div class="mt-2 ui-progress">
+                                <div class="ui-progress__bar" style="width: {{ memoryPercent }}%;"></div>
                             </div>
-                            <div class="h-1 w-full rounded-full bg-slate-100">
-                                <div class="h-1 w-2/3 rounded-full bg-indigo-500"></div>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span>{{ t('admin_dashboard_memory', page_locale()) }}</span>
-                                <span class="font-medium text-slate-700">{{ node.memory ?? '—' }}</span>
-                            </div>
-                            <div class="h-1 w-full rounded-full bg-slate-100">
-                                <div class="h-1 w-1/2 rounded-full bg-emerald-500"></div>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span>{{ t('admin_dashboard_queue', page_locale()) }}</span>
-                                <span class="font-medium text-slate-700">{{ node.queue ?? '—' }}</span>
-                            </div>
-                            <div class="h-1 w-full rounded-full bg-slate-100">
-                                <div class="h-1 w-1/3 rounded-full bg-amber-500"></div>
-                            </div>
-                        </div>
-                        <div class="mt-3 text-xs text-slate-600">
-                            {% if node.lastHeartbeatAt %}
-                                {{ t('admin_dashboard_last_seen', page_locale())|replace({'%time%': node.lastHeartbeatAt|date('Y-m-d H:i'), '%ip%': node.lastHeartbeatIp ?? t('admin_dashboard_ip_na', page_locale())}) }}
-                            {% else %}
-                                {{ t('admin_dashboard_no_heartbeat', page_locale()) }}
-                            {% endif %}
-                        </div>
+                        {% else %}
+                            <div class="mt-2 text-xs text-slate-500">{{ t('admin_metrics_no_data', page_locale()) }}</div>
+                        {% endif %}
                     </div>
                 {% else %}
-                    <div class="px-5 py-8 text-center text-sm text-slate-600">{{ t('admin_dashboard_no_agents', page_locale()) }}</div>
+                    <div class="text-sm text-slate-400">{{ t('admin_dashboard_storage_empty', page_locale()) }}</div>
                 {% endfor %}
-            </div>
-        </div>
+            {% endblock %}
+        {% endembed %}
+
+        {% embed 'components/ui/_card.html.twig' with {
+            title: t('admin_dashboard_nodes_title', page_locale()),
+            subtitle: t('admin_dashboard_nodes_subtitle', page_locale())
+        } %}
+            {% block content %}
+                <div class="space-y-4">
+                    {% for node in nodes %}
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-sm font-semibold text-slate-100">{{ node.name }}</div>
+                                <div class="text-xs text-slate-400">#{{ node.id }}</div>
+                            </div>
+                            {% set statusTone = node.status == 'online' ? 'success' : (node.status == 'degraded' ? 'warning' : 'danger') %}
+                            {% include 'components/ui/_badge.html.twig' with { label: node.status|title, tone: statusTone } %}
+                        </div>
+                    {% else %}
+                        <div class="text-sm text-slate-400">{{ t('admin_dashboard_no_agents', page_locale()) }}</div>
+                    {% endfor %}
+                </div>
+            {% endblock %}
+        {% endembed %}
+
+        {% embed 'components/ui/_card.html.twig' with {
+            title: t('admin_dashboard_jobs_title', page_locale()),
+            subtitle: t('admin_dashboard_jobs_subtitle', page_locale())
+        } %}
+            {% block content %}
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs uppercase tracking-wide text-slate-400">{{ t('admin_dashboard_jobs_total', page_locale()) }}</span>
+                        <span class="text-lg font-semibold text-slate-100">{{ jobSummary.total }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs uppercase tracking-wide text-slate-400">{{ t('admin_dashboard_jobs_running', page_locale()) }}</span>
+                        <span class="text-lg font-semibold text-slate-100">{{ jobSummary.running }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs uppercase tracking-wide text-slate-400">{{ t('admin_dashboard_jobs_failed', page_locale()) }}</span>
+                        <span class="text-lg font-semibold text-rose-300">{{ jobSummary.failed }}</span>
+                    </div>
+                </div>
+            {% endblock %}
+        {% endembed %}
     </div>
 </div>
 {% endblock %}

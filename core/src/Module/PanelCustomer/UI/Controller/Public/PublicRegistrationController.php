@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
@@ -29,6 +30,7 @@ final class PublicRegistrationController
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly SiteResolver $siteResolver,
+        private readonly CmsMaintenanceService $maintenanceService,
         #[Autowire(service: 'limiter.public_registration')]
         private readonly RateLimiterFactory $registrationLimiter,
         private readonly Environment $twig,
@@ -43,20 +45,20 @@ final class PublicRegistrationController
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
         }
 
+        $maintenance = $this->maintenanceService->resolve($request, $site);
+        $registrationAllowed = !$maintenance['active'];
+
         $form = [
             'email' => '',
-            'first_name' => '',
-            'last_name' => '',
-            'portal_language' => 'de',
-            'accept_terms' => false,
-            'accept_privacy' => false,
         ];
         $errors = [];
         $registered = false;
         $status = Response::HTTP_OK;
         $retryAfter = null;
 
-        if ($request->isMethod('POST')) {
+        if ($request->isMethod('POST') && !$registrationAllowed) {
+            $status = Response::HTTP_FORBIDDEN;
+        } elseif ($request->isMethod('POST')) {
             $limiter = $this->registrationLimiter->create($request->getClientIp() ?? 'public');
             $limit = $limiter->consume(1);
             if (!$limit->isAccepted()) {
@@ -66,33 +68,16 @@ final class PublicRegistrationController
             } else {
                 $payload = $request->request->all();
                 $email = trim((string) ($payload['email'] ?? ''));
-                $firstName = trim((string) ($payload['first_name'] ?? ''));
-                $lastName = trim((string) ($payload['last_name'] ?? ''));
-                $portalLanguage = strtolower(trim((string) ($payload['portal_language'] ?? 'de')));
+                $portalLanguage = strtolower(trim((string) $request->getLocale()));
                 $password = (string) ($payload['password'] ?? '');
                 $passwordConfirm = (string) ($payload['password_confirm'] ?? '');
-                $acceptTerms = ($payload['accept_terms'] ?? '') === 'on';
-                $acceptPrivacy = ($payload['accept_privacy'] ?? '') === 'on';
 
                 $form = [
                     'email' => $email,
-                    'first_name' => $firstName,
-                    'last_name' => $lastName,
-                    'portal_language' => $portalLanguage,
-                    'accept_terms' => $acceptTerms,
-                    'accept_privacy' => $acceptPrivacy,
                 ];
 
                 if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     $errors[] = 'Enter a valid email address.';
-                }
-
-                if ($firstName === '') {
-                    $errors[] = 'First name is required.';
-                }
-
-                if ($lastName === '') {
-                    $errors[] = 'Last name is required.';
                 }
 
                 if (mb_strlen($password) < 8) {
@@ -103,12 +88,8 @@ final class PublicRegistrationController
                     $errors[] = 'Passwords do not match.';
                 }
 
-                if (!$acceptTerms || !$acceptPrivacy) {
-                    $errors[] = 'You must accept the terms and privacy policy.';
-                }
-
                 if (!in_array($portalLanguage, ['de', 'en'], true)) {
-                    $errors[] = 'Select a valid portal language.';
+                    $portalLanguage = 'de';
                 }
 
                 if ($email !== '' && $this->users->findOneByEmail($email) !== null) {
@@ -118,7 +99,7 @@ final class PublicRegistrationController
                 if ($errors === []) {
                     $user = new User($email, UserType::Customer);
                     $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
-                    $user->setName(trim($firstName . ' ' . $lastName));
+                    $user->setName($email);
 
                     $now = new \DateTimeImmutable();
                     $ipAddress = $request->getClientIp() ?? 'unknown';
@@ -157,11 +138,9 @@ final class PublicRegistrationController
             'form' => $form,
             'errors' => $errors,
             'registered' => $registered,
+            'registrationAllowed' => $registrationAllowed,
+            'maintenanceMessage' => $maintenance['message'],
             'siteName' => $site->getName(),
-            'portalLanguages' => [
-                'de' => 'Deutsch',
-                'en' => 'English',
-            ],
         ]), $status);
 
         if ($retryAfter !== null) {

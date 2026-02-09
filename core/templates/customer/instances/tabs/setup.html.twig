@@ -29,23 +29,35 @@
                 {% endif %}
                 <form action="{{ path('customer_instance_setup_vars', {id: instance.id}) }}" method="post" class="mt-4 space-y-4">
                     {% for field in setupVariableVars %}
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-700 uppercase">
-                                {{ field.label }}{% if field.required %} *{% endif %}
-                            </label>
-                            <input
-                                name="vars[{{ field.key }}]"
-                                value="{{ field.value }}"
-                                type="{% if field.type == 'number' %}number{% elseif field.type == 'password' %}password{% else %}text{% endif %}"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
-                            >
-                            {% if field.helptext %}
-                                <p class="mt-1 text-xs text-slate-600">{{ field.helptext }}</p>
-                            {% endif %}
-                            {% if field.error %}
-                                <p class="mt-1 text-xs text-rose-600">{{ field.error }}</p>
-                            {% endif %}
-                        </div>
+                        {% if field.key not in ['STEAM_ACCOUNT', 'STEAM_PASSWORD'] or steamLoginMode == 'account' %}
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 uppercase">
+                                    {{ field.label }}{% if field.required %} *{% endif %}
+                                </label>
+                                {% if field.key == 'STEAM_LOGIN_MODE' %}
+                                    <select
+                                        name="vars[{{ field.key }}]"
+                                        class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                                    >
+                                        <option value="anonymous" {{ field.value == 'account' ? '' : 'selected' }}>Anonymous</option>
+                                        <option value="account" {{ field.value == 'account' ? 'selected' : '' }}>Steam Account</option>
+                                    </select>
+                                {% else %}
+                                    <input
+                                        name="vars[{{ field.key }}]"
+                                        value="{{ field.value }}"
+                                        type="{% if field.type == 'number' %}number{% elseif field.type == 'password' %}password{% else %}text{% endif %}"
+                                        class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                                    >
+                                {% endif %}
+                                {% if field.helptext %}
+                                    <p class="mt-1 text-xs text-slate-600">{{ field.helptext }}</p>
+                                {% endif %}
+                                {% if field.error %}
+                                    <p class="mt-1 text-xs text-rose-600">{{ field.error }}</p>
+                                {% endif %}
+                            </div>
+                        {% endif %}
                     {% else %}
                         <p class="text-sm text-slate-500">Keine Variablen definiert.</p>
                     {% endfor %}

@@ -119,6 +119,20 @@ final class CustomerInstanceController
                 continue;
             }
 
+            if ($key === 'STEAM_LOGIN_MODE') {
+                $value = strtolower(trim($value));
+                if (!in_array($value, ['anonymous', 'account'], true)) {
+                    $errors[$key] = 'Bitte wähle eine gültige Steam-Login-Art aus.';
+                    continue;
+                }
+                $setupVars[$key] = $value;
+                if ($value === 'anonymous') {
+                    unset($setupVars['STEAM_PASSWORD']);
+                    $instance->setSteamAccount(null);
+                }
+                continue;
+            }
+
             $validationError = $this->setupChecker->validateRequirementValue($entry, $value);
             if ($validationError !== null) {
                 $errors[$key] = $validationError;
@@ -1077,6 +1091,7 @@ final class CustomerInstanceController
         $defaults['SERVER_NAME'] = $instance->getServerName() ?? ($defaults['SERVER_NAME'] ?? '');
         $defaults['STEAM_GSLT'] = $instance->getGslKey() ?? ($defaults['STEAM_GSLT'] ?? '');
         $defaults['STEAM_ACCOUNT'] = $instance->getSteamAccount() ?? ($defaults['STEAM_ACCOUNT'] ?? '');
+        $defaults['STEAM_LOGIN_MODE'] = $this->resolveSteamLoginMode($setupVars, $instance->getSteamAccount());
 
         $varEntries = array_map(function (array $entry) use ($setupVars, $messages, $defaults): array {
             $key = $entry['key'];
@@ -1128,6 +1143,7 @@ final class CustomerInstanceController
             'setupVariableVars' => $variableEntries,
             'setupSecrets' => $secretEntries,
             'setupMissingLabels' => $missingLabels,
+            'steamLoginMode' => $defaults['STEAM_LOGIN_MODE'],
             'setupMessages' => [
                 'vars' => $messages['vars']['success'] ?? null,
                 'secrets' => $messages['secrets']['success'] ?? null,
@@ -1257,6 +1273,15 @@ final class CustomerInstanceController
                 'helptext' => 'Benötigt für manche Source-Server.',
             ],
             [
+                'key' => 'STEAM_LOGIN_MODE',
+                'label' => 'Steam Login',
+                'type' => 'text',
+                'required' => false,
+                'scope' => 'customer_allowed',
+                'validation' => null,
+                'helptext' => 'Standard ist Anonymous. Optional kann ein eigener Steam Account genutzt werden.',
+            ],
+            [
                 'key' => 'STEAM_ACCOUNT',
                 'label' => 'Steam Benutzername',
                 'type' => 'text',
@@ -1296,12 +1321,22 @@ final class CustomerInstanceController
 
         return array_values(array_filter($entries, static function (array $entry) use ($envKeys, $usesSteamLogin): bool {
             $key = strtoupper((string) $entry['key']);
-            if ($key === 'STEAM_ACCOUNT' || $key === 'STEAM_PASSWORD') {
+            if (in_array($key, ['STEAM_LOGIN_MODE', 'STEAM_ACCOUNT', 'STEAM_PASSWORD'], true)) {
                 return $usesSteamLogin || isset($envKeys[$key]);
             }
 
             return isset($envKeys[$key]);
         }));
+    }
+
+    private function resolveSteamLoginMode(array $setupVars, ?string $steamAccount): string
+    {
+        $mode = strtolower(trim((string) ($setupVars['STEAM_LOGIN_MODE'] ?? '')));
+        if (in_array($mode, ['anonymous', 'account'], true)) {
+            return $mode;
+        }
+
+        return $steamAccount ? 'account' : 'anonymous';
     }
 
     private function isPortKey(string $key): bool

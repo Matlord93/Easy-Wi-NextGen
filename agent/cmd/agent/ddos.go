@@ -188,10 +188,10 @@ func applyWindowsDdosPolicy(mode string, ports []int, protocols []string) error 
 	if mode == ddosModeOff || mode == ddosModeSynCookie {
 		return nil
 	}
-	if ports == nil || len(ports) == 0 {
+	if len(ports) == 0 {
 		return fmt.Errorf("ports are required for ddos policy")
 	}
-	if protocols == nil || len(protocols) == 0 {
+	if len(protocols) == 0 {
 		return fmt.Errorf("protocols are required for ddos policy")
 	}
 
@@ -340,10 +340,10 @@ func applyNftDdosRules(mode string, ports []int, protocols []string) error {
 	if mode == ddosModeOff {
 		return nil
 	}
-	if ports == nil || len(ports) == 0 {
+	if len(ports) == 0 {
 		return fmt.Errorf("ports are required for ddos policy")
 	}
-	if protocols == nil || len(protocols) == 0 {
+	if len(protocols) == 0 {
 		return fmt.Errorf("protocols are required for ddos policy")
 	}
 
@@ -375,10 +375,10 @@ func applyNftDdosRules(mode string, ports []int, protocols []string) error {
 }
 
 func applyIptablesDdosRules(mode string, ports []int, protocols []string) error {
-	if ports == nil || len(ports) == 0 {
+	if len(ports) == 0 {
 		return fmt.Errorf("ports are required for ddos policy")
 	}
-	if protocols == nil || len(protocols) == 0 {
+	if len(protocols) == 0 {
 		return fmt.Errorf("protocols are required for ddos policy")
 	}
 

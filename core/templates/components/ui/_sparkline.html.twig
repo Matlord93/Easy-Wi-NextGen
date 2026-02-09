@@ -1,0 +1,26 @@
+{% set data = data|default([])|filter(value => value is not null) %}
+{% set tone = tone|default('accent') %}
+{% set empty = empty|default(t('admin_metrics_no_data', page_locale())) %}
+
+{% if data is empty %}
+    <div class="ui-chart ui-chart--empty">
+        <div class="ui-chart__empty">{{ empty }}</div>
+    </div>
+{% else %}
+    {% set maxValue = max(data) %}
+    {% set maxValue = maxValue > 0 ? maxValue : 1 %}
+    {% set pointCount = data|length %}
+    {% set points = [] %}
+    {% for value in data %}
+        {% set x = pointCount == 1 ? 0 : (loop.index0 / (pointCount - 1)) * 100 %}
+        {% set y = 40 - ((value / maxValue) * 40) %}
+        {% set points = points|merge([x ~ ',' ~ y]) %}
+    {% endfor %}
+    {% set linePoints = points|join(' ') %}
+    <div class="ui-chart">
+        <svg class="ui-chart__sparkline ui-chart__sparkline--{{ tone }}" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+            <polyline class="ui-chart__line" fill="none" stroke-width="2" points="{{ linePoints }}" />
+            <polygon class="ui-chart__fill" points="{{ linePoints }} 100,40 0,40" />
+        </svg>
+    </div>
+{% endif %}

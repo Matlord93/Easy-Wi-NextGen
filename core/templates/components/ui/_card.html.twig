@@ -1,0 +1,27 @@
+{% set title = title|default('') %}
+{% set subtitle = subtitle|default('') %}
+{% set actions = actions|default(null) %}
+{% set variant = variant|default('') %}
+
+<div class="ui-card {{ variant == 'soft' ? 'ui-card--soft' : '' }} {{ class|default('') }}">
+    {% if title or subtitle or actions %}
+        <div class="ui-card__header">
+            <div>
+                {% if title %}
+                    <div class="ui-card__title">{{ title }}</div>
+                {% endif %}
+                {% if subtitle %}
+                    <div class="ui-card__subtitle">{{ subtitle }}</div>
+                {% endif %}
+            </div>
+            {% if actions %}
+                <div class="flex items-center gap-2">
+                    {{ actions|raw }}
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+    <div class="ui-card__body">
+        {% block content %}{% endblock %}
+    </div>
+</div>

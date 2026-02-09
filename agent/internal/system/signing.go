@@ -21,7 +21,7 @@ AGv4kekSZQ4BAPNk4zhcPAn0y7b6Kq4D/a6ZP5ffUgw391Ce4Dtxm7EO
 =zglq
 -----END PGP PUBLIC KEY BLOCK-----`
 
-func verifyChecksumsSignature(checksumsPath, signaturePath string) error {
+func verifyChecksumsSignature(checksumsPath, signaturePath string) (err error) {
 	if _, err := exec.LookPath("gpg"); err != nil {
 		return fmt.Errorf("gpg not available for signature verification")
 	}
@@ -30,7 +30,11 @@ func verifyChecksumsSignature(checksumsPath, signaturePath string) error {
 	if err != nil {
 		return fmt.Errorf("create gpg home: %w", err)
 	}
-	defer os.RemoveAll(gpgHome)
+	defer func() {
+		if removeErr := os.RemoveAll(gpgHome); removeErr != nil && err == nil {
+			err = fmt.Errorf("remove gpg home: %w", removeErr)
+		}
+	}()
 
 	keyPath := filepath.Join(gpgHome, "release-public.key")
 	if err := os.WriteFile(keyPath, []byte(releasePublicKey), 0o600); err != nil {

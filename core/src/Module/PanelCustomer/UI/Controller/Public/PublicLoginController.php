@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Module\Cms\Application\CmsMaintenanceService;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Application\TwoFactorService;
+use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\UserSession;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Setup\Application\InstallerService;
@@ -38,6 +41,8 @@ final class PublicLoginController
         private readonly TwoFactorService $twoFactorService,
         private readonly SecretsCrypto $secretsCrypto,
         private readonly TwoFactorPolicy $twoFactorPolicy,
+        private readonly AppSettingsService $settingsService,
+        private readonly CmsMaintenanceService $maintenanceService,
         #[Autowire(service: 'limiter.public_login_ip')]
         private readonly RateLimiterFactory $loginIpLimiter,
         #[Autowire(service: 'limiter.public_login_identifier')]
@@ -58,6 +63,9 @@ final class PublicLoginController
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
         }
 
+        $maintenance = $this->maintenanceService->resolve($request, $site);
+        $registrationAllowed = !$maintenance['active'];
+
         $form = [
             'email' => '',
         ];
@@ -67,6 +75,11 @@ final class PublicLoginController
         $requiresTwoFactor = false;
         $twoFactorEnabled = false;
         $enrollmentRequired = false;
+        $twoFactorSetup = [
+            'secret' => null,
+            'otpauth' => null,
+            'qr' => null,
+        ];
 
         if ($request->isMethod('POST')) {
             $payload = $request->request->all();
@@ -125,6 +138,19 @@ final class PublicLoginController
                     $requiresTwoFactor = $this->twoFactorPolicy->isRequired($user);
                     $twoFactorEnabled = $user->isTotpEnabled();
                     $enrollmentRequired = $requiresTwoFactor && !$twoFactorEnabled;
+
+                    if ($enrollmentRequired) {
+                        $secret = $this->ensureTotpSecret($user);
+                        if ($secret !== null) {
+                            $issuer = $this->settingsService->getBrandingName();
+                            $otpAuth = $this->twoFactorService->getOtpAuthUri($issuer, $user->getEmail(), $secret);
+                            $twoFactorSetup = [
+                                'secret' => $secret,
+                                'otpauth' => $otpAuth,
+                                'qr' => sprintf('https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=%s', rawurlencode($otpAuth)),
+                            ];
+                        }
+                    }
 
                     if ($twoFactorEnabled) {
                         $secret = $user->getTotpSecret($this->secretsCrypto);
@@ -224,6 +250,8 @@ final class PublicLoginController
             'requiresTwoFactor' => $requiresTwoFactor,
             'twoFactorEnabled' => $twoFactorEnabled,
             'enrollmentRequired' => $enrollmentRequired,
+            'twoFactorSetup' => $twoFactorSetup,
+            'registrationAllowed' => $registrationAllowed,
         ]), $status);
 
         if ($retryAfter !== null) {
@@ -232,5 +260,24 @@ final class PublicLoginController
         }
 
         return $response;
+    }
+
+    private function ensureTotpSecret(User $user): ?string
+    {
+        if ($user->isTotpEnabled()) {
+            return $user->getTotpSecret($this->secretsCrypto);
+        }
+
+        $secret = $user->getTotpSecret($this->secretsCrypto);
+        if ($secret !== null) {
+            return $secret;
+        }
+
+        $secret = $this->twoFactorService->generateSecret();
+        $user->setTotpSecret($secret, $this->secretsCrypto);
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
+
+        return $secret;
     }
 }

@@ -157,9 +157,7 @@ func resolveBinaryPath(instanceDir, token string) string {
 	if trimmed == "" {
 		return ""
 	}
-	if strings.HasPrefix(trimmed, "./") {
-		trimmed = strings.TrimPrefix(trimmed, "./")
-	}
+	trimmed = strings.TrimPrefix(trimmed, "./")
 	if filepath.IsAbs(trimmed) {
 		return trimmed
 	}

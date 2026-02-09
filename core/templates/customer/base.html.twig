@@ -37,6 +37,14 @@
 {% set moduleDns = module_enabled('dns') %}
 {% set moduleBilling = module_enabled('billing') %}
 {% set showVoiceserver = moduleTs6 or moduleTs %}
+{% set customerHasGame = customer_has_module('game') %}
+{% set customerHasVoice = customer_has_module('voice') %}
+{% set customerHasSinusbot = customer_has_module('sinusbot') %}
+{% set customerHasWeb = customer_has_module('web') %}
+{% set customerHasDatabase = customer_has_module('database') %}
+{% set customerHasDomain = customer_has_module('domain') %}
+{% set customerHasMail = customer_has_module('mail') %}
+{% set customerHasShop = customer_has_module('shop') %}
 {% set extensionItems = extension_menu_items('customer') %}
 {% set gdprItems = extensionItems is not empty
     ? extensionItems|filter(item => item.href starts with '/gdpr')
@@ -46,6 +54,26 @@
     ? extensionItems|filter(item => not (item.href starts with '/gdpr'))
     : []
 %}
+{% set infrastructureItems = [
+    moduleGame and customerHasGame ? { key: 'gameservers', label: t('customer_nav_game_servers', page_locale()), href: path('customer_instances') } : null,
+    showVoiceserver and customerHasVoice ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl } : null,
+    moduleGame and customerHasSinusbot ? { key: 'sinusbot', label: t('customer_nav_sinusbot', page_locale()), href: path('customer_sinusbot_index') } : null
+]|filter(v => v) %}
+{% set serviceItems = [
+    moduleWeb and customerHasWeb ? { key: 'webspaces', label: t('customer_nav_webspace', page_locale()), href: path('customer_webspace') } : null,
+    customerHasDatabase ? { key: 'databases', label: t('customer_nav_databases', page_locale()), href: path('customer_databases') } : null
+]|filter(v => v) %}
+{% set domainItems = [
+    moduleDns and customerHasDomain ? { key: 'domains', label: t('customer_nav_domains', page_locale()), href: path('customer_domains') } : null,
+    moduleMail and customerHasMail ? { key: 'mail', label: t('customer_nav_mail', page_locale()), href: path('customer_mail') } : null
+]|filter(v => v) %}
+{% set marketplaceVisible = moduleBilling and customerHasShop %}
+{% set profileUser = current_user() %}
+{% set profileSummary = profileUser ? {
+    name: profileUser.name ?: profileUser.email,
+    email: profileUser.email,
+    initial: (profileUser.name ?: profileUser.email)|slice(0, 1)|upper
+} : null %}
 
 {% set sidebarGroups = [
     {
@@ -56,31 +84,21 @@
             { key: 'activity', label: t('customer_nav_activity', page_locale()), href: path('customer_activity') }
         ]
     },
-    {
+    infrastructureItems is not empty ? {
         label: t('customer_nav_group_infrastructure', page_locale()),
         open: true,
-        items: [
-            moduleGame ? { key: 'gameservers', label: t('customer_nav_game_servers', page_locale()), href: path('customer_instances') } : null,
-            showVoiceserver ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl } : null,
-            moduleGame ? { key: 'sinusbot', label: t('customer_nav_sinusbot', page_locale()), href: path('customer_sinusbot_index') } : null
-        ]|filter(v => v)
-    },
-    {
+        items: infrastructureItems
+    } : null,
+    serviceItems is not empty ? {
         label: t('customer_nav_group_services', page_locale()),
         open: true,
-        items: [
-            moduleWeb ? { key: 'webspaces', label: t('customer_nav_webspace', page_locale()), href: path('customer_webspace') } : null,
-            { key: 'databases', label: t('customer_nav_databases', page_locale()), href: path('customer_databases') }
-        ]|filter(v => v)
-    },
-    {
+        items: serviceItems
+    } : null,
+    domainItems is not empty ? {
         label: t('customer_nav_group_domains_mail', page_locale()),
         open: true,
-        items: [
-            moduleDns ? { key: 'domains', label: t('customer_nav_domains', page_locale()), href: path('customer_domains') } : null,
-            moduleMail ? { key: 'mail', label: t('customer_nav_mail', page_locale()), href: path('customer_mail') } : null
-        ]|filter(v => v)
-    },
+        items: domainItems
+    } : null,
     {
         label: t('customer_nav_group_support', page_locale()),
         open: true,
@@ -101,7 +119,7 @@
         open: true,
         items: gdprItems
     } : null,
-    moduleBilling ? {
+    marketplaceVisible ? {
         label: t('customer_nav_group_marketplace', page_locale()),
         open: true,
         items: ([{ key: 'shop', label: t('customer_nav_shop', page_locale()), href: path('customer_shop') }]|merge(marketplaceItems))
@@ -116,12 +134,14 @@
         groups: sidebarGroups,
         footer: ''
     } %}
+    <div class="ng-sidebar-backdrop" data-sidebar-backdrop></div>
 
     <main class="ng-main">
         {% include 'components/_topbar.html.twig' with {
             title: pageTitle|default(''),
             subtitle: pageSubtitle|default(''),
-            actions: topbarActions|default([])
+            actions: topbarActions|default([]),
+            profile: profileSummary
         } %}
         <div class="ng-content">
             {% block content %}{% endblock %}
@@ -181,6 +201,44 @@
             return;
         });
     });
+
+    (() => {
+        const body = document.body;
+        const toggles = document.querySelectorAll('.ng-sidebar-toggle');
+        const backdrop = document.querySelector('[data-sidebar-backdrop]');
+        if (toggles.length === 0) {
+            return;
+        }
+        const toggleSidebar = () => {
+            if (window.matchMedia('(max-width: 768px)').matches) {
+                body.classList.toggle('is-sidebar-open');
+                return;
+            }
+            body.classList.toggle('is-sidebar-collapsed');
+        };
+        toggles.forEach((toggle) => toggle.addEventListener('click', toggleSidebar));
+        if (backdrop) {
+            backdrop.addEventListener('click', () => body.classList.remove('is-sidebar-open'));
+        }
+        window.addEventListener('resize', () => {
+            if (!window.matchMedia('(max-width: 768px)').matches) {
+                body.classList.remove('is-sidebar-open');
+            }
+        });
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                body.classList.remove('is-sidebar-open');
+            }
+        });
+
+        const userMenuToggle = document.querySelector('[data-user-menu-toggle]');
+        const userMenu = document.querySelector('[data-user-menu]');
+        if (userMenuToggle && userMenu) {
+            userMenuToggle.addEventListener('click', () => {
+                userMenu.open = !userMenu.open;
+            });
+        }
+    })();
 </script>
 </body>
 </html>

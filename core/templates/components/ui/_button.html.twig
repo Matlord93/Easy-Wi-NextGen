@@ -1,0 +1,11 @@
+{% set label = label|default('') %}
+{% set href = href|default('#') %}
+{% set variant = variant|default('ghost') %}
+{% set icon = icon|default('') %}
+
+<a href="{{ href }}" class="ui-button ui-button--{{ variant }} {{ class|default('') }}">
+    {% if icon %}
+        <span class="text-base">{{ icon|raw }}</span>
+    {% endif %}
+    {{ label }}
+</a>

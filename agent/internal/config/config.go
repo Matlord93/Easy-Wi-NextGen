@@ -52,7 +52,7 @@ func DefaultPath() (string, error) {
 }
 
 // Load reads the configuration from the provided path, or the default path when empty.
-func Load(path string) (Config, error) {
+func Load(path string) (cfg Config, err error) {
 	if path == "" {
 		defaultPath, err := DefaultPath()
 		if err != nil {
@@ -65,9 +65,13 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("open config: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close config: %w", closeErr)
+		}
+	}()
 
-	cfg := Config{}
+	cfg = Config{}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())

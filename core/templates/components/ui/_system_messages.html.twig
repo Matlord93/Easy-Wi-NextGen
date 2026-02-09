@@ -1,0 +1,38 @@
+{% set messages = messages|default(system_messages|default([])) %}
+
+{% if messages is not empty %}
+    <div class="space-y-4">
+        {% for message in messages %}
+            {% set badge = message.badge ?? null %}
+            <div class="ui-system-message">
+                {% if message.icon is defined and message.icon %}
+                    <div class="ui-system-message__icon">
+                        {{ message.icon|raw }}
+                    </div>
+                {% endif %}
+                <div class="flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="ui-system-message__title">{{ message.title|default('') }}</div>
+                        {% if badge %}
+                            {% if badge is iterable %}
+                                {% include 'components/ui/_badge.html.twig' with {
+                                    label: badge.label|default(''),
+                                    tone: badge.tone|default('info'),
+                                    class: badge.class|default('')
+                                } %}
+                            {% else %}
+                                {% include 'components/ui/_badge.html.twig' with { label: badge, tone: 'info' } %}
+                            {% endif %}
+                        {% endif %}
+                        {% if message.time is defined and message.time %}
+                            <span class="ui-system-message__time">{{ message.time }}</span>
+                        {% endif %}
+                    </div>
+                    {% if message.description is defined and message.description %}
+                        <p class="ui-system-message__description">{{ message.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}

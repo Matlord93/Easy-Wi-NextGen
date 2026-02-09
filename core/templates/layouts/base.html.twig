@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+{% set siteTitle = app_setting('site_title', 'Easy-Wi NextGen') %}
+{% set brandingName = app_setting('branding_name', siteTitle) %}
+{% set brandingLogo = app_setting('branding_logo_url') %}
+<html lang="{{ pageLocale|default(page_locale()) }}" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ siteTitle }}</title>
+    <link rel="stylesheet" href="{{ asset('ui.css') }}">
+    <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/styles/ui-tokens.css') }}">
+    <link rel="stylesheet" href="{{ asset('ts6.css') }}">
+    <link rel="stylesheet" href="{{ asset('sinusbot.css') }}">
+    <link rel="stylesheet" href="{{ asset('ts3.css') }}">
+    <script src="{{ asset('htmx.min.js') }}"></script>
+    {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %} ui-shell">
+{% block body %}{% endblock %}
+</body>
+</html>

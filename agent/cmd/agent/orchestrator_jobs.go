@@ -410,7 +410,6 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	serviceName := payloadValue(job.Payload, "service_name")
 	downloadURL := payloadValue(job.Payload, "download_url")
 	downloadFilename := payloadValue(job.Payload, "download_filename")
-	instanceName := payloadValue(job.Payload, "instance_name")
 	acceptLicense := parseBool(payloadValue(job.Payload, "accept_license"), true)
 	voiceIP := parseStringList(payloadValue(job.Payload, "voice_ip"), "0.0.0.0")
 	defaultVoicePort := parseInt(payloadValue(job.Payload, "default_voice_port"), 9987)
@@ -466,9 +465,6 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
-	if instanceName == "" {
-		instanceName = "ts6"
-	}
 	configPath := filepath.Join(installDir, "tsserver.yaml")
 	configContent := buildTs6Config(ts6ConfigOptions{
 		licenseAccepted:  acceptLicense,

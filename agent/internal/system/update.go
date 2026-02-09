@@ -145,7 +145,7 @@ func ApplyUpdateFromChecksums(ctx context.Context, opts UpdateFromChecksumsOptio
 	return UpdatePlan{BinaryPath: binaryPath}, nil
 }
 
-func downloadToFile(ctx context.Context, downloadURL, target string) error {
+func downloadToFile(ctx context.Context, downloadURL, target string) (err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
 	if err != nil {
 		return fmt.Errorf("build download request: %w", err)
@@ -155,7 +155,11 @@ func downloadToFile(ctx context.Context, downloadURL, target string) error {
 	if err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close download response: %w", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download failed: %s", resp.Status)
@@ -165,7 +169,11 @@ func downloadToFile(ctx context.Context, downloadURL, target string) error {
 	if err != nil {
 		return fmt.Errorf("create update file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close update file: %w", closeErr)
+		}
+	}()
 
 	if _, err := io.Copy(file, resp.Body); err != nil {
 		return fmt.Errorf("write update file: %w", err)
@@ -178,12 +186,16 @@ func downloadToFile(ctx context.Context, downloadURL, target string) error {
 	return nil
 }
 
-func verifySHA256(path, expected string) error {
+func verifySHA256(path, expected string) (err error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open update: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close update: %w", closeErr)
+		}
+	}()
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
@@ -249,12 +261,16 @@ func stageWindowsUpdate(binaryPath, updatePath string) error {
 	return nil
 }
 
-func writeArgsFile() (string, error) {
+func writeArgsFile() (path string, err error) {
 	file, err := os.CreateTemp("", "easywi-agent-args-*.txt")
 	if err != nil {
 		return "", fmt.Errorf("create args file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close args file: %w", closeErr)
+		}
+	}()
 
 	for _, arg := range os.Args[1:] {
 		if _, err := fmt.Fprintln(file, arg); err != nil {
@@ -262,7 +278,8 @@ func writeArgsFile() (string, error) {
 		}
 	}
 
-	return file.Name(), nil
+	path = file.Name()
+	return path, nil
 }
 
 func writeWindowsUpdateScript() (string, error) {
@@ -342,14 +359,18 @@ func assetNameFromURL(downloadURL string) (string, error) {
 	return name, nil
 }
 
-func checksumForAsset(checksumsPath, assetName string) (string, error) {
+func checksumForAsset(checksumsPath, assetName string) (checksum string, err error) {
 	file, err := os.Open(checksumsPath)
 	if err != nil {
 		return "", fmt.Errorf("open checksums: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close checksums: %w", closeErr)
+		}
+	}()
 
-	checksum, err := parseChecksumForAsset(file, assetName)
+	checksum, err = parseChecksumForAsset(file, assetName)
 	if err != nil {
 		return "", err
 	}

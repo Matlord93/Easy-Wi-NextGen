@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
+use App\Repository\MetricSampleRepository;
 use App\Repository\TicketRepository;
 use App\Repository\UserRepository;
 use Symfony\Component\HttpFoundation\Request;
@@ -27,6 +28,7 @@ final class AdminDashboardController
         private readonly UserRepository $userRepository,
         private readonly InstanceRepository $instanceRepository,
         private readonly TicketRepository $ticketRepository,
+        private readonly MetricSampleRepository $metricSampleRepository,
         private readonly Environment $twig,
     ) {
     }
@@ -51,7 +53,26 @@ final class AdminDashboardController
             'customers' => $this->userRepository->count(['type' => UserType::Customer->value]),
             'instances' => $this->instanceRepository->count([]),
             'tickets_open' => $this->ticketRepository->count(['status' => TicketStatus::Open]),
+            'tickets_total' => $this->ticketRepository->count([]),
         ];
+        $primaryAgent = $agents[0] ?? null;
+        $cpuSeries = [];
+        $memorySeries = [];
+        $bandwidthSeries = [];
+        $bandwidthValue = null;
+        if ($primaryAgent !== null) {
+            $since = (new \DateTimeImmutable())->sub(new \DateInterval('PT2H'));
+            $metricSeries = $this->metricSampleRepository->findSeriesForAgentSince($primaryAgent, $since);
+            if (count($metricSeries) > 30) {
+                $metricSeries = array_slice($metricSeries, -30);
+            }
+            $cpuSeries = $this->extractSeriesValues($metricSeries, 'cpuPercent');
+            $memorySeries = $this->extractSeriesValues($metricSeries, 'memoryPercent');
+            [$bandwidthSeries, $bandwidthValue] = $this->buildBandwidthSeries($metricSeries);
+            if ($bandwidthValue !== null) {
+                $bandwidthValue = $this->formatBandwidth($bandwidthValue);
+            }
+        }
 
         return new Response($this->twig->render('admin/dashboard/index.html.twig', [
             'activeNav' => 'dashboard',
@@ -60,6 +81,10 @@ final class AdminDashboardController
             'overview' => $overview,
             'jobs' => $this->normalizeJobs($jobs),
             'nodes' => $this->normalizeAgents(array_slice($agents, 0, 6)),
+            'cpuSeries' => $cpuSeries,
+            'memorySeries' => $memorySeries,
+            'bandwidthSeries' => $bandwidthSeries,
+            'bandwidthValue' => $bandwidthValue,
         ]));
     }
 
@@ -163,6 +188,67 @@ final class AdminDashboardController
         }
 
         return rtrim(rtrim(sprintf('%.1f', $value), '0'), '.') . '%';
+    }
+
+    /**
+     * @param array<int, array{recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int, payload: ?array}> $series
+     * @return float[]
+     */
+    private function extractSeriesValues(array $series, string $key): array
+    {
+        $values = [];
+        foreach ($series as $row) {
+            $value = $row[$key] ?? null;
+            if (is_numeric($value)) {
+                $values[] = (float) $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<int, array{recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int, payload: ?array}> $series
+     * @return array{0: float[], 1: ?float}
+     */
+    private function buildBandwidthSeries(array $series): array
+    {
+        $values = [];
+        $latest = null;
+        $previous = null;
+
+        foreach ($series as $row) {
+            $sent = $row['netBytesSent'] ?? null;
+            $recv = $row['netBytesRecv'] ?? null;
+            if (!is_numeric($sent) || !is_numeric($recv)) {
+                $previous = null;
+                continue;
+            }
+
+            $total = (int) $sent + (int) $recv;
+            if ($previous !== null) {
+                $deltaBytes = $total - $previous['total'];
+                $deltaSeconds = $row['recordedAt']->getTimestamp() - $previous['recordedAt']->getTimestamp();
+                if ($deltaBytes >= 0 && $deltaSeconds > 0) {
+                    $mbit = ($deltaBytes * 8) / ($deltaSeconds * 1024 * 1024);
+                    $values[] = $mbit;
+                    $latest = $mbit;
+                }
+            }
+
+            $previous = [
+                'total' => $total,
+                'recordedAt' => $row['recordedAt'],
+            ];
+        }
+
+        return [$values, $latest];
+    }
+
+    private function formatBandwidth(float $value): string
+    {
+        $formatted = rtrim(rtrim(sprintf('%.1f', $value), '0'), '.');
+        return $formatted . ' Mbit/s';
     }
 
     private function normalizeJobs(array $jobs): array

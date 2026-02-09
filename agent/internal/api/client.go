@@ -141,10 +141,9 @@ func (c *Client) SubmitJobLogs(ctx context.Context, jobID string, logs []string,
 	return err
 }
 
-func (c *Client) doSignedJSON(ctx context.Context, method, path string, body any, out any) (*http.Response, error) {
+func (c *Client) doSignedJSON(ctx context.Context, method, path string, body any, out any) (resp *http.Response, err error) {
 	var requestBody []byte
 	if body != nil {
-		var err error
 		requestBody, err = json.Marshal(body)
 		if err != nil {
 			return nil, fmt.Errorf("encode json: %w", err)
@@ -191,11 +190,15 @@ func (c *Client) doSignedJSON(ctx context.Context, method, path string, body any
 	req.Header.Set("X-Signature", headers.Signature)
 	req.Header.Set("User-Agent", c.UserAgent)
 
-	resp, err := c.Client.Do(req)
+	resp, err = c.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close response body: %w", closeErr)
+		}
+	}()
 
 	if resp.StatusCode >= http.StatusBadRequest {
 		bodyBytes, _ := io.ReadAll(resp.Body)

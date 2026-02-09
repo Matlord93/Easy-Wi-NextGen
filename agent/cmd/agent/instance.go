@@ -61,9 +61,6 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)
 	}
-	if startCommand == "" {
-		startCommand = startParams
-	}
 
 	cpuLimit, err := parsePositiveInt(cpuLimitValue, "cpu_limit")
 	if err != nil {
@@ -513,9 +510,6 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 	if serviceName == "" {
 		serviceName = fmt.Sprintf("gs-%s", instanceID)
-	}
-	if startCommand == "" {
-		startCommand = startParams
 	}
 
 	var allocatedPorts []int

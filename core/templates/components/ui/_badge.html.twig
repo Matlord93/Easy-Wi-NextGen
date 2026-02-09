@@ -1,0 +1,4 @@
+{% set label = label|default('') %}
+{% set tone = tone|default('info') %}
+
+<span class="ui-badge ui-badge--{{ tone }} {{ class|default('') }}">{{ label }}</span>

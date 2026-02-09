@@ -1,0 +1,156 @@
+{% extends 'layouts/base.html.twig' %}
+
+{% block body_class %}customer-interface ng-shell{% endblock %}
+
+{% block body %}
+{% set activeNav = activeNav|default('') %}
+{% set voiceserverUrl = module_enabled('ts6')
+    ? path('customer_ts6_servers_index')
+    : path('customer_ts3_servers_index')
+%}
+{% set moduleGame = module_enabled('game') %}
+{% set moduleTs = module_enabled('ts') %}
+{% set moduleTs6 = module_enabled('ts6') %}
+{% set moduleWeb = module_enabled('web') %}
+{% set moduleMail = module_enabled('mail') %}
+{% set moduleDns = module_enabled('dns') %}
+{% set moduleBilling = module_enabled('billing') %}
+{% set showVoiceserver = moduleTs6 or moduleTs %}
+{% set extensionItems = extension_menu_items('customer') %}
+{% set gdprItems = extensionItems is not empty
+    ? extensionItems|filter(item => item.href starts with '/gdpr')
+    : []
+%}
+{% set marketplaceItems = extensionItems is not empty
+    ? extensionItems|filter(item => not (item.href starts with '/gdpr'))
+    : []
+%}
+
+{% set sidebarGroups = [
+    {
+        label: t('customer_nav_group_overview', page_locale()),
+        open: true,
+        items: [
+            { key: 'dashboard', label: t('customer_nav_dashboard', page_locale()), href: path('customer_dashboard') },
+            { key: 'activity', label: t('customer_nav_activity', page_locale()), href: path('customer_activity') }
+        ]
+    },
+    {
+        label: t('customer_nav_group_infrastructure', page_locale()),
+        open: true,
+        items: [
+            moduleGame ? { key: 'gameservers', label: t('customer_nav_game_servers', page_locale()), href: path('customer_instances') } : null,
+            showVoiceserver ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl } : null,
+            moduleGame ? { key: 'sinusbot', label: t('customer_nav_sinusbot', page_locale()), href: path('customer_sinusbot_index') } : null
+        ]|filter(v => v)
+    },
+    {
+        label: t('customer_nav_group_services', page_locale()),
+        open: true,
+        items: [
+            moduleWeb ? { key: 'webspaces', label: t('customer_nav_webspace', page_locale()), href: path('customer_webspace') } : null,
+            { key: 'databases', label: t('customer_nav_databases', page_locale()), href: path('customer_databases') }
+        ]|filter(v => v)
+    },
+    {
+        label: t('customer_nav_group_domains_mail', page_locale()),
+        open: true,
+        items: [
+            moduleDns ? { key: 'domains', label: t('customer_nav_domains', page_locale()), href: path('customer_domains') } : null,
+            moduleMail ? { key: 'mail', label: t('customer_nav_mail', page_locale()), href: path('customer_mail') } : null
+        ]|filter(v => v)
+    },
+    {
+        label: t('customer_nav_group_support', page_locale()),
+        open: true,
+        items: [
+            { key: 'tickets', label: t('customer_nav_tickets', page_locale()), href: path('customer_tickets') }
+        ]
+    },
+    {
+        label: t('customer_nav_group_account', page_locale()),
+        open: true,
+        items: [
+            { key: 'profile', label: t('customer_nav_profile', page_locale()), href: path('customer_profile') },
+            { key: 'security', label: t('customer_nav_security', page_locale()), href: path('customer_security') }
+        ]
+    },
+    gdprItems is not empty ? {
+        label: t('customer_nav_group_gdpr', page_locale()),
+        open: true,
+        items: gdprItems
+    } : null,
+    moduleBilling ? {
+        label: t('customer_nav_group_marketplace', page_locale()),
+        open: true,
+        items: ([{ key: 'shop', label: t('customer_nav_shop', page_locale()), href: path('customer_shop') }]|merge(marketplaceItems))
+    } : null
+]|filter(v => v) %}
+
+<div class="ng-layout">
+    {% include 'components/_sidebar.html.twig' with {
+        title: brandingName,
+        logoUrl: brandingLogo ?: asset('easywi-nextgen-logo.svg'),
+        activeNav: activeNav,
+        groups: sidebarGroups,
+        footer: ''
+    } %}
+
+    <main class="ng-main">
+        {% include 'components/_topbar.html.twig' with {
+            title: pageTitle|default(''),
+            subtitle: pageSubtitle|default(''),
+            actions: topbarActions|default([])
+        } %}
+        <div class="ng-content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+</div>
+<script>
+    const copyText = async (value) => {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const success = document.execCommand('copy');
+        textarea.remove();
+        return success;
+    };
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-copy-value]');
+        if (!button) {
+            return;
+        }
+
+        const value = button.dataset.copyValue;
+        if (!value) {
+            return;
+        }
+
+        const originalText = button.dataset.copyOriginal ?? button.textContent?.trim() ?? '';
+        button.dataset.copyOriginal = originalText;
+
+        copyText(value).then((success) => {
+            if (!success) {
+                return;
+            }
+            button.textContent = '{{ t('customer_copy_success', page_locale()) }}';
+            window.setTimeout(() => {
+                button.textContent = originalText;
+            }, 1200);
+        }).catch(() => {
+            return;
+        });
+    });
+</script>
+{% endblock %}

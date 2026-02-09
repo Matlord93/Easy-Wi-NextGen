@@ -45,6 +45,7 @@
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <div class="flex flex-wrap items-center gap-2">
+                {% include 'components/_game_icon.html.twig' with { gameKey: instance.template.game_key, class: 'h-9 w-9 text-indigo-500' } %}
                 <h2 class="text-lg font-semibold text-slate-900">{{ displayName }}</h2>
                 <span class="rounded-full px-3 py-1 text-xs font-semibold {{ statusColor }}">{{ t('customer_instance_status_' ~ displayStatus, page_locale()) }}</span>
                 <span class="rounded-full px-3 py-1 text-xs font-semibold {{ diskBadge }}">{{ t('customer_instance_disk_state_' ~ instance.disk_state, page_locale()) }}</span>

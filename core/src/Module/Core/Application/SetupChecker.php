@@ -25,7 +25,6 @@ final class SetupChecker
             'is_ready' => $missing === [],
             'missing' => $missing,
             'blocked_actions' => $missing === [] ? [] : [
-                self::ACTION_INSTALL,
                 self::ACTION_START,
                 self::ACTION_UPDATE,
             ],
@@ -107,6 +106,8 @@ final class SetupChecker
     {
         $missing = [];
         $vars = $instance->getSetupVars();
+        $loginMode = $this->resolveSteamLoginMode($instance);
+        $usesSteamLogin = $this->usesSteamLogin($instance->getTemplate());
 
         foreach ($requirements['vars'] as $entry) {
             if (!$entry['required']) {
@@ -114,6 +115,9 @@ final class SetupChecker
             }
 
             $key = $entry['key'];
+            if ($this->shouldSkipSteamCredential($key, $loginMode)) {
+                continue;
+            }
             $value = $vars[$key] ?? null;
             if ($this->isValueMissing($value, $entry['type']) || $this->validateRequirementValue($entry, $value) !== null) {
                 $missing[] = [
@@ -135,6 +139,10 @@ final class SetupChecker
                     'type' => 'secret',
                 ];
             }
+        }
+
+        if ($usesSteamLogin && $loginMode === 'account') {
+            $missing = $this->appendSteamLoginMissing($instance, $missing);
         }
 
         return $missing;
@@ -194,5 +202,73 @@ final class SetupChecker
         }
 
         return $normalized;
+    }
+
+    private function usesSteamLogin(Template $template): bool
+    {
+        $installCommand = $template->getInstallCommand();
+        if ($installCommand === '') {
+            return false;
+        }
+
+        return str_contains($installCommand, '{{STEAM_LOGIN}}')
+            || str_contains($installCommand, '{{STEAM_ACCOUNT}}')
+            || str_contains($installCommand, '{{STEAM_PASSWORD}}');
+    }
+
+    private function resolveSteamLoginMode(Instance $instance): string
+    {
+        $vars = $instance->getSetupVars();
+        $mode = strtolower(trim((string) ($vars['STEAM_LOGIN_MODE'] ?? '')));
+        if (in_array($mode, ['anonymous', 'account'], true)) {
+            return $mode;
+        }
+
+        return $instance->getSteamAccount() ? 'account' : 'anonymous';
+    }
+
+    private function shouldSkipSteamCredential(string $key, string $loginMode): bool
+    {
+        if ($loginMode !== 'account') {
+            return in_array($key, ['STEAM_ACCOUNT', 'STEAM_PASSWORD'], true);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, array{key: string, label: string, type: string}> $missing
+     * @return array<int, array{key: string, label: string, type: string}>
+     */
+    private function appendSteamLoginMissing(Instance $instance, array $missing): array
+    {
+        $missingKeys = [];
+        foreach ($missing as $entry) {
+            $missingKeys[$entry['key']] = true;
+        }
+
+        if ($instance->getSteamAccount() === null || $instance->getSteamAccount() === '') {
+            if (!isset($missingKeys['STEAM_ACCOUNT'])) {
+                $missing[] = [
+                    'key' => 'STEAM_ACCOUNT',
+                    'label' => 'Steam Benutzername',
+                    'type' => 'var',
+                ];
+            }
+        }
+
+        $vars = $instance->getSetupVars();
+        $password = trim((string) ($vars['STEAM_PASSWORD'] ?? ''));
+        if ($password === '') {
+            if (!isset($missingKeys['STEAM_PASSWORD'])) {
+                $missing[] = [
+                    'key' => 'STEAM_PASSWORD',
+                    'label' => 'Steam Passwort',
+                    'type' => 'var',
+                ];
+            }
+        }
+
+        return $missing;
     }
 }
