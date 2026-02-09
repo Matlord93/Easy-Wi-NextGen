@@ -173,9 +173,6 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	if err := validateBinaryExists(instanceDir, renderedStartParams); err != nil {
-		return failureResult(job.ID, err)
-	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir, startScriptPath, "", cpuLimit, ramLimit)
@@ -188,11 +185,16 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if autostart {
 		_ = runCommand("systemctl", "enable", serviceName)
 	}
-	if err := runCommand("systemctl", "start", serviceName); err != nil {
-		return failureResult(job.ID, err)
-	}
-	if err := ensureServiceActive(serviceName); err != nil {
-		return failureResult(job.ID, err)
+	if action != "install" {
+		if err := validateBinaryExists(instanceDir, renderedStartParams); err != nil {
+			return failureResult(job.ID, err)
+		}
+		if err := runCommand("systemctl", "start", serviceName); err != nil {
+			return failureResult(job.ID, err)
+		}
+		if err := ensureServiceActive(serviceName); err != nil {
+			return failureResult(job.ID, err)
+		}
 	}
 
 	maskedCommand := maskSensitiveValues(renderedStartParams, templateValues)
