@@ -55,16 +55,22 @@ jobs:
         with:
           fail-on: warning
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer
+
       - name: Run Psalm security scan (PHP)
         id: psalm
         run: |
+          set -e
+          composer global require vimeo/psalm --prefer-dist --no-progress --dev
+          PSALM_BIN="$(composer global config bin-dir --absolute)/psalm"
+          cd core
+          composer install --no-scripts --no-progress
           set +e
-          docker run --rm \
-            -v "${{ github.workspace }}:/repo" \
-            -w /repo/core \
-            ghcr.io/psalm/psalm-security-scan:5.10.0 \
-            --output-format=sarif \
-            --output=/repo/results.sarif
+          "$PSALM_BIN" --output-format=github --taint-analysis --report=../results.sarif
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
           exit 0
 
