@@ -111,7 +111,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	var command string
-	steamCmdExecPath := instanceDirSteamCmdPath(instanceDir)
+	var steamCmdExecPath string
 	if action == "install" {
 		command = installCommand
 	} else {
