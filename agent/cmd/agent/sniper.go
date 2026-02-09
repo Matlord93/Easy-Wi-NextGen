@@ -19,6 +19,8 @@ var (
 	versionRegex         = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
 	jsonLineRegex        = regexp.MustCompile(`\{.*\}`)
 	forceInstallDirRegex = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\.(?:/)?|"\."|'\.'|"\./"|'\./')`)
+	forceInstallDirPresenceRegex = regexp.MustCompile(`(?i)\+force_install_dir\b`)
+	steamcmdInjectRegex  = regexp.MustCompile(`(?i)(^|\\s)([^\\s]*steamcmd(?:\\.sh|\\.exe)?)(\\s)`)
 	steamcmdCommandRegex = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
 	steamcmdArchiveURL   = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
 )
@@ -322,7 +324,11 @@ func normalizeSteamCmdInstallDir(command, instanceDir string) string {
 	normalized = strings.ReplaceAll(normalized, "{{INSTALL_DIR}}", instanceDir)
 
 	escapedDir := strings.ReplaceAll(instanceDir, "$", "$$")
-	return forceInstallDirRegex.ReplaceAllString(normalized, "${1}"+escapedDir)
+	normalized = forceInstallDirRegex.ReplaceAllString(normalized, "${1}"+escapedDir)
+	if !forceInstallDirPresenceRegex.MatchString(normalized) && steamcmdInjectRegex.MatchString(normalized) {
+		normalized = steamcmdInjectRegex.ReplaceAllString(normalized, "${1}${2} +force_install_dir "+escapedDir+"${3}")
+	}
+	return normalized
 }
 
 func extractBuildInfo(output string) (string, string) {
