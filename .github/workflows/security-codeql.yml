@@ -1,0 +1,59 @@
+name: security-codeql
+
+on:
+  push:
+    branches:
+      - main
+      - Dev
+      - Beta
+    paths:
+      - 'core/**'
+      - 'agent/**'
+      - 'installer/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/security-codeql.yml'
+  pull_request:
+    branches:
+      - main
+      - Dev
+      - Beta
+    paths:
+      - 'core/**'
+      - 'agent/**'
+      - 'installer/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/security-codeql.yml'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: security-codeql
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: php, go
+          queries: +security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          fail-on: warning

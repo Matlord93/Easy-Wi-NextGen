@@ -1,0 +1,90 @@
+name: core-ci
+
+on:
+  pull_request:
+    paths:
+      - 'core/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/core-ci.yml'
+  push:
+    branches:
+      - main
+      - Beta
+    paths:
+      - 'core/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/core-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: core-ci
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+          extensions: mbstring, intl, pdo, pdo_mysql, pdo_pgsql, openssl
+        env:
+          COMPOSER_ALLOW_PLUGINS: 'symfony/runtime,symfony/flex'
+
+      - name: Composer validate
+        run: composer validate --strict
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: ${{ runner.os }}-composer-${{ hashFiles('core/composer.lock') }}
+
+      - name: Composer install
+        run: composer install --no-interaction --no-progress --prefer-dist
+        env:
+          COMPOSER_ALLOW_SUPERUSER: '1'
+
+      - name: Verify required tools
+        run: |
+          if ! composer show phpunit/phpunit >/dev/null 2>&1; then
+            echo 'Missing phpunit/phpunit. Install with: composer require --dev phpunit/phpunit' >&2
+            exit 1
+          fi
+          if ! composer show phpstan/phpstan >/dev/null 2>&1; then
+            echo 'Missing phpstan/phpstan. Install with: composer require --dev phpstan/phpstan' >&2
+            exit 1
+          fi
+          if ! composer show friendsofphp/php-cs-fixer >/dev/null 2>&1; then
+            echo 'Missing friendsofphp/php-cs-fixer. Install with: composer require --dev friendsofphp/php-cs-fixer' >&2
+            exit 1
+          fi
+
+      - name: PHP lint
+        env:
+          APP_ENV: test
+          APP_DEBUG: '0'
+        run: composer run lint
+
+      - name: PHPUnit
+        run: composer run test
+
+      - name: PHPStan
+        run: composer run phpstan
+
+      - name: PHP CS Fixer (dry-run)
+        run: composer run cs:check

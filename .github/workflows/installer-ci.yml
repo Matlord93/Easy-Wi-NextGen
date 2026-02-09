@@ -1,0 +1,50 @@
+name: installer-ci
+
+on:
+  pull_request:
+    paths:
+      - 'installer/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/installer-ci.yml'
+  push:
+    branches:
+      - main
+      - Dev
+      - Beta
+    paths:
+      - 'installer/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/installer-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: installer-ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            echo 'Missing shellcheck. Install with: sudo apt-get install shellcheck' >&2
+            exit 1
+          fi
+
+      - name: Bash syntax check
+        run: |
+          find installer -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+      - name: Shellcheck
+        run: shellcheck installer/*.sh

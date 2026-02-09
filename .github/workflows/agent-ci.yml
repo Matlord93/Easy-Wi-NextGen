@@ -1,0 +1,66 @@
+name: agent-ci
+
+on:
+  pull_request:
+    paths:
+      - 'agent/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/agent-ci.yml'
+  push:
+    branches:
+      - main
+      - Beta
+    paths:
+      - 'agent/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/agent-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  agent:
+    name: agent-ci
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: agent/go.mod
+          cache: true
+
+      - name: Verify golangci-lint config
+        run: |
+          if [[ ! -f .golangci.yml ]]; then
+            echo 'Missing .golangci.yml. Add one or install golangci-lint with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest' >&2
+            exit 1
+          fi
+
+      - name: Go test
+        run: go test ./...
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: GolangCI-Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: agent
+          args: --timeout=5m
+
+      - name: Govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...

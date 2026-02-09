@@ -1,0 +1,44 @@
+name: security-dependency-review
+
+on:
+  pull_request:
+    paths:
+      - 'core/**'
+      - 'agent/**'
+      - 'installer/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/security-dependency-review.yml'
+  push:
+    branches:
+      - main
+      - Dev
+      - Beta
+    paths:
+      - 'core/**'
+      - 'agent/**'
+      - 'installer/**'
+      - 'docs/**'
+      - 'README*'
+      - 'VERSION'
+      - 'templates_audit.md'
+      - '.github/workflows/security-dependency-review.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: security-dependency-review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          base-ref: ${{ github.event.before }}
+          head-ref: ${{ github.sha }}
+          fail-on-severity: high
