@@ -1,8 +1,9 @@
 {
   "name": "easywi/webinterface",
   "description": "Easy-Wi NextGen repository root composer wrapper.",
-  "type": "project",
+  "type": "metapackage",
   "license": "proprietary",
+  "require": {},
   "scripts": {
     "test": "composer --working-dir=core run test"
   }
