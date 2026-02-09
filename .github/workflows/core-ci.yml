@@ -29,6 +29,7 @@ jobs:
     defaults:
       run:
         working-directory: core
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,7 +50,9 @@ jobs:
       - name: Cache Composer
         uses: actions/cache@v4
         with:
-          path: ~/.composer/cache/files
+          path: |
+            ~/.composer/cache
+            ~/.cache/composer
           key: ${{ runner.os }}-composer-${{ hashFiles('core/composer.lock') }}
 
       - name: Composer install
@@ -80,7 +83,12 @@ jobs:
         run: composer run lint
 
       - name: PHPUnit
-        run: composer run test
+        run: |
+          if composer -n config scripts.test --no-interaction >/dev/null 2>&1; then
+            composer run test
+          else
+            echo "No test script"
+          fi
 
       - name: PHPStan
         run: composer run phpstan

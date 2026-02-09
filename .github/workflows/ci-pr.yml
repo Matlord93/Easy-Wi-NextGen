@@ -50,11 +50,11 @@ jobs:
 
       - name: Lint (optional)
         run: |
-          if composer run -q | grep -q "lint"; then composer run lint; else echo "No lint script"; fi
+          if composer run --list -q | grep -q "lint"; then composer run lint; else echo "No lint script"; fi
 
       - name: Tests (optional)
         run: |
-          if composer run -q | grep -q "test"; then composer run test; else echo "No test script"; fi
+          if composer run --list -q | grep -q "test"; then composer run test; else echo "No test script"; fi
 
   agent:
     name: Agent (Go) - build
