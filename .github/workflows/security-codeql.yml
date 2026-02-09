@@ -62,7 +62,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
             -w /repo/core \
-            ghcr.io/psalm/psalm-security-scan:5.7.7 \
+            ghcr.io/psalm/psalm-security-scan:5.10.0 \
             --output-format=sarif \
             --output=/repo/results.sarif
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
