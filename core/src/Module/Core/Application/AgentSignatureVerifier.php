@@ -157,6 +157,11 @@ final class AgentSignatureVerifier
             return $parsed;
         }
 
+        $parsed = DateTimeImmutable::createFromFormat('Y-m-d\\TH:i:s.v\\Z', $timestamp, new DateTimeZone('UTC'));
+        if ($parsed instanceof DateTimeImmutable) {
+            return $parsed;
+        }
+
         return null;
     }
 }

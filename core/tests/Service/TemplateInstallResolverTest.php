@@ -220,12 +220,25 @@ final class InMemoryMinecraftCatalogRepository implements MinecraftVersionCatalo
             return null;
         }
 
-        $latestBuild = $this->findLatestBuild($channel, $version);
-        if ($latestBuild === null) {
+        $candidates = array_filter(
+            $this->entries,
+            static fn (MinecraftVersionCatalog $entry): bool => $entry->getChannel() === $channel && $entry->getMcVersion() === $version,
+        );
+
+        if ($candidates === []) {
             return null;
         }
 
-        return $this->findEntry($channel, $version, $latestBuild);
+        usort($candidates, static function (MinecraftVersionCatalog $a, MinecraftVersionCatalog $b): int {
+            $aTimestamp = $a->getReleasedAt()?->getTimestamp() ?? 0;
+            $bTimestamp = $b->getReleasedAt()?->getTimestamp() ?? 0;
+            if ($aTimestamp !== $bTimestamp) {
+                return $bTimestamp <=> $aTimestamp;
+            }
+            return strcmp((string) ($b->getBuild() ?? ''), (string) ($a->getBuild() ?? ''));
+        });
+
+        return $candidates[0] ?? null;
     }
 
     public function versionExists(string $channel, string $version): bool

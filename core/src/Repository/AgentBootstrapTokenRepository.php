@@ -11,7 +11,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<AgentBootstrapToken>
  */
-final class AgentBootstrapTokenRepository extends ServiceEntityRepository
+class AgentBootstrapTokenRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

@@ -94,8 +94,9 @@ final class AgentSignatureVerifierTest extends TestCase
         $agentId = 'agent-123';
         $secret = 'supersecret';
         $nonce = 'nonce-4';
-        $timestampWithMillis = '2025-01-15T12:00:00.123Z';
-        $normalizedTimestamp = '2025-01-15T12:00:00Z';
+        $now = (new DateTimeImmutable('now'))->setTimezone(new \DateTimeZone('UTC'));
+        $timestampWithMillis = $now->format('Y-m-d\\TH:i:s.v\\Z');
+        $normalizedTimestamp = $now->format(DateTimeImmutable::RFC3339);
         $body = '{"ok":true}';
 
         $request = Request::create('/agent/heartbeat', 'POST', [], [], [], [], $body);

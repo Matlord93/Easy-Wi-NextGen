@@ -10,7 +10,7 @@ use App\Repository\AppSettingRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
-final class AppSettingsService implements ConsoleCommandSettings
+class AppSettingsService implements ConsoleCommandSettings
 {
     public const KEY_SITE_TITLE = 'site_title';
     public const KEY_BRANDING_NAME = 'branding_name';

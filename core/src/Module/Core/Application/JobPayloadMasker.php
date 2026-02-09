@@ -78,7 +78,7 @@ final class JobPayloadMasker
 
     private function isSensitiveKey(string $key): bool
     {
-        $normalized = strtolower(preg_replace('/[^a-z0-9]/', '', $key));
+        $normalized = strtolower(preg_replace('/[^a-z0-9]/i', '', $key));
 
         return in_array($normalized, self::SENSITIVE_KEYS, true);
     }
