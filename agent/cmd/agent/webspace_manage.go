@@ -393,12 +393,16 @@ func payloadPhpSettings(payload map[string]any) map[string]string {
 	return settings
 }
 
-func tailFile(path string, lines int) (string, error) {
+func tailFile(path string, lines int) (result string, err error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("open log file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close log file: %w", closeErr)
+		}
+	}()
 
 	var buffer []string
 	scanner := bufio.NewScanner(file)
