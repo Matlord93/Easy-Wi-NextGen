@@ -27,12 +27,16 @@ func extractArchive(archivePath, destination string) error {
 	}
 }
 
-func extractZip(path, destination string) error {
+func extractZip(path, destination string) (err error) {
 	reader, err := zip.OpenReader(path)
 	if err != nil {
 		return fmt.Errorf("open zip: %w", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close zip: %w", closeErr)
+		}
+	}()
 
 	for _, file := range reader.File {
 		target, err := sanitizeInstancePath(destination, file.Name)
@@ -55,21 +59,29 @@ func extractZip(path, destination string) error {
 			return fmt.Errorf("open zip entry: %w", err)
 		}
 		if err := writeFileAtomic(target, src, 0o640); err != nil {
-			src.Close()
+			if closeErr := src.Close(); closeErr != nil {
+				return fmt.Errorf("write zip entry: %w", errors.Join(err, closeErr))
+			}
 			return err
 		}
-		src.Close()
+		if err := src.Close(); err != nil {
+			return fmt.Errorf("close zip entry: %w", err)
+		}
 	}
 
 	return nil
 }
 
-func extractTar(path, destination string, gzipCompressed bool) error {
+func extractTar(path, destination string, gzipCompressed bool) (err error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open tar: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close tar: %w", closeErr)
+		}
+	}()
 
 	var reader io.Reader = file
 	if gzipCompressed {
@@ -77,7 +89,11 @@ func extractTar(path, destination string, gzipCompressed bool) error {
 		if err != nil {
 			return fmt.Errorf("open gzip: %w", err)
 		}
-		defer gz.Close()
+		defer func() {
+			if closeErr := gz.Close(); closeErr != nil && err == nil {
+				err = fmt.Errorf("close gzip: %w", closeErr)
+			}
+		}()
 		reader = gz
 	}
 

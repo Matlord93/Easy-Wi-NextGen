@@ -257,14 +257,6 @@ func readA2SString(payload []byte, offset int) (string, int) {
 	return value, offset + end + 1
 }
 
-func readA2SShort(payload []byte, offset int) (uint16, int) {
-	if offset+2 > len(payload) {
-		return 0, offset
-	}
-	value := binary.LittleEndian.Uint16(payload[offset : offset+2])
-	return value, offset + 2
-}
-
 func queryMinecraftJava(host, port string) (map[string]string, error) {
 	portNum, err := strconv.Atoi(port)
 	if err != nil || portNum <= 0 || portNum > 65535 {

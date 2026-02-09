@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -64,11 +65,14 @@ func decodeJSON(r *http.Request, out interface{}) error {
 	if r.Body == nil {
 		return fmt.Errorf("missing request body")
 	}
-	defer r.Body.Close()
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(out); err != nil {
+		_ = r.Body.Close()
 		return fmt.Errorf("invalid json payload")
+	}
+	if err := r.Body.Close(); err != nil {
+		return fmt.Errorf("close request body: %w", err)
 	}
 	return nil
 }
@@ -119,11 +123,17 @@ func writeFileAtomic(target string, reader io.Reader, perm os.FileMode) error {
 	}()
 
 	if _, err := io.Copy(tmp, reader); err != nil {
-		tmp.Close()
+		closeErr := tmp.Close()
+		if closeErr != nil {
+			return fmt.Errorf("write temp file: %w", errors.Join(err, closeErr))
+		}
 		return fmt.Errorf("write temp file: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close()
+		closeErr := tmp.Close()
+		if closeErr != nil {
+			return fmt.Errorf("sync temp file: %w", errors.Join(err, closeErr))
+		}
 		return fmt.Errorf("sync temp file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {

@@ -28,15 +28,16 @@ func diskUsage(path string) (uint64, uint64, float64, error) {
 	return total, free, usedPercent, nil
 }
 
-func networkCounters() (uint64, uint64, error) {
+func networkCounters() (sent uint64, recv uint64, err error) {
 	file, err := os.Open("/proc/net/dev")
 	if err != nil {
 		return 0, 0, err
 	}
-	defer file.Close()
-
-	var sent uint64
-	var recv uint64
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -62,15 +63,23 @@ func networkCounters() (uint64, uint64, error) {
 		}
 	}
 
+	if scanErr := scanner.Err(); scanErr != nil {
+		return 0, 0, scanErr
+	}
+
 	return sent, recv, nil
 }
 
-func cpuUsagePercent() (float64, error) {
+func cpuUsagePercent() (usage float64, err error) {
 	file, err := os.Open("/proc/stat")
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	if !scanner.Scan() {
@@ -99,19 +108,20 @@ func cpuUsagePercent() (float64, error) {
 		return 0, fmt.Errorf("invalid cpu total")
 	}
 
-	usage := float64(total-idle) / float64(total) * 100
+	usage = float64(total-idle) / float64(total) * 100
 	return usage, nil
 }
 
-func memoryUsage() (uint64, uint64, float64, error) {
+func memoryUsage() (total uint64, available uint64, usedPercent float64, err error) {
 	file, err := os.Open("/proc/meminfo")
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	defer file.Close()
-
-	var total uint64
-	var available uint64
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -129,12 +139,15 @@ func memoryUsage() (uint64, uint64, float64, error) {
 			}
 		}
 	}
+	if scanErr := scanner.Err(); scanErr != nil {
+		return 0, 0, 0, scanErr
+	}
 
 	if total == 0 {
 		return 0, 0, 0, fmt.Errorf("missing meminfo")
 	}
 
-	usedPercent := float64(total-available) / float64(total) * 100
+	usedPercent = float64(total-available) / float64(total) * 100
 	return total, available, usedPercent, nil
 }
 

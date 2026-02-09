@@ -157,7 +157,7 @@ func parseServerPath(path string) (string, string, error) {
 func (s *Server) resolveServerRoot(r *http.Request) (string, error) {
 	serverRoot := strings.TrimSpace(r.Header.Get(headerServerRoot))
 	if serverRoot == "" {
-		return "", fmt.Errorf(errorInvalidServerRoot)
+		return "", errors.New(errorInvalidServerRoot)
 	}
 
 	rootPath, err := validateServerRootAgainstBase(serverRoot, s.config.BaseDir)
@@ -276,7 +276,6 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request, instanceID s
 			respondError(r, w, statusFromError(err), codeFromError(err), "open failed")
 			return nil
 		}
-		defer file.Close()
 
 		if download {
 			filename := filepath.Base(target)
@@ -291,6 +290,11 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request, instanceID s
 		w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
 		if _, err := io.Copy(w, file); err != nil {
 			respondError(r, w, http.StatusInternalServerError, errorInternal, "stream failed")
+			_ = file.Close()
+			return nil
+		}
+		if err := file.Close(); err != nil {
+			respondError(r, w, http.StatusInternalServerError, errorInternal, "close failed")
 		}
 		return nil
 	})

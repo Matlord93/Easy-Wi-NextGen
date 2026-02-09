@@ -123,11 +123,14 @@ func handleDNSRecordChange(job jobs.Job, changeType string, requireContent bool)
 	if err != nil {
 		return failureResult(job.ID, fmt.Errorf("PowerDNS record request failed: %w", err))
 	}
-	defer response.Body.Close()
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
+		_ = response.Body.Close()
 		return failureResult(job.ID, fmt.Errorf("read PowerDNS record response: %w", err))
+	}
+	if err := response.Body.Close(); err != nil {
+		return failureResult(job.ID, fmt.Errorf("close PowerDNS record response: %w", err))
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return failureResult(job.ID, fmt.Errorf("PowerDNS record request failed: %s", strings.TrimSpace(string(responseBody))))

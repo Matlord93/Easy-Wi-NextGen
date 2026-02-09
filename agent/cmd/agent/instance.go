@@ -34,7 +34,6 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	requiredPortsRaw := payloadValue(job.Payload, "required_ports")
 	portBlockPortsRaw := payloadValue(job.Payload, "port_block_ports", "ports")
 	baseDir := payloadValue(job.Payload, "base_dir")
-	startCommand := payloadValue(job.Payload, "exec_start", "start_command")
 	serviceName := payloadValue(job.Payload, "service_name")
 	autostart := parsePayloadBool(payloadValue(job.Payload, "autostart", "auto_start"), true)
 
@@ -130,7 +129,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	startCommand = startScriptPath
+	startCommand := startScriptPath
 	startParams = ""
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
@@ -479,7 +478,6 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	baseDir := payloadValue(job.Payload, "base_dir")
 	serviceName := payloadValue(job.Payload, "service_name")
 	startParams := payloadValue(job.Payload, "start_params")
-	startCommand := payloadValue(job.Payload, "exec_start", "start_command")
 	installCommand := payloadValue(job.Payload, "install_command")
 	requiredPortsRaw := payloadValue(job.Payload, "required_ports")
 	portBlockPortsRaw := payloadValue(job.Payload, "port_block_ports", "ports")
@@ -618,7 +616,7 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	startCommand = startScriptPath
+	startCommand := startScriptPath
 	startParams = ""
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
@@ -1225,17 +1223,6 @@ func parsePortsFromValue(value any) []int {
 	}
 }
 
-func replaceInstanceTemplateTokens(value string, replacements map[string]string) string {
-	if value == "" || len(replacements) == 0 {
-		return value
-	}
-	replaced := value
-	for key, replacement := range replacements {
-		replaced = strings.ReplaceAll(replaced, "{{"+key+"}}", replacement)
-	}
-	return replaced
-}
-
 func collectServiceDiagnostics(serviceName string) map[string]string {
 	diagnostics := map[string]string{}
 	statusOutput, err := runCommandOutput("systemctl", "is-active", serviceName)
@@ -1339,10 +1326,6 @@ func runCommandOutput(name string, args ...string) (string, error) {
 
 func runCommandAsUser(username, command string) error {
 	return runCommand("runuser", "-u", username, "--", "/bin/sh", "-c", command)
-}
-
-func runCommandOutputAsUser(username, command string) (string, error) {
-	return runCommandOutput("runuser", "-u", username, "--", "/bin/sh", "-c", command)
 }
 
 func runCommandOutputAsUserWithLogs(username, command, jobID string, logSender JobLogSender) (string, error) {
@@ -1453,18 +1436,26 @@ func copyDir(source, target string) error {
 	return nil
 }
 
-func copyFile(source, target string, mode os.FileMode) error {
+func copyFile(source, target string, mode os.FileMode) (err error) {
 	srcFile, err := os.Open(source)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", source, err)
 	}
-	defer srcFile.Close()
+	defer func() {
+		if closeErr := srcFile.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close %s: %w", source, closeErr)
+		}
+	}()
 
 	dstFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", target, err)
 	}
-	defer dstFile.Close()
+	defer func() {
+		if closeErr := dstFile.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close %s: %w", target, closeErr)
+		}
+	}()
 
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
 		return fmt.Errorf("copy %s: %w", source, err)

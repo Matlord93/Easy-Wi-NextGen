@@ -135,11 +135,14 @@ func createPowerDNSZone(client *http.Client, apiURL, apiKey, serverID, zoneName 
 	if err != nil {
 		return "", fmt.Errorf("PowerDNS create zone request failed: %w", err)
 	}
-	defer response.Body.Close()
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
+		_ = response.Body.Close()
 		return "", fmt.Errorf("read PowerDNS create zone response: %w", err)
+	}
+	if err := response.Body.Close(); err != nil {
+		return "", fmt.Errorf("close PowerDNS create zone response: %w", err)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return "", fmt.Errorf("PowerDNS create zone failed: %s", strings.TrimSpace(string(responseBody)))
@@ -195,11 +198,14 @@ func setPowerDNSNSRecords(client *http.Client, apiURL, apiKey, serverID, zoneNam
 	if err != nil {
 		return fmt.Errorf("PowerDNS NS patch request failed: %w", err)
 	}
-	defer response.Body.Close()
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
+		_ = response.Body.Close()
 		return fmt.Errorf("read PowerDNS NS patch response: %w", err)
+	}
+	if err := response.Body.Close(); err != nil {
+		return fmt.Errorf("close PowerDNS NS patch response: %w", err)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("PowerDNS NS patch failed: %s", strings.TrimSpace(string(responseBody)))

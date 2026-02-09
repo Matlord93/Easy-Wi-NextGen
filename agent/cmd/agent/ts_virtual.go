@@ -865,11 +865,6 @@ func (client *ts3QueryClient) commandLines(cmd string) ([]string, error) {
 	return client.readResponse()
 }
 
-func (client *ts3QueryClient) drainResponse() error {
-	_, err := client.readResponse()
-	return err
-}
-
 func (client *ts3QueryClient) drainGreeting() error {
 	for {
 		line, err := client.reader.ReadString('\n')
