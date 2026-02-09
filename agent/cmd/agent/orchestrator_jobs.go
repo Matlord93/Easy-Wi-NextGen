@@ -1005,7 +1005,7 @@ func extractArchiveWithoutStrip(archivePath, downloadURL, installDir string) err
 	}
 }
 
-func validateArchive(path string) error {
+func validateArchive(path string) (err error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -1017,7 +1017,11 @@ func validateArchive(path string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)

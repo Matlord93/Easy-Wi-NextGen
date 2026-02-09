@@ -60,7 +60,9 @@ func roleFromFile(path string) string {
 	if err != nil {
 		return ""
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -160,7 +162,9 @@ func readOSRelease() map[string]string {
 	if err != nil {
 		return nil
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	data := map[string]string{}
 	scanner := bufio.NewScanner(file)
