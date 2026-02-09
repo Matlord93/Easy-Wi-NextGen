@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
-use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;

@@ -17,13 +17,17 @@ final class TemplateInstallResolver
     public function resolveInstallCommand(Instance $instance): string
     {
         $template = $instance->getTemplate();
+        $installCommand = $template->getInstallCommand();
+        if ($installCommand !== '' && !$this->isResolverPlaceholder($installCommand, 'install')) {
+            return $this->applySteamLogin($installCommand, $instance);
+        }
         $resolver = $template->getInstallResolver();
         $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
 
         $command = match ($type) {
             'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla'),
             'papermc_paper' => $this->resolveMinecraftCommand($instance, 'paper'),
-            default => $template->getInstallCommand(),
+            default => $installCommand,
         };
 
         return $this->applySteamLogin($command, $instance);
@@ -32,13 +36,17 @@ final class TemplateInstallResolver
     public function resolveUpdateCommand(Instance $instance): string
     {
         $template = $instance->getTemplate();
+        $updateCommand = $template->getUpdateCommand();
+        if ($updateCommand !== '' && !$this->isResolverPlaceholder($updateCommand, 'update')) {
+            return $this->applySteamLogin($updateCommand, $instance);
+        }
         $resolver = $template->getInstallResolver();
         $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
 
         $command = match ($type) {
             'minecraft_vanilla' => $this->resolveMinecraftCommand($instance, 'vanilla'),
             'papermc_paper' => $this->resolveMinecraftCommand($instance, 'paper'),
-            default => $template->getUpdateCommand(),
+            default => $updateCommand,
         };
 
         return $this->applySteamLogin($command, $instance);
@@ -135,6 +143,20 @@ final class TemplateInstallResolver
                 . '$url = $details.downloads.server.url; '
                 . 'Invoke-WebRequest -Uri $url -OutFile server.jar"',
         };
+    }
+
+    private function isResolverPlaceholder(string $command, string $kind): bool
+    {
+        $normalized = strtolower(trim($command));
+        if ($normalized === '') {
+            return false;
+        }
+
+        $needle = $kind === 'update'
+            ? 'update handled by catalog resolver'
+            : 'install handled by catalog resolver';
+
+        return str_contains($normalized, $needle);
     }
 
     private function applySteamLogin(string $command, Instance $instance): string

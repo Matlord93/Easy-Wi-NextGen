@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
-use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Ticket;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\TicketStatus;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Core\Application\DiskUsageFormatter;
 use App\Repository\CustomerProfileRepository;
 use App\Repository\DatabaseRepository;
 use App\Repository\InstanceRepository;

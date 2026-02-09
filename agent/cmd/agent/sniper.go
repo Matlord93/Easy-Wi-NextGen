@@ -25,6 +25,8 @@ var (
 	steamcmdArchiveURL           = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
 )
 
+const steamCmdRetryLimit = 3
+
 func handleSniperInstall(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	return handleSniperAction(job, "install", logSender)
 }
@@ -173,16 +175,18 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
-	if usesSteamCmd && shouldRetrySteamCmd(output, steamAppID) {
-		retryOutput, retryErr := runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
-		if retryErr != nil {
-			return failureResult(job.ID, retryErr)
-		}
-		if retryOutput != "" {
-			if output != "" {
-				output = output + "\n" + retryOutput
-			} else {
-				output = retryOutput
+	if usesSteamCmd {
+		for attempts := 0; attempts < steamCmdRetryLimit && shouldRetrySteamCmd(output, steamAppID); attempts++ {
+			retryOutput, retryErr := runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
+			if retryErr != nil {
+				return failureResult(job.ID, retryErr)
+			}
+			if retryOutput != "" {
+				if output != "" {
+					output = output + "\n" + retryOutput
+				} else {
+					output = retryOutput
+				}
 			}
 		}
 	}
