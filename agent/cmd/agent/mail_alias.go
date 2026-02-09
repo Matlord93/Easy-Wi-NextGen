@@ -212,9 +212,8 @@ func handleMailAliasStatus(job jobs.Job, enabled bool) (jobs.Result, func() erro
 	}, nil
 }
 
-func readAliasMap(path string) (map[string]string, []string, error) {
-	entries := make(map[string]string)
-	var order []string
+func readAliasMap(path string) (entries map[string]string, order []string, err error) {
+	entries = make(map[string]string)
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -223,7 +222,11 @@ func readAliasMap(path string) (map[string]string, []string, error) {
 		}
 		return nil, nil, fmt.Errorf("open alias map %s: %w", path, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close alias map %s: %w", path, closeErr)
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

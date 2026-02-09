@@ -220,7 +220,7 @@ func listArchiveEntries(archivePath, downloadURL string) ([]string, error) {
 	return entries, nil
 }
 
-func verifyChecksum(path, expected string) error {
+func verifyChecksum(path, expected string) (err error) {
 	normalized := strings.ToLower(strings.TrimSpace(expected))
 	var algo string
 	switch len(normalized) {
@@ -237,7 +237,11 @@ func verifyChecksum(path, expected string) error {
 	if err != nil {
 		return fmt.Errorf("open archive for checksum: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close archive for checksum: %w", closeErr)
+		}
+	}()
 
 	var sum string
 	switch algo {

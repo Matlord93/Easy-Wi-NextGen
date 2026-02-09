@@ -315,7 +315,9 @@ Start-Process -FilePath $BinaryPath -ArgumentList $argsList
 		return "", fmt.Errorf("create update script: %w", err)
 	}
 	if _, err := file.WriteString(script); err != nil {
-		file.Close()
+		if closeErr := file.Close(); closeErr != nil {
+			return "", fmt.Errorf("write update script: %w; close update script: %v", err, closeErr)
+		}
 		return "", fmt.Errorf("write update script: %w", err)
 	}
 	if err := file.Close(); err != nil {
