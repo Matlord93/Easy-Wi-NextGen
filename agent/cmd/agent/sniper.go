@@ -281,10 +281,6 @@ func instanceDirSteamCmdDir(instanceDir string) string {
 	return filepath.Join(instanceDir, ".steamcmd")
 }
 
-func instanceDirSteamCmdPath(instanceDir string) string {
-	return filepath.Join(instanceDirSteamCmdDir(instanceDir), "steamcmd.sh")
-}
-
 func steamCmdInstallSnippet(steamCmdDir string) string {
 	escapedDir := strings.ReplaceAll(steamCmdDir, "$", "$$")
 	return fmt.Sprintf(
