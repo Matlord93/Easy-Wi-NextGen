@@ -57,12 +57,13 @@ jobs:
           fail-on: warning
 
       - name: Run Psalm security scan (PHP)
-        id: psalm
         uses: docker://ghcr.io/psalm/psalm-security-scan:5.7.7
         continue-on-error: true
+        with:
+          args: --output-format=sarif --output-file=psalm-results.sarif
 
       - name: Upload Psalm SARIF to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: results.sarif
+          sarif_file: psalm-results.sarif
           category: psalm-php
