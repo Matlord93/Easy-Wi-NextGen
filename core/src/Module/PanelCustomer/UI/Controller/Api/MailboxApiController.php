@@ -269,6 +269,36 @@ final class MailboxApiController
         ]);
     }
 
+    #[Route(path: '/api/mailboxes/{id}', name: 'mailboxes_delete', methods: ['DELETE'])]
+    #[Route(path: '/api/v1/customer/mailboxes/{id}', name: 'mailboxes_delete_v1', methods: ['DELETE'])]
+    public function delete(Request $request, int $id): JsonResponse
+    {
+        $actor = $this->requireUser($request);
+        $mailbox = $this->mailboxRepository->find($id);
+        if ($mailbox === null) {
+            return new JsonResponse(['error' => 'Mailbox not found.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        if (!$this->canAccessMailbox($actor, $mailbox)) {
+            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $job = $this->queueMailboxJob('mailbox.delete', $mailbox, []);
+
+        $this->auditLogger->log($actor, 'mailbox.deleted', [
+            'mailbox_id' => $mailbox->getId(),
+            'address' => $mailbox->getAddress(),
+            'job_id' => $job->getId(),
+        ]);
+
+        $this->entityManager->remove($mailbox);
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'job_id' => $job->getId(),
+        ]);
+    }
+
     private function requireUser(Request $request): User
     {
         $actor = $request->attributes->get('current_user');

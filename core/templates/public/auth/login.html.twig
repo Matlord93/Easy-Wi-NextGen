@@ -27,6 +27,22 @@
                     <label class="text-sm font-medium text-slate-700" for="password">{{ t('password', page_locale()) }}</label>
                     <input id="password" name="password" type="password" required class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('password_placeholder', page_locale()) }}">
                 </div>
+                {% if twoFactorEnabled or requiresTwoFactor %}
+                    <div>
+                        <label class="text-sm font-medium text-slate-700" for="otp">{{ t('two_factor_code_label', page_locale()) }}</label>
+                        <input id="otp" name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="123456">
+                        <p class="mt-2 text-xs text-slate-500">{{ t('two_factor_login_hint', page_locale()) }}</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-slate-700" for="recovery_code">{{ t('two_factor_recovery_label', page_locale()) }}</label>
+                        <input id="recovery_code" name="recovery_code" type="text" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="0000-0000">
+                    </div>
+                {% endif %}
+                {% if enrollmentRequired %}
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                        {{ t('two_factor_enrollment_required', page_locale()) }}
+                    </div>
+                {% endif %}
                 <button type="submit" class="inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">{{ t('log_in', page_locale()) }}</button>
             </form>
         </div>

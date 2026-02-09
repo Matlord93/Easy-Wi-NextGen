@@ -43,4 +43,26 @@ class UserRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * @return array<int, array{id: int, email: string, type: string, totpEnabled: bool}>
+     */
+    public function findTwoFactorOverview(): array
+    {
+        $rows = $this->createQueryBuilder('user')
+            ->select('user.id', 'user.email', 'user.type', 'user.totpEnabled')
+            ->orderBy('user.email', 'ASC')
+            ->getQuery()
+            ->getArrayResult();
+
+        return array_map(
+            static fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'email' => (string) $row['email'],
+                'type' => (string) $row['type'],
+                'totpEnabled' => (bool) $row['totpEnabled'],
+            ],
+            $rows,
+        );
+    }
 }

@@ -414,11 +414,24 @@ final class AgentJobResultApplier
                 continue;
             }
 
-            $server = $this->ts6VirtualServerRepository->findOneBy([
-                'node' => $node,
-                'sid' => $sid,
-                'archivedAt' => null,
-            ]);
+            $server = null;
+            if ($sid > 0) {
+                $server = $this->ts6VirtualServerRepository->findOneBy([
+                    'node' => $node,
+                    'sid' => $sid,
+                    'archivedAt' => null,
+                ]);
+            }
+            if (!$server instanceof Ts6VirtualServer && $name !== '') {
+                $server = $this->ts6VirtualServerRepository->findOneBy([
+                    'node' => $node,
+                    'name' => $name,
+                    'archivedAt' => null,
+                ]);
+                if ($server instanceof Ts6VirtualServer && $sid > 0 && $server->getSid() <= 0) {
+                    $server->setSid($sid);
+                }
+            }
 
             if (!$server instanceof Ts6VirtualServer) {
                 $server = new Ts6VirtualServer(

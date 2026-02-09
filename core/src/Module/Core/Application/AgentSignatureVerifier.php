@@ -24,7 +24,7 @@ final class AgentSignatureVerifier
 
     public function verify(Request $request, string $agentId, string $secret): void
     {
-        $headerAgentId = (string) $request->headers->get('X-Agent-ID', '');
+        $headerAgentId = self::normalizeAgentIdHeaderValue($request->headers->get('X-Agent-ID'));
         if ($headerAgentId === '' || !hash_equals($agentId, $headerAgentId)) {
             throw new UnauthorizedHttpException('hmac', 'unknown_agent');
         }
@@ -126,6 +126,23 @@ final class AgentSignatureVerifier
         }
 
         return $payload;
+    }
+
+    public static function normalizeAgentIdHeaderValue(null|string|array $value): string
+    {
+        if (is_array($value)) {
+            $value = implode(',', $value);
+        }
+
+        $normalized = trim((string) $value);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $segments = array_filter(array_map('trim', explode(',', $normalized)), static fn (string $segment): bool => $segment !== '');
+        $normalized = $segments !== [] ? (string) reset($segments) : $normalized;
+
+        return trim($normalized, "\"'");
     }
 
     private function parseTimestamp(string $timestamp): ?DateTimeImmutable

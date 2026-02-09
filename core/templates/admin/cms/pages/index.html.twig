@@ -58,6 +58,9 @@
         <div class="rounded-xl bg-white border border-slate-200" id="cms-template-form">
             {% include 'admin/cms/pages/_template_form.html.twig' with { templateForm: templateForm, templates: templates } %}
         </div>
+        <div class="rounded-xl bg-white border border-slate-200" id="cms-maintenance-form">
+            {% include 'admin/cms/pages/_maintenance_form.html.twig' with { maintenanceForm: maintenanceForm } %}
+        </div>
         <div class="rounded-xl bg-white border border-slate-200" id="cms-page-form" hx-trigger="cms-pages-changed from:body" hx-get="/admin/cms/pages/form" hx-swap="outerHTML">
             {% include 'admin/cms/pages/_form.html.twig' with { form: form } %}
         </div>

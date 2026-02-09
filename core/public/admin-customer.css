@@ -1510,6 +1510,34 @@ html:not(.dark) {
     gap: 10px;
 }
 
+.ng-language-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 999px;
+    border: 1px solid var(--ng-border);
+    background: var(--ng-surface);
+}
+
+.ng-language-switcher__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ng-text-muted);
+    text-decoration: none;
+}
+
+.ng-language-switcher__link.is-active {
+    background: rgba(99, 102, 241, 0.18);
+    color: var(--ng-text);
+}
+
 .ng-icon-button {
     height: 36px;
     width: 36px;

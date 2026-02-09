@@ -225,6 +225,142 @@ final class Version20250310121000 extends AbstractMigration
     }
 }
 
+final class Version20250402120000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add CMS maintenance settings to sites.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('sites')) {
+            return;
+        }
+
+        $table = $schema->getTable('sites');
+        if (!$table->hasColumn('maintenance_enabled')) {
+            $this->addSql('ALTER TABLE sites ADD maintenance_enabled TINYINT(1) NOT NULL DEFAULT 0');
+        }
+        if (!$table->hasColumn('maintenance_message')) {
+            $this->addSql('ALTER TABLE sites ADD maintenance_message LONGTEXT DEFAULT NULL');
+        }
+        if (!$table->hasColumn('maintenance_allowlist')) {
+            $this->addSql('ALTER TABLE sites ADD maintenance_allowlist LONGTEXT DEFAULT NULL');
+        }
+        if (!$table->hasColumn('maintenance_starts_at')) {
+            $this->addSql('ALTER TABLE sites ADD maintenance_starts_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\'');
+        }
+        if (!$table->hasColumn('maintenance_ends_at')) {
+            $this->addSql('ALTER TABLE sites ADD maintenance_ends_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\'');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('sites')) {
+            return;
+        }
+
+        $table = $schema->getTable('sites');
+        if ($table->hasColumn('maintenance_ends_at')) {
+            $this->addSql('ALTER TABLE sites DROP maintenance_ends_at');
+        }
+        if ($table->hasColumn('maintenance_starts_at')) {
+            $this->addSql('ALTER TABLE sites DROP maintenance_starts_at');
+        }
+        if ($table->hasColumn('maintenance_allowlist')) {
+            $this->addSql('ALTER TABLE sites DROP maintenance_allowlist');
+        }
+        if ($table->hasColumn('maintenance_message')) {
+            $this->addSql('ALTER TABLE sites DROP maintenance_message');
+        }
+        if ($table->hasColumn('maintenance_enabled')) {
+            $this->addSql('ALTER TABLE sites DROP maintenance_enabled');
+        }
+    }
+}
+
+final class Version20250318110000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Store domain server aliases for subdomain management.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('domains')) {
+            return;
+        }
+
+        $table = $schema->getTable('domains');
+        if ($table->hasColumn('server_aliases')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE domains ADD server_aliases LONGTEXT DEFAULT NULL');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('domains')) {
+            return;
+        }
+
+        $table = $schema->getTable('domains');
+        if (!$table->hasColumn('server_aliases')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE domains DROP server_aliases');
+    }
+}
+
+final class Version20250315121500 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add two-factor authentication fields to users.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if (!$table->hasColumn('totp_secret_encrypted')) {
+            $this->addSql('ALTER TABLE users ADD totp_secret_encrypted LONGTEXT DEFAULT NULL');
+        }
+        if (!$table->hasColumn('totp_enabled')) {
+            $this->addSql('ALTER TABLE users ADD totp_enabled TINYINT(1) NOT NULL DEFAULT 0');
+        }
+        if (!$table->hasColumn('totp_recovery_codes')) {
+            $this->addSql('ALTER TABLE users ADD totp_recovery_codes JSON DEFAULT NULL');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('users')) {
+            return;
+        }
+
+        $table = $schema->getTable('users');
+        if ($table->hasColumn('totp_recovery_codes')) {
+            $this->addSql('ALTER TABLE users DROP totp_recovery_codes');
+        }
+        if ($table->hasColumn('totp_enabled')) {
+            $this->addSql('ALTER TABLE users DROP totp_enabled');
+        }
+        if ($table->hasColumn('totp_secret_encrypted')) {
+            $this->addSql('ALTER TABLE users DROP totp_secret_encrypted');
+        }
+    }
+}
+
 final class Version20250302110000 extends AbstractMigration
 {
     public function getDescription(): string
@@ -3323,10 +3459,10 @@ final class Version20250328140000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('CREATE TABLE ts3_nodes (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(120) NOT NULL, agent_base_url VARCHAR(255) NOT NULL, agent_api_token_encrypted LONGTEXT NOT NULL, download_url VARCHAR(255) NOT NULL, install_path VARCHAR(255) NOT NULL, instance_name VARCHAR(120) NOT NULL, service_name VARCHAR(120) NOT NULL, query_bind_ip VARCHAR(64) NOT NULL, query_port INT NOT NULL, installed_version VARCHAR(120) DEFAULT NULL, install_status VARCHAR(32) NOT NULL, running TINYINT(1) NOT NULL, last_error LONGTEXT DEFAULT NULL, admin_username VARCHAR(64) NOT NULL, admin_password_encrypted LONGTEXT DEFAULT NULL, admin_password_shown_once_at DATETIME DEFAULT NULL COMMENT '(DC2Type:datetime_immutable)', created_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', updated_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
-        $this->addSql('CREATE TABLE ts3_virtual_servers (id INT AUTO_INCREMENT NOT NULL, node_id INT NOT NULL, customer_id INT NOT NULL, sid INT NOT NULL, name VARCHAR(120) NOT NULL, voice_port INT DEFAULT NULL, filetransfer_port INT DEFAULT NULL, status VARCHAR(32) NOT NULL, created_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', updated_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', archived_at DATETIME DEFAULT NULL COMMENT '(DC2Type:datetime_immutable)', INDEX IDX_TS3_VIRTUAL_SERVERS_NODE (node_id), INDEX IDX_TS3_VIRTUAL_SERVERS_CUSTOMER (customer_id), INDEX IDX_TS3_VIRTUAL_SERVERS_SID (sid), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
-        $this->addSql('CREATE TABLE ts3_tokens (id INT AUTO_INCREMENT NOT NULL, virtual_server_id INT NOT NULL, token_encrypted LONGTEXT NOT NULL, type VARCHAR(16) NOT NULL, active TINYINT(1) NOT NULL, created_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', revoked_at DATETIME DEFAULT NULL COMMENT '(DC2Type:datetime_immutable)', INDEX IDX_TS3_TOKENS_SERVER (virtual_server_id), INDEX IDX_TS3_TOKENS_ACTIVE (active), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
-        $this->addSql('CREATE TABLE ts3_viewers (id INT AUTO_INCREMENT NOT NULL, virtual_server_id INT NOT NULL, public_id VARCHAR(64) NOT NULL, enabled TINYINT(1) NOT NULL, cache_ttl_ms INT NOT NULL, domain_allowlist LONGTEXT DEFAULT NULL, created_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', updated_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', UNIQUE INDEX UNIQ_TS3_VIEWERS_PUBLIC (public_id), UNIQUE INDEX UNIQ_TS3_VIEWERS_SERVER (virtual_server_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        $this->addSql('CREATE TABLE ts3_nodes (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(120) NOT NULL, agent_base_url VARCHAR(255) NOT NULL, agent_api_token_encrypted LONGTEXT NOT NULL, download_url VARCHAR(255) NOT NULL, install_path VARCHAR(255) NOT NULL, instance_name VARCHAR(120) NOT NULL, service_name VARCHAR(120) NOT NULL, query_bind_ip VARCHAR(64) NOT NULL, query_port INT NOT NULL, installed_version VARCHAR(120) DEFAULT NULL, install_status VARCHAR(32) NOT NULL, running TINYINT(1) NOT NULL, last_error LONGTEXT DEFAULT NULL, admin_username VARCHAR(64) NOT NULL, admin_password_encrypted LONGTEXT DEFAULT NULL, admin_password_shown_once_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        $this->addSql('CREATE TABLE ts3_virtual_servers (id INT AUTO_INCREMENT NOT NULL, node_id INT NOT NULL, customer_id INT NOT NULL, sid INT NOT NULL, name VARCHAR(120) NOT NULL, voice_port INT DEFAULT NULL, filetransfer_port INT DEFAULT NULL, status VARCHAR(32) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', archived_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX IDX_TS3_VIRTUAL_SERVERS_NODE (node_id), INDEX IDX_TS3_VIRTUAL_SERVERS_CUSTOMER (customer_id), INDEX IDX_TS3_VIRTUAL_SERVERS_SID (sid), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        $this->addSql('CREATE TABLE ts3_tokens (id INT AUTO_INCREMENT NOT NULL, virtual_server_id INT NOT NULL, token_encrypted LONGTEXT NOT NULL, type VARCHAR(16) NOT NULL, active TINYINT(1) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', revoked_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX IDX_TS3_TOKENS_SERVER (virtual_server_id), INDEX IDX_TS3_TOKENS_ACTIVE (active), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        $this->addSql('CREATE TABLE ts3_viewers (id INT AUTO_INCREMENT NOT NULL, virtual_server_id INT NOT NULL, public_id VARCHAR(64) NOT NULL, enabled TINYINT(1) NOT NULL, cache_ttl_ms INT NOT NULL, domain_allowlist LONGTEXT DEFAULT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', UNIQUE INDEX UNIQ_TS3_VIEWERS_PUBLIC (public_id), UNIQUE INDEX UNIQ_TS3_VIEWERS_SERVER (virtual_server_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
         $this->addSql('ALTER TABLE ts3_virtual_servers ADD CONSTRAINT FK_TS3_VIRTUAL_SERVERS_NODE FOREIGN KEY (node_id) REFERENCES ts3_nodes (id)');
         $this->addSql('ALTER TABLE ts3_tokens ADD CONSTRAINT FK_TS3_TOKENS_SERVER FOREIGN KEY (virtual_server_id) REFERENCES ts3_virtual_servers (id)');
         $this->addSql('ALTER TABLE ts3_viewers ADD CONSTRAINT FK_TS3_VIEWERS_SERVER FOREIGN KEY (virtual_server_id) REFERENCES ts3_virtual_servers (id)');
@@ -3354,7 +3490,7 @@ final class Version20250328150000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('CREATE TABLE sinusbot_nodes (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(120) NOT NULL, agent_base_url VARCHAR(255) NOT NULL, agent_api_token_encrypted LONGTEXT NOT NULL, download_url VARCHAR(255) NOT NULL, install_path VARCHAR(255) NOT NULL, instance_root VARCHAR(255) NOT NULL, web_bind_ip VARCHAR(64) NOT NULL, web_port_base INT NOT NULL, installed_version VARCHAR(120) DEFAULT NULL, install_status VARCHAR(32) NOT NULL, last_error LONGTEXT DEFAULT NULL, admin_username VARCHAR(120) DEFAULT NULL, admin_password_encrypted LONGTEXT DEFAULT NULL, ts3_client_installed TINYINT(1) NOT NULL, ts3_client_version VARCHAR(120) DEFAULT NULL, ts3_client_path VARCHAR(255) DEFAULT NULL, created_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', updated_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        $this->addSql('CREATE TABLE sinusbot_nodes (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(120) NOT NULL, agent_base_url VARCHAR(255) NOT NULL, agent_api_token_encrypted LONGTEXT NOT NULL, download_url VARCHAR(255) NOT NULL, install_path VARCHAR(255) NOT NULL, instance_root VARCHAR(255) NOT NULL, web_bind_ip VARCHAR(64) NOT NULL, web_port_base INT NOT NULL, installed_version VARCHAR(120) DEFAULT NULL, install_status VARCHAR(32) NOT NULL, last_error LONGTEXT DEFAULT NULL, admin_username VARCHAR(120) DEFAULT NULL, admin_password_encrypted LONGTEXT DEFAULT NULL, ts3_client_installed TINYINT(1) NOT NULL, ts3_client_version VARCHAR(120) DEFAULT NULL, ts3_client_path VARCHAR(255) DEFAULT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
         $this->addSql('CREATE TABLE sinusbot_instances (id INT AUTO_INCREMENT NOT NULL, node_id INT NOT NULL, customer_id INT DEFAULT NULL, instance_id VARCHAR(64) NOT NULL, manage_url VARCHAR(255) DEFAULT NULL, sinusbot_username VARCHAR(120) NOT NULL, sinusbot_password_encrypted LONGTEXT DEFAULT NULL, bot_quota INT NOT NULL, status VARCHAR(16) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', archived_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', UNIQUE INDEX UNIQ_9F589B1B9F16E290 (instance_id), UNIQUE INDEX uniq_sinusbot_instance_customer (customer_id), INDEX IDX_9F589B1B460D9FD (node_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
         $this->addSql('ALTER TABLE sinusbot_instances ADD CONSTRAINT FK_9F589B1B460D9FD FOREIGN KEY (node_id) REFERENCES sinusbot_nodes (id)');
     }
@@ -5821,5 +5957,120 @@ final class Version20260701110000 extends AbstractMigration
         }
 
         $this->addSql('ALTER TABLE instances DROP install_path');
+    }
+}
+
+final class Version20260715120000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add security policy revisions and security events.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('security_policy_revisions')) {
+            $this->addSql('CREATE TABLE security_policy_revisions (id INT AUTO_INCREMENT NOT NULL, node_id VARCHAR(64) NOT NULL, created_by_id INT DEFAULT NULL, policy_type VARCHAR(32) NOT NULL, version INT NOT NULL, payload JSON NOT NULL, status VARCHAR(20) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', applied_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', checksum VARCHAR(64) NOT NULL, INDEX idx_security_policy_node_type (node_id, policy_type), UNIQUE INDEX uniq_security_policy_version (node_id, policy_type, version), INDEX IDX_E9F1D0BD4600C3E3 (node_id), INDEX IDX_E9F1D0BDB03A8386 (created_by_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $this->addSql('ALTER TABLE security_policy_revisions ADD CONSTRAINT FK_E9F1D0BD4600C3E3 FOREIGN KEY (node_id) REFERENCES agents (id) ON DELETE CASCADE');
+            $this->addSql('ALTER TABLE security_policy_revisions ADD CONSTRAINT FK_E9F1D0BDB03A8386 FOREIGN KEY (created_by_id) REFERENCES users (id) ON DELETE SET NULL');
+        }
+
+        if (!$schema->hasTable('security_events')) {
+            $this->addSql('CREATE TABLE security_events (id INT AUTO_INCREMENT NOT NULL, node_id VARCHAR(64) NOT NULL, direction VARCHAR(16) NOT NULL, source VARCHAR(32) NOT NULL, reason VARCHAR(120) DEFAULT NULL, ip VARCHAR(64) DEFAULT NULL, rule VARCHAR(120) DEFAULT NULL, count INT DEFAULT NULL, occurred_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_security_events_occurred (occurred_at), INDEX idx_security_events_direction (direction), INDEX idx_security_events_source (source), INDEX idx_security_events_ip (ip), INDEX idx_security_events_rule (rule), INDEX IDX_6AB7F8AF4600C3E3 (node_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $this->addSql('ALTER TABLE security_events ADD CONSTRAINT FK_6AB7F8AF4600C3E3 FOREIGN KEY (node_id) REFERENCES agents (id) ON DELETE CASCADE');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if ($schema->hasTable('security_events')) {
+            $this->addSql('DROP TABLE security_events');
+        }
+
+        if ($schema->hasTable('security_policy_revisions')) {
+            $this->addSql('DROP TABLE security_policy_revisions');
+        }
+    }
+}
+
+final class Version20260801090000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add database nodes and link databases to a node.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('database_nodes')) {
+            $this->addSql('CREATE TABLE database_nodes (id INT AUTO_INCREMENT NOT NULL, agent_id VARCHAR(64) NOT NULL, name VARCHAR(120) NOT NULL, engine VARCHAR(30) NOT NULL, host VARCHAR(255) NOT NULL, port INT NOT NULL, is_active TINYINT(1) NOT NULL DEFAULT 1, health_status VARCHAR(20) NOT NULL, health_message LONGTEXT DEFAULT NULL, last_checked_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX IDX_8B8182524600C3E3 (agent_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $this->addSql('ALTER TABLE database_nodes ADD CONSTRAINT FK_8B8182524600C3E3 FOREIGN KEY (agent_id) REFERENCES agents (id) ON DELETE CASCADE');
+        }
+
+        if ($schema->hasTable('databases')) {
+            $table = $schema->getTable('databases');
+            if (!$table->hasColumn('database_node_id')) {
+                $this->addSql('ALTER TABLE databases ADD database_node_id INT DEFAULT NULL');
+                $this->addSql('ALTER TABLE databases ADD CONSTRAINT FK_7E6F5E6EA8AB0C83 FOREIGN KEY (database_node_id) REFERENCES database_nodes (id) ON DELETE SET NULL');
+                $this->addSql('CREATE INDEX IDX_7E6F5E6EA8AB0C83 ON databases (database_node_id)');
+            }
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if ($schema->hasTable('databases')) {
+            $table = $schema->getTable('databases');
+            if ($table->hasColumn('database_node_id')) {
+                $this->addSql('ALTER TABLE databases DROP FOREIGN KEY FK_7E6F5E6EA8AB0C83');
+                $this->addSql('DROP INDEX IDX_7E6F5E6EA8AB0C83 ON databases');
+                $this->addSql('ALTER TABLE databases DROP database_node_id');
+            }
+        }
+
+        if ($schema->hasTable('database_nodes')) {
+            $this->addSql('DROP TABLE database_nodes');
+        }
+    }
+}
+
+final class Version20250315110000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add backup targets and link backup definitions to optional targets.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('backup_targets')) {
+            $this->addSql('CREATE TABLE backup_targets (id INT AUTO_INCREMENT NOT NULL, customer_id INT NOT NULL, type VARCHAR(20) NOT NULL, label VARCHAR(160) NOT NULL, config JSON NOT NULL, encrypted_credentials JSON DEFAULT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX IDX_71B9A0D79395C3F3 (customer_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $this->addSql('ALTER TABLE backup_targets ADD CONSTRAINT FK_71B9A0D79395C3F3 FOREIGN KEY (customer_id) REFERENCES users (id) ON DELETE CASCADE');
+        }
+
+        if ($schema->hasTable('backup_definitions')) {
+            $table = $schema->getTable('backup_definitions');
+            if (!$table->hasColumn('backup_target_id')) {
+                $this->addSql('ALTER TABLE backup_definitions ADD backup_target_id INT DEFAULT NULL');
+                $this->addSql('ALTER TABLE backup_definitions ADD CONSTRAINT FK_91BA3AA0B514F4F0 FOREIGN KEY (backup_target_id) REFERENCES backup_targets (id) ON DELETE SET NULL');
+                $this->addSql('CREATE INDEX IDX_91BA3AA0B514F4F0 ON backup_definitions (backup_target_id)');
+            }
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if ($schema->hasTable('backup_definitions')) {
+            $table = $schema->getTable('backup_definitions');
+            if ($table->hasColumn('backup_target_id')) {
+                $this->addSql('ALTER TABLE backup_definitions DROP FOREIGN KEY FK_91BA3AA0B514F4F0');
+                $this->addSql('DROP INDEX IDX_91BA3AA0B514F4F0 ON backup_definitions');
+                $this->addSql('ALTER TABLE backup_definitions DROP backup_target_id');
+            }
+        }
+
+        if ($schema->hasTable('backup_targets')) {
+            $this->addSql('DROP TABLE backup_targets');
+        }
     }
 }

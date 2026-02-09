@@ -58,6 +58,16 @@ class UserSession
         return $this->tokenHash;
     }
 
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+
+    public function getLastUsedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastUsedAt;
+    }
+
     public function setLastUsedAt(\DateTimeImmutable $lastUsedAt): void
     {
         $this->lastUsedAt = $lastUsedAt;

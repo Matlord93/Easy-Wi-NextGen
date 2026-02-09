@@ -6,11 +6,12 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\DdosPolicyRepository;
 use App\Repository\DdosStatusRepository;
+use App\Repository\SecurityPolicyRevisionRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Domain\Entity\SecurityPolicyRevision;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -29,6 +30,7 @@ final class AdminDdosController
         private readonly AgentRepository $agentRepository,
         private readonly DdosPolicyRepository $ddosPolicyRepository,
         private readonly DdosStatusRepository $ddosStatusRepository,
+        private readonly SecurityPolicyRevisionRepository $policyRevisionRepository,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
@@ -91,11 +93,13 @@ final class AdminDdosController
 
         $queuedJobs = [];
         foreach ($nodes as $node) {
+            $revision = $this->buildPolicyRevision($node, $mode, $ports, $protocols, $admin);
             $payload = [
                 'agent_id' => $node->getId(),
                 'ports' => $ports,
                 'protocols' => $protocols,
                 'mode' => $mode,
+                'policy_revision_id' => $revision->getId(),
                 'requested_by' => [
                     'user_id' => $admin->getId(),
                     'email' => $admin->getEmail(),
@@ -114,6 +118,7 @@ final class AdminDdosController
                 'mode' => $mode,
                 'ports' => $ports,
                 'protocols' => $protocols,
+                'policy_revision_id' => $revision->getId(),
             ]);
         }
 
@@ -307,5 +312,29 @@ final class AdminDdosController
         }
 
         return $actor;
+    }
+
+    private function buildPolicyRevision(
+        \App\Module\Core\Domain\Entity\Agent $node,
+        string $mode,
+        array $ports,
+        array $protocols,
+        User $admin,
+    ): SecurityPolicyRevision {
+        $version = $this->policyRevisionRepository->nextVersion($node, 'ddos');
+        $revision = new SecurityPolicyRevision($node, 'ddos', $version, [
+            'mode' => $mode,
+            'ports' => $ports,
+            'protocols' => $protocols,
+        ], 'queued', $admin);
+        $this->entityManager->persist($revision);
+
+        $this->auditLogger->log($admin, 'ddos.policy.revision_created', [
+            'agent_id' => $node->getId(),
+            'policy_type' => 'ddos',
+            'version' => $version,
+        ]);
+
+        return $revision;
     }
 }

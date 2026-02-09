@@ -14,7 +14,7 @@ final class ExtensionMenuRegistry
     }
 
     /**
-     * @return array<int, array{label: string, href: string, iconSvg: ?string}>
+     * @return array<int, array{label: string, href: string, iconSvg: ?string, key: ?string, labelKey: ?string}>
      */
     public function adminItems(): array
     {
@@ -22,7 +22,7 @@ final class ExtensionMenuRegistry
     }
 
     /**
-     * @return array<int, array{label: string, href: string, iconSvg: ?string}>
+     * @return array<int, array{label: string, href: string, iconSvg: ?string, key: ?string, labelKey: ?string}>
      */
     public function customerItems(): array
     {
@@ -30,7 +30,7 @@ final class ExtensionMenuRegistry
     }
 
     /**
-     * @return array<int, array{label: string, href: string, iconSvg: ?string}>
+     * @return array<int, array{label: string, href: string, iconSvg: ?string, key: ?string, labelKey: ?string}>
      */
     private function collect(string $scope): array
     {
@@ -42,9 +42,11 @@ final class ExtensionMenuRegistry
                 : $provider->customerMenuItems();
             foreach ($menuItems as $item) {
                 $items[] = [
+                    'key' => $item->key,
                     'label' => $item->label,
                     'href' => $item->href,
                     'iconSvg' => $item->iconSvg,
+                    'labelKey' => $item->labelKey,
                 ];
             }
         }

@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\DdosProviderCredentialRepository;
 use App\Repository\FirewallStateRepository;
 use App\Repository\JobRepository;
+use App\Repository\SecurityEventRepository;
+use App\Repository\SecurityPolicyRevisionRepository;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\Ddos\DdosCredentialManager;
+use App\Module\Core\Domain\Entity\SecurityPolicyRevision;
+use App\Module\Core\Domain\Entity\SecurityEvent;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -27,6 +30,8 @@ final class AdminSecurityController
         private readonly FirewallStateRepository $firewallStateRepository,
         private readonly JobRepository $jobRepository,
         private readonly DdosProviderCredentialRepository $credentialRepository,
+        private readonly SecurityPolicyRevisionRepository $policyRevisionRepository,
+        private readonly SecurityEventRepository $securityEventRepository,
         private readonly DdosCredentialManager $credentialManager,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
@@ -85,57 +90,166 @@ final class AdminSecurityController
 
         $toOpen = array_values(array_diff($desiredPorts, $currentPorts));
         $toClose = array_values(array_diff($currentPorts, $desiredPorts));
+        $dryRun = $request->request->get('dry_run') === '1';
+
+        $revision = $this->buildPolicyRevision(
+            $agent,
+            'firewall',
+            [
+                'desired_ports' => $desiredPorts,
+                'open_ports' => $toOpen,
+                'close_ports' => $toClose,
+                'dry_run' => $dryRun,
+            ],
+            $admin,
+        );
+
+        if ($dryRun) {
+            $revision->markPreview();
+            $this->auditLogger->log($admin, 'firewall.policy.previewed', [
+                'agent_id' => $agent->getId(),
+                'policy_revision_id' => $revision->getId(),
+            ]);
+        } elseif ($toOpen === [] && $toClose === []) {
+            $revision->markApplied();
+            $this->auditLogger->log($admin, 'firewall.policy.noop', [
+                'agent_id' => $agent->getId(),
+                'policy_revision_id' => $revision->getId(),
+            ]);
+        }
 
         $existingJobs = $this->buildFirewallJobIndex([$agent]);
         $latestJob = $existingJobs[$agent->getId()] ?? null;
         $hasPending = $latestJob !== null && in_array($latestJob->getStatus()->value, ['queued', 'running'], true);
 
-        if ($toOpen !== []) {
+        if ($toOpen !== [] && !$dryRun) {
             if (!$hasPending) {
                 $job = new \App\Module\Core\Domain\Entity\Job('firewall.open_ports', [
                     'agent_id' => $agent->getId(),
                     'ports' => implode(',', array_map('strval', $toOpen)),
+                    'policy_revision_id' => $revision->getId(),
                 ]);
                 $this->entityManager->persist($job);
                 $this->auditLogger->log($admin, 'firewall.open_ports_queued', [
                     'agent_id' => $agent->getId(),
                     'ports' => $toOpen,
                     'job_id' => $job->getId(),
+                    'policy_revision_id' => $revision->getId(),
                 ]);
             }
         }
 
-        if ($toClose !== []) {
+        if ($toClose !== [] && !$dryRun) {
             if (!$hasPending) {
                 $job = new \App\Module\Core\Domain\Entity\Job('firewall.close_ports', [
                     'agent_id' => $agent->getId(),
                     'ports' => implode(',', array_map('strval', $toClose)),
+                    'policy_revision_id' => $revision->getId(),
                 ]);
                 $this->entityManager->persist($job);
                 $this->auditLogger->log($admin, 'firewall.close_ports_queued', [
                     'agent_id' => $agent->getId(),
                     'ports' => $toClose,
                     'job_id' => $job->getId(),
+                    'policy_revision_id' => $revision->getId(),
                 ]);
             }
         }
 
         $this->entityManager->flush();
 
-        return new RedirectResponse(sprintf('/admin/security?firewall=%s', $agent->getId()));
+        $query = sprintf('/admin/security?firewall=%s', $agent->getId());
+        if ($dryRun) {
+            $query .= '&preview=1';
+        }
+
+        return new RedirectResponse($query);
+    }
+
+    #[Route(path: '/fail2ban/{id}', name: 'admin_security_fail2ban', methods: ['POST'])]
+    public function updateFail2ban(Request $request, string $id): Response
+    {
+        $admin = $this->requireAdmin($request);
+
+        $agent = $this->agentRepository->find($id);
+        if ($agent === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $payload = $this->parseFail2banPayload($request);
+        $dryRun = $payload['dry_run'] ?? false;
+
+        $revision = $this->buildPolicyRevision($agent, 'fail2ban', $payload, $admin);
+
+        if (!$dryRun) {
+            $job = new \App\Module\Core\Domain\Entity\Job('fail2ban.policy.apply', [
+                'agent_id' => $agent->getId(),
+                'policy_revision_id' => $revision->getId(),
+                'policy' => $payload,
+            ]);
+            $this->entityManager->persist($job);
+            $this->auditLogger->log($admin, 'fail2ban.policy.apply_queued', [
+                'agent_id' => $agent->getId(),
+                'job_id' => $job->getId(),
+                'policy_revision_id' => $revision->getId(),
+                'dry_run' => $dryRun,
+            ]);
+        } else {
+            $revision->markPreview();
+            $this->auditLogger->log($admin, 'fail2ban.policy.previewed', [
+                'agent_id' => $agent->getId(),
+                'policy_revision_id' => $revision->getId(),
+            ]);
+        }
+
+        $this->entityManager->flush();
+
+        $query = sprintf('/admin/security?fail2ban=%s', $agent->getId());
+        if ($dryRun) {
+            $query .= '&preview=1';
+        }
+
+        return new RedirectResponse($query);
+    }
+
+    #[Route(path: '/fail2ban/{id}/status', name: 'admin_security_fail2ban_status', methods: ['POST'])]
+    public function queueFail2banStatus(Request $request, string $id): Response
+    {
+        $admin = $this->requireAdmin($request);
+
+        $agent = $this->agentRepository->find($id);
+        if ($agent === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $job = new \App\Module\Core\Domain\Entity\Job('fail2ban.status.check', [
+            'agent_id' => $agent->getId(),
+        ]);
+        $this->entityManager->persist($job);
+        $this->auditLogger->log($admin, 'fail2ban.status.check_queued', [
+            'agent_id' => $agent->getId(),
+            'job_id' => $job->getId(),
+        ]);
+        $this->entityManager->flush();
+
+        return new RedirectResponse(sprintf('/admin/security?fail2ban=%s', $agent->getId()));
     }
 
     private function renderPage(User $admin, Request $request, array $errors = [], int $status = Response::HTTP_OK): Response
     {
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $firewallJobs = $this->buildFirewallJobIndex($agents);
-        $firewallNodes = array_map(function ($agent) use ($firewallJobs): array {
+        $firewallRevisions = $this->indexPolicyRevisions($agents, 'firewall');
+        $fail2banRevisions = $this->indexPolicyRevisions($agents, 'fail2ban');
+        $firewallNodes = array_map(function ($agent) use ($firewallJobs, $firewallRevisions): array {
             $state = $this->firewallStateRepository->findOneBy(['node' => $agent]);
             $ports = $state?->getPorts() ?? [];
             $rules = $state?->getRules() ?? [];
             sort($ports);
             $rules = $this->normalizeRules($rules);
             $job = $firewallJobs[$agent->getId()] ?? null;
+
+            $revision = $firewallRevisions[$agent->getId()] ?? null;
 
             return [
                 'id' => $agent->getId(),
@@ -154,19 +268,193 @@ final class AdminSecurityController
                     'resultStatus' => $job->getResult()?->getStatus()->value,
                     'resultMessage' => $job->getResult()?->getOutput()['message'] ?? null,
                 ],
+                'policy' => $revision === null ? null : [
+                    'version' => $revision->getVersion(),
+                    'status' => $revision->getStatus(),
+                    'updatedAt' => $revision->getUpdatedAt(),
+                    'appliedAt' => $revision->getAppliedAt(),
+                ],
+            ];
+        }, $agents);
+
+        $fail2banNodes = array_map(function ($agent) use ($fail2banRevisions): array {
+            $revision = $fail2banRevisions[$agent->getId()] ?? null;
+            $payload = $revision?->getPayload() ?? [];
+
+            return [
+                'id' => $agent->getId(),
+                'name' => $agent->getName() ?? 'Unnamed node',
+                'updatedAt' => $agent->getUpdatedAt(),
+                'lastHeartbeatAt' => $agent->getLastHeartbeatAt(),
+                'status' => $this->resolveAgentStatus($agent->getLastHeartbeatAt()),
+                'policy' => $revision === null ? null : [
+                    'version' => $revision->getVersion(),
+                    'status' => $revision->getStatus(),
+                    'updatedAt' => $revision->getUpdatedAt(),
+                    'appliedAt' => $revision->getAppliedAt(),
+                    'payload' => $payload,
+                ],
             ];
         }, $agents);
 
         $credentials = $this->credentialRepository->findBy(['customer' => $admin], ['updatedAt' => 'DESC']);
 
+        $eventFilters = $this->parseEventFilters($request);
+        $events = $this->securityEventRepository->findFiltered(
+            $eventFilters['from'],
+            $eventFilters['to'],
+            $eventFilters['ip'],
+            $eventFilters['rule'],
+            $eventFilters['source'],
+        );
+        $eventSummary = $this->summarizeEvents($events);
+
         return new Response($this->twig->render('admin/security/index.html.twig', [
             'activeNav' => 'security',
             'errors' => $errors,
             'firewallNodes' => $firewallNodes,
+            'fail2banNodes' => $fail2banNodes,
             'credentials' => $credentials,
             'ddosUpdated' => $request->query->get('ddos') === 'updated',
             'firewallUpdated' => $request->query->get('firewall'),
+            'fail2banUpdated' => $request->query->get('fail2ban'),
+            'previewEnabled' => $request->query->get('preview') === '1',
+            'securityEvents' => $events,
+            'securityEventSummary' => $eventSummary,
+            'securityEventFilters' => $eventFilters,
         ]), $status);
+    }
+
+    private function buildPolicyRevision(\App\Module\Core\Domain\Entity\Agent $agent, string $policyType, array $payload, User $admin): SecurityPolicyRevision
+    {
+        $version = $this->policyRevisionRepository->nextVersion($agent, $policyType);
+        $revision = new SecurityPolicyRevision($agent, $policyType, $version, $payload, 'queued', $admin);
+        $this->entityManager->persist($revision);
+
+        $this->auditLogger->log($admin, 'security.policy.revision_created', [
+            'agent_id' => $agent->getId(),
+            'policy_type' => $policyType,
+            'version' => $version,
+        ]);
+
+        return $revision;
+    }
+
+    /**
+     * @param \App\Module\Core\Domain\Entity\Agent[] $agents
+     * @return array<string, SecurityPolicyRevision>
+     */
+    private function indexPolicyRevisions(array $agents, string $policyType): array
+    {
+        $revisions = $this->policyRevisionRepository->findLatestByNodesAndType($agents, $policyType);
+        $index = [];
+        foreach ($revisions as $revision) {
+            $nodeId = $revision->getNode()->getId();
+            if (!array_key_exists($nodeId, $index)) {
+                $index[$nodeId] = $revision;
+            }
+        }
+
+        return $index;
+    }
+
+    private function parseFail2banPayload(Request $request): array
+    {
+        $enabled = $request->request->get('enabled') === '1';
+        $bantime = trim((string) $request->request->get('bantime', '10m'));
+        $findtime = trim((string) $request->request->get('findtime', '10m'));
+        $maxretry = trim((string) $request->request->get('maxretry', '5'));
+        $ignoreIps = $this->parseCsvList((string) $request->request->get('ignore_ips', '127.0.0.1/8'));
+        $jails = $this->parseCsvList((string) $request->request->get('jails', 'sshd'));
+        $advancedConfig = trim((string) $request->request->get('advanced_config', ''));
+        $dryRun = $request->request->get('dry_run') === '1';
+
+        return [
+            'enabled' => $enabled,
+            'bantime' => $bantime,
+            'findtime' => $findtime,
+            'maxretry' => is_numeric($maxretry) ? (int) $maxretry : 5,
+            'ignore_ips' => $ignoreIps,
+            'jails' => $jails,
+            'advanced_config' => $advancedConfig,
+            'dry_run' => $dryRun,
+        ];
+    }
+
+    /**
+     * @return string[]
+     */
+    private function parseCsvList(string $raw): array
+    {
+        $values = [];
+        foreach (explode(',', $raw) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+            $values[] = $entry;
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    private function parseEventFilters(Request $request): array
+    {
+        $from = $this->parseDateFilter($request->query->get('event_from'));
+        $to = $this->parseDateFilter($request->query->get('event_to'));
+
+        return [
+            'from' => $from,
+            'to' => $to,
+            'ip' => $this->sanitizeFilterString($request->query->get('event_ip')),
+            'rule' => $this->sanitizeFilterString($request->query->get('event_rule')),
+            'source' => $this->sanitizeFilterString($request->query->get('event_source')),
+        ];
+    }
+
+    private function parseDateFilter(mixed $value): ?\DateTimeImmutable
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return new \DateTimeImmutable($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    private function sanitizeFilterString(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @param SecurityEvent[] $events
+     */
+    private function summarizeEvents(array $events): array
+    {
+        $blocked = 0;
+        $allowed = 0;
+        foreach ($events as $event) {
+            $count = $event->getCount() ?? 1;
+            if ($event->getDirection() === 'blocked') {
+                $blocked += $count;
+            } elseif ($event->getDirection() === 'allowed') {
+                $allowed += $count;
+            }
+        }
+
+        return [
+            'blocked' => $blocked,
+            'allowed' => $allowed,
+        ];
     }
 
     /**

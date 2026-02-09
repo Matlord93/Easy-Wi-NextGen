@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Public;
 
+use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Core\Domain\Entity\CmsBlock;
 use App\Module\Core\Domain\Entity\PublicServer;
 use App\Module\Core\Domain\Entity\ShopProduct;
@@ -30,6 +31,7 @@ final class PublicCmsPageController
         private readonly ShopProductRepository $shopProductRepository,
         private readonly SiteResolver $siteResolver,
         private readonly InstallerService $installerService,
+        private readonly CmsMaintenanceService $maintenanceService,
         private readonly Environment $twig,
     ) {
     }
@@ -64,6 +66,16 @@ final class PublicCmsPageController
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $maintenance = $this->maintenanceService->resolve($request, $site);
+        if ($maintenance['active']) {
+            return new Response($this->twig->render('public/maintenance.html.twig', [
+                'message' => $maintenance['message'],
+                'starts_at' => $maintenance['starts_at'],
+                'ends_at' => $maintenance['ends_at'],
+                'scope' => $maintenance['scope'],
+            ]), Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
         $page = $this->pageRepository->findOneBy(['slug' => $slug, 'isPublished' => true, 'site' => $site]);

@@ -34,6 +34,9 @@ class Domain implements ResourceEventSource
     #[ORM\Column(length: 32)]
     private string $status;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $serverAliases = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -90,6 +93,38 @@ class Domain implements ResourceEventSource
         $this->touch();
     }
 
+    /**
+     * @return string[]
+     */
+    public function getServerAliases(): array
+    {
+        return $this->parseServerAliases($this->serverAliases);
+    }
+
+    public function getServerAliasesRaw(): ?string
+    {
+        return $this->serverAliases;
+    }
+
+    /**
+     * @param string[] $serverAliases
+     */
+    public function setServerAliases(array $serverAliases): void
+    {
+        $aliases = [];
+        foreach ($serverAliases as $alias) {
+            $alias = strtolower(trim($alias));
+            if ($alias === '') {
+                continue;
+            }
+            $aliases[] = $alias;
+        }
+
+        $aliases = array_values(array_unique($aliases));
+        $this->serverAliases = $aliases === [] ? null : implode(', ', $aliases);
+        $this->touch();
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -109,6 +144,28 @@ class Domain implements ResourceEventSource
     {
         $this->sslExpiresAt = $sslExpiresAt;
         $this->touch();
+    }
+
+    /**
+     * @return string[]
+     */
+    private function parseServerAliases(?string $raw): array
+    {
+        if ($raw === null || trim($raw) === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\s,;]+/', $raw) ?: [];
+        $aliases = [];
+        foreach ($parts as $part) {
+            $part = strtolower(trim((string) $part));
+            if ($part === '') {
+                continue;
+            }
+            $aliases[] = $part;
+        }
+
+        return array_values(array_unique($aliases));
     }
 
     private function touch(): void

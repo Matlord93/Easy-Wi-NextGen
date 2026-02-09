@@ -10,6 +10,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\BackupDefinitionRepository;
+use App\Repository\BackupTargetRepository;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
@@ -21,6 +22,7 @@ final class BackupApiController
 {
     public function __construct(
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
+        private readonly BackupTargetRepository $backupTargetRepository,
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
@@ -59,6 +61,7 @@ final class BackupApiController
             $validation['target_type'],
             $validation['target_id'],
             $validation['label'],
+            $validation['backup_target'],
         );
 
         $this->entityManager->persist($definition);
@@ -77,6 +80,7 @@ final class BackupApiController
             'target_type' => $definition->getTargetType()->value,
             'target_id' => $definition->getTargetId(),
             'label' => $definition->getLabel(),
+            'backup_target_id' => $definition->getBackupTarget()?->getId(),
         ]);
 
         if ($definition->getSchedule() !== null) {
@@ -176,6 +180,7 @@ final class BackupApiController
         $targetId = trim((string) ($payload['target_id'] ?? ''));
         $label = trim((string) ($payload['label'] ?? ''));
         $label = $label === '' ? null : $label;
+        $backupTargetId = $payload['backup_target_id'] ?? null;
 
         if ($actor->isAdmin()) {
             if (!is_numeric($customerId)) {
@@ -204,6 +209,17 @@ final class BackupApiController
             return ['error' => new JsonResponse(['error' => 'Target id is required.'], JsonResponse::HTTP_BAD_REQUEST)];
         }
 
+        $backupTarget = null;
+        if ($backupTargetId !== null && $backupTargetId !== '') {
+            if (!is_numeric($backupTargetId)) {
+                return ['error' => new JsonResponse(['error' => 'Backup target id must be numeric.'], JsonResponse::HTTP_BAD_REQUEST)];
+            }
+            $backupTarget = $this->backupTargetRepository->find((int) $backupTargetId);
+            if ($backupTarget === null || $backupTarget->getCustomer()->getId() !== $customer->getId()) {
+                return ['error' => new JsonResponse(['error' => 'Backup target not found.'], JsonResponse::HTTP_NOT_FOUND)];
+            }
+        }
+
         $schedule = null;
         if ($this->hasSchedulePayload($payload)) {
             $scheduleValidation = $this->validateSchedulePayload($payload);
@@ -219,6 +235,7 @@ final class BackupApiController
             'target_type' => $targetType,
             'target_id' => $targetId,
             'label' => $label,
+            'backup_target' => $backupTarget,
             'schedule' => $schedule,
         ];
     }
@@ -293,6 +310,7 @@ final class BackupApiController
     private function normalizeDefinition(BackupDefinition $definition): array
     {
         $schedule = $definition->getSchedule();
+        $backupTarget = $definition->getBackupTarget();
 
         return [
             'id' => $definition->getId(),
@@ -302,6 +320,11 @@ final class BackupApiController
                 'id' => $definition->getTargetId(),
             ],
             'label' => $definition->getLabel(),
+            'backup_target' => $backupTarget === null ? null : [
+                'id' => $backupTarget->getId(),
+                'type' => $backupTarget->getType()->value,
+                'label' => $backupTarget->getLabel(),
+            ],
             'schedule' => $schedule === null ? null : [
                 'id' => $schedule->getId(),
                 'cron_expression' => $schedule->getCronExpression(),

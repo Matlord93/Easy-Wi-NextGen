@@ -27,6 +27,7 @@ use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\InstanceQueryService;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
@@ -62,6 +63,7 @@ final class AdminInstanceController
         private readonly EncryptionService $encryptionService,
         private readonly InstanceInstallService $instanceInstallService,
         private readonly InstanceQueryService $instanceQueryService,
+        private readonly AgentGameServerClient $agentGameServerClient,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly PortLeaseManager $portLeaseManager,
         private readonly Environment $twig,
@@ -938,9 +940,10 @@ final class AdminInstanceController
             $installStatus = $this->instanceInstallService->getInstallStatus($instance);
             $portBlock = $portBlockIndex[$instance->getId()] ?? null;
             $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, false);
-            $runtimeStatus = is_string($querySnapshot['status'] ?? null)
-                ? strtolower((string) $querySnapshot['status'])
-                : null;
+            $runtimeStatus = $this->resolveRuntimeStatus($instance)
+                ?? (is_string($querySnapshot['status'] ?? null)
+                    ? strtolower((string) $querySnapshot['status'])
+                    : null);
             $displayStatus = $this->resolveDisplayStatus($instance, $runtimeStatus);
 
             return [
@@ -977,24 +980,36 @@ final class AdminInstanceController
 
     private function resolveDisplayStatus(Instance $instance, ?string $runtimeStatus): string
     {
-        $instanceStatus = $instance->getStatus();
-        $displayStatus = $instanceStatus->value;
-        if ($runtimeStatus !== null && $runtimeStatus !== '') {
-            if (in_array($runtimeStatus, ['error', 'crashed'], true)) {
-                $displayStatus = InstanceStatus::Error->value;
-            } elseif (in_array($runtimeStatus, ['starting', 'booting'], true)) {
-                $displayStatus = InstanceStatus::Provisioning->value;
-            } elseif (in_array($runtimeStatus, ['online', 'running', 'up'], true)) {
-                $displayStatus = InstanceStatus::Running->value;
-            } elseif (
-                $instanceStatus !== InstanceStatus::Running
-                && in_array($runtimeStatus, ['offline', 'unknown', 'stopped', 'hibernating', 'idle'], true)
-            ) {
-                $displayStatus = InstanceStatus::Stopped->value;
-            }
+        $status = $instance->getStatus();
+        if (in_array($status, [InstanceStatus::PendingSetup, InstanceStatus::Provisioning, InstanceStatus::Suspended, InstanceStatus::Error], true)) {
+            return $status->value;
         }
 
-        return $displayStatus;
+        if ($runtimeStatus === InstanceStatus::Running->value) {
+            return InstanceStatus::Running->value;
+        }
+
+        if ($runtimeStatus === InstanceStatus::Stopped->value) {
+            return InstanceStatus::Stopped->value;
+        }
+
+        return $status->value;
+    }
+
+    private function resolveRuntimeStatus(Instance $instance): ?string
+    {
+        try {
+            $status = $this->agentGameServerClient->getInstanceStatus($instance);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $statusValue = $status['status'] ?? null;
+        if (!is_string($statusValue)) {
+            return null;
+        }
+
+        return strtolower($statusValue);
     }
 
     /**

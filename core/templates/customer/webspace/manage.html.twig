@@ -60,6 +60,73 @@
         <div class="grid gap-6 lg:grid-cols-2">
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-5 py-4">
+                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_homepage_title', page_locale()) }}</h2>
+                    <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_homepage_description', page_locale()) }}</p>
+                </div>
+                <form method="post" action="/webspace/manage/homepage" class="space-y-4 px-5 py-4">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_homepage_label', page_locale()) }}</label>
+                        <select name="domain_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                            {% for domain in webspaceDomains %}
+                                <option value="{{ domain.id }}" {% if webspace.domain == domain.name %}selected{% endif %}>{{ domain.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                        {{ t('customer_webspace_manage_homepage_action', page_locale()) }}
+                    </button>
+                </form>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_subdomains_title', page_locale()) }}</h2>
+                            <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_subdomains_description', page_locale()) }}</p>
+                        </div>
+                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                            {{ t('customer_webspace_manage_subdomains_status', page_locale()) }}: {{ selectedDomain.status }}
+                        </span>
+                    </div>
+                </div>
+                <form method="post" action="/webspace/manage/subdomains/add" class="space-y-4 px-5 py-4">
+                    <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
+                    <div>
+                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_manage_subdomains_label', page_locale()) }}</label>
+                        <input type="text" name="subdomain" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="www">
+                        <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_subdomains_hint', page_locale()) }}</p>
+                    </div>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                        {{ t('customer_webspace_manage_subdomains_action', page_locale()) }}
+                    </button>
+                </form>
+                <div class="border-t border-slate-200 px-5 py-4">
+                    {% if selectedDomain.server_aliases is empty %}
+                        <p class="text-sm text-slate-600">{{ t('customer_webspace_manage_subdomains_empty', page_locale()) }}</p>
+                    {% else %}
+                        <ul class="flex flex-wrap gap-2 text-sm text-slate-700">
+                            {% for alias in selectedDomain.server_aliases %}
+                                <li class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                                    <span class="font-semibold">{{ alias }}</span>
+                                    <form method="post" action="/webspace/manage/subdomains/remove">
+                                        <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
+                                        <input type="hidden" name="alias" value="{{ alias }}">
+                                        <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-500">
+                                            {{ t('customer_webspace_manage_subdomains_remove', page_locale()) }}
+                                        </button>
+                                    </form>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-2">
+            <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-5 py-4">
                     <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_docroot_title', page_locale()) }}</h2>
                     <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_docroot_description', page_locale()) }}</p>
                 </div>

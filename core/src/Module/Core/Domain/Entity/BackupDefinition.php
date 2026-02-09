@@ -34,6 +34,10 @@ class BackupDefinition implements ResourceEventSource
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $label;
 
+    #[ORM\ManyToOne(targetEntity: BackupTarget::class)]
+    #[ORM\JoinColumn(name: 'backup_target_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?BackupTarget $backupTarget = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -43,12 +47,19 @@ class BackupDefinition implements ResourceEventSource
     #[ORM\OneToOne(mappedBy: 'definition', targetEntity: BackupSchedule::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private ?BackupSchedule $schedule = null;
 
-    public function __construct(User $customer, BackupTargetType $targetType, string $targetId, ?string $label)
+    public function __construct(
+        User $customer,
+        BackupTargetType $targetType,
+        string $targetId,
+        ?string $label,
+        ?BackupTarget $backupTarget = null,
+    )
     {
         $this->customer = $customer;
         $this->targetType = $targetType;
         $this->targetId = $targetId;
         $this->label = $label;
+        $this->backupTarget = $backupTarget;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -78,6 +89,11 @@ class BackupDefinition implements ResourceEventSource
         return $this->label;
     }
 
+    public function getBackupTarget(): ?BackupTarget
+    {
+        return $this->backupTarget;
+    }
+
     public function getSchedule(): ?BackupSchedule
     {
         return $this->schedule;
@@ -102,6 +118,12 @@ class BackupDefinition implements ResourceEventSource
     public function setSchedule(?BackupSchedule $schedule): void
     {
         $this->schedule = $schedule;
+        $this->touch();
+    }
+
+    public function setBackupTarget(?BackupTarget $backupTarget): void
+    {
+        $this->backupTarget = $backupTarget;
         $this->touch();
     }
 

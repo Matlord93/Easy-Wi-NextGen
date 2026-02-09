@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\UI\Controller;
 
-use App\Module\Core\Application\CmsTemplateCatalog;
+use App\Module\Core\Application\CmsTemplateManager;
 use App\Module\Setup\Application\InstallerService;
 use App\Module\Setup\Application\InstallerSshKeyException;
 use Doctrine\DBAL\Exception as DbalException;
@@ -18,7 +18,7 @@ final class InstallController
 {
     public function __construct(
         private readonly InstallerService $installerService,
-        private readonly CmsTemplateCatalog $cmsTemplateCatalog,
+        private readonly CmsTemplateManager $cmsTemplateManager,
         private readonly Environment $twig,
     ) {
     }
@@ -257,7 +257,7 @@ final class InstallController
 
                 if (
                     $applicationState['cms_template_key'] !== ''
-                    && $this->cmsTemplateCatalog->getTemplate($applicationState['cms_template_key']) === null
+                    && $this->cmsTemplateManager->getTemplate($applicationState['cms_template_key']) === null
                 ) {
                     $errors[] = ['key' => 'errors.cms_template_invalid'];
                 }
@@ -374,7 +374,7 @@ final class InstallController
             'dbVersion' => $dbVersion,
             'hasStoredPassword' => $storedPassword !== '',
             'debugAvailable' => $debugAvailable,
-            'cmsTemplates' => $this->cmsTemplateCatalog->listTemplates(),
+            'cmsTemplates' => $this->cmsTemplateManager->listTemplates(),
         ]));
     }
 

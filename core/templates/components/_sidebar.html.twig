@@ -32,7 +32,9 @@
                             {% elseif item.icon is defined and item.icon %}
                                 <span class="ng-sidebar__icon">{{ item.icon|raw }}</span>
                             {% endif %}
-                            <span class="ng-sidebar__text">{{ item.label }}</span>
+                            <span class="ng-sidebar__text">
+                                {{ item.labelKey is defined and item.labelKey ? t(item.labelKey, page_locale()) : item.label }}
+                            </span>
                         </a>
                     {% endfor %}
                 </div>

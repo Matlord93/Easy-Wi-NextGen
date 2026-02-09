@@ -4,18 +4,34 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
+use Symfony\Component\Yaml\Yaml;
+
 final class CmsTemplateCatalog
 {
+    private const TEMPLATE_EXTENSION = '.yaml';
+
+    public function __construct(private readonly string $projectDir)
+    {
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
     public function listTemplates(): array
     {
-        return [
-            $this->hostingTemplate(),
-            $this->privateTemplate(),
-            $this->clanTemplate(),
-        ];
+        $templatesByKey = [];
+
+        foreach ($this->loadExternalTemplates() as $template) {
+            $templatesByKey[$template['key']] = $template;
+        }
+
+        foreach ($this->defaultTemplates() as $template) {
+            if (!isset($templatesByKey[$template['key']])) {
+                $templatesByKey[$template['key']] = $template;
+            }
+        }
+
+        return array_values($templatesByKey);
     }
 
     public function getTemplate(string $key): ?array
@@ -27,6 +43,117 @@ final class CmsTemplateCatalog
         }
 
         return null;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function defaultTemplates(): array
+    {
+        return [
+            $this->hostingTemplate(),
+            $this->privateTemplate(),
+            $this->clanTemplate(),
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function loadExternalTemplates(): array
+    {
+        $templates = [];
+        $directory = $this->projectDir . '/../templates/cms';
+        if (!is_dir($directory)) {
+            return [];
+        }
+
+        $files = glob($directory . '/*' . self::TEMPLATE_EXTENSION);
+        if ($files === false) {
+            return [];
+        }
+
+        sort($files);
+        foreach ($files as $file) {
+            $parsed = $this->parseTemplateFile($file);
+            if ($parsed !== null) {
+                $templates[] = $parsed;
+            }
+        }
+
+        return $templates;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseTemplateFile(string $file): ?array
+    {
+        try {
+            $data = Yaml::parseFile($file);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (!is_array($data)) {
+            return null;
+        }
+
+        $key = is_string($data['key'] ?? null) ? trim($data['key']) : '';
+        if ($key === '') {
+            return null;
+        }
+
+        $pages = [];
+        foreach ($data['pages'] ?? [] as $pageData) {
+            if (!is_array($pageData)) {
+                continue;
+            }
+
+            $pageTitle = is_string($pageData['title'] ?? null) ? $pageData['title'] : '';
+            $pageSlug = is_string($pageData['slug'] ?? null) ? $pageData['slug'] : '';
+            if ($pageTitle === '' || $pageSlug === '') {
+                continue;
+            }
+
+            $blocks = [];
+            foreach ($pageData['blocks'] ?? [] as $blockData) {
+                if (!is_array($blockData)) {
+                    continue;
+                }
+
+                $type = is_string($blockData['type'] ?? null) ? $blockData['type'] : '';
+                if ($type === '') {
+                    continue;
+                }
+
+                $content = '';
+                if (isset($blockData['settings']) && is_array($blockData['settings'])) {
+                    $content = (string) json_encode($blockData['settings']);
+                } elseif (is_string($blockData['content'] ?? null)) {
+                    $content = $blockData['content'];
+                }
+
+                $blocks[] = [
+                    'type' => $type,
+                    'content' => $content,
+                ];
+            }
+
+            $pages[] = [
+                'title' => $pageTitle,
+                'slug' => $pageSlug,
+                'is_published' => (bool) ($pageData['is_published'] ?? true),
+                'blocks' => $blocks,
+            ];
+        }
+
+        return [
+            'key' => $key,
+            'label' => is_string($data['label'] ?? null) ? $data['label'] : $key,
+            'description' => is_string($data['description'] ?? null) ? $data['description'] : '',
+            'pages' => $pages,
+        ];
     }
 
     /**

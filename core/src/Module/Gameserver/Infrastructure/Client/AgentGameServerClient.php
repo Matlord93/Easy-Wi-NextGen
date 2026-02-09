@@ -61,6 +61,16 @@ final class AgentGameServerClient
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function getInstanceStatus(Instance $instance): array
+    {
+        return $this->requestJson($instance, 'POST', '/instance/status', [
+            'instance_id' => (string) $instance->getId(),
+        ]);
+    }
+
+    /**
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */

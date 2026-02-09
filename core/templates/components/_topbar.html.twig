@@ -7,10 +7,19 @@
 {% set updateStatus = admin_update_status() %}
 {% set notificationsHref = user and user.isAdmin ? path('admin_notifications') : path('customer_notifications') %}
 {% set unreadCount = unread_notifications() %}
+{% set currentLocale = page_locale() %}
 
 <header class="ng-topbar">
     <div class="ng-topbar__title"></div>
     <div class="ng-topbar__actions">
+        <div class="ng-language-switcher" role="group" aria-label="{{ t('language', page_locale()) }}">
+            <a class="ng-language-switcher__link {{ currentLocale == 'de' ? 'is-active' : '' }}" href="?lang=de">
+                {{ t('language_short_de', page_locale()) }}
+            </a>
+            <a class="ng-language-switcher__link {{ currentLocale == 'en' ? 'is-active' : '' }}" href="?lang=en">
+                {{ t('language_short_en', page_locale()) }}
+            </a>
+        </div>
         {% for action in actions %}
             {% include 'components/_button.html.twig' with action %}
         {% endfor %}
@@ -31,12 +40,12 @@
             </a>
         {% endif %}
         <details class="ng-user-menu">
-            <summary class="ng-user-button" aria-label="Benutzerkonto">
+            <summary class="ng-user-button" aria-label="{{ t('user_menu_aria', page_locale()) }}">
                 <span class="ng-user-button__avatar">{{ userInitial }}</span>
                 <span class="ng-user-button__name">{{ userName }}</span>
             </summary>
             <div class="ng-user-menu__dropdown" role="menu">
-                <div class="ng-user-menu__label">Konto</div>
+                <div class="ng-user-menu__label">{{ t('user_menu_account_label', page_locale()) }}</div>
                 <a class="ng-user-menu__item" href="{{ path('public_logout') }}" role="menuitem">
                     {{ t('logout', page_locale()) }}
                 </a>

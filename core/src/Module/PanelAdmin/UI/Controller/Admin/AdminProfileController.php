@@ -9,6 +9,10 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use App\Repository\UserRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\TwoFactorService;
+use App\Security\TwoFactorPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,6 +29,10 @@ final class AdminProfileController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly AdminSshKeyService $sshKeyService,
+        private readonly TwoFactorService $twoFactorService,
+        private readonly SecretsCrypto $secretsCrypto,
+        private readonly TwoFactorPolicy $twoFactorPolicy,
+        private readonly AppSettingsService $settingsService,
         private readonly Environment $twig,
     ) {
     }
@@ -33,6 +41,8 @@ final class AdminProfileController
     public function index(Request $request): Response
     {
         $admin = $this->requireAdmin($request);
+
+        $this->ensureTotpSecret($admin);
 
         return $this->renderPage($admin);
     }
@@ -153,8 +163,98 @@ final class AdminProfileController
         ]);
     }
 
+    #[Route(path: '/2fa/enable', name: 'admin_profile_2fa_enable', methods: ['POST'])]
+    public function enableTwoFactor(Request $request): Response
+    {
+        $admin = $this->requireAdmin($request);
+        $otp = trim((string) $request->request->get('otp', ''));
+
+        $secret = $admin->getTotpSecret($this->secretsCrypto);
+        if ($secret === null) {
+            $secret = $this->ensureTotpSecret($admin);
+        }
+
+        if ($secret === null || !$this->twoFactorService->verifyCode($secret, $otp)) {
+            return $this->renderPage($admin, [], ['Invalid authentication code.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $admin->setTotpEnabled(true);
+        $codes = $this->twoFactorService->generateRecoveryCodes();
+        $admin->setTotpRecoveryCodes($this->twoFactorService->hashRecoveryCodes($codes));
+
+        $this->auditLogger->log($admin, 'two_factor.enabled', [
+            'user_id' => $admin->getId(),
+            'context' => 'admin_profile',
+        ]);
+
+        $this->entityManager->flush();
+
+        return $this->renderPage($admin, [
+            'recovery_codes' => $codes,
+            'two_factor_success' => 'two_factor_enabled_success',
+        ]);
+    }
+
+    #[Route(path: '/2fa/disable', name: 'admin_profile_2fa_disable', methods: ['POST'])]
+    public function disableTwoFactor(Request $request): Response
+    {
+        $admin = $this->requireAdmin($request);
+        $otp = trim((string) $request->request->get('otp', ''));
+        $recoveryCode = trim((string) $request->request->get('recovery_code', ''));
+
+        if (!$this->verifyTwoFactorChallenge($admin, $otp, $recoveryCode)) {
+            return $this->renderPage($admin, [], ['Invalid authentication code.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $admin->setTotpEnabled(false);
+        $admin->setTotpSecret(null);
+        $admin->clearTotpRecoveryCodes();
+
+        $this->auditLogger->log($admin, 'two_factor.disabled', [
+            'user_id' => $admin->getId(),
+            'context' => 'admin_profile',
+        ]);
+
+        $this->entityManager->flush();
+
+        return $this->renderPage($admin, [
+            'two_factor_success' => 'two_factor_disabled_success',
+        ]);
+    }
+
+    #[Route(path: '/2fa/recovery', name: 'admin_profile_2fa_recovery', methods: ['POST'])]
+    public function regenerateRecoveryCodes(Request $request): Response
+    {
+        $admin = $this->requireAdmin($request);
+        $otp = trim((string) $request->request->get('otp', ''));
+        $recoveryCode = trim((string) $request->request->get('recovery_code', ''));
+
+        if (!$this->verifyTwoFactorChallenge($admin, $otp, $recoveryCode)) {
+            return $this->renderPage($admin, [], ['Invalid authentication code.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $codes = $this->twoFactorService->generateRecoveryCodes();
+        $admin->setTotpRecoveryCodes($this->twoFactorService->hashRecoveryCodes($codes));
+
+        $this->auditLogger->log($admin, 'two_factor.recovery_regenerated', [
+            'user_id' => $admin->getId(),
+            'context' => 'admin_profile',
+        ]);
+
+        $this->entityManager->flush();
+
+        return $this->renderPage($admin, [
+            'recovery_codes' => $codes,
+            'two_factor_success' => 'two_factor_recovery_regenerated',
+        ]);
+    }
+
     private function renderPage(User $admin, array $overrides = [], array $errors = [], int $status = Response::HTTP_OK): Response
     {
+        $secret = $admin->isTotpEnabled() ? null : $admin->getTotpSecret($this->secretsCrypto);
+        $issuer = $this->settingsService->getBrandingName();
+        $otpAuth = $secret !== null ? $this->twoFactorService->getOtpAuthUri($issuer, $admin->getEmail(), $secret) : null;
+
         return new Response($this->twig->render('admin/profile/index.html.twig', [
             'activeNav' => 'profile',
             'form' => array_merge([
@@ -169,6 +269,15 @@ final class AdminProfileController
                 'ssh_key_enabled' => $this->canManageSshKey($admin),
             ], $overrides),
             'errors' => $errors,
+            'twoFactor' => [
+                'enabled' => $admin->isTotpEnabled(),
+                'required' => $this->twoFactorPolicy->isRequired($admin),
+                'secret' => $secret,
+                'otpauth' => $otpAuth,
+                'qr' => $otpAuth !== null ? sprintf('https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=%s', rawurlencode($otpAuth)) : null,
+                'recovery_codes' => $overrides['recovery_codes'] ?? [],
+                'success' => $overrides['two_factor_success'] ?? null,
+            ],
         ]), $status);
     }
 
@@ -198,5 +307,55 @@ final class AdminProfileController
     private function canManageSshKey(User $admin): bool
     {
         return $admin->getType() === UserType::Superadmin || $admin->isAdminSshKeyEnabled();
+    }
+
+    private function ensureTotpSecret(User $admin): ?string
+    {
+        if ($admin->isTotpEnabled()) {
+            return $admin->getTotpSecret($this->secretsCrypto);
+        }
+
+        $secret = $admin->getTotpSecret($this->secretsCrypto);
+        if ($secret !== null) {
+            return $secret;
+        }
+
+        $secret = $this->twoFactorService->generateSecret();
+        $admin->setTotpSecret($secret, $this->secretsCrypto);
+        $this->entityManager->persist($admin);
+        $this->entityManager->flush();
+
+        return $secret;
+    }
+
+    private function verifyTwoFactorChallenge(User $admin, string $otp, string $recoveryCode): bool
+    {
+        if (!$admin->isTotpEnabled()) {
+            return false;
+        }
+
+        $secret = $admin->getTotpSecret($this->secretsCrypto);
+        if ($secret !== null && $otp !== '' && $this->twoFactorService->verifyCode($secret, $otp)) {
+            return true;
+        }
+
+        if ($recoveryCode === '') {
+            return false;
+        }
+
+        $index = $this->twoFactorService->verifyRecoveryCode($recoveryCode, $admin->getTotpRecoveryCodes());
+        if ($index === null) {
+            return false;
+        }
+
+        $codes = $admin->getTotpRecoveryCodes();
+        unset($codes[$index]);
+        $admin->setTotpRecoveryCodes(array_values($codes));
+        $this->auditLogger->log($admin, 'two_factor.recovery_used', [
+            'user_id' => $admin->getId(),
+            'context' => 'admin_profile',
+        ]);
+
+        return true;
     }
 }

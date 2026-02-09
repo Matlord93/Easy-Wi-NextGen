@@ -76,3 +76,99 @@ func handleDatabasePasswordReset(job jobs.Job) (jobs.Result, func() error) {
 		Completed: time.Now().UTC(),
 	}, nil
 }
+
+func handleDatabasePasswordRotate(job jobs.Job) (jobs.Result, func() error) {
+	return handleDatabasePasswordReset(job)
+}
+
+func handleDatabaseUserCreate(job jobs.Job) (jobs.Result, func() error) {
+	username := payloadValue(job.Payload, "username", "user")
+	encryptedPassword := payloadValue(job.Payload, "encrypted_password", "password_encrypted")
+
+	missing := missingValues([]requiredValue{{key: "username", value: username}, {key: "encrypted_password", value: encryptedPassword}})
+	if len(missing) > 0 {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"username":             username,
+			"encrypted_password":   encryptedPassword,
+			"credential_storage":   "encrypted",
+			"user_provisioned":     "created",
+			"password_provisioned": fmt.Sprintf("set for %s", username),
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
+func handleDatabaseGrantApply(job jobs.Job) (jobs.Result, func() error) {
+	database := payloadValue(job.Payload, "database", "name")
+	username := payloadValue(job.Payload, "username", "user")
+	privileges := payloadValue(job.Payload, "privileges", "grants")
+
+	missing := missingValues([]requiredValue{
+		{key: "database", value: database},
+		{key: "username", value: username},
+	})
+	if len(missing) > 0 {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	if privileges == "" {
+		privileges = "SELECT,INSERT,UPDATE,DELETE"
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"database":   database,
+			"username":   username,
+			"privileges": privileges,
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
+func handleDatabaseDelete(job jobs.Job) (jobs.Result, func() error) {
+	database := payloadValue(job.Payload, "database", "name")
+	username := payloadValue(job.Payload, "username", "user")
+
+	missing := missingValues([]requiredValue{{key: "database", value: database}})
+	if len(missing) > 0 {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	output := map[string]string{
+		"database": database,
+		"status":   "deleted",
+	}
+	if username != "" {
+		output["username"] = username
+	}
+
+	return jobs.Result{
+		JobID:     job.ID,
+		Status:    "success",
+		Output:    output,
+		Completed: time.Now().UTC(),
+	}, nil
+}

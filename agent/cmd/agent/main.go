@@ -327,6 +327,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleWebspaceComposerInstall(job)
 	case "domain.add":
 		return handleDomainAdd(job)
+	case "domain.update":
+		return handleDomainAdd(job)
 	case "domain.ssl.issue":
 		return handleDomainSSLIssue(job)
 	case "roundcube.install":
@@ -337,6 +339,14 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleDatabaseCreate(job)
 	case "database.password.reset":
 		return handleDatabasePasswordReset(job)
+	case "database.password.rotate":
+		return handleDatabasePasswordRotate(job)
+	case "database.user.create":
+		return handleDatabaseUserCreate(job)
+	case "database.grant.apply":
+		return handleDatabaseGrantApply(job)
+	case "database.delete":
+		return handleDatabaseDelete(job)
 	case "mail.alias.create":
 		return handleMailAliasCreate(job)
 	case "mail.alias.update":
@@ -357,6 +367,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleMailboxEnable(job)
 	case "mailbox.disable":
 		return handleMailboxDisable(job)
+	case "mailbox.delete":
+		return handleMailboxDelete(job)
 	case "dns.zone.create":
 		return handleDNSZoneCreate(job)
 	case "dns.record.create":
@@ -467,6 +479,10 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleFirewallOpen(job.ID, job.Payload)
 	case "firewall.close_ports":
 		return handleFirewallClose(job.ID, job.Payload)
+	case "fail2ban.policy.apply":
+		return handleFail2banPolicyApply(job)
+	case "fail2ban.status.check":
+		return handleFail2banStatusCheck(job)
 	case "ddos.policy.apply":
 		return handleDdosPolicyApply(job)
 	case "ddos.status.check":

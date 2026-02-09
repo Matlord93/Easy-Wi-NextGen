@@ -10,11 +10,12 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\CmsBlockRepository;
 use App\Repository\CmsPageRepository;
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\CmsTemplateCatalog;
+use App\Module\Core\Application\CmsTemplateManager;
 use App\Module\Core\Application\SiteResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
@@ -27,7 +28,7 @@ final class AdminCmsPageController
         private readonly SiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
-        private readonly CmsTemplateCatalog $cmsTemplateCatalog,
+        private readonly CmsTemplateManager $cmsTemplateManager,
         private readonly Environment $twig,
     ) {
     }
@@ -51,7 +52,8 @@ final class AdminCmsPageController
             'summary' => $this->buildSummary($pages),
             'form' => $this->buildFormContext(),
             'templateForm' => $this->buildTemplateFormContext($site->getCmsTemplateKey()),
-            'templates' => $this->cmsTemplateCatalog->listTemplates(),
+            'templates' => $this->cmsTemplateManager->listTemplates(),
+            'maintenanceForm' => $this->buildMaintenanceFormContext($site),
             'activeNav' => 'cms-pages',
         ]));
     }
@@ -260,7 +262,7 @@ final class AdminCmsPageController
             return $this->renderTemplateFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
         }
 
-        $template = $this->cmsTemplateCatalog->getTemplate($formData['template_key']);
+        $template = $this->cmsTemplateManager->getTemplate($formData['template_key']);
         if ($template === null) {
             return $this->renderTemplateFormWithErrors([
                 'errors' => ['Selected CMS template is invalid.'],
@@ -272,7 +274,7 @@ final class AdminCmsPageController
         $site->setCmsTemplateKey($formData['template_key']);
 
         if ($formData['apply_template']) {
-            $this->applyTemplate($site, $template);
+            $this->cmsTemplateManager->applyTemplate($site, $template);
         }
 
         $this->entityManager->flush();
@@ -288,7 +290,7 @@ final class AdminCmsPageController
             'templateForm' => $this->buildTemplateFormContext($site->getCmsTemplateKey(), [
                 'success' => true,
             ]),
-            'templates' => $this->cmsTemplateCatalog->listTemplates(),
+            'templates' => $this->cmsTemplateManager->listTemplates(),
         ]));
         $response->headers->set('HX-Trigger', 'cms-pages-changed');
 
@@ -443,6 +445,49 @@ final class AdminCmsPageController
             'page' => $this->normalizePage($page),
         ]));
         $response->headers->set('HX-Trigger', 'cms-blocks-changed');
+
+        return $response;
+    }
+
+    #[Route(path: '/maintenance', name: 'admin_cms_pages_maintenance', methods: ['POST'])]
+    public function updateMaintenance(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $formData = $this->parseMaintenancePayload($request);
+        if ($formData['errors'] !== []) {
+            return $this->renderMaintenanceFormWithErrors($site, $formData, Response::HTTP_BAD_REQUEST);
+        }
+
+        $site->setMaintenanceEnabled($formData['enabled']);
+        $site->setMaintenanceMessage($formData['message']);
+        $site->setMaintenanceAllowlist($formData['allowlist']);
+        $site->setMaintenanceStartsAt($formData['starts_at']);
+        $site->setMaintenanceEndsAt($formData['ends_at']);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($actor, 'cms.maintenance.updated', [
+            'site_id' => $site->getId(),
+            'enabled' => $formData['enabled'],
+            'starts_at' => $formData['starts_at']?->format(\DateTimeInterface::ATOM),
+            'ends_at' => $formData['ends_at']?->format(\DateTimeInterface::ATOM),
+        ]);
+        $this->entityManager->flush();
+
+        $response = new Response($this->twig->render('admin/cms/pages/_maintenance_form.html.twig', [
+            'maintenanceForm' => $this->buildMaintenanceFormContext($site, [
+                'success' => true,
+            ]),
+        ]));
+        $response->headers->set('HX-Trigger', 'cms-maintenance-changed');
 
         return $response;
     }
@@ -689,6 +734,21 @@ final class AdminCmsPageController
         return array_merge($defaults, $overrides ?? []);
     }
 
+    private function buildMaintenanceFormContext(\App\Module\Core\Domain\Entity\Site $site, ?array $overrides = null): array
+    {
+        $defaults = [
+            'errors' => [],
+            'success' => false,
+            'enabled' => $site->isMaintenanceEnabled(),
+            'message' => $site->getMaintenanceMessage(),
+            'allowlist' => $site->getMaintenanceAllowlist(),
+            'starts_at' => $this->formatDateTime($site->getMaintenanceStartsAt()),
+            'ends_at' => $this->formatDateTime($site->getMaintenanceEndsAt()),
+        ];
+
+        return array_merge($defaults, $overrides ?? []);
+    }
+
     private function parsePayload(Request $request, \App\Module\Core\Domain\Entity\Site $site, ?CmsPage $existingPage = null): array
     {
         $errors = [];
@@ -783,6 +843,39 @@ final class AdminCmsPageController
         ];
     }
 
+    private function parseMaintenancePayload(Request $request): array
+    {
+        $errors = [];
+        $enabled = $request->request->get('maintenance_enabled') === 'on';
+        $message = trim((string) $request->request->get('maintenance_message', ''));
+        $allowlistRaw = trim((string) $request->request->get('maintenance_allowlist', ''));
+        $startsRaw = trim((string) $request->request->get('maintenance_starts_at', ''));
+        $endsRaw = trim((string) $request->request->get('maintenance_ends_at', ''));
+
+        $startsAt = $this->parseDateTimeInput($startsRaw, 'Start time is invalid.', $errors);
+        $endsAt = $this->parseDateTimeInput($endsRaw, 'End time is invalid.', $errors);
+
+        if ($startsAt !== null && $endsAt !== null && $endsAt < $startsAt) {
+            $errors[] = 'End time must be after start time.';
+        }
+
+        $allowlist = $this->normalizeAllowlist($allowlistRaw);
+        foreach ($allowlist as $entry) {
+            if (!$this->isValidIpOrCidr($entry)) {
+                $errors[] = sprintf('Allowlist entry "%s" is invalid.', $entry);
+            }
+        }
+
+        return [
+            'errors' => $errors,
+            'enabled' => $enabled,
+            'message' => $message,
+            'allowlist' => implode("\n", $allowlist),
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+        ];
+    }
+
     private function renderFormWithErrors(array $formData, int $statusCode, ?CmsPage $page = null): Response
     {
         return new Response($this->twig->render('admin/cms/pages/_form.html.twig', [
@@ -814,36 +907,27 @@ final class AdminCmsPageController
     {
         return new Response($this->twig->render('admin/cms/pages/_template_form.html.twig', [
             'templateForm' => $this->buildTemplateFormContext($formData['template_key'] ?? null, $formData),
-            'templates' => $this->cmsTemplateCatalog->listTemplates(),
+            'templates' => $this->cmsTemplateManager->listTemplates(),
+        ]), $statusCode);
+    }
+
+    private function renderMaintenanceFormWithErrors(\App\Module\Core\Domain\Entity\Site $site, array $formData, int $statusCode): Response
+    {
+        return new Response($this->twig->render('admin/cms/pages/_maintenance_form.html.twig', [
+            'maintenanceForm' => $this->buildMaintenanceFormContext($site, [
+                'errors' => $formData['errors'],
+                'enabled' => $formData['enabled'],
+                'message' => $formData['message'],
+                'allowlist' => $formData['allowlist'],
+                'starts_at' => $this->formatDateTime($formData['starts_at']),
+                'ends_at' => $this->formatDateTime($formData['ends_at']),
+            ]),
         ]), $statusCode);
     }
 
     /**
      * @param array<string, mixed> $template
      */
-    private function applyTemplate(\App\Module\Core\Domain\Entity\Site $site, array $template): void
-    {
-        $existingPages = $this->pageRepository->findBy(['site' => $site]);
-        $existingSlugs = array_map(static fn (CmsPage $page) => $page->getSlug(), $existingPages);
-
-        foreach ($template['pages'] as $pageData) {
-            if (in_array($pageData['slug'], $existingSlugs, true)) {
-                continue;
-            }
-
-            $page = new CmsPage($site, $pageData['title'], $pageData['slug'], (bool) $pageData['is_published']);
-            $this->entityManager->persist($page);
-
-            $sortOrder = 1;
-            foreach ($pageData['blocks'] as $blockData) {
-                $block = new CmsBlock($page, $blockData['type'], $blockData['content'], $sortOrder);
-                $page->addBlock($block);
-                $this->entityManager->persist($block);
-                $sortOrder++;
-            }
-        }
-    }
-
     private function buildServerBlockPreview(string $content): string
     {
         $data = json_decode($content, true);
@@ -895,5 +979,73 @@ final class AdminCmsPageController
         }
 
         return $existing->getId() !== $existingPage->getId();
+    }
+
+    /**
+     * @param array<int, string> $errors
+     */
+    private function parseDateTimeInput(string $raw, string $errorMessage, array &$errors): ?\DateTimeImmutable
+    {
+        if ($raw === '') {
+            return null;
+        }
+
+        $parsed = \DateTimeImmutable::createFromFormat('Y-m-d\TH:i', $raw) ?: null;
+        if ($parsed === null) {
+            $errors[] = $errorMessage;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function normalizeAllowlist(string $raw): array
+    {
+        if ($raw === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\n,]+/', $raw) ?: [];
+
+        return array_values(array_filter(array_map('trim', $parts), static fn (string $entry): bool => $entry !== ''));
+    }
+
+    private function isValidIpOrCidr(string $entry): bool
+    {
+        if (filter_var($entry, FILTER_VALIDATE_IP)) {
+            return true;
+        }
+
+        if (!str_contains($entry, '/')) {
+            return false;
+        }
+
+        [$ip, $mask] = array_pad(explode('/', $entry, 2), 2, null);
+        if ($ip === null || $mask === null) {
+            return false;
+        }
+
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+
+        if (!is_numeric($mask)) {
+            return false;
+        }
+
+        $maskInt = (int) $mask;
+        $maxMask = str_contains($ip, ':') ? 128 : 32;
+        if ($maskInt < 0 || $maskInt > $maxMask) {
+            return false;
+        }
+
+        return IpUtils::checkIp($ip, $entry);
+    }
+
+    private function formatDateTime(?\DateTimeImmutable $dateTime): string
+    {
+        return $dateTime?->format('Y-m-d\TH:i') ?? '';
     }
 }

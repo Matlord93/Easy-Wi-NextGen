@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Security;
 
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Application\AppSettingsService;
 use App\Repository\UserSessionRepository;
 use App\Module\Core\Application\AuditLogger;
 use Doctrine\DBAL\Exception\TableNotFoundException;
@@ -20,6 +21,7 @@ final class SessionAuthenticator
         private readonly UserSessionRepository $sessionRepository,
         private readonly AuditLogger $auditLogger,
         private readonly EntityManagerInterface $entityManager,
+        private readonly AppSettingsService $settingsService,
     ) {
     }
 
@@ -48,6 +50,22 @@ final class SessionAuthenticator
         }
         if ($session === null) {
             return null;
+        }
+
+        $idleMinutes = $this->settingsService->getSessionIdleTimeoutMinutes();
+        if ($idleMinutes > 0) {
+            $lastUsed = $session->getLastUsedAt() ?? $session->getCreatedAt();
+            $idleCutoff = (new \DateTimeImmutable())->modify(sprintf('-%d minutes', $idleMinutes));
+            if ($lastUsed <= $idleCutoff) {
+                $session->revoke();
+                $this->entityManager->persist($session);
+                $this->auditLogger->log($session->getUser(), 'session.expired', [
+                    'session_id' => $session->getId(),
+                    'user_id' => $session->getUser()->getId(),
+                    'reason' => 'idle_timeout',
+                ]);
+                return null;
+            }
         }
 
         $session->setLastUsedAt(new \DateTimeImmutable());

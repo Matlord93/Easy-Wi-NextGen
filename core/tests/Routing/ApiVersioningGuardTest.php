@@ -43,7 +43,7 @@ final class ApiVersioningGuardTest extends KernelTestCase
             '#^/api/customer/instances/\\{id\\}/actions$#',
             '#^/api/customer/jobs/\\{jobId\\}(?:/logs|/cancel)?$#',
             '#^/api/backups(?:/\\{id\\}/schedule)?$#',
-            '#^/api/databases(?:/\\{id\\}/password)?$#',
+            '#^/api/databases(?:/\\{id\\}(?:/password)?)?$#',
             '#^/api/mailboxes(?:/\\{id\\}/(quota|status|password))?$#',
             '#^/api/tickets(?:/\\{id\\}/(messages|status))?$#',
             '#^/api/dns/records(?:/\\{id\\})?$#',

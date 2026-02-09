@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Public;
 
+use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsPost;
 use App\Repository\CmsPageRepository;
@@ -22,6 +23,7 @@ final class PublicCmsBlogController
         private readonly CmsPageRepository $pageRepository,
         private readonly SiteResolver $siteResolver,
         private readonly InstallerService $installerService,
+        private readonly CmsMaintenanceService $maintenanceService,
         private readonly Environment $twig,
     ) {
     }
@@ -36,6 +38,16 @@ final class PublicCmsBlogController
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $maintenance = $this->maintenanceService->resolve($request, $site);
+        if ($maintenance['active']) {
+            return new Response($this->twig->render('public/maintenance.html.twig', [
+                'message' => $maintenance['message'],
+                'starts_at' => $maintenance['starts_at'],
+                'ends_at' => $maintenance['ends_at'],
+                'scope' => $maintenance['scope'],
+            ]), Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
         $posts = $this->postRepository->findBy(
@@ -59,6 +71,16 @@ final class PublicCmsBlogController
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $maintenance = $this->maintenanceService->resolve($request, $site);
+        if ($maintenance['active']) {
+            return new Response($this->twig->render('public/maintenance.html.twig', [
+                'message' => $maintenance['message'],
+                'starts_at' => $maintenance['starts_at'],
+                'ends_at' => $maintenance['ends_at'],
+                'scope' => $maintenance['scope'],
+            ]), Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
         $post = $this->postRepository->findOneBy([

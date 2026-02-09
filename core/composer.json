@@ -39,6 +39,8 @@
     "league/flysystem-sftp-v3": "^3.0"
   },
   "require-dev": {
+    "friendsofphp/php-cs-fixer": "^3.75",
+    "phpstan/phpstan": "^2.1",
     "phpunit/phpunit": "^12.5"
   },
   "autoload": {
@@ -59,10 +61,19 @@
   },
   "scripts": {
     "lint": [
-      "find src tests -name \"*.php\" -print0 | xargs -0 -n1 php -l"
+      "find . -name \"*.php\" -not -path \"./vendor/*\" -print0 | xargs -0 -n1 php -l",
+      "php bin/console lint:yaml config",
+      "php bin/console lint:twig templates",
+      "php bin/console lint:container"
+    ],
+    "phpstan": [
+      "php -d memory_limit=-1 vendor/bin/phpstan analyse --configuration=phpstan.neon"
     ],
     "test": [
       "php bin/phpunit"
+    ],
+    "cs:check": [
+      "PHP_CS_FIXER_IGNORE_ENV=1 php vendor/bin/php-cs-fixer fix --dry-run --diff"
     ],
     "auto-scripts": {
       "cache:clear": "symfony-cmd",

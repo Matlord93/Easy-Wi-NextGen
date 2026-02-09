@@ -29,6 +29,7 @@ use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Core\Application\SetupChecker;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
@@ -59,6 +60,7 @@ final class CustomerInstanceController
         private readonly InstanceInstallService $instanceInstallService,
         private readonly MinecraftCatalogService $minecraftCatalogService,
         private readonly EncryptionService $encryptionService,
+        private readonly AgentGameServerClient $agentGameServerClient,
         private readonly SetupChecker $setupChecker,
         private readonly AppSettingsService $appSettingsService,
         private readonly EntityManagerInterface $entityManager,
@@ -725,22 +727,9 @@ final class CustomerInstanceController
         $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, $queueQuery);
         $installStatus = $this->instanceInstallService->getInstallStatus($instance);
         $instanceStatus = $instance->getStatus();
-        $displayStatus = $instanceStatus->value;
-        $runtimeStatus = is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null;
-        if ($runtimeStatus !== null && $runtimeStatus !== '') {
-            if (in_array($runtimeStatus, ['error', 'crashed'], true)) {
-                $displayStatus = InstanceStatus::Error->value;
-            } elseif (in_array($runtimeStatus, ['starting', 'booting'], true)) {
-                $displayStatus = InstanceStatus::Provisioning->value;
-            } elseif (in_array($runtimeStatus, ['online', 'running', 'up'], true)) {
-                $displayStatus = InstanceStatus::Running->value;
-            } elseif (
-                $instanceStatus !== InstanceStatus::Running
-                && in_array($runtimeStatus, ['offline', 'unknown', 'stopped', 'hibernating', 'idle'], true)
-            ) {
-                $displayStatus = InstanceStatus::Stopped->value;
-            }
-        }
+        $runtimeStatus = $this->resolveRuntimeStatus($instance)
+            ?? (is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null);
+        $displayStatus = $this->resolveDisplayStatus($instance, $runtimeStatus);
 
         return [
             'id' => $instance->getId(),
@@ -791,6 +780,40 @@ final class CustomerInstanceController
             'notice' => $notice,
             'error' => $error,
         ];
+    }
+
+    private function resolveDisplayStatus(Instance $instance, ?string $runtimeStatus): string
+    {
+        $status = $instance->getStatus();
+        if (in_array($status, [InstanceStatus::PendingSetup, InstanceStatus::Provisioning, InstanceStatus::Suspended, InstanceStatus::Error], true)) {
+            return $status->value;
+        }
+
+        if ($runtimeStatus === InstanceStatus::Running->value) {
+            return InstanceStatus::Running->value;
+        }
+
+        if ($runtimeStatus === InstanceStatus::Stopped->value) {
+            return InstanceStatus::Stopped->value;
+        }
+
+        return $status->value;
+    }
+
+    private function resolveRuntimeStatus(Instance $instance): ?string
+    {
+        try {
+            $status = $this->agentGameServerClient->getInstanceStatus($instance);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $statusValue = $status['status'] ?? null;
+        if (!is_string($statusValue)) {
+            return null;
+        }
+
+        return strtolower($statusValue);
     }
 
     private function normalizeConfigFiles(array $configFiles): array

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Domain\Entity;
 
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Core\Application\SecretsCrypto;
 use App\Repository\UserRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
@@ -76,6 +77,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(options: ['default' => 0])]
     private int $databaseLimit = 0;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $totpSecretEncrypted = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $totpEnabled = false;
+
+    /**
+     * @var string[]|null
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $totpRecoveryCodes = null;
 
     public function __construct(string $email, UserType $type)
     {
@@ -202,6 +215,64 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getTermsAcceptedIp(): ?string
     {
         return $this->termsAcceptedIp;
+    }
+
+    public function isTotpEnabled(): bool
+    {
+        return $this->totpEnabled;
+    }
+
+    public function setTotpEnabled(bool $enabled): void
+    {
+        $this->totpEnabled = $enabled;
+    }
+
+    public function getTotpSecret(?SecretsCrypto $crypto = null): ?string
+    {
+        if ($this->totpSecretEncrypted === null || $this->totpSecretEncrypted === '') {
+            return null;
+        }
+
+        if ($crypto === null) {
+            return null;
+        }
+
+        return $crypto->decrypt($this->totpSecretEncrypted);
+    }
+
+    public function setTotpSecret(?string $secret, ?SecretsCrypto $crypto = null): void
+    {
+        if ($secret === null || $secret === '') {
+            $this->totpSecretEncrypted = null;
+            return;
+        }
+
+        if ($crypto === null) {
+            throw new \RuntimeException('SecretsCrypto is required to store the TOTP secret.');
+        }
+
+        $this->totpSecretEncrypted = $crypto->encrypt($secret);
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getTotpRecoveryCodes(): array
+    {
+        return $this->totpRecoveryCodes ?? [];
+    }
+
+    /**
+     * @param string[] $codes
+     */
+    public function setTotpRecoveryCodes(array $codes): void
+    {
+        $this->totpRecoveryCodes = array_values($codes);
+    }
+
+    public function clearTotpRecoveryCodes(): void
+    {
+        $this->totpRecoveryCodes = [];
     }
 
     public function getPrivacyAcceptedAt(): ?\DateTimeImmutable

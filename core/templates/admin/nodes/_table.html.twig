@@ -166,6 +166,8 @@
                         <div class="nodes-node__meta">{{ t('admin_nodes_last_ip', page_locale())|replace({'%ip%': node.lastHeartbeatIp}) }}</div>
                     {% endif %}
                     <div class="nodes-node__meta">{{ node.lastHeartbeatVersion ?? '—' }}</div>
+                    <div class="nodes-node__meta">{{ node.osProvider ?? '—' }}</div>
+                    <div class="nodes-node__meta">{{ t('admin_nodes_health', page_locale()) }}: {{ node.health|title }}</div>
                     <div class="nodes-node__meta">
                         {{ updateChannel is defined ? t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) : t('admin_nodes_unknown', page_locale()) }}
                     </div>

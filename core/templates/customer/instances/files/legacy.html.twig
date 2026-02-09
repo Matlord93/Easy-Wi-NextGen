@@ -1,0 +1,118 @@
+{% extends 'customer/base.html.twig' %}
+
+
+{% block content %}
+    {% set displayName = instance.server_name ?? instance.name %}
+    <div class="space-y-8">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p class="text-xs uppercase tracking-wide text-slate-600">{{ t('customer_instance_files_instance_label', page_locale()) }}</p>
+                <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_instance_files_title', page_locale()) }}</h1>
+                <p class="text-sm text-slate-700">{{ t('customer_instance_files_intro', page_locale()) }}</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+                <p class="font-semibold text-slate-800">{{ displayName }}</p>
+                <p class="mt-1">{{ instance.game_key }} · {{ instance.node.name }} ({{ instance.node.id }})</p>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <p class="font-semibold">Dateimanager läuft im Kompatibilitätsmodus.</p>
+            <p class="mt-1 text-xs text-amber-700">
+                Die Agent File-API ist derzeit nicht erreichbar{% if fileApiError %}: {{ fileApiError }}{% endif %}.
+            </p>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-3">
+            <div class="space-y-6 lg:col-span-1">
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-sm font-semibold text-slate-900">{{ t('customer_instance_addons_plugins_title', page_locale()) }}</h2>
+                            <p class="mt-1 text-xs text-slate-600">{{ t('customer_instance_addons_plugins_intro', page_locale()) }}</p>
+                        </div>
+                        <p class="text-xs text-slate-500" id="addons-feedback"></p>
+                    </div>
+                    <div class="mt-4 space-y-3">
+                        {% for plugin in availablePlugins %}
+                            <div class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-900">{{ plugin.name }}</p>
+                                    <p class="text-xs text-slate-600">{{ plugin.version }}</p>
+                                    {% if plugin.description %}
+                                        <p class="mt-2 text-xs text-slate-600">{{ plugin.description }}</p>
+                                    {% endif %}
+                                </div>
+                                <button
+                                    type="button"
+                                    class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 addon-install-button"
+                                    data-plugin-id="{{ plugin.id }}"
+                                >
+                                    {{ t('customer_instance_addons_install', page_locale()) }}
+                                </button>
+                            </div>
+                        {% else %}
+                            <div class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+                                {{ t('customer_instance_addons_no_plugins_available', page_locale()) }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <h2 class="text-sm font-semibold text-slate-900">{{ t('customer_instance_files_config_title', page_locale()) }}</h2>
+                    <p class="mt-1 text-xs text-slate-600">{{ t('customer_instance_files_config_intro', page_locale()) }}</p>
+                    <div class="mt-4 space-y-3">
+                        {% for config in configFiles %}
+                            <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <p class="text-xs font-semibold text-slate-800">{{ config.path }}</p>
+                                <p class="mt-1 text-xs text-slate-600">
+                                    {{ config.description ?: t('customer_instance_files_config_description_empty', page_locale()) }}
+                                </p>
+                                <button
+                                    type="button"
+                                    class="mt-3 rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                                    hx-get="{{ path('customer_instance_files_read', {id: instance.id, path: config.dir, name: config.name, description: config.description}) }}"
+                                    hx-target="#file-editor"
+                                    hx-swap="outerHTML"
+                                >
+                                    {{ t('customer_instance_files_config_edit', page_locale()) }}
+                                </button>
+                            </div>
+                        {% else %}
+                            <div class="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+                                {{ t('customer_instance_files_config_empty', page_locale()) }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200 bg-white p-4 lg:col-span-2">
+                <h2 class="text-sm font-semibold text-slate-900">{{ t('customer_instance_files_listing_title', page_locale()) }}</h2>
+                <p class="mt-1 text-xs text-slate-600">{{ t('customer_instance_files_listing_intro', page_locale()) }}</p>
+                <form class="mt-4 space-y-4" id="legacy-file-path-form">
+                    <label class="text-xs font-semibold text-slate-700">{{ t('customer_instance_files_relative_path', page_locale()) }}</label>
+                    <input id="legacy-file-path-input" name="path" value="{{ path }}" placeholder="{{ t('customer_instance_files_relative_path_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                    <p class="text-xs text-slate-600">{{ t('customer_instance_files_relative_path_hint', page_locale()) }}</p>
+                    <button
+                        type="submit"
+                        class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                        hx-get="{{ path('customer_instance_files_listing', {id: instance.id}) }}"
+                        hx-include="#legacy-file-path-input"
+                        hx-target="#legacy-file-listing"
+                        hx-swap="innerHTML"
+                    >
+                        {{ t('customer_instance_files_load_listing', page_locale()) }}
+                    </button>
+                </form>
+
+                <div id="legacy-file-listing" class="mt-4" hx-get="{{ path('customer_instance_files_listing', {id: instance.id, path: path}) }}" hx-trigger="load" hx-swap="innerHTML">
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
+                        {{ t('customer_instance_files_loading_listing', page_locale()) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -39,6 +39,10 @@ class Database implements ResourceEventSource
     #[ORM\Column(length: 190)]
     private string $username;
 
+    #[ORM\ManyToOne(targetEntity: DatabaseNode::class)]
+    #[ORM\JoinColumn(name: 'database_node_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?DatabaseNode $node = null;
+
     #[ORM\Column(type: 'json')]
     private array $encryptedPassword;
 
@@ -51,7 +55,16 @@ class Database implements ResourceEventSource
     /**
      * @param array{key_id: string, nonce: string, ciphertext: string} $encryptedPassword
      */
-    public function __construct(User $customer, string $engine, string $host, int $port, string $name, string $username, array $encryptedPassword)
+    public function __construct(
+        User $customer,
+        string $engine,
+        string $host,
+        int $port,
+        string $name,
+        string $username,
+        array $encryptedPassword,
+        ?DatabaseNode $node = null,
+    )
     {
         $this->customer = $customer;
         $this->engine = $engine;
@@ -60,6 +73,7 @@ class Database implements ResourceEventSource
         $this->name = $name;
         $this->username = $username;
         $this->encryptedPassword = $encryptedPassword;
+        $this->node = $node;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -97,6 +111,11 @@ class Database implements ResourceEventSource
     public function getUsername(): string
     {
         return $this->username;
+    }
+
+    public function getNode(): ?DatabaseNode
+    {
+        return $this->node;
     }
 
     /**

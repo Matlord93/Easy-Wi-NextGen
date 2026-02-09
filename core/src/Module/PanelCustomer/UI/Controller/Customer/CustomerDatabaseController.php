@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Domain\Entity\Database;
-use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\DatabaseNamingPolicy;
+use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
 use App\Repository\DatabaseRepository;
+use App\Repository\DatabaseNodeRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,13 +23,15 @@ use Twig\Environment;
 #[Route(path: '/databases')]
 final class CustomerDatabaseController
 {
-    private const ENGINES = ['mariadb', 'postgresql'];
 
     public function __construct(
         private readonly DatabaseRepository $databaseRepository,
+        private readonly DatabaseNodeRepository $databaseNodeRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly EncryptionService $encryptionService,
+        private readonly DatabaseProvisioningService $provisioningService,
+        private readonly DatabaseNamingPolicy $namingPolicy,
         private readonly Environment $twig,
     ) {
     }
@@ -39,6 +44,7 @@ final class CustomerDatabaseController
 
         $databaseLimit = $customer->getDatabaseLimit();
         $databaseCount = count($databases);
+        $databaseNodes = $this->databaseNodeRepository->findActiveByEngine();
 
         return new Response($this->twig->render('customer/databases/index.html.twig', [
             'activeNav' => 'databases',
@@ -46,7 +52,7 @@ final class CustomerDatabaseController
             'databaseLimit' => $databaseLimit,
             'databaseCount' => $databaseCount,
             'limitReached' => $databaseLimit > 0 && $databaseCount >= $databaseLimit,
-            'engines' => self::ENGINES,
+            'databaseNodes' => $databaseNodes,
         ]));
     }
 
@@ -55,22 +61,17 @@ final class CustomerDatabaseController
     {
         $customer = $this->requireCustomer($request);
 
-        $engine = strtolower(trim((string) $request->request->get('engine', '')));
-        $host = trim((string) $request->request->get('host', ''));
-        $port = (int) $request->request->get('port', 0);
+        $nodeId = (int) $request->request->get('node_id', 0);
         $name = trim((string) $request->request->get('name', ''));
         $username = trim((string) $request->request->get('username', ''));
         $password = trim((string) $request->request->get('password', ''));
 
         $errors = [];
-        if (!in_array($engine, self::ENGINES, true)) {
-            $errors[] = 'Engine is invalid.';
-        }
-        if ($host === '') {
-            $errors[] = 'Host is required.';
-        }
-        if ($port <= 0 || $port > 65535) {
-            $errors[] = 'Port must be between 1 and 65535.';
+        $node = $nodeId > 0 ? $this->databaseNodeRepository->find($nodeId) : null;
+        if (!$node instanceof DatabaseNode) {
+            $errors[] = 'Database node is required.';
+        } elseif (!$node->isActive()) {
+            $errors[] = 'Database node is inactive.';
         }
         if ($name === '') {
             $errors[] = 'Database name is required.';
@@ -81,6 +82,8 @@ final class CustomerDatabaseController
         if ($password === '' || mb_strlen($password) < 8) {
             $errors[] = 'Password must be at least 8 characters.';
         }
+        $errors = array_merge($errors, $this->namingPolicy->validateDatabaseName($name));
+        $errors = array_merge($errors, $this->namingPolicy->validateUsername($username));
 
         $databaseLimit = $customer->getDatabaseLimit();
         $databaseCount = $this->databaseRepository->count(['customer' => $customer]);
@@ -95,25 +98,22 @@ final class CustomerDatabaseController
         $encryptedPassword = $this->encryptionService->encrypt($password);
         $database = new Database(
             $customer,
-            $engine,
-            $host,
-            $port,
+            $node->getEngine(),
+            $node->getHost(),
+            $node->getPort(),
             $name,
             $username,
             $encryptedPassword,
+            $node,
         );
 
         $this->entityManager->persist($database);
         $this->entityManager->flush();
 
-        $job = $this->queueDatabaseJob('database.create', $database, [
-            'engine' => $database->getEngine(),
-            'host' => $database->getHost(),
-            'port' => (string) $database->getPort(),
-            'database' => $database->getName(),
-            'username' => $database->getUsername(),
-            'encrypted_password' => $database->getEncryptedPassword(),
-        ]);
+        $jobs = $this->provisioningService->buildCreateJobs($database, $database->getEncryptedPassword(), $node->getAgent()->getId());
+        foreach ($jobs as $job) {
+            $this->entityManager->persist($job);
+        }
 
         $this->auditLogger->log($customer, 'database.created', [
             'database_id' => $database->getId(),
@@ -123,9 +123,39 @@ final class CustomerDatabaseController
             'port' => $database->getPort(),
             'name' => $database->getName(),
             'username' => $database->getUsername(),
-            'job_id' => $job->getId(),
+            'job_id' => $jobs[0]->getId(),
+            'database_node_id' => $node->getId(),
+            'agent_id' => $node->getAgent()->getId(),
         ]);
 
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases']);
+    }
+
+    #[Route(path: '/{id}/delete', name: 'customer_databases_delete', methods: ['POST'])]
+    public function delete(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $database = $this->databaseRepository->find($id);
+        if ($database === null || $database->getCustomer()->getId() !== $customer->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $agentId = $database->getNode()?->getAgent()->getId() ?? '';
+        $job = $this->provisioningService->buildDeleteJob($database, $agentId);
+        $this->entityManager->persist($job);
+
+        $this->auditLogger->log($customer, 'database.deleted', [
+            'database_id' => $database->getId(),
+            'name' => $database->getName(),
+            'username' => $database->getUsername(),
+            'job_id' => $job->getId(),
+            'database_node_id' => $database->getNode()?->getId(),
+            'agent_id' => $agentId,
+        ]);
+
+        $this->entityManager->remove($database);
         $this->entityManager->flush();
 
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/databases']);
@@ -146,6 +176,7 @@ final class CustomerDatabaseController
         $databases = $this->databaseRepository->findByCustomer($customer);
         $databaseLimit = $customer->getDatabaseLimit();
         $databaseCount = count($databases);
+        $databaseNodes = $this->databaseNodeRepository->findActiveByEngine();
 
         return new Response($this->twig->render('customer/databases/index.html.twig', [
             'activeNav' => 'databases',
@@ -153,22 +184,9 @@ final class CustomerDatabaseController
             'databaseLimit' => $databaseLimit,
             'databaseCount' => $databaseCount,
             'limitReached' => $databaseLimit > 0 && $databaseCount >= $databaseLimit,
-            'engines' => self::ENGINES,
+            'databaseNodes' => $databaseNodes,
             'errors' => $errors,
         ]), Response::HTTP_BAD_REQUEST);
-    }
-
-    private function queueDatabaseJob(string $type, Database $database, array $extraPayload): Job
-    {
-        $payload = array_merge([
-            'database_id' => (string) ($database->getId() ?? ''),
-            'customer_id' => (string) $database->getCustomer()->getId(),
-        ], $extraPayload);
-
-        $job = new Job($type, $payload);
-        $this->entityManager->persist($job);
-
-        return $job;
     }
 
     /**
@@ -184,6 +202,10 @@ final class CustomerDatabaseController
                 'host' => $database->getHost(),
                 'port' => $database->getPort(),
                 'username' => $database->getUsername(),
+                'node' => $database->getNode() === null ? null : [
+                    'id' => $database->getNode()?->getId(),
+                    'name' => $database->getNode()?->getName(),
+                ],
                 'updated_at' => $database->getUpdatedAt(),
             ];
         }, $databases);

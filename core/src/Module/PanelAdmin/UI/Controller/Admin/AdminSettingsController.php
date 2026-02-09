@@ -7,9 +7,11 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Application\AppSettingsService;
+use App\Repository\UserRepository;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
@@ -18,6 +20,7 @@ final class AdminSettingsController
 {
     public function __construct(
         private readonly AppSettingsService $settingsService,
+        private readonly UserRepository $userRepository,
         private readonly Environment $twig,
     ) {
     }
@@ -37,6 +40,7 @@ final class AdminSettingsController
             'activeTab' => $activeTab,
             'saved' => $request->query->getBoolean('saved'),
             'errors' => [],
+            'twoFactorOverview' => $this->resolveTwoFactorOverview($activeTab),
         ]));
     }
 
@@ -57,6 +61,10 @@ final class AdminSettingsController
         $defaultSlotsRaw = trim((string) $request->request->get('gameserver_default_slots', ''));
         $minSlotsRaw = trim((string) $request->request->get('gameserver_min_slots', ''));
         $maxSlotsRaw = trim((string) $request->request->get('gameserver_max_slots', ''));
+        $sessionIdleMinutesRaw = trim((string) $request->request->get('security_session_idle_minutes', ''));
+        $maintenanceStartsRaw = trim((string) $request->request->get('cms_maintenance_starts_at', ''));
+        $maintenanceEndsRaw = trim((string) $request->request->get('cms_maintenance_ends_at', ''));
+        $maintenanceAllowlistRaw = trim((string) $request->request->get('cms_maintenance_allowlist', ''));
         $errors = [];
         if ($sftpPortRaw !== '' && !is_numeric($sftpPortRaw)) {
             $errors[] = 'SFTP port must be numeric.';
@@ -101,6 +109,32 @@ final class AdminSettingsController
             $errors[] = 'Default slots cannot exceed max slots.';
         }
 
+        if ($activeTab === 'security') {
+            if ($sessionIdleMinutesRaw === '' || !is_numeric($sessionIdleMinutesRaw)) {
+                $errors[] = 'Session idle timeout must be numeric.';
+            } elseif ((int) $sessionIdleMinutesRaw < 5) {
+                $errors[] = 'Session idle timeout must be at least 5 minutes.';
+            }
+        }
+
+        $maintenanceStartsAt = null;
+        $maintenanceEndsAt = null;
+        if ($activeTab === 'maintenance') {
+            $maintenanceStartsAt = $this->parseDateTimeInput($maintenanceStartsRaw, 'Maintenance start time is invalid.', $errors);
+            $maintenanceEndsAt = $this->parseDateTimeInput($maintenanceEndsRaw, 'Maintenance end time is invalid.', $errors);
+
+            if ($maintenanceStartsAt !== null && $maintenanceEndsAt !== null && $maintenanceEndsAt < $maintenanceStartsAt) {
+                $errors[] = 'Maintenance end time must be after start time.';
+            }
+
+            $allowlistEntries = $this->normalizeAllowlist($maintenanceAllowlistRaw);
+            foreach ($allowlistEntries as $entry) {
+                if (!$this->isValidIpOrCidr($entry)) {
+                    $errors[] = sprintf('Allowlist entry "%s" is invalid.', $entry);
+                }
+            }
+        }
+
         if ($errors !== []) {
             return new Response($this->twig->render('admin/settings/index.html.twig', [
                 'activeNav' => 'settings',
@@ -108,6 +142,7 @@ final class AdminSettingsController
                 'activeTab' => $activeTab,
                 'saved' => false,
                 'errors' => $errors,
+                'twoFactorOverview' => $this->resolveTwoFactorOverview($activeTab),
             ]), Response::HTTP_BAD_REQUEST);
         }
 
@@ -145,6 +180,20 @@ final class AdminSettingsController
                 AppSettingsService::KEY_CUSTOMER_CONSOLE_LABEL => trim((string) $request->request->get('customer_console_label', '')),
                 AppSettingsService::KEY_CUSTOMER_LOGS_LABEL => trim((string) $request->request->get('customer_logs_label', '')),
             ],
+            'security' => [
+                AppSettingsService::KEY_SECURITY_SESSION_IDLE_MINUTES => $sessionIdleMinutesRaw,
+                AppSettingsService::KEY_SECURITY_2FA_GLOBAL_REQUIRED => $request->request->get('security_2fa_required_global') === '1',
+                AppSettingsService::KEY_SECURITY_2FA_ADMIN_REQUIRED => $request->request->get('security_2fa_required_admin') === '1',
+                AppSettingsService::KEY_SECURITY_2FA_RESELLER_REQUIRED => $request->request->get('security_2fa_required_reseller') === '1',
+                AppSettingsService::KEY_SECURITY_2FA_CUSTOMER_REQUIRED => $request->request->get('security_2fa_required_customer') === '1',
+            ],
+            'maintenance' => [
+                AppSettingsService::KEY_CMS_MAINTENANCE_ENABLED => $request->request->get('cms_maintenance_enabled') === '1',
+                AppSettingsService::KEY_CMS_MAINTENANCE_MESSAGE => trim((string) $request->request->get('cms_maintenance_message', '')),
+                AppSettingsService::KEY_CMS_MAINTENANCE_ALLOWLIST => implode("\n", $this->normalizeAllowlist($maintenanceAllowlistRaw)),
+                AppSettingsService::KEY_CMS_MAINTENANCE_STARTS_AT => $maintenanceStartsAt?->format('Y-m-d\TH:i'),
+                AppSettingsService::KEY_CMS_MAINTENANCE_ENDS_AT => $maintenanceEndsAt?->format('Y-m-d\TH:i'),
+            ],
             default => [],
         };
 
@@ -162,7 +211,7 @@ final class AdminSettingsController
     private function resolveTab(string $tab): string
     {
         $tab = strtolower(trim($tab));
-        $allowed = ['general', 'email', 'gameserver', 'customer'];
+        $allowed = ['general', 'email', 'gameserver', 'customer', 'security', 'maintenance'];
 
         return in_array($tab, $allowed, true) ? $tab : 'general';
     }
@@ -194,5 +243,80 @@ final class AdminSettingsController
         }
 
         return (int) $value;
+    }
+
+    /**
+     * @return array<int, array{id: int, email: string, type: string, totpEnabled: bool}>
+     */
+    private function resolveTwoFactorOverview(string $activeTab): array
+    {
+        if ($activeTab !== 'security') {
+            return [];
+        }
+
+        return $this->userRepository->findTwoFactorOverview();
+    }
+
+    /**
+     * @param array<int, string> $errors
+     */
+    private function parseDateTimeInput(string $raw, string $errorMessage, array &$errors): ?\DateTimeImmutable
+    {
+        if ($raw === '') {
+            return null;
+        }
+
+        $parsed = \DateTimeImmutable::createFromFormat('Y-m-d\TH:i', $raw) ?: null;
+        if ($parsed === null) {
+            $errors[] = $errorMessage;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function normalizeAllowlist(string $raw): array
+    {
+        if ($raw === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\n,]+/', $raw) ?: [];
+
+        return array_values(array_filter(array_map('trim', $parts), static fn (string $entry): bool => $entry !== ''));
+    }
+
+    private function isValidIpOrCidr(string $entry): bool
+    {
+        if (filter_var($entry, FILTER_VALIDATE_IP)) {
+            return true;
+        }
+
+        if (!str_contains($entry, '/')) {
+            return false;
+        }
+
+        [$ip, $mask] = array_pad(explode('/', $entry, 2), 2, null);
+        if ($ip === null || $mask === null) {
+            return false;
+        }
+
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+
+        if (!is_numeric($mask)) {
+            return false;
+        }
+
+        $maskInt = (int) $mask;
+        $maxMask = str_contains($ip, ':') ? 128 : 32;
+        if ($maskInt < 0 || $maskInt > $maxMask) {
+            return false;
+        }
+
+        return IpUtils::checkIp($ip, $entry);
     }
 }

@@ -365,25 +365,6 @@ write_env_local() {
   local default_uri="${11}"
   local install_dir="${12}"
 
-  local encoded_password
-  encoded_password="$(printf '%s' "${db_password}" | jq -sRr @uri)"
-
-  local db_scheme
-  case "${db_driver}" in
-    mysql) db_scheme="mysql";;
-    pgsql) db_scheme="postgresql";;
-    *)
-      fatal "Unbekannter DB-Treiber für DATABASE_URL: ${db_driver}"
-      ;;
-  esac
-
-  local db_port_segment=""
-  if [[ -n "${db_port}" ]]; then
-    db_port_segment=":${db_port}"
-  fi
-
-  local db_url="${db_scheme}://${db_user}:${encoded_password}@${db_host}${db_port_segment}/${db_name}"
-
   local key_id="v1"
   local key_ring="${encryption_keys}"
   if [[ "${key_ring}" == *":"* ]]; then
@@ -392,14 +373,21 @@ write_env_local() {
     key_ring="v1:${key_ring}"
   fi
 
+  local key_material="${key_ring%%,*}"
+  key_material="${key_material#*:}"
+
+  local key_path="/etc/easywi/secret.key"
+  step "Schreibe Encryption Key."
+  mkdir -p "$(dirname "${key_path}")"
+  cat <<KEY >"${key_path}"
+{"active_key_id":"${key_id}","keys":{"${key_id}":"${key_material}"}}
+KEY
+  chmod 600 "${key_path}"
+
   step "Schreibe .env.local."
   cat <<ENV >"${env_path}"
 APP_ENV=prod
 APP_SECRET="${app_secret}"
-APP_ENCRYPTION_KEY_ID=${key_id}
-APP_ENCRYPTION_KEYS="${key_ring}"
-DATABASE_URL="${db_url}"
-DATABASE_REPLICA_URL="${db_url}"
 DEFAULT_URI=${default_uri}
 MESSENGER_TRANSPORT_DSN=doctrine://default?auto_setup=0
 TRUSTED_PROXIES=127.0.0.1
@@ -504,40 +492,6 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 SERVICE
-}
-
-ensure_filesvc_certificates() {
-  local cert_path="$1"
-  local key_path="$2"
-  local hostname="$3"
-  local ip_addresses="$4"
-
-  if [[ -f "${cert_path}" && -f "${key_path}" ]]; then
-    return
-  fi
-
-  step "Erzeuge TLS-Zertifikat für File Service."
-  local san_entries=()
-  if [[ -n "${hostname}" ]]; then
-    san_entries+=("DNS:${hostname}")
-  fi
-  if [[ -n "${ip_addresses}" ]]; then
-    local ip
-    for ip in ${ip_addresses}; do
-      san_entries+=("IP:${ip}")
-    done
-  fi
-  if [[ "${#san_entries[@]}" -gt 0 ]]; then
-    local san_list
-    san_list="$(IFS=,; echo "${san_entries[*]}")"
-    openssl req -x509 -newkey rsa:4096 -nodes -keyout "${key_path}" -out "${cert_path}" -days 3650 \
-      -subj "/CN=${hostname}" -addext "subjectAltName=${san_list}"
-  else
-    openssl req -x509 -newkey rsa:4096 -nodes -keyout "${key_path}" -out "${cert_path}" -days 3650 \
-      -subj "/CN=${hostname}"
-  fi
-  chmod 600 "${key_path}"
-  chmod 644 "${cert_path}"
 }
 
 setup_database_mysql() {
@@ -763,7 +717,6 @@ install_agent_binaries_only() {
   log "Es werden nur die Binaries installiert, kein Token notwendig."
 
   download_release_asset "easywi-agent-linux-amd64" "/usr/local/bin/easywi-agent" "${agent_version}"
-  download_release_asset "easywi-filesvc-linux-amd64" "/usr/local/bin/easywi-filesvc" "${agent_version}"
 
   mkdir -p /etc/easywi
   if [[ ! -f /etc/easywi/agent.conf ]]; then
@@ -772,35 +725,20 @@ install_agent_binaries_only() {
 # agent_id=<AGENT_ID>
 # secret=<SECRET>
 # api_url=https://panel.example.com
+# service_listen=0.0.0.0:8087
+# file_base_dir=/home
 CONF
     chmod 600 /etc/easywi/agent.conf
   fi
 
-  if [[ ! -f /etc/easywi/filesvc.conf ]]; then
-    cat <<'CONF' >/etc/easywi/filesvc.conf
-# Beispiel-Konfiguration für File Service (nach Registrierung ergänzen)
-# agent_id=<AGENT_ID>
-# secret=<SECRET>
-# tls_cert=/etc/easywi/filesvc.crt
-# tls_key=/etc/easywi/filesvc.key
-# tls_ca=/etc/ssl/certs/ca-certificates.crt
-# listen_addr=:8444
-# base_dir=/home
-CONF
-    chmod 600 /etc/easywi/filesvc.conf
-  fi
-
   create_systemd_service "easywi-agent" "/usr/local/bin/easywi-agent --config /etc/easywi/agent.conf" "EasyWI Agent"
-  create_systemd_service "easywi-filesvc" "/usr/local/bin/easywi-filesvc --config /etc/easywi/filesvc.conf" "EasyWI File Service"
   systemctl daemon-reload
   systemctl enable easywi-agent.service
-  systemctl enable easywi-filesvc.service
 
   cat <<'INFO'
 Die Binaries wurden installiert. Die Konfiguration und Dienste können
 nach der Registrierung im Webinterface ergänzt werden:
   - /etc/easywi/agent.conf
-  - /etc/easywi/filesvc.conf
 Die Systemd-Services wurden angelegt und für den Autostart aktiviert.
 INFO
 }
@@ -809,36 +747,22 @@ install_agent_services() {
   local agent_id="$1"
   local secret="$2"
   local api_url="$3"
-  local filesvc_base_dir="$4"
-  local filesvc_cert="$5"
-  local filesvc_key="$6"
-  local filesvc_ca="$7"
+  local file_base_dir="$4"
 
   mkdir -p /etc/easywi
   cat <<CONF >/etc/easywi/agent.conf
 agent_id=${agent_id}
 secret=${secret}
 api_url=${api_url}
+service_listen=0.0.0.0:8087
+file_base_dir=${file_base_dir}
 CONF
   chmod 600 /etc/easywi/agent.conf
 
-  cat <<CONF >/etc/easywi/filesvc.conf
-agent_id=${agent_id}
-secret=${secret}
-listen_addr=:8444
-base_dir=${filesvc_base_dir}
-tls_cert=${filesvc_cert}
-tls_key=${filesvc_key}
-tls_ca=${filesvc_ca}
-CONF
-  chmod 600 /etc/easywi/filesvc.conf
-
   create_systemd_service "easywi-agent" "/usr/local/bin/easywi-agent --config /etc/easywi/agent.conf" "EasyWI Agent"
-  create_systemd_service "easywi-filesvc" "/usr/local/bin/easywi-filesvc --config /etc/easywi/filesvc.conf" "EasyWI File Service"
 
   systemctl daemon-reload
   systemctl enable --now easywi-agent.service
-  systemctl enable --now easywi-filesvc.service
 }
 
 write_bootstrap_state() {
@@ -1036,7 +960,7 @@ run_panel_install() {
 
   local install_dir="${EASYWI_INSTALL_DIR:-/var/www/easywi}"
   local repo_url="${EASYWI_REPO_URL:-}"
-  local repo_ref="${EASYWI_REPO_REF:-Dev}"
+  local repo_ref="${EASYWI_REPO_REF:-Beta}"
   local db_driver="${EASYWI_DB_DRIVER:-mysql}"
   local db_system="${EASYWI_DB_SYSTEM:-}"
   local db_root_password="${EASYWI_DB_ROOT_PASSWORD:-}"
@@ -1050,7 +974,7 @@ run_panel_install() {
   local web_user="${EASYWI_WEB_USER:-}"
   local system_user="${EASYWI_SYSTEM_USER:-easywi}"
   local app_secret="${EASYWI_APP_SECRET:-}"
-  local app_encryption_keys="${EASYWI_APP_ENCRYPTION_KEYS:-}"
+  local app_encryption_keys="${EASYWI_SECRET_KEY:-}"
   local agent_registration_token="${EASYWI_AGENT_REGISTRATION_TOKEN:-}"
   local app_github_token="${EASYWI_APP_GITHUB_TOKEN:-}"
   local run_migrations="${EASYWI_RUN_MIGRATIONS:-true}"
@@ -1094,7 +1018,7 @@ run_panel_install() {
   prompt_value db_user "DB-User" "${db_user}"
   prompt_value db_password "DB-Passwort" "${db_password}"
   prompt_value app_secret "APP_SECRET (leer = automatisch)" "${app_secret}"
-  prompt_value app_encryption_keys "APP_ENCRYPTION_KEYS (optional)" "${app_encryption_keys}"
+  prompt_value app_encryption_keys "Encryption key (base64, stored in /etc/easywi/secret.key)" "${app_encryption_keys}"
   prompt_value agent_registration_token "AGENT_REGISTRATION_TOKEN (optional)" "${agent_registration_token}"
   prompt_value app_github_token "GitHub Token (optional)" "${app_github_token}"
   prompt_value run_migrations "Migrationen ausführen? (true/false)" "${run_migrations}"
@@ -1131,14 +1055,13 @@ run_agent_install() {
   local core_url="${EASYWI_CORE_URL:-${EASYWI_API_URL:-}}"
   local bootstrap_token="${EASYWI_BOOTSTRAP_TOKEN:-}"
   local agent_version="${EASYWI_AGENT_VERSION:-latest}"
-  local filesvc_base_dir="${EASYWI_FILE_BASE_DIR:-/home}"
+  local file_base_dir="${EASYWI_FILE_BASE_DIR:-/home}"
   local agent_name="${EASYWI_AGENT_NAME:-}"
   local agent_hostname="${EASYWI_AGENT_HOSTNAME:-}"
   local bootstrap_state_file="${EASYWI_BOOTSTRAP_STATE_FILE:-/etc/easywi/bootstrap-state.json}"
   local register_token="${EASYWI_AGENT_REGISTER_TOKEN:-}"
   local agent_id="${EASYWI_AGENT_ID:-}"
   local register_url="${EASYWI_AGENT_REGISTER_URL:-}"
-  local filesvc_hostname="${EASYWI_FILESVC_HOSTNAME:-}"
 
   echo
   echo "Agent-Setup: Wir laden die Agent-Binaries."
@@ -1147,10 +1070,9 @@ run_agent_install() {
   prompt_value core_url "Core API URL" "${core_url}"
   prompt_value bootstrap_token "Bootstrap Token" "${bootstrap_token}"
   prompt_value agent_version "Agent Version (latest oder Tag)" "${agent_version}"
-  prompt_value filesvc_base_dir "File Service Base Directory" "${filesvc_base_dir}"
+  prompt_value file_base_dir "File Base Directory" "${file_base_dir}"
   prompt_value agent_name "Agent Name (optional)" "${agent_name}"
   prompt_value agent_hostname "Agent Hostname (optional)" "${agent_hostname}"
-  prompt_value filesvc_hostname "File Service Hostname (optional)" "${filesvc_hostname}"
 
   local pkg_manager
   pkg_manager="$(detect_package_manager)"
@@ -1171,9 +1093,6 @@ run_agent_install() {
 
   if [[ -z "${agent_name}" ]]; then
     agent_name="$(hostname -f 2>/dev/null || hostname)"
-  fi
-  if [[ -z "${filesvc_hostname}" ]]; then
-    filesvc_hostname="${agent_hostname:-${agent_name}}"
   fi
 
   if [[ -z "${bootstrap_token}" && -z "${register_token}" && -f "${bootstrap_state_file}" ]]; then
@@ -1223,14 +1142,7 @@ run_agent_install() {
     agent_secret="${agent_identity#*|}"
   fi
 
-  local filesvc_cert="/etc/easywi/filesvc.crt"
-  local filesvc_key="/etc/easywi/filesvc.key"
-  local filesvc_ca="/etc/easywi/filesvc.crt"
-  local filesvc_ips
-  filesvc_ips="$(hostname -I 2>/dev/null || true)"
-  ensure_filesvc_certificates "${filesvc_cert}" "${filesvc_key}" "${filesvc_hostname}" "${filesvc_ips}"
-
-  install_agent_services "${agent_id}" "${agent_secret}" "${core_url}" "${filesvc_base_dir}" "${filesvc_cert}" "${filesvc_key}" "${filesvc_ca}"
+  install_agent_services "${agent_id}" "${agent_secret}" "${core_url}" "${file_base_dir}"
   delete_bootstrap_state "${bootstrap_state_file}"
 }
 

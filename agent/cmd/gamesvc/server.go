@@ -35,6 +35,7 @@ func (s *gameServer) routes() http.Handler {
 	mux.HandleFunc("/instance/render-config", s.handleRenderConfig)
 	mux.HandleFunc("/instance/start", s.handleStartInstance)
 	mux.HandleFunc("/instance/stop", s.handleStopInstance)
+	mux.HandleFunc("/instance/status", s.handleInstanceStatus)
 	return mux
 }
 
@@ -271,6 +272,18 @@ type stopInstanceRequest struct {
 	InstanceID string `json:"instance_id"`
 }
 
+type instanceStatusRequest struct {
+	InstanceID string `json:"instance_id"`
+}
+
+type instanceStatusResponse struct {
+	Ok         bool   `json:"ok"`
+	InstanceID string `json:"instance_id"`
+	Status     string `json:"status"`
+	Running    bool   `json:"running"`
+	Pid        int    `json:"pid,omitempty"`
+}
+
 func (s *gameServer) handleStopInstance(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -301,6 +314,42 @@ func (s *gameServer) handleStopInstance(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *gameServer) handleInstanceStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req instanceStatusRequest
+	if err := readJSON(r.Body, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid payload"})
+		return
+	}
+	if req.InstanceID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "instance_id is required"})
+		return
+	}
+
+	s.mu.Lock()
+	cmd, exists := s.processes[req.InstanceID]
+	s.mu.Unlock()
+
+	response := instanceStatusResponse{
+		Ok:         true,
+		InstanceID: req.InstanceID,
+		Status:     "stopped",
+		Running:    false,
+	}
+	if exists {
+		response.Status = "running"
+		response.Running = true
+		if cmd.Process != nil {
+			response.Pid = cmd.Process.Pid
+		}
+	}
+
+	writeJSON(w, http.StatusOK, response)
 }
 
 func readJSON(body io.ReadCloser, out any) error {

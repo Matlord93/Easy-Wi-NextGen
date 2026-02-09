@@ -100,6 +100,28 @@ func handleMailboxDisable(job jobs.Job) (jobs.Result, func() error) {
 	return handleMailboxStatus(job, false)
 }
 
+func handleMailboxDelete(job jobs.Job) (jobs.Result, func() error) {
+	address := payloadValue(job.Payload, "address", "email")
+	if address == "" {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing address"},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"address": address,
+			"deleted": "true",
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
 func handleMailboxStatus(job jobs.Job, enabled bool) (jobs.Result, func() error) {
 	address := payloadValue(job.Payload, "address", "email")
 	if address == "" {

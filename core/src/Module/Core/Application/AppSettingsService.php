@@ -39,6 +39,17 @@ final class AppSettingsService implements ConsoleCommandSettings
     public const KEY_SFTP_PRIVATE_KEY_PATH = 'sftp_private_key_path';
     public const KEY_SFTP_PRIVATE_KEY_PASSPHRASE = 'sftp_private_key_passphrase';
     public const KEY_INVOICE_LAYOUT = 'invoice_layout_html';
+    public const KEY_SECURITY_SESSION_IDLE_MINUTES = 'security_session_idle_minutes';
+    public const KEY_SECURITY_2FA_GLOBAL_REQUIRED = 'security_2fa_required_global';
+    public const KEY_SECURITY_2FA_ADMIN_REQUIRED = 'security_2fa_required_admin';
+    public const KEY_SECURITY_2FA_RESELLER_REQUIRED = 'security_2fa_required_reseller';
+    public const KEY_SECURITY_2FA_CUSTOMER_REQUIRED = 'security_2fa_required_customer';
+    public const KEY_CMS_MAINTENANCE_ENABLED = 'cms_maintenance_enabled';
+    public const KEY_CMS_MAINTENANCE_MESSAGE = 'cms_maintenance_message';
+    public const KEY_CMS_MAINTENANCE_ALLOWLIST = 'cms_maintenance_allowlist';
+    public const KEY_CMS_MAINTENANCE_STARTS_AT = 'cms_maintenance_starts_at';
+    public const KEY_CMS_MAINTENANCE_ENDS_AT = 'cms_maintenance_ends_at';
+    public const KEY_AGENT_REGISTRATION_TOKEN = 'agent_registration_token';
 
     private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
 <div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
@@ -113,12 +124,24 @@ TWIG;
         self::KEY_SFTP_PRIVATE_KEY_PATH => null,
         self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE => null,
         self::KEY_INVOICE_LAYOUT => self::DEFAULT_INVOICE_LAYOUT,
+        self::KEY_SECURITY_SESSION_IDLE_MINUTES => 30,
+        self::KEY_SECURITY_2FA_GLOBAL_REQUIRED => false,
+        self::KEY_SECURITY_2FA_ADMIN_REQUIRED => true,
+        self::KEY_SECURITY_2FA_RESELLER_REQUIRED => false,
+        self::KEY_SECURITY_2FA_CUSTOMER_REQUIRED => false,
+        self::KEY_CMS_MAINTENANCE_ENABLED => false,
+        self::KEY_CMS_MAINTENANCE_MESSAGE => null,
+        self::KEY_CMS_MAINTENANCE_ALLOWLIST => null,
+        self::KEY_CMS_MAINTENANCE_STARTS_AT => null,
+        self::KEY_CMS_MAINTENANCE_ENDS_AT => null,
+        self::KEY_AGENT_REGISTRATION_TOKEN => null,
     ];
 
     private const SECRET_KEYS = [
         self::KEY_SFTP_PASSWORD,
         self::KEY_SFTP_PRIVATE_KEY,
         self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE,
+        self::KEY_AGENT_REGISTRATION_TOKEN,
     ];
 
     /** @var array<string, mixed>|null */
@@ -288,6 +311,27 @@ TWIG;
         }
 
         return self::DEFAULTS[self::KEY_MAIL_DEFAULT_LOCALE];
+    }
+
+    public function getAgentRegistrationToken(): string
+    {
+        $settings = $this->getSettings();
+        $value = $settings[self::KEY_AGENT_REGISTRATION_TOKEN] ?? null;
+
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        $env = $_ENV['AGENT_REGISTRATION_TOKEN'] ?? $_SERVER['AGENT_REGISTRATION_TOKEN'] ?? null;
+        if (is_string($env) && $env !== '') {
+            $this->updateSettings([self::KEY_AGENT_REGISTRATION_TOKEN => $env], false);
+            return $env;
+        }
+
+        $generated = bin2hex(random_bytes(32));
+        $this->updateSettings([self::KEY_AGENT_REGISTRATION_TOKEN => $generated], false);
+
+        return $generated;
     }
 
     public function getGameserverDefaultSlots(): int
@@ -494,6 +538,14 @@ TWIG;
         return self::DEFAULT_INVOICE_LAYOUT;
     }
 
+    public function getSessionIdleTimeoutMinutes(): int
+    {
+        $settings = $this->getSettings();
+        $value = $settings[self::KEY_SECURITY_SESSION_IDLE_MINUTES] ?? self::DEFAULTS[self::KEY_SECURITY_SESSION_IDLE_MINUTES];
+
+        return is_numeric($value) ? max(5, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_IDLE_MINUTES];
+    }
+
     /**
      * @param array<string, mixed> $settings
      *
@@ -534,6 +586,11 @@ TWIG;
                 self::KEY_GAMESERVER_ALLOW_START_STOP,
                 self::KEY_CUSTOMER_DATA_MANAGER_ENABLED,
                 self::KEY_CUSTOMER_FILE_PUSH_ENABLED,
+                self::KEY_SECURITY_2FA_GLOBAL_REQUIRED,
+                self::KEY_SECURITY_2FA_ADMIN_REQUIRED,
+                self::KEY_SECURITY_2FA_RESELLER_REQUIRED,
+                self::KEY_SECURITY_2FA_CUSTOMER_REQUIRED,
+                self::KEY_CMS_MAINTENANCE_ENABLED,
             ], true)) {
                 $value = (bool) $value;
             }
@@ -542,6 +599,10 @@ TWIG;
                 $value = is_string($value) && in_array($value, ['de', 'en'], true)
                     ? $value
                     : self::DEFAULTS[self::KEY_MAIL_DEFAULT_LOCALE];
+            }
+
+            if ($key === self::KEY_SECURITY_SESSION_IDLE_MINUTES) {
+                $value = is_numeric($value) ? max(5, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_IDLE_MINUTES];
             }
 
             $normalized[$key] = $value;

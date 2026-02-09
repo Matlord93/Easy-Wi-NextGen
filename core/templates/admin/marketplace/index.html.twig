@@ -21,15 +21,15 @@
                 <ul class="mt-4 space-y-2 text-sm text-slate-600">
                     <li class="flex items-center gap-2">
                         <span class="h-2 w-2 rounded-full bg-indigo-400"></span>
-                        Curated partner extensions
+                        {{ t('admin_marketplace_storefront_feature_partners', page_locale()) }}
                     </li>
                     <li class="flex items-center gap-2">
                         <span class="h-2 w-2 rounded-full bg-indigo-400"></span>
-                        Versioned updates and changelogs
+                        {{ t('admin_marketplace_storefront_feature_updates', page_locale()) }}
                     </li>
                     <li class="flex items-center gap-2">
                         <span class="h-2 w-2 rounded-full bg-indigo-400"></span>
-                        Role-aware install controls
+                        {{ t('admin_marketplace_storefront_feature_roles', page_locale()) }}
                     </li>
                 </ul>
             </div>
@@ -37,7 +37,7 @@
                 <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_marketplace_dev_portal_title', page_locale()) }}</h2>
                 <p class="mt-2 text-sm text-slate-700">{{ t('admin_marketplace_dev_portal_intro', page_locale()) }}</p>
                 <div class="mt-6 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600">
-                    Marketplace APIs and tooling will appear in a future release.
+                    {{ t('admin_marketplace_tooling_note', page_locale()) }}
                 </div>
             </div>
         </div>

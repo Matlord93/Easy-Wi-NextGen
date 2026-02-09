@@ -412,7 +412,6 @@ final class WebspaceFileServiceClient
             'headers' => $headers,
             'timeout' => $this->timeoutSeconds,
             'max_duration' => $this->timeoutSeconds,
-            'connect_timeout' => min(3, $this->timeoutSeconds),
         ];
 
         if ($json !== null) {

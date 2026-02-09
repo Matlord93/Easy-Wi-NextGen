@@ -17,6 +17,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Ts3\Ts3VirtualServerService;
 use App\Module\Core\Application\Ts3\Ts3ViewerService;
+use App\Module\Teamspeak\Application\Query\ServerQueryLimiterInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -48,6 +49,7 @@ final class CustomerTs3ServerController
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
         private readonly CacheInterface $cache,
+        private readonly ServerQueryLimiterInterface $queryLimiter,
     ) {
     }
 
@@ -399,6 +401,14 @@ final class CustomerTs3ServerController
         });
 
         if (!is_array($payload) || ($payload['status'] ?? 'pending') !== 'ok') {
+            $limit = $this->queryLimiter->allow($cacheKey, 8, 60);
+            if (!$limit->isAllowed()) {
+                return new JsonResponse([
+                    'status' => 'pending',
+                    'groups' => [],
+                    'retry_after' => $limit->getRetryAfterSeconds(),
+                ]);
+            }
             $job = $this->virtualServerService->queueServerGroupList($server, $cacheKey);
             $this->auditLogger->log($customer, 'ts3.virtual.servergroup.list', [
                 'action_id' => $job->getId(),
@@ -411,6 +421,7 @@ final class CustomerTs3ServerController
             return new JsonResponse(['status' => 'pending', 'groups' => [], 'action_id' => $job->getId()]);
         }
 
+        $this->queryLimiter->reset($cacheKey);
         return new JsonResponse([
             'status' => 'ok',
             'groups' => $payload['groups'] ?? [],
@@ -441,6 +452,13 @@ final class CustomerTs3ServerController
         });
 
         if (!is_array($payload) || ($payload['status'] ?? 'pending') !== 'ok') {
+            $limit = $this->queryLimiter->allow($cacheKey, 5, 45);
+            if (!$limit->isAllowed()) {
+                return new JsonResponse([
+                    'status' => 'pending',
+                    'retry_after' => $limit->getRetryAfterSeconds(),
+                ]);
+            }
             $job = $this->virtualServerService->queueServerSummary($server, $cacheKey);
             $this->auditLogger->log($customer, 'ts3.virtual.summary', [
                 'action_id' => $job->getId(),
@@ -453,6 +471,7 @@ final class CustomerTs3ServerController
             return new JsonResponse(['status' => 'pending', 'action_id' => $job->getId()]);
         }
 
+        $this->queryLimiter->reset($cacheKey);
         return new JsonResponse([
             'status' => 'ok',
             'clients_online' => $payload['clients_online'] ?? 0,
@@ -526,6 +545,13 @@ final class CustomerTs3ServerController
         });
 
         if (!is_array($payload) || ($payload['status'] ?? 'pending') !== 'ok') {
+            $limit = $this->queryLimiter->allow($cacheKey, 6, 60);
+            if (!$limit->isAllowed()) {
+                return new JsonResponse([
+                    'status' => 'pending',
+                    'retry_after' => $limit->getRetryAfterSeconds(),
+                ]);
+            }
             $job = $this->virtualServerService->queueServerQuery($server, $cacheKey, $jobType);
             $this->auditLogger->log($customer, 'ts3.virtual.query', [
                 'action_id' => $job->getId(),
@@ -539,6 +565,7 @@ final class CustomerTs3ServerController
             return new JsonResponse(['status' => 'pending', 'action_id' => $job->getId()]);
         }
 
+        $this->queryLimiter->reset($cacheKey);
         return new JsonResponse([
             'status' => 'ok',
             'payload' => $payload['payload'] ?? [],

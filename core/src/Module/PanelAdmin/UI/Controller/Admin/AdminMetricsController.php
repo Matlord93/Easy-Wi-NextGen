@@ -51,8 +51,12 @@ final class AdminMetricsController
         $diskSeries = $this->buildSeries($samples, 'disk');
         $netSentSeries = $this->buildSeries($samples, 'net_sent');
         $netRecvSeries = $this->buildSeries($samples, 'net_recv');
+        $processSeries = $this->buildSeries($samples, 'process_count');
+        $temperatureSeries = $this->buildSeries($samples, 'temperature');
 
         $latest = $samples !== [] ? $samples[array_key_last($samples)] : null;
+        $latestProcessCount = $this->extractPayloadValue($latest, 'process_count');
+        $latestTemperature = $this->extractTemperature($latest);
 
         return new Response($this->twig->render('admin/metrics/index.html.twig', [
             'activeNav' => 'metrics',
@@ -65,11 +69,15 @@ final class AdminMetricsController
             'diskPoints' => $this->buildSparklinePoints($diskSeries),
             'netSentPoints' => $this->buildSparklinePoints($netSentSeries),
             'netRecvPoints' => $this->buildSparklinePoints($netRecvSeries),
+            'processPoints' => $this->buildSparklinePoints($processSeries),
+            'temperaturePoints' => $this->buildSparklinePoints($temperatureSeries),
             'latestCpu' => $latest['cpuPercent'] ?? null,
             'latestMemory' => $latest['memoryPercent'] ?? null,
             'latestDisk' => $latest['diskPercent'] ?? null,
             'latestNetSent' => $latest['netBytesSent'] ?? null,
             'latestNetRecv' => $latest['netBytesRecv'] ?? null,
+            'latestProcessCount' => $latestProcessCount,
+            'latestTemperature' => $latestTemperature,
         ]));
     }
 
@@ -105,6 +113,8 @@ final class AdminMetricsController
                 'disk' => $sample['diskPercent'] ?? null,
                 'net_sent' => $sample['netBytesSent'] ?? null,
                 'net_recv' => $sample['netBytesRecv'] ?? null,
+                'process_count' => $this->extractPayloadValue($sample, 'process_count'),
+                'temperature' => $this->extractTemperature($sample),
                 default => null,
             };
 
@@ -114,6 +124,44 @@ final class AdminMetricsController
         }
 
         return $values;
+    }
+
+    private function extractPayloadValue(?array $sample, string $key): ?float
+    {
+        if (!is_array($sample)) {
+            return null;
+        }
+        $payload = $sample['payload'] ?? null;
+        if (!is_array($payload)) {
+            return null;
+        }
+        $value = $payload[$key] ?? null;
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    private function extractTemperature(?array $sample): ?float
+    {
+        if (!is_array($sample)) {
+            return null;
+        }
+        $payload = $sample['payload'] ?? null;
+        if (!is_array($payload)) {
+            return null;
+        }
+        $temperature = $payload['temperature'] ?? null;
+        if (!is_array($temperature)) {
+            return null;
+        }
+        $value = $temperature['celsius'] ?? null;
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
     }
 
     private function buildSparklinePoints(array $values, int $width = 240, int $height = 60): ?string

@@ -21,6 +21,17 @@ use Twig\Environment;
 #[Route(path: '/mail')]
 final class CustomerMailController
 {
+    private const DEFAULT_IMAP_PORT = 993;
+    private const DEFAULT_SMTP_PORT = 587;
+    private const DEFAULT_IMAP_ENCRYPTION = 'ssl_tls';
+    private const DEFAULT_SMTP_ENCRYPTION = 'starttls';
+
+    private const ENCRYPTION_LABELS = [
+        'ssl_tls' => 'SSL/TLS',
+        'starttls' => 'STARTTLS',
+        'none' => 'None',
+    ];
+
     public function __construct(
         private readonly MailboxRepository $mailboxRepository,
         private readonly DomainRepository $domainRepository,
@@ -42,6 +53,7 @@ final class CustomerMailController
             'activeNav' => 'mail',
             'mailboxes' => $this->normalizeMailboxes($mailboxes),
             'domains' => $domains,
+            'client_settings' => $this->buildClientSettings($domains),
         ]));
     }
 
@@ -121,6 +133,136 @@ final class CustomerMailController
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
     }
 
+    #[Route(path: '/{id}/quota', name: 'customer_mail_quota_update', methods: ['POST'])]
+    public function updateQuota(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $mailbox = $this->loadMailbox($customer, $id);
+        if ($mailbox === null) {
+            return $this->renderWithErrors($customer, ['Mailbox not found.']);
+        }
+
+        $quotaValue = $request->request->get('quota', '');
+        if ($quotaValue === '' || !is_numeric($quotaValue)) {
+            return $this->renderWithErrors($customer, ['Quota must be numeric.']);
+        }
+
+        $quota = (int) $quotaValue;
+        if ($quota < 0) {
+            return $this->renderWithErrors($customer, ['Quota must be zero or positive.']);
+        }
+
+        if ($quota !== $mailbox->getQuota()) {
+            $previousQuota = $mailbox->getQuota();
+            $mailbox->setQuota($quota);
+            $job = $this->queueMailboxJob('mailbox.quota.update', $mailbox, [
+                'quota_mb' => (string) $quota,
+            ]);
+
+            $this->auditLogger->log($customer, 'mailbox.quota_updated', [
+                'mailbox_id' => $mailbox->getId(),
+                'address' => $mailbox->getAddress(),
+                'previous_quota' => $previousQuota,
+                'quota' => $quota,
+                'job_id' => $job->getId(),
+            ]);
+        }
+
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+    }
+
+    #[Route(path: '/{id}/status', name: 'customer_mail_status_update', methods: ['POST'])]
+    public function updateStatus(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $mailbox = $this->loadMailbox($customer, $id);
+        if ($mailbox === null) {
+            return $this->renderWithErrors($customer, ['Mailbox not found.']);
+        }
+
+        $enabled = $request->request->get('enabled') === '1';
+        if ($enabled !== $mailbox->isEnabled()) {
+            $previousEnabled = $mailbox->isEnabled();
+            $mailbox->setEnabled($enabled);
+            $jobType = $enabled ? 'mailbox.enable' : 'mailbox.disable';
+            $job = $this->queueMailboxJob($jobType, $mailbox, [
+                'enabled' => $enabled ? 'true' : 'false',
+            ]);
+
+            $this->auditLogger->log($customer, $enabled ? 'mailbox.enabled' : 'mailbox.disabled', [
+                'mailbox_id' => $mailbox->getId(),
+                'address' => $mailbox->getAddress(),
+                'previous_enabled' => $previousEnabled,
+                'enabled' => $enabled,
+                'job_id' => $job->getId(),
+            ]);
+        }
+
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+    }
+
+    #[Route(path: '/{id}/password', name: 'customer_mail_password_reset', methods: ['POST'])]
+    public function resetPassword(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $mailbox = $this->loadMailbox($customer, $id);
+        if ($mailbox === null) {
+            return $this->renderWithErrors($customer, ['Mailbox not found.']);
+        }
+
+        $password = trim((string) $request->request->get('password', ''));
+        if ($password === '') {
+            return $this->renderWithErrors($customer, ['Password is required.']);
+        }
+        if (mb_strlen($password) < 8) {
+            return $this->renderWithErrors($customer, ['Password must be at least 8 characters.']);
+        }
+
+        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $secretPayload = $this->encryptionService->encrypt($password);
+        $mailbox->setPassword($passwordHash, $secretPayload);
+        $job = $this->queueMailboxJob('mailbox.password.reset', $mailbox, [
+            'password_hash' => $passwordHash,
+        ]);
+
+        $this->auditLogger->log($customer, 'mailbox.password_reset', [
+            'mailbox_id' => $mailbox->getId(),
+            'address' => $mailbox->getAddress(),
+            'job_id' => $job->getId(),
+        ]);
+
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+    }
+
+    #[Route(path: '/{id}/delete', name: 'customer_mail_delete', methods: ['POST'])]
+    public function delete(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $mailbox = $this->loadMailbox($customer, $id);
+        if ($mailbox === null) {
+            return $this->renderWithErrors($customer, ['Mailbox not found.']);
+        }
+
+        $job = $this->queueMailboxJob('mailbox.delete', $mailbox, []);
+
+        $this->auditLogger->log($customer, 'mailbox.deleted', [
+            'mailbox_id' => $mailbox->getId(),
+            'address' => $mailbox->getAddress(),
+            'job_id' => $job->getId(),
+        ]);
+
+        $this->entityManager->remove($mailbox);
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+    }
+
     private function requireCustomer(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
@@ -140,8 +282,19 @@ final class CustomerMailController
             'activeNav' => 'mail',
             'mailboxes' => $this->normalizeMailboxes($mailboxes),
             'domains' => $domains,
+            'client_settings' => $this->buildClientSettings($domains),
             'errors' => $errors,
         ]), Response::HTTP_BAD_REQUEST);
+    }
+
+    private function loadMailbox(User $customer, int $id): ?Mailbox
+    {
+        $mailbox = $this->mailboxRepository->find($id);
+        if ($mailbox === null || $mailbox->getCustomer()->getId() !== $customer->getId()) {
+            return null;
+        }
+
+        return $mailbox;
     }
 
     private function queueMailboxJob(string $type, Mailbox $mailbox, array $extraPayload): Job
@@ -178,5 +331,85 @@ final class CustomerMailController
                 'updated_at' => $mailbox->getUpdatedAt(),
             ];
         }, $mailboxes);
+    }
+
+    /**
+     * @param \App\Module\Core\Domain\Entity\Domain[] $domains
+     */
+    private function buildClientSettings(array $domains): array
+    {
+        $settings = [];
+
+        foreach ($domains as $domain) {
+            $node = $domain->getWebspace()->getNode();
+            $metadata = $node->getMetadata();
+            $metadata = is_array($metadata) ? $metadata : [];
+            $defaultHost = sprintf('mail.%s', $domain->getName());
+            $imapHost = $this->resolveMetadataValue($metadata, 'mail_imap_host', 'mail_host', $defaultHost);
+            $smtpHost = $this->resolveMetadataValue($metadata, 'mail_smtp_host', 'mail_host', $defaultHost);
+
+            $imapPort = $this->resolvePort($metadata['mail_imap_port'] ?? null, self::DEFAULT_IMAP_PORT);
+            $smtpPort = $this->resolvePort($metadata['mail_smtp_port'] ?? null, self::DEFAULT_SMTP_PORT);
+
+            $imapEncryption = $this->normalizeEncryption($metadata['mail_imap_encryption'] ?? null, self::DEFAULT_IMAP_ENCRYPTION);
+            $smtpEncryption = $this->normalizeEncryption($metadata['mail_smtp_encryption'] ?? null, self::DEFAULT_SMTP_ENCRYPTION);
+
+            $settings[] = [
+                'domain' => $domain->getName(),
+                'imap' => [
+                    'host' => $imapHost,
+                    'port' => $imapPort,
+                    'encryption' => self::ENCRYPTION_LABELS[$imapEncryption] ?? $imapEncryption,
+                ],
+                'smtp' => [
+                    'host' => $smtpHost,
+                    'port' => $smtpPort,
+                    'encryption' => self::ENCRYPTION_LABELS[$smtpEncryption] ?? $smtpEncryption,
+                ],
+            ];
+        }
+
+        return $settings;
+    }
+
+    private function resolveMetadataValue(array $metadata, string $primaryKey, string $fallbackKey, string $default): string
+    {
+        $primary = $metadata[$primaryKey] ?? null;
+        if (is_string($primary) && trim($primary) !== '') {
+            return trim($primary);
+        }
+
+        $fallback = $metadata[$fallbackKey] ?? null;
+        if (is_string($fallback) && trim($fallback) !== '') {
+            return trim($fallback);
+        }
+
+        return $default;
+    }
+
+    private function resolvePort(mixed $value, int $default): int
+    {
+        if (is_numeric($value)) {
+            $port = (int) $value;
+            if ($port > 0) {
+                return $port;
+            }
+        }
+
+        return $default;
+    }
+
+    private function normalizeEncryption(mixed $value, string $default): string
+    {
+        if (!is_string($value)) {
+            return $default;
+        }
+
+        $value = strtolower(trim($value));
+        if (!array_key_exists($value, self::ENCRYPTION_LABELS)) {
+            return $default;
+        }
+
+        return $value;
     }
 }

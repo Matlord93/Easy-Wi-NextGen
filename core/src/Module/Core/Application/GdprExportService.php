@@ -7,6 +7,7 @@ namespace App\Module\Core\Application;
 use App\Module\Core\Domain\Entity\GdprExport;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\BackupDefinitionRepository;
+use App\Repository\BackupTargetRepository;
 use App\Repository\ConsentLogRepository;
 use App\Repository\CustomerProfileRepository;
 use App\Repository\DatabaseRepository;
@@ -43,6 +44,7 @@ final class GdprExportService
         private readonly MailboxRepository $mailboxRepository,
         private readonly MailAliasRepository $mailAliasRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
+        private readonly BackupTargetRepository $backupTargetRepository,
         private readonly DnsRecordRepository $dnsRecordRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly PortBlockRepository $portBlockRepository,
@@ -270,6 +272,15 @@ final class GdprExportService
                         'created_at' => $backup->getCreatedAt()->format(DATE_RFC3339),
                     ];
                 }, $this->backupDefinitionRepository->findByCustomer($customer)),
+                'backup_targets' => array_map(static function ($target): array {
+                    return [
+                        'id' => $target->getId(),
+                        'label' => $target->getLabel(),
+                        'type' => $target->getType()->value,
+                        'config' => $target->getConfig(),
+                        'created_at' => $target->getCreatedAt()->format(DATE_RFC3339),
+                    ];
+                }, $this->backupTargetRepository->findByCustomer($customer)),
                 'dns_records' => array_map(static function ($record): array {
                     return [
                         'id' => $record->getId(),

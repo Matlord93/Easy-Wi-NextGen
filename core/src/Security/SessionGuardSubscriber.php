@@ -18,6 +18,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         private readonly SessionAuthenticator $sessionAuthenticator,
         private readonly PortalAccessPolicy $portalAccessPolicy,
         private readonly InstallerService $installerService,
+        private readonly TwoFactorPolicy $twoFactorPolicy,
     ) {
     }
 
@@ -68,6 +69,15 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
 
         if (!$this->portalAccessPolicy->isAllowed($user, $path)) {
             $event->setResponse($this->forbiddenResponse($request));
+            return;
+        }
+
+        if ($this->twoFactorPolicy->isRequired($user) && !$user->isTotpEnabled()) {
+            if ($this->isTwoFactorEnrollmentPath($path)) {
+                return;
+            }
+
+            $event->setResponse($this->twoFactorRequiredResponse($request));
             return;
         }
     }
@@ -138,5 +148,23 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         }
 
         return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+    }
+
+    private function twoFactorRequiredResponse(Request $request): Response
+    {
+        if (str_starts_with($request->getPathInfo(), '/api/')) {
+            return new JsonResponse(['error' => 'Two-factor authentication required.'], Response::HTTP_FORBIDDEN);
+        }
+
+        return new Response('Two-factor authentication required.', Response::HTTP_FORBIDDEN);
+    }
+
+    private function isTwoFactorEnrollmentPath(string $path): bool
+    {
+        return $path === '/profile/security'
+            || str_starts_with($path, '/profile/security/')
+            || $path === '/admin/profile'
+            || str_starts_with($path, '/admin/profile/')
+            || $path === '/logout';
     }
 }

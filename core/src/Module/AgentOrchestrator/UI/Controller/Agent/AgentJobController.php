@@ -114,7 +114,7 @@ final class AgentJobController
 
     private function requireAgent(Request $request, string $nodeId): \App\Module\Core\Domain\Entity\Agent
     {
-        $agentId = (string) $request->headers->get('X-Agent-ID', '');
+        $agentId = AgentSignatureVerifier::normalizeAgentIdHeaderValue($request->headers->get('X-Agent-ID'));
         if ($agentId === '' || $agentId !== $nodeId) {
             throw new UnauthorizedHttpException('hmac', 'Missing or mismatched agent id.');
         }

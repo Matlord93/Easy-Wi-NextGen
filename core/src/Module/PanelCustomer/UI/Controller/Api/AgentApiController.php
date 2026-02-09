@@ -8,6 +8,7 @@ use App\Module\Core\Domain\Entity\DdosPolicy;
 use App\Module\Core\Domain\Entity\DdosStatus;
 use App\Module\Core\Domain\Entity\JobResult;
 use App\Module\Core\Domain\Entity\MetricSample;
+use App\Module\Core\Domain\Entity\SecurityEvent;
 use App\Module\Core\Domain\Enum\BackupStatus;
 use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
@@ -21,6 +22,7 @@ use App\Repository\GdprDeletionRequestRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Repository\PublicServerRepository;
+use App\Repository\SecurityPolicyRevisionRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts6InstanceRepository;
 use App\Repository\UserRepository;
@@ -69,6 +71,7 @@ final class AgentApiController
         private readonly BackupRepository $backupRepository,
         private readonly DdosPolicyRepository $ddosPolicyRepository,
         private readonly DdosStatusRepository $ddosStatusRepository,
+        private readonly SecurityPolicyRevisionRepository $policyRevisionRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
@@ -353,6 +356,9 @@ final class AgentApiController
         }
         $this->applyDdosStatusFromJob($job, $resultStatus, $agent, $output, $completedAt);
         $this->applyDdosPolicyFromJob($job, $resultStatus, $agent, $output, $completedAt);
+        $this->applyFail2banStatusFromJob($job, $resultStatus, $agent, $output, $completedAt);
+        $this->applyFail2banPolicyFromJob($job, $resultStatus, $agent, $output, $completedAt);
+        $this->applyPolicyRevisionStatusFromJob($job, $resultStatus, $completedAt);
         $this->applyTs3UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->applyTs6UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->applyInstanceUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
@@ -540,13 +546,21 @@ final class AgentApiController
 
     private function requireAgent(Request $request): \App\Module\Core\Domain\Entity\Agent
     {
-        $agentId = (string) $request->headers->get('X-Agent-ID', '');
+        $rawAgentHeader = $request->headers->get('X-Agent-ID');
+        $agentId = AgentSignatureVerifier::normalizeAgentIdHeaderValue($rawAgentHeader);
         if ($agentId === '') {
             throw new UnauthorizedHttpException('hmac', 'Missing agent id.');
         }
 
         $agent = $this->agentRepository->find($agentId);
         if ($agent === null) {
+            $this->logger->warning('Agent not found for request.', [
+                'agent_id' => $agentId,
+                'agent_id_header' => $rawAgentHeader,
+                'method' => $request->getMethod(),
+                'path' => $request->getPathInfo(),
+                'client_ip' => $request->getClientIp(),
+            ]);
             throw new UnauthorizedHttpException('hmac', 'Unknown agent.');
         }
 
@@ -774,6 +788,20 @@ final class AgentApiController
             'mode' => $mode,
             'reported_at' => $reportedAt->format(DATE_RFC3339),
         ]);
+
+        if ($attackActive) {
+            $event = new SecurityEvent(
+                $agent,
+                'blocked',
+                'ddos',
+                'attack_active',
+                null,
+                null,
+                $connectionCount,
+                $reportedAt,
+            );
+            $this->entityManager->persist($event);
+        }
     }
 
     private function applyDdosPolicyFromJob(
@@ -826,6 +854,129 @@ final class AgentApiController
             'protocols' => $protocols,
             'applied_at' => $appliedAt->format(DATE_RFC3339),
         ]);
+    }
+
+    private function applyFail2banStatusFromJob(
+        \App\Module\Core\Domain\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        \App\Module\Core\Domain\Entity\Agent $agent,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'fail2ban.status.check') {
+            return;
+        }
+
+        if ($resultStatus !== JobResultStatus::Succeeded) {
+            return;
+        }
+
+        $jails = $output['jails'] ?? null;
+        if (is_string($jails) && $jails !== '') {
+            $decoded = json_decode($jails, true);
+            $jails = is_array($decoded) ? $decoded : null;
+        }
+        if (!is_array($jails)) {
+            return;
+        }
+
+        foreach ($jails as $jail) {
+            if (!is_array($jail)) {
+                continue;
+            }
+
+            $name = is_string($jail['name'] ?? null) ? (string) $jail['name'] : null;
+            $banned = $jail['banned'] ?? null;
+            $banned = is_numeric($banned) ? (int) $banned : null;
+            $bannedIps = $jail['banned_ips'] ?? [];
+            if (!is_array($bannedIps)) {
+                $bannedIps = [];
+            }
+
+            foreach ($bannedIps as $ip) {
+                if (!is_string($ip) || trim($ip) === '') {
+                    continue;
+                }
+
+                $event = new SecurityEvent(
+                    $agent,
+                    'blocked',
+                    'fail2ban',
+                    $name === null ? null : sprintf('jail:%s', $name),
+                    $ip,
+                    $name,
+                    1,
+                    $completedAt,
+                );
+                $this->entityManager->persist($event);
+            }
+
+            if ($banned !== null) {
+                $event = new SecurityEvent(
+                    $agent,
+                    'blocked',
+                    'fail2ban',
+                    $name === null ? null : sprintf('jail:%s', $name),
+                    null,
+                    $name,
+                    $banned,
+                    $completedAt,
+                );
+                $this->entityManager->persist($event);
+            }
+        }
+
+        $this->auditLogger->log(null, 'fail2ban.status.reported', [
+            'agent_id' => $agent->getId(),
+            'reported_at' => $completedAt->format(DATE_RFC3339),
+        ]);
+    }
+
+    private function applyFail2banPolicyFromJob(
+        \App\Module\Core\Domain\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        \App\Module\Core\Domain\Entity\Agent $agent,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'fail2ban.policy.apply') {
+            return;
+        }
+
+        if ($resultStatus !== JobResultStatus::Succeeded) {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $policy = is_array($payload['policy'] ?? null) ? $payload['policy'] : [];
+        $this->auditLogger->log(null, 'fail2ban.policy.applied', [
+            'agent_id' => $agent->getId(),
+            'policy' => $policy,
+            'applied_at' => $completedAt->format(DATE_RFC3339),
+        ]);
+    }
+
+    private function applyPolicyRevisionStatusFromJob(
+        \App\Module\Core\Domain\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        DateTimeImmutable $completedAt,
+    ): void {
+        $payload = $job->getPayload();
+        $revisionId = $payload['policy_revision_id'] ?? null;
+        if (!is_int($revisionId) && !is_string($revisionId)) {
+            return;
+        }
+
+        $revision = $this->policyRevisionRepository->find((int) $revisionId);
+        if ($revision === null) {
+            return;
+        }
+
+        if ($resultStatus === JobResultStatus::Succeeded) {
+            $revision->markApplied($completedAt);
+        } elseif ($resultStatus === JobResultStatus::Failed) {
+            $revision->markFailed();
+        }
     }
 
     private function parseDdosTimestamp(mixed $value, DateTimeImmutable $fallback): DateTimeImmutable
@@ -961,7 +1112,7 @@ final class AgentApiController
             return;
         }
 
-        if ($job->getType() === 'domain.add') {
+        if (in_array($job->getType(), ['domain.add', 'domain.update'], true)) {
             $status = match ($resultStatus) {
                 JobResultStatus::Succeeded => 'active',
                 JobResultStatus::Failed => 'failed',

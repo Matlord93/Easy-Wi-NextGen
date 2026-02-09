@@ -29,6 +29,21 @@ class Site
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $cmsTemplateKey = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $maintenanceEnabled = false;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $maintenanceMessage = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $maintenanceAllowlist = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $maintenanceStartsAt = null;
+
+    #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    private ?\DateTimeImmutable $maintenanceEndsAt = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -95,6 +110,63 @@ class Site
     public function setCmsTemplateKey(?string $cmsTemplateKey): void
     {
         $this->cmsTemplateKey = $cmsTemplateKey;
+        $this->touch();
+    }
+
+    public function isMaintenanceEnabled(): bool
+    {
+        return $this->maintenanceEnabled;
+    }
+
+    public function setMaintenanceEnabled(bool $maintenanceEnabled): void
+    {
+        $this->maintenanceEnabled = $maintenanceEnabled;
+        $this->touch();
+    }
+
+    public function getMaintenanceMessage(): string
+    {
+        return $this->maintenanceMessage ?? '';
+    }
+
+    public function setMaintenanceMessage(?string $maintenanceMessage): void
+    {
+        $maintenanceMessage = $maintenanceMessage === null ? null : trim($maintenanceMessage);
+        $this->maintenanceMessage = $maintenanceMessage === '' ? null : $maintenanceMessage;
+        $this->touch();
+    }
+
+    public function getMaintenanceAllowlist(): string
+    {
+        return $this->maintenanceAllowlist ?? '';
+    }
+
+    public function setMaintenanceAllowlist(?string $maintenanceAllowlist): void
+    {
+        $maintenanceAllowlist = $maintenanceAllowlist === null ? null : trim($maintenanceAllowlist);
+        $this->maintenanceAllowlist = $maintenanceAllowlist === '' ? null : $maintenanceAllowlist;
+        $this->touch();
+    }
+
+    public function getMaintenanceStartsAt(): ?\DateTimeImmutable
+    {
+        return $this->maintenanceStartsAt;
+    }
+
+    public function setMaintenanceStartsAt(?\DateTimeImmutable $maintenanceStartsAt): void
+    {
+        $this->maintenanceStartsAt = $maintenanceStartsAt;
+        $this->touch();
+    }
+
+    public function getMaintenanceEndsAt(): ?\DateTimeImmutable
+    {
+        return $this->maintenanceEndsAt;
+    }
+
+    public function setMaintenanceEndsAt(?\DateTimeImmutable $maintenanceEndsAt): void
+    {
+        $this->maintenanceEndsAt = $maintenanceEndsAt;
         $this->touch();
     }
 

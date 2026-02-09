@@ -10,10 +10,10 @@ use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\AgentCreator;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -34,8 +34,7 @@ final class AgentRegistrationController
         private readonly AgentSignatureVerifier $signatureVerifier,
         private readonly AgentCreator $agentCreator,
         private readonly AuditLogger $auditLogger,
-        #[Autowire('%env(default::AGENT_REGISTRATION_TOKEN)%')]
-        private readonly string $registrationToken,
+        private readonly AppSettingsService $appSettingsService,
     ) {
     }
 
@@ -72,11 +71,7 @@ final class AgentRegistrationController
 
             $signatureSecret = $registerToken;
         } else {
-            if ($this->registrationToken === '') {
-                throw new ServiceUnavailableHttpException(null, 'Agent registration token is not configured.');
-            }
-
-            $signatureSecret = $this->registrationToken;
+            $signatureSecret = $this->appSettingsService->getAgentRegistrationToken();
         }
 
         if ($agentId === '') {

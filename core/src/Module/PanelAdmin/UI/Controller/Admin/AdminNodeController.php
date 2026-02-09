@@ -8,6 +8,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
+use App\Repository\AgentJobRepository;
 use App\Repository\DdosStatusRepository;
 use App\Repository\JobRepository;
 use App\Module\Core\Application\AgentReleaseChecker;
@@ -21,6 +22,12 @@ use RuntimeException;
 use App\Repository\FirewallStateRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\MetricSampleRepository;
+use App\Module\Core\Domain\Entity\AgentRegistrationToken;
+use App\Module\Core\Domain\Entity\LogIndex;
+use App\Module\Core\Domain\Entity\ShopProduct;
+use App\Module\Ports\Domain\Entity\PortAllocation;
+use App\Module\Ports\Domain\Entity\PortPool;
+use App\Module\Ports\Domain\Entity\PortRange;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts6InstanceRepository;
 use App\Repository\UserRepository;
@@ -39,6 +46,7 @@ final class AdminNodeController
 
     public function __construct(
         private readonly AgentRepository $agentRepository,
+        private readonly AgentJobRepository $agentJobRepository,
         private readonly JobRepository $jobRepository,
         private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly Environment $twig,
@@ -89,6 +97,9 @@ final class AdminNodeController
         if ($selectedNode !== null) {
             $selectedNodeEntity = $nodeIndex[$selectedNode['id']] ?? null;
             if ($selectedNodeEntity !== null) {
+                $selectedNode['logs'] = $this->normalizeAgentJobs(
+                    $this->agentJobRepository->findLatestForNodeAndTypes($selectedNodeEntity->getId(), [], 8),
+                );
                 $usage = $this->buildNodeUsage($selectedNodeEntity);
                 $selectedNode['delete'] = [
                     'allowed' => !$this->hasNodeUsage($usage),
@@ -395,6 +406,72 @@ final class AdminNodeController
         return $this->renderNodesTable('Disk settings updated.');
     }
 
+    #[Route(path: '/{id}/mail-settings', name: 'admin_nodes_mail_settings', methods: ['POST'])]
+    public function updateMailSettings(Request $request, string $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $node = $this->agentRepository->find($id);
+        if ($node === null) {
+            return new Response('Node not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $metadata = $node->getMetadata() ?? [];
+        $existingMetadata = $metadata;
+        $errors = [];
+
+        $mailHost = $this->normalizeOptionalString($request->request->get('mail_host'));
+        $mailImapHost = $this->normalizeOptionalString($request->request->get('mail_imap_host'));
+        $mailSmtpHost = $this->normalizeOptionalString($request->request->get('mail_smtp_host'));
+
+        $imapPort = $this->parseOptionalPort($request->request->get('mail_imap_port'), $errors, 'IMAP');
+        $smtpPort = $this->parseOptionalPort($request->request->get('mail_smtp_port'), $errors, 'SMTP');
+
+        $imapEncryption = $this->normalizeOptionalString($request->request->get('mail_imap_encryption'));
+        $smtpEncryption = $this->normalizeOptionalString($request->request->get('mail_smtp_encryption'));
+        $allowedEncryptions = ['ssl_tls', 'starttls', 'none'];
+        if ($imapEncryption !== null && !in_array($imapEncryption, $allowedEncryptions, true)) {
+            $errors[] = 'IMAP encryption must be SSL/TLS, STARTTLS, or None.';
+        }
+        if ($smtpEncryption !== null && !in_array($smtpEncryption, $allowedEncryptions, true)) {
+            $errors[] = 'SMTP encryption must be SSL/TLS, STARTTLS, or None.';
+        }
+
+        if ($errors !== []) {
+            return $this->renderNodesTable(null, implode(' ', $errors));
+        }
+
+        $this->applyMetadataValue($metadata, 'mail_host', $mailHost);
+        $this->applyMetadataValue($metadata, 'mail_imap_host', $mailImapHost);
+        $this->applyMetadataValue($metadata, 'mail_smtp_host', $mailSmtpHost);
+        $this->applyMetadataValue($metadata, 'mail_imap_port', $imapPort === null ? null : (string) $imapPort);
+        $this->applyMetadataValue($metadata, 'mail_smtp_port', $smtpPort === null ? null : (string) $smtpPort);
+        $this->applyMetadataValue($metadata, 'mail_imap_encryption', $imapEncryption);
+        $this->applyMetadataValue($metadata, 'mail_smtp_encryption', $smtpEncryption);
+
+        if ($metadata !== $existingMetadata) {
+            $node->setMetadata($metadata === [] ? null : $metadata);
+
+            $this->auditLogger->log($actor, 'node.mail_settings_updated', [
+                'node_id' => $node->getId(),
+                'mail_host' => $mailHost,
+                'mail_imap_host' => $mailImapHost,
+                'mail_smtp_host' => $mailSmtpHost,
+                'mail_imap_port' => $imapPort,
+                'mail_smtp_port' => $smtpPort,
+                'mail_imap_encryption' => $imapEncryption,
+                'mail_smtp_encryption' => $smtpEncryption,
+            ]);
+
+            $this->entityManager->flush();
+        }
+
+        return $this->renderNodesTable('Mail settings updated.');
+    }
+
     #[Route(path: '/{id}/agent-settings', name: 'admin_nodes_agent_settings', methods: ['POST'])]
     public function updateAgentSettings(Request $request, string $id): Response
     {
@@ -645,6 +722,11 @@ final class AdminNodeController
         $usageMessage = $this->formatNodeUsageMessage($usage);
         if ($usageMessage !== null) {
             return $this->renderNodesTable(null, $usageMessage);
+        }
+
+        $confirmId = trim((string) $request->request->get('confirm_id', ''));
+        if ($confirmId !== $node->getId()) {
+            return $this->renderNodesTable(null, 'Deletion requires confirming the Agent ID.');
         }
 
         $this->removeNodeArtifacts($node);
@@ -958,7 +1040,7 @@ final class AdminNodeController
     }
 
     /**
-     * @return array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int}
+     * @return array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int, running_jobs: int, running_agent_jobs: int}
      */
     private function buildNodeUsage(\App\Module\Core\Domain\Entity\Agent $node): array
     {
@@ -967,11 +1049,13 @@ final class AdminNodeController
             'webspaces' => $this->webspaceRepository->count(['node' => $node]),
             'ts3_instances' => $this->ts3InstanceRepository->count(['node' => $node]),
             'ts6_instances' => $this->ts6InstanceRepository->count(['node' => $node]),
+            'running_jobs' => $this->jobRepository->countRunningByAgent($node->getId()),
+            'running_agent_jobs' => $this->agentJobRepository->countRunningForNode($node->getId()),
         ];
     }
 
     /**
-     * @param array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int} $usage
+     * @param array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int, running_jobs: int, running_agent_jobs: int} $usage
      */
     private function hasNodeUsage(array $usage): bool
     {
@@ -979,7 +1063,7 @@ final class AdminNodeController
     }
 
     /**
-     * @param array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int} $usage
+     * @param array{instances: int, webspaces: int, ts3_instances: int, ts6_instances: int, running_jobs: int, running_agent_jobs: int} $usage
      */
     private function formatNodeUsageMessage(array $usage): ?string
     {
@@ -988,6 +1072,8 @@ final class AdminNodeController
             'webspaces' => 'webspaces',
             'ts3_instances' => 'TS3 instances',
             'ts6_instances' => 'TS6 instances',
+            'running_jobs' => 'running jobs',
+            'running_agent_jobs' => 'running agent jobs',
         ];
         $parts = [];
 
@@ -1011,6 +1097,48 @@ final class AdminNodeController
         if ($firewallState !== null) {
             $this->entityManager->remove($firewallState);
         }
+
+        $this->entityManager->createQueryBuilder()
+            ->delete(AgentRegistrationToken::class, 'token')
+            ->where('token.agentId = :agentId')
+            ->setParameter('agentId', $node->getId())
+            ->getQuery()
+            ->execute();
+
+        $this->entityManager->createQueryBuilder()
+            ->delete(LogIndex::class, 'logIndex')
+            ->where('logIndex.agent = :agent')
+            ->setParameter('agent', $node)
+            ->getQuery()
+            ->execute();
+
+        $this->entityManager->createQueryBuilder()
+            ->delete(PortAllocation::class, 'allocation')
+            ->where('allocation.node = :agent')
+            ->setParameter('agent', $node)
+            ->getQuery()
+            ->execute();
+
+        $this->entityManager->createQueryBuilder()
+            ->delete(PortRange::class, 'range')
+            ->where('range.node = :agent')
+            ->setParameter('agent', $node)
+            ->getQuery()
+            ->execute();
+
+        $this->entityManager->createQueryBuilder()
+            ->delete(PortPool::class, 'pool')
+            ->where('pool.node = :agent')
+            ->setParameter('agent', $node)
+            ->getQuery()
+            ->execute();
+
+        $this->entityManager->createQueryBuilder()
+            ->delete(ShopProduct::class, 'product')
+            ->where('product.node = :agent')
+            ->setParameter('agent', $node)
+            ->getQuery()
+            ->execute();
 
         $this->metricSampleRepository->createQueryBuilder('sample')
             ->delete()
@@ -1069,6 +1197,7 @@ final class AdminNodeController
             $metadata = $node->getMetadata() ?? [];
             $coreAccessMode = $metadata['core_access_mode'] ?? null;
             $instanceBaseDirs = $this->normalizeInstanceBaseDirs($metadata['instance_base_dirs'] ?? null);
+            $mailSettings = $this->normalizeMailSettings($metadata);
 
             return [
                 'id' => $node->getId(),
@@ -1076,6 +1205,7 @@ final class AdminNodeController
                 'roles' => $normalizedRoles,
                 'roleKeys' => array_map('strtolower', $normalizedRoles),
                 'status' => $this->resolveNodeStatus($node),
+                'health' => $this->resolveNodeStatus($node),
                 'lastHeartbeatAt' => $node->getLastHeartbeatAt(),
                 'lastSeenAt' => $node->getLastSeenAt(),
                 'lastHeartbeatIp' => $node->getLastHeartbeatIp(),
@@ -1102,6 +1232,7 @@ final class AdminNodeController
                     'job_concurrency' => $node->getJobConcurrency(),
                     'instance_base_dirs' => $instanceBaseDirs,
                 ],
+                'mail' => $mailSettings,
                 'coreAccessMode' => is_string($coreAccessMode) ? $coreAccessMode : null,
                 'updateAvailable' => $this->releaseChecker->isUpdateAvailable($currentVersion, $latestVersion),
                 'latestVersion' => $latestVersion,
@@ -1131,6 +1262,87 @@ final class AdminNodeController
                 ],
             ];
         }, $nodes);
+    }
+
+    /**
+     * @param array<int, \App\Module\AgentOrchestrator\Domain\Entity\AgentJob> $jobs
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeAgentJobs(array $jobs): array
+    {
+        return array_map(static function (\App\Module\AgentOrchestrator\Domain\Entity\AgentJob $job): array {
+            return [
+                'id' => $job->getId(),
+                'type' => $job->getType(),
+                'status' => $job->getStatus()->value,
+                'createdAt' => $job->getCreatedAt(),
+                'startedAt' => $job->getStartedAt(),
+                'finishedAt' => $job->getFinishedAt(),
+                'logText' => $job->getLogText(),
+                'errorText' => $job->getErrorText(),
+                'retries' => $job->getRetries(),
+            ];
+        }, $jobs);
+    }
+
+    private function normalizeOptionalString(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private function parseOptionalPort(mixed $value, array &$errors, string $label): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (!is_numeric($value)) {
+            $errors[] = sprintf('%s port must be numeric.', $label);
+            return null;
+        }
+
+        $port = (int) $value;
+        if ($port < 1 || $port > 65535) {
+            $errors[] = sprintf('%s port must be between 1 and 65535.', $label);
+            return null;
+        }
+
+        return $port;
+    }
+
+    private function applyMetadataValue(array &$metadata, string $key, ?string $value): void
+    {
+        if ($value === null || $value === '') {
+            unset($metadata[$key]);
+            return;
+        }
+
+        $metadata[$key] = $value;
+    }
+
+    private function normalizeMailSettings(array $metadata): array
+    {
+        $imapPort = is_numeric($metadata['mail_imap_port'] ?? null) ? (int) $metadata['mail_imap_port'] : null;
+        $smtpPort = is_numeric($metadata['mail_smtp_port'] ?? null) ? (int) $metadata['mail_smtp_port'] : null;
+
+        return [
+            'host' => $this->normalizeOptionalString($metadata['mail_host'] ?? null),
+            'imap_host' => $this->normalizeOptionalString($metadata['mail_imap_host'] ?? null),
+            'smtp_host' => $this->normalizeOptionalString($metadata['mail_smtp_host'] ?? null),
+            'imap_port' => $imapPort,
+            'smtp_port' => $smtpPort,
+            'imap_encryption' => $this->normalizeOptionalString($metadata['mail_imap_encryption'] ?? null),
+            'smtp_encryption' => $this->normalizeOptionalString($metadata['mail_smtp_encryption'] ?? null),
+        ];
     }
 
     /**

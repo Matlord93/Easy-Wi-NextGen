@@ -15,6 +15,7 @@ use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\FileServiceClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -35,6 +36,7 @@ final class CustomerInstanceFileManagerController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $appSettingsService,
+        private readonly FileServiceClient $fileServiceClient,
         private readonly Environment $twig,
     ) {
     }
@@ -46,12 +48,30 @@ final class CustomerInstanceFileManagerController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $path = trim((string) $request->query->get('path', ''));
+        $fileApiAvailable = true;
+        $fileApiError = null;
 
-        return new Response($this->twig->render('customer/instances/files/index.html.twig', [
+        try {
+            $ping = $this->fileServiceClient->ping($instance);
+            $fileApiAvailable = (bool) ($ping['ok'] ?? false);
+            if (!$fileApiAvailable) {
+                $fileApiError = is_string($ping['error'] ?? null) ? (string) $ping['error'] : null;
+            }
+        } catch (\Throwable $exception) {
+            $fileApiAvailable = false;
+            $fileApiError = $exception->getMessage();
+        }
+
+        $template = $fileApiAvailable
+            ? 'customer/instances/files/index.html.twig'
+            : 'customer/instances/files/legacy.html.twig';
+
+        return new Response($this->twig->render($template, [
             'instance' => $this->normalizeInstance($instance),
             'configFiles' => $this->normalizeConfigFiles($instance->getTemplate()->getConfigFiles()),
             'availablePlugins' => $this->normalizePlugins($instance),
             'path' => $path,
+            'fileApiError' => $fileApiError,
             'activeNav' => 'instances',
         ]));
     }

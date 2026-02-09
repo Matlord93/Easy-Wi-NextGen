@@ -162,6 +162,10 @@
                                 <div class="nodes-meta__value">{{ selectedNode.lastHeartbeatVersion ?? '—' }}</div>
                             </div>
                             <div>
+                                <div class="nodes-meta__label">{{ t('admin_nodes_health', page_locale()) }}</div>
+                                <div class="nodes-meta__value">{{ selectedNode.health|title }}</div>
+                            </div>
+                            <div>
                                 <div class="nodes-meta__label">{{ t('admin_nodes_os_provider', page_locale()) }}</div>
                                 <div class="nodes-meta__value">{{ selectedNode.osProvider ?? '—' }}</div>
                             </div>
@@ -357,6 +361,97 @@
                         </form>
 
                         <form
+                            id="node-mail-settings-form"
+                            class="nodes-detail-card"
+                            hx-post="/admin/nodes/{{ selectedNode.id }}/mail-settings"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                        >
+                            <div class="nodes-detail-card__header">
+                                <div class="nodes-detail-card__title">{{ t('admin_nodes_mail_settings_title', page_locale()) }}</div>
+                            </div>
+                            <div class="nodes-form-grid">
+                                <div class="form-field">
+                                    <label class="form-label" for="mail_host">{{ t('admin_nodes_mail_host_label', page_locale()) }}</label>
+                                    <input
+                                        id="mail_host"
+                                        name="mail_host"
+                                        type="text"
+                                        value="{{ selectedNode.mail.host ?? '' }}"
+                                        placeholder="mail.example.com"
+                                        class="form-input"
+                                    >
+                                    <p class="text-xs text-slate-500">{{ t('admin_nodes_mail_host_hint', page_locale()) }}</p>
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="mail_imap_host">{{ t('admin_nodes_mail_imap_host_label', page_locale()) }}</label>
+                                    <input
+                                        id="mail_imap_host"
+                                        name="mail_imap_host"
+                                        type="text"
+                                        value="{{ selectedNode.mail.imap_host ?? '' }}"
+                                        placeholder="imap.example.com"
+                                        class="form-input"
+                                    >
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="mail_smtp_host">{{ t('admin_nodes_mail_smtp_host_label', page_locale()) }}</label>
+                                    <input
+                                        id="mail_smtp_host"
+                                        name="mail_smtp_host"
+                                        type="text"
+                                        value="{{ selectedNode.mail.smtp_host ?? '' }}"
+                                        placeholder="smtp.example.com"
+                                        class="form-input"
+                                    >
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="mail_imap_port">{{ t('admin_nodes_mail_imap_port_label', page_locale()) }}</label>
+                                    <input
+                                        id="mail_imap_port"
+                                        name="mail_imap_port"
+                                        type="number"
+                                        min="1"
+                                        max="65535"
+                                        value="{{ selectedNode.mail.imap_port ?? '' }}"
+                                        class="form-input"
+                                    >
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="mail_smtp_port">{{ t('admin_nodes_mail_smtp_port_label', page_locale()) }}</label>
+                                    <input
+                                        id="mail_smtp_port"
+                                        name="mail_smtp_port"
+                                        type="number"
+                                        min="1"
+                                        max="65535"
+                                        value="{{ selectedNode.mail.smtp_port ?? '' }}"
+                                        class="form-input"
+                                    >
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="mail_imap_encryption">{{ t('admin_nodes_mail_imap_encryption_label', page_locale()) }}</label>
+                                    <select id="mail_imap_encryption" name="mail_imap_encryption" class="form-input">
+                                        <option value="">{{ t('admin_nodes_mail_encryption_placeholder', page_locale()) }}</option>
+                                        <option value="ssl_tls" {% if selectedNode.mail.imap_encryption == 'ssl_tls' %}selected{% endif %}>SSL/TLS</option>
+                                        <option value="starttls" {% if selectedNode.mail.imap_encryption == 'starttls' %}selected{% endif %}>STARTTLS</option>
+                                        <option value="none" {% if selectedNode.mail.imap_encryption == 'none' %}selected{% endif %}>None</option>
+                                    </select>
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label" for="mail_smtp_encryption">{{ t('admin_nodes_mail_smtp_encryption_label', page_locale()) }}</label>
+                                    <select id="mail_smtp_encryption" name="mail_smtp_encryption" class="form-input">
+                                        <option value="">{{ t('admin_nodes_mail_encryption_placeholder', page_locale()) }}</option>
+                                        <option value="ssl_tls" {% if selectedNode.mail.smtp_encryption == 'ssl_tls' %}selected{% endif %}>SSL/TLS</option>
+                                        <option value="starttls" {% if selectedNode.mail.smtp_encryption == 'starttls' %}selected{% endif %}>STARTTLS</option>
+                                        <option value="none" {% if selectedNode.mail.smtp_encryption == 'none' %}selected{% endif %}>None</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_mail_save', page_locale()) }}</button>
+                        </form>
+
+                        <form
                             id="node-override-form"
                             class="nodes-detail-card"
                             hx-post="/admin/nodes/{{ selectedNode.id }}/disk-protection-override"
@@ -377,6 +472,69 @@
                                         min="0"
                                         class="form-input"
                                         placeholder="0"
+                                    >
+                                </div>
+                            </div>
+                        </form>
+
+                        <div class="nodes-detail-card">
+                            <div class="nodes-detail-card__header">
+                                <div class="nodes-detail-card__title">{{ t('admin_nodes_logs_title', page_locale()) }}</div>
+                                <a class="btn btn--secondary" href="/admin/jobs">{{ t('admin_nodes_logs_view_all', page_locale()) }}</a>
+                            </div>
+                            {% if selectedNode.logs is defined and selectedNode.logs is not empty %}
+                                <div class="divide-y divide-slate-100">
+                                    {% for log in selectedNode.logs %}
+                                        <div class="py-3">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="badge badge--neutral">{{ log.status|title }}</span>
+                                                <span class="text-sm font-medium text-slate-900">{{ log.type }}</span>
+                                                <span class="text-xs text-slate-500">{{ log.createdAt|date('Y-m-d H:i') }}</span>
+                                            </div>
+                                            {% if log.errorText %}
+                                                <div class="mt-2 text-xs text-rose-600 whitespace-pre-line">{{ log.errorText }}</div>
+                                            {% elseif log.logText %}
+                                                <div class="mt-2 text-xs text-slate-600 whitespace-pre-line">{{ log.logText }}</div>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-xs text-slate-500">{{ t('admin_nodes_logs_empty', page_locale()) }}</p>
+                            {% endif %}
+                        </div>
+
+                        <form
+                            class="nodes-detail-card"
+                            hx-post="/admin/nodes/{{ selectedNode.id }}/delete"
+                            hx-target="#nodes-table-wrap"
+                            hx-swap="innerHTML"
+                        >
+                            <div class="nodes-detail-card__header">
+                                <div class="nodes-detail-card__title">{{ t('admin_nodes_delete_title', page_locale()) }}</div>
+                                <button
+                                    class="btn btn--danger"
+                                    type="submit"
+                                    {% if selectedNode.delete is defined and selectedNode.delete.allowed is same as(false) %}
+                                        disabled
+                                        title="{{ selectedNode.delete.message }}"
+                                    {% endif %}
+                                >{{ t('admin_nodes_delete', page_locale()) }}</button>
+                            </div>
+                            <p class="text-xs text-slate-500">{{ t('admin_nodes_delete_hint', page_locale()) }}</p>
+                            {% if selectedNode.delete is defined and selectedNode.delete.allowed is same as(false) %}
+                                <p class="text-xs text-rose-600">{{ selectedNode.delete.message }}</p>
+                            {% endif %}
+                            <div class="nodes-form-grid nodes-form-grid--single">
+                                <div class="form-field">
+                                    <label class="form-label" for="confirm-id">{{ t('admin_nodes_delete_confirm_label', page_locale()) }}</label>
+                                    <input
+                                        id="confirm-id"
+                                        name="confirm_id"
+                                        type="text"
+                                        class="form-input"
+                                        placeholder="{{ selectedNode.id }}"
+                                        {% if selectedNode.delete is defined and selectedNode.delete.allowed is same as(false) %}disabled{% endif %}
                                     >
                                 </div>
                             </div>
@@ -403,18 +561,6 @@
                             hx-swap="innerHTML"
                             hx-confirm="{{ t('admin_nodes_reboot_confirm', page_locale()) }}"
                         >{{ t('admin_nodes_reboot', page_locale()) }}</button>
-                        <button
-                            class="btn btn--danger"
-                            hx-post="/admin/nodes/{{ selectedNode.id }}/delete"
-                            hx-target="#nodes-table-wrap"
-                            hx-swap="innerHTML"
-                            {% if selectedNode.delete is defined and selectedNode.delete.allowed is same as(false) %}
-                                disabled
-                                title="{{ selectedNode.delete.message }}"
-                            {% else %}
-                                hx-confirm="{{ t('admin_nodes_delete_confirm', page_locale())|replace({'%name%': selectedNode.name ?? t('admin_nodes_unnamed', page_locale())}) }}"
-                            {% endif %}
-                        >{{ t('admin_nodes_delete', page_locale()) }}</button>
                     </div>
                 {% else %}
                     <div class="nodes-detail__header">

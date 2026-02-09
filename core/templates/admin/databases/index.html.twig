@@ -37,6 +37,7 @@
                                 <th class="px-6 py-3">{{ t('admin_databases_table_name', page_locale()) }}</th>
                                 <th class="px-6 py-3">{{ t('admin_databases_table_engine', page_locale()) }}</th>
                                 <th class="px-6 py-3">{{ t('admin_databases_table_host', page_locale()) }}</th>
+                                <th class="px-6 py-3">{{ t('admin_databases_table_node', page_locale()) }}</th>
                                 <th class="px-6 py-3">{{ t('admin_databases_table_user', page_locale()) }}</th>
                                 <th class="px-6 py-3">{{ t('admin_databases_table_customer', page_locale()) }}</th>
                                 <th class="px-6 py-3">{{ t('admin_databases_table_updated', page_locale()) }}</th>
@@ -52,6 +53,14 @@
                                     </td>
                                     <td class="px-6 py-4 text-slate-600">{{ database.engine }}</td>
                                     <td class="px-6 py-4 text-slate-600">{{ database.host }}:{{ database.port }}</td>
+                                    <td class="px-6 py-4 text-slate-600">
+                                        {% if database.node is defined and database.node %}
+                                            <div class="font-semibold text-slate-900">{{ database.node.name }}</div>
+                                            <div class="text-xs text-slate-500">ID {{ database.node.id }}</div>
+                                        {% else %}
+                                            <span class="text-xs text-slate-400">{{ t('admin_databases_node_unassigned', page_locale()) }}</span>
+                                        {% endif %}
+                                    </td>
                                     <td class="px-6 py-4 text-slate-600">{{ database.username }}</td>
                                     <td class="px-6 py-4 text-slate-600">{{ database.customer.email }}</td>
                                     <td class="px-6 py-4 text-slate-600">{{ database.updatedAt|date('Y-m-d H:i') }}</td>
@@ -67,6 +76,11 @@
                                             >
                                             <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">
                                                 {{ t('admin_databases_reset', page_locale()) }}
+                                            </button>
+                                        </form>
+                                        <form method="post" action="/admin/databases/{{ database.id }}/delete" class="mt-3">
+                                            <button class="w-full rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">
+                                                {{ t('admin_databases_delete', page_locale()) }}
                                             </button>
                                         </form>
                                     </td>
@@ -94,20 +108,13 @@
                     </select>
                 </div>
                 <div>
-                    <label class="text-sm font-medium text-slate-700">{{ t('admin_databases_engine', page_locale()) }}</label>
-                    <select name="engine" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
-                        {% for engine in engines %}
-                            <option value="{{ engine }}">{{ engine|upper }}</option>
+                    <label class="text-sm font-medium text-slate-700">{{ t('admin_databases_node', page_locale()) }}</label>
+                    <select name="node_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                        <option value="">{{ t('admin_databases_node_placeholder', page_locale()) }}</option>
+                        {% for node in nodeCandidates %}
+                            <option value="{{ node.id }}">{{ node.name }} ({{ node.engine|upper }} · {{ node.host }}:{{ node.port }})</option>
                         {% endfor %}
                     </select>
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-slate-700">{{ t('admin_databases_host', page_locale()) }}</label>
-                    <input name="host" type="text" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-slate-700">{{ t('admin_databases_port', page_locale()) }}</label>
-                    <input name="port" type="number" min="1" max="65535" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
                 </div>
                 <div>
                     <label class="text-sm font-medium text-slate-700">{{ t('admin_databases_name', page_locale()) }}</label>
@@ -123,6 +130,114 @@
                 </div>
                 <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
                     {{ t('admin_databases_submit', page_locale()) }}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-6 py-4">
+                <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_database_nodes_title', page_locale()) }}</h2>
+                <p class="text-sm text-slate-700">{{ t('admin_database_nodes_intro', page_locale()) }}</p>
+            </div>
+            {% if databaseNodes is empty %}
+                <div class="px-6 py-6 text-sm text-slate-600">{{ t('admin_database_nodes_empty', page_locale()) }}</div>
+            {% else %}
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-left text-sm">
+                        <thead class="border-b border-slate-200 text-xs uppercase text-slate-600">
+                            <tr>
+                                <th class="px-6 py-3">{{ t('admin_database_nodes_table_name', page_locale()) }}</th>
+                                <th class="px-6 py-3">{{ t('admin_database_nodes_table_engine', page_locale()) }}</th>
+                                <th class="px-6 py-3">{{ t('admin_database_nodes_table_host', page_locale()) }}</th>
+                                <th class="px-6 py-3">{{ t('admin_database_nodes_table_agent', page_locale()) }}</th>
+                                <th class="px-6 py-3">{{ t('admin_database_nodes_table_health', page_locale()) }}</th>
+                                <th class="px-6 py-3">{{ t('admin_database_nodes_table_actions', page_locale()) }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            {% for node in databaseNodes %}
+                                <tr>
+                                    <td class="px-6 py-4">
+                                        <div class="font-semibold text-slate-900">{{ node.name }}</div>
+                                        <div class="text-xs text-slate-500">ID {{ node.id }}</div>
+                                        {% if not node.isActive %}
+                                            <div class="mt-1 text-xs text-rose-600">{{ t('admin_database_nodes_inactive', page_locale()) }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 text-slate-600">{{ node.engine }}</td>
+                                    <td class="px-6 py-4 text-slate-600">{{ node.host }}:{{ node.port }}</td>
+                                    <td class="px-6 py-4 text-slate-600">
+                                        <div class="font-semibold text-slate-900">{{ node.agent.id }}</div>
+                                        <div class="text-xs text-slate-500">{{ node.agent.name ?: t('admin_database_nodes_agent_placeholder', page_locale()) }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 text-slate-600">
+                                        <div class="font-semibold text-slate-900">{{ node.healthStatus }}</div>
+                                        <div class="text-xs text-slate-500">
+                                            {{ node.lastCheckedAt ? node.lastCheckedAt|date('Y-m-d H:i') : t('admin_database_nodes_never_checked', page_locale()) }}
+                                        </div>
+                                        {% if node.healthMessage %}
+                                            <div class="mt-1 text-xs text-slate-500">{{ node.healthMessage }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <form method="post" action="/admin/databases/nodes/{{ node.id }}/health" class="mb-2">
+                                            <button class="w-full rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">
+                                                {{ t('admin_database_nodes_check', page_locale()) }}
+                                            </button>
+                                        </form>
+                                        <form method="post" action="/admin/databases/nodes/{{ node.id }}/toggle">
+                                            <button class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                                {{ node.isActive ? t('admin_database_nodes_deactivate', page_locale()) : t('admin_database_nodes_activate', page_locale()) }}
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-6 py-4">
+                <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_database_nodes_create', page_locale()) }}</h2>
+                <p class="text-sm text-slate-700">{{ t('admin_database_nodes_create_intro', page_locale()) }}</p>
+            </div>
+            <form method="post" action="/admin/databases/nodes" class="space-y-4 px-6 py-6">
+                <div>
+                    <label class="text-sm font-medium text-slate-700">{{ t('admin_database_nodes_name', page_locale()) }}</label>
+                    <input name="name" type="text" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700">{{ t('admin_database_nodes_engine', page_locale()) }}</label>
+                    <select name="engine" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                        {% for engine in engines %}
+                            <option value="{{ engine }}">{{ engine|upper }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700">{{ t('admin_database_nodes_host', page_locale()) }}</label>
+                    <input name="host" type="text" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700">{{ t('admin_database_nodes_port', page_locale()) }}</label>
+                    <input name="port" type="number" min="1" max="65535" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700">{{ t('admin_database_nodes_agent', page_locale()) }}</label>
+                    <select name="agent_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+                        <option value="">{{ t('admin_database_nodes_agent_placeholder', page_locale()) }}</option>
+                        {% for agent in agents %}
+                            <option value="{{ agent.id }}">{{ agent.name ?: agent.id }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                    {{ t('admin_database_nodes_submit', page_locale()) }}
                 </button>
             </form>
         </div>
