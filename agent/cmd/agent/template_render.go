@@ -136,7 +136,7 @@ func validateBinaryExists(instanceDir, startCommand string) error {
 		return nil
 	}
 	if !pathExists(binaryPath) {
-		return fmt.Errorf("missing binary")
+		return fmt.Errorf("missing binary %q (resolved to %s)", binaryToken, binaryPath)
 	}
 	return nil
 }
