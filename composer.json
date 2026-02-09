@@ -5,6 +5,7 @@
   "license": "proprietary",
   "require": {},
   "scripts": {
+    "lint": "composer --working-dir=core run lint",
     "test": "composer --working-dir=core run test"
   }
 }
