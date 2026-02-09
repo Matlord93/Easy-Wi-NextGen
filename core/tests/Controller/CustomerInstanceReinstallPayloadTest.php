@@ -24,6 +24,7 @@ use App\Repository\BackupRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
+use App\Repository\MinecraftVersionCatalogRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -39,7 +40,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         $instanceRepository = $this->createMock(InstanceRepository::class);
         $instanceRepository->method('find')->willReturn($instance);
 
-        $catalogRepo = new class () implements \App\Module\Gameserver\Infrastructure\Repository\MinecraftVersionCatalogRepository {
+        $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
             public function findBuildsGroupedByVersion(string $channel): array
             {
                 return [];
