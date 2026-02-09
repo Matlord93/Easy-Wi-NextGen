@@ -17,6 +17,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\ConsoleCommandValidator;
+use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\BackupDefinitionRepository;
@@ -48,6 +49,7 @@ final class CustomerInstanceActionApiController
         private readonly ConsoleCommandValidator $consoleCommandValidator,
         private readonly SetupChecker $setupChecker,
         private readonly TemplateInstallResolver $templateInstallResolver,
+        private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
     ) {
@@ -434,20 +436,10 @@ final class CustomerInstanceActionApiController
             return new JsonResponse(['error' => $blockMessage], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        $portBlock = $this->portBlockRepository->findByInstance($instance);
-        $message = new InstanceActionMessage('instance.reinstall', $customer->getId(), $instance->getId(), [
-            'instance_id' => (string) ($instance->getId() ?? ''),
-            'customer_id' => (string) $customer->getId(),
-            'node_id' => $instance->getNode()->getId(),
-            'agent_id' => $instance->getNode()->getId(),
-            'cpu_limit' => (string) $instance->getCpuLimit(),
-            'ram_limit' => (string) $instance->getRamLimit(),
-            'disk_limit' => (string) $instance->getDiskLimit(),
-            'start_params' => $instance->getTemplate()->getStartParams(),
-            'required_ports' => implode(',', $instance->getTemplate()->getRequiredPortLabels()),
-            'port_block_ports' => $portBlock ? implode(',', array_map('strval', $portBlock->getPorts())) : '',
-            'install_command' => $this->templateInstallResolver->resolveInstallCommand($instance),
-        ]);
+        $payload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance);
+        $payload['autostart'] = 'false';
+
+        $message = new InstanceActionMessage('instance.reinstall', $customer->getId(), $instance->getId(), $payload);
 
         return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
     }

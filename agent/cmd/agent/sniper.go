@@ -15,14 +15,14 @@ import (
 )
 
 var (
-	buildIDRegex         = regexp.MustCompile(`(?i)build(?:[_\s-]?id)?[:\s]+([0-9]+)`)
-	versionRegex         = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
-	jsonLineRegex        = regexp.MustCompile(`\{.*\}`)
-	forceInstallDirRegex = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\.(?:/)?|"\."|'\.'|"\./"|'\./')`)
+	buildIDRegex                 = regexp.MustCompile(`(?i)build(?:[_\s-]?id)?[:\s]+([0-9]+)`)
+	versionRegex                 = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
+	jsonLineRegex                = regexp.MustCompile(`\{.*\}`)
+	forceInstallDirRegex         = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\.(?:/)?|"\."|'\.'|"\./"|'\./')`)
 	forceInstallDirPresenceRegex = regexp.MustCompile(`(?i)\+force_install_dir\b`)
-	steamcmdInjectRegex  = regexp.MustCompile(`(?i)(^|\\s)([^\\s]*steamcmd(?:\\.sh|\\.exe)?)(\\s)`)
-	steamcmdCommandRegex = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
-	steamcmdArchiveURL   = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
+	steamcmdInjectRegex          = regexp.MustCompile(`(?i)(^|\\s)([^\\s]*steamcmd(?:\\.sh|\\.exe)?)(\\s)`)
+	steamcmdCommandRegex         = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
+	steamcmdArchiveURL           = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
 )
 
 func handleSniperInstall(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
@@ -162,9 +162,32 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 		instanceDir, command, installSnippet, postInstallSnippet,
 	)
 
+	if logSender != nil && job.ID != "" {
+		maskedInstall := maskSensitiveValues(command, templateValues)
+		logSender.Send(job.ID, []string{
+			fmt.Sprintf("sniper %s starting (steam_app_id=%s uses_steamcmd=%t command=%s)", action, steamAppID, usesSteamCmd, maskedInstall),
+		}, nil)
+	}
+
 	output, err := runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
 	if err != nil {
 		return failureResult(job.ID, err)
+	}
+	if usesSteamCmd && shouldRetrySteamCmd(output, steamAppID) {
+		retryOutput, retryErr := runCommandOutputAsUserWithLogs(osUsername, shellCmd, job.ID, logSender)
+		if retryErr != nil {
+			return failureResult(job.ID, retryErr)
+		}
+		if retryOutput != "" {
+			if output != "" {
+				output = output + "\n" + retryOutput
+			} else {
+				output = retryOutput
+			}
+		}
+	}
+	if usesSteamCmd && !steamCmdInstallSucceeded(output, steamAppID) {
+		return failureResult(job.ID, fmt.Errorf("steamcmd finished without app install confirmation"))
 	}
 
 	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
@@ -329,6 +352,31 @@ func normalizeSteamCmdInstallDir(command, instanceDir string) string {
 		normalized = steamcmdInjectRegex.ReplaceAllString(normalized, "${1}${2} +force_install_dir "+escapedDir+"${3}")
 	}
 	return normalized
+}
+
+func shouldRetrySteamCmd(output string, steamAppID string) bool {
+	if output == "" {
+		return false
+	}
+	lower := strings.ToLower(output)
+	if !strings.Contains(lower, "update complete") {
+		return false
+	}
+	if steamCmdInstallSucceeded(output, steamAppID) || strings.Contains(lower, "fully installed") {
+		return false
+	}
+	return true
+}
+
+func steamCmdInstallSucceeded(output string, steamAppID string) bool {
+	if output == "" {
+		return false
+	}
+	if steamAppID != "" {
+		appPattern := regexp.MustCompile(fmt.Sprintf(`(?i)success!\s+app\s+'?%s'?`, regexp.QuoteMeta(steamAppID)))
+		return appPattern.MatchString(output)
+	}
+	return strings.Contains(strings.ToLower(output), "success! app")
 }
 
 func extractBuildInfo(output string) (string, string) {

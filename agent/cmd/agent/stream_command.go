@@ -215,13 +215,16 @@ func shouldForceTTY(command string) bool {
 	if runtime.GOOS != "linux" {
 		return false
 	}
+	lower := strings.ToLower(command)
+	if strings.Contains(lower, "steamcmd") {
+		return true
+	}
 	value := strings.ToLower(strings.TrimSpace(os.Getenv("EASYWI_FORCE_TTY")))
 	if value == "1" || value == "true" || value == "yes" || value == "on" {
 		return true
 	}
 	installerValue := strings.ToLower(strings.TrimSpace(os.Getenv("EASYWI_TTY_INSTALLER")))
 	if installerValue == "1" || installerValue == "true" || installerValue == "yes" || installerValue == "on" {
-		lower := strings.ToLower(command)
 		return strings.Contains(lower, "install")
 	}
 	return false
