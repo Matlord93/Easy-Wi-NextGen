@@ -2,7 +2,7 @@ name: Agent CI (Go)
 
 on:
   push:
-    branches: [ "Dev" ]
+    branches: [ main, Dev, Beta ]
     tags: [ "v*.*.*" ]
   pull_request:
 
@@ -23,6 +23,8 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: "1.24.0"
+          cache: true
+          cache-dependency-path: agent/go.sum
 
       - name: Build linux-amd64
         run: |

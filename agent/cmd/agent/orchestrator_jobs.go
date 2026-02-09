@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -414,10 +412,10 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	downloadFilename := payloadValue(job.Payload, "download_filename")
 	instanceName := payloadValue(job.Payload, "instance_name")
 	acceptLicense := parseBool(payloadValue(job.Payload, "accept_license"), true)
-	voiceIP := parseStringList(payloadValue(job.Payload, "voice_ip"), []string{"0.0.0.0"})
+	voiceIP := parseStringList(payloadValue(job.Payload, "voice_ip"), "0.0.0.0")
 	defaultVoicePort := parseInt(payloadValue(job.Payload, "default_voice_port"), 9987)
 	filetransferPort := parseInt(payloadValue(job.Payload, "filetransfer_port"), 30033)
-	filetransferIP := parseStringList(payloadValue(job.Payload, "filetransfer_ip"), []string{"0.0.0.0"})
+	filetransferIP := parseStringList(payloadValue(job.Payload, "filetransfer_ip"), "0.0.0.0")
 	queryBindIP := payloadValue(job.Payload, "query_bind_ip")
 	queryHttpsEnable := parseBool(payloadValue(job.Payload, "query_https_enable"), true)
 	queryHttpsPort := parseInt(payloadValue(job.Payload, "query_https_port"), 10443)
@@ -1191,52 +1189,6 @@ func hostHasIPv6() bool {
 		}
 	}
 	return false
-}
-
-func parseBool(value string, fallback bool) bool {
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return fallback
-	}
-	return parsed
-}
-
-func parseInt(value string, fallback int) int {
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return fallback
-	}
-	return parsed
-}
-
-func parseStringList(value string, fallback []string) []string {
-	if value == "" {
-		return fallback
-	}
-	if strings.HasPrefix(strings.TrimSpace(value), "[") {
-		var parsed []string
-		if err := json.Unmarshal([]byte(value), &parsed); err == nil && len(parsed) > 0 {
-			return parsed
-		}
-	}
-	parts := strings.Split(value, ",")
-	values := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			values = append(values, trimmed)
-		}
-	}
-	if len(values) == 0 {
-		return fallback
-	}
-	return values
 }
 
 func boolToInt(value bool) int {

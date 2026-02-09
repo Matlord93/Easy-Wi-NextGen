@@ -10,10 +10,7 @@ on:
       - 'templates_audit.md'
       - '.github/workflows/installer-ci.yml'
   push:
-    branches:
-      - main
-      - Dev
-      - Beta
+    branches: [ main, Dev, Beta ]
     paths:
       - 'installer/**'
       - 'docs/**'

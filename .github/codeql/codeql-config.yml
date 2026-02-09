@@ -1,0 +1,5 @@
+name: "EasyWI CodeQL Config"
+
+query-filters:
+  - include:
+      security-severity: ">=7.0"

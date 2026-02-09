@@ -2,7 +2,7 @@ name: Core CI (Symfony)
 
 on:
   push:
-    branches: [ "Dev" ]
+    branches: [ main, Dev, Beta ]
     tags: [ "v*.*.*" ]
   pull_request:
 

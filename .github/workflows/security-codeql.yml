@@ -13,7 +13,6 @@ on:
       - 'templates_audit.md'
       - '.github/workflows/security-codeql.yml'
   pull_request:
-    branches: [ main, Dev, Beta ]
     paths:
       - 'core/**'
       - 'agent/**'
@@ -41,28 +40,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      # --- Go: CodeQL ---
-      - name: Initialize CodeQL (Go)
+      - name: Initialize CodeQL (Go + PHP)
         uses: github/codeql-action/init@v4
         with:
-          languages: go
+          languages: go, php
           queries: +security-extended
+          config-file: .github/codeql/codeql-config.yml
 
       - name: Autobuild (Go)
         uses: github/codeql-action/autobuild@v4
 
-      - name: Analyze (Go)
+      - name: Analyze (Go + PHP)
         uses: github/codeql-action/analyze@v4
         with:
           fail-on: warning
 
       - name: Run Psalm security scan (PHP)
         id: psalm
-        uses: docker://ghcr.io/psalm/psalm-security-scan:5.7.7
-        continue-on-error: true
+        run: |
+          set +e
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            -w /repo/core \
+            ghcr.io/psalm/psalm-security-scan:5.7.7 \
+            --output-format=sarif \
+            --output=/repo/results.sarif
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Upload Psalm SARIF to GitHub Code Scanning
+        if: always() && hashFiles('results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
           category: psalm-php
+
+      - name: Fail on Psalm findings
+        if: steps.psalm.outputs.exit_code != '0'
+        run: exit 1

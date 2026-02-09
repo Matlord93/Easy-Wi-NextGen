@@ -10,9 +10,7 @@ on:
       - 'templates_audit.md'
       - '.github/workflows/agent-ci.yml'
   push:
-    branches:
-      - main
-      - Beta
+    branches: [ main, Dev, Beta ]
     paths:
       - 'agent/**'
       - 'docs/**'
@@ -40,6 +38,7 @@ jobs:
         with:
           go-version-file: agent/go.mod
           cache: true
+          cache-dependency-path: agent/go.sum
 
       - name: Verify golangci-lint config
         run: |

@@ -10,9 +10,7 @@ on:
       - 'templates_audit.md'
       - '.github/workflows/core-ci.yml'
   push:
-    branches:
-      - main
-      - Beta
+    branches: [ main, Dev, Beta ]
     paths:
       - 'core/**'
       - 'docs/**'
@@ -55,9 +53,10 @@ jobs:
           key: ${{ runner.os }}-composer-${{ hashFiles('core/composer.lock') }}
 
       - name: Composer install
-        run: composer install --no-interaction --no-progress --prefer-dist
+        run: composer install --no-interaction --no-progress --prefer-dist --no-scripts
         env:
           COMPOSER_ALLOW_SUPERUSER: '1'
+          SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
 
       - name: Verify required tools
         run: |

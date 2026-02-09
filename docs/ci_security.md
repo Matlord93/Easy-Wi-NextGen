@@ -61,7 +61,8 @@ shellcheck installer/*.sh
 ```
 
 ## Security Scans
-- **CodeQL** (`security-codeql`): SAST für PHP + Go mit Standard-Queries plus `security-extended`. CI schlägt bei Findings auf **Warning**-Level oder höher fehl (strikter als High/Critical). 
+- **CodeQL** (`security-codeql`): SAST für PHP + Go mit Standard-Queries plus `security-extended`. Ergebnisse werden über `security-severity >= 7.0` (High/Critical) gefiltert und der Job schlägt bei jedem Treffer fehl (`fail-on: warning`). 
+- **Psalm Security Scan** (`security-codeql`): Läuft zusätzlich für PHP und exportiert SARIF (`results.sarif`) ins Code Scanning; Findings lassen den Job fehlschlagen (Fail Closed).
 - **Dependency Review** (`security-dependency-review`): Blockiert PRs mit Dependencies ab **High**-Severity (`fail-on-severity: high`).
 - **Secret Scanning** (`security-secrets`): Gitleaks scannt PRs und failt bei Secrets (keine Allowlist ohne Dokumentation).
 
