@@ -451,6 +451,21 @@ final class InstallController
         }
     }
 
+    /**
+     * @param array<string, mixed> $databaseState
+     */
+    private function resolveDriverExtension(array $databaseState): string
+    {
+        $driver = $databaseState['driver'] ?? null;
+        $driverName = is_string($driver) && $driver !== '' ? $driver : 'pdo_mysql';
+
+        return match ($driverName) {
+            'mysqli' => 'mysqli',
+            'pdo_mysql' => 'pdo_mysql',
+            default => 'pdo_mysql',
+        };
+    }
+
     private function isValidSshPublicKey(string $sshKey): bool
     {
         $sshKey = trim($sshKey);

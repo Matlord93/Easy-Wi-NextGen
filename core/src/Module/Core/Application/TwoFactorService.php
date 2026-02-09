@@ -35,8 +35,8 @@ final class TwoFactorService
 
     public function verifyCode(string $secret, string $code, int $window = 1, ?int $timestamp = null): bool
     {
-        $code = preg_replace('/\s+/', '', $code ?? '');
-        if (!is_string($code) || $code === '' || !ctype_digit($code)) {
+        $code = preg_replace('/\s+/', '', $code);
+        if ($code === null || $code === '' || !ctype_digit($code)) {
             return false;
         }
 

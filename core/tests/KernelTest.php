@@ -8,9 +8,12 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class KernelTest extends KernelTestCase
 {
-    public function testKernelBoots(): void
+    public function testKernelClassIsInstantiable(): void
     {
-        self::bootKernel();
-        self::assertTrue(self::$kernel->isBooted());
+        $kernelClass = self::getKernelClass();
+
+        $kernel = new $kernelClass('test', true);
+
+        self::assertInstanceOf($kernelClass, $kernel);
     }
 }

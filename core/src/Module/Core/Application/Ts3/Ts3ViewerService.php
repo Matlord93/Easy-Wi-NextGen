@@ -55,7 +55,7 @@ final class Ts3ViewerService
         $cacheKey = sprintf('ts3_viewer_%s', $publicId);
         $ttlSeconds = max(1, (int) ceil($viewer->getCacheTtlMs() / 1000));
 
-        $snapshot = $this->cache->get($cacheKey, function (ItemInterface $item) use ($viewer, $ttlSeconds): array {
+        $snapshot = $this->cache->get($cacheKey, function (ItemInterface $item) use ($ttlSeconds): array {
             $item->expiresAfter($ttlSeconds);
             return [];
         });

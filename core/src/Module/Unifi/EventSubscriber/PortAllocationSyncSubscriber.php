@@ -7,7 +7,7 @@ namespace App\Module\Unifi\EventSubscriber;
 use App\Message\UnifiSyncInstancePortsMessage;
 use App\Module\Ports\Domain\Entity\PortAllocation;
 use Doctrine\Common\EventSubscriber;
-use Doctrine\ORM\Event\LifecycleEventArgs;
+use Doctrine\Persistence\Event\LifecycleEventArgs;
 use Doctrine\ORM\Events;
 use Symfony\Component\Messenger\MessageBusInterface;
 

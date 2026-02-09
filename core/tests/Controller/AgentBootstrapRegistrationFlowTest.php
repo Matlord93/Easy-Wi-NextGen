@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\Core\Application\AgentSignatureVerifier;
+use App\Module\Core\Application\AgentCreator;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\TokenGenerator;
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\AgentBootstrapToken;
 use App\Module\Core\Domain\Entity\AgentRegistrationToken;
 use App\Module\Nodes\UI\Controller\Agent\AgentBootstrapController;
@@ -124,14 +127,23 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
 
         $signatureVerifier = new AgentSignatureVerifier(new ArrayAdapter(), new NullLogger(), 300, 600);
 
+        $agentCreator = $this->createMock(AgentCreator::class);
+        $agentCreator->method('create')
+            ->willReturnCallback(static function (string $id, array $secretPayload, ?string $name): Agent {
+                return new Agent($id, $secretPayload, $name);
+            });
+
+        $appSettingsService = $this->createMock(AppSettingsService::class);
+
         $registrationController = new AgentRegistrationController(
             $agentRepo,
             $registrationRepo,
             $entityManager,
             $encryptionService,
             $signatureVerifier,
+            $agentCreator,
             $auditLogger,
-            'fallback-token',
+            $appSettingsService,
         );
 
         $registerPayload = json_encode([

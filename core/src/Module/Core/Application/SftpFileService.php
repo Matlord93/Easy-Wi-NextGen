@@ -8,12 +8,14 @@ use App\Module\Core\Application\Exception\SftpException;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Repository\InstanceSftpCredentialRepository;
+use phpseclib3\Crypt\Common\PublicKey;
 use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SFTP;
 
 final class SftpFileService
 {
     public const int EDITOR_MAX_BYTES = 1048576;
+    private const int SFTP_TYPE_DIRECTORY = 2;
 
     public function __construct(
         private readonly GameServerPathResolver $filesystemResolver,
@@ -57,7 +59,7 @@ final class SftpFileService
             $mtime = is_array($info) ? ($info['mtime'] ?? null) : null;
             $size = is_array($info) ? ($info['size'] ?? 0) : 0;
             $type = is_array($info) ? ($info['type'] ?? null) : null;
-            $isDir = $type === SFTP::TYPE_DIRECTORY;
+            $isDir = $type === self::SFTP_TYPE_DIRECTORY;
 
             $entries[] = [
                 'name' => (string) $name,
@@ -317,7 +319,7 @@ final class SftpFileService
         throw new SftpException('sftp_misconfigured', 'SFTP password not configured.', 422);
     }
 
-    private function resolveAuthentication(): ?\phpseclib3\Crypt\PublicKey
+    private function resolveAuthentication(): ?PublicKey
     {
         $key = $this->settingsService->getSftpPrivateKey();
         $path = $this->settingsService->getSftpPrivateKeyPath();

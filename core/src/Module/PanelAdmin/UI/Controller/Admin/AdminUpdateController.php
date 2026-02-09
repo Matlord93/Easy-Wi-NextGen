@@ -18,7 +18,6 @@ use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
@@ -116,7 +115,7 @@ final class AdminUpdateController
         }
 
         return new Response(json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}', HttpResponse::HTTP_OK, [
-            ResponseHeaderBag::CONTENT_TYPE => 'application/json; charset=UTF-8',
+            'Content-Type' => 'application/json; charset=UTF-8',
         ]);
     }
 
@@ -138,7 +137,7 @@ final class AdminUpdateController
             'job_id' => $id,
             'lines' => $lines,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}', HttpResponse::HTTP_OK, [
-            ResponseHeaderBag::CONTENT_TYPE => 'application/json; charset=UTF-8',
+            'Content-Type' => 'application/json; charset=UTF-8',
         ]);
     }
 
@@ -244,7 +243,7 @@ final class AdminUpdateController
         return new Response($this->twig->render('admin/dashboard/_web_update_card.html.twig', [
             'coreUpdate' => $summary,
         ]), HttpResponse::HTTP_OK, [
-            ResponseHeaderBag::CONTENT_TYPE => 'text/html; charset=UTF-8',
+            'Content-Type' => 'text/html; charset=UTF-8',
         ]);
     }
 
@@ -253,7 +252,7 @@ final class AdminUpdateController
         return new Response($this->twig->render('admin/updates/_agent_update_card.html.twig', [
             'agentUpdate' => $summary,
         ]), HttpResponse::HTTP_OK, [
-            ResponseHeaderBag::CONTENT_TYPE => 'text/html; charset=UTF-8',
+            'Content-Type' => 'text/html; charset=UTF-8',
         ]);
     }
 

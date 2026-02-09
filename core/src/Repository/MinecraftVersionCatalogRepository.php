@@ -163,7 +163,7 @@ final class MinecraftVersionCatalogRepository extends ServiceEntityRepository im
 
         if (!$entry instanceof MinecraftVersionCatalog) {
             $entry = new MinecraftVersionCatalog($channel, $mcVersion, $build, $downloadUrl, $sha256, $releasedAt);
-            $this->_em->persist($entry);
+            $this->getEntityManager()->persist($entry);
             return;
         }
 

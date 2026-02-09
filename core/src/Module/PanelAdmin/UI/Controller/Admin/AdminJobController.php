@@ -49,7 +49,6 @@ final class AdminJobController
             'jobs' => $this->normalizeJobs($paginated['jobs']),
             'summary' => $summary,
             'pagination' => $this->buildPagination($page, $perPage, $total),
-            'activeNav' => 'jobs',
         ]));
     }
 
