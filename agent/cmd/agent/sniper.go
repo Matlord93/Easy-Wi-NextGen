@@ -292,9 +292,9 @@ func steamCmdInstallSnippet(steamCmdDir string) string {
 			"if [ ! -x %[1]s/steamcmd.sh ] && [ ! -x %[1]s/linux64/steamcmd ] && [ ! -x %[1]s/linux32/steamcmd ]; then "+
 			"archive=%[1]s/steamcmd_linux.tar.gz; "+
 			"if command -v curl >/dev/null 2>&1; then "+
-			"curl -fsSL %[3]q -o $archive; "+
+			"curl -fsSL %[2]q -o $archive; "+
 			"elif command -v wget >/dev/null 2>&1; then "+
-			"wget -qO $archive %[4]q; "+
+			"wget -qO $archive %[2]q; "+
 			"else "+
 			"echo \"steamcmd download failed: missing curl or wget\" >&2; exit 1; "+
 			"fi; "+
@@ -312,7 +312,6 @@ func steamCmdInstallSnippet(steamCmdDir string) string {
 			"fi; "+
 			"export STEAMCMD_EXEC; ",
 		escapedDir,
-		steamcmdArchiveURL,
 		steamcmdArchiveURL,
 	)
 }
