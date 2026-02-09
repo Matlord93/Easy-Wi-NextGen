@@ -18,7 +18,7 @@ var (
 	buildIDRegex                 = regexp.MustCompile(`(?i)build(?:[_\s-]?id)?[:\s]+([0-9]+)`)
 	versionRegex                 = regexp.MustCompile(`(?i)version[:\s]+([0-9a-zA-Z._-]+)`)
 	jsonLineRegex                = regexp.MustCompile(`\{.*\}`)
-	forceInstallDirRegex         = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\.(?:/)?|"\."|'\.'|"\./"|'\./')`)
+	forceInstallDirRegex         = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\"[^\"]+\"|'[^']+'|\S+)`)
 	forceInstallDirPresenceRegex = regexp.MustCompile(`(?i)\+force_install_dir\b`)
 	steamcmdInjectRegex          = regexp.MustCompile(`(?i)(^|\\s)([^\\s]*steamcmd(?:\\.sh|\\.exe)?)(\\s)`)
 	steamcmdCommandRegex         = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
@@ -111,6 +111,7 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	}
 
 	var command string
+	steamCmdExecPath := instanceDirSteamCmdPath(instanceDir)
 	if action == "install" {
 		command = installCommand
 	} else {
@@ -119,7 +120,8 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 
 	usesSteamCmd := false
 	if command == "" {
-		command = buildSteamCmdCommand(instanceDirSteamCmdPath(instanceDir), instanceDir, steamAppID, action == "install")
+		steamCmdExecPath = "$STEAMCMD_EXEC"
+		command = buildSteamCmdCommand(steamCmdExecPath, instanceDir, steamAppID, action == "install")
 		usesSteamCmd = true
 	}
 
@@ -140,15 +142,15 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 	command = renderedCommand
 	command = normalizeSteamCmdInstallDir(command, instanceDir)
 
-	steamCmdPath := instanceDirSteamCmdPath(instanceDir)
 	if !usesSteamCmd && steamcmdCommandRegex.MatchString(command) {
 		usesSteamCmd = true
-		command = replaceSteamCmdExecutable(command, steamCmdPath)
+		steamCmdExecPath = "$STEAMCMD_EXEC"
+		command = replaceSteamCmdExecutable(command, steamCmdExecPath)
 	}
 
 	installSnippet := ""
 	if usesSteamCmd {
-		installSnippet = steamCmdInstallSnippet(instanceDirSteamCmdDir(instanceDir), steamCmdPath)
+		installSnippet = steamCmdInstallSnippet(instanceDirSteamCmdDir(instanceDir))
 	}
 	postInstallSnippet := ""
 	if usesSteamCmd {
@@ -190,8 +192,10 @@ func handleSniperAction(job jobs.Job, action string, logSender JobLogSender) (jo
 			}
 		}
 	}
-	if usesSteamCmd && !steamCmdInstallSucceeded(output, steamAppID) {
-		return failureResult(job.ID, fmt.Errorf("steamcmd finished without app install confirmation"))
+	if usesSteamCmd {
+		if err := steamCmdInstallError(output, steamAppID); err != nil {
+			return failureResult(job.ID, err)
+		}
 	}
 
 	renderedStartParams, err := renderTemplateStrict(startParams, templateValues)
@@ -281,17 +285,8 @@ func instanceDirSteamCmdPath(instanceDir string) string {
 	return filepath.Join(instanceDirSteamCmdDir(instanceDir), "steamcmd.sh")
 }
 
-func steamCmdInstallSnippet(steamCmdDir, steamCmdPath string) string {
+func steamCmdInstallSnippet(steamCmdDir string) string {
 	escapedDir := strings.ReplaceAll(steamCmdDir, "$", "$$")
-	escapedPath := strings.ReplaceAll(steamCmdPath, "$", "$$")
-	wrapperContent := strings.Join([]string{
-		"#!/bin/sh",
-		fmt.Sprintf("if [ -x %[1]s/linux64/steamcmd ]; then exec %[1]s/linux64/steamcmd \"$@\"; fi", escapedDir),
-		fmt.Sprintf("if [ -x %[1]s/linux32/steamcmd ]; then exec %[1]s/linux32/steamcmd \"$@\"; fi", escapedDir),
-		fmt.Sprintf("if [ -x %[1]s/steamcmd.sh ]; then exec %[1]s/steamcmd.sh \"$@\"; fi", escapedDir),
-		"echo \"steamcmd executable not found\" >&2",
-		"exit 1",
-	}, "\n")
 	return fmt.Sprintf(
 		"mkdir -p %[1]s; "+
 			"if [ ! -x %[1]s/steamcmd.sh ] && [ ! -x %[1]s/linux64/steamcmd ] && [ ! -x %[1]s/linux32/steamcmd ]; then "+
@@ -306,13 +301,19 @@ func steamCmdInstallSnippet(steamCmdDir, steamCmdPath string) string {
 			"tar -xzf $archive -C %[1]s; "+
 			"rm -f $archive; "+
 			"fi; "+
-			"cat > %[2]s <<'EASYWISTEAMCMD'\n%[5]s\nEASYWISTEAMCMD\n"+
-			"chmod 755 %[2]s; ",
+			"if [ -x %[1]s/steamcmd.sh ]; then "+
+			"STEAMCMD_EXEC=%[1]s/steamcmd.sh; "+
+			"elif [ -x %[1]s/linux64/steamcmd ]; then "+
+			"STEAMCMD_EXEC=%[1]s/linux64/steamcmd; "+
+			"elif [ -x %[1]s/linux32/steamcmd ]; then "+
+			"STEAMCMD_EXEC=%[1]s/linux32/steamcmd; "+
+			"else "+
+			"echo \"steamcmd executable not found\" >&2; exit 1; "+
+			"fi; "+
+			"export STEAMCMD_EXEC; ",
 		escapedDir,
-		escapedPath,
 		steamcmdArchiveURL,
 		steamcmdArchiveURL,
-		wrapperContent,
 	)
 }
 
@@ -351,7 +352,9 @@ func normalizeSteamCmdInstallDir(command, instanceDir string) string {
 	normalized = strings.ReplaceAll(normalized, "{{INSTALL_DIR}}", instanceDir)
 
 	escapedDir := strings.ReplaceAll(instanceDir, "$", "$$")
-	normalized = forceInstallDirRegex.ReplaceAllString(normalized, "${1}"+escapedDir)
+	if forceInstallDirPresenceRegex.MatchString(normalized) {
+		normalized = forceInstallDirRegex.ReplaceAllString(normalized, "${1}"+escapedDir)
+	}
 	if !forceInstallDirPresenceRegex.MatchString(normalized) && steamcmdInjectRegex.MatchString(normalized) {
 		normalized = steamcmdInjectRegex.ReplaceAllString(normalized, "${1}${2} +force_install_dir "+escapedDir+"${3}")
 	}
@@ -381,6 +384,32 @@ func steamCmdInstallSucceeded(output string, steamAppID string) bool {
 		return appPattern.MatchString(output)
 	}
 	return strings.Contains(strings.ToLower(output), "success! app")
+}
+
+func steamCmdInstallFailedLine(output string) string {
+	if output == "" {
+		return ""
+	}
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if strings.Contains(strings.ToLower(trimmed), "error! failed to install app") {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func steamCmdInstallError(output, steamAppID string) error {
+	if steamCmdInstallSucceeded(output, steamAppID) {
+		return nil
+	}
+	if line := steamCmdInstallFailedLine(output); line != "" {
+		return fmt.Errorf("%s", line)
+	}
+	return fmt.Errorf("steamcmd finished without app install confirmation")
 }
 
 func extractBuildInfo(output string) (string, string) {
