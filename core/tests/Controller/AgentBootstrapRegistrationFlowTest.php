@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AgentCreator;
-use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\TokenGenerator;
 use App\Module\Core\Domain\Entity\Agent;
@@ -25,8 +25,8 @@ use Psr\Log\NullLogger;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\LimiterInterface;
-use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\RateLimit;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 
 final class AgentBootstrapRegistrationFlowTest extends TestCase
 {

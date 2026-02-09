@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use App\Repository\UserRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\SecretsCrypto;
-use App\Module\Core\Application\TwoFactorService;
 use App\Security\TwoFactorPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;

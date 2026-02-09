@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLogHasher;
 use App\Module\Core\Domain\Entity\AuditLog;
 use App\Repository\AuditLogRepository;
-use App\Module\Core\Application\AuditLogHasher;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 

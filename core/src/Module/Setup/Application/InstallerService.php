@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\Application;
 
+use App\Infrastructure\Config\DbConfigProvider;
+use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\Application\AdminSshKeyService;
-use App\Infrastructure\Config\DbConfigProvider;
-use App\Module\Setup\Application\InstallerSshKeyException;
-use App\Module\Core\Application\EncryptionService;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\DBAL\Exception\TableExistsException;

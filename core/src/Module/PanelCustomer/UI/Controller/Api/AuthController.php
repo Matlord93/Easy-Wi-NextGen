@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
-use App\Module\Core\Domain\Entity\UserSession;
-use App\Module\Core\Application\TwoFactorService;
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\TwoFactorService;
+use App\Module\Core\Domain\Entity\UserSession;
+use App\Module\Setup\Application\InstallerService;
 use App\Repository\UserRepository;
 use App\Security\SessionTokenGenerator;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Setup\Application\InstallerService;
 use App\Security\TwoFactorPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;

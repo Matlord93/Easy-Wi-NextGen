@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Module\Core\Application\WebspaceFileServiceClient;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Core\Application\WebspaceFileServiceClient;
-use App\Repository\WebspaceRepository;
 use App\Module\PanelCustomer\Form\EditFileType;
 use App\Module\PanelCustomer\Form\RenameFileType;
 use App\Module\PanelCustomer\Form\UploadFileType;
+use App\Repository\WebspaceRepository;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;

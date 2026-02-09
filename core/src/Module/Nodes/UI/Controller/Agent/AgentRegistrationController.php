@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller\Agent;
 
-use App\Repository\AgentRepository;
-use App\Repository\AgentRegistrationTokenRepository;
 use App\Module\Core\Application\AgentConfigurationException;
 use App\Module\Core\Application\AgentCreator;
 use App\Module\Core\Application\AgentSignatureVerifier;
-use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
+use App\Repository\AgentRegistrationTokenRepository;
+use App\Repository\AgentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\JsonResponse;

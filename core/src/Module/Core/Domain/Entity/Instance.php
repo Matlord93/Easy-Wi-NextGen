@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
-use App\Module\Core\Domain\Event\ResourceEventSource;
-use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Module\Core\Domain\Enum\InstanceDiskState;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
+use App\Module\Core\Domain\Event\ResourceEventSource;
+use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
+use App\Repository\InstanceRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
-use App\Repository\InstanceRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: InstanceRepository::class)]

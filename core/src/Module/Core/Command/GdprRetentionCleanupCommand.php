@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Repository\LogIndexRepository;
 use App\Repository\RetentionPolicyRepository;
-use App\Repository\TicketRepository;
 use App\Repository\TicketMessageRepository;
+use App\Repository\TicketRepository;
 use App\Repository\UserSessionRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;

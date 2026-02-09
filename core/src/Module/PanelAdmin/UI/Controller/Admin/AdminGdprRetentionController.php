@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\RetentionPolicy;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\RetentionPolicyRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

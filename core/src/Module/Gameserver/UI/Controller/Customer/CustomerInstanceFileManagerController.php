@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\InstanceStatus;
+use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\FileServiceClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

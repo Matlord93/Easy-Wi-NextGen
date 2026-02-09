@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\UserRepository;
 use App\Security\SessionTokenGenerator;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SiteResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;

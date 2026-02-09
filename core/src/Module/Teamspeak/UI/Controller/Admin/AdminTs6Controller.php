@@ -5,15 +5,14 @@ declare(strict_types=1);
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\ModuleRegistry;
 use App\Module\Core\Domain\Entity\Ts6Instance;
 use App\Module\Core\Domain\Enum\ModuleKey;
 use App\Module\Core\Domain\Enum\Ts6InstanceStatus;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\Ts6InstanceRepository;
 use App\Repository\UserRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\ModuleRegistry;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

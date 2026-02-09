@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Admin;
 
-use App\Module\Core\Dto\Ts6\InstallDto;
-use App\Module\Core\Dto\Ts6\Ts6NodeDto;
-use App\Module\Core\Domain\Entity\Ts6Node;
-use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Form\Ts6NodeType;
-use App\Repository\AgentRepository;
-use App\Repository\AgentJobRepository;
-use App\Repository\Ts6NodeRepository;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Ts6\Ts6NodeService;
+use App\Module\Core\Domain\Entity\Ts6Node;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Dto\Ts6\InstallDto;
+use App\Module\Core\Dto\Ts6\Ts6NodeDto;
+use App\Module\Core\Form\Ts6NodeType;
+use App\Repository\AgentJobRepository;
+use App\Repository\AgentRepository;
+use App\Repository\Ts6NodeRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormFactoryInterface;

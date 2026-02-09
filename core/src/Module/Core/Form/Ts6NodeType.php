@@ -27,7 +27,7 @@ final class Ts6NodeType extends AbstractType
                 ],
                 'placeholder' => 'Auto',
             ])
-            ;
+        ;
         $this->addInstanceFields($builder);
         $builder
             ->add('queryHttpsPort', IntegerType::class)

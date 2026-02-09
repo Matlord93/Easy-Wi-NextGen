@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Billing\Command;
 
-use App\Repository\InvoiceRepository;
 use App\Module\Core\Application\Billing\DunningWorkflow;
 use App\Module\Core\Application\Billing\InvoiceStatusUpdater;
+use App\Repository\InvoiceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\Application;
 
-use App\Module\Core\Domain\Entity\User;
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
+use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentRepository;
 
 final class AdminSshKeyService

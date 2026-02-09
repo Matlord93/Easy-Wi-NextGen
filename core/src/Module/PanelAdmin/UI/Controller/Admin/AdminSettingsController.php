@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
-use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Domain\Entity\User;
 use App\Repository\UserRepository;
+use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 

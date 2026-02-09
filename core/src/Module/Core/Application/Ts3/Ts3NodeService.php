@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Ts3;
 
-use App\Module\Core\Dto\Ts3\InstallDto;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Ts3Node;
+use App\Module\Core\Dto\Ts3\InstallDto;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class Ts3NodeService

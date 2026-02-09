@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application\Query;
 
-use App\Module\Gameserver\Application\Query\QueryResultNormalizer;
-
 final class QueryResult
 {
     public function __construct(

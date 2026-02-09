@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Ts6;
 
-use App\Module\Core\Dto\Ts6\CreateVirtualServerDto;
+use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
+use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Ts6Node;
 use App\Module\Core\Domain\Entity\Ts6Token;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
-use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
-use App\Module\Core\Domain\Entity\Job;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Dto\Ts6\CreateVirtualServerDto;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class Ts6VirtualServerService

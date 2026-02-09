@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\UI\Controller\Api;
 
-use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\AgentRepository;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Domain\Entity\User;
 use App\Module\Ports\Domain\Entity\PortPool;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
+use App\Repository\AgentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;

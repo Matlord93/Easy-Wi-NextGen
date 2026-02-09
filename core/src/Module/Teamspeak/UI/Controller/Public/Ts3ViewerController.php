@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Public;
 
-use App\Repository\Ts3ViewerRepository;
 use App\Module\Core\Application\Ts3\Ts3ViewerService;
+use App\Repository\Ts3ViewerRepository;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
 final class Ts3ViewerController

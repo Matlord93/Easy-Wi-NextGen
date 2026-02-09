@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace App\Module\Cms\UI\Controller\Public;
 
 use App\Module\Cms\Application\CmsMaintenanceService;
+use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsBlock;
 use App\Module\Core\Domain\Entity\PublicServer;
 use App\Module\Core\Domain\Entity\ShopProduct;
+use App\Module\Setup\Application\InstallerService;
 use App\Repository\CmsBlockRepository;
 use App\Repository\CmsPageRepository;
 use App\Repository\PublicServerRepository;
 use App\Repository\ShopCategoryRepository;
 use App\Repository\ShopProductRepository;
-use App\Module\Core\Application\SiteResolver;
-use App\Module\Setup\Application\InstallerService;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

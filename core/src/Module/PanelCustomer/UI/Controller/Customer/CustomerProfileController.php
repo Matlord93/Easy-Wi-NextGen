@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\CustomerProfile;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\CustomerProfileRepository;
 use App\Repository\InvoicePreferencesRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;

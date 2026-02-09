@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\Incident;
 use App\Module\Core\Domain\Entity\IncidentUpdate;
 use App\Module\Core\Domain\Entity\StatusComponent;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\IncidentRepository;
 use App\Repository\IncidentUpdateRepository;
 use App\Repository\StatusComponentRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SiteResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

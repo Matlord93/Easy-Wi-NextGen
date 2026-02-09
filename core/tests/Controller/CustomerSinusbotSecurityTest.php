@@ -14,8 +14,8 @@ use App\Module\PanelCustomer\UI\Controller\Customer\CustomerSinusbotController;
 use App\Repository\SinusbotInstanceRepository;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 
 final class CustomerSinusbotSecurityTest extends TestCase

@@ -6,8 +6,8 @@ namespace App\Tests\EventSubscriber;
 
 use App\Module\Core\EventSubscriber\ApiDeprecationSubscriber;
 use PHPUnit\Framework\Attributes\Test;
-use Psr\Log\NullLogger;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;

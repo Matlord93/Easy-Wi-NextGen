@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Module\Core\Application\AppSettingsService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -13,7 +14,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
-use App\Module\Core\Application\AppSettingsService;
 
 #[AsCommand(
     name: 'app:mail:test',

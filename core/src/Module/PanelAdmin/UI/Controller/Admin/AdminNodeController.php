@@ -4,34 +4,34 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
-use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Entity\Job;
-use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\AgentRepository;
-use App\Repository\AgentJobRepository;
-use App\Repository\DdosStatusRepository;
-use App\Repository\JobRepository;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Application\SecretsCrypto;
-use Doctrine\ORM\EntityManagerInterface;
-use RuntimeException;
-use App\Repository\FirewallStateRepository;
-use App\Repository\InstanceRepository;
-use App\Repository\MetricSampleRepository;
 use App\Module\Core\Domain\Entity\AgentRegistrationToken;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\LogIndex;
 use App\Module\Core\Domain\Entity\ShopProduct;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Ports\Domain\Entity\PortAllocation;
 use App\Module\Ports\Domain\Entity\PortPool;
 use App\Module\Ports\Domain\Entity\PortRange;
+use App\Repository\AgentJobRepository;
+use App\Repository\AgentRepository;
+use App\Repository\DdosStatusRepository;
+use App\Repository\FirewallStateRepository;
+use App\Repository\InstanceRepository;
+use App\Repository\JobRepository;
+use App\Repository\MetricSampleRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts6InstanceRepository;
 use App\Repository\UserRepository;
 use App\Repository\WebspaceRepository;
+use Doctrine\ORM\EntityManagerInterface;
+use RuntimeException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -1154,8 +1154,7 @@ final class AdminNodeController
         array $updateJobs = [],
         array $serverUpdateJobs = [],
         array $ddosStatuses = [],
-    ): array
-    {
+    ): array {
         $now = new \DateTimeImmutable();
 
         return array_map(function ($node) use ($latestVersion, $updateJobs, $serverUpdateJobs, $ddosStatuses, $now): array {

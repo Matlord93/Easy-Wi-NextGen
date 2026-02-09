@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
+use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
-use App\Module\Core\Application\SetupChecker;
 use App\Module\Ports\Application\PortLeaseManager;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;

@@ -4,15 +4,26 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Module\Core\Application\AgentSignatureVerifier;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\FirewallStateManager;
+use App\Module\Core\Application\GdprAnonymizer;
+use App\Module\Core\Application\InstanceFilesystemResolver;
+use App\Module\Core\Application\JobLogger;
+use App\Module\Core\Application\NodeDiskProtectionService;
+use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\DdosPolicy;
 use App\Module\Core\Domain\Entity\DdosStatus;
 use App\Module\Core\Domain\Entity\JobResult;
 use App\Module\Core\Domain\Entity\MetricSample;
 use App\Module\Core\Domain\Entity\SecurityEvent;
 use App\Module\Core\Domain\Enum\BackupStatus;
+use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
-use App\Module\Core\Domain\Enum\InstanceStatus;
+use App\Module\Gameserver\Application\GameServerPathResolver;
+use App\Module\Gameserver\Application\Query\QueryResultNormalizer;
 use App\Repository\AgentRepository;
 use App\Repository\BackupRepository;
 use App\Repository\DdosPolicyRepository;
@@ -26,21 +37,9 @@ use App\Repository\SecurityPolicyRevisionRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts6InstanceRepository;
 use App\Repository\UserRepository;
-use App\Module\Core\Application\AgentSignatureVerifier;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
-use App\Module\Core\Application\FirewallStateManager;
-use App\Module\Core\Application\GdprAnonymizer;
-use App\Module\Core\Application\InstanceFilesystemResolver;
-use App\Module\Gameserver\Application\GameServerPathResolver;
-use App\Module\Core\Application\JobLogger;
-use App\Module\Core\Application\NotificationService;
-use App\Module\Core\Application\NodeDiskProtectionService;
-use App\Module\Gameserver\Application\Query\QueryResultNormalizer;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
-use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -49,6 +48,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 final class AgentApiController
 {

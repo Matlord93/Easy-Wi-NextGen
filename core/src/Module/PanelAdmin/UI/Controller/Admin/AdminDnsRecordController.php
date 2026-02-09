@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\DnsRecordHelper;
 use App\Module\Core\Domain\Entity\DnsRecord;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DnsRecordRepository;
 use App\Repository\DomainRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\DnsRecordHelper;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

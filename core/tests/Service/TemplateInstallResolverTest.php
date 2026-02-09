@@ -12,9 +12,9 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\MinecraftVersionCatalogRepositoryInterface;
-use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
+use App\Module\Gameserver\Application\TemplateInstallResolver;
+use App\Repository\MinecraftVersionCatalogRepositoryInterface;
 use PHPUnit\Framework\TestCase;
 
 final class TemplateInstallResolverTest extends TestCase

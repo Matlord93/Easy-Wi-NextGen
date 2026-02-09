@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
+use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Event\ResourceEventSource;
 use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
-use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Repository\BackupDefinitionRepository;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -53,8 +53,7 @@ class BackupDefinition implements ResourceEventSource
         string $targetId,
         ?string $label,
         ?BackupTarget $backupTarget = null,
-    )
-    {
+    ) {
         $this->customer = $customer;
         $this->targetType = $targetType;
         $this->targetId = $targetId;

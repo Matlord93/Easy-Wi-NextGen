@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
+use App\Module\Core\Domain\Enum\TsVirtualServerStatus;
 use App\Module\Core\Domain\Event\ResourceEventSource;
 use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
-use App\Module\Core\Domain\Enum\TsVirtualServerStatus;
 use App\Repository\TsVirtualServerRepository;
 use Doctrine\ORM\Mapping as ORM;
 

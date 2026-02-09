@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
-use App\Module\Core\Domain\Entity\ChangelogEntry;
-use App\Repository\ChangelogEntryRepository;
 use App\Module\Core\Application\ChangelogFetcher;
 use App\Module\Core\Application\SiteResolver;
+use App\Module\Core\Domain\Entity\ChangelogEntry;
+use App\Repository\ChangelogEntryRepository;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
 final class PublicChangelogController

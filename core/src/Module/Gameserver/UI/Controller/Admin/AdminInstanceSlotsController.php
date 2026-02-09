@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Admin;
 
-use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Gameserver\Application\InstanceSlotService;
 use App\Repository\InstanceRepository;

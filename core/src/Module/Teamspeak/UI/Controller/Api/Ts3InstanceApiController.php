@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Teamspeak\UI\Controller\Api;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Ts3Instance;
 use App\Module\Core\Domain\Entity\User;
@@ -14,8 +16,6 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\UserRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;

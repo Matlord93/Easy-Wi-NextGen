@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Ts3;
 
-use App\Module\Core\Dto\Ts3\CreateVirtualServerDto;
+use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
+use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\Ts3Node;
 use App\Module\Core\Domain\Entity\Ts3Token;
 use App\Module\Core\Domain\Entity\Ts3VirtualServer;
-use App\Module\Core\Application\SecretsCrypto;
-use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
+use App\Module\Core\Dto\Ts3\CreateVirtualServerDto;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class Ts3VirtualServerService

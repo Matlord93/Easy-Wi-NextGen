@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
-use App\Repository\Ts6NodeRepository;
 use App\Module\Core\Application\SecretsCrypto;
-use App\Module\Core\Domain\Entity\Agent;
+use App\Repository\Ts6NodeRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: Ts6NodeRepository::class)]

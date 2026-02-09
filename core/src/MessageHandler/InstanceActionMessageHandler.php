@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\MessageHandler;
 
+use App\Message\InstanceActionMessage;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Domain\Entity\Backup;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\Instance;
@@ -15,14 +18,11 @@ use App\Module\Core\Domain\Enum\InstanceScheduleAction;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
-use App\Message\InstanceActionMessage;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceScheduleRepository;
 use App\Repository\UserRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\JobLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 

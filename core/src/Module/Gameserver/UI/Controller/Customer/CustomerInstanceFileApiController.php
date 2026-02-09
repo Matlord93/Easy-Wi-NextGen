@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\Exception\FileServiceException;
+use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InstanceRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\AppSettingsService;
-use App\Module\Core\Application\FileServiceClient;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -21,8 +21,8 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\Routing\Attribute\Route;
 
 final class CustomerInstanceFileApiController
 {

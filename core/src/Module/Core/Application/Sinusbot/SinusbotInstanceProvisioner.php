@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Sinusbot;
 
-use App\Module\Core\Application\SecretsCrypto;
-use App\Module\Core\Application\Sinusbot\AgentClient;
-use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Application\AgentConfigurationException;
+use App\Module\Core\Application\AgentEndpointResolver;
+use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\SinusbotInstance;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;

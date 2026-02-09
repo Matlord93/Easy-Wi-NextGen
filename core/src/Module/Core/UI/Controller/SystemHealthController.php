@@ -8,16 +8,16 @@ use App\Infrastructure\Config\DbConfigProvider;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Application\UpdateJobService;
-use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TimeoutExceptionInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class SystemHealthController

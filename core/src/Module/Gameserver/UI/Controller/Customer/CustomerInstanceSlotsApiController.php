@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Core\Application\AppSettingsService;
 use App\Module\Gameserver\Application\InstanceSlotService;
 use App\Repository\InstanceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\Routing\Attribute\Route;
 
 final class CustomerInstanceSlotsApiController
 {

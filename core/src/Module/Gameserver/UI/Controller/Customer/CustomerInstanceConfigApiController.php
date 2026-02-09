@@ -4,21 +4,21 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\ConfigSchema\ConfigSchemaService;
 use App\Module\Core\Domain\Entity\ConfigSchema;
 use App\Module\Core\Domain\Entity\Instance;
-use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Gameserver\Application\InstanceSlotService;
+use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Repository\ConfigSchemaRepository;
 use App\Repository\GameDefinitionRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
-use App\Module\Gameserver\Application\InstanceSlotService;
-use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\ConfigSchema\ConfigSchemaService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;

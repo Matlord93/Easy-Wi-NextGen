@@ -4,28 +4,28 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AgentReleaseChecker;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\UpdateJobService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Core\Application\AgentReleaseChecker;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\UpdateJobService;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
 use App\Repository\AgentRepository;
 use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
-use Symfony\Component\RateLimiter\RateLimiterFactory;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Twig\Environment;
 
 #[Route(path: '/admin/updates')]

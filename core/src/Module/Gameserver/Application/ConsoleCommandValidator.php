@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
-use App\Module\Gameserver\Application\ConsoleCommandSettings;
-
 final class ConsoleCommandValidator
 {
     private const MAX_LENGTH = 512;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
-use App\Repository\Ts3TokenRepository;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Repository\Ts3TokenRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: Ts3TokenRepository::class)]

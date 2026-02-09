@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DomainRepository;
 use App\Repository\MailAliasRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -253,7 +252,7 @@ final class MailAliasApiController
             return [];
         }
 
-        $normalized = str_replace(["\r\n", "\n", ";"], ',', $input);
+        $normalized = str_replace(["\r\n", "\n", ';'], ',', $input);
         $parts = array_map('trim', explode(',', $normalized));
         $filtered = array_filter($parts, static fn (string $value): bool => $value !== '');
 

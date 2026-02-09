@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\Application\Query;
 
 use App\Module\Core\Domain\Entity\Instance;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class HttpQueryAdapter implements QueryAdapterInterface
 {

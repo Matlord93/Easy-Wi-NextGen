@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Repository\UserSessionRepository;
 use App\Security\SessionAuthenticator;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\RedirectResponse;

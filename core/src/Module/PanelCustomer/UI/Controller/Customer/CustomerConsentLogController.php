@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\ConsentLog;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\ConsentType;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\ConsentLogRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

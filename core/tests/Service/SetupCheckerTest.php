@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
+use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Template;
@@ -11,7 +12,6 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Core\Application\SetupChecker;
 use PHPUnit\Framework\TestCase;
 
 final class SetupCheckerTest extends TestCase

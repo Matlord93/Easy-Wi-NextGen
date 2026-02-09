@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\EventSubscriber;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\Common\EventSubscriber;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\PreRemoveEventArgs;

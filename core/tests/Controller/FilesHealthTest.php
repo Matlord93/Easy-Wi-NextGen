@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use App\Module\PanelCustomer\Application\SftpFilesystemService;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\PanelCustomer\Application\SftpFilesystemService;
 use App\Repository\WebspaceRepository;
 use App\Repository\WebspaceSftpCredentialRepository;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;

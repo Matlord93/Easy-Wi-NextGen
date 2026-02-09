@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\BackupSchedule;
 use App\Module\Core\Domain\Entity\User;
@@ -12,7 +13,6 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupTargetRepository;
 use App\Repository\UserRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Entity\InvoiceArchive;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\InvoiceArchiveRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 

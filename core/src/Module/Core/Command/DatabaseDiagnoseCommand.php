@@ -6,8 +6,8 @@ namespace App\Module\Core\Command;
 
 use App\Infrastructure\Config\DbConfigProvider;
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\Migrations\Configuration\Connection\ExistingConnection;
 use Doctrine\Migrations\Configuration\Migration\ConfigurationArray;
 use Doctrine\Migrations\DependencyFactory;

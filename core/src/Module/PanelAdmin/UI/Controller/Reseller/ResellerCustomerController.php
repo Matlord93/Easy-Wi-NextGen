@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Reseller;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\UserRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;

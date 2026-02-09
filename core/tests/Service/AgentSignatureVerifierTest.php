@@ -7,10 +7,10 @@ namespace App\Tests\Service;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
-use Psr\Log\NullLogger;
 
 final class AgentSignatureVerifierTest extends TestCase
 {

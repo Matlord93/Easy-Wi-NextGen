@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
-use App\Module\Core\Domain\Entity\Database;
-use App\Module\Core\Domain\Entity\DatabaseNode;
-use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DatabaseNamingPolicy;
 use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
-use App\Repository\DatabaseRepository;
+use App\Module\Core\Domain\Entity\Database;
+use App\Module\Core\Domain\Entity\DatabaseNode;
+use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DatabaseNodeRepository;
+use App\Repository\DatabaseRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,7 +23,6 @@ use Twig\Environment;
 #[Route(path: '/databases')]
 final class CustomerDatabaseController
 {
-
     public function __construct(
         private readonly DatabaseRepository $databaseRepository,
         private readonly DatabaseNodeRepository $databaseNodeRepository,

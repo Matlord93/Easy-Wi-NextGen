@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-use App\Module\Gameserver\Application\ConsoleCommandSettings;
 use App\Module\Core\Domain\Entity\AppSetting;
+use App\Module\Gameserver\Application\ConsoleCommandSettings;
 use App\Repository\AppSettingRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;

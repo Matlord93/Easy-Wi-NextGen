@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
-use App\Module\Core\Domain\Entity\ChangelogEntry;
-use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
-use App\Repository\ChangelogEntryRepository;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
+use App\Module\Core\Domain\Entity\ChangelogEntry;
+use App\Module\Core\Domain\Entity\User;
+use App\Repository\ChangelogEntryRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

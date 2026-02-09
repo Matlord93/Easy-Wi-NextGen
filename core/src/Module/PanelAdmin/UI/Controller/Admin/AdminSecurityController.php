@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\Ddos\DdosCredentialManager;
+use App\Module\Core\Domain\Entity\SecurityEvent;
+use App\Module\Core\Domain\Entity\SecurityPolicyRevision;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentRepository;
 use App\Repository\DdosProviderCredentialRepository;
@@ -11,10 +15,6 @@ use App\Repository\FirewallStateRepository;
 use App\Repository\JobRepository;
 use App\Repository\SecurityEventRepository;
 use App\Repository\SecurityPolicyRevisionRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\Ddos\DdosCredentialManager;
-use App\Module\Core\Domain\Entity\SecurityPolicyRevision;
-use App\Module\Core\Domain\Entity\SecurityEvent;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;

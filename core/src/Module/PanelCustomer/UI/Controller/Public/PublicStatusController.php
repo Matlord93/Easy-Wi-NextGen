@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\Incident;
 use App\Module\Core\Domain\Entity\IncidentUpdate;
 use App\Module\Core\Domain\Entity\MaintenanceWindow;
@@ -12,12 +13,11 @@ use App\Repository\IncidentRepository;
 use App\Repository\IncidentUpdateRepository;
 use App\Repository\MaintenanceWindowRepository;
 use App\Repository\StatusComponentRepository;
-use App\Module\Core\Application\SiteResolver;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
 final class PublicStatusController

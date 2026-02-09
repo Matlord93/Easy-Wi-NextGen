@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Enum\InvoiceStatus;
 use App\Repository\PaymentRepository;
-use App\Module\Core\Application\AuditLogger;
 
 final class InvoiceStatusUpdater
 {

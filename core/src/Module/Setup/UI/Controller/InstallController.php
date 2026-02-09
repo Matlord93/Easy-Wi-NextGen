@@ -85,9 +85,7 @@ final class InstallController
 
             if ($step === 1 && $action === 'continue') {
                 $step = 2;
-            }
-
-            elseif ($step === 2) {
+            } elseif ($step === 2) {
                 $requirements = $this->installerService->checkRequirements();
                 $requirementsOk = $this->installerService->requirementsSatisfied($requirements);
 
@@ -98,9 +96,7 @@ final class InstallController
                         $errors[] = ['key' => 'errors.requirements_not_met'];
                     }
                 }
-            }
-
-            elseif ($step === 3) {
+            } elseif ($step === 3) {
                 $databaseState = array_merge($databaseState, [
                     'host' => trim((string) ($payload['db_host'] ?? $databaseState['host'])),
                     'port' => trim((string) ($payload['db_port'] ?? $databaseState['port'])),
@@ -202,9 +198,7 @@ final class InstallController
                 if ($action === 'back') {
                     $step = 2;
                 }
-            }
-
-            elseif ($step === 4) {
+            } elseif ($step === 4) {
                 $applicationState = array_merge($applicationState, [
                     'site_name' => trim((string) ($payload['site_name'] ?? $applicationState['site_name'])),
                     'site_host' => trim((string) ($payload['site_host'] ?? $applicationState['site_host'])),
@@ -509,8 +503,7 @@ final class InstallController
         array $applicationState,
         array $settingsState,
         array $errors,
-    ): array
-    {
+    ): array {
         $databaseState['password'] = '***';
         if (array_key_exists('sftp_password', $settingsState)) {
             $settingsState['sftp_password'] = '***';

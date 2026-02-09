@@ -6,7 +6,6 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\MetricSampleRepository;

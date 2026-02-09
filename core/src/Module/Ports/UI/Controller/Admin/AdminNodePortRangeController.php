@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\UI\Controller\Admin;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Form\PortRangeFormType;
-use App\Repository\AgentRepository;
-use App\Module\Core\Application\AuditLogger;
 use App\Module\Ports\Domain\Entity\PortRange;
 use App\Module\Ports\Infrastructure\Repository\PortRangeRepository;
+use App\Repository\AgentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

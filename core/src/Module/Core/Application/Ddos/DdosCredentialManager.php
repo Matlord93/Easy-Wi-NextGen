@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Ddos;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\DdosProviderCredential;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DdosProviderCredentialRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class DdosCredentialManager

@@ -6,7 +6,6 @@ namespace App\Module\Core\Domain\Entity;
 
 use App\Module\Core\Application\SecretsCrypto;
 use App\Repository\SinusbotInstanceRepository;
-use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: SinusbotInstanceRepository::class)]

@@ -6,6 +6,7 @@ namespace App\Module\AgentOrchestrator\Application;
 
 use App\Module\AgentOrchestrator\Domain\Entity\AgentJob;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
+use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\Ts3Node;
 use App\Module\Core\Domain\Entity\Ts3Token;
@@ -15,7 +16,6 @@ use App\Module\Core\Domain\Entity\Ts6Token;
 use App\Module\Core\Domain\Entity\Ts6VirtualServer;
 use App\Module\Core\Domain\Enum\Ts3InstanceStatus;
 use App\Module\Core\Domain\Enum\Ts6InstanceStatus;
-use App\Module\Core\Application\SecretsCrypto;
 use App\Repository\SinusbotNodeRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts3NodeRepository;

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
-use App\Module\Core\Domain\Entity\Agent;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

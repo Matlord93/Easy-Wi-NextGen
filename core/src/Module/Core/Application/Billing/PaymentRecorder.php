@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Billing;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Invoice;
 use App\Module\Core\Domain\Entity\Payment;
 use App\Module\Core\Domain\Enum\PaymentStatus;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class PaymentRecorder

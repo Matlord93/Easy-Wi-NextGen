@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use App\Module\Core\Domain\Entity\Job;
@@ -12,9 +15,6 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceSftpCredentialRepository;
 use App\Repository\JobRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
-use App\Module\Core\Application\AppSettingsService;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;

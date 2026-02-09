@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
-use App\Module\Core\Domain\Entity\UserSession;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\UserSession;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use App\Repository\InvoicePreferencesRepository;
 use App\Repository\UserRepository;
 use App\Security\SessionAuthenticator;
 use App\Security\SessionTokenGenerator;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\RedirectResponse;

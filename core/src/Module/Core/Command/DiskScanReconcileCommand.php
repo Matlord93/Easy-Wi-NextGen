@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Module\Core\Command;
 
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
-use App\Module\Gameserver\Application\GameServerPathResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;

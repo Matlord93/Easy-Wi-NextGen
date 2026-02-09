@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\Ticket;
 use App\Module\Core\Domain\Entity\TicketMessage;
 use App\Module\Core\Domain\Entity\TicketQuickReply;
@@ -18,8 +20,6 @@ use App\Repository\TicketQuickReplyRepository;
 use App\Repository\TicketRepository;
 use App\Repository\TicketTemplateRepository;
 use App\Repository\UserRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\NotificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

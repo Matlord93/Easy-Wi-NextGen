@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Module\AgentOrchestrator\UI\Controller\Admin;
 
 use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
+use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentJobRepository;
 use App\Repository\AgentRepository;
-use App\Module\Core\Domain\Entity\User;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;

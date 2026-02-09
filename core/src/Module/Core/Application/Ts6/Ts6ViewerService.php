@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application\Ts6;
 
-use App\Module\Core\Dto\Ts6\ViewerDto;
-use App\Module\Core\Domain\Entity\Ts6VirtualServer;
 use App\Module\Core\Domain\Entity\Ts6Viewer;
+use App\Module\Core\Domain\Entity\Ts6VirtualServer;
+use App\Module\Core\Dto\Ts6\ViewerDto;
 use App\Repository\Ts6ViewerRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Contracts\Cache\CacheInterface;

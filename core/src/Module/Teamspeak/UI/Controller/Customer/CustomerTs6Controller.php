@@ -4,21 +4,21 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Customer;
 
+use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\ModuleRegistry;
 use App\Module\Core\Domain\Entity\Ts6Instance;
 use App\Module\Core\Domain\Entity\TsVirtualServer;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\AgentOrchestrator\Application\AgentJobDispatcher;
 use App\Module\Core\Domain\Enum\ModuleKey;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\Ts6InstanceRepository;
 use App\Repository\TsVirtualServerRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\ModuleRegistry;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;

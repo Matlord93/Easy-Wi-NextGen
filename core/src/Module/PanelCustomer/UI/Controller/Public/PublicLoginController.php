@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Application\SiteResolver;
+use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\UserSession;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Core\Application\TwoFactorService;
-use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Setup\Application\InstallerService;
 use App\Repository\UserRepository;
 use App\Security\SessionTokenGenerator;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Setup\Application\InstallerService;
 use App\Security\TwoFactorPolicy;
-use App\Module\Core\Application\SiteResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -199,17 +199,17 @@ final class PublicLoginController
                                 default => '/dashboard',
                             },
                         };
-                    $response = new RedirectResponse($redirectPath);
-                    $response->headers->setCookie(
-                        Cookie::create('easywi_session', $token)
-                            ->withPath('/')
-                            ->withSecure($request->isSecure())
-                            ->withHttpOnly(true)
-                            ->withSameSite('lax')
-                            ->withExpires((new \DateTimeImmutable())->modify('+30 days'))
-                    );
+                        $response = new RedirectResponse($redirectPath);
+                        $response->headers->setCookie(
+                            Cookie::create('easywi_session', $token)
+                                ->withPath('/')
+                                ->withSecure($request->isSecure())
+                                ->withHttpOnly(true)
+                                ->withSameSite('lax')
+                                ->withExpires((new \DateTimeImmutable())->modify('+30 days'))
+                        );
 
-                    return $response;
+                        return $response;
                     }
                 }
             } else {

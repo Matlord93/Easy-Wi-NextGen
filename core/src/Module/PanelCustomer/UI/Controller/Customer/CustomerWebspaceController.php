@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\Core\Application\AuditLogger;
 use App\Repository\DomainRepository;
 use App\Repository\MailboxRepository;
 use App\Repository\WebspaceRepository;

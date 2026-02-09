@@ -19,9 +19,9 @@ use App\Repository\AgentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\HttpClient\MockHttpClient;
 use Twig\Environment;
 
 final class AdminUnifiControllerTest extends TestCase

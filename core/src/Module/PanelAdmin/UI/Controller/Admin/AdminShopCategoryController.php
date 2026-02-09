@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
-use App\Module\Core\Domain\Entity\ShopCategory;
-use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
+use App\Module\Core\Domain\Entity\ShopCategory;
+use App\Module\Core\Domain\Entity\User;
 use App\Repository\ShopCategoryRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;

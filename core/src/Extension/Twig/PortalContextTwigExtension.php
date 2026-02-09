@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Extension\Twig;
 
-use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Domain\Entity\User;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Repository\AgentRepository;
 use App\Repository\InvoicePreferencesRepository;

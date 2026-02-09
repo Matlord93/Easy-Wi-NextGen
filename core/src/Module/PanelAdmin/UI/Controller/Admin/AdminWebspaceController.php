@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
@@ -13,7 +14,6 @@ use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use App\Repository\AgentRepository;
 use App\Repository\UserRepository;
 use App\Repository\WebspaceRepository;
-use App\Module\Core\Application\AuditLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

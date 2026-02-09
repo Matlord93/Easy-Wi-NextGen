@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Module\Nodes\UI\Controller\Agent;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\TokenGenerator;
 use App\Module\Core\Domain\Entity\AgentRegistrationToken;
 use App\Repository\AgentBootstrapTokenRepository;
 use App\Repository\AgentRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\TokenGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;

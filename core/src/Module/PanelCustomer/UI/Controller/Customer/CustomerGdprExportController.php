@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\GdprExportService;
 use App\Module\Core\Domain\Entity\GdprExport;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\GdprExportStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\GdprExportRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\EncryptionService;
-use App\Module\Core\Application\GdprExportService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Module\Ports\Domain\Entity;
 
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Event\ResourceEventSource;
 use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
-use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use Doctrine\ORM\Mapping as ORM;
 

@@ -6,6 +6,7 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\GdprExport;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupTargetRepository;
 use App\Repository\ConsentLogRepository;
@@ -19,7 +20,6 @@ use App\Repository\InvoiceRepository;
 use App\Repository\MailAliasRepository;
 use App\Repository\MailboxRepository;
 use App\Repository\PaymentRepository;
-use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\TicketMessageRepository;
 use App\Repository\TicketRepository;
 use App\Repository\Ts3InstanceRepository;

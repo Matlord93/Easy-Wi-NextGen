@@ -64,8 +64,7 @@ class Database implements ResourceEventSource
         string $username,
         array $encryptedPassword,
         ?DatabaseNode $node = null,
-    )
-    {
+    ) {
         $this->customer = $customer;
         $this->engine = $engine;
         $this->host = $host;

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\MessageHandler;
 
 use App\Message\RunInstanceActionMessage;
-use App\Repository\JobRepository;
 use App\Module\Core\Application\JobLogger;
+use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 

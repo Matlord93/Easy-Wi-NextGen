@@ -6,8 +6,8 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Template;
-use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 
 final class GameTemplateSeeder
 {

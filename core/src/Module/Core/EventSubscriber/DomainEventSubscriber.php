@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace App\Module\Core\EventSubscriber;
 
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Event\EventBusInterface;
 use App\Module\Core\Domain\Event\JobStateChangedEvent;
 use App\Module\Core\Domain\Event\ResourceEvent;
 use App\Module\Core\Domain\Event\ResourceEventSource;
-use App\Module\Core\Domain\Entity\Job;
-use App\Module\Core\Domain\Enum\JobStatus;
 use Doctrine\Common\EventSubscriber;
-use Doctrine\Persistence\Event\LifecycleEventArgs;
 use Doctrine\ORM\Event\PostUpdateEventArgs;
 use Doctrine\ORM\Events;
+use Doctrine\Persistence\Event\LifecycleEventArgs;
 
 final class DomainEventSubscriber implements EventSubscriber
 {

@@ -104,8 +104,7 @@ class Webspace implements ResourceEventSource
         bool $ftpEnabled = false,
         bool $sftpEnabled = false,
         string $systemUsername = '',
-    )
-    {
+    ) {
         $this->customer = $customer;
         $this->node = $node;
         $this->path = $path;

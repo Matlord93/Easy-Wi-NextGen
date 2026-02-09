@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\InstanceDiskStateResolver;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\InstanceDiskState;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Repository\InstanceRepository;
-use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\InstanceDiskStateResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;

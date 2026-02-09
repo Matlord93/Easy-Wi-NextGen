@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Tests\Service;
 
-use App\Module\Gameserver\Application\ConsoleCommandValidator;
 use App\Module\Gameserver\Application\ConsoleCommandSettings;
+use App\Module\Gameserver\Application\ConsoleCommandValidator;
 use PHPUnit\Framework\TestCase;
 
 final class ConsoleCommandValidatorTest extends TestCase
 {
     public function testRejectsShellOperators(): void
     {
-        $settings = new class implements ConsoleCommandSettings {
+        $settings = new class () implements ConsoleCommandSettings {
             public function getCustomerConsoleAllowedCommands(): array
             {
                 return [];
@@ -27,7 +27,7 @@ final class ConsoleCommandValidatorTest extends TestCase
 
     public function testAllowsWhitelistedCommand(): void
     {
-        $settings = new class implements ConsoleCommandSettings {
+        $settings = new class () implements ConsoleCommandSettings {
             public function getCustomerConsoleAllowedCommands(): array
             {
                 return ['status', 'say'];
@@ -42,7 +42,7 @@ final class ConsoleCommandValidatorTest extends TestCase
 
     public function testRejectsNonWhitelistedCommand(): void
     {
-        $settings = new class implements ConsoleCommandSettings {
+        $settings = new class () implements ConsoleCommandSettings {
             public function getCustomerConsoleAllowedCommands(): array
             {
                 return ['status'];

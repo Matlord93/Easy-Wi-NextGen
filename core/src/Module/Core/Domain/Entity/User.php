@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
-use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\UserRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
