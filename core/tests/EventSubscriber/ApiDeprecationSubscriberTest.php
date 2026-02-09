@@ -7,22 +7,21 @@ namespace App\Tests\EventSubscriber;
 use App\Module\Core\EventSubscriber\ApiDeprecationSubscriber;
 use PHPUnit\Framework\Attributes\Test;
 use Psr\Log\NullLogger;
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 
-final class ApiDeprecationSubscriberTest extends KernelTestCase
+final class ApiDeprecationSubscriberTest extends TestCase
 {
     #[Test]
     public function itAddsDeprecationHeadersToLegacyApiRoutes(): void
     {
-        self::bootKernel();
-
         $request = Request::create('/api/instances');
         $response = new Response();
-        $event = new ResponseEvent(self::$kernel, $request, HttpKernelInterface::MAIN_REQUEST, $response);
+        $kernel = $this->createMock(HttpKernelInterface::class);
+        $event = new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $response);
 
         $subscriber = new ApiDeprecationSubscriber(new NullLogger());
         $subscriber->onKernelResponse($event);
@@ -34,11 +33,10 @@ final class ApiDeprecationSubscriberTest extends KernelTestCase
     #[Test]
     public function itSkipsDeprecationHeadersForVersionedApiRoutes(): void
     {
-        self::bootKernel();
-
         $request = Request::create('/api/v1/auth/login');
         $response = new Response();
-        $event = new ResponseEvent(self::$kernel, $request, HttpKernelInterface::MAIN_REQUEST, $response);
+        $kernel = $this->createMock(HttpKernelInterface::class);
+        $event = new ResponseEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $response);
 
         $subscriber = new ApiDeprecationSubscriber(new NullLogger());
         $subscriber->onKernelResponse($event);
