@@ -25,7 +25,7 @@ final class MailAliasApiController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         #[Autowire('%env(default::APP_MAIL_ALIAS_MAP_PATH)%')]
-        private readonly string $aliasMapPath,
+        private readonly ?string $aliasMapPath,
     ) {
     }
 
@@ -214,12 +214,13 @@ final class MailAliasApiController
     private function queueAliasJob(string $type, MailAlias $alias, array $extraPayload): Job
     {
         $domain = $alias->getDomain();
+        $mapPath = $this->aliasMapPath ?? '';
         $payload = array_merge([
             'alias_id' => (string) ($alias->getId() ?? ''),
             'domain_id' => (string) $domain->getId(),
             'local_part' => $alias->getLocalPart(),
             'address' => $alias->getAddress(),
-            'map_path' => $this->aliasMapPath !== '' ? $this->aliasMapPath : '/etc/postfix/virtual_aliases',
+            'map_path' => $mapPath !== '' ? $mapPath : '/etc/postfix/virtual_aliases',
         ], $extraPayload);
 
         $job = new Job($type, $payload);

@@ -62,7 +62,7 @@
   "scripts": {
     "lint": [
       "find . -name \"*.php\" -not -path \"./vendor/*\" -print0 | xargs -0 -n1 php -l",
-      "php bin/console lint:yaml config",
+      "php bin/console lint:yaml --parse-tags config",
       "php bin/console lint:twig templates",
       "php bin/console lint:container"
     ],
