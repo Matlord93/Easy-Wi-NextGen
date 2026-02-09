@@ -2,6 +2,8 @@ module easywi/agent
 
 go 1.24.0
 
+toolchain go1.24.13
+
 require (
 	github.com/shirou/gopsutil/v4 v4.24.9
 	golang.org/x/crypto v0.47.0
