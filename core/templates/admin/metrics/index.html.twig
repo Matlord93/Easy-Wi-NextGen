@@ -3,6 +3,12 @@
 
 {% block content %}
 <div class="flex flex-col gap-6">
+    {% if loadError %}
+        <div class="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {{ t('admin_metrics_load_error', page_locale()) }}
+        </div>
+    {% endif %}
+
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-semibold">{{ t('admin_metrics_heading', page_locale()) }}</h1>
@@ -113,15 +119,15 @@
                 <div>
                     <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_network_traffic', page_locale()) }}</p>
                     <p class="mt-2 text-2xl font-semibold text-slate-900">
-                        {{ latestNetSent is not null ? latestNetSent|number_format(0, '.', ',') : '—' }}
-                        <span class="text-xs font-normal text-slate-600">{{ t('admin_metrics_sent', page_locale()) }}</span>
+                        {{ latestNetRecv is not null ? ((latestNetRecv * 8) / 1000000)|number_format(2, '.', ',') : '—' }}
+                        <span class="text-xs font-normal text-slate-600">{{ t('admin_metrics_download', page_locale()) }}</span>
                     </p>
                     <p class="text-sm text-slate-700">
-                        {{ latestNetRecv is not null ? latestNetRecv|number_format(0, '.', ',') : '—' }}
-                        <span class="text-xs font-normal text-slate-600">{{ t('admin_metrics_received', page_locale()) }}</span>
+                        {{ latestNetSent is not null ? ((latestNetSent * 8) / 1000000)|number_format(2, '.', ',') : '—' }}
+                        <span class="text-xs font-normal text-slate-600">{{ t('admin_metrics_upload', page_locale()) }}</span>
                     </p>
                 </div>
-                <span class="text-xs text-slate-600">{{ t('admin_metrics_bytes', page_locale()) }}</span>
+                <span class="text-xs text-slate-600">{{ t('admin_metrics_bandwidth_unit', page_locale()) }}</span>
             </div>
             <div class="mt-4">
                 <svg viewBox="0 0 240 60" class="h-16 w-full">
@@ -200,4 +206,29 @@
         </div>
     </div>
 </div>
+
+<script>
+    (() => {
+        const refreshIntervalMs = 30000;
+        let refreshTimer = null;
+
+        const scheduleRefresh = () => {
+            if (refreshTimer !== null) {
+                window.clearTimeout(refreshTimer);
+            }
+
+            if (document.hidden) {
+                return;
+            }
+
+            refreshTimer = window.setTimeout(() => {
+                window.location.reload();
+            }, refreshIntervalMs);
+        };
+
+        document.addEventListener('visibilitychange', scheduleRefresh);
+        window.addEventListener('focus', scheduleRefresh);
+        scheduleRefresh();
+    })();
+</script>
 {% endblock %}

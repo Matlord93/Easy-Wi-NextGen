@@ -1,16 +1,20 @@
 {% extends 'public/base.html.twig' %}
 
-
 {% block content %}
-<div class="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-    <div class="rounded-xl border border-slate-200 bg-white">
-        <div class="border-b border-slate-200 px-6 py-4">
-            <h1 class="text-lg font-semibold">{{ t('welcome_back', page_locale()) }}</h1>
-            <p class="text-sm text-slate-700">{{ t('login_description', page_locale()) }}</p>
+<div class="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+    <div class="overflow-hidden rounded-2xl border border-emerald-500/20 bg-slate-900 text-slate-100 shadow-xl shadow-emerald-900/20">
+        <div class="border-b border-slate-700/80 bg-gradient-to-r from-emerald-600/15 via-emerald-500/5 to-transparent px-6 py-5">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">Clan Access</p>
+            <h1 class="mt-2 text-2xl font-semibold">{{ t('welcome_back', page_locale()) }}</h1>
+            <p class="mt-2 text-sm text-slate-300">{{ t('login_description', page_locale()) }}</p>
+            <div class="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
+                <span class="inline-flex h-2 w-2 rounded-full bg-emerald-300"></span>
+                2FA unterstützt (Authenticator & Recovery-Code)
+            </div>
         </div>
         <div class="px-6 py-6">
             {% if errors is not empty %}
-                <div class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div class="mb-4 rounded-lg border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
                     <ul class="list-disc space-y-1 pl-5">
                         {% for error in errors %}
                             <li>{{ error }}</li>
@@ -20,44 +24,47 @@
             {% endif %}
             <form method="post" action="/login" class="space-y-4">
                 <div>
-                    <label class="text-sm font-medium text-slate-700" for="email">{{ t('email_address', page_locale()) }}</label>
-                    <input id="email" name="email" type="email" value="{{ form.email }}" required class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('email_placeholder', page_locale()) }}">
+                    <label class="text-sm font-medium text-slate-200" for="email">{{ t('email_address', page_locale()) }}</label>
+                    <input id="email" name="email" type="email" value="{{ form.email }}" required class="mt-2 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" placeholder="{{ t('email_placeholder', page_locale()) }}">
                 </div>
                 <div>
-                    <label class="text-sm font-medium text-slate-700" for="password">{{ t('password', page_locale()) }}</label>
-                    <input id="password" name="password" type="password" required class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('password_placeholder', page_locale()) }}">
+                    <label class="text-sm font-medium text-slate-200" for="password">{{ t('password', page_locale()) }}</label>
+                    <input id="password" name="password" type="password" required class="mt-2 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" placeholder="{{ t('password_placeholder', page_locale()) }}">
                 </div>
-                {% if twoFactorEnabled or requiresTwoFactor %}
-                    <div>
-                        <label class="text-sm font-medium text-slate-700" for="otp">{{ t('two_factor_code_label', page_locale()) }}</label>
-                        <input id="otp" name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="123456">
-                        <p class="mt-2 text-xs text-slate-500">{{ t('two_factor_login_hint', page_locale()) }}</p>
+                <div class="rounded-xl border border-slate-700 bg-slate-800/70 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">2FA</p>
+                    <div class="mt-3 grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="text-sm font-medium text-slate-200" for="otp">{{ t('two_factor_code_label', page_locale()) }}</label>
+                            <input id="otp" name="otp" type="text" value="{{ form.otp|default('') }}" inputmode="numeric" autocomplete="one-time-code" class="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" placeholder="123456">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-200" for="recovery_code">{{ t('two_factor_recovery_label', page_locale()) }}</label>
+                            <input id="recovery_code" name="recovery_code" type="text" value="{{ form.recovery_code|default('') }}" class="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30" placeholder="0000-0000">
+                        </div>
                     </div>
-                    <div>
-                        <label class="text-sm font-medium text-slate-700" for="recovery_code">{{ t('two_factor_recovery_label', page_locale()) }}</label>
-                        <input id="recovery_code" name="recovery_code" type="text" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="0000-0000">
-                    </div>
-                {% endif %}
+                    <p class="mt-2 text-xs text-slate-400">{{ t('two_factor_login_hint', page_locale()) }}</p>
+                </div>
                 {% if enrollmentRequired %}
-                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                    <div class="rounded-lg border border-amber-300/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
                         {{ t('two_factor_enrollment_required', page_locale()) }}
                     </div>
                     {% if twoFactorSetup.qr %}
-                        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-xs text-slate-700">
-                            <p class="font-semibold text-slate-900">{{ t('two_factor_setup_intro', page_locale()) }}</p>
+                        <div class="rounded-lg border border-slate-700 bg-slate-800/80 px-4 py-4 text-xs text-slate-300">
+                            <p class="font-semibold text-slate-100">{{ t('two_factor_setup_intro', page_locale()) }}</p>
                             <div class="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
-                                <div class="rounded-lg border border-slate-200 bg-white p-2">
+                                <div class="rounded-lg border border-slate-600 bg-white p-2">
                                     <img src="{{ twoFactorSetup.qr }}" alt="{{ t('two_factor_scan_qr', page_locale()) }}" class="h-40 w-40">
                                 </div>
                                 <div class="flex-1">
-                                    <p class="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-500">{{ t('two_factor_secret_label', page_locale()) }}</p>
-                                    <p class="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-700">{{ twoFactorSetup.secret }}</p>
+                                    <p class="text-[0.7rem] font-semibold uppercase tracking-wide text-slate-400">{{ t('two_factor_secret_label', page_locale()) }}</p>
+                                    <p class="mt-2 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 font-mono text-xs text-slate-100">{{ twoFactorSetup.secret }}</p>
                                 </div>
                             </div>
                         </div>
                     {% endif %}
                 {% endif %}
-                <button type="submit" class="inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">{{ t('log_in', page_locale()) }}</button>
+                <button type="submit" class="inline-flex w-full items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400">{{ t('log_in', page_locale()) }}</button>
             </form>
         </div>
     </div>

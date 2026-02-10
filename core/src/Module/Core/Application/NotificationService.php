@@ -51,7 +51,7 @@ final class NotificationService
     {
         $pastDueInvoices = $this->invoiceRepository->createQueryBuilder('invoice')
             ->andWhere('invoice.status IN (:statuses)')
-            ->setParameter('statuses', [InvoiceStatus::Open, InvoiceStatus::PastDue])
+            ->setParameter('statuses', [InvoiceStatus::Open->value, InvoiceStatus::PastDue->value])
             ->orderBy('invoice.dueDate', 'ASC')
             ->setMaxResults(15)
             ->getQuery()

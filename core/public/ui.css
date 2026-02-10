@@ -564,6 +564,7 @@ textarea {
     .xl\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .xl\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .xl\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .xl\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 .from-indigo-950 { --tw-gradient-from: #1e1b4b; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(30,27,75,0)); }
 .from-indigo-950\/90 { --tw-gradient-from: rgba(30, 27, 75, 0.9); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(30,27,75,0)); }

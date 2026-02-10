@@ -261,15 +261,15 @@ final class AdminInstanceController
 
         $this->entityManager->flush();
 
-        $response = new Response($this->twig->render('admin/instances/_form.html.twig', [
-            'customers' => $this->userRepository->findCustomers(),
-            'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
-            'templates' => $this->templateRepository->findBy([], ['displayName' => 'ASC']),
-            'form' => $this->buildFormContext(),
-        ]));
-        $response->headers->set('HX-Trigger', 'instances-changed');
+        if ($request->headers->get('HX-Request') === 'true') {
+            $response = new Response('', Response::HTTP_NO_CONTENT);
+            $response->headers->set('HX-Trigger', 'instances-changed');
+            $response->headers->set('HX-Redirect', '/admin/instances');
 
-        return $response;
+            return $response;
+        }
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/instances']);
     }
 
     #[Route(path: '/customers', name: 'admin_instances_customers_create', methods: ['POST'])]

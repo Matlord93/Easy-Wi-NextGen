@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\AgentOrchestrator\UI\Controller\Agent;
 
-use App\Module\AgentOrchestrator\Application\AgentJobResultApplier;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\EncryptionService;
@@ -29,7 +28,6 @@ final class AgentJobController
         private readonly AgentJobRepository $jobRepository,
         private readonly AgentSignatureVerifier $signatureVerifier,
         private readonly EncryptionService $encryptionService,
-        private readonly AgentJobResultApplier $resultApplier,
         private readonly EntityManagerInterface $entityManager,
         private readonly CacheInterface $cache,
     ) {
@@ -106,7 +104,6 @@ final class AgentJobController
         $this->applyServerGroupCache($job, $payload['result_payload'] ?? null);
         $this->applyServerSummaryCache($job, $payload['result_payload'] ?? null);
         $this->applyServerQueryCache($job, $payload['result_payload'] ?? null);
-        $this->resultApplier->apply($job, $status, $job->getResultPayload());
         $this->entityManager->flush();
 
         return new JsonResponse(['status' => 'ok']);

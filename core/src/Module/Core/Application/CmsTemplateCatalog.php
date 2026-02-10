@@ -807,10 +807,14 @@ HTML;
     private function clanHero(): string
     {
         return <<<HTML
-<section class="rounded-2xl bg-gradient-to-r from-slate-950 via-emerald-900 to-slate-950 px-8 py-10 text-white">
-    <p class="text-xs uppercase tracking-[0.2em] text-emerald-200">Clan Pulse</p>
-    <h2 class="mt-3 text-3xl font-semibold">Immer informiert. Immer einsatzbereit.</h2>
-    <p class="mt-4 text-base text-emerald-100">Teams, Trainings und Serverstatus – kompakt und modern.</p>
+<section class="rounded-3xl bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 px-8 py-10 text-white shadow-2xl">
+    <p class="inline-flex rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-emerald-200">Clan Modern</p>
+    <h2 class="mt-4 text-3xl font-semibold">Bereit für Ranked, Scrims und Turniere.</h2>
+    <p class="mt-4 max-w-3xl text-base text-emerald-100">Unser Clan verbindet ambitionierte Spieler:innen mit Teamplay, Struktur und einer starken Community. Von Training bis Matchday ist alles an einem Ort organisiert.</p>
+    <div class="mt-6 flex flex-wrap gap-3">
+        <a href="/mitmachen" class="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950">Jetzt bewerben</a>
+        <a href="/events" class="rounded-lg border border-emerald-300/40 px-4 py-2 text-xs font-semibold text-emerald-100">Nächste Events</a>
+    </div>
 </section>
 HTML;
     }
@@ -818,19 +822,23 @@ HTML;
     private function clanStats(): string
     {
         return <<<HTML
-<section class="rounded-xl border border-slate-200 bg-white p-6">
-    <div class="grid gap-6 md:grid-cols-3">
+<section class="rounded-2xl border border-slate-200 bg-white p-6">
+    <div class="grid gap-4 md:grid-cols-4">
         <div>
-            <p class="text-3xl font-semibold text-slate-900">25+</p>
+            <p class="text-3xl font-semibold text-slate-900">72</p>
             <p class="text-xs uppercase text-slate-500">aktive Member</p>
         </div>
         <div>
-            <p class="text-3xl font-semibold text-slate-900">4</p>
-            <p class="text-xs uppercase text-slate-500">Teams</p>
+            <p class="text-3xl font-semibold text-slate-900">5</p>
+            <p class="text-xs uppercase text-slate-500">Competitive Teams</p>
         </div>
         <div>
-            <p class="text-3xl font-semibold text-slate-900">7</p>
-            <p class="text-xs uppercase text-slate-500">Events / Monat</p>
+            <p class="text-3xl font-semibold text-slate-900">14</p>
+            <p class="text-xs uppercase text-slate-500">Trainings / Monat</p>
+        </div>
+        <div>
+            <p class="text-3xl font-semibold text-slate-900">98%</p>
+            <p class="text-xs uppercase text-slate-500">Server Uptime</p>
         </div>
     </div>
 </section>
@@ -840,9 +848,10 @@ HTML;
     private function clanCta(): string
     {
         return <<<HTML
-<section class="rounded-xl border border-indigo-200 bg-indigo-50 p-6">
-    <h3 class="text-xl font-semibold text-indigo-900">Du willst mitmachen?</h3>
-    <p class="mt-2 text-sm text-indigo-800">Sieh dir unsere Anforderungen an und stell dich kurz vor.</p>
+<section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
+    <h3 class="text-xl font-semibold text-emerald-900">Du willst mitspielen?</h3>
+    <p class="mt-2 text-sm text-emerald-800">Dann zeig uns deine Rolle, dein Ziel und wie du ins Team passt. Wir suchen nicht nur Skill, sondern Charakter.</p>
+    <a href="/mitmachen" class="mt-4 inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500">Bewerbung starten</a>
 </section>
 HTML;
     }
@@ -850,14 +859,18 @@ HTML;
     private function clanTeams(): string
     {
         return <<<HTML
-<section class="grid gap-4 md:grid-cols-2">
+<section class="grid gap-4 md:grid-cols-3">
     <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <h3 class="font-semibold">Main Squad</h3>
-        <p class="mt-2 text-sm text-slate-600">Core-Team für Turniere und Scrims.</p>
+        <h3 class="font-semibold">Valorant Main</h3>
+        <p class="mt-2 text-sm text-slate-600">Core-Team für Turniere, VOD-Reviews und feste Matchdays.</p>
     </div>
     <div class="rounded-xl border border-slate-200 bg-white p-5">
         <h3 class="font-semibold">Academy</h3>
-        <p class="mt-2 text-sm text-slate-600">Rookies, die gemeinsam besser werden.</p>
+        <p class="mt-2 text-sm text-slate-600">Nachwuchs mit Mentoring und klaren Entwicklungspfaden.</p>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <h3 class="font-semibold">Community Squad</h3>
+        <p class="mt-2 text-sm text-slate-600">Casual & Ranked für alle, die aktiv Teil der Community sein möchten.</p>
     </div>
 </section>
 HTML;
@@ -866,9 +879,15 @@ HTML;
     private function clanRoster(): string
     {
         return <<<HTML
-<section class="rounded-xl border border-slate-200 bg-slate-50 p-6">
+<section class="rounded-2xl border border-slate-200 bg-slate-50 p-6">
     <h3 class="text-lg font-semibold">Roster Overview</h3>
-    <p class="mt-2 text-sm text-slate-600">Leader, Strategen und Support – alle Rollen auf einen Blick.</p>
+    <p class="mt-2 text-sm text-slate-600">Leader, IGL, Entry, Support und Analysten – klare Rollen, klare Kommunikation.</p>
+    <ul class="mt-4 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+        <li>• Shotcaller & Tactical Lead</li>
+        <li>• Aim Coach & Replay Review</li>
+        <li>• Team Manager & Match Orga</li>
+        <li>• Community Support & Event Hosts</li>
+    </ul>
 </section>
 HTML;
     }
@@ -878,12 +897,16 @@ HTML;
         return <<<HTML
 <section class="space-y-4">
     <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <h3 class="font-semibold">Weekly Practice</h3>
-        <p class="mt-2 text-sm text-slate-600">Jeden Mittwoch, 20:00 Uhr.</p>
+        <h3 class="font-semibold">Weekly Scrim Block</h3>
+        <p class="mt-2 text-sm text-slate-600">Mittwoch & Sonntag, jeweils 20:00 Uhr mit Debrief danach.</p>
     </div>
     <div class="rounded-xl border border-slate-200 bg-white p-4">
         <h3 class="font-semibold">Community Night</h3>
-        <p class="mt-2 text-sm text-slate-600">Offene Sessions für alle Member.</p>
+        <p class="mt-2 text-sm text-slate-600">Freitags offen für Trials, Fun-Matches und interne Challenges.</p>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <h3 class="font-semibold">Tournament Bootcamp</h3>
+        <p class="mt-2 text-sm text-slate-600">Intensive Vorbereitung vor jedem Turnier mit festen Szenario-Drills.</p>
     </div>
 </section>
 HTML;
@@ -894,7 +917,7 @@ HTML;
         return <<<HTML
 <section class="rounded-xl border border-slate-200 bg-white p-6">
     <h3 class="text-lg font-semibold">Kalender</h3>
-    <p class="mt-2 text-sm text-slate-600">Training, Community Nights und Turniere im Wochenplan.</p>
+    <p class="mt-2 text-sm text-slate-600">Training, Community Nights, Ranked Sessions und Turniere als klarer Wochenplan inklusive Verantwortlichkeiten.</p>
 </section>
 HTML;
     }
@@ -904,7 +927,7 @@ HTML;
         return <<<HTML
 <section class="rounded-xl border border-slate-200 bg-white p-6">
     <h2 class="text-2xl font-semibold">Unsere Server</h2>
-    <p class="mt-3 text-sm text-slate-600">Die wichtigsten Server auf einen Blick – inklusive Join-Link.</p>
+    <p class="mt-3 text-sm text-slate-600">Match, Practice und Community Server in einem Dashboard – inklusive Join-Links, Map Rotation und Player Slots.</p>
 </section>
 HTML;
     }
@@ -912,14 +935,16 @@ HTML;
     private function clanJoin(): string
     {
         return <<<HTML
-<section class="rounded-xl border border-slate-200 bg-white p-6">
+<section class="rounded-2xl border border-slate-200 bg-white p-6">
     <h2 class="text-2xl font-semibold">Mitmachen</h2>
-    <p class="mt-3 text-sm text-slate-600">Erzähl uns kurz etwas über dich, deine Spiele und dein Zeitbudget.</p>
+    <p class="mt-3 text-sm text-slate-600">Wir bauen ein Team auf, das diszipliniert spielt und trotzdem Spaß hat. Wenn du besser werden willst, bist du bei uns richtig.</p>
     <ul class="mt-4 list-disc pl-5 text-sm text-slate-600">
-        <li>Mindestens 18 Jahre</li>
-        <li>Teamplay & Discord</li>
-        <li>Respektvoller Umgang</li>
+        <li>Mindestens 16 Jahre</li>
+        <li>Aktive Voice-Kommunikation (Discord)</li>
+        <li>Verlässlichkeit bei Trainings & Matches</li>
+        <li>Respektvoller Umgang im Team</li>
     </ul>
+    <a href="mailto:recruiting@example.com" class="mt-4 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">Jetzt Kontakt aufnehmen</a>
 </section>
 HTML;
     }

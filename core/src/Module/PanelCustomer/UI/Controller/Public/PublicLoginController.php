@@ -68,6 +68,8 @@ final class PublicLoginController
 
         $form = [
             'email' => '',
+            'otp' => '',
+            'recovery_code' => '',
         ];
         $errors = [];
         $status = Response::HTTP_OK;
@@ -89,6 +91,8 @@ final class PublicLoginController
             $recoveryCode = trim((string) ($payload['recovery_code'] ?? ''));
 
             $form['email'] = $email;
+            $form['otp'] = $otp;
+            $form['recovery_code'] = $recoveryCode;
 
             if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $errors[] = 'Enter a valid email address.';
@@ -147,7 +151,7 @@ final class PublicLoginController
                             $twoFactorSetup = [
                                 'secret' => $secret,
                                 'otpauth' => $otpAuth,
-                                'qr' => sprintf('https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=%s', rawurlencode($otpAuth)),
+                                'qr' => sprintf('https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=%s', rawurlencode($otpAuth)),
                             ];
                         }
                     }
@@ -243,7 +247,9 @@ final class PublicLoginController
             }
         }
 
-        $response = new Response($this->twig->render('public/auth/login.html.twig', [
+        $templateKey = $site->getCmsTemplateKey() ?? 'hosting';
+
+        $response = new Response($this->twig->render($this->resolveLoginTemplate($templateKey), [
             'form' => $form,
             'errors' => $errors,
             'siteName' => $site->getName(),
@@ -252,6 +258,7 @@ final class PublicLoginController
             'enrollmentRequired' => $enrollmentRequired,
             'twoFactorSetup' => $twoFactorSetup,
             'registrationAllowed' => $registrationAllowed,
+            'template_key' => $templateKey,
         ]), $status);
 
         if ($retryAfter !== null) {
@@ -260,6 +267,24 @@ final class PublicLoginController
         }
 
         return $response;
+    }
+
+
+    private function resolveLoginTemplate(string $templateKey): string
+    {
+        $customTemplate = sprintf('public/auth/custom/%s/login.html.twig', $templateKey);
+        if ($this->templateExists($customTemplate)) {
+            return $customTemplate;
+        }
+
+        return 'public/auth/login.html.twig';
+    }
+
+    private function templateExists(string $template): bool
+    {
+        $loader = $this->twig->getLoader();
+
+        return method_exists($loader, 'exists') && $loader->exists($template);
     }
 
     private function ensureTotpSecret(User $user): ?string

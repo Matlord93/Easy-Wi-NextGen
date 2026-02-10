@@ -9,11 +9,16 @@ use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\TicketStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
+use App\Repository\DatabaseRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
+use App\Repository\MailboxRepository;
 use App\Repository\MetricSampleRepository;
 use App\Repository\TicketRepository;
+use App\Repository\Ts3VirtualServerRepository;
+use App\Repository\Ts6VirtualServerRepository;
 use App\Repository\UserRepository;
+use App\Repository\WebspaceRepository;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -27,6 +32,11 @@ final class AdminDashboardController
         private readonly AgentRepository $agentRepository,
         private readonly UserRepository $userRepository,
         private readonly InstanceRepository $instanceRepository,
+        private readonly WebspaceRepository $webspaceRepository,
+        private readonly DatabaseRepository $databaseRepository,
+        private readonly MailboxRepository $mailboxRepository,
+        private readonly Ts3VirtualServerRepository $ts3VirtualServerRepository,
+        private readonly Ts6VirtualServerRepository $ts6VirtualServerRepository,
         private readonly TicketRepository $ticketRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
         private readonly Environment $twig,
@@ -55,6 +65,14 @@ final class AdminDashboardController
             'tickets_open' => $this->ticketRepository->count(['status' => TicketStatus::Open]),
             'tickets_total' => $this->ticketRepository->count([]),
         ];
+        $moduleSummary = [
+            'webspaces' => $this->webspaceRepository->countProvisioned(),
+            'databases' => $this->databaseRepository->count([]),
+            'games' => $overview['instances'],
+            'mailboxes' => $this->mailboxRepository->count([]),
+            'voiceServers' => $this->ts3VirtualServerRepository->count(['archivedAt' => null])
+                + $this->ts6VirtualServerRepository->count(['archivedAt' => null]),
+        ];
         $primaryAgent = $agents[0] ?? null;
         $cpuSeries = [];
         $memorySeries = [];
@@ -79,6 +97,7 @@ final class AdminDashboardController
             'jobSummary' => $jobSummary,
             'agentSummary' => $agentSummary,
             'overview' => $overview,
+            'moduleSummary' => $moduleSummary,
             'jobs' => $this->normalizeJobs($jobs),
             'nodes' => $this->normalizeAgents(array_slice($agents, 0, 6)),
             'cpuSeries' => $cpuSeries,

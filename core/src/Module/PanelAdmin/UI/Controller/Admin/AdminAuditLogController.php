@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
-use App\Module\Core\Domain\Entity\AuditLog;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AuditLogRepository;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,16 +27,16 @@ final class AdminAuditLogController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $logs = $this->auditLogRepository->findBy([], ['id' => 'DESC'], 50);
+        $logs = $this->auditLogRepository->findRecentSummaries(50);
         $total = $this->auditLogRepository->count([]);
-        $latest = $logs[0] ?? null;
+        $latest = $logs[0]['created_at'] ?? null;
 
         return new Response($this->twig->render('admin/audit-logs/index.html.twig', [
             'activeNav' => 'audit-logs',
             'logs' => $this->normalizeLogs($logs),
             'summary' => [
                 'total' => $total,
-                'latest' => $latest?->getCreatedAt(),
+                'latest' => is_string($latest) ? new \DateTimeImmutable($latest) : null,
                 'showing' => count($logs),
             ],
         ]));
@@ -50,7 +49,7 @@ final class AdminAuditLogController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $logs = $this->auditLogRepository->findBy([], ['id' => 'DESC'], 50);
+        $logs = $this->auditLogRepository->findRecentSummaries(50);
 
         return new Response($this->twig->render('admin/audit-logs/_table.html.twig', [
             'logs' => $this->normalizeLogs($logs),
@@ -65,22 +64,18 @@ final class AdminAuditLogController
 
     private function normalizeLogs(array $logs): array
     {
-        return array_map(static function (AuditLog $log): array {
-            $actor = $log->getActor();
-            $payload = json_encode(
-                $log->getPayload(),
-                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-            );
+        return array_map(static function (array $log): array {
+            $payload = is_string($log['payload_preview'] ?? null) ? $log['payload_preview'] : '{}';
 
             return [
-                'id' => $log->getId(),
-                'action' => $log->getAction(),
-                'payload' => $payload === false ? '{}' : $payload,
-                'createdAt' => $log->getCreatedAt(),
-                'actor' => $actor?->getEmail() ?? 'System',
-                'actorType' => $actor?->getType()->value,
-                'hashPrev' => $log->getHashPrev(),
-                'hashCurrent' => $log->getHashCurrent(),
+                'id' => (int) ($log['id'] ?? 0),
+                'action' => (string) ($log['action'] ?? ''),
+                'payload' => $payload,
+                'createdAt' => new \DateTimeImmutable((string) $log['created_at']),
+                'actor' => (string) ($log['actor_email'] ?? 'System'),
+                'actorType' => $log['actor_type'] ?? null,
+                'hashPrev' => $log['hash_prev'] ?? null,
+                'hashCurrent' => (string) ($log['hash_current'] ?? ''),
             ];
         }, $logs);
     }

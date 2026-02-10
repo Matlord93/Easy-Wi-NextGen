@@ -105,7 +105,7 @@ final class JobRepository extends ServiceEntityRepository
             ->andWhere('job.status IN (:statuses)')
             ->andWhere('job.lockedBy = :agent')
             ->andWhere('job.type IN (:types)')
-            ->setParameter('statuses', [JobStatus::Running, JobStatus::Claimed])
+            ->setParameter('statuses', [JobStatus::Running->value, JobStatus::Claimed->value])
             ->setParameter('agent', $agentId)
             ->setParameter('types', $types)
             ->getQuery()
@@ -118,7 +118,7 @@ final class JobRepository extends ServiceEntityRepository
             ->select('COUNT(job.id)')
             ->andWhere('job.status IN (:statuses)')
             ->andWhere('job.lockedBy = :agent')
-            ->setParameter('statuses', [JobStatus::Running, JobStatus::Claimed])
+            ->setParameter('statuses', [JobStatus::Running->value, JobStatus::Claimed->value])
             ->setParameter('agent', $agentId)
             ->getQuery()
             ->getSingleScalarResult();
@@ -133,7 +133,7 @@ final class JobRepository extends ServiceEntityRepository
             ->select('COUNT(job.id)')
             ->andWhere('job.status IN (:statuses)')
             ->andWhere('job.lockedBy = :agent')
-            ->setParameter('statuses', [JobStatus::Running, JobStatus::Claimed])
+            ->setParameter('statuses', [JobStatus::Running->value, JobStatus::Claimed->value])
             ->setParameter('agent', $agentId);
 
         if ($excludedTypes !== []) {
@@ -156,7 +156,7 @@ final class JobRepository extends ServiceEntityRepository
             ->andWhere('job.status IN (:statuses)')
             ->andWhere('job.lockExpiresAt IS NOT NULL')
             ->andWhere('job.lockExpiresAt < :now')
-            ->setParameter('statuses', [JobStatus::Running, JobStatus::Claimed])
+            ->setParameter('statuses', [JobStatus::Running->value, JobStatus::Claimed->value])
             ->setParameter('now', $now)
             ->orderBy('job.lockExpiresAt', 'ASC')
             ->setMaxResults($limit)

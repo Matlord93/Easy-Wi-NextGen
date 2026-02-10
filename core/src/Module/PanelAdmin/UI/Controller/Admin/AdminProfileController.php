@@ -274,7 +274,7 @@ final class AdminProfileController
                 'required' => $this->twoFactorPolicy->isRequired($admin),
                 'secret' => $secret,
                 'otpauth' => $otpAuth,
-                'qr' => $otpAuth !== null ? sprintf('https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=%s', rawurlencode($otpAuth)) : null,
+                'qr' => $otpAuth !== null ? sprintf('https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=%s', rawurlencode($otpAuth)) : null,
                 'recovery_codes' => $overrides['recovery_codes'] ?? [],
                 'success' => $overrides['two_factor_success'] ?? null,
             ],

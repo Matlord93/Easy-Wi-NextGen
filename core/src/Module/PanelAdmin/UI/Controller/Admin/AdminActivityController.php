@@ -27,7 +27,7 @@ final class AdminActivityController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $entries = $this->auditLogRepository->findRecent(40);
+        $entries = $this->auditLogRepository->findRecentActivitySummaries(40);
 
         return new Response($this->twig->render('admin/activity/index.html.twig', [
             'activeNav' => 'activity',
@@ -43,13 +43,15 @@ final class AdminActivityController
 
     private function normalizeEntries(array $entries): array
     {
-        return array_map(static function (\App\Module\Core\Domain\Entity\AuditLog $entry): array {
+        return array_map(static function (array $entry): array {
+            $payload = is_string($entry['payload_preview'] ?? null) ? $entry['payload_preview'] : '{}';
+
             return [
-                'id' => $entry->getId(),
-                'action' => $entry->getAction(),
-                'actor' => $entry->getActor()?->getEmail() ?? 'System',
-                'created_at' => $entry->getCreatedAt(),
-                'payload' => $entry->getPayload(),
+                'id' => (int) ($entry['id'] ?? 0),
+                'action' => (string) ($entry['action'] ?? ''),
+                'actor' => (string) ($entry['actor_email'] ?? 'System'),
+                'created_at' => new \DateTimeImmutable((string) $entry['created_at']),
+                'payload' => $payload,
             ];
         }, $entries);
     }

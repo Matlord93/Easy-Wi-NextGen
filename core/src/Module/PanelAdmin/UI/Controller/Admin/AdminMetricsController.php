@@ -9,6 +9,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\MetricSampleRepository;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -22,6 +23,7 @@ final class AdminMetricsController
         private readonly InstanceRepository $instanceRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
         private readonly Environment $twig,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -38,18 +40,40 @@ final class AdminMetricsController
             default => new \DateTimeImmutable('-24 hours'),
         };
 
-        $agents = $this->agentRepository->findBy([], ['name' => 'ASC']);
+        $loadError = null;
+
+        try {
+            $agents = $this->agentRepository->findBy([], ['name' => 'ASC']);
+        } catch (\Throwable $exception) {
+            $this->logger->error('admin.metrics.agents_failed', [
+                'message' => $exception->getMessage(),
+            ]);
+            $agents = [];
+            $loadError = 'agents';
+        }
+
         $selectedAgent = $this->resolveSelectedAgent($agents, (string) $request->query->get('agent', ''));
 
-        $samples = $selectedAgent === null
-            ? []
-            : $this->metricSampleRepository->findSeriesForAgentSince($selectedAgent, $since);
+        try {
+            $samples = $selectedAgent === null
+                ? []
+                : $this->metricSampleRepository->findSeriesForAgentSince($selectedAgent, $since);
+        } catch (\Throwable $exception) {
+            $this->logger->error('admin.metrics.series_failed', [
+                'agent_id' => $selectedAgent?->getId(),
+                'message' => $exception->getMessage(),
+            ]);
+            $samples = [];
+            $loadError = $loadError ?? 'series';
+        }
+
+        $bandwidth = $this->calculateBandwidth($samples);
 
         $cpuSeries = $this->buildSeries($samples, 'cpu');
         $memorySeries = $this->buildSeries($samples, 'memory');
         $diskSeries = $this->buildSeries($samples, 'disk');
-        $netSentSeries = $this->buildSeries($samples, 'net_sent');
-        $netRecvSeries = $this->buildSeries($samples, 'net_recv');
+        $netSentSeries = $bandwidth['upload'];
+        $netRecvSeries = $bandwidth['download'];
         $processSeries = $this->buildSeries($samples, 'process_count');
         $temperatureSeries = $this->buildSeries($samples, 'temperature');
 
@@ -57,12 +81,23 @@ final class AdminMetricsController
         $latestProcessCount = $this->extractPayloadValue($latest, 'process_count');
         $latestTemperature = $this->extractTemperature($latest);
 
+        try {
+            $instances = $this->instanceRepository->findBy([], ['createdAt' => 'DESC'], 10);
+        } catch (\Throwable $exception) {
+            $this->logger->error('admin.metrics.instances_failed', [
+                'message' => $exception->getMessage(),
+            ]);
+            $instances = [];
+            $loadError = $loadError ?? 'instances';
+        }
+
         return new Response($this->twig->render('admin/metrics/index.html.twig', [
             'activeNav' => 'metrics',
             'agents' => $agents,
-            'instances' => $this->instanceRepository->findBy([], ['createdAt' => 'DESC'], 10),
+            'instances' => $instances,
             'selectedAgent' => $selectedAgent,
             'range' => $range,
+            'loadError' => $loadError,
             'cpuPoints' => $this->buildSparklinePoints($cpuSeries),
             'memoryPoints' => $this->buildSparklinePoints($memorySeries),
             'diskPoints' => $this->buildSparklinePoints($diskSeries),
@@ -73,8 +108,8 @@ final class AdminMetricsController
             'latestCpu' => $latest['cpuPercent'] ?? null,
             'latestMemory' => $latest['memoryPercent'] ?? null,
             'latestDisk' => $latest['diskPercent'] ?? null,
-            'latestNetSent' => $latest['netBytesSent'] ?? null,
-            'latestNetRecv' => $latest['netBytesRecv'] ?? null,
+            'latestNetSent' => $bandwidth['latestUpload'],
+            'latestNetRecv' => $bandwidth['latestDownload'],
             'latestProcessCount' => $latestProcessCount,
             'latestTemperature' => $latestTemperature,
         ]));
@@ -100,6 +135,68 @@ final class AdminMetricsController
         }
 
         return $agents[0] ?? null;
+    }
+
+
+    /**
+     * @param array<int, array{recordedAt: mixed, netBytesSent: mixed, netBytesRecv: mixed}> $samples
+     * @return array{upload: float[], download: float[], latestUpload: ?float, latestDownload: ?float}
+     */
+    private function calculateBandwidth(array $samples): array
+    {
+        $upload = [];
+        $download = [];
+
+        $previous = null;
+        foreach ($samples as $sample) {
+            if ($previous === null) {
+                $previous = $sample;
+                continue;
+            }
+
+            $currentAt = $sample['recordedAt'] ?? null;
+            $previousAt = $previous['recordedAt'] ?? null;
+            if (!$currentAt instanceof \DateTimeImmutable || !$previousAt instanceof \DateTimeImmutable) {
+                $previous = $sample;
+                continue;
+            }
+
+            $seconds = $currentAt->getTimestamp() - $previousAt->getTimestamp();
+            if ($seconds <= 0) {
+                $previous = $sample;
+                continue;
+            }
+
+            $sentDelta = $this->toNonNegativeDelta($sample['netBytesSent'] ?? null, $previous['netBytesSent'] ?? null);
+            $recvDelta = $this->toNonNegativeDelta($sample['netBytesRecv'] ?? null, $previous['netBytesRecv'] ?? null);
+
+            if ($sentDelta !== null) {
+                $upload[] = $sentDelta / $seconds;
+            }
+            if ($recvDelta !== null) {
+                $download[] = $recvDelta / $seconds;
+            }
+
+            $previous = $sample;
+        }
+
+        return [
+            'upload' => $upload,
+            'download' => $download,
+            'latestUpload' => $upload !== [] ? $upload[array_key_last($upload)] : null,
+            'latestDownload' => $download !== [] ? $download[array_key_last($download)] : null,
+        ];
+    }
+
+    private function toNonNegativeDelta(mixed $current, mixed $previous): ?float
+    {
+        if (!is_numeric($current) || !is_numeric($previous)) {
+            return null;
+        }
+
+        $delta = (float) $current - (float) $previous;
+
+        return $delta >= 0 ? $delta : null;
     }
 
     private function buildSeries(array $samples, string $metric): array

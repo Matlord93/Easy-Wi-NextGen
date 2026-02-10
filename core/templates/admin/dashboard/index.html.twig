@@ -132,11 +132,11 @@
 
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         {% set moduleCards = [
-            { label: t('admin_dashboard_module_webspaces', page_locale()), value: overview.customers, icon: '🗂️' },
-            { label: t('admin_dashboard_module_databases', page_locale()), value: overview.instances, icon: '🗄️' },
-            { label: t('admin_dashboard_module_games', page_locale()), value: overview.instances, icon: '🎮' },
-            { label: t('admin_dashboard_module_mail', page_locale()), value: jobSummary.total, icon: '✉️' },
-            { label: t('admin_dashboard_module_voice', page_locale()), value: agentSummary.total, icon: '🎧' }
+            { label: t('admin_dashboard_module_webspaces', page_locale()), value: moduleSummary.webspaces, icon: '🗂️' },
+            { label: t('admin_dashboard_module_databases', page_locale()), value: moduleSummary.databases, icon: '🗄️' },
+            { label: t('admin_dashboard_module_games', page_locale()), value: moduleSummary.games, icon: '🎮' },
+            { label: t('admin_dashboard_module_mail', page_locale()), value: moduleSummary.mailboxes, icon: '✉️' },
+            { label: t('admin_dashboard_module_voice', page_locale()), value: moduleSummary.voiceServers, icon: '🎧' }
         ] %}
         {% for card in moduleCards %}
             {% embed 'components/ui/_card.html.twig' with { variant: 'soft' } %}
@@ -201,10 +201,17 @@
             subtitle: t('admin_dashboard_queue_subtitle', page_locale())
         } %}
             {% block content %}
+                {% set activeQueueJobs = [] %}
+                {% for job in jobs %}
+                    {% if job.status in ['queued', 'claimed', 'running'] %}
+                        {% set activeQueueJobs = activeQueueJobs|merge([job]) %}
+                    {% endif %}
+                {% endfor %}
+
                 {% set queueRows = [] %}
-                {% for job in jobs|slice(0, 4) %}
-                    {% set badge = job.status == 'failed'
-                        ? include('components/ui/_badge.html.twig', { label: t('admin_dashboard_status_failed', page_locale()), tone: 'danger' })
+                {% for job in activeQueueJobs|slice(0, 4) %}
+                    {% set badge = job.status == 'queued'
+                        ? include('components/ui/_badge.html.twig', { label: t('admin_dashboard_status_queued', page_locale()), tone: 'warning' })
                         : include('components/ui/_badge.html.twig', { label: t('admin_dashboard_status_running', page_locale()), tone: 'info' })
                     %}
                     {% set queueRows = queueRows|merge([
@@ -297,4 +304,29 @@
         {% endembed %}
     </div>
 </div>
+
+<script>
+    (() => {
+        const refreshIntervalMs = 30000;
+        let refreshTimer = null;
+
+        const scheduleRefresh = () => {
+            if (refreshTimer !== null) {
+                window.clearTimeout(refreshTimer);
+            }
+
+            if (document.hidden) {
+                return;
+            }
+
+            refreshTimer = window.setTimeout(() => {
+                window.location.reload();
+            }, refreshIntervalMs);
+        };
+
+        document.addEventListener('visibilitychange', scheduleRefresh);
+        window.addEventListener('focus', scheduleRefresh);
+        scheduleRefresh();
+    })();
+</script>
 {% endblock %}

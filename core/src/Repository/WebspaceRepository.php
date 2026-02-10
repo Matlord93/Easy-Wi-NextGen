@@ -53,4 +53,14 @@ final class WebspaceRepository extends ServiceEntityRepository
 
         return array_values(array_unique(array_filter($ports, static fn (int $port): bool => $port > 0)));
     }
+
+    public function countProvisioned(): int
+    {
+        return (int) $this->createQueryBuilder('webspace')
+            ->select('COUNT(webspace.id)')
+            ->andWhere('webspace.status != :deletedStatus')
+            ->setParameter('deletedStatus', Webspace::STATUS_DELETED)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

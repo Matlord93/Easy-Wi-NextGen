@@ -60,7 +60,7 @@ final class InvoiceRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('invoice')
             ->andWhere('invoice.status IN (:statuses)')
             ->andWhere('invoice.dueDate <= :now')
-            ->setParameter('statuses', [InvoiceStatus::Open, InvoiceStatus::PastDue])
+            ->setParameter('statuses', [InvoiceStatus::Open->value, InvoiceStatus::PastDue->value])
             ->setParameter('now', $now)
             ->orderBy('invoice.dueDate', 'ASC')
             ->getQuery()
