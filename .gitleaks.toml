@@ -1,0 +1,11 @@
+title = "Gitleaks config"
+
+[allowlist]
+description = "Ignore vendor and generated files"
+paths = [
+  '''core/vendor/''',
+  '''vendor/''',
+  '''node_modules/''',
+  '''dist/''',
+  '''build/''',
+]
