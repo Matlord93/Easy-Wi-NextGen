@@ -1,10 +1,16 @@
 package fileapi
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+)
+
+var (
+	errInvalidPath             = errors.New("INVALID_PATH")
+	errPathOutsideInstanceRoot = errors.New("PATH_OUTSIDE_INSTANCE_ROOT")
 )
 
 func sanitizeRelativePath(path string) string {
@@ -16,19 +22,55 @@ func sanitizeRelativePath(path string) string {
 
 func sanitizeInstancePath(root, relativePath string) (string, error) {
 	if err := validateRelativePathInput(relativePath); err != nil {
-		return "", err
+		if errors.Is(err, errPathOutsideInstanceRoot) {
+			return "", fmt.Errorf("%w: %v", errPathOutsideInstanceRoot, err)
+		}
+		return "", fmt.Errorf("%w: %v", errInvalidPath, err)
 	}
 	cleanRelative := sanitizeRelativePath(relativePath)
 	joined := filepath.Join(root, cleanRelative)
 	normalized := filepath.Clean(joined)
 	relativeToRoot, err := filepath.Rel(root, normalized)
 	if err != nil {
-		return "", fmt.Errorf("resolve relative path: %w", err)
+		return "", fmt.Errorf("%w: resolve relative path: %v", errInvalidPath, err)
 	}
 	if relativeToRoot == ".." || strings.HasPrefix(relativeToRoot, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path escapes root")
+		return "", fmt.Errorf("%w: path escapes root", errPathOutsideInstanceRoot)
+	}
+	if err := ensurePathInsideRoot(root, normalized); err != nil {
+		return "", err
 	}
 	return normalized, nil
+}
+
+func ensurePathInsideRoot(root, target string) error {
+	rootEval, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return fmt.Errorf("%w: resolve root symlink: %v", errInvalidPath, err)
+	}
+
+	checkPath := target
+	if _, err := os.Lstat(checkPath); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("%w: lstat path: %v", errInvalidPath, err)
+		}
+		checkPath = filepath.Dir(checkPath)
+	}
+
+	checkEval, err := filepath.EvalSymlinks(checkPath)
+	if err != nil {
+		return fmt.Errorf("%w: resolve path symlink: %v", errInvalidPath, err)
+	}
+
+	rel, err := filepath.Rel(rootEval, checkEval)
+	if err != nil {
+		return fmt.Errorf("%w: resolve relative path: %v", errInvalidPath, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("%w: symlink escapes root", errPathOutsideInstanceRoot)
+	}
+
+	return nil
 }
 
 func validateRelativePathInput(path string) error {
@@ -37,11 +79,11 @@ func validateRelativePathInput(path string) error {
 		return nil
 	}
 	if strings.HasPrefix(normalized, "/") {
-		return fmt.Errorf("absolute paths are not allowed")
+		return fmt.Errorf("%w: absolute paths are not allowed", errPathOutsideInstanceRoot)
 	}
 	for _, segment := range strings.Split(normalized, "/") {
 		if segment == ".." {
-			return fmt.Errorf("path traversal is not allowed")
+			return fmt.Errorf("%w: path traversal is not allowed", errPathOutsideInstanceRoot)
 		}
 		if strings.Contains(segment, "\x00") {
 			return fmt.Errorf("invalid path segment")

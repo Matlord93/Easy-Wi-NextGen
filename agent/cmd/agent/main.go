@@ -405,6 +405,10 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceConsoleCommand(job, logSender)
 	case "instance.reinstall":
 		return handleInstanceReinstall(job, logSender)
+	case "instance.backup.create":
+		return handleInstanceBackupCreate(job)
+	case "instance.backup.restore":
+		return handleInstanceBackupRestore(job)
 	case "instance.addon.install":
 		return handleInstanceAddonInstall(job)
 	case "instance.addon.update":
@@ -433,6 +437,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceFileMkdir(job)
 	case "instance.sftp.credentials.reset":
 		return handleInstanceSftpCredentialsReset(job)
+	case "instance.config.apply":
+		return handleInstanceConfigApply(job)
 	case "core.ssh.policy.apply":
 		return handleCoreSshPolicyApply(job)
 	case "instance.query.check":
@@ -541,7 +547,8 @@ func isWindowsSafeJob(jobType string) bool {
 		"server.reboot.check_required",
 		"server.reboot.run",
 		"server.status.check",
-		"instance.sftp.credentials.reset":
+		"instance.sftp.credentials.reset",
+		"instance.config.apply":
 		return true
 	default:
 		return false

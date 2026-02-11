@@ -37,6 +37,7 @@ const headerServerRoot = "X-Server-Root"
 
 const (
 	errorInvalidServerRoot    = "INVALID_SERVER_ROOT"
+	errorPathOutsideRoot      = "PATH_OUTSIDE_INSTANCE_ROOT"
 	errorServerRootNotFound   = "SERVER_ROOT_NOT_FOUND"
 	errorServerRootNoAccess   = "SERVER_ROOT_NOT_ACCESSIBLE"
 	errorPermissionDenied     = "PERMISSION_DENIED"
@@ -189,7 +190,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, instanceID s
 
 		target, err := sanitizeInstancePath(rootPath, relativePath)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -257,7 +258,7 @@ func (s *Server) handleRead(w http.ResponseWriter, r *http.Request, instanceID s
 
 		target, err := sanitizeInstancePath(rootPath, path)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -333,12 +334,12 @@ func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request, instanceID 
 
 		target, err := sanitizeInstancePath(rootPath, cleanPath)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
 		if err := ensureParentExists(target); err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -435,12 +436,12 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request, instanceID
 
 		target, err := sanitizeInstancePath(rootPath, targetRelative)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
 		if err := ensureParentExists(target); err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -487,7 +488,7 @@ func (s *Server) handleMkdir(w http.ResponseWriter, r *http.Request, instanceID 
 
 		target, err := sanitizeInstancePath(rootPath, cleanPath)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -534,7 +535,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, instanceID
 
 		target, err := sanitizeInstancePath(rootPath, cleanPath)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -596,12 +597,12 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request, instanceID
 
 		src, err := sanitizeInstancePath(rootPath, cleanPath)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 		dst, err := sanitizeInstancePath(rootPath, cleanNew)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -655,7 +656,7 @@ func (s *Server) handleChmod(w http.ResponseWriter, r *http.Request, instanceID 
 
 		target, err := sanitizeInstancePath(rootPath, cleanPath)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -703,18 +704,18 @@ func (s *Server) handleExtract(w http.ResponseWriter, r *http.Request, instanceI
 
 		archivePath, err := sanitizeInstancePath(rootPath, cleanPath)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
 		destinationPath, err := sanitizeInstancePath(rootPath, cleanDestination)
 		if err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
 		if err := extractArchive(archivePath, destinationPath); err != nil {
-			respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -729,6 +730,14 @@ func (s *Server) handleExtract(w http.ResponseWriter, r *http.Request, instanceI
 
 func (s *Server) invalidateCache(rootPath string) {
 	s.cache.Invalidate(rootPath + "|")
+}
+
+func respondPathError(r *http.Request, w http.ResponseWriter, err error) {
+	if errors.Is(err, errPathOutsideInstanceRoot) {
+		respondError(r, w, http.StatusBadRequest, errorPathOutsideRoot, "path escapes instance root")
+		return
+	}
+	respondError(r, w, http.StatusBadRequest, errorInvalidPath, err.Error())
 }
 
 func respondServerRootError(r *http.Request, w http.ResponseWriter, err error) {

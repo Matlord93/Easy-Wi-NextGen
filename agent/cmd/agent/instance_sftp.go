@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -26,7 +28,10 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 	}
 
 	username := payloadValue(job.Payload, "username", "sftp_username", "user")
-	password := payloadValue(job.Payload, "password", "sftp_password")
+	password := strings.TrimSpace(payloadValue(job.Payload, "password", "sftp_password"))
+	if password == "" {
+		password = generateSftpPassword()
+	}
 	requestID := payloadValue(job.Payload, "request_id")
 	group := payloadValue(job.Payload, "sftp_group", "group")
 	shell := payloadValue(job.Payload, "shell", "sftp_shell")
@@ -56,8 +61,7 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 
 	missing := missingValues([]requiredValue{
 		{key: "username", value: username},
-		{key: "password", value: password},
-	})
+			})
 	if len(missing) > 0 {
 		return jobs.Result{
 			JobID:  job.ID,
@@ -144,6 +148,7 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 			"home_path":   homePath,
 			"group":       group,
 			"request_id":  requestID,
+			"password":    password,
 		},
 		Completed: time.Now().UTC(),
 	}, nil
@@ -151,7 +156,10 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 
 func handleInstanceSftpCredentialsResetWindows(job jobs.Job) (jobs.Result, func() error) {
 	username := payloadValue(job.Payload, "username", "sftp_username", "user")
-	password := payloadValue(job.Payload, "password", "sftp_password")
+	password := strings.TrimSpace(payloadValue(job.Payload, "password", "sftp_password"))
+	if password == "" {
+		password = generateSftpPassword()
+	}
 	group := payloadValue(job.Payload, "sftp_group", "group")
 	sftpBaseDir := payloadValue(job.Payload, "sftp_base_dir", "sftp_root")
 	if group == "" {
@@ -169,8 +177,7 @@ func handleInstanceSftpCredentialsResetWindows(job jobs.Job) (jobs.Result, func(
 
 	missing := missingValues([]requiredValue{
 		{key: "username", value: username},
-		{key: "password", value: password},
-	})
+			})
 	if len(missing) > 0 {
 		return jobs.Result{
 			JobID:     job.ID,
@@ -234,9 +241,18 @@ func handleInstanceSftpCredentialsResetWindows(job jobs.Job) (jobs.Result, func(
 			"home_path":   homePath,
 			"group":       group,
 			"details":     output.String(),
+			"password":    password,
 		},
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func generateSftpPassword() string {
+	b := make([]byte, 18)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%d%s", time.Now().Unix(), "Ab!")
+	}
+	return hex.EncodeToString(b)
 }
 
 func ensureSftpChroot(path string) error {

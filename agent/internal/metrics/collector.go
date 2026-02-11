@@ -55,5 +55,7 @@ func Collect() map[string]any {
 		}
 	}
 
+	snapshot["instance_metrics"] = CollectInstanceMetrics()
+
 	return snapshot
 }
