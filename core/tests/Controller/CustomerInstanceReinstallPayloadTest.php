@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Message\InstanceActionMessage;
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\InstanceDiskStateResolver;
 use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Application\SetupChecker;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Template;
@@ -18,6 +20,7 @@ use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\ConsoleCommandSettings;
 use App\Module\Gameserver\Application\ConsoleCommandValidator;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
@@ -35,6 +38,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Messenger\Stamp\HandledStamp;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 
 final class CustomerInstanceReinstallPayloadTest extends TestCase
 {
@@ -107,12 +111,16 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $this->newInstanceWithoutConstructor(JobRepository::class),
             $diskEnforcementService,
+            $this->newInstanceWithoutConstructor(AuditLogger::class),
             $consoleCommandValidator,
+            $this->newInstanceWithoutConstructor(GameServerPathResolver::class),
             new SetupChecker(),
             $resolver,
             $payloadBuilder,
+            $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
             $messageBus,
+            new ResponseEnvelopeFactory(),
         );
 
         $customer = $instance->getCustomer();

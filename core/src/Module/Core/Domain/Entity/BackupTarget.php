@@ -111,7 +111,6 @@ class BackupTarget
     public function setEncryptedCredentials(?array $encryptedCredentials): void
     {
         $this->encryptedCredentials = $encryptedCredentials;
-        $this->enabled = $enabled;
         $this->touch();
     }
 
