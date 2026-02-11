@@ -153,20 +153,25 @@ func handleInstanceBackupRestore(job jobs.Job) (jobs.Result, func() error) {
 	}, nil
 }
 
-func computeFileChecksumAndSize(path string) (string, int64, error) {
+func computeFileChecksumAndSize(path string) (checksum string, size int64, err error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", 0, err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 
 	h := sha256.New()
-	size, err := io.Copy(h, file)
+	size, err = io.Copy(h, file)
 	if err != nil {
 		return "", 0, err
 	}
 
-	return hex.EncodeToString(h.Sum(nil)), size, nil
+	checksum = hex.EncodeToString(h.Sum(nil))
+	return checksum, size, nil
 }
 
 func backupRootDir() string {
