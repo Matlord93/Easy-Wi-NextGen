@@ -251,6 +251,23 @@
                                 <input type="checkbox" name="security_2fa_required_customer" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_customer ? 'checked' : '' }}>
                                 {{ t('admin_webinterface_security_2fa_customer', page_locale()) }}
                             </label>
+                            <label class="inline-flex items-center gap-2">
+                                <input type="checkbox" name="registration_enabled" value="1" class="rounded border-slate-300" {{ settings.registration_enabled ? 'checked' : '' }}>
+                                Webinterface: Öffentliche Registrierung aktivieren
+                            </label>
+                    <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <p class="text-xs font-semibold uppercase text-slate-700">Local Anti Abuse</p>
+                        <div class="mt-3 grid gap-4 md:grid-cols-2">
+                            <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_contact ? 'checked' : '' }}> PoW for contact</label>
+                            <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_registration ? 'checked' : '' }}> PoW for registration</label>
+                            <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_registration ? 'checked' : '' }}> Math captcha for registration</label>
+                            <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_contact ? 'checked' : '' }}> Math captcha for contact</label>
+                            <div><label class="block text-xs font-semibold uppercase text-slate-700">Min submit seconds</label><input type="number" min="1" name="anti_abuse_min_submit_seconds" value="{{ settings.anti_abuse_min_submit_seconds }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="block text-xs font-semibold uppercase text-slate-700">PoW difficulty (0-6)</label><input type="number" min="0" max="6" name="anti_abuse_pow_difficulty" value="{{ settings.anti_abuse_pow_difficulty }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                            <div><label class="block text-xs font-semibold uppercase text-slate-700">Daily IP lock threshold</label><input type="number" min="1" name="anti_abuse_daily_ip_limit" value="{{ settings.anti_abuse_daily_ip_limit }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></div>
+                        </div>
+                    </div>
+
                         </div>
                     </div>
 
@@ -316,6 +333,11 @@
                     <div>
                         <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_maintenance_message', page_locale()) }}</label>
                         <textarea name="cms_maintenance_message" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ settings.cms_maintenance_message }}</textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-700">Wartungsmodus Grafik (URL oder /Pfad)</label>
+                        <input type="text" name="cms_maintenance_graphic" value="{{ settings.cms_maintenance_graphic }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="/images/maintenance.png">
                     </div>
 
                     <div>

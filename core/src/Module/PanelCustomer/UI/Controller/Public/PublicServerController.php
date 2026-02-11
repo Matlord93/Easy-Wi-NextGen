@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Module\Cms\Application\CmsFeatureToggle;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\PublicServer;
 use App\Repository\PublicServerRepository;
@@ -19,6 +20,7 @@ final class PublicServerController
     public function __construct(
         private readonly PublicServerRepository $publicServerRepository,
         private readonly SiteResolver $siteResolver,
+        private readonly CmsFeatureToggle $featureToggle,
         #[Autowire(service: 'limiter.public_servers')]
         private readonly RateLimiterFactory $publicServersLimiter,
         private readonly Environment $twig,
@@ -44,6 +46,10 @@ final class PublicServerController
         $site = $this->siteResolver->resolve($request);
         if ($site === null) {
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        if (!$this->featureToggle->isEnabled($site, 'gameserver')) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
         $gameFilter = $this->normalizeFilter($request->query->get('game'));

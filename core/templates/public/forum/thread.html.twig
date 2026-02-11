@@ -1,0 +1,67 @@
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
+
+{% block title %}{{ thread.title }} · Forum{% endblock %}
+
+{% block content %}
+<div class="mx-auto w-full max-w-5xl space-y-6 px-4 py-10 sm:px-6">
+    <div>
+        <a href="/forum/board/{{ thread.board.slug }}" class="text-sm text-cyan-300 hover:text-cyan-200">← {{ thread.board.title }}</a>
+        <h1 class="mt-2 text-3xl font-semibold text-slate-100">{{ thread.title }}</h1>
+        {% if thread.isClosed %}<p class="text-sm text-amber-200">Dieser Thread ist geschlossen.</p>{% endif %}
+    </div>
+
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+        <h2 class="text-lg font-semibold text-slate-100">Beiträge</h2>
+        <div class="mt-4 space-y-4">
+            {% for post in posts %}
+                <article id="post-{{ post.id }}" class="rounded-lg border border-slate-700 p-4 {% if post.isDeleted %}bg-slate-900{% endif %}">
+                    <p class="text-xs text-slate-500">{{ post.authorUser ? post.authorUser.email : 'deleted-user' }} · {{ post.createdAt|date('Y-m-d H:i') }}</p>
+                    {% if post.isDeleted %}
+                        <p class="mt-2 text-sm italic text-slate-500">[deleted]</p>
+                    {% else %}
+                        <p class="mt-2 whitespace-pre-line text-sm text-slate-200">{{ post.content }}</p>
+                        {% if can_post %}
+                            <form method="post" action="/forum/post/{{ post.id }}/report" class="mt-2 flex flex-wrap gap-2">
+                                <input type="hidden" name="_token" value="{{ csrf_token('forum_report_' ~ post.id) }}">
+                                <input type="hidden" name="form_rendered_at" value="{{ 'now'|date('U') }}">
+                                <input type="text" name="website" value="" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
+                                <select name="reason" class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200" required>
+                                    {% for reason in report_reasons %}<option value="{{ reason }}">{{ reason|capitalize }}</option>{% endfor %}
+                                </select>
+                                <input type="text" name="reason_details" class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200" placeholder="Details (optional)">
+                                <button class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-200">Melden</button>
+                            </form>
+                        {% endif %}
+                    {% endif %}
+                </article>
+            {% else %}
+                <p class="text-sm text-slate-400">Keine Beiträge.</p>
+            {% endfor %}
+        </div>
+        {% if total_pages > 1 %}
+            <div class="mt-4 flex items-center justify-between text-sm text-slate-300">
+                <a class="text-cyan-300 {% if page <= 1 %}pointer-events-none opacity-50{% endif %}" href="/forum/thread/{{ thread.id }}?page={{ page - 1 }}">← Zurück</a>
+                <span>Seite {{ page }} / {{ total_pages }}</span>
+                <a class="text-cyan-300 {% if page >= total_pages %}pointer-events-none opacity-50{% endif %}" href="/forum/thread/{{ thread.id }}?page={{ page + 1 }}">Weiter →</a>
+            </div>
+        {% endif %}
+    </section>
+
+    {% if not thread.isClosed and can_post %}
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+            <h2 class="text-lg font-semibold text-slate-100">Antworten</h2>
+            <form method="post" action="/forum/thread/{{ thread.id }}/reply" class="mt-4 space-y-3">
+                <input type="hidden" name="_token" value="{{ csrf_token('forum_reply_' ~ thread.id) }}">
+                <input type="hidden" name="form_rendered_at" value="{{ 'now'|date('U') }}">
+                <input type="text" name="website" value="" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
+                <textarea name="content" rows="4" placeholder="Antwort" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" required></textarea>
+                <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Antwort absenden</button>
+            </form>
+        </section>
+    {% elseif not can_post %}
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+            <p class="text-sm text-slate-400">Zum Antworten bitte als Mitglied einloggen.</p>
+        </section>
+    {% endif %}
+</div>
+{% endblock %}

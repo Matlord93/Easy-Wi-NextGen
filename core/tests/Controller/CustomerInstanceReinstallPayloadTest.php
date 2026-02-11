@@ -6,6 +6,8 @@ namespace App\Tests\Controller;
 
 use App\Message\InstanceActionMessage;
 use App\Module\Core\Application\DiskEnforcementService;
+use App\Module\Core\Application\InstanceDiskStateResolver;
+use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
@@ -15,6 +17,8 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
+use App\Module\Gameserver\Application\ConsoleCommandSettings;
+use App\Module\Gameserver\Application\ConsoleCommandValidator;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
@@ -41,6 +45,11 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         $instanceRepository->method('find')->willReturn($instance);
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
+            public function findVersionsByChannel(string $channel): array
+            {
+                return [];
+            }
+
             public function findBuildsGroupedByVersion(string $channel): array
             {
                 return [];
@@ -82,15 +91,23 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             return new Envelope($message, [new HandledStamp(['status' => 'queued'], 'handler')]);
         });
 
+        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver());
+        $consoleCommandValidator = new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
+            public function getCustomerConsoleAllowedCommands(): array
+            {
+                return [];
+            }
+        });
+
         $controller = new CustomerInstanceActionApiController(
             $instanceRepository,
-            $this->createMock(BackupDefinitionRepository::class),
-            $this->createMock(BackupRepository::class),
-            $this->createMock(GamePluginRepository::class),
-            $this->createMock(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
-            $this->createMock(JobRepository::class),
-            $this->createMock(DiskEnforcementService::class),
-            $this->createMock(\App\Module\Gameserver\Application\ConsoleCommandValidator::class),
+            $this->newInstanceWithoutConstructor(BackupDefinitionRepository::class),
+            $this->newInstanceWithoutConstructor(BackupRepository::class),
+            $this->newInstanceWithoutConstructor(GamePluginRepository::class),
+            $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
+            $this->newInstanceWithoutConstructor(JobRepository::class),
+            $diskEnforcementService,
+            $consoleCommandValidator,
             new SetupChecker(),
             $resolver,
             $payloadBuilder,
@@ -121,6 +138,25 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         self::assertNotEmpty($payload['env_vars'] ?? null);
     }
 
+
+    private function setPrivateProperty(object $target, string $property, mixed $value): void
+    {
+        $reflectionProperty = new \ReflectionProperty($target, $property);
+        $reflectionProperty->setValue($target, $value);
+    }
+
+    /**
+     * @template TObject of object
+     * @param class-string<TObject> $className
+     * @return TObject
+     */
+    private function newInstanceWithoutConstructor(string $className): object
+    {
+        $reflection = new \ReflectionClass($className);
+
+        return $reflection->newInstanceWithoutConstructor();
+    }
+
     private function buildInstance(): Instance
     {
         $template = new Template(
@@ -147,6 +183,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         );
 
         $customer = new User('customer@example.test', UserType::Customer);
+        $this->setPrivateProperty($customer, 'id', 1);
         $agent = new Agent('node-1', [
             'key_id' => 'key-1',
             'nonce' => 'nonce',
@@ -166,6 +203,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             InstanceUpdatePolicy::Manual,
         );
         $instance->setSetupVars(['SERVER_NAME' => 'Test Server']);
+        $this->setPrivateProperty($instance, 'id', 1);
 
         return $instance;
     }

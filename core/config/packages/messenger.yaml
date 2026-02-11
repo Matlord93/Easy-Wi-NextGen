@@ -6,7 +6,7 @@ framework:
         dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
         options:
           queue_name: async
-          prefetch_count: '%env(int:MESSENGER_PREFETCH_COUNT)%'
+          prefetch_count: 1
         retry_strategy:
           max_retries: 3
           delay: 1000

@@ -1,52 +1,60 @@
-{% extends 'public/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
-{% set showPortalShell = false %}
-{% set contentClass = 'mx-auto w-full max-w-5xl px-4 py-10 sm:px-8' %}
-
-{% block title %}{{ t('cms_blog_title', page_locale()) }} · {{ siteTitle }}{% endblock %}
+{% block head %}
+    <title>{{ t('cms_blog_title', page_locale()) }} · {{ siteTitle }}</title>
+{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
-    <nav class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-xs uppercase tracking-[0.2em] text-slate-500 shadow-sm">
-        <div class="font-semibold text-slate-700">Blog</div>
-        <div class="flex flex-wrap gap-4 text-[11px] text-slate-500">
-            {% for page in cms_pages %}
-                {% set link = page.slug == 'startseite' ? '/' : '/' ~ page.slug %}
-                <a href="{{ link }}" class="hover:text-slate-700">{{ page.title }}</a>
-            {% endfor %}
-        </div>
-        <div class="flex items-center gap-2 text-xs normal-case">
-            {% if current_user() %}
-                <a href="/dashboard" class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300">{{ t('customer_portal', page_locale()) }}</a>
-            {% else %}
-                <a href="{{ path('public_login') }}" class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300">{{ t('login', page_locale()) }}</a>
-            {% endif %}
-        </div>
-    </nav>
-
+<div class="mx-auto w-full max-w-5xl space-y-8 px-4 py-10 sm:px-6">
     <header class="space-y-2">
-        <h1 class="text-3xl font-semibold text-slate-900">{{ t('cms_blog_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-600">{{ t('cms_blog_public_subtitle', page_locale()) }}</p>
+        <h1 class="text-3xl font-semibold text-slate-100">{{ t('cms_blog_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-400">{{ t('cms_blog_public_subtitle', page_locale()) }}</p>
     </header>
+
+    <form method="get" action="/blog" class="grid gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 md:grid-cols-4">
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="Search posts..." class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 md:col-span-2" />
+        <select name="category" class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+            <option value="">All categories</option>
+            {% for category in categories %}
+                <option value="{{ category.slug }}" {% if category.is_active %}selected{% endif %}>{{ category.name }}</option>
+            {% endfor %}
+        </select>
+        <select name="tag" class="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+            <option value="">All tags</option>
+            {% for tag in tags %}
+                <option value="{{ tag.slug }}" {% if tag.is_active %}selected{% endif %}>{{ tag.name }}</option>
+            {% endfor %}
+        </select>
+        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 md:col-span-4 md:justify-self-start">Filter</button>
+    </form>
 
     <section class="space-y-5">
         {% for post in posts %}
-            <article class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-black/20">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <h2 class="text-xl font-semibold text-slate-900">
-                        <a href="/blog/{{ post.slug }}" class="hover:text-indigo-600">{{ post.title }}</a>
+                    <h2 class="text-xl font-semibold text-slate-100">
+                        <a href="/blog/{{ post.slug }}" class="hover:text-cyan-300">{{ post.title }}</a>
                     </h2>
-                    <span class="text-xs text-slate-500">{{ post.published_at ? post.published_at|date('d.m.Y') : '' }}</span>
+                    <span class="text-xs text-slate-400">{{ post.published_at ? post.published_at|date('d.m.Y') : '' }}</span>
                 </div>
+                {% if post.featured_image_path %}
+                    <img src="{{ post.featured_image_path }}" alt="{{ post.title }}" class="mt-3 h-48 w-full rounded-lg object-cover" />
+                {% endif %}
+                {% if post.category %}
+                    <p class="mt-3 text-xs uppercase tracking-wide text-slate-400">Category: {{ post.category.name }}</p>
+                {% endif %}
+                {% if post.tags is not empty %}
+                    <p class="mt-1 text-xs text-slate-400">Tags: {{ post.tags|map(t => t.name)|join(', ') }}</p>
+                {% endif %}
                 {% if post.excerpt %}
-                    <p class="mt-3 text-sm text-slate-600">{{ post.excerpt }}</p>
+                    <p class="mt-3 text-sm text-slate-300">{{ post.excerpt }}</p>
                 {% endif %}
                 <div class="mt-4">
-                    <a href="/blog/{{ post.slug }}" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500">{{ t('cms_blog_read_more', page_locale()) }}</a>
+                    <a href="/blog/{{ post.slug }}" class="text-xs font-semibold text-cyan-300 hover:text-cyan-200">{{ t('cms_blog_read_more', page_locale()) }}</a>
                 </div>
             </article>
         {% else %}
-            <div class="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-sm text-slate-600">
+            <div class="rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 p-6 text-sm text-slate-400">
                 {{ t('cms_blog_public_empty', page_locale()) }}
             </div>
         {% endfor %}

@@ -148,3 +148,47 @@ php bin/console debug:router
 ## 10) Localhost vs 127.0.0.1 (DB host)
 
 MySQL can resolve `localhost` via a UNIX socket, while `127.0.0.1` forces TCP. The installer defaults to `127.0.0.1` for consistency and will try `localhost` as a fallback if connection tests fail. Use `127.0.0.1` unless you explicitly require socket-based connections.
+
+## CMS Themes, Module Toggles und Rollen (Step 11 Hardening)
+
+### Theme wechseln
+- Admin-Bereich: `Admin -> CMS Settings`.
+- `active_theme` unterstützt: `esports`, `minimal`, `fantasy`.
+- Fallback-Reihenfolge:
+  1. `cms_site_settings.active_theme`
+  2. `sites.cms_template_key` (Legacy)
+  3. `minimal`
+- Vorschau ohne Umschalten der Live-Settings: `/preview/{theme}` (z. B. `/preview/minimal`).
+
+### Module-Toggles
+- Schalter in CMS-Settings:
+  - `blog`
+  - `events`
+  - `team`
+  - `forum`
+- Wenn deaktiviert:
+  - Theme-Navigation blendet den Link aus.
+  - Öffentliche Route liefert weiterhin `404`.
+
+### Rollenmodell (Kurzüberblick)
+- `ROLE_ADMIN`:
+  - Zugriff auf Admin-CMS inkl. Einstellungen, Forum-Moderation, Theme-Settings.
+- `ROLE_MEMBER`:
+  - Zugriff auf Public-Forum (lesen/schreiben, sofern Modul aktiv).
+- `ROLE_CUSTOMER`:
+  - Standard-Customer ohne automatischen Forumzugriff (außer zusätzlich `ROLE_MEMBER`).
+
+### Test-Hinweis
+Für lokale Regressionstests (Theme/Toggle/Forum) im Test-Env:
+
+```bash
+cd core
+APP_ENV=test vendor/bin/phpunit \
+  tests/Controller/Phase11RegressionSmokeTest.php \
+  tests/Controller/PublicCmsBlogToggleTest.php \
+  tests/Controller/PublicCmsEventsTeamToggleTest.php \
+  tests/Controller/PublicForumToggleAccessTest.php \
+  tests/Controller/ForumPostFlowSmokeTest.php \
+  tests/Controller/ThemePreviewRouteTest.php \
+  tests/Service/ThemeResolverTest.php
+```

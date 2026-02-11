@@ -14,7 +14,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Uid\Uuid;
 
-final class UpdateJobService
+final class UpdateJobService implements MigrationStatusProviderInterface
 {
     private const DEFAULT_BACKUP_LIMIT = 5;
 

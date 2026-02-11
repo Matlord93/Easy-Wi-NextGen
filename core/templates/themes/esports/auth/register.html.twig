@@ -1,0 +1,33 @@
+{% extends 'themes/esports/base.html.twig' %}
+{% set cms_pages = [] %}
+{% block content %}
+<section class="theme-wrap" style="max-width:880px;">
+  <div class="theme-card auth-box" style="padding:1.5rem;">
+    <p style="font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:#67e8f9;">Clan Access</p>
+    <h2 style="margin-top:.4rem;font-size:2rem;">Registrierung</h2>
+
+    {% for error in errors %}<p class="error">{{ error }}</p>{% endfor %}
+
+    {% if not registrationAllowed %}
+      <p class="error">Registrierung ist aktuell deaktiviert.</p>
+    {% else %}
+      {% if registered %}<p class="success">Konto erstellt.</p>{% endif %}
+      <form method="post" action="/register">
+        <input type="hidden" name="_token" value="{{ csrf_token('public_register') }}">
+        <input type="text" name="website" class="hidden" tabindex="-1" autocomplete="off">
+        <input type="hidden" name="pow_solution" id="pow_solution">
+        <input name="email" type="email" value="{{ form.email }}" placeholder="E-Mail" required>
+        <input name="password" type="password" placeholder="Passwort" required>
+        <input name="password_confirm" type="password" placeholder="Passwort wiederholen" required>
+        {% if captcha_question %}
+          <label>{{ captcha_question }} <input name="captcha_answer" required></label>
+        {% endif %}
+        <button type="submit">Registrieren</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+<script>
+(async()=>{const nonce="{{ anti_abuse_nonce|default('') }}";const difficulty={{ pow_difficulty|default(4) }};const target="0".repeat(difficulty);const out=document.getElementById("pow_solution");if(!nonce||!out||!window.crypto?.subtle){return;}const enc=new TextEncoder();for(let i=0;i<2000000;i++){const data=enc.encode(nonce+String(i));const h=await crypto.subtle.digest("SHA-256",data);const hex=[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("");if(hex.startsWith(target)){out.value=String(i);break;}}})();
+</script>
+{% endblock %}

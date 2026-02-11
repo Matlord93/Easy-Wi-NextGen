@@ -1,0 +1,6 @@
+<figure class="space-y-2">
+    {% if payload.path is not empty %}
+        <img src="{{ payload.path }}" alt="{{ payload.alt }}" class="w-full rounded-xl border border-slate-200 object-cover">
+    {% endif %}
+    {% if payload.caption is not empty %}<figcaption class="text-sm text-slate-600">{{ payload.caption }}</figcaption>{% endif %}
+</figure>

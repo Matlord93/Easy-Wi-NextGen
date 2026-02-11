@@ -163,6 +163,38 @@ services:
     arguments:
       $menuProviders: !tagged_iterator 'app.extension.menu_provider'
 
+  App\Module\Cms\Application\BlockRenderer\BlockRendererRegistry:
+    arguments:
+      $renderers: !tagged_iterator 'app.cms.block_renderer'
+
+  App\Module\Cms\Application\BlockRenderer\HeroBlockRenderer:
+    tags: ['app.cms.block_renderer']
+
+  App\Module\Cms\Application\BlockRenderer\RichTextBlockRenderer:
+    tags: ['app.cms.block_renderer']
+
+  App\Module\Cms\Application\BlockRenderer\ImageBlockRenderer:
+    tags: ['app.cms.block_renderer']
+
+  App\Module\Cms\Application\BlockRenderer\CardsBlockRenderer:
+    tags: ['app.cms.block_renderer']
+
+  App\Module\Cms\Application\Security\CaptchaVerifierInterface: '@App\Module\Cms\Application\Security\NoneCaptchaVerifier'
+
+  App\Module\Cms\UI\Controller\Public\PublicForumController:
+    arguments:
+      $forumReplyLimiter: '@limiter.forum_reply'
+      $forumThreadLimiter: '@limiter.forum_thread'
+      $forumReportLimiter: '@limiter.forum_report'
+
   App\Module\PanelCustomer\UI\Controller\Api\AgentApiController:
     arguments:
       $filesystemResolver: '@App\Module\Gameserver\Application\GameServerPathResolver'
+
+  App\Module\Cms\UI\Controller\Public\PublicContactController:
+    arguments:
+      $contactLimiter: '@limiter.public_contact'
+
+  Symfony\Component\HttpFoundation\UriSigner:
+    arguments:
+      $secret: '%kernel.secret%'

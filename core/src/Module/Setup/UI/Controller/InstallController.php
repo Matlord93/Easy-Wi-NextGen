@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\UI\Controller;
 
-use App\Module\Core\Application\CmsTemplateManager;
 use App\Module\Setup\Application\InstallerService;
 use App\Module\Setup\Application\InstallerSshKeyException;
 use Doctrine\DBAL\Exception as DbalException;
@@ -18,7 +17,6 @@ final class InstallController
 {
     public function __construct(
         private readonly InstallerService $installerService,
-        private readonly CmsTemplateManager $cmsTemplateManager,
         private readonly Environment $twig,
     ) {
     }
@@ -58,7 +56,6 @@ final class InstallController
             'admin_name' => '',
             'admin_email' => '',
             'admin_ssh_key' => '',
-            'cms_template_key' => 'hosting',
         ];
         $settingsDefaults = [
             'instance_base_dir' => $this->envValue('EASYWI_INSTANCE_BASE_DIR', '/home'),
@@ -205,7 +202,6 @@ final class InstallController
                     'admin_name' => trim((string) ($payload['admin_name'] ?? $applicationState['admin_name'])),
                     'admin_email' => trim((string) ($payload['admin_email'] ?? $applicationState['admin_email'])),
                     'admin_ssh_key' => trim((string) ($payload['admin_ssh_key'] ?? $applicationState['admin_ssh_key'])),
-                    'cms_template_key' => trim((string) ($payload['cms_template_key'] ?? $applicationState['cms_template_key'])),
                 ]);
                 $settingsState = array_merge($settingsState, [
                     'instance_base_dir' => trim((string) ($payload['instance_base_dir'] ?? $settingsState['instance_base_dir'])),
@@ -247,13 +243,6 @@ final class InstallController
 
                 if ($adminPassword !== $adminPasswordConfirm) {
                     $errors[] = ['key' => 'errors.password_mismatch'];
-                }
-
-                if (
-                    $applicationState['cms_template_key'] !== ''
-                    && $this->cmsTemplateManager->getTemplate($applicationState['cms_template_key']) === null
-                ) {
-                    $errors[] = ['key' => 'errors.cms_template_invalid'];
                 }
 
                 if ($action === 'back') {
@@ -368,7 +357,6 @@ final class InstallController
             'dbVersion' => $dbVersion,
             'hasStoredPassword' => $storedPassword !== '',
             'debugAvailable' => $debugAvailable,
-            'cmsTemplates' => $this->cmsTemplateManager->listTemplates(),
         ]));
     }
 

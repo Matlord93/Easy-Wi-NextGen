@@ -1,0 +1,102 @@
+body.theme-esports {
+  background: #050719;
+  color: #d8e9ff;
+  font-family: Inter, Arial, sans-serif;
+}
+
+.theme-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.theme-header {
+  background: #0f172a;
+  border-bottom: 2px solid #22d3ee;
+}
+
+.theme-header h1 {
+  font-size: 2rem;
+  color: #22d3ee;
+  text-transform: uppercase;
+}
+
+.theme-header nav a {
+  color: #c084fc;
+  margin-right: 1rem;
+}
+
+.theme-header nav a.is-active,
+.theme-header nav a:hover {
+  color: #67e8f9;
+}
+
+.theme-main {
+  padding: 1.25rem 0 2rem;
+}
+
+.theme-page h2 {
+  font-size: 2.5rem;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.theme-card {
+  background: #111827;
+  border: 1px solid #22d3ee;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
+}
+
+.theme-footer {
+  border-top: 1px solid rgba(34, 211, 238, 0.35);
+  color: #94a3b8;
+}
+
+.theme-footer a {
+  color: #c084fc;
+}
+
+.theme-footer a:hover {
+  color: #67e8f9;
+}
+
+.theme-btn {
+  background: #22d3ee;
+  color: #001015;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.auth-box input,
+.auth-box button {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  border-radius: 8px;
+  background: #020617;
+  color: #d8e9ff;
+}
+
+.auth-box button {
+  background: #22d3ee;
+  color: #001;
+  font-weight: 700;
+}
+
+.error {
+  color: #fda4af;
+}
+
+.success {
+  color: #86efac;
+}

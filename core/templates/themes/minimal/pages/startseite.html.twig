@@ -1,0 +1,39 @@
+{% extends 'themes/minimal/base.html.twig' %}
+
+{% block content %}
+<section class="theme-wrap theme-home">
+  <div class="theme-hero">
+    <p class="theme-kicker">CLAN HUB</p>
+    <h2>{{ page.title }}</h2>
+    <p class="theme-lead">Alle wichtigen Infos zu eurem Clan an einem Ort: News, Termine, Teams und Community-Links.</p>
+    <div class="theme-hero-actions">
+      <a href="/teams" class="theme-btn">Teams</a>
+      <a href="/events" class="theme-btn theme-btn--ghost">Events</a>
+      <a href="/forum" class="theme-btn theme-btn--ghost">Forum</a>
+    </div>
+  </div>
+
+  <div class="theme-grid theme-grid--home">
+    <article class="theme-card theme-card--highlight">
+      <h3>Wichtige Infos</h3>
+      <p>Hier siehst du alle Inhalte, die im CMS gepflegt wurden. Nutze den Bereich für Ankündigungen, Trainingszeiten oder Serverhinweise.</p>
+    </article>
+    <article class="theme-card">
+      <h3>Community</h3>
+      <p>Verknüpfe Teams, Discord und Kontaktseiten, damit neue Mitglieder sofort den richtigen Einstieg finden.</p>
+    </article>
+    <article class="theme-card">
+      <h3>Aktuelles</h3>
+      <p>Blog, Event-Planung und Forum laufen zentral in einem Look & Feel – ohne Template-Brüche.</p>
+    </article>
+  </div>
+
+  <div class="theme-grid">
+    {% for block in blocks %}
+      <article class="theme-card">{% include 'public/blocks/_block.html.twig' with { block: block } only %}</article>
+    {% else %}
+      <article class="theme-card">Noch keine Inhalte vorhanden. Trage wichtige Clan-Infos im CMS ein und sie erscheinen hier automatisch.</article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

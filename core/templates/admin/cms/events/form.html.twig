@@ -1,0 +1,22 @@
+{% extends 'admin/base.html.twig' %}
+{% set event = form.event %}
+{% block content %}
+<form method="post" action="{{ form.action_url }}" class="mx-auto max-w-3xl space-y-3 rounded-2xl border bg-white p-6">
+    <h1 class="text-xl font-semibold">{{ event ? 'Edit Event' : 'New Event' }}</h1>
+    <input name="title" value="{{ event ? event.title : '' }}" placeholder="Title" class="w-full rounded border px-3 py-2" />
+    <input name="slug" value="{{ event ? event.slug : '' }}" placeholder="Slug" class="w-full rounded border px-3 py-2" />
+    <textarea name="description" rows="6" placeholder="Description" class="w-full rounded border px-3 py-2">{{ event ? event.description : '' }}</textarea>
+    <div class="grid gap-3 md:grid-cols-2">
+        <input type="datetime-local" name="start_at" value="{{ event and event.startAt ? event.startAt|date('Y-m-d\\TH:i') : '' }}" class="rounded border px-3 py-2" />
+        <input type="datetime-local" name="end_at" value="{{ event and event.endAt ? event.endAt|date('Y-m-d\\TH:i') : '' }}" class="rounded border px-3 py-2" />
+    </div>
+    <input name="location" value="{{ event ? event.location : '' }}" placeholder="Location" class="w-full rounded border px-3 py-2" />
+    <select name="status" class="w-full rounded border px-3 py-2">
+        {% set value = event ? event.status : 'planned' %}
+        {% for s in ['planned','canceled','past'] %}<option value="{{ s }}" {% if value == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+    <input name="cover_image_path" value="{{ event ? event.coverImagePath : '' }}" placeholder="Cover image path" class="w-full rounded border px-3 py-2" />
+    <label><input type="checkbox" name="is_published" {% if event and event.isPublished %}checked{% endif %}/> Published</label>
+    <div><button class="rounded bg-indigo-600 px-4 py-2 text-white">Save</button></div>
+</form>
+{% endblock %}

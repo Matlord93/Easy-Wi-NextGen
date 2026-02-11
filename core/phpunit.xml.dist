@@ -1,20 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit bootstrap="vendor/autoload.php" colors="true" beStrictAboutMockingFinalClasses="false">
+<phpunit bootstrap="vendor/autoload.php" colors="true">
   <testsuites>
     <testsuite name="Project Test Suite">
       <directory>tests</directory>
     </testsuite>
   </testsuites>
-  <extensions>
-    <bootstrap class="Symfony\Bridge\PhpUnit\SymfonyExtension">
-      <parameter name="clock-mock-namespaces" value="App" />
-      <parameter name="dns-mock-namespaces" value="App" />
-    </bootstrap>
-  </extensions>
   <php>
-    <env name="APP_ENV" value="test"/>
-    <env name="APP_DEBUG" value="1"/>
-    <env name="KERNEL_CLASS" value="App\\Kernel"/>
-    <server name="KERNEL_CLASS" value="App\\Kernel"/>
+    <env name="APP_ENV" value="test" force="true"/>
+    <env name="APP_DEBUG" value="1" force="true"/>
+    <env name="DEFAULT_URI" value="http://localhost" force="true"/>
+    <env name="KERNEL_CLASS" value="App\Kernel" force="true"/>
+    <env name="DATABASE_URL" value="sqlite:///%kernel.project_dir%/var/test.db" force="true"/>
+    <env name="APP_SECRET" value="change_this_secret" force="true"/>
+    <env name="MAILER_DSN" value="null://null" force="true"/>
+    <env name="MESSENGER_TRANSPORT_DSN" value="sync://" force="true"/>
+    <env name="APP_CORE_UPDATE_RELEASES_DIR" value="/workspace/webinterface/core/releases" force="true"/>
+    <env name="APP_CORE_UPDATE_CURRENT_SYMLINK" value="/workspace/webinterface/core/current" force="true"/>
+    <env name="APP_CORE_UPDATE_LOCK_FILE" value="/workspace/webinterface/core/tmp/webinterface_update.lock" force="true"/>
+    <env name="APP_CORE_UPDATE_MANIFEST_URL" value="http://localhost/update/manifest.json" force="true"/>
+    <env name="APP_CORE_UPDATE_INSTALL_DIR" value="/workspace/webinterface/core" force="true"/>
+    <env name="APP_CORE_VERSION" value="test" force="true"/>
+    <env name="APP_CORE_UPDATE_WORKFLOW" value="webinterface-update.yml" force="true"/>
+    <env name="APP_GITHUB_TOKEN" value="" force="true"/>
+    <env name="APP_AGENT_RELEASE_CACHE_TTL" value="300" force="true"/>
+    <env name="APP_AGENT_RELEASE_REPOSITORY" value="Matlord93/Easy-Wi-NextGen" force="true"/>
+    <env name="APP_CHANGELOG_CACHE_TTL" value="300" force="true"/>
+    <env name="APP_CHANGELOG_REPOSITORY" value="Matlord93/Easy-Wi-NextGen" force="true"/>
+    <env name="APP_CORE_RELEASE_CACHE_TTL" value="300" force="true"/>
+    <env name="APP_CORE_RELEASE_REPOSITORY" value="Matlord93/Easy-Wi-NextGen" force="true"/>
+    <env name="APP_CORE_RELEASE_CHANNEL" value="beta" force="true"/>
+    <env name="APP_AGENT_SERVICE_PORT" value="8087" force="true"/>
+    <env name="APP_AGENT_FILE_TIMEOUT_SECONDS" value="10" force="true"/>
+    <env name="APP_SECRET_FALLBACKS" value="" force="true"/>
+    <env name="APP_CORE_UPDATE_REPOSITORY" value="Matlord93/Easy-Wi-NextGen" force="true"/>
+    <env name="APP_CORE_UPDATE_PACKAGE_URL" value="" force="true"/>
+    <env name="APP_CORE_UPDATE_RUNNER" value="/usr/local/bin/easywi-core-runner" force="true"/>
+    <env name="APP_CORE_UPDATE_EXCLUDES" value=".env,config/local*,var/,storage/,uploads/" force="true"/>
+    <env name="APP_CORE_UPDATE_JOBS_DIR" value="/workspace/webinterface/core/srv/update/jobs" force="true"/>
+    <env name="APP_CORE_UPDATE_LOGS_DIR" value="/workspace/webinterface/core/srv/update/logs" force="true"/>
+    <env name="APP_CORE_UPDATE_BACKUPS_DIR" value="/workspace/webinterface/core/srv/update/backups" force="true"/>
+    <env name="APP_ADMIN_AUTHORIZED_KEYS_PATH" value="/home/easywi/.ssh/authorized_keys" force="true"/>
+    <env name="APP_SINUSBOT_QUOTA_MIN" value="1" force="true"/>
+    <env name="APP_SINUSBOT_QUOTA_MAX" value="100" force="true"/>
+    <env name="APP_WINDOWS_NODES_ENABLED" value="0" force="true"/>
+    <env name="APP_PAYMENT_DUMMY_ENABLED" value="0" force="true"/>
+    <env name="APP_RECOVERY_ALLOWED_IPS" value="127.0.0.1,::1" force="true"/>
   </php>
 </phpunit>

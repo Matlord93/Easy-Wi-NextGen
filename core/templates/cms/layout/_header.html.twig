@@ -1,0 +1,39 @@
+<header class="theme-header">
+  <div class="theme-wrap">
+    {% set brandName = app_setting('branding_name', 'Easy-Wi NextGen') %}
+    {% set actor = current_user() %}
+    <h1>{{ brandName }}</h1>
+    <nav class="flex items-center gap-4">
+      {% for item in cms_navigation|default([]) %}
+        {% set isActive = item.url == '/' ~ page.slug|default('') or (item.url == '/' and page.slug|default('') == 'startseite') %}
+        <a href="{{ item.url }}" {% if item.external %}target="_blank" rel="noopener noreferrer"{% endif %} class="{{ isActive ? 'is-active' : '' }}">{{ item.label }}</a>
+      {% endfor %}
+
+      {% if actor %}
+        {% set displayName = actor.name ?? actor.email %}
+        {% set panelLink = null %}
+        {% if actor.type.value in ['admin', 'superadmin'] %}
+          {% set panelLink = '/admin' %}
+        {% elseif actor.type.value == 'reseller' %}
+          {% set panelLink = '/reseller' %}
+        {% elseif actor.type.value == 'customer' and actor.customerAccessEnabled %}
+          {% set panelLink = '/customer' %}
+        {% endif %}
+
+        <details class="relative">
+          <summary class="cursor-pointer list-none rounded-md border border-slate-300 px-3 py-2 text-sm">Hallo, {{ displayName }}</summary>
+          <div class="absolute right-0 z-20 mt-2 min-w-[180px] rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+            <a href="/profile" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Mein Profil</a>
+            <a href="/account/security" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Sicherheit</a>
+            {% if panelLink %}
+              <a href="{{ panelLink }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Zum Panel</a>
+            {% endif %}
+            <a href="/logout" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Logout</a>
+          </div>
+        </details>
+      {% else %}
+        <a href="/login?target={{ app.request.requestUri|url_encode }}">Login</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>

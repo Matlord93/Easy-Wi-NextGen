@@ -1,0 +1,6 @@
+doctrine:
+  dbal:
+    # Tests use %kernel.project_dir% in .env.test DATABASE_URL.
+    # Resolve placeholders only in test so production URLs with encoded
+    # percent characters remain safe.
+    url: '%env(resolve:DATABASE_URL)%'

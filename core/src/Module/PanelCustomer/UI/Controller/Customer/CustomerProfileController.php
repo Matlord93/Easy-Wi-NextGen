@@ -18,7 +18,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
-#[Route(path: '/profile')]
+#[Route(path: '/customer/profile')]
 final class CustomerProfileController
 {
     private const COUNTRY_OPTIONS = [

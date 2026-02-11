@@ -1,0 +1,15 @@
+{% extends 'public/base.html.twig' %}
+
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-[220px,1fr]">
+  {% include 'public/account/_nav.html.twig' %}
+  <div>
+<div class="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+  <h1 class="text-xl font-semibold text-slate-900">Mein Profil</h1>
+  <p class="mt-4 text-sm text-slate-600">Name: <span class="font-medium text-slate-900">{{ user.name ?? user.email }}</span></p>
+  <p class="mt-2 text-sm text-slate-600">E-Mail: <span class="font-medium text-slate-900">{{ user.email }}</span></p>
+  <a href="/profile/edit" class="mt-6 inline-flex rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Profil bearbeiten</a>
+</div>
+  </div>
+</div>
+{% endblock %}

@@ -5,21 +5,17 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
 use App\Module\Cms\Application\CmsMaintenanceService;
+use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\SiteResolver;
-use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Entity\UserSession;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\UserRepository;
-use App\Security\SessionTokenGenerator;
+use App\Security\LoginFinalizer;
+use App\Security\PostLoginRedirectResolver;
 use App\Security\TwoFactorPolicy;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -33,16 +29,15 @@ final class PublicLoginController
     public function __construct(
         private readonly UserRepository $users,
         private readonly UserPasswordHasherInterface $passwordHasher,
-        private readonly SessionTokenGenerator $tokenGenerator,
+        private readonly LoginFinalizer $loginFinalizer,
         private readonly AuditLogger $auditLogger,
-        private readonly EntityManagerInterface $entityManager,
         private readonly SiteResolver $siteResolver,
         private readonly InstallerService $installerService,
-        private readonly TwoFactorService $twoFactorService,
-        private readonly SecretsCrypto $secretsCrypto,
         private readonly TwoFactorPolicy $twoFactorPolicy,
-        private readonly AppSettingsService $settingsService,
+        private readonly PostLoginRedirectResolver $redirectResolver,
         private readonly CmsMaintenanceService $maintenanceService,
+        private readonly ThemeResolver $themeResolver,
+        private readonly AppSettingsService $appSettings,
         #[Autowire(service: 'limiter.public_login_ip')]
         private readonly RateLimiterFactory $loginIpLimiter,
         #[Autowire(service: 'limiter.public_login_identifier')]
@@ -64,35 +59,16 @@ final class PublicLoginController
         }
 
         $maintenance = $this->maintenanceService->resolve($request, $site);
-        $registrationAllowed = !$maintenance['active'];
 
-        $form = [
-            'email' => '',
-            'otp' => '',
-            'recovery_code' => '',
-        ];
+        $form = ['email' => ''];
         $errors = [];
         $status = Response::HTTP_OK;
         $retryAfter = null;
-        $requiresTwoFactor = false;
-        $twoFactorEnabled = false;
-        $enrollmentRequired = false;
-        $twoFactorSetup = [
-            'secret' => null,
-            'otpauth' => null,
-            'qr' => null,
-        ];
 
         if ($request->isMethod('POST')) {
-            $payload = $request->request->all();
-            $email = trim((string) ($payload['email'] ?? ''));
-            $password = (string) ($payload['password'] ?? '');
-            $otp = trim((string) ($payload['otp'] ?? ''));
-            $recoveryCode = trim((string) ($payload['recovery_code'] ?? ''));
-
+            $email = trim((string) $request->request->get('email', ''));
+            $password = (string) $request->request->get('password', '');
             $form['email'] = $email;
-            $form['otp'] = $otp;
-            $form['recovery_code'] = $recoveryCode;
 
             if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $errors[] = 'Enter a valid email address.';
@@ -110,7 +86,6 @@ final class PublicLoginController
             if (!$ipLimit->isAccepted() || !$idLimit->isAccepted()) {
                 $status = Response::HTTP_TOO_MANY_REQUESTS;
                 $errors = ['Too many login attempts. Please try again in a moment.'];
-
                 foreach ([$ipLimit, $idLimit] as $limit) {
                     if (!$limit->isAccepted() && $limit->getRetryAfter() !== null) {
                         if ($retryAfter === null || $limit->getRetryAfter() > $retryAfter) {
@@ -118,20 +93,13 @@ final class PublicLoginController
                         }
                     }
                 }
-
-                $this->auditLogger->log(null, 'auth.login.rate_limited', [
-                    'ip_address' => $ipAddress,
-                    'identifier' => $identifier,
-                    'context' => 'public_login',
-                    'retry_after' => $retryAfter?->format(DATE_ATOM),
-                ]);
             }
 
             if ($errors === []) {
                 $user = $this->users->findOneByEmail($email);
                 if ($user === null || !$this->passwordHasher->isPasswordValid($user, $password)) {
-                    $errors[] = 'Invalid credentials.';
                     $status = Response::HTTP_UNAUTHORIZED;
+                    $errors[] = 'Invalid credentials.';
                     $this->auditLogger->log($user, 'auth.login.failed', [
                         'ip_address' => $ipAddress,
                         'identifier' => $identifier,
@@ -140,125 +108,44 @@ final class PublicLoginController
                     ]);
                 } else {
                     $requiresTwoFactor = $this->twoFactorPolicy->isRequired($user);
-                    $twoFactorEnabled = $user->isTotpEnabled();
-                    $enrollmentRequired = $requiresTwoFactor && !$twoFactorEnabled;
+                    if ($user->isTotpEnabled()) {
+                        $session = $request->getSession();
+                        $session->set('auth_pending_user_id', $user->getId());
+                        $session->set('auth_pending_since', time());
+                        $requestedTarget = (string) ($request->request->get('target', $request->query->get('target', $session->get(PostLoginRedirectResolver::SESSION_TARGET_KEY, ''))));
+                        $session->set('auth_pending_target_path', $requestedTarget);
+                        $session->remove('auth_2fa_attempts');
+                        $session->remove('auth_2fa_locked_until');
 
-                    if ($enrollmentRequired) {
-                        $secret = $this->ensureTotpSecret($user);
-                        if ($secret !== null) {
-                            $issuer = $this->settingsService->getBrandingName();
-                            $otpAuth = $this->twoFactorService->getOtpAuthUri($issuer, $user->getEmail(), $secret);
-                            $twoFactorSetup = [
-                                'secret' => $secret,
-                                'otpauth' => $otpAuth,
-                                'qr' => sprintf('https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=%s', rawurlencode($otpAuth)),
-                            ];
-                        }
+                        return new RedirectResponse('/2fa');
                     }
 
-                    if ($twoFactorEnabled) {
-                        $secret = $user->getTotpSecret($this->secretsCrypto);
-                        if ($secret === null) {
-                            $errors[] = 'Two-factor authentication is not configured. Contact support.';
-                            $status = Response::HTTP_FORBIDDEN;
-                        } elseif ($otp === '' && $recoveryCode === '') {
-                            $errors[] = 'Enter your authentication code.';
-                            $status = Response::HTTP_UNAUTHORIZED;
-                        } elseif ($otp !== '' && $this->twoFactorService->verifyCode($secret, $otp)) {
-                            // ok
-                        } elseif ($recoveryCode !== '') {
-                            $index = $this->twoFactorService->verifyRecoveryCode($recoveryCode, $user->getTotpRecoveryCodes());
-                            if ($index === null) {
-                                $errors[] = 'Invalid authentication code.';
-                                $status = Response::HTTP_UNAUTHORIZED;
-                            } else {
-                                $codes = $user->getTotpRecoveryCodes();
-                                unset($codes[$index]);
-                                $user->setTotpRecoveryCodes(array_values($codes));
-                                $this->auditLogger->log($user, 'auth.login.recovery_used', [
-                                    'user_id' => $user->getId(),
-                                    'context' => 'public_login',
-                                ]);
-                            }
-                        } else {
-                            $errors[] = 'Invalid authentication code.';
-                            $status = Response::HTTP_UNAUTHORIZED;
-                        }
-                    } elseif ($requiresTwoFactor) {
-                        $this->auditLogger->log($user, 'auth.login.enrollment_required', [
-                            'user_id' => $user->getId(),
-                            'context' => 'public_login',
-                        ]);
+                    if ($requiresTwoFactor) {
+                        $redirectPath = $user->isAdmin() ? '/admin/profile' : '/account/security';
+
+                        return $this->loginFinalizer->finalizeLogin($request, $user, $redirectPath, 'public_login');
                     }
 
-                    if ($errors !== []) {
-                        $this->auditLogger->log($user, 'auth.login.failed', [
-                            'ip_address' => $ipAddress,
-                            'identifier' => $identifier,
-                            'reason' => 'two_factor_failed',
-                            'context' => 'public_login',
-                        ]);
-                    }
+                    $redirectPath = $this->redirectResolver->resolve($user, $request);
 
-                    if ($errors !== []) {
-                        // fall through
-                    } else {
-                        $token = $this->tokenGenerator->generateToken();
-                        $session = new UserSession($user, $this->tokenGenerator->hashToken($token));
-                        $session->setExpiresAt((new \DateTimeImmutable())->modify('+30 days'));
-                        $session->setLastUsedAt(new \DateTimeImmutable());
-
-                        $this->entityManager->persist($session);
-                        $this->auditLogger->log($user, 'session.created', [
-                            'user_id' => $user->getId(),
-                            'email' => $user->getEmail(),
-                        ]);
-                        $this->auditLogger->log($user, 'auth.login.success', [
-                            'ip_address' => $ipAddress,
-                            'identifier' => $identifier,
-                            'context' => 'public_login',
-                        ]);
-                        $this->entityManager->flush();
-
-                        $redirectPath = match (true) {
-                            $enrollmentRequired && $user->isAdmin() => '/admin/profile',
-                            $enrollmentRequired => '/profile/security',
-                            default => match ($user->getType()) {
-                                UserType::Admin, UserType::Superadmin => '/admin',
-                                UserType::Reseller => '/reseller/customers',
-                                default => '/dashboard',
-                            },
-                        };
-                        $response = new RedirectResponse($redirectPath);
-                        $response->headers->setCookie(
-                            Cookie::create('easywi_session', $token)
-                                ->withPath('/')
-                                ->withSecure($request->isSecure())
-                                ->withHttpOnly(true)
-                                ->withSameSite('lax')
-                                ->withExpires((new \DateTimeImmutable())->modify('+30 days'))
-                        );
-
-                        return $response;
-                    }
+                    return $this->loginFinalizer->finalizeLogin($request, $user, $redirectPath, 'public_login');
                 }
             } else {
                 $status = Response::HTTP_BAD_REQUEST;
             }
         }
 
-        $templateKey = $site->getCmsTemplateKey() ?? 'hosting';
+        $templateKey = $this->themeResolver->resolveThemeKey($site);
+        $registrationAllowed = !$maintenance['active'] && $this->appSettings->isRegistrationEnabled();
 
         $response = new Response($this->twig->render($this->resolveLoginTemplate($templateKey), [
             'form' => $form,
             'errors' => $errors,
             'siteName' => $site->getName(),
-            'requiresTwoFactor' => $requiresTwoFactor,
-            'twoFactorEnabled' => $twoFactorEnabled,
-            'enrollmentRequired' => $enrollmentRequired,
-            'twoFactorSetup' => $twoFactorSetup,
             'registrationAllowed' => $registrationAllowed,
+            'loginTarget' => (string) ($request->query->get('target', $request->request->get('target', ''))),
             'template_key' => $templateKey,
+            'active_theme' => $templateKey,
         ]), $status);
 
         if ($retryAfter !== null) {
@@ -268,16 +155,14 @@ final class PublicLoginController
 
         return $response;
     }
-
-
     private function resolveLoginTemplate(string $templateKey): string
     {
-        $customTemplate = sprintf('public/auth/custom/%s/login.html.twig', $templateKey);
-        if ($this->templateExists($customTemplate)) {
-            return $customTemplate;
+        $themeTemplate = sprintf('themes/%s/auth/login.html.twig', $templateKey);
+        if ($this->templateExists($themeTemplate)) {
+            return $themeTemplate;
         }
 
-        return 'public/auth/login.html.twig';
+        return 'themes/minimal/auth/login.html.twig';
     }
 
     private function templateExists(string $template): bool
@@ -285,24 +170,5 @@ final class PublicLoginController
         $loader = $this->twig->getLoader();
 
         return method_exists($loader, 'exists') && $loader->exists($template);
-    }
-
-    private function ensureTotpSecret(User $user): ?string
-    {
-        if ($user->isTotpEnabled()) {
-            return $user->getTotpSecret($this->secretsCrypto);
-        }
-
-        $secret = $user->getTotpSecret($this->secretsCrypto);
-        if ($secret !== null) {
-            return $secret;
-        }
-
-        $secret = $this->twoFactorService->generateSecret();
-        $user->setTotpSecret($secret, $this->secretsCrypto);
-        $this->entityManager->persist($user);
-        $this->entityManager->flush();
-
-        return $secret;
     }
 }

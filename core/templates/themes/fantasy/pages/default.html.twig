@@ -1,0 +1,13 @@
+{% extends 'themes/fantasy/base.html.twig' %}
+{% block content %}
+<section class="theme-wrap theme-page">
+  <h2>{{ page.title }}</h2>
+  <div class="theme-grid">
+  {% for block in blocks %}
+    <article class="theme-card">{% include 'public/blocks/_block.html.twig' with { block: block } only %}</article>
+  {% else %}
+    <article class="theme-card">Keine Inhalte vorhanden.</article>
+  {% endfor %}
+  </div>
+</section>
+{% endblock %}

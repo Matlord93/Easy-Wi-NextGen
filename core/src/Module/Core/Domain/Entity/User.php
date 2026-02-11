@@ -90,6 +90,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $totpRecoveryCodes = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $memberAccessEnabled = false;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $customerAccessEnabled = false;
+
     public function __construct(string $email, UserType $type)
     {
         $this->email = strtolower($email);
@@ -139,12 +145,42 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function getRoles(): array
     {
-        return match ($this->getType()) {
+        $roles = match ($this->getType()) {
             UserType::Admin => ['ROLE_ADMIN'],
             UserType::Superadmin => ['ROLE_SUPERADMIN', 'ROLE_ADMIN'],
-            UserType::Reseller => ['ROLE_RESELLER'],
-            default => ['ROLE_CUSTOMER'],
+            UserType::Reseller => ['ROLE_RESELLER', 'ROLE_USER'],
+            UserType::Customer => ['ROLE_USER'],
         };
+
+        if ($this->memberAccessEnabled && !$this->isAdmin()) {
+            $roles[] = 'ROLE_MEMBER';
+        }
+
+        if ($this->customerAccessEnabled && $this->getType() === UserType::Customer) {
+            $roles[] = 'ROLE_CUSTOMER';
+        }
+
+        return array_values(array_unique($roles));
+    }
+
+    public function isMemberAccessEnabled(): bool
+    {
+        return $this->memberAccessEnabled;
+    }
+
+    public function setMemberAccessEnabled(bool $memberAccessEnabled): void
+    {
+        $this->memberAccessEnabled = $memberAccessEnabled;
+    }
+
+    public function isCustomerAccessEnabled(): bool
+    {
+        return $this->customerAccessEnabled;
+    }
+
+    public function setCustomerAccessEnabled(bool $customerAccessEnabled): void
+    {
+        $this->customerAccessEnabled = $customerAccessEnabled;
     }
 
     public function eraseCredentials(): void

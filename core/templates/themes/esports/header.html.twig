@@ -1,0 +1,19 @@
+<header class="theme-header">
+  <div class="theme-wrap">
+    <h1>{{ app_setting('branding_name', 'Easy-Wi NextGen') }}</h1>
+    <nav>
+      {% for item in cms_pages|default([]) %}
+        {% set moduleSlug = item.slug in ['blog', 'events', 'team', 'forum'] ? item.slug : null %}
+        {% if moduleSlug is null or module_toggles[moduleSlug]|default(false) %}
+          {% set href = item.slug == 'startseite' ? '/' : '/' ~ item.slug %}
+          <a href="{{ href }}" class="{{ item.is_active ? 'is-active' : '' }}">{{ item.title }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if module_toggles.blog|default(false) %}<a href="/blog">Blog</a>{% endif %}
+      {% if module_toggles.events|default(false) %}<a href="/events">Events</a>{% endif %}
+      {% if module_toggles.team|default(false) %}<a href="/team">Team</a>{% endif %}
+      {% if module_toggles.forum|default(false) %}<a href="/forum">Forum</a>{% endif %}
+      <a href="/login">Login</a>
+    </nav>
+  </div>
+</header>

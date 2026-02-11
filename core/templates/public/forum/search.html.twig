@@ -1,0 +1,32 @@
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
+
+{% block title %}Forum Suche{% endblock %}
+
+{% block content %}
+<div class="mx-auto w-full max-w-5xl space-y-6 px-4 py-10 sm:px-6">
+    <div>
+        <a href="/forum" class="text-sm text-cyan-300 hover:text-cyan-200">← Forum</a>
+        <h1 class="mt-2 text-3xl font-semibold text-slate-100">Suche</h1>
+    </div>
+
+    <form method="get" action="/forum/search" class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+        <input name="q" value="{{ q }}" placeholder="Threadtitel oder Inhalt" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" required>
+    </form>
+
+    {% if error %}<div class="rounded-lg border border-amber-300/40 bg-amber-500/10 p-3 text-sm text-amber-200">{{ error }}</div>{% endif %}
+
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+        <h2 class="text-lg font-semibold text-slate-100">Ergebnisse</h2>
+        <div class="mt-4 space-y-2">
+            {% for thread in results %}
+                <a class="block rounded-lg border border-slate-700 p-3 hover:bg-slate-800/70" href="/forum/thread/{{ thread.id }}">
+                    <p class="font-semibold text-slate-100">{{ thread.title }}</p>
+                    <p class="text-xs text-slate-400">Board: {{ thread.board.title }} · {{ thread.lastActivityAt|date('Y-m-d H:i') }}</p>
+                </a>
+            {% else %}
+                <p class="text-sm text-slate-400">Keine Treffer.</p>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}

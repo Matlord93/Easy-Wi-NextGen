@@ -35,6 +35,9 @@ class Site
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $maintenanceMessage = null;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $maintenanceGraphicPath = null;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $maintenanceAllowlist = null;
 
@@ -133,6 +136,18 @@ class Site
     {
         $maintenanceMessage = $maintenanceMessage === null ? null : trim($maintenanceMessage);
         $this->maintenanceMessage = $maintenanceMessage === '' ? null : $maintenanceMessage;
+        $this->touch();
+    }
+
+    public function getMaintenanceGraphicPath(): string
+    {
+        return $this->maintenanceGraphicPath ?? '';
+    }
+
+    public function setMaintenanceGraphicPath(?string $maintenanceGraphicPath): void
+    {
+        $maintenanceGraphicPath = $maintenanceGraphicPath === null ? null : trim($maintenanceGraphicPath);
+        $this->maintenanceGraphicPath = $maintenanceGraphicPath === '' ? null : $maintenanceGraphicPath;
         $this->touch();
     }
 

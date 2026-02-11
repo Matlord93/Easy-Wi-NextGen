@@ -1,5 +1,9 @@
 {% extends 'customer/base.html.twig' %}
 
+{% set profileUser = current_user() %}
+{% set customerName = profileUser and profileUser.name ? profileUser.name : (profileUser ? profileUser.email : 'Customer') %}
+{% set customerEmail = profileUser ? profileUser.email : '' %}
+{% set customerInitial = customerName|slice(0, 1)|upper %}
 {% set pageTitle = '' %}
 {% set pageSubtitle = '' %}
 {% set topbarActions = [{
@@ -17,200 +21,162 @@
     'past_due': t('customer_dashboard_invoice_status_past_due', page_locale()),
     'paid': t('customer_dashboard_invoice_status_paid', page_locale())
 } %}
+{% set nextPaymentAmount = nextPayment ? (nextPayment.amount_due / 100)|number_format(2, ',', '.') ~ ' ' ~ nextPayment.currency : '—' %}
 
-<div class="customer-dashboard flex flex-col gap-6">
-    <div class="flex flex-col gap-2">
-        <h1 class="text-2xl font-semibold text-slate-100">{{ t('customer_dashboard_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-400">{{ t('customer_dashboard_subtitle', page_locale()) }}</p>
+<div class="customer-dashboard customer-dashboard--revamp flex flex-col gap-6">
+
+    <div>
+        <h2 class="text-3xl font-semibold text-slate-100">{{ t('customer_dashboard_title', page_locale()) }}</h2>
+        <p class="mt-2 text-base text-slate-400">{{ t('customer_dashboard_subtitle', page_locale()) }}</p>
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-3">
-        {% embed 'components/ui/_card.html.twig' with {
-            title: t('customer_dashboard_contract_title', page_locale()),
-            subtitle: t('customer_dashboard_contract_subtitle', page_locale())
-        } %}
-            {% block content %}
-                {% if billingEnabled and activePlan %}
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-xs uppercase tracking-wide text-slate-400">{{ t('customer_dashboard_contract_plan', page_locale()) }}</div>
-                            <div class="mt-2 text-lg font-semibold text-slate-100">{{ activePlan.name }}</div>
-                        </div>
-                        {% include 'components/ui/_badge.html.twig' with {
-                            label: t('customer_dashboard_contract_active', page_locale()),
-                            tone: 'success'
-                        } %}
-                    </div>
-                    <div class="mt-4 text-sm text-slate-300">
-                        {% if nextPayment %}
-                            {{ t('customer_dashboard_next_payment_label', page_locale()) }}
-                            <span class="text-slate-100">{{ nextPayment.amount_due / 100 }} {{ nextPayment.currency }}</span>
-                            · {{ nextPayment.due_date|date('Y-m-d') }}
-                        {% else %}
-                            {{ t('customer_dashboard_next_payment_none', page_locale()) }}
-                        {% endif %}
-                    </div>
+    <section class="dashboard-stats">
+        <article class="dashboard-stat dashboard-stat--contract">
+            <div class="dashboard-stat__headline">{{ t('customer_dashboard_contract_title', page_locale()) }}</div>
+            {% if billingEnabled and activePlan %}
+                <div class="dashboard-stat__value">{{ activePlan.name }}</div>
+                <p class="dashboard-stat__meta">
+                    {{ t('customer_dashboard_next_payment_label', page_locale()) }} {{ nextPaymentAmount }}
+                </p>
+            {% else %}
+                <div class="dashboard-stat__value">{{ t('customer_dashboard_contract_unavailable', page_locale()) }}</div>
+            {% endif %}
+        </article>
+
+        <article class="dashboard-stat dashboard-stat--storage">
+            <div class="dashboard-stat__topline">
+                <span>{{ t('customer_dashboard_storage_title', page_locale()) }}</span>
+                <strong>{{ storagePercent }}%</strong>
+            </div>
+            <div class="dashboard-stat__meter">
+                <div style="width: {{ storagePercent }}%"></div>
+            </div>
+            <p class="dashboard-stat__meta">
+                {% if resourceUsage.disk_limit_human %}
+                    {{ resourceUsage.disk_used_human }} / {{ resourceUsage.disk_limit_human }}
                 {% else %}
-                    <div class="text-sm text-slate-400">{{ t('customer_dashboard_contract_unavailable', page_locale()) }}</div>
+                    {{ t('customer_dashboard_storage_hint', page_locale()) }}
                 {% endif %}
-            {% endblock %}
-        {% endembed %}
+            </p>
+        </article>
 
-        {% embed 'components/ui/_card.html.twig' with {
-            title: t('customer_dashboard_storage_title', page_locale()),
-            subtitle: t('customer_dashboard_storage_subtitle', page_locale())
-        } %}
-            {% block content %}
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="text-3xl font-semibold text-slate-100">{{ storagePercent }}%</div>
-                        <div class="text-xs text-slate-400">
-                            {% if resourceUsage.disk_limit_human %}
-                                {{ resourceUsage.disk_used_human }} / {{ resourceUsage.disk_limit_human }}
-                            {% else %}
-                                {{ t('customer_dashboard_storage_hint', page_locale()) }}
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="w-24">
-                        <div class="ui-progress">
-                            <div class="ui-progress__bar" style="width: {{ storagePercent }}%;"></div>
-                        </div>
-                    </div>
-                </div>
-            {% endblock %}
-        {% endembed %}
+        <article class="dashboard-stat dashboard-stat--tickets">
+            <div class="dashboard-stat__topline">
+                <span>{{ t('customer_dashboard_ticket_title', page_locale()) }}</span>
+                <strong>{{ summary.tickets_open }}</strong>
+            </div>
+            <div class="dashboard-stat__meter">
+                {% set ticketPercent = summary.tickets_total > 0 ? ((summary.tickets_open / summary.tickets_total) * 100)|round(0, 'common') : 0 %}
+                <div style="width: {{ ticketPercent }}%"></div>
+            </div>
+            <p class="dashboard-stat__meta">
+                {{ summary.tickets_pending }} {{ t('customer_dashboard_ticket_pending', page_locale()) }} · {{ summary.tickets_total }} {{ t('customer_dashboard_ticket_total', page_locale()) }}
+            </p>
+        </article>
+    </section>
 
-        {% embed 'components/ui/_card.html.twig' with {
-            title: t('customer_dashboard_ticket_title', page_locale()),
-            subtitle: t('customer_dashboard_ticket_subtitle', page_locale())
-        } %}
-            {% block content %}
-                <div class="flex items-center justify-between">
-                    <div class="text-3xl font-semibold text-slate-100">{{ summary.tickets_open }}</div>
-                    {% include 'components/ui/_badge.html.twig' with {
-                        label: summary.tickets_open > 0 ? t('customer_dashboard_ticket_badge', page_locale()) : t('customer_dashboard_ticket_resolved', page_locale()),
-                        tone: summary.tickets_open > 0 ? 'warning' : 'success'
-                    } %}
+    <section class="dashboard-main-grid">
+        <div class="dashboard-panel">
+            <div class="dashboard-panel__header">
+                <div>
+                    <h3>{{ t('customer_dashboard_servers_title', page_locale()) }}</h3>
+                    <p>{{ t('customer_dashboard_servers_subtitle', page_locale()) }}</p>
                 </div>
-                <div class="mt-3 text-xs text-slate-400">
-                    {{ summary.tickets_pending }} {{ t('customer_dashboard_ticket_pending', page_locale()) }} ·
-                    {{ summary.tickets_total }} {{ t('customer_dashboard_ticket_total', page_locale()) }}
-                </div>
-            {% endblock %}
-        {% endembed %}
-    </div>
+                <a href="{{ path('customer_instances') }}" class="ui-button ui-button--ghost">{{ t('customer_dashboard_view_all', page_locale()) }}</a>
+            </div>
 
-    <div class="grid gap-4 xl:grid-cols-3">
-        {% embed 'components/ui/_card.html.twig' with {
-            title: t('customer_dashboard_servers_title', page_locale()),
-            subtitle: t('customer_dashboard_servers_subtitle', page_locale()),
-            actions: '<a href="' ~ path('customer_instances') ~ '" class="ui-button ui-button--ghost">' ~ t('customer_dashboard_view_all', page_locale()) ~ '</a>'
-        } %}
-            {% block content %}
-                {% if instances is empty %}
-                    <div class="text-sm text-slate-400">{{ t('customer_dashboard_no_instances', page_locale()) }}</div>
-                {% else %}
-                    <div class="grid gap-4">
-                        {% for instance in instances %}
-                            {% set statusTone = instance.status == 'running' ? 'success' : (instance.status in ['pending_setup', 'provisioning'] ? 'warning' : 'danger') %}
-                            <div class="rounded-2xl border border-slate-700/40 bg-slate-900/60 p-4">
-                                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <div class="flex items-center gap-3">
-                                        {% include 'components/_game_icon.html.twig' with { gameKey: instance.game_key, class: 'h-12 w-12 text-indigo-300' } %}
-                                        <div>
-                                            <div class="text-sm font-semibold text-slate-100">{{ instance.server_name ?: instance.name }}</div>
-                                            <div class="text-xs text-slate-400">#{{ instance.id }} · {{ instance.game_key }}</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        {% include 'components/ui/_badge.html.twig' with { label: instance.status_label, tone: statusTone } %}
-                                        <div class="text-xs text-slate-400">
-                                            {{ t('customer_dashboard_server_ping', page_locale()) }}:
-                                            <span class="text-slate-100">{{ instance.latency_ms is not null ? instance.latency_ms ~ ' ms' : '—' }}</span>
-                                        </div>
-                                    </div>
+            {% if instances is empty %}
+                <div class="text-sm text-slate-400">{{ t('customer_dashboard_no_instances', page_locale()) }}</div>
+            {% else %}
+                <div class="server-grid">
+                    {% for instance in instances|slice(0, 4) %}
+                        {% set statusTone = instance.status in ['running', 'online'] ? 'success' : (instance.status in ['stopped', 'offline'] ? 'danger' : 'warning') %}
+                        <article class="server-card">
+                            <div class="server-card__top">
+                                <div>
+                                    <h4>{{ instance.server_name ?: instance.name }}</h4>
+                                    <p>#{{ instance.id }} · {{ instance.game_key }}</p>
                                 </div>
-                                <div class="mt-4 flex flex-wrap gap-2">
-                                    <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
-                                        <input type="hidden" name="action" value="start">
-                                        <button class="ui-button ui-button--primary">{{ t('customer_dashboard_server_start', page_locale()) }}</button>
-                                    </form>
-                                    <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
-                                        <input type="hidden" name="action" value="stop">
-                                        <button class="ui-button ui-button--danger">{{ t('customer_dashboard_server_stop', page_locale()) }}</button>
-                                    </form>
-                                    <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
-                                        <input type="hidden" name="action" value="restart">
-                                        <button class="ui-button ui-button--ghost">{{ t('customer_dashboard_server_restart', page_locale()) }}</button>
-                                    </form>
-                                </div>
+                                {% include 'components/ui/_badge.html.twig' with { label: instance.status_label, tone: statusTone } %}
                             </div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            {% endblock %}
-        {% endembed %}
-
-        {% embed 'components/ui/_card.html.twig' with {
-            title: t('customer_dashboard_usage_title', page_locale()),
-            subtitle: t('customer_dashboard_usage_subtitle', page_locale())
-        } %}
-            {% block content %}
-                <div class="flex flex-col items-center gap-4">
-                    <div class="ui-ring" style="--ring-value: {{ ringValue }};">
-                        <div class="ui-ring__value">{{ storagePercent }}%</div>
-                    </div>
-                    <div class="grid w-full grid-cols-3 gap-2 text-xs text-slate-400">
-                        <div>
-                            <div class="text-slate-500">CPU</div>
-                            <div class="text-slate-100">{{ resourceUsage.cpu }}%</div>
-                        </div>
-                        <div>
-                            <div class="text-slate-500">RAM</div>
-                            <div class="text-slate-100">{{ resourceUsage.ram }}%</div>
-                        </div>
-                        <div>
-                            <div class="text-slate-500">{{ t('customer_dashboard_usage_disk', page_locale()) }}</div>
-                            <div class="text-slate-100">{{ resourceUsage.disk }}%</div>
-                        </div>
-                    </div>
+                            <div class="server-card__meta">
+                                <span>{{ t('customer_dashboard_server_ping', page_locale()) }}: {{ instance.latency_ms is not null ? instance.latency_ms ~ ' ms' : '—' }}</span>
+                            </div>
+                            <div class="server-card__actions">
+                                <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
+                                    <input type="hidden" name="action" value="start">
+                                    <button class="ui-button ui-button--primary">{{ t('customer_dashboard_server_start', page_locale()) }}</button>
+                                </form>
+                                <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
+                                    <input type="hidden" name="action" value="stop">
+                                    <button class="ui-button ui-button--danger">{{ t('customer_dashboard_server_stop', page_locale()) }}</button>
+                                </form>
+                                <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
+                                    <input type="hidden" name="action" value="restart">
+                                    <button class="ui-button ui-button--ghost">{{ t('customer_dashboard_server_restart', page_locale()) }}</button>
+                                </form>
+                            </div>
+                        </article>
+                    {% endfor %}
                 </div>
-            {% endblock %}
-        {% endembed %}
-    </div>
+            {% endif %}
+        </div>
+
+        <aside class="dashboard-usage-panel">
+            <h3>{{ t('customer_dashboard_usage_title', page_locale()) }}</h3>
+            <p>{{ t('customer_dashboard_usage_subtitle', page_locale()) }}</p>
+            <div class="ui-ring" style="--ring-value: {{ ringValue }};">
+                <div class="ui-ring__value">{{ storagePercent }}%</div>
+            </div>
+            <ul>
+                <li><span>CPU</span><strong>{{ resourceUsage.cpu }}%</strong></li>
+                <li><span>RAM</span><strong>{{ resourceUsage.ram }}%</strong></li>
+                <li><span>{{ t('customer_dashboard_usage_disk', page_locale()) }}</span><strong>{{ resourceUsage.disk }}%</strong></li>
+            </ul>
+        </aside>
+    </section>
 
     {% if billingEnabled %}
-        {% embed 'components/ui/_card.html.twig' with {
-            title: t('customer_dashboard_invoice_title', page_locale()),
-            subtitle: t('customer_dashboard_invoice_subtitle', page_locale())
-        } %}
-            {% block content %}
-                {% set invoiceRows = [] %}
-                {% for invoice in invoices %}
-                    {% set statusTone = invoice.status == 'paid' ? 'success' : (invoice.status == 'past_due' ? 'danger' : 'warning') %}
-                    {% set statusLabel = invoiceStatusLabels[invoice.status] ?? invoice.status %}
-                    {% set invoiceRows = invoiceRows|merge([[
-                        invoice.number,
-                        invoice.due_date|date('Y-m-d'),
-                        (invoice.amount_due / 100) ~ ' ' ~ invoice.currency,
-                        include('components/ui/_badge.html.twig', { label: statusLabel, tone: statusTone }, with_context = false),
-                        '<a href="' ~ path('customer_profile') ~ '" class="ui-button ui-button--ghost">' ~ t('customer_dashboard_invoice_action', page_locale()) ~ '</a>'
-                    ]]) %}
-                {% endfor %}
-                {% include 'components/ui/_table.html.twig' with {
-                    headers: [
-                        t('customer_dashboard_invoice_table_name', page_locale()),
-                        t('customer_dashboard_invoice_table_date', page_locale()),
-                        t('customer_dashboard_invoice_table_amount', page_locale()),
-                        t('customer_dashboard_invoice_table_status', page_locale()),
-                        t('customer_dashboard_invoice_table_action', page_locale())
-                    ],
-                    rows: invoiceRows,
-                    empty: t('customer_dashboard_invoice_empty', page_locale())
-                } %}
-            {% endblock %}
-        {% endembed %}
+        <section class="dashboard-panel">
+            <div class="dashboard-panel__header">
+                <div>
+                    <h3>{{ t('customer_dashboard_invoice_title', page_locale()) }}</h3>
+                    <p>{{ t('customer_dashboard_invoice_subtitle', page_locale()) }}</p>
+                </div>
+                <a href="{{ path('customer_profile') }}" class="ui-button ui-button--ghost">{{ t('customer_dashboard_invoice_action', page_locale()) }}</a>
+            </div>
+
+            <div class="dashboard-table-wrapper">
+                <table class="dashboard-table">
+                    <thead>
+                    <tr>
+                        <th>{{ t('customer_dashboard_invoice_table_name', page_locale()) }}</th>
+                        <th>{{ t('customer_dashboard_invoice_table_date', page_locale()) }}</th>
+                        <th>{{ t('customer_dashboard_invoice_table_amount', page_locale()) }}</th>
+                        <th>{{ t('customer_dashboard_invoice_table_status', page_locale()) }}</th>
+                        <th>{{ t('customer_dashboard_invoice_table_action', page_locale()) }}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for invoice in invoices %}
+                        {% set statusTone = invoice.status == 'paid' ? 'success' : (invoice.status == 'past_due' ? 'danger' : 'warning') %}
+                        {% set statusLabel = invoiceStatusLabels[invoice.status] ?? invoice.status %}
+                        <tr>
+                            <td>{{ invoice.number }}</td>
+                            <td>{{ invoice.due_date|date('Y-m-d') }}</td>
+                            <td>{{ (invoice.amount_due / 100)|number_format(2, ',', '.') }} {{ invoice.currency }}</td>
+                            <td>{% include 'components/ui/_badge.html.twig' with { label: statusLabel, tone: statusTone } %}</td>
+                            <td><a href="{{ path('customer_profile') }}" class="ui-button ui-button--ghost">{{ t('customer_dashboard_invoice_action', page_locale()) }}</a></td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="dashboard-table__empty">{{ t('customer_dashboard_invoice_empty', page_locale()) }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
     {% endif %}
 </div>
 {% endblock %}

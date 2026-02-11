@@ -1,0 +1,6 @@
+<aside class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+  <nav class="flex flex-col gap-2 text-sm">
+    <a href="/profile" class="rounded px-3 py-2 {{ app.request.pathInfo starts with '/profile' and not (app.request.pathInfo starts with '/profile/security') ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-100' }}">Mein Profil</a>
+    <a href="/account/security" class="rounded px-3 py-2 {{ app.request.pathInfo starts with '/account/security' ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-100' }}">Sicherheit</a>
+  </nav>
+</aside>

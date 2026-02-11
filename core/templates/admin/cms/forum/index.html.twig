@@ -1,0 +1,106 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Forum Admin</h1>
+        <p class="text-sm text-slate-600">Kategorien, Boards, Threads und Posts moderieren.</p>
+    </div>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 class="text-lg font-semibold">Kategorie erstellen</h2>
+        <form method="post" action="/admin/cms/forum/categories" class="mt-4 grid gap-3 sm:grid-cols-3">
+            <input type="hidden" name="_token" value="{{ csrf_token('admin_forum_category_create') }}">
+            <input name="title" placeholder="Titel" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" required>
+            <input name="slug" placeholder="Slug" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" required>
+            <input name="sort_order" type="number" placeholder="Sort" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" value="0">
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white sm:col-span-3">Speichern</button>
+        </form>
+    </section>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 class="text-lg font-semibold">Board erstellen</h2>
+        <form method="post" action="/admin/cms/forum/boards" class="mt-4 grid gap-3 sm:grid-cols-2">
+            <input type="hidden" name="_token" value="{{ csrf_token('admin_forum_board_create') }}">
+            <select name="category_id" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" required>
+                <option value="">Kategorie wählen</option>
+                {% for category in categories %}
+                    <option value="{{ category.id }}">{{ category.title }}</option>
+                {% endfor %}
+            </select>
+            <input name="title" placeholder="Titel" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" required>
+            <input name="slug" placeholder="Slug" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" required>
+            <input name="sort_order" type="number" value="0" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+            <input name="description" placeholder="Beschreibung" class="rounded-lg border border-slate-200 px-3 py-2 text-sm sm:col-span-2">
+            <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="is_active" value="1" checked> Aktiv</label>
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white sm:col-span-2">Speichern</button>
+        </form>
+    </section>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 class="text-lg font-semibold">Thread Moderation</h2>
+        <div class="mt-4 space-y-3">
+            {% for thread in threads %}
+                <div class="rounded-lg border border-slate-200 p-3 text-sm">
+                    <div class="font-semibold">#{{ thread.id }} {{ thread.title }}</div>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <form method="post" action="/admin/cms/forum/threads/{{ thread.id }}/toggle-close"><input type="hidden" name="_token" value="{{ csrf_token('admin_forum_thread_close_' ~ thread.id) }}"><button class="rounded border border-slate-200 px-2 py-1">{{ thread.isClosed ? 'Open' : 'Close' }}</button></form>
+                        <form method="post" action="/admin/cms/forum/threads/{{ thread.id }}/toggle-pin"><input type="hidden" name="_token" value="{{ csrf_token('admin_forum_thread_pin_' ~ thread.id) }}"><button class="rounded border border-slate-200 px-2 py-1">{{ thread.isPinned ? 'Unpin' : 'Pin' }}</button></form>
+                    </div>
+                </div>
+            {% else %}
+                <p class="text-sm text-slate-600">Keine Threads.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 class="text-lg font-semibold">Post Moderation</h2>
+        <div class="mt-4 space-y-3">
+            {% for post in posts|slice(0, 30) %}
+                <div class="rounded-lg border border-slate-200 p-3 text-sm">
+                    <div class="text-xs text-slate-500">#{{ post.id }} in Thread #{{ post.thread.id }}</div>
+                    <p class="mt-1 whitespace-pre-line text-slate-700">{{ post.content|slice(0, 160) }}</p>
+                    <form method="post" action="/admin/cms/forum/posts/{{ post.id }}/toggle-delete" class="mt-2">
+                        <input type="hidden" name="_token" value="{{ csrf_token('admin_forum_post_delete_' ~ post.id) }}">
+                        <button class="rounded border border-slate-200 px-2 py-1">{{ post.isDeleted ? 'Undelete' : 'Delete' }}</button>
+                    </form>
+                </div>
+            {% else %}
+                <p class="text-sm text-slate-600">Keine Posts.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-6">
+        <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold">Reports Queue</h2>
+            <div class="text-sm">
+                <a href="/admin/cms/forum?report_status=open" class="{{ report_status == 'open' ? 'font-semibold text-indigo-600' : 'text-slate-600' }}">Open</a>
+                ·
+                <a href="/admin/cms/forum?report_status=resolved" class="{{ report_status == 'resolved' ? 'font-semibold text-indigo-600' : 'text-slate-600' }}">Resolved</a>
+            </div>
+        </div>
+        <div class="mt-4 space-y-3">
+            {% for report in reports %}
+                <div class="rounded-lg border border-slate-200 p-3 text-sm">
+                    <div class="font-semibold">Report #{{ report.id }} · Post #{{ report.post.id }}</div>
+                    <div class="text-xs text-slate-600">Reason: {{ report.reason }} · Status: {{ report.status }} · {{ report.createdAt|date('Y-m-d H:i') }}</div>
+                    {% if report.details %}<p class="mt-2 text-slate-700">{{ report.details }}</p>{% endif %}
+                    {% if report.status == 'open' %}
+                        <form method="post" action="/admin/cms/forum/reports/{{ report.id }}/resolve" class="mt-2 flex flex-wrap items-center gap-2">
+                            <input type="hidden" name="_token" value="{{ csrf_token('admin_forum_report_resolve_' ~ report.id) }}">
+                            <label class="inline-flex items-center gap-1"><input type="checkbox" name="delete_post" value="1"> Post löschen</label>
+                            <input type="datetime-local" name="ban_until" class="rounded border border-slate-200 px-2 py-1">
+                            <input type="text" name="ban_reason" placeholder="Ban Grund" class="rounded border border-slate-200 px-2 py-1">
+                            <button class="rounded border border-slate-200 px-2 py-1">Resolve</button>
+                        </form>
+                    {% endif %}
+                </div>
+            {% else %}
+                <p class="text-sm text-slate-600">Keine Reports.</p>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
+
+{% block title %}Forum · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="mx-auto w-full max-w-5xl space-y-6 px-4 py-10 sm:px-6">
+    <div>
+        <h1 class="text-3xl font-semibold text-slate-100">Forum</h1>
+        <p class="mt-2 text-sm text-slate-400">Diskutiere Taktiken, Orga und alles rund um den Clan.</p>
+    </div>
+    <form method="get" action="/forum/search" class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+        <label class="text-sm font-medium text-slate-200">Suche</label>
+        <div class="mt-2 flex gap-2">
+            <input name="q" value="{{ q }}" placeholder="Thread oder Beitrag suchen" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Suchen</button>
+        </div>
+    </form>
+
+    {% for category in categories %}
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+            <h2 class="text-lg font-semibold text-slate-100">{{ category.title }}</h2>
+            <div class="mt-4 space-y-3">
+                {% for board in boards_by_category[category.id] ?? [] %}
+                    <a class="block rounded-lg border border-slate-700 p-4 hover:bg-slate-800/70" href="/forum/board/{{ board.slug }}">
+                        <p class="font-semibold text-slate-100">{{ board.title }}</p>
+                        <p class="text-sm text-slate-400">{{ board.description }}</p>
+                    </a>
+                {% else %}
+                    <p class="text-sm text-slate-400">Keine Boards in dieser Kategorie.</p>
+                {% endfor %}
+            </div>
+        </section>
+    {% else %}
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-400">Noch keine Forum-Kategorien vorhanden.</div>
+    {% endfor %}
+</div>
+{% endblock %}

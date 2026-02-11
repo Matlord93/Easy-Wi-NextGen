@@ -7,6 +7,7 @@ namespace App\Module\Setup\Application;
 use App\Infrastructure\Config\DbConfigProvider;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\AppSetting;
+use App\Module\Core\Domain\Entity\CmsSiteSettings;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -401,9 +402,6 @@ final class InstallerService
             $site = new Site((string) $data['site_name'], (string) $data['site_host']);
             $entityManager->persist($site);
         }
-        if (isset($data['cms_template_key']) && is_string($data['cms_template_key']) && $data['cms_template_key'] !== '') {
-            $site->setCmsTemplateKey($data['cms_template_key']);
-        }
 
         $userRepository = $entityManager->getRepository(User::class);
         $admin = $userRepository->findOneBy(['type' => UserType::Superadmin->value]);
@@ -432,6 +430,22 @@ final class InstallerService
                 $this->logException($exception, 'Failed to store admin SSH key during installation.');
                 throw new InstallerSshKeyException('Failed to store admin SSH key.');
             }
+        }
+
+        $settingsRepository = $entityManager->getRepository(CmsSiteSettings::class);
+        $settings = $settingsRepository->findOneBy(['site' => $site]);
+        if (!$settings instanceof CmsSiteSettings) {
+            $settings = new CmsSiteSettings($site);
+            $settings->setActiveTheme('minimal');
+            $settings->setModuleTogglesJson([
+                'blog' => true,
+                'events' => true,
+                'team' => true,
+                'forum' => true,
+                'media' => true,
+                'gameserver' => true,
+            ]);
+            $entityManager->persist($settings);
         }
 
         $entityManager->flush();

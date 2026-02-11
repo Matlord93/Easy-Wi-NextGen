@@ -29,6 +29,9 @@
                     </div>
                 {% endif %}
                 <form method="post" action="/register" class="space-y-4">
+                    <input type="hidden" name="_token" value="{{ csrf_token('public_register') }}">
+                    <input type="text" name="website" class="hidden" tabindex="-1" autocomplete="off">
+                    <input type="hidden" name="pow_solution" id="pow_solution">
                     <div>
                         <label class="text-sm font-medium text-slate-700" for="email">{{ t('email_address', page_locale()) }}</label>
                         <input id="email" name="email" type="email" value="{{ form.email }}" required class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('email_placeholder', page_locale()) }}">
@@ -75,4 +78,7 @@
         </div>
     </div>
 </div>
+<script>
+(async()=>{const nonce="{{ anti_abuse_nonce|default('') }}";const difficulty={{ pow_difficulty|default(4) }};const target="0".repeat(difficulty);const out=document.getElementById("pow_solution");if(!nonce||!out||!window.crypto?.subtle){return;}const enc=new TextEncoder();for(let i=0;i<2000000;i++){const data=enc.encode(nonce+String(i));const h=await crypto.subtle.digest("SHA-256",data);const hex=[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("");if(hex.startsWith(target)){out.value=String(i);break;}}})();
+</script>
 {% endblock %}

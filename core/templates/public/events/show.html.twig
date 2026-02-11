@@ -1,0 +1,10 @@
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
+{% block content %}
+<div class="mx-auto max-w-4xl space-y-4 px-4 py-10">
+    <a href="/events" class="text-sm text-indigo-600">← Back to events</a>
+    <h1 class="text-3xl font-semibold">{{ event.title }}</h1>
+    <p class="text-sm text-slate-500">{{ event.start_at|date('d.m.Y H:i') }}{% if event.end_at %} - {{ event.end_at|date('d.m.Y H:i') }}{% endif %}{% if event.location %} · {{ event.location }}{% endif %} · {{ event.status }}</p>
+    {% if event.cover_image_path %}<img src="{{ event.cover_image_path }}" alt="{{ event.title }}" class="h-64 w-full rounded object-cover" />{% endif %}
+    <article class="prose max-w-none">{{ event.description|nl2br }}</article>
+</div>
+{% endblock %}

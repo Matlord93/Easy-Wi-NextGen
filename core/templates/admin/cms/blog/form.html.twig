@@ -3,56 +3,86 @@
 {% set pageTitle = form.action == 'create' ? t('cms_blog_new', page_locale()) : t('cms_blog_edit', page_locale()) %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="mx-auto max-w-4xl space-y-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ pageTitle }}</h1>
         <p class="text-sm text-slate-600">{{ t('cms_blog_form_description', page_locale()) }}</p>
     </div>
 
     {% if form.errors is not empty %}
-        <div class="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
-            <ul class="list-disc space-y-1 pl-4">
-                {% for error in form.errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
+        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <ul class="list-disc pl-5">
+                {% for error in form.errors %}<li>{{ error }}</li>{% endfor %}
             </ul>
         </div>
     {% endif %}
 
-    <form method="post" action="{{ form.action_url }}" class="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="grid gap-5 lg:grid-cols-2">
-            <div>
-                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('title', page_locale()) }}</label>
-                <input type="text" name="title" value="{{ form.title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
-            </div>
-            <div>
-                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('slug', page_locale()) }}</label>
-                <input type="text" name="slug" value="{{ form.slug }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
-            </div>
+    <form method="post" action="{{ form.action_url }}" class="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="grid gap-4 md:grid-cols-2">
+            <label class="block text-sm">
+                <span class="text-slate-700">{{ t('title', page_locale()) }}</span>
+                <input name="title" value="{{ form.title }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            </label>
+            <label class="block text-sm">
+                <span class="text-slate-700">{{ t('slug', page_locale()) }}</span>
+                <input name="slug" value="{{ form.slug }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            </label>
         </div>
 
-        <div>
-            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('cms_blog_excerpt', page_locale()) }}</label>
-            <textarea name="excerpt" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ form.excerpt }}</textarea>
-        </div>
-
-        <div>
-            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('content', page_locale()) }}</label>
-            <textarea name="content" rows="10" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>{{ form.content }}</textarea>
-        </div>
-
-        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" name="is_published" class="rounded border-slate-300" {% if form.is_published %}checked{% endif %}>
-            {{ t('cms_blog_publish', page_locale()) }}
+        <label class="block text-sm">
+            <span class="text-slate-700">{{ t('cms_blog_excerpt', page_locale()) }}</span>
+            <textarea name="excerpt" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ form.excerpt }}</textarea>
         </label>
 
-        <div class="flex flex-wrap items-center gap-3">
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
-                {{ t(form.submit_label, page_locale()) }}
-            </button>
-            <a href="/admin/cms/blog" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">
-                {{ t('back', page_locale()) }}
-            </a>
+        <label class="block text-sm">
+            <span class="text-slate-700">Content</span>
+            <textarea name="content" rows="10" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ form.content }}</textarea>
+        </label>
+
+        <div class="grid gap-4 md:grid-cols-2">
+            <label class="block text-sm">
+                <span class="text-slate-700">SEO Title</span>
+                <input name="seo_title" value="{{ form.seo_title }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            </label>
+            <label class="block text-sm">
+                <span class="text-slate-700">Featured Image Path</span>
+                <input name="featured_image_path" value="{{ form.featured_image_path }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            </label>
+        </div>
+
+        <label class="block text-sm">
+            <span class="text-slate-700">SEO Description</span>
+            <textarea name="seo_description" rows="2" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ form.seo_description }}</textarea>
+        </label>
+
+        <div class="grid gap-4 md:grid-cols-2">
+            <label class="block text-sm">
+                <span class="text-slate-700">Category</span>
+                <select name="category_id" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    <option value="">-</option>
+                    {% for category in form.categories %}
+                        <option value="{{ category.id }}" {% if form.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="block text-sm">
+                <span class="text-slate-700">Tags</span>
+                <select name="tag_ids[]" multiple class="mt-1 h-32 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    {% for tag in form.available_tags %}
+                        <option value="{{ tag.id }}" {% if tag.id in form.tag_ids %}selected{% endif %}>{{ tag.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+
+        <label class="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" name="is_published" {% if form.is_published %}checked{% endif %} />
+            <span>{{ t('cms_blog_publish', page_locale()) }}</span>
+        </label>
+
+        <div class="flex items-center gap-3">
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700" type="submit">{{ t(form.submit_label, page_locale()) }}</button>
+            <a href="/admin/cms/blog" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">{{ t('cancel', page_locale()) }}</a>
         </div>
     </form>
 </div>

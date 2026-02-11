@@ -16,7 +16,7 @@ final class CmsMaintenanceService
     }
 
     /**
-     * @return array{active: bool, scope: string|null, message: string, starts_at: ?\DateTimeImmutable, ends_at: ?\DateTimeImmutable}
+     * @return array{active: bool, scope: string|null, message: string, graphic_path: string, starts_at: ?\DateTimeImmutable, ends_at: ?\DateTimeImmutable}
      */
     public function resolve(Request $request, Site $site): array
     {
@@ -25,6 +25,7 @@ final class CmsMaintenanceService
         $global = [
             'enabled' => (bool) ($settings[AppSettingsService::KEY_CMS_MAINTENANCE_ENABLED] ?? false),
             'message' => (string) ($settings[AppSettingsService::KEY_CMS_MAINTENANCE_MESSAGE] ?? ''),
+            'graphic_path' => (string) ($settings[AppSettingsService::KEY_CMS_MAINTENANCE_GRAPHIC] ?? ''),
             'allowlist' => (string) ($settings[AppSettingsService::KEY_CMS_MAINTENANCE_ALLOWLIST] ?? ''),
             'starts_at' => $this->parseDateTime($settings[AppSettingsService::KEY_CMS_MAINTENANCE_STARTS_AT] ?? null),
             'ends_at' => $this->parseDateTime($settings[AppSettingsService::KEY_CMS_MAINTENANCE_ENDS_AT] ?? null),
@@ -33,6 +34,7 @@ final class CmsMaintenanceService
         $siteConfig = [
             'enabled' => $site->isMaintenanceEnabled(),
             'message' => $site->getMaintenanceMessage(),
+            'graphic_path' => $site->getMaintenanceGraphicPath(),
             'allowlist' => $site->getMaintenanceAllowlist(),
             'starts_at' => $site->getMaintenanceStartsAt(),
             'ends_at' => $site->getMaintenanceEndsAt(),
@@ -49,6 +51,7 @@ final class CmsMaintenanceService
                 'active' => false,
                 'scope' => null,
                 'message' => '',
+                'graphic_path' => '',
                 'starts_at' => null,
                 'ends_at' => null,
             ];
@@ -60,6 +63,7 @@ final class CmsMaintenanceService
                 'active' => true,
                 'scope' => 'site',
                 'message' => $siteConfig['message'],
+                'graphic_path' => $siteConfig['graphic_path'],
                 'starts_at' => $siteConfig['starts_at'],
                 'ends_at' => $siteConfig['ends_at'],
             ];
@@ -70,6 +74,7 @@ final class CmsMaintenanceService
                 'active' => true,
                 'scope' => 'global',
                 'message' => $global['message'],
+                'graphic_path' => $global['graphic_path'],
                 'starts_at' => $global['starts_at'],
                 'ends_at' => $global['ends_at'],
             ];
@@ -79,6 +84,7 @@ final class CmsMaintenanceService
             'active' => false,
             'scope' => null,
             'message' => '',
+            'graphic_path' => '',
             'starts_at' => null,
             'ends_at' => null,
         ];

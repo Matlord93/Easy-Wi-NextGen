@@ -30,13 +30,75 @@
             <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('block_type', page_locale()) }}</label>
             <input type="text" name="type" value="{{ blockForm.type }}" list="cms-block-types" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('block_type_placeholder', page_locale()) }}">
             <datalist id="cms-block-types">
+                <option value="hero"></option>
+                <option value="rich_text"></option>
+                <option value="image"></option>
+                <option value="cards"></option>
                 <option value="server_list"></option>
                 <option value="server_featured"></option>
             </datalist>
         </div>
         <div>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Version</label>
+            <select name="version" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <option value="1" {% if blockForm.version == 1 %}selected{% endif %}>Legacy (v1)</option>
+                <option value="2" {% if blockForm.version == 2 %}selected{% endif %}>V2</option>
+            </select>
+        </div>
+        <div>
             <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('content', page_locale()) }}</label>
             <textarea name="content" rows="6" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="{{ t('block_content_placeholder', page_locale()) }}">{{ blockForm.content }}</textarea>
+        </div>
+
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <div class="text-xs font-semibold uppercase text-slate-700">V2 Block Payload</div>
+            <p class="text-xs text-slate-600">Die V2 Felder werden genutzt, wenn Version = 2 gesetzt ist.</p>
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero Headline</label>
+                    <input type="text" name="hero_headline" value="{{ blockForm.payload.headline|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero CTA Text</label>
+                    <input type="text" name="hero_cta_text" value="{{ blockForm.payload.ctaText|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero Subheadline</label>
+                <input type="text" name="hero_subheadline" value="{{ blockForm.payload.subheadline|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero Background Image Path</label>
+                    <input type="text" name="hero_background_image_path" value="{{ blockForm.payload.backgroundImagePath|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Hero CTA URL</label>
+                    <input type="text" name="hero_cta_url" value="{{ blockForm.payload.ctaUrl|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Rich Text Content (HTML/Markdown)</label>
+                <textarea name="rich_text_content" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ blockForm.payload.content|default('') }}</textarea>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Image Path</label>
+                    <input type="text" name="image_path" value="{{ blockForm.payload.path|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Image Alt</label>
+                    <input type="text" name="image_alt" value="{{ blockForm.payload.alt|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Image Caption</label>
+                    <input type="text" name="image_caption" value="{{ blockForm.payload.caption|default('') }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Cards JSON</label>
+                <textarea name="cards_json" rows="5" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ blockForm.payload.cards is defined ? blockForm.payload.cards|json_encode(constant('JSON_PRETTY_PRINT')) : '[]' }}</textarea>
+            </div>
         </div>
         <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
             <div class="text-xs font-semibold uppercase text-slate-700">{{ t('server_block_settings', page_locale()) }}</div>

@@ -1,0 +1,120 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block content %}
+<div class="max-w-3xl space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold">CMS Settings</h1>
+        <p class="text-sm text-slate-600">Theme, Branding und Modul-Toggles pro Site verwalten.</p>
+    </div>
+
+    {% if saved %}
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            Einstellungen gespeichert.
+        </div>
+    {% endif %}
+
+    <form method="post" action="/admin/cms/settings" class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section class="space-y-3">
+            <h2 class="text-lg font-semibold">Theme</h2>
+            <p class="text-xs text-slate-500">Theme-Auswahl arbeitet ausschließlich über das neue SiteSettings-Theme-System.</p>
+            <label class="block text-sm font-medium text-slate-700" for="active_theme">Aktives Theme</label>
+            <select id="active_theme" name="active_theme" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                {% for key in ['esports', 'minimal', 'fantasy'] %}
+                    <option value="{{ key }}" {% if current_theme == key %}selected{% endif %}>{{ key }}</option>
+                {% endfor %}
+            </select>
+        </section>
+
+        <section class="space-y-3">
+            <h2 class="text-lg font-semibold">Branding</h2>
+            <div class="grid gap-4 md:grid-cols-2">
+                <label class="block text-sm">
+                    <span class="text-slate-700">Logo Path</span>
+                    <input type="text" name="logo_path" value="{{ branding.logo_path }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+                <label class="block text-sm">
+                    <span class="text-slate-700">Primary Color</span>
+                    <input type="text" name="primary_color" value="{{ branding.primary_color }}" placeholder="#4f46e5" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+                <label class="block text-sm">
+                    <span class="text-slate-700">Website</span>
+                    <input type="text" name="social_website" value="{{ branding.socials.website|default('') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+                <label class="block text-sm">
+                    <span class="text-slate-700">Discord</span>
+                    <input type="text" name="social_discord" value="{{ branding.socials.discord|default('') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+                <label class="block text-sm">
+                    <span class="text-slate-700">Twitter/X</span>
+                    <input type="text" name="social_twitter" value="{{ branding.socials.twitter|default('') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+                <label class="block text-sm">
+                    <span class="text-slate-700">YouTube</span>
+                    <input type="text" name="social_youtube" value="{{ branding.socials.youtube|default('') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+            </div>
+        </section>
+
+        <section class="space-y-3">
+            <h2 class="text-lg font-semibold">Module Toggles</h2>
+            <div class="grid gap-3 sm:grid-cols-2">
+                {% for key, enabled in module_toggles %}
+                    <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <input type="checkbox" name="toggle_{{ key }}" value="1" {% if enabled %}checked{% endif %} />
+                        <span>{{ key|capitalize }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+            <p class="text-xs text-slate-500">Hinweis: Enforcement der Toggles folgt in Step 5.</p>
+        </section>
+
+
+
+        <section class="space-y-3">
+            <h2 class="text-lg font-semibold">Wartungsmodus</h2>
+            <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                <input type="checkbox" name="maintenance_enabled" value="1" {% if maintenance.enabled %}checked{% endif %} />
+                <span>Wartungsmodus aktivieren</span>
+            </label>
+            <div class="grid gap-4 md:grid-cols-2">
+                <label class="block text-sm">
+                    <span class="text-slate-700">Start</span>
+                    <input type="datetime-local" name="maintenance_starts_at" value="{{ maintenance.starts_at|default('') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+                <label class="block text-sm">
+                    <span class="text-slate-700">Ende</span>
+                    <input type="datetime-local" name="maintenance_ends_at" value="{{ maintenance.ends_at|default('') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                </label>
+            </div>
+            <label class="block text-sm">
+                <span class="text-slate-700">Wartungstext</span>
+                <textarea name="maintenance_message" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ maintenance.message|default('') }}</textarea>
+            </label>
+            <label class="block text-sm">
+                <span class="text-slate-700">Grafik Pfad/URL</span>
+                <input type="text" name="maintenance_graphic_path" value="{{ maintenance.graphic_path|default('') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            </label>
+            <label class="block text-sm">
+                <span class="text-slate-700">Allowlist (IP/CIDR je Zeile)</span>
+                <textarea name="maintenance_allowlist" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ maintenance.allowlist|default('') }}</textarea>
+            </label>
+        </section>
+
+        <section class="space-y-3">
+            <h2 class="text-lg font-semibold">Navigation & Footer Links (SiteSettings)</h2>
+            <p class="text-xs text-slate-500">JSON-Format: [{"label":"Discord","url":"https://discord.gg/...","external":true}]</p>
+            <label class="block text-sm">
+                <span class="text-slate-700">Header links JSON</span>
+                <textarea name="header_links_json" rows="8" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs">{{ header_links_json }}</textarea>
+            </label>
+            <label class="block text-sm">
+                <span class="text-slate-700">Footer links JSON</span>
+                <textarea name="footer_links_json" rows="8" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs">{{ footer_links_json }}</textarea>
+            </label>
+        </section>
+        <div>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Speichern</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

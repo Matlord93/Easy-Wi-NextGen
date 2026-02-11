@@ -1,0 +1,9 @@
+services:
+  App\Module\Core\EventSubscriber\DatabaseConfigSubscriber:
+    autowire: true
+    autoconfigure: false
+    tags: []
+
+  App\Tests\Support\StatelessCsrfTokenManager: ~
+
+  Symfony\Component\Security\Csrf\CsrfTokenManagerInterface: '@App\Tests\Support\StatelessCsrfTokenManager'

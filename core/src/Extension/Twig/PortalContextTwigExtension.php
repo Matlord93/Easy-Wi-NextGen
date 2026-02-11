@@ -6,6 +6,7 @@ namespace App\Extension\Twig;
 
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\CookieConsentService;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Repository\AgentRepository;
@@ -27,6 +28,7 @@ final class PortalContextTwigExtension extends AbstractExtension
         private readonly AgentReleaseChecker $agentReleaseChecker,
         private readonly AppSettingsService $appSettingsService,
         private readonly TranslatorInterface $translator,
+        private readonly CookieConsentService $cookieConsentService,
     ) {
     }
 
@@ -40,6 +42,10 @@ final class PortalContextTwigExtension extends AbstractExtension
             new TwigFunction('t', [$this, 'translate']),
             new TwigFunction('app_setting', [$this, 'appSetting']),
             new TwigFunction('app_settings', [$this, 'appSettings']),
+            new TwigFunction('cookie_consent', [$this, 'cookieConsent']),
+            new TwigFunction('cookie_has_consent', [$this, 'cookieHasConsent']),
+            new TwigFunction('cookie_consent_cookie_name', [$this, 'cookieConsentCookieName']),
+            new TwigFunction('cookie_consent_version', [$this, 'cookieConsentVersion']),
         ];
     }
 
@@ -133,6 +139,46 @@ final class PortalContextTwigExtension extends AbstractExtension
         $resolvedLocale = $locale ?? $this->pageLocale();
 
         return $this->translator->trans($key, [], 'portal', $resolvedLocale);
+    }
+
+
+    /** @return array{version:int, necessary:bool, statistics:bool, marketing:bool}|null */
+    public function cookieConsent(): ?array
+    {
+        $request = $this->requestStack->getCurrentRequest();
+        if ($request === null) {
+            return null;
+        }
+
+        return $this->cookieConsentService->readFromRequest($request);
+    }
+
+    public function cookieHasConsent(string $category): bool
+    {
+        if ($category === 'necessary') {
+            return true;
+        }
+
+        $consent = $this->cookieConsent();
+        if ($consent === null) {
+            return false;
+        }
+
+        return match ($category) {
+            'statistics' => $consent['statistics'],
+            'marketing' => $consent['marketing'],
+            default => false,
+        };
+    }
+
+    public function cookieConsentCookieName(): string
+    {
+        return CookieConsentService::COOKIE_NAME;
+    }
+
+    public function cookieConsentVersion(): int
+    {
+        return CookieConsentService::VERSION;
     }
 
     public function appSetting(string $key, mixed $default = null): mixed

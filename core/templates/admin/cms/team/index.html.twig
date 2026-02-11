@@ -1,0 +1,29 @@
+{% extends 'admin/base.html.twig' %}
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-semibold">Team</h1>
+        <a href="/admin/cms/team/new" class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">New Member</a>
+    </div>
+    <div class="rounded-2xl border bg-white">
+        <table class="min-w-full text-sm">
+            <thead><tr><th class="px-4 py-2 text-left">Name</th><th class="px-4 py-2 text-left">Role</th><th class="px-4 py-2 text-left">Order</th><th class="px-4 py-2 text-right">Actions</th></tr></thead>
+            <tbody>
+            {% for member in members %}
+                <tr class="border-t">
+                    <td class="px-4 py-2">{{ member.name }}</td>
+                    <td class="px-4 py-2">{{ member.roleTitle }}</td>
+                    <td class="px-4 py-2">{{ member.sortOrder }} {% if not member.isActive %}(inactive){% endif %}</td>
+                    <td class="px-4 py-2 text-right">
+                        <a class="text-indigo-600" href="/admin/cms/team/{{ member.id }}/edit">Edit</a>
+                        <form method="post" action="/admin/cms/team/{{ member.id }}/delete" class="inline"><button class="ml-3 text-rose-600">Delete</button></form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4" class="px-4 py-6 text-center text-slate-500">No team members yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

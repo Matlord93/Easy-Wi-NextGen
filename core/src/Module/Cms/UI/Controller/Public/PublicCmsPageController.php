@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace App\Module\Cms\UI\Controller\Public;
 
+use App\Module\Cms\Application\BlockRenderer\BlockRendererRegistry;
 use App\Module\Cms\Application\CmsMaintenanceService;
+use App\Module\Cms\Application\CmsSettingsProvider;
+use App\Module\Cms\Application\PageResolver;
+use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsBlock;
-use App\Module\Core\Domain\Entity\PublicServer;
-use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\CmsBlockRepository;
-use App\Repository\CmsPageRepository;
-use App\Repository\PublicServerRepository;
-use App\Repository\ShopCategoryRepository;
-use App\Repository\ShopProductRepository;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,33 +22,30 @@ use Twig\Environment;
 final class PublicCmsPageController
 {
     public function __construct(
-        private readonly CmsPageRepository $pageRepository,
+        private readonly PageResolver $pageResolver,
         private readonly CmsBlockRepository $blockRepository,
-        private readonly PublicServerRepository $publicServerRepository,
-        private readonly ShopCategoryRepository $shopCategoryRepository,
-        private readonly ShopProductRepository $shopProductRepository,
         private readonly SiteResolver $siteResolver,
         private readonly InstallerService $installerService,
         private readonly CmsMaintenanceService $maintenanceService,
+        private readonly ThemeResolver $themeResolver,
+        private readonly CmsSettingsProvider $settingsProvider,
+        private readonly BlockRendererRegistry $blockRendererRegistry,
         private readonly Environment $twig,
     ) {
     }
 
-    #[Route(path: '/', name: 'public_cms_home', methods: ['GET'], priority: 10)]
+    #[Route(path: '/', name: 'public_cms_home', methods: ['GET'], priority: 20)]
     public function home(Request $request): Response
     {
         return $this->renderPage($request, 'startseite');
     }
 
-    #[Route(path: '/pages/{slug}', name: 'public_cms_page', methods: ['GET'])]
     #[Route(
         path: '/{slug}',
         name: 'public_cms_page_slug',
         methods: ['GET'],
-        requirements: [
-            'slug' => '(?!admin|api|pages|docs|status|servers|downloads|register|login|install|changelog|notifications|files|dashboard|instances|databases|tickets|activity|profile|gdpr|agent|reseller)([a-z0-9-]+)',
-        ],
-        priority: -10
+        requirements: ['slug' => '(?!login$|logout$|register$|2fa$|2fa_check$|admin$|admin/|api$|api/|system$|system/|assets$|assets/|_profiler$|_wdt$|install$)[a-z0-9][a-z0-9-]*'],
+        priority: -100
     )]
     public function show(Request $request, string $slug): Response
     {
@@ -68,225 +63,67 @@ final class PublicCmsPageController
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
         }
 
+        if ($this->pageResolver->isReservedSlug($slug)) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
         $maintenance = $this->maintenanceService->resolve($request, $site);
         if ($maintenance['active']) {
             return new Response($this->twig->render('public/maintenance.html.twig', [
                 'message' => $maintenance['message'],
+                'graphic_path' => $maintenance['graphic_path'],
                 'starts_at' => $maintenance['starts_at'],
                 'ends_at' => $maintenance['ends_at'],
                 'scope' => $maintenance['scope'],
             ]), Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
-        $page = $this->pageRepository->findOneBy(['slug' => $slug, 'isPublished' => true, 'site' => $site]);
+        $page = $this->pageResolver->resolvePublishedPage($site, $slug);
         if ($page === null) {
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
         $blocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);
-        $cmsPages = $this->pageRepository->findBy(
-            ['isPublished' => true, 'site' => $site],
-            ['title' => 'ASC']
-        );
-        $cmsPages = $this->normalizePages($cmsPages, $page->getSlug());
-
-        $shopCategories = null;
-        if ($slug === 'shop') {
-            $categories = $this->shopCategoryRepository->findBy(
-                ['siteId' => $site->getId()],
-                ['sortOrder' => 'ASC'],
-            );
-            $products = $this->shopProductRepository->findBy([
-                'siteId' => $site->getId(),
-                'isActive' => true,
-                'isPublicActive' => true,
-            ]);
-            $shopCategories = $this->normalizeShopCategories($categories, $products);
-        }
-
-        $templateKey = $site->getCmsTemplateKey() ?? 'hosting';
+        $templateKey = $this->themeResolver->resolveThemeKey($site);
 
         return new Response($this->twig->render($this->resolveTemplate($templateKey, $slug), [
             'page' => [
                 'title' => $page->getTitle(),
                 'slug' => $page->getSlug(),
             ],
-            'blocks' => $this->normalizeBlocks($blocks, $site->getId() ?? 0),
-            'cms_pages' => $cmsPages,
+            'blocks' => $this->normalizeBlocks($blocks),
             'template_key' => $templateKey,
-            'shop_categories' => $shopCategories,
+            'active_theme' => $templateKey,
+            'cms_navigation' => $this->settingsProvider->getNavigationLinks($site),
+            'cms_footer_links' => $this->settingsProvider->getFooterLinks($site),
+            'cms_branding' => $this->settingsProvider->getBranding($site),
         ]));
     }
 
-    /**
-     * @param \App\Module\Core\Domain\Entity\CmsPage[] $pages
-     */
-    private function normalizePages(array $pages, string $currentSlug): array
+    /** @param CmsBlock[] $blocks */
+    private function normalizeBlocks(array $blocks): array
     {
-        $normalized = array_map(static fn ($page): array => [
-            'title' => $page->getTitle(),
-            'slug' => $page->getSlug(),
-            'is_active' => $page->getSlug() === $currentSlug,
-        ], $pages);
-
-        usort($normalized, static function (array $left, array $right): int {
-            if ($left['slug'] === 'startseite') {
-                return -1;
-            }
-
-            if ($right['slug'] === 'startseite') {
-                return 1;
-            }
-
-            return strcasecmp($left['title'], $right['title']);
-        });
-
-        return $normalized;
-    }
-
-    /**
-     * @param CmsBlock[] $blocks
-     */
-    private function normalizeBlocks(array $blocks, int $siteId): array
-    {
-        return array_map(function (CmsBlock $block) use ($siteId): array {
-            if (in_array($block->getType(), ['server_list', 'server_featured'], true)) {
-                $settings = $this->decodeSettings($block->getContent());
-                $servers = $this->publicServerRepository->findVisiblePublicBySite(
-                    $siteId,
-                    $settings['game'] ?? null,
-                    null,
-                    $settings['limit'] ?? null,
-                );
-
-                return [
-                    'type' => $block->getType(),
-                    'content' => null,
-                    'servers' => $this->normalizeServers($servers),
-                    'settings' => $settings,
-                ];
-            }
-
-            return [
-                'type' => $block->getType(),
-                'content' => $block->getContent(),
-                'servers' => [],
-                'settings' => [
-                    'show_players' => false,
-                    'show_join_button' => false,
-                ],
-            ];
-        }, $blocks);
-    }
-
-    private function decodeSettings(string $content): array
-    {
-        $settings = json_decode($content, true);
-        if (!is_array($settings)) {
-            $settings = [];
-        }
-
-        return [
-            'game' => is_string($settings['game'] ?? null) ? $settings['game'] : null,
-            'limit' => is_numeric($settings['limit'] ?? null) ? (int) $settings['limit'] : null,
-            'show_players' => (bool) ($settings['show_players'] ?? true),
-            'show_join_button' => (bool) ($settings['show_join_button'] ?? false),
-        ];
-    }
-
-    /**
-     * @param PublicServer[] $servers
-     */
-    private function normalizeServers(array $servers): array
-    {
-        return array_map(function (PublicServer $server): array {
-            $statusCache = $server->getStatusCache();
-            $statusValue = $statusCache['status'] ?? ($statusCache['online'] ?? null);
-
-            return [
-                'id' => $server->getId(),
-                'name' => $server->getName(),
-                'game_key' => $server->getGameKey(),
-                'address' => sprintf('%s:%d', $server->getIp(), $server->getPort()),
-                'status' => $this->normalizeStatus($statusValue),
-                'players' => is_numeric($statusCache['players'] ?? null) ? (int) $statusCache['players'] : null,
-                'max_players' => is_numeric($statusCache['max_players'] ?? null) ? (int) $statusCache['max_players'] : null,
-                'map' => is_string($statusCache['map'] ?? null) ? $statusCache['map'] : null,
-                'last_checked_at' => $server->getLastCheckedAt(),
-            ];
-        }, $servers);
-    }
-
-    /**
-     * @param array<int, \App\Module\Core\Domain\Entity\ShopCategory> $categories
-     * @param array<int, ShopProduct> $products
-     */
-    private function normalizeShopCategories(array $categories, array $products): array
-    {
-        $productsByCategory = [];
-        foreach ($products as $product) {
-            $productsByCategory[$product->getCategory()->getId()][] = $product;
-        }
-
-        return array_map(function ($category) use ($productsByCategory): array {
-            $categoryProducts = $productsByCategory[$category->getId()] ?? [];
-
-            return [
-                'id' => $category->getId(),
-                'name' => $category->getName(),
-                'products' => array_map([$this, 'normalizeShopProduct'], $categoryProducts),
-            ];
-        }, $categories);
-    }
-
-    private function normalizeShopProduct(ShopProduct $product): array
-    {
-        return [
-            'id' => $product->getId(),
-            'name' => $product->getName(),
-            'description' => $product->getDescription(),
-            'image_url' => $product->getImageUrl(),
-            'price_monthly' => number_format($product->getPriceMonthlyCents() / 100, 2, '.', ''),
-            'cpu_limit' => $product->getCpuLimit(),
-            'ram_limit' => $product->getRamLimit(),
-            'disk_limit' => $product->getDiskLimit(),
-        ];
-    }
-
-    private function normalizeStatus(mixed $statusValue): string
-    {
-        if (is_string($statusValue) && $statusValue !== '') {
-            return strtolower($statusValue);
-        }
-
-        if ($statusValue === true) {
-            return 'online';
-        }
-
-        if ($statusValue === false) {
-            return 'offline';
-        }
-
-        return 'unknown';
+        return array_map(fn (CmsBlock $block): array => [
+            'type' => $block->getType(),
+            'html' => $this->blockRendererRegistry->render($block),
+            'servers' => [],
+            'settings' => ['show_players' => false, 'show_join_button' => false],
+        ], $blocks);
     }
 
     private function resolveTemplate(string $templateKey, string $slug): string
     {
-        $customSlugTemplate = sprintf('public/pages/custom/%s/%s.html.twig', $templateKey, $slug);
-        if ($this->templateExists($customSlugTemplate)) {
-            return $customSlugTemplate;
+        $themeSlugTemplate = sprintf('themes/%s/pages/%s.html.twig', $templateKey, $slug);
+        if ($this->templateExists($themeSlugTemplate)) {
+            return $themeSlugTemplate;
         }
 
-        $customTemplate = sprintf('public/pages/custom/%s.html.twig', $templateKey);
-        if ($this->templateExists($customTemplate)) {
-            return $customTemplate;
+        $themeDefaultTemplate = sprintf('themes/%s/pages/default.html.twig', $templateKey);
+        if ($this->templateExists($themeDefaultTemplate)) {
+            return $themeDefaultTemplate;
         }
 
-        return match ($templateKey) {
-            'clan' => 'public/pages/show_clan.html.twig',
-            'private' => 'public/pages/show_private.html.twig',
-            default => 'public/pages/show_hosting.html.twig',
-        };
+        return 'themes/minimal/pages/default.html.twig';
     }
 
     private function templateExists(string $template): bool

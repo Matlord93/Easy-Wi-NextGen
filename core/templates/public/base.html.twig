@@ -17,43 +17,65 @@
         })();
     </script>
     <title>{{ siteTitle }}</title>
+    {% block head %}{% endblock %}
     <link rel="stylesheet" href="{{ asset('ui.css') }}">
     <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
     <link rel="stylesheet" href="{{ asset('ts6.css') }}">
     <link rel="stylesheet" href="{{ asset('ts3.css') }}">
     <script src="{{ asset('htmx.min.js') }}"></script>
 </head>
-<body class="bg-slate-100 text-slate-900">
+<body class="bg-slate-950 text-slate-100">
 {% set showPortalShell = showPortalShell is defined ? showPortalShell : true %}
 {% set contentClass = contentClass is defined ? contentClass : 'mx-auto w-full max-w-6xl px-4 py-6 sm:px-6' %}
 {% set currentUser = current_user() %}
 {% if showPortalShell %}
 {% set activeNav = activeNav|default('') %}
 <main class="min-h-screen flex flex-col">
-    <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
-            <div class="flex items-center justify-between px-4 py-4 sm:px-6">
-                <div class="flex items-center gap-3 w-full"></div>
+    <header class="sticky top-0 z-20 border-b border-cyan-500/20 bg-slate-900/95 backdrop-blur shadow-lg shadow-black/20">
+            <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+                <div class="flex items-center gap-6">
+                    <a href="/" class="text-lg font-bold tracking-wide text-cyan-300">{{ brandingName }}</a>
+                    {% set navPages = cms_pages|default([]) %}
+                    {% if navPages is not empty %}
+                        <nav class="hidden items-center gap-4 text-sm text-slate-300 lg:flex">
+                            {% for navPage in navPages %}
+                                {% set href = navPage.slug == 'startseite' ? '/' : '/' ~ navPage.slug %}
+                                <a href="{{ href }}" class="transition hover:text-cyan-300">{{ navPage.title }}</a>
+                            {% endfor %}
+                        </nav>
+                    {% endif %}
+                </div>
                 <div class="hidden items-center gap-4 sm:flex">
                     <div class="text-right">
-                        <p class="text-sm font-semibold">{{ t('hosting_updates_title', page_locale()) }}</p>
-                        <p class="text-xs text-slate-700">{{ t('hosting_updates_subtitle', page_locale()) }}</p>
+                        <p class="text-sm font-semibold text-slate-100">{{ t('hosting_updates_title', page_locale()) }}</p>
+                        <p class="text-xs text-slate-400">{{ t('hosting_updates_subtitle', page_locale()) }}</p>
                     </div>
                     <div class="flex items-center gap-2">
                         {% if currentUser %}
-                            {% set portalPath = '/dashboard' %}
-                            {% set portalLabel = t('customer_portal', page_locale()) %}
-                            {% if is_granted('ROLE_ADMIN') %}
-                                {% set portalPath = '/admin' %}
-                                {% set portalLabel = t('admin_portal', page_locale()) %}
-                            {% elseif is_granted('ROLE_RESELLER') %}
-                                {% set portalPath = '/reseller/customers' %}
-                                {% set portalLabel = t('reseller_portal', page_locale()) %}
+                            {% set displayName = currentUser.name ?? currentUser.email %}
+                            {% set panelPath = null %}
+                            {% if currentUser.type.value in ['admin', 'superadmin'] %}
+                                {% set panelPath = '/admin' %}
+                            {% elseif currentUser.type.value == 'reseller' %}
+                                {% set panelPath = '/reseller' %}
+                            {% elseif currentUser.type.value == 'customer' and currentUser.customerAccessEnabled %}
+                                {% set panelPath = '/customer' %}
                             {% endif %}
-                            <a href="{{ portalPath }}" class="btn rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">{{ portalLabel }}</a>
-                            <a href="{{ path('public_logout') }}" class="btn rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('logout', page_locale()) }}</a>
+                            <details class="relative">
+                                <summary class="cursor-pointer list-none rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200">Hallo, {{ displayName }}</summary>
+                                <div class="absolute right-0 mt-2 min-w-[180px] rounded-lg border border-slate-700 bg-slate-900 p-2 text-sm shadow-lg shadow-black/30">
+                                    <a href="/profile" class="block rounded px-3 py-2 hover:bg-slate-800">Mein Profil</a>
+                                    <a href="/account/security" class="block rounded px-3 py-2 hover:bg-slate-800">Sicherheit</a>
+                                    {% if panelPath %}<a href="{{ panelPath }}" class="block rounded px-3 py-2 hover:bg-slate-800">Zum Panel</a>{% endif %}
+                                    <a href="{{ path('public_logout') }}" class="block rounded px-3 py-2 hover:bg-slate-800">{{ t('logout', page_locale()) }}</a>
+                                </div>
+                            </details>
                         {% else %}
-                            <a href="{{ path('public_login') }}" class="btn rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">{{ t('login', page_locale()) }}</a>
-                            <a href="{{ path('public_register') }}" class="btn rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('register', page_locale()) }}</a>
+                            {% set registrationEnabled = app_setting('registration_enabled', false) %}
+                            <a href="{{ path('public_login') }}?target={{ (app.request ? app.request.requestUri : '/')|url_encode }}" class="btn rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-400 hover:bg-slate-800">{{ t('login', page_locale()) }}</a>
+                            {% if registrationEnabled %}
+                                <a href="{{ path('public_register') }}" class="btn rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500">{{ t('register', page_locale()) }}</a>
+                            {% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -64,16 +86,17 @@
             {% block content %}{% endblock %}
         </section>
 
-        <footer class="border-t border-slate-200 bg-white">
-            <div class="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <footer class="border-t border-slate-800 bg-slate-900">
+            <div class="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div class="flex flex-col gap-1">
                     <span class="text-[11px] text-slate-500">© Easy-Wi Nextgen 2024 - 2026</span>
                 </div>
                 <div class="flex flex-wrap gap-4">
-                    <a href="{{ path('public_cms_page_slug', {slug: 'impressum'}) }}" class="hover:text-slate-700">{{ t('imprint', page_locale()) }}</a>
-                    <a href="{{ path('public_cms_page_slug', {slug: 'agb'}) }}" class="hover:text-slate-700">{{ t('terms_of_service', page_locale()) }}</a>
-                    <a href="{{ path('public_cms_page_slug', {slug: 'datenschutz'}) }}" class="hover:text-slate-700">{{ t('privacy_policy', page_locale()) }}</a>
-                    <button type="button" class="hover:text-slate-700" data-cookie-open>{{ t('cookie_settings', page_locale()) }}</button>
+                    <a href="{{ path('public_cms_page_slug', {slug: 'impressum'}) }}" class="hover:text-cyan-300">{{ t('imprint', page_locale()) }}</a>
+                    <a href="{{ path('public_cms_page_slug', {slug: 'agb'}) }}" class="hover:text-cyan-300">{{ t('terms_of_service', page_locale()) }}</a>
+                    <a href="{{ path('public_cms_page_slug', {slug: 'datenschutz'}) }}" class="hover:text-cyan-300">{{ t('privacy_policy', page_locale()) }}</a>
+                    <a href="{{ path('public_cms_page_slug', {slug: 'cookies'}) }}" class="hover:text-cyan-300">Cookie-Richtlinie</a>
+                    <button type="button" class="hover:text-cyan-300" data-cookie-open>{{ t('cookie_settings', page_locale()) }}</button>
                 </div>
             </div>
         </footer>
@@ -92,7 +115,8 @@
                 <a href="{{ path('public_cms_page_slug', {slug: 'impressum'}) }}" class="hover:text-slate-700">{{ t('imprint', page_locale()) }}</a>
                 <a href="{{ path('public_cms_page_slug', {slug: 'agb'}) }}" class="hover:text-slate-700">{{ t('terms_of_service', page_locale()) }}</a>
                 <a href="{{ path('public_cms_page_slug', {slug: 'datenschutz'}) }}" class="hover:text-slate-700">{{ t('privacy_policy', page_locale()) }}</a>
-                <button type="button" class="hover:text-slate-700" data-cookie-open>{{ t('cookie_settings', page_locale()) }}</button>
+                <a href="{{ path('public_cms_page_slug', {slug: 'cookies'}) }}" class="hover:text-slate-700">Cookie-Richtlinie</a>
+                    <button type="button" class="hover:text-slate-700" data-cookie-open>{{ t('cookie_settings', page_locale()) }}</button>
             </div>
         </div>
     </footer>
@@ -126,65 +150,25 @@
         <div class="mt-6 space-y-4">
             <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div>
-                    <p class="text-sm font-semibold">{{ t('cookie_category_essential', page_locale()) }}</p>
-                    <p class="text-xs text-slate-700">{{ t('cookie_purpose_session', page_locale()) }}</p>
+                    <p class="text-sm font-semibold">Notwendig</p>
+                    <p class="text-xs text-slate-700">Erforderlich für Login, Sicherheit und Kernfunktionen.</p>
                 </div>
                 <input type="checkbox" checked disabled class="h-4 w-4 rounded border-slate-300 text-slate-700">
             </div>
             <label class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <div>
-                    <p class="text-sm font-semibold">{{ t('cookie_category_functional', page_locale()) }}</p>
-                    <p class="text-xs text-slate-700">{{ t('cookie_purpose_language', page_locale()) }}</p>
+                    <p class="text-sm font-semibold">Statistik</p>
+                    <p class="text-xs text-slate-700">Optionale Nutzungsanalyse zur Verbesserung der Plattform.</p>
                 </div>
-                <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="functional">
+                <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="statistics">
             </label>
             <label class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <div>
-                    <p class="text-sm font-semibold">{{ t('cookie_category_analytics', page_locale()) }}</p>
-                    <p class="text-xs text-slate-700">—</p>
-                </div>
-                <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="analytics">
-            </label>
-            <label class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <div>
-                    <p class="text-sm font-semibold">{{ t('cookie_category_marketing', page_locale()) }}</p>
-                    <p class="text-xs text-slate-700">—</p>
+                    <p class="text-sm font-semibold">Marketing</p>
+                    <p class="text-xs text-slate-700">Optionale Inhalte für Kampagnen und externe Angebote.</p>
                 </div>
                 <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="marketing">
             </label>
-        </div>
-
-        <div class="mt-6 overflow-hidden rounded-xl border border-slate-200">
-            <table class="min-w-full text-xs">
-                <thead class="bg-slate-50 text-left text-slate-700">
-                    <tr>
-                        <th class="px-4 py-2">{{ t('cookie_cookie_name', page_locale()) }}</th>
-                        <th class="px-4 py-2">{{ t('cookie_cookie_purpose', page_locale()) }}</th>
-                        <th class="px-4 py-2">{{ t('cookie_cookie_duration', page_locale()) }}</th>
-                        <th class="px-4 py-2">{{ t('cookie_cookie_type', page_locale()) }}</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    <tr>
-                        <td class="px-4 py-2">easywi_session</td>
-                        <td class="px-4 py-2">{{ t('cookie_purpose_session', page_locale()) }}</td>
-                        <td class="px-4 py-2">{{ t('cookie_duration_session', page_locale()) }}</td>
-                        <td class="px-4 py-2">{{ t('cookie_category_essential', page_locale()) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="px-4 py-2">portal_language</td>
-                        <td class="px-4 py-2">{{ t('cookie_purpose_language', page_locale()) }}</td>
-                        <td class="px-4 py-2">{{ t('cookie_duration_1year', page_locale()) }}</td>
-                        <td class="px-4 py-2">{{ t('cookie_category_functional', page_locale()) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="px-4 py-2">cookie_preferences</td>
-                        <td class="px-4 py-2">{{ t('cookie_purpose_preferences', page_locale()) }}</td>
-                        <td class="px-4 py-2">{{ t('cookie_duration_1year', page_locale()) }}</td>
-                        <td class="px-4 py-2">{{ t('cookie_category_functional', page_locale()) }}</td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
 
         <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -194,12 +178,20 @@
     </div>
 </div>
 
+{% if cookie_has_consent('statistics') %}
+    <script data-optional-consent="statistics-enabled">window.__easywiConsentStatistics = true;</script>
+{% endif %}
+{% if cookie_has_consent('marketing') %}
+    <script data-optional-consent="marketing-enabled">window.__easywiConsentMarketing = true;</script>
+{% endif %}
+
 <script>
-    const cookieKey = 'cookie_preferences';
-    const defaultPrefs = {
-        essential: true,
-        functional: true,
-        analytics: false,
+    const consentCookieName = '{{ cookie_consent_cookie_name() }}';
+    const consentVersion = {{ cookie_consent_version() }};
+    const defaultConsent = {
+        version: consentVersion,
+        necessary: true,
+        statistics: false,
         marketing: false,
     };
 
@@ -214,46 +206,64 @@
             ?.split('=')[1];
     };
 
-    const setCookie = (name, value) => {
-        const encodedValue = encodeURIComponent(value);
-        const secureFlag = window.location.protocol === 'https:' ? '; secure' : '';
-        document.cookie = `${name}=${encodedValue}; path=/; max-age=31536000; samesite=lax${secureFlag}`;
-    };
-
-    const readPreferences = () => {
-        const stored = getCookie(cookieKey);
+    const readConsent = () => {
+        const stored = getCookie(consentCookieName);
         if (!stored) {
             return null;
         }
 
         try {
-            return JSON.parse(decodeURIComponent(stored));
+            const parsed = JSON.parse(decodeURIComponent(stored));
+            return {
+                ...defaultConsent,
+                version: Number(parsed.version) || consentVersion,
+                statistics: Boolean(parsed.statistics),
+                marketing: Boolean(parsed.marketing),
+            };
         } catch (error) {
             return null;
         }
     };
 
-    const writePreferences = (prefs) => {
-        setCookie(cookieKey, JSON.stringify(prefs));
+    const setConsentCookieLocal = (consent) => {
+        const secureFlag = window.location.protocol === 'https:' ? '; secure' : '';
+        document.cookie = `${consentCookieName}=${encodeURIComponent(JSON.stringify(consent))}; path=/; max-age=31536000; samesite=lax${secureFlag}`;
     };
 
-    const applyPreferencesToForm = (prefs) => {
+    const persistConsent = async (consent) => {
+        setConsentCookieLocal(consent);
+
+        try {
+            await fetch('/cookie-consent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(consent),
+                credentials: 'same-origin',
+            });
+        } catch (error) {
+            // fallback remains local cookie
+        }
+    };
+
+    const applyConsentToForm = (consent) => {
         toggles.forEach((toggle) => {
             const key = toggle.dataset.cookieToggle;
-            toggle.checked = Boolean(prefs?.[key]);
+            toggle.checked = Boolean(consent?.[key]);
         });
     };
 
     const showBannerIfNeeded = () => {
-        const prefs = readPreferences();
-        if (!prefs && banner) {
+        const consent = readConsent();
+        if (!consent && banner) {
             banner.classList.remove('hidden');
         }
     };
 
     const openModal = () => {
-        const prefs = readPreferences() ?? defaultPrefs;
-        applyPreferencesToForm(prefs);
+        applyConsentToForm(readConsent() ?? defaultConsent);
         modal?.classList.remove('hidden');
         modal?.classList.add('flex');
     };
@@ -261,6 +271,19 @@
     const closeModal = () => {
         modal?.classList.add('hidden');
         modal?.classList.remove('flex');
+    };
+
+    const saveConsent = async (statistics, marketing) => {
+        await persistConsent({
+            version: consentVersion,
+            necessary: true,
+            statistics,
+            marketing,
+        });
+
+        banner?.classList.add('hidden');
+        closeModal();
+        window.location.reload();
     };
 
     document.querySelectorAll('[data-cookie-open]').forEach((button) => {
@@ -280,30 +303,21 @@
 
     document.querySelectorAll('[data-cookie-accept]').forEach((button) => {
         button.addEventListener('click', () => {
-            writePreferences({ ...defaultPrefs, functional: true, analytics: true, marketing: true });
-            banner?.classList.add('hidden');
+            saveConsent(true, true);
         });
     });
 
     document.querySelectorAll('[data-cookie-reject]').forEach((button) => {
         button.addEventListener('click', () => {
-            writePreferences({ ...defaultPrefs, functional: false, analytics: false, marketing: false });
-            banner?.classList.add('hidden');
+            saveConsent(false, false);
         });
     });
 
     document.querySelectorAll('[data-cookie-save]').forEach((button) => {
         button.addEventListener('click', () => {
-            const prefs = {
-                essential: true,
-                functional: toggles.find((toggle) => toggle.dataset.cookieToggle === 'functional')?.checked ?? false,
-                analytics: toggles.find((toggle) => toggle.dataset.cookieToggle === 'analytics')?.checked ?? false,
-                marketing: toggles.find((toggle) => toggle.dataset.cookieToggle === 'marketing')?.checked ?? false,
-            };
-
-            writePreferences(prefs);
-            closeModal();
-            banner?.classList.add('hidden');
+            const statistics = toggles.find((toggle) => toggle.dataset.cookieToggle === 'statistics')?.checked ?? false;
+            const marketing = toggles.find((toggle) => toggle.dataset.cookieToggle === 'marketing')?.checked ?? false;
+            saveConsent(statistics, marketing);
         });
     });
 

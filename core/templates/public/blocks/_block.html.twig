@@ -1,0 +1,11 @@
+{% if block.type in ['server_list', 'server_featured'] %}
+    {% include 'public/servers/_server_list.html.twig' with {
+        servers: block.servers,
+        show_players: block.settings.show_players,
+        show_join_button: block.settings.show_join_button,
+        empty_text: empty_text|default(null),
+        theme: theme|default(null)
+    } only %}
+{% else %}
+    <div class="{{ text_class|default('') }}">{{ block.html|raw }}</div>
+{% endif %}

@@ -1,0 +1,29 @@
+{% extends 'admin/base.html.twig' %}
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-semibold">Events</h1>
+        <a href="/admin/cms/events/new" class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">New Event</a>
+    </div>
+    <div class="rounded-2xl border bg-white">
+        <table class="min-w-full text-sm">
+            <thead><tr><th class="px-4 py-2 text-left">Title</th><th class="px-4 py-2 text-left">Start</th><th class="px-4 py-2 text-left">Status</th><th class="px-4 py-2 text-right">Actions</th></tr></thead>
+            <tbody>
+            {% for event in events %}
+                <tr class="border-t">
+                    <td class="px-4 py-2">{{ event.title }} <span class="text-xs text-slate-500">/{{ event.slug }}</span></td>
+                    <td class="px-4 py-2">{{ event.startAt|date('Y-m-d H:i') }}</td>
+                    <td class="px-4 py-2">{{ event.status }} {% if not event.isPublished %}(draft){% endif %}</td>
+                    <td class="px-4 py-2 text-right">
+                        <a class="text-indigo-600" href="/admin/cms/events/{{ event.id }}/edit">Edit</a>
+                        <form method="post" action="/admin/cms/events/{{ event.id }}/delete" class="inline"><button class="ml-3 text-rose-600">Delete</button></form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4" class="px-4 py-6 text-center text-slate-500">No events yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

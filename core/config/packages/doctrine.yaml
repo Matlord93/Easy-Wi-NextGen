@@ -1,6 +1,9 @@
 doctrine:
   dbal:
-    driver: 'pdo_mysql'
+    # Keep DATABASE_URL as a plain env var so percent-encoded credentials
+    # (for example passwords containing "%") are not interpreted as
+    # container parameters during cache warmup.
+    url: '%env(DATABASE_URL)%'
     charset: 'utf8mb4'
     default_table_options:
       charset: 'utf8mb4'

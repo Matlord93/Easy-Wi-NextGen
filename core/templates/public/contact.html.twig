@@ -1,0 +1,22 @@
+{% extends 'public/base.html.twig' %}
+{% block content %}
+<div class="max-w-2xl rounded-xl border border-slate-200 bg-white p-6">
+  <h1 class="text-lg font-semibold">Kontakt</h1>
+  {% if success %}<p class="mt-3 rounded bg-emerald-50 p-3 text-emerald-700">Danke, wir melden uns.</p>{% endif %}
+  {% if errors is not empty %}<div class="mt-3 rounded bg-rose-50 p-3 text-rose-700">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
+  <form method="post" class="mt-4 space-y-3">
+    <input type="hidden" name="_token" value="{{ csrf_token('public_contact') }}">
+    <input name="name" placeholder="Name" class="w-full rounded border border-slate-200 px-3 py-2" required>
+    <input name="email" type="email" placeholder="E-Mail" class="w-full rounded border border-slate-200 px-3 py-2" required>
+    <input name="subject" placeholder="Betreff" class="w-full rounded border border-slate-200 px-3 py-2" required>
+    <textarea name="message" rows="6" class="w-full rounded border border-slate-200 px-3 py-2" required></textarea>
+    <input type="text" name="website" class="hidden" autocomplete="off" tabindex="-1">
+    <input type="hidden" name="pow_solution" id="pow_solution">
+    {% if captcha_question %}<label class="block text-sm">{{ captcha_question }}<input name="captcha_answer" class="mt-1 w-full rounded border border-slate-200 px-3 py-2" required></label>{% endif %}
+    <button class="rounded bg-indigo-600 px-4 py-2 font-semibold text-white">Senden</button>
+  </form>
+</div>
+<script>
+(async()=>{const nonce='{{ anti_abuse_nonce }}';const diff={{ pow_difficulty|default(4) }};const out=document.getElementById('pow_solution');if(!nonce||!out||!window.crypto?.subtle){return;}const target='0'.repeat(diff);const enc=new TextEncoder();for(let i=0;i<2000000;i++){const bytes=enc.encode(nonce+String(i));const hash=await crypto.subtle.digest('SHA-256',bytes);const hex=[...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');if(hex.startsWith(target)){out.value=String(i);break;}}})();
+</script>
+{% endblock %}

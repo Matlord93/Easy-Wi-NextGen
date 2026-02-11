@@ -1,0 +1,11 @@
+<footer class="theme-footer">
+  <div class="theme-wrap" style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:center;">
+    <div>© Easy-Wi NextGen</div>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;">
+      {% for item in cms_footer_links|default([]) %}
+        <a href="{{ item.url }}" {% if item.external %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.label }}</a>
+      {% endfor %}
+      <button type="button" data-cookie-open style="background:none;border:0;padding:0;cursor:pointer;color:inherit;font:inherit;">Cookie-Einstellungen</button>
+    </div>
+  </div>
+</footer>

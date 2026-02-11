@@ -5,6 +5,13 @@
         <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
             <span class="text-xl">🛠️</span>
         </div>
+
+        {% if graphic_path is not empty %}
+            <div class="mx-auto overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">
+                <img src="{{ graphic_path }}" alt="Maintenance graphic" class="max-h-64 w-auto object-contain">
+            </div>
+        {% endif %}
+
         <div>
             <p class="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-500">{{ t('cms_maintenance_kicker', page_locale()) }}</p>
             <h1 class="mt-3 text-3xl font-semibold text-slate-900">{{ t('cms_maintenance_heading', page_locale()) }}</h1>

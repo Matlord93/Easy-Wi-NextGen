@@ -1,0 +1,30 @@
+{% extends 'admin/base.html.twig' %}
+{% block content %}
+<div class="space-y-4">
+    <h1 class="text-2xl font-semibold">Media</h1>
+    <form method="post" action="/admin/cms/media" enctype="multipart/form-data" class="grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-4">
+        <input type="file" name="file" class="rounded border px-3 py-2 text-sm md:col-span-2" required />
+        <input name="title" placeholder="Title" class="rounded border px-3 py-2 text-sm" />
+        <input name="alt" placeholder="Alt" class="rounded border px-3 py-2 text-sm" />
+        <button class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white md:col-span-4 md:justify-self-start">Upload</button>
+    </form>
+
+    <div class="rounded-2xl border bg-white">
+        <table class="min-w-full text-sm">
+            <thead><tr><th class="px-4 py-2 text-left">Preview</th><th class="px-4 py-2 text-left">Path</th><th class="px-4 py-2 text-left">Title / Alt</th><th class="px-4 py-2 text-right">Actions</th></tr></thead>
+            <tbody>
+            {% for asset in assets %}
+                <tr class="border-t">
+                    <td class="px-4 py-2">{% if asset.path %}<img src="{{ asset.path }}" alt="" class="h-12 w-12 rounded object-cover" />{% endif %}</td>
+                    <td class="px-4 py-2 text-xs">{{ asset.path }}</td>
+                    <td class="px-4 py-2">{{ asset.title ?: '-' }} / {{ asset.alt ?: '-' }}</td>
+                    <td class="px-4 py-2 text-right"><form method="post" action="/admin/cms/media/{{ asset.id }}/delete"><button class="text-rose-600">Delete</button></form></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4" class="px-4 py-6 text-center text-slate-500">No media assets yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

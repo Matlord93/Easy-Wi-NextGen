@@ -1,0 +1,48 @@
+{% extends 'public/base.html.twig' %}
+
+{% block title %}Cookie-Richtlinie{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold">Cookie-Richtlinie</h1>
+        <p class="mt-2 text-sm text-slate-600">Diese Übersicht listet alle aktuell vom System gesetzten First-Party-Cookies.</p>
+    </div>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-6">
+        <h2 class="text-lg font-semibold">Cookie-Liste</h2>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-slate-50 text-left text-slate-700">
+                    <tr>
+                        <th class="px-4 py-2">Name</th>
+                        <th class="px-4 py-2">Zweck</th>
+                        <th class="px-4 py-2">Kategorie</th>
+                        <th class="px-4 py-2">Laufzeit</th>
+                        <th class="px-4 py-2">Provider</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for cookie in cookies %}
+                        <tr>
+                            <td class="px-4 py-2 font-mono text-xs">{{ cookie.name }}</td>
+                            <td class="px-4 py-2">{{ cookie.purpose }}</td>
+                            <td class="px-4 py-2">{{ cookie.category|capitalize }}</td>
+                            <td class="px-4 py-2">{{ cookie.duration }}</td>
+                            <td class="px-4 py-2">{{ cookie.provider }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">
+        <h2 class="text-lg font-semibold">Einwilligungs-Storage</h2>
+        <p class="mt-2">
+            Die Auswahl aus dem Cookie-Banner wird im Cookie <code class="rounded bg-slate-100 px-1 py-0.5">{{ consent_cookie_name }}</code>
+            mit Version <code class="rounded bg-slate-100 px-1 py-0.5">{{ consent_version }}</code> gespeichert.
+        </p>
+    </section>
+</div>
+{% endblock %}

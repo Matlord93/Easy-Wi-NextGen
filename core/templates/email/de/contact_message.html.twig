@@ -1,0 +1,6 @@
+{% extends 'email/base.html.twig' %}
+{% block body %}
+<p>Neue Kontaktanfrage von {{ sender_name }} ({{ sender_email }}).</p>
+<p><strong>Betreff:</strong> {{ subject_line }}</p>
+<p>{{ message_body|nl2br }}</p>
+{% endblock %}

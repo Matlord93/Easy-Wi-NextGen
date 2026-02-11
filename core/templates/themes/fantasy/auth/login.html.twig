@@ -1,0 +1,14 @@
+{% extends 'themes/fantasy/base.html.twig' %}
+{% set cms_pages = [] %}
+{% block content %}
+<section class="theme-wrap auth-box">
+  <h2>Login</h2>
+  {% for error in errors %}<p class="error">{{ error }}</p>{% endfor %}
+  <form method="post" action="/login">
+    <input type="hidden" name="target" value="{{ loginTarget|default('') }}">
+    <input name="email" type="email" value="{{ form.email }}" placeholder="E-Mail" required>
+    <input name="password" type="password" placeholder="Passwort" required>
+    <button type="submit">Einloggen</button>
+  </form>
+</section>
+{% endblock %}

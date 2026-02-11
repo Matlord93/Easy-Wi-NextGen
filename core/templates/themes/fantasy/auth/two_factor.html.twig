@@ -1,0 +1,13 @@
+{% extends 'themes/fantasy/base.html.twig' %}
+{% set cms_pages = [] %}
+{% block content %}
+<section class="theme-wrap auth-box">
+  <h2>Zwei-Faktor-Anmeldung</h2>
+  {% for error in errors %}<p class="error">{{ error }}</p>{% endfor %}
+  <form method="post" action="/2fa_check">
+    <input type="hidden" name="_token" value="{{ csrf_token('public_2fa_check') }}">
+    <input name="otp" inputmode="numeric" pattern="[0-9]{6}" placeholder="Authenticator-Code" required>
+    <button type="submit">Bestätigen</button>
+  </form>
+</section>
+{% endblock %}

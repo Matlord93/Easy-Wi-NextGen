@@ -32,6 +32,14 @@ framework:
             policy: 'fixed_window'
             limit: 10
             interval: '15 minutes'
+        public_registration_email:
+            policy: 'fixed_window'
+            limit: 4
+            interval: '30 minutes'
+        public_contact:
+            policy: 'fixed_window'
+            limit: 6
+            interval: '10 minutes'
         public_login_ip:
             policy: 'fixed_window'
             limit: 10
@@ -40,6 +48,18 @@ framework:
             policy: 'fixed_window'
             limit: 5
             interval: '1 minute'
+        public_2fa_check:
+            policy: 'fixed_window'
+            limit: 8
+            interval: '2 minutes'
+        account_security_confirm:
+            policy: 'fixed_window'
+            limit: 5
+            interval: '10 minutes'
+        account_security_2fa:
+            policy: 'fixed_window'
+            limit: 8
+            interval: '10 minutes'
         agent_bootstrap:
             policy: 'fixed_window'
             limit: 10
@@ -59,4 +79,16 @@ framework:
         recovery_db:
             policy: 'fixed_window'
             limit: 6
+            interval: '1 minute'
+        forum_reply:
+            policy: 'fixed_window'
+            limit: 5
+            interval: '1 minute'
+        forum_thread:
+            policy: 'fixed_window'
+            limit: 2
+            interval: '1 minute'
+        forum_report:
+            policy: 'fixed_window'
+            limit: 3
             interval: '1 minute'

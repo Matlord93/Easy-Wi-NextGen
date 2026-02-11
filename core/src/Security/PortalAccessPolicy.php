@@ -11,16 +11,16 @@ final class PortalAccessPolicy
 {
     public function isAllowed(User $actor, string $path): bool
     {
-        if ($this->isCmsPath($path)) {
-            return true;
-        }
-
         if ($this->isAdminPath($path)) {
             return $actor->isAdmin();
         }
 
         if ($this->isResellerPath($path)) {
             return $actor->getType() === UserType::Reseller;
+        }
+
+        if ($this->isCustomerPath($path)) {
+            return $actor->getType() === UserType::Customer;
         }
 
         return true;
@@ -33,13 +33,6 @@ final class PortalAccessPolicy
             || str_starts_with($path, '/api/v1/admin');
     }
 
-    private function isCmsPath(string $path): bool
-    {
-        return str_starts_with($path, '/admin/cms')
-            || str_starts_with($path, '/admin/servers')
-            || str_starts_with($path, '/api/admin/cms')
-            || str_starts_with($path, '/api/v1/admin/cms');
-    }
 
     private function isResellerPath(string $path): bool
     {
@@ -47,4 +40,13 @@ final class PortalAccessPolicy
             || str_starts_with($path, '/api/reseller')
             || str_starts_with($path, '/api/v1/reseller');
     }
+
+
+    private function isCustomerPath(string $path): bool
+    {
+        return str_starts_with($path, '/customer')
+            || str_starts_with($path, '/api/customer')
+            || str_starts_with($path, '/api/v1/customer');
+    }
+
 }

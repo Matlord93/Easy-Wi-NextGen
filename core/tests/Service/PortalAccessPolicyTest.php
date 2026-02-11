@@ -25,6 +25,9 @@ final class PortalAccessPolicyTest extends TestCase
         self::assertTrue($policy->isAllowed($admin, '/api/admin/users'));
         self::assertTrue($policy->isAllowed($admin, '/api/v1/admin/users'));
         self::assertFalse($policy->isAllowed($customer, '/api/v1/admin/users'));
+        self::assertTrue($policy->isAllowed($admin, '/admin/cms/pages'));
+        self::assertFalse($policy->isAllowed($reseller, '/admin/cms/pages'));
+        self::assertFalse($policy->isAllowed($customer, '/admin/cms/pages'));
     }
 
     public function testResellerPathsOnlyAllowResellers(): void

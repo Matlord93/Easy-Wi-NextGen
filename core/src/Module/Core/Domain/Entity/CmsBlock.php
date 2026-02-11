@@ -27,6 +27,17 @@ class CmsBlock
     private string $content;
 
     #[ORM\Column]
+    private int $version = 1;
+
+    /** @var array<string, mixed>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $payloadJson = null;
+
+    /** @var array<string, mixed>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $settingsJson = null;
+
+    #[ORM\Column]
     private int $sortOrder;
 
     #[ORM\Column]
@@ -85,6 +96,51 @@ class CmsBlock
     public function setSortOrder(int $sortOrder): void
     {
         $this->sortOrder = $sortOrder;
+        $this->touch();
+    }
+
+    public function getVersion(): int
+    {
+        return $this->version;
+    }
+
+    public function setVersion(int $version): void
+    {
+        $this->version = max(1, $version);
+        $this->touch();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getPayloadJson(): ?array
+    {
+        return $this->payloadJson;
+    }
+
+    /**
+     * @param array<string, mixed>|null $payloadJson
+     */
+    public function setPayloadJson(?array $payloadJson): void
+    {
+        $this->payloadJson = $payloadJson;
+        $this->touch();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getSettingsJson(): ?array
+    {
+        return $this->settingsJson;
+    }
+
+    /**
+     * @param array<string, mixed>|null $settingsJson
+     */
+    public function setSettingsJson(?array $settingsJson): void
+    {
+        $this->settingsJson = $settingsJson;
         $this->touch();
     }
 

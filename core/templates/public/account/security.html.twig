@@ -1,0 +1,79 @@
+{% extends 'public/base.html.twig' %}
+
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-[220px,1fr]">
+  {% include 'public/account/_nav.html.twig' %}
+
+  <div class="space-y-6">
+    {% if errors is not empty %}
+      <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
+    {% endif %}
+
+    {% if confirmRequired %}
+      <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 class="text-xl font-semibold text-slate-900">Sicherheitsbestätigung</h1>
+        <p class="mt-2 text-sm text-slate-600">Bitte bestätige dein aktuelles Passwort, um sensible Aktionen auszuführen.</p>
+        <form method="post" action="/account/security/confirm" class="mt-4 space-y-3">
+          <input type="hidden" name="_token" value="{{ csrf_token('account_security_confirm') }}">
+          <input type="password" name="current_password" required class="w-full rounded border border-slate-200 px-3 py-2" placeholder="Aktuelles Passwort">
+          <button type="submit" class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Bestätigen</button>
+        </form>
+      </div>
+    {% endif %}
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-slate-900">Passwort ändern</h2>
+      <form method="post" action="/account/security/password" class="mt-4 grid gap-3 sm:grid-cols-2">
+        <input type="hidden" name="_token" value="{{ csrf_token('account_security_password') }}">
+        <input type="password" name="current_password" required class="rounded border border-slate-200 px-3 py-2" placeholder="Aktuelles Passwort">
+        <div></div>
+        <input type="password" name="new_password" required minlength="8" class="rounded border border-slate-200 px-3 py-2" placeholder="Neues Passwort">
+        <input type="password" name="new_password_confirm" required minlength="8" class="rounded border border-slate-200 px-3 py-2" placeholder="Neues Passwort wiederholen">
+        <button type="submit" class="w-fit rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Passwort speichern</button>
+      </form>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-slate-900">Zwei-Faktor-Authentifizierung</h2>
+      {% if twoFactor.success %}<p class="mt-2 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{{ t(twoFactor.success, page_locale()) }}</p>{% endif %}
+
+      {% if twoFactor.enabled %}
+        <div class="mt-4 space-y-4">
+          <form method="post" action="/account/security/2fa/recovery" class="space-y-2">
+            <input type="hidden" name="_token" value="{{ csrf_token('account_security_recovery_2fa') }}">
+            <input type="text" name="otp" placeholder="123456" class="rounded border border-slate-200 px-3 py-2">
+            <input type="text" name="recovery_code" placeholder="0000-0000" class="rounded border border-slate-200 px-3 py-2">
+            <button type="submit" class="rounded border border-slate-300 px-4 py-2 text-sm">Recovery-Codes regenerieren</button>
+          </form>
+
+          <form method="post" action="/account/security/2fa/disable" class="space-y-2">
+            <input type="hidden" name="_token" value="{{ csrf_token('account_security_disable_2fa') }}">
+            <input type="text" name="otp" placeholder="123456" class="rounded border border-slate-200 px-3 py-2">
+            <input type="text" name="recovery_code" placeholder="0000-0000" class="rounded border border-slate-200 px-3 py-2">
+            <button type="submit" class="rounded border border-rose-200 px-4 py-2 text-sm text-rose-700">2FA deaktivieren</button>
+          </form>
+
+          {% if twoFactor.recovery_codes is not empty %}
+            <div class="rounded border border-amber-200 bg-amber-50 p-3 text-sm">
+              <p class="font-semibold">Neue Recovery-Codes (einmalig sichtbar):</p>
+              <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                {% for code in twoFactor.recovery_codes %}<span class="rounded bg-white px-2 py-1 font-mono">{{ code }}</span>{% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      {% else %}
+        <div class="mt-4 space-y-3">
+          <p class="text-sm text-slate-600">Secret: <span class="font-mono">{{ twoFactor.secret }}</span></p>
+          {% if twoFactor.qr %}<img src="{{ twoFactor.qr }}" alt="2FA QR" class="h-44 w-44 rounded border border-slate-200 p-2">{% endif %}
+          <form method="post" action="/account/security/2fa/enable" class="flex gap-2">
+            <input type="hidden" name="_token" value="{{ csrf_token('account_security_enable_2fa') }}">
+            <input type="text" name="otp" placeholder="123456" class="rounded border border-slate-200 px-3 py-2">
+            <button type="submit" class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">2FA aktivieren</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

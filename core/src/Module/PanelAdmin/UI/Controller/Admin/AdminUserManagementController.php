@@ -73,6 +73,8 @@ final class AdminUserManagementController
         $passwordConfirm = (string) $request->request->get('password_confirm', '');
         $typeValue = (string) $request->request->get('type', UserType::Customer->value);
         $databaseLimitValue = (string) $request->request->get('database_limit', '0');
+        $memberAccessEnabled = $request->request->get('member_access_enabled') === '1';
+        $customerAccessEnabled = $request->request->get('customer_access_enabled') === '1';
 
         $errors = $this->validateUserPayload($email, $password, $passwordConfirm, $typeValue, null, true);
         if (!is_numeric($databaseLimitValue) || (int) $databaseLimitValue < 0) {
@@ -84,6 +86,8 @@ final class AdminUserManagementController
                     'email' => $email,
                     'type' => $typeValue,
                     'database_limit' => $databaseLimitValue,
+                    'member_access_enabled' => $memberAccessEnabled,
+                    'customer_access_enabled' => $customerAccessEnabled,
                 ],
             ]), Response::HTTP_BAD_REQUEST);
         }
@@ -94,6 +98,8 @@ final class AdminUserManagementController
             $user->setDatabaseLimit((int) $databaseLimitValue);
         }
         $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
+        $user->setMemberAccessEnabled($memberAccessEnabled);
+        $user->setCustomerAccessEnabled($customerAccessEnabled);
 
         $this->entityManager->persist($user);
         if (!$type->isAdmin()) {
@@ -106,6 +112,8 @@ final class AdminUserManagementController
             'user_id' => $user->getId(),
             'email' => $user->getEmail(),
             'type' => $user->getType()->value,
+            'member_access_enabled' => $user->isMemberAccessEnabled(),
+            'customer_access_enabled' => $user->isCustomerAccessEnabled(),
         ]);
 
         return new RedirectResponse('/admin/users?created=' . $user->getId());
@@ -129,6 +137,8 @@ final class AdminUserManagementController
         $passwordConfirm = (string) $request->request->get('password_confirm', '');
         $typeValue = (string) $request->request->get('type', $user->getType()->value);
         $databaseLimitValue = (string) $request->request->get('database_limit', (string) $user->getDatabaseLimit());
+        $memberAccessEnabled = $request->request->get('member_access_enabled') === '1';
+        $customerAccessEnabled = $request->request->get('customer_access_enabled') === '1';
 
         $errors = $this->validateUserPayload($email, $password, $passwordConfirm, $typeValue, $user, false);
         if (!is_numeric($databaseLimitValue) || (int) $databaseLimitValue < 0) {
@@ -149,6 +159,9 @@ final class AdminUserManagementController
         if ($password !== '') {
             $user->setPasswordHash($this->passwordHasher->hashPassword($user, $password));
         }
+
+        $user->setMemberAccessEnabled($memberAccessEnabled);
+        $user->setCustomerAccessEnabled($customerAccessEnabled);
         if ($newType === UserType::Superadmin) {
             $user->setAdminSshKeyEnabled(true);
         }
@@ -163,6 +176,8 @@ final class AdminUserManagementController
             'email' => $user->getEmail(),
             'type' => $user->getType()->value,
             'password_updated' => $password !== '',
+            'member_access_enabled' => $user->isMemberAccessEnabled(),
+            'customer_access_enabled' => $user->isCustomerAccessEnabled(),
         ]);
 
         $this->entityManager->flush();
@@ -396,6 +411,8 @@ final class AdminUserManagementController
                 'ssh_key_pending' => $user->getAdminSshPublicKeyPending() !== null,
                 'ssh_key_pending_value' => $user->getAdminSshPublicKeyPending(),
                 'database_limit' => $user->getDatabaseLimit(),
+                'member_access_enabled' => $user->isMemberAccessEnabled(),
+                'customer_access_enabled' => $user->isCustomerAccessEnabled(),
             ];
         }
 
@@ -427,6 +444,8 @@ final class AdminUserManagementController
                 'email' => '',
                 'type' => UserType::Customer->value,
                 'database_limit' => '0',
+                'member_access_enabled' => false,
+                'customer_access_enabled' => false,
             ],
         ] + $overrides);
     }

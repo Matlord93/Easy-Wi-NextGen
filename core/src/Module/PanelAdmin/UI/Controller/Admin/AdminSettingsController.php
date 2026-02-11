@@ -61,6 +61,9 @@ final class AdminSettingsController
         $minSlotsRaw = trim((string) $request->request->get('gameserver_min_slots', ''));
         $maxSlotsRaw = trim((string) $request->request->get('gameserver_max_slots', ''));
         $sessionIdleMinutesRaw = trim((string) $request->request->get('security_session_idle_minutes', ''));
+        $minSubmitSecondsRaw = trim((string) $request->request->get('anti_abuse_min_submit_seconds', '2'));
+        $powDifficultyRaw = trim((string) $request->request->get('anti_abuse_pow_difficulty', '4'));
+        $dailyIpLimitRaw = trim((string) $request->request->get('anti_abuse_daily_ip_limit', '20'));
         $maintenanceStartsRaw = trim((string) $request->request->get('cms_maintenance_starts_at', ''));
         $maintenanceEndsRaw = trim((string) $request->request->get('cms_maintenance_ends_at', ''));
         $maintenanceAllowlistRaw = trim((string) $request->request->get('cms_maintenance_allowlist', ''));
@@ -114,6 +117,9 @@ final class AdminSettingsController
             } elseif ((int) $sessionIdleMinutesRaw < 5) {
                 $errors[] = 'Session idle timeout must be at least 5 minutes.';
             }
+            if (!is_numeric($minSubmitSecondsRaw) || (int) $minSubmitSecondsRaw < 1) { $errors[] = 'Minimum submit seconds must be numeric and >= 1.'; }
+            if (!is_numeric($powDifficultyRaw) || (int) $powDifficultyRaw < 0 || (int) $powDifficultyRaw > 6) { $errors[] = 'PoW difficulty must be between 0 and 6.'; }
+            if (!is_numeric($dailyIpLimitRaw) || (int) $dailyIpLimitRaw < 1) { $errors[] = 'Daily IP limit must be numeric and >= 1.'; }
         }
 
         $maintenanceStartsAt = null;
@@ -185,10 +191,19 @@ final class AdminSettingsController
                 AppSettingsService::KEY_SECURITY_2FA_ADMIN_REQUIRED => $request->request->get('security_2fa_required_admin') === '1',
                 AppSettingsService::KEY_SECURITY_2FA_RESELLER_REQUIRED => $request->request->get('security_2fa_required_reseller') === '1',
                 AppSettingsService::KEY_SECURITY_2FA_CUSTOMER_REQUIRED => $request->request->get('security_2fa_required_customer') === '1',
+                AppSettingsService::KEY_REGISTRATION_ENABLED => $request->request->get('registration_enabled') === '1',
+                AppSettingsService::KEY_ANTI_ABUSE_ENABLE_POW_CONTACT => $request->request->get('anti_abuse_enable_pow_contact') === '1',
+                AppSettingsService::KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION => $request->request->get('anti_abuse_enable_pow_registration') === '1',
+                AppSettingsService::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION => $request->request->get('anti_abuse_enable_captcha_registration') === '1',
+                AppSettingsService::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT => $request->request->get('anti_abuse_enable_captcha_contact') === '1',
+                AppSettingsService::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS => $minSubmitSecondsRaw,
+                AppSettingsService::KEY_ANTI_ABUSE_POW_DIFFICULTY => $powDifficultyRaw,
+                AppSettingsService::KEY_ANTI_ABUSE_DAILY_IP_LIMIT => $dailyIpLimitRaw,
             ],
             'maintenance' => [
                 AppSettingsService::KEY_CMS_MAINTENANCE_ENABLED => $request->request->get('cms_maintenance_enabled') === '1',
                 AppSettingsService::KEY_CMS_MAINTENANCE_MESSAGE => trim((string) $request->request->get('cms_maintenance_message', '')),
+                AppSettingsService::KEY_CMS_MAINTENANCE_GRAPHIC => trim((string) $request->request->get('cms_maintenance_graphic', '')),
                 AppSettingsService::KEY_CMS_MAINTENANCE_ALLOWLIST => implode("\n", $this->normalizeAllowlist($maintenanceAllowlistRaw)),
                 AppSettingsService::KEY_CMS_MAINTENANCE_STARTS_AT => $maintenanceStartsAt?->format('Y-m-d\TH:i'),
                 AppSettingsService::KEY_CMS_MAINTENANCE_ENDS_AT => $maintenanceEndsAt?->format('Y-m-d\TH:i'),

@@ -70,7 +70,12 @@
 {% set cmsItems = [
     { key: 'cms-pages', label: t('cms_pages_title', page_locale()), href: path('admin_cms_pages') },
     { key: 'cms-blog', label: t('cms_blog_nav', page_locale()), href: path('admin_cms_blog_index') },
-    { key: 'public-servers', label: t('admin_nav_cms_gameservers', page_locale()), href: path('admin_public_servers') }
+    { key: 'cms-events', label: 'Events', href: path('admin_cms_events_index') },
+    { key: 'cms-team', label: 'Team', href: path('admin_cms_team_index') },
+    { key: 'cms-media', label: 'Media', href: path('admin_cms_media_index') },
+    { key: 'public-servers', label: t('admin_nav_cms_gameservers', page_locale()), href: path('admin_public_servers') },
+    { key: 'cms-forum', label: 'Forum', href: path('admin_cms_forum') },
+    { key: 'cms-settings', label: 'CMS Settings', href: path('admin_cms_settings') }
 ] %}
 
 {% set domainItems = [

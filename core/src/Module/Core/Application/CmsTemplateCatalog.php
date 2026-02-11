@@ -1114,22 +1114,22 @@ HTML;
             </thead>
             <tbody>
                 <tr class="border-t border-slate-200">
-                    <td class="px-4 py-2 font-medium">session</td>
+                    <td class="px-4 py-2 font-medium">easywi_session</td>
                     <td class="px-4 py-2">Anmeldung & Session-Steuerung</td>
-                    <td class="px-4 py-2">Sitzung</td>
-                    <td class="px-4 py-2">Essentiell</td>
+                    <td class="px-4 py-2">30 Tage</td>
+                    <td class="px-4 py-2">Notwendig</td>
                 </tr>
                 <tr class="border-t border-slate-200">
-                    <td class="px-4 py-2 font-medium">locale</td>
+                    <td class="px-4 py-2 font-medium">portal_language</td>
                     <td class="px-4 py-2">Sprachauswahl</td>
-                    <td class="px-4 py-2">1 Jahr</td>
-                    <td class="px-4 py-2">Funktional</td>
+                    <td class="px-4 py-2">12 Monate</td>
+                    <td class="px-4 py-2">Notwendig</td>
                 </tr>
                 <tr class="border-t border-slate-200">
-                    <td class="px-4 py-2 font-medium">cookie_preferences</td>
-                    <td class="px-4 py-2">Speichert deine Cookie-Einstellungen</td>
-                    <td class="px-4 py-2">1 Jahr</td>
-                    <td class="px-4 py-2">Funktional</td>
+                    <td class="px-4 py-2 font-medium">cookie_consent</td>
+                    <td class="px-4 py-2">Speichert deine Cookie-Einstellungen inkl. Versionsnummer</td>
+                    <td class="px-4 py-2">12 Monate</td>
+                    <td class="px-4 py-2">Notwendig</td>
                 </tr>
             </tbody>
         </table>

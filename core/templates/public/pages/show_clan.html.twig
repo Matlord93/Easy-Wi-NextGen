@@ -24,7 +24,7 @@
                     <a href="/teams" class="hover:text-white">Teams</a>
                     <a href="/server" class="hover:text-white">Server</a>
                     <a href="/events" class="hover:text-white">Events</a>
-                    <a href="/blog" class="hover:text-white">Blog</a>
+                    {% if module_toggles.blog|default(true) %}<a href="/blog" class="hover:text-white">Blog</a>{% endif %}
                     <a href="/ueber-uns" class="hover:text-white">Über uns</a>
                     <a href="/kontakt" class="hover:text-white">Kontakt</a>
                     <a href="https://shop.example.com" class="hover:text-white">Merch-Shop</a>
@@ -75,16 +75,7 @@
             <section class="space-y-6">
                 {% for block in blocks %}
                     <div class="rounded-2xl border border-emerald-500/20 bg-slate-900/80 p-6 shadow-xl backdrop-blur">
-                        {% if block.type in ['server_list', 'server_featured'] %}
-                            {% include 'public/servers/_server_list.html.twig' with {
-                                servers: block.servers,
-                                show_players: block.settings.show_players,
-                                show_join_button: block.settings.show_join_button,
-                                theme: 'emerald-dark'
-                            } %}
-                        {% else %}
-                            <div class="prose max-w-none text-slate-200">{{ block.content|raw }}</div>
-                        {% endif %}
+                        {% include 'public/blocks/_block.html.twig' with { block: block, theme: 'emerald-dark', text_class: 'text-slate-200' } only %}
                     </div>
                 {% else %}
                     <div class="rounded-2xl border border-emerald-500/20 bg-slate-900/80 p-6 text-sm text-emerald-100/70">Noch keine Inhalte vorhanden.</div>

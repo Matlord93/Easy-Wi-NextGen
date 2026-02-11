@@ -46,10 +46,19 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_SECURITY_2FA_CUSTOMER_REQUIRED = 'security_2fa_required_customer';
     public const KEY_CMS_MAINTENANCE_ENABLED = 'cms_maintenance_enabled';
     public const KEY_CMS_MAINTENANCE_MESSAGE = 'cms_maintenance_message';
+    public const KEY_CMS_MAINTENANCE_GRAPHIC = 'cms_maintenance_graphic';
     public const KEY_CMS_MAINTENANCE_ALLOWLIST = 'cms_maintenance_allowlist';
     public const KEY_CMS_MAINTENANCE_STARTS_AT = 'cms_maintenance_starts_at';
     public const KEY_CMS_MAINTENANCE_ENDS_AT = 'cms_maintenance_ends_at';
     public const KEY_AGENT_REGISTRATION_TOKEN = 'agent_registration_token';
+    public const KEY_REGISTRATION_ENABLED = 'registration_enabled';
+    public const KEY_ANTI_ABUSE_ENABLE_POW_CONTACT = 'anti_abuse_enable_pow_contact';
+    public const KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION = 'anti_abuse_enable_pow_registration';
+    public const KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION = 'anti_abuse_enable_captcha_registration';
+    public const KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT = 'anti_abuse_enable_captcha_contact';
+    public const KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS = 'anti_abuse_min_submit_seconds';
+    public const KEY_ANTI_ABUSE_POW_DIFFICULTY = 'anti_abuse_pow_difficulty';
+    public const KEY_ANTI_ABUSE_DAILY_IP_LIMIT = 'anti_abuse_daily_ip_limit';
 
     private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
 <div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
@@ -131,10 +140,19 @@ TWIG;
         self::KEY_SECURITY_2FA_CUSTOMER_REQUIRED => false,
         self::KEY_CMS_MAINTENANCE_ENABLED => false,
         self::KEY_CMS_MAINTENANCE_MESSAGE => null,
+        self::KEY_CMS_MAINTENANCE_GRAPHIC => null,
         self::KEY_CMS_MAINTENANCE_ALLOWLIST => null,
         self::KEY_CMS_MAINTENANCE_STARTS_AT => null,
         self::KEY_CMS_MAINTENANCE_ENDS_AT => null,
         self::KEY_AGENT_REGISTRATION_TOKEN => null,
+        self::KEY_REGISTRATION_ENABLED => false,
+        self::KEY_ANTI_ABUSE_ENABLE_POW_CONTACT => true,
+        self::KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION => true,
+        self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION => false,
+        self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT => false,
+        self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS => 2,
+        self::KEY_ANTI_ABUSE_POW_DIFFICULTY => 4,
+        self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT => 20,
     ];
 
     private const SECRET_KEYS = [
@@ -591,6 +609,11 @@ TWIG;
                 self::KEY_SECURITY_2FA_RESELLER_REQUIRED,
                 self::KEY_SECURITY_2FA_CUSTOMER_REQUIRED,
                 self::KEY_CMS_MAINTENANCE_ENABLED,
+                self::KEY_REGISTRATION_ENABLED,
+                self::KEY_ANTI_ABUSE_ENABLE_POW_CONTACT,
+                self::KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION,
+                self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION,
+                self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT,
             ], true)) {
                 $value = (bool) $value;
             }
@@ -603,6 +626,18 @@ TWIG;
 
             if ($key === self::KEY_SECURITY_SESSION_IDLE_MINUTES) {
                 $value = is_numeric($value) ? max(5, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_IDLE_MINUTES];
+            }
+
+            if ($key === self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS) {
+                $value = is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS];
+            }
+
+            if ($key === self::KEY_ANTI_ABUSE_POW_DIFFICULTY) {
+                $value = is_numeric($value) ? max(0, min(6, (int) $value)) : self::DEFAULTS[self::KEY_ANTI_ABUSE_POW_DIFFICULTY];
+            }
+
+            if ($key === self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT) {
+                $value = is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT];
             }
 
             $normalized[$key] = $value;
@@ -639,6 +674,46 @@ TWIG;
         }
 
         return $normalized;
+    }
+
+    public function isRegistrationEnabled(): bool
+    {
+        return (bool) ($this->getSettings()[self::KEY_REGISTRATION_ENABLED] ?? false);
+    }
+
+    public function isAntiAbusePowEnabledForContact(): bool
+    {
+        return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_POW_CONTACT] ?? true);
+    }
+
+    public function isAntiAbusePowEnabledForRegistration(): bool
+    {
+        return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION] ?? true);
+    }
+
+    public function isAntiAbuseCaptchaEnabledForRegistration(): bool
+    {
+        return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION] ?? false);
+    }
+
+    public function isAntiAbuseCaptchaEnabledForContact(): bool
+    {
+        return (bool) ($this->getSettings()[self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT] ?? false);
+    }
+
+    public function getAntiAbuseMinSubmitSeconds(): int
+    {
+        return (int) ($this->getSettings()[self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS] ?? 2);
+    }
+
+    public function getAntiAbusePowDifficulty(): int
+    {
+        return (int) ($this->getSettings()[self::KEY_ANTI_ABUSE_POW_DIFFICULTY] ?? 4);
+    }
+
+    public function getAntiAbuseDailyIpLimit(): int
+    {
+        return (int) ($this->getSettings()[self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT] ?? 20);
     }
 
     /**

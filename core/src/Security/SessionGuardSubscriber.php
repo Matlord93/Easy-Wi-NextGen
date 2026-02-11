@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Security;
 
 use App\Module\Setup\Application\InstallerService;
+use App\Security\PostLoginRedirectResolver;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
@@ -31,11 +33,6 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
 
     public function onKernelRequest(RequestEvent $event): void
     {
-        // ✅ never guard CLI commands
-        if (\PHP_SAPI === 'cli' || \PHP_SAPI === 'phpdbg') {
-            return;
-        }
-
         if (!$event->isMainRequest()) {
             return;
         }
@@ -45,7 +42,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         }
 
         $request = $event->getRequest();
-        $path = $request->getPathInfo();
+        $path = $this->normalizePath($request->getPathInfo());
         $routeName = $request->attributes->get('_route');
 
         $isPublic = $this->isPublicPath($path) || $this->isPublicRoute($routeName);
@@ -101,7 +98,14 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             || str_starts_with($path, '/install')
             || $path === '/logout'
             || $path === '/login'
+            || $path === '/2fa'
+            || $path === '/2fa_check'
+            || $path === '/2fa/qr'
+            || $path === '/profile/security'
+            || str_starts_with($path, '/profile/security/')
             || $path === '/register'
+            || $path === '/register/verify'
+            || $path === '/contact'
             || $path === '/status'
             || $path === '/changelog'
             || $path === '/downloads'
@@ -124,7 +128,10 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
         }
 
         return str_starts_with($routeName, 'public_cms_')
-            || str_starts_with($routeName, 'public_blog_');
+            || str_starts_with($routeName, 'public_forum_')
+            || str_starts_with($routeName, 'public_cookie_')
+            || str_starts_with($routeName, 'public_robots')
+            || str_starts_with($routeName, 'public_sitemap');
     }
 
     private function isUiRoute(string $path): bool
@@ -138,7 +145,20 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             return new JsonResponse(['error' => 'Unauthorized.'], Response::HTTP_UNAUTHORIZED);
         }
 
+        $path = $this->normalizePath($request->getPathInfo());
+        if ($this->isLoginRedirectPath($path)) {
+            $request->getSession()->set(PostLoginRedirectResolver::SESSION_TARGET_KEY, $path);
+
+            return new RedirectResponse('/login?target=' . rawurlencode($path));
+        }
+
         return new Response('Unauthorized.', Response::HTTP_UNAUTHORIZED);
+    }
+
+
+    private function isLoginRedirectPath(string $path): bool
+    {
+        return $path === '/profile' || $path === '/profile/edit' || $path === '/account/security' || str_starts_with($path, '/account/security/');
     }
 
     private function forbiddenResponse(Request $request): Response
@@ -163,8 +183,19 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
     {
         return $path === '/profile/security'
             || str_starts_with($path, '/profile/security/')
+            || $path === '/account/security'
+            || str_starts_with($path, '/account/security/')
             || $path === '/admin/profile'
             || str_starts_with($path, '/admin/profile/')
             || $path === '/logout';
+    }
+
+    private function normalizePath(string $path): string
+    {
+        if ($path === '/') {
+            return $path;
+        }
+
+        return rtrim($path, '/');
     }
 }

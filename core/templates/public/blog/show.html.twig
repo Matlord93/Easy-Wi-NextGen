@@ -1,38 +1,43 @@
-{% extends 'public/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
-{% set showPortalShell = false %}
-{% set contentClass = 'mx-auto w-full max-w-5xl px-4 py-10 sm:px-8' %}
-
-{% block title %}{{ post.title }} · {{ siteTitle }}{% endblock %}
+{% block head %}
+    <title>{{ post.seo_title ?: post.title }} · {{ siteTitle }}</title>
+    {% if post.seo_description %}<meta name="description" content="{{ post.seo_description }}">{% endif %}
+{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
-    <nav class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-xs uppercase tracking-[0.2em] text-slate-500 shadow-sm">
-        <div class="font-semibold text-slate-700">Blog</div>
-        <div class="flex flex-wrap gap-4 text-[11px] text-slate-500">
+<div class="mx-auto w-full max-w-5xl space-y-8 px-4 py-10 sm:px-6">
+    <nav class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 px-6 py-4 text-xs uppercase tracking-[0.2em] text-slate-400">
+        <div class="font-semibold text-slate-200">Blog</div>
+        <div class="flex flex-wrap gap-4 text-[11px] text-slate-400">
             {% for page in cms_pages %}
                 {% set link = page.slug == 'startseite' ? '/' : '/' ~ page.slug %}
-                <a href="{{ link }}" class="hover:text-slate-700">{{ page.title }}</a>
+                <a href="{{ link }}" class="hover:text-cyan-300">{{ page.title }}</a>
             {% endfor %}
-            <a href="/blog" class="hover:text-slate-700">{{ t('cms_blog_title', page_locale()) }}</a>
+            <a href="/blog" class="hover:text-cyan-300">{{ t('cms_blog_title', page_locale()) }}</a>
         </div>
         <div class="flex items-center gap-2 text-xs normal-case">
-            <a href="/blog" class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300">{{ t('cms_blog_back', page_locale()) }}</a>
+            <a href="/blog" class="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-slate-600">{{ t('cms_blog_back', page_locale()) }}</a>
         </div>
     </nav>
 
-    <article class="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+    <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 shadow-lg shadow-black/20">
         <header class="space-y-2">
-            <p class="text-xs uppercase tracking-[0.3em] text-indigo-500">{{ t('cms_blog_post', page_locale()) }}</p>
-            <h1 class="text-3xl font-semibold text-slate-900">{{ post.title }}</h1>
+            <p class="text-xs uppercase tracking-[0.3em] text-cyan-300">{{ t('cms_blog_post', page_locale()) }}</p>
+            <h1 class="text-3xl font-semibold text-slate-100">{{ post.title }}</h1>
             {% if post.published_at %}
-                <p class="text-xs text-slate-500">{{ post.published_at|date('d.m.Y') }}</p>
+                <p class="text-xs text-slate-400">{{ post.published_at|date('d.m.Y') }}</p>
             {% endif %}
+            {% if post.category %}<p class="text-xs text-slate-400">Category: {{ post.category.name }}</p>{% endif %}
+            {% if post.tags is not empty %}<p class="text-xs text-slate-400">Tags: {{ post.tags|map(t => t.name)|join(', ') }}</p>{% endif %}
         </header>
-        {% if post.excerpt %}
-            <p class="mt-4 text-sm text-slate-600">{{ post.excerpt }}</p>
+        {% if post.featured_image_path %}
+            <img src="{{ post.featured_image_path }}" alt="{{ post.title }}" class="mt-5 h-72 w-full rounded-lg object-cover" />
         {% endif %}
-        <div class="prose mt-6 max-w-none text-slate-700">
+        {% if post.excerpt %}
+            <p class="mt-4 text-sm text-slate-300">{{ post.excerpt }}</p>
+        {% endif %}
+        <div class="prose prose-invert mt-6 max-w-none text-slate-200">
             {{ post.content|raw }}
         </div>
     </article>

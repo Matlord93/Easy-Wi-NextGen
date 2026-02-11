@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\EventSubscriber;
 
-use Doctrine\DBAL\Exception as DbalException;
+use App\Module\Core\Application\MigrationStatusProviderInterface;
 use Doctrine\DBAL\Exception\DriverException;
 use Doctrine\DBAL\Exception\InvalidFieldNameException;
 use Doctrine\DBAL\Exception\TableNotFoundException;
@@ -30,6 +30,7 @@ final class DatabaseRecoverySubscriber implements EventSubscriberInterface
 
     public function __construct(
         private readonly UrlGeneratorInterface $urlGenerator,
+        private readonly MigrationStatusProviderInterface $migrationStatusProvider,
     ) {
     }
 
@@ -58,8 +59,25 @@ final class DatabaseRecoverySubscriber implements EventSubscriberInterface
             return;
         }
 
+        if (!$this->isRecoveryRequired()) {
+            return;
+        }
+
         $target = $this->urlGenerator->generate('system_recovery_database');
         $event->setResponse(new RedirectResponse($target, 302));
+    }
+
+    private function isRecoveryRequired(): bool
+    {
+        $status = $this->migrationStatusProvider->getMigrationStatus();
+        $pending = $status['pending'] ?? null;
+        $error = $status['error'] ?? null;
+
+        if (is_string($error) && $error !== '') {
+            return true;
+        }
+
+        return is_int($pending) && $pending > 0;
     }
 
     private function isSchemaMismatch(\Throwable $throwable): bool
@@ -79,11 +97,9 @@ final class DatabaseRecoverySubscriber implements EventSubscriberInterface
             }
         }
 
-        if ($throwable instanceof DbalException) {
-            $message = $throwable->getMessage();
-            if ($this->messageIndicatesMismatch($message)) {
-                return true;
-            }
+        $message = $throwable->getMessage();
+        if ($this->messageIndicatesMismatch($message)) {
+            return true;
         }
 
         $previous = $throwable->getPrevious();

@@ -1,0 +1,29 @@
+{% extends 'themes/esports/base.html.twig' %}
+{% set cms_pages = [] %}
+
+{% block content %}
+<section class="theme-wrap" style="max-width:880px;">
+  <div class="theme-card" style="padding:1.5rem;">
+    <p style="font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:#67e8f9;">Clan Access</p>
+    <h2 style="margin-top:.4rem;font-size:2rem;">Login</h2>
+    <p style="margin-top:.35rem;color:#9fb3d9;">Melde dich im Portal an, um auf Forum, Team-Bereiche und Panel zuzugreifen.</p>
+
+    {% for error in errors %}
+      <p class="error" style="margin-top:.75rem;">{{ error }}</p>
+    {% endfor %}
+
+    <form method="post" action="/login" style="margin-top:1rem;display:grid;gap:.65rem;">
+      <input type="hidden" name="target" value="{{ loginTarget|default('') }}">
+      <input name="email" type="email" value="{{ form.email }}" placeholder="E-Mail" required>
+      <input name="password" type="password" placeholder="Passwort" required>
+      <button type="submit">Einloggen</button>
+    </form>
+
+    {% if registrationAllowed %}
+      <a href="/register" class="theme-btn" style="margin-top:.85rem;display:inline-flex;">Jetzt registrieren</a>
+    {% else %}
+      <p style="margin-top:.85rem;color:#9fb3d9;font-size:.9rem;">Registrierung ist aktuell deaktiviert.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

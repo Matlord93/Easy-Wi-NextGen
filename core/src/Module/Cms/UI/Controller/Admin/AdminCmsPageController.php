@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Module\Cms\UI\Controller\Admin;
 
 use App\Module\Core\Application\AuditLogger;
-use App\Module\Core\Application\CmsTemplateManager;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsBlock;
 use App\Module\Core\Domain\Entity\CmsPage;
@@ -28,7 +27,6 @@ final class AdminCmsPageController
         private readonly SiteResolver $siteResolver,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
-        private readonly CmsTemplateManager $cmsTemplateManager,
         private readonly Environment $twig,
     ) {
     }
@@ -51,9 +49,6 @@ final class AdminCmsPageController
             'pages' => $this->normalizePages($pages),
             'summary' => $this->buildSummary($pages),
             'form' => $this->buildFormContext(),
-            'templateForm' => $this->buildTemplateFormContext($site->getCmsTemplateKey()),
-            'templates' => $this->cmsTemplateManager->listTemplates(),
-            'maintenanceForm' => $this->buildMaintenanceFormContext($site),
             'activeNav' => 'cms-pages',
         ]));
     }
@@ -115,7 +110,7 @@ final class AdminCmsPageController
     public function create(Request $request): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -155,7 +150,7 @@ final class AdminCmsPageController
     public function update(Request $request, string $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -214,7 +209,7 @@ final class AdminCmsPageController
     public function delete(Request $request, int $id): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -244,259 +239,11 @@ final class AdminCmsPageController
         return $response;
     }
 
-    #[Route(path: '/template', name: 'admin_cms_pages_template', methods: ['POST'])]
-    public function updateTemplate(Request $request): Response
-    {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
-        }
-
-        $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $formData = $this->parseTemplatePayload($request);
-        if ($formData['errors'] !== []) {
-            return $this->renderTemplateFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
-        }
-
-        $template = $this->cmsTemplateManager->getTemplate($formData['template_key']);
-        if ($template === null) {
-            return $this->renderTemplateFormWithErrors([
-                'errors' => ['Selected CMS template is invalid.'],
-                'template_key' => $formData['template_key'],
-                'apply_template' => $formData['apply_template'],
-            ], Response::HTTP_BAD_REQUEST);
-        }
-
-        $site->setCmsTemplateKey($formData['template_key']);
-
-        if ($formData['apply_template']) {
-            $this->cmsTemplateManager->applyTemplate($site, $template);
-        }
-
-        $this->entityManager->flush();
-
-        $this->auditLogger->log($actor, 'cms.template.selected', [
-            'site_id' => $site->getId(),
-            'template_key' => $formData['template_key'],
-            'applied' => $formData['apply_template'],
-        ]);
-        $this->entityManager->flush();
-
-        $response = new Response($this->twig->render('admin/cms/pages/_template_form.html.twig', [
-            'templateForm' => $this->buildTemplateFormContext($site->getCmsTemplateKey(), [
-                'success' => true,
-            ]),
-            'templates' => $this->cmsTemplateManager->listTemplates(),
-        ]));
-        $response->headers->set('HX-Trigger', 'cms-pages-changed');
-
-        return $response;
-    }
-
-    #[Route(path: '/{id}', name: 'admin_cms_pages_show', methods: ['GET'])]
-    public function show(Request $request, int $id): Response
-    {
-        if (!$this->isCmsUser($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
-        }
-
-        $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $page = $this->pageRepository->find($id);
-        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $blocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);
-
-        return new Response($this->twig->render('admin/cms/pages/show.html.twig', [
-            'page' => $this->normalizePage($page),
-            'blocks' => $this->normalizeBlocks($blocks),
-            'blockForm' => $this->buildBlockFormContext(),
-            'activeNav' => 'cms-pages',
-        ]));
-    }
-
-    #[Route(path: '/{id}/blocks/table', name: 'admin_cms_pages_blocks_table', methods: ['GET'])]
-    public function blocksTable(Request $request, int $id): Response
-    {
-        if (!$this->isCmsUser($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
-        }
-
-        $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $page = $this->pageRepository->find($id);
-        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $blocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);
-
-        return new Response($this->twig->render('admin/cms/pages/_blocks_table.html.twig', [
-            'blocks' => $this->normalizeBlocks($blocks),
-            'page' => $this->normalizePage($page),
-        ]));
-    }
-
-    #[Route(path: '/{id}/blocks/form', name: 'admin_cms_pages_blocks_form', methods: ['GET'])]
-    public function blockForm(Request $request, int $id): Response
-    {
-        if (!$this->isCmsUser($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
-        }
-
-        $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $page = $this->pageRepository->find($id);
-        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        return new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
-            'blockForm' => $this->buildBlockFormContext(),
-            'page' => $this->normalizePage($page),
-        ]));
-    }
-
-    #[Route(path: '/{id}/blocks/{blockId}/edit', name: 'admin_cms_pages_blocks_edit', methods: ['GET'])]
-    public function editBlock(Request $request, int $id, int $blockId): Response
-    {
-        if (!$this->isCmsUser($request)) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
-        }
-
-        $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $page = $this->pageRepository->find($id);
-        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $block = $this->blockRepository->find($blockId);
-        if (!$block instanceof CmsBlock || $block->getPage()->getId() !== $page->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        return new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
-            'blockForm' => $this->buildBlockFormContextFromBlock($block),
-            'page' => $this->normalizePage($page),
-        ]));
-    }
-
-    #[Route(path: '/{id}/blocks', name: 'admin_cms_pages_blocks_create', methods: ['POST'])]
-    public function createBlock(Request $request, int $id): Response
-    {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
-        }
-
-        $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $page = $this->pageRepository->find($id);
-        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
-            return new Response('Not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $formData = $this->parseBlockPayload($request);
-        if ($formData['errors'] !== []) {
-            $formData['page'] = $this->normalizePage($page);
-            return $this->renderBlockFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
-        }
-
-        $sortOrder = $this->blockRepository->count(['page' => $page]) + 1;
-        $block = new CmsBlock($page, $formData['type'], $formData['content'], $sortOrder);
-        $page->addBlock($block);
-
-        $this->entityManager->persist($block);
-        $this->entityManager->flush();
-
-        $this->auditLogger->log($actor, 'cms.block.created', [
-            'page_id' => $page->getId(),
-            'site_id' => $page->getSite()->getId(),
-            'block_id' => $block->getId(),
-            'type' => $block->getType(),
-            'sort_order' => $block->getSortOrder(),
-        ]);
-        $this->entityManager->flush();
-
-        $response = new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
-            'blockForm' => $this->buildBlockFormContext(),
-            'page' => $this->normalizePage($page),
-        ]));
-        $response->headers->set('HX-Trigger', 'cms-blocks-changed');
-
-        return $response;
-    }
-
-    #[Route(path: '/maintenance', name: 'admin_cms_pages_maintenance', methods: ['POST'])]
-    public function updateMaintenance(Request $request): Response
-    {
-        $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User) {
-            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
-        }
-
-        $site = $this->siteResolver->resolve($request);
-        if ($site === null) {
-            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
-        }
-
-        $formData = $this->parseMaintenancePayload($request);
-        if ($formData['errors'] !== []) {
-            return $this->renderMaintenanceFormWithErrors($site, $formData, Response::HTTP_BAD_REQUEST);
-        }
-
-        $site->setMaintenanceEnabled($formData['enabled']);
-        $site->setMaintenanceMessage($formData['message']);
-        $site->setMaintenanceAllowlist($formData['allowlist']);
-        $site->setMaintenanceStartsAt($formData['starts_at']);
-        $site->setMaintenanceEndsAt($formData['ends_at']);
-        $this->entityManager->flush();
-
-        $this->auditLogger->log($actor, 'cms.maintenance.updated', [
-            'site_id' => $site->getId(),
-            'enabled' => $formData['enabled'],
-            'starts_at' => $formData['starts_at']?->format(\DateTimeInterface::ATOM),
-            'ends_at' => $formData['ends_at']?->format(\DateTimeInterface::ATOM),
-        ]);
-        $this->entityManager->flush();
-
-        $response = new Response($this->twig->render('admin/cms/pages/_maintenance_form.html.twig', [
-            'maintenanceForm' => $this->buildMaintenanceFormContext($site, [
-                'success' => true,
-            ]),
-        ]));
-        $response->headers->set('HX-Trigger', 'cms-maintenance-changed');
-
-        return $response;
-    }
-
     #[Route(path: '/{id}/blocks/{blockId}', name: 'admin_cms_pages_blocks_update', methods: ['POST'])]
     public function updateBlock(Request $request, int $id, int $blockId): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -525,10 +272,15 @@ final class AdminCmsPageController
         $previous = [
             'type' => $block->getType(),
             'content' => $block->getContent(),
+            'version' => $block->getVersion(),
+            'payload_json' => $block->getPayloadJson(),
         ];
 
         $block->setType($formData['type']);
         $block->setContent($formData['content']);
+        $block->setVersion($formData['version']);
+        $block->setPayloadJson($formData['version'] === 2 ? $formData['payload'] : null);
+        $block->setSettingsJson($formData['version'] === 2 ? ['editor' => 'v2'] : null);
         $this->entityManager->flush();
 
         $this->auditLogger->log($actor, 'cms.block.updated', [
@@ -539,6 +291,8 @@ final class AdminCmsPageController
             'current' => [
                 'type' => $block->getType(),
                 'content' => $block->getContent(),
+                'version' => $block->getVersion(),
+                'payload_json' => $block->getPayloadJson(),
             ],
         ]);
         $this->entityManager->flush();
@@ -556,7 +310,7 @@ final class AdminCmsPageController
     public function deleteBlock(Request $request, int $id, int $blockId): Response
     {
         $actor = $request->attributes->get('current_user');
-        if (!$actor instanceof User) {
+        if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
@@ -591,11 +345,71 @@ final class AdminCmsPageController
         return $response;
     }
 
+    #[Route(path: '/{id}/blocks/{blockId}/move-up', name: 'admin_cms_pages_blocks_move_up', methods: ['POST'])]
+    public function moveBlockUp(Request $request, int $id, int $blockId): Response
+    {
+        return $this->moveBlock($request, $id, $blockId, -1);
+    }
+
+    #[Route(path: '/{id}/blocks/{blockId}/move-down', name: 'admin_cms_pages_blocks_move_down', methods: ['POST'])]
+    public function moveBlockDown(Request $request, int $id, int $blockId): Response
+    {
+        return $this->moveBlock($request, $id, $blockId, 1);
+    }
+
     private function isCmsUser(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
 
-        return $actor instanceof User;
+        return $actor instanceof User && $actor->isAdmin();
+    }
+
+    private function moveBlock(Request $request, int $id, int $blockId, int $direction): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $page = $this->pageRepository->find($id);
+        if (!$page instanceof CmsPage || $page->getSite()->getId() !== $site->getId()) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $blocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);
+        $currentIndex = null;
+        foreach ($blocks as $index => $candidate) {
+            if ($candidate->getId() === $blockId) {
+                $currentIndex = $index;
+                break;
+            }
+        }
+
+        if ($currentIndex === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $targetIndex = $currentIndex + $direction;
+        if (!isset($blocks[$targetIndex])) {
+            return new Response('', Response::HTTP_NO_CONTENT);
+        }
+
+        $current = $blocks[$currentIndex];
+        $target = $blocks[$targetIndex];
+        $currentOrder = $current->getSortOrder();
+        $current->setSortOrder($target->getSortOrder());
+        $target->setSortOrder($currentOrder);
+        $this->entityManager->flush();
+
+        $response = new Response('', Response::HTTP_NO_CONTENT);
+        $response->headers->set('HX-Trigger', 'cms-blocks-changed');
+
+        return $response;
     }
 
     private function buildSummary(array $pages): array
@@ -637,6 +451,9 @@ final class AdminCmsPageController
     {
         return array_map(function (CmsBlock $block): array {
             $preview = $block->getContent();
+            if ($block->getVersion() === 2 && is_array($block->getPayloadJson())) {
+                $preview = json_encode($block->getPayloadJson(), JSON_UNESCAPED_SLASHES) ?: 'V2 payload';
+            }
             if (in_array($block->getType(), ['server_list', 'server_featured'], true)) {
                 $preview = $this->buildServerBlockPreview($block->getContent());
             }
@@ -645,6 +462,8 @@ final class AdminCmsPageController
                 'id' => $block->getId(),
                 'type' => $block->getType(),
                 'content' => $block->getContent(),
+                'version' => $block->getVersion(),
+                'payload_json' => $block->getPayloadJson(),
                 'preview' => $preview,
                 'sort_order' => $block->getSortOrder(),
                 'updated_at' => $block->getUpdatedAt(),
@@ -681,7 +500,9 @@ final class AdminCmsPageController
             'id' => null,
             'errors' => [],
             'type' => '',
+            'version' => 1,
             'content' => '',
+            'payload' => $this->defaultV2Payload(''),
             'settings' => [
                 'game' => '',
                 'limit' => 5,
@@ -714,39 +535,14 @@ final class AdminCmsPageController
         return $this->buildBlockFormContext([
             'id' => $block->getId(),
             'type' => $block->getType(),
+            'version' => $block->getVersion(),
             'content' => $content,
+            'payload' => $this->mergeV2Payload($block->getType(), $block->getPayloadJson()),
             'settings' => $settings,
             'action' => 'update',
             'submit_label' => 'update_block',
             'submit_color' => 'bg-amber-500 hover:bg-amber-600',
         ]);
-    }
-
-    private function buildTemplateFormContext(?string $templateKey, ?array $overrides = null): array
-    {
-        $defaults = [
-            'errors' => [],
-            'template_key' => $templateKey ?? '',
-            'apply_template' => true,
-            'success' => false,
-        ];
-
-        return array_merge($defaults, $overrides ?? []);
-    }
-
-    private function buildMaintenanceFormContext(\App\Module\Core\Domain\Entity\Site $site, ?array $overrides = null): array
-    {
-        $defaults = [
-            'errors' => [],
-            'success' => false,
-            'enabled' => $site->isMaintenanceEnabled(),
-            'message' => $site->getMaintenanceMessage(),
-            'allowlist' => $site->getMaintenanceAllowlist(),
-            'starts_at' => $this->formatDateTime($site->getMaintenanceStartsAt()),
-            'ends_at' => $this->formatDateTime($site->getMaintenanceEndsAt()),
-        ];
-
-        return array_merge($defaults, $overrides ?? []);
     }
 
     private function parsePayload(Request $request, \App\Module\Core\Domain\Entity\Site $site, ?CmsPage $existingPage = null): array
@@ -779,6 +575,7 @@ final class AdminCmsPageController
         $errors = [];
         $type = trim((string) $request->request->get('type', ''));
         $content = trim((string) $request->request->get('content', ''));
+        $version = max(1, (int) $request->request->get('version', 1));
 
         if ($type === '') {
             $errors[] = 'Block type is required.';
@@ -791,6 +588,12 @@ final class AdminCmsPageController
             'show_players' => $request->request->get('server_show_players') === 'on',
             'show_join_button' => $request->request->get('server_show_join_button') === 'on',
         ];
+
+        $payload = null;
+
+        if ($version === 2 && !$isServerBlock) {
+            $payload = $this->parseV2Payload($type, $request, $errors);
+        }
 
         if ($isServerBlock) {
             $limitValue = is_numeric($settings['limit']) ? (int) $settings['limit'] : null;
@@ -814,33 +617,88 @@ final class AdminCmsPageController
             } else {
                 $content = $encoded;
             }
-        } elseif ($content === '') {
+        } elseif ($version !== 2 && $content === '') {
             $errors[] = 'Content is required.';
         }
 
         return [
             'errors' => $errors,
             'type' => $type,
+            'version' => $version,
             'content' => $content,
+            'payload' => $payload,
             'settings' => $settings,
         ];
     }
 
-    private function parseTemplatePayload(Request $request): array
+    /**
+     * @param array<int, string> $errors
+     * @return array<string, mixed>
+     */
+    private function parseV2Payload(string $type, Request $request, array &$errors): array
     {
-        $errors = [];
-        $templateKey = trim((string) $request->request->get('template_key', ''));
-        $applyTemplate = $request->request->get('apply_template') === 'on';
-
-        if ($templateKey === '') {
-            $errors[] = 'CMS template selection is required.';
+        if ($type === 'hero') {
+            return [
+                'headline' => trim((string) $request->request->get('hero_headline', '')),
+                'subheadline' => trim((string) $request->request->get('hero_subheadline', '')),
+                'backgroundImagePath' => trim((string) $request->request->get('hero_background_image_path', '')),
+                'ctaText' => trim((string) $request->request->get('hero_cta_text', '')),
+                'ctaUrl' => trim((string) $request->request->get('hero_cta_url', '')),
+            ];
         }
 
-        return [
-            'errors' => $errors,
-            'template_key' => $templateKey,
-            'apply_template' => $applyTemplate,
-        ];
+        if ($type === 'rich_text') {
+            $content = trim((string) $request->request->get('rich_text_content', ''));
+            if ($content === '') {
+                $errors[] = 'Rich text content is required.';
+            }
+
+            return ['content' => $content];
+        }
+
+        if ($type === 'image') {
+            $path = trim((string) $request->request->get('image_path', ''));
+            if ($path === '') {
+                $errors[] = 'Image path is required.';
+            }
+
+            return [
+                'path' => $path,
+                'alt' => trim((string) $request->request->get('image_alt', '')),
+                'caption' => trim((string) $request->request->get('image_caption', '')),
+            ];
+        }
+
+        if ($type === 'cards') {
+            $cardsRaw = trim((string) $request->request->get('cards_json', '[]'));
+            $decoded = json_decode($cardsRaw, true);
+            if (!is_array($decoded)) {
+                $errors[] = 'Cards JSON must be a valid JSON array.';
+                $decoded = [];
+            }
+
+            return ['cards' => $decoded];
+        }
+
+        $errors[] = 'Unsupported V2 block type.';
+
+        return [];
+    }
+
+    private function defaultV2Payload(string $type): array
+    {
+        return match ($type) {
+            'hero' => ['headline' => '', 'subheadline' => '', 'backgroundImagePath' => '', 'ctaText' => '', 'ctaUrl' => ''],
+            'rich_text' => ['content' => ''],
+            'image' => ['path' => '', 'alt' => '', 'caption' => ''],
+            'cards' => ['cards' => []],
+            default => [],
+        };
+    }
+
+    private function mergeV2Payload(string $type, ?array $payload): array
+    {
+        return array_replace_recursive($this->defaultV2Payload($type), $payload ?? []);
     }
 
     private function parseMaintenancePayload(Request $request): array
@@ -848,9 +706,14 @@ final class AdminCmsPageController
         $errors = [];
         $enabled = $request->request->get('maintenance_enabled') === 'on';
         $message = trim((string) $request->request->get('maintenance_message', ''));
+        $graphicPath = trim((string) $request->request->get('maintenance_graphic_path', ''));
         $allowlistRaw = trim((string) $request->request->get('maintenance_allowlist', ''));
         $startsRaw = trim((string) $request->request->get('maintenance_starts_at', ''));
         $endsRaw = trim((string) $request->request->get('maintenance_ends_at', ''));
+
+        if (!$this->isValidMaintenanceGraphicPath($graphicPath)) {
+            $errors[] = 'Maintenance graphic must be an absolute path (/...) or a valid URL.';
+        }
 
         $startsAt = $this->parseDateTimeInput($startsRaw, 'Start time is invalid.', $errors);
         $endsAt = $this->parseDateTimeInput($endsRaw, 'End time is invalid.', $errors);
@@ -870,6 +733,7 @@ final class AdminCmsPageController
             'errors' => $errors,
             'enabled' => $enabled,
             'message' => $message,
+            'graphic_path' => $graphicPath,
             'allowlist' => implode("\n", $allowlist),
             'starts_at' => $startsAt,
             'ends_at' => $endsAt,
@@ -903,14 +767,6 @@ final class AdminCmsPageController
         ]), $statusCode);
     }
 
-    private function renderTemplateFormWithErrors(array $formData, int $statusCode): Response
-    {
-        return new Response($this->twig->render('admin/cms/pages/_template_form.html.twig', [
-            'templateForm' => $this->buildTemplateFormContext($formData['template_key'] ?? null, $formData),
-            'templates' => $this->cmsTemplateManager->listTemplates(),
-        ]), $statusCode);
-    }
-
     private function renderMaintenanceFormWithErrors(\App\Module\Core\Domain\Entity\Site $site, array $formData, int $statusCode): Response
     {
         return new Response($this->twig->render('admin/cms/pages/_maintenance_form.html.twig', [
@@ -918,11 +774,25 @@ final class AdminCmsPageController
                 'errors' => $formData['errors'],
                 'enabled' => $formData['enabled'],
                 'message' => $formData['message'],
+                'graphic_path' => $formData['graphic_path'],
                 'allowlist' => $formData['allowlist'],
                 'starts_at' => $this->formatDateTime($formData['starts_at']),
                 'ends_at' => $this->formatDateTime($formData['ends_at']),
             ]),
         ]), $statusCode);
+    }
+
+    private function isValidMaintenanceGraphicPath(string $path): bool
+    {
+        if ($path === '') {
+            return true;
+        }
+
+        if (str_starts_with($path, '/')) {
+            return true;
+        }
+
+        return filter_var($path, FILTER_VALIDATE_URL) !== false;
     }
 
     /**

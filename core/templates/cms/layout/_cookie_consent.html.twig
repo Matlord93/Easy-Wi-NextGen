@@ -1,0 +1,197 @@
+<div id="cookie-banner" class="fixed inset-x-4 bottom-4 z-40 hidden rounded-2xl border border-slate-700 bg-slate-900 p-4 text-slate-100 shadow-lg sm:inset-x-auto sm:right-6 sm:max-w-lg">
+    <div class="flex flex-col gap-4">
+        <div>
+            <h2 class="text-sm font-semibold">{{ t('cookie_banner_title', page_locale()) }}</h2>
+            <p class="mt-2 text-xs text-slate-300">{{ t('cookie_banner_description', page_locale()) }}</p>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <button class="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800" data-cookie-reject>{{ t('cookie_reject_optional', page_locale()) }}</button>
+            <button class="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800" data-cookie-settings>{{ t('cookie_settings', page_locale()) }}</button>
+            <button class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500" data-cookie-accept>{{ t('cookie_accept_all', page_locale()) }}</button>
+        </div>
+    </div>
+</div>
+
+<div id="cookie-settings-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/70 px-4 py-6">
+    <div class="w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h2 class="text-lg font-semibold">{{ t('cookie_settings_title', page_locale()) }}</h2>
+                <p class="mt-2 text-sm text-slate-300">{{ t('cookie_settings_description', page_locale()) }}</p>
+            </div>
+            <button type="button" class="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-700" data-cookie-close>{{ t('cookie_settings_close', page_locale()) }}</button>
+        </div>
+
+        <div class="mt-6 space-y-4">
+            <div class="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-800 px-4 py-3">
+                <div>
+                    <p class="text-sm font-semibold">Notwendig</p>
+                    <p class="text-xs text-slate-300">Erforderlich für Login, Sicherheit und Kernfunktionen.</p>
+                </div>
+                <input type="checkbox" checked disabled class="h-4 w-4 rounded border-slate-500 text-slate-700">
+            </div>
+            <label class="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-900 px-4 py-3">
+                <div>
+                    <p class="text-sm font-semibold">Statistik</p>
+                    <p class="text-xs text-slate-300">Optionale Nutzungsanalyse zur Verbesserung der Plattform.</p>
+                </div>
+                <input type="checkbox" class="h-4 w-4 rounded border-slate-500 text-indigo-500" data-cookie-toggle="statistics">
+            </label>
+            <label class="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-900 px-4 py-3">
+                <div>
+                    <p class="text-sm font-semibold">Marketing</p>
+                    <p class="text-xs text-slate-300">Optionale Inhalte für Kampagnen und externe Angebote.</p>
+                </div>
+                <input type="checkbox" class="h-4 w-4 rounded border-slate-500 text-indigo-500" data-cookie-toggle="marketing">
+            </label>
+        </div>
+
+        <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button type="button" class="rounded-lg border border-slate-500 bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-white" data-cookie-close>{{ t('cookie_settings_close', page_locale()) }}</button>
+            <button type="button" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500" data-cookie-save>{{ t('cookie_settings_save', page_locale()) }}</button>
+        </div>
+    </div>
+</div>
+
+{% if cookie_has_consent('statistics') %}
+    <script data-optional-consent="statistics-enabled">window.__easywiConsentStatistics = true;</script>
+{% endif %}
+{% if cookie_has_consent('marketing') %}
+    <script data-optional-consent="marketing-enabled">window.__easywiConsentMarketing = true;</script>
+{% endif %}
+
+<script>
+    const consentCookieName = '{{ cookie_consent_cookie_name() }}';
+    const consentVersion = {{ cookie_consent_version() }};
+    const defaultConsent = {
+        version: consentVersion,
+        necessary: true,
+        statistics: false,
+        marketing: false,
+    };
+
+    const banner = document.getElementById('cookie-banner');
+    const modal = document.getElementById('cookie-settings-modal');
+    const toggles = Array.from(document.querySelectorAll('[data-cookie-toggle]'));
+
+    const getCookie = (name) => {
+        return document.cookie
+            .split('; ')
+            .find((row) => row.startsWith(name + '='))
+            ?.split('=')[1];
+    };
+
+    const readConsent = () => {
+        const stored = getCookie(consentCookieName);
+        if (!stored) {
+            return null;
+        }
+
+        try {
+            const parsed = JSON.parse(decodeURIComponent(stored));
+            return {
+                ...defaultConsent,
+                version: Number(parsed.version) || consentVersion,
+                statistics: Boolean(parsed.statistics),
+                marketing: Boolean(parsed.marketing),
+            };
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const setConsentCookieLocal = (consent) => {
+        const secureFlag = window.location.protocol === 'https:' ? '; secure' : '';
+        document.cookie = `${consentCookieName}=${encodeURIComponent(JSON.stringify(consent))}; path=/; max-age=31536000; samesite=lax${secureFlag}`;
+    };
+
+    const persistConsent = async (consent) => {
+        setConsentCookieLocal(consent);
+
+        try {
+            await fetch('/cookie-consent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(consent),
+                credentials: 'same-origin',
+            });
+        } catch (error) {
+            // fallback remains local cookie
+        }
+    };
+
+    const applyConsentToForm = (consent) => {
+        toggles.forEach((toggle) => {
+            const key = toggle.dataset.cookieToggle;
+            toggle.checked = Boolean(consent?.[key]);
+        });
+    };
+
+    const showBannerIfNeeded = () => {
+        const consent = readConsent();
+        if (!consent && banner) {
+            banner.classList.remove('hidden');
+        }
+
+        applyConsentToForm(consent || defaultConsent);
+    };
+
+    const openModal = () => {
+        if (!modal) {
+            return;
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    };
+
+    const closeModal = () => {
+        if (!modal) {
+            return;
+        }
+
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    };
+
+    document.querySelectorAll('[data-cookie-open], [data-cookie-settings]').forEach((button) => {
+        button.addEventListener('click', openModal);
+    });
+
+    document.querySelectorAll('[data-cookie-close]').forEach((button) => {
+        button.addEventListener('click', closeModal);
+    });
+
+    document.querySelector('[data-cookie-accept]')?.addEventListener('click', async () => {
+        const consent = {...defaultConsent, statistics: true, marketing: true};
+        await persistConsent(consent);
+        banner?.classList.add('hidden');
+        closeModal();
+        window.location.reload();
+    });
+
+    document.querySelector('[data-cookie-reject]')?.addEventListener('click', async () => {
+        await persistConsent(defaultConsent);
+        banner?.classList.add('hidden');
+        closeModal();
+        window.location.reload();
+    });
+
+    document.querySelector('[data-cookie-save]')?.addEventListener('click', async () => {
+        const consent = {
+            ...defaultConsent,
+            statistics: Boolean(document.querySelector('[data-cookie-toggle="statistics"]')?.checked),
+            marketing: Boolean(document.querySelector('[data-cookie-toggle="marketing"]')?.checked),
+        };
+
+        await persistConsent(consent);
+        banner?.classList.add('hidden');
+        closeModal();
+        window.location.reload();
+    });
+
+    showBannerIfNeeded();
+</script>
