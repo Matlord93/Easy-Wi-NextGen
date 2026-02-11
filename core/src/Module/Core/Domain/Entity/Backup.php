@@ -43,6 +43,21 @@ class Backup implements ResourceEventSource
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $completedAt = null;
 
+    #[ORM\Column(type: 'bigint', nullable: true)]
+    private ?int $sizeBytes = null;
+
+    #[ORM\Column(length: 128, nullable: true)]
+    private ?string $checksumSha256 = null;
+
+    #[ORM\Column(length: 1024, nullable: true)]
+    private ?string $archivePath = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $errorCode = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $errorMessage = null;
+
     public function __construct(BackupDefinition $definition, BackupStatus $status)
     {
         $this->definition = $definition;
@@ -92,11 +107,66 @@ class Backup implements ResourceEventSource
         return $this->completedAt;
     }
 
+
+    public function getSizeBytes(): ?int
+    {
+        return $this->sizeBytes;
+    }
+
+    public function setSizeBytes(?int $sizeBytes): void
+    {
+        $this->sizeBytes = $sizeBytes;
+        $this->touch();
+    }
+
+    public function getChecksumSha256(): ?string
+    {
+        return $this->checksumSha256;
+    }
+
+    public function setChecksumSha256(?string $checksumSha256): void
+    {
+        $this->checksumSha256 = $checksumSha256;
+        $this->touch();
+    }
+
+    public function getArchivePath(): ?string
+    {
+        return $this->archivePath;
+    }
+
+    public function setArchivePath(?string $archivePath): void
+    {
+        $this->archivePath = $archivePath;
+        $this->touch();
+    }
+
+    public function getErrorCode(): ?string
+    {
+        return $this->errorCode;
+    }
+
+    public function getErrorMessage(): ?string
+    {
+        return $this->errorMessage;
+    }
+
+    public function setError(?string $errorCode, ?string $errorMessage): void
+    {
+        $this->errorCode = $errorCode;
+        $this->errorMessage = $errorMessage;
+        $this->touch();
+    }
+
     public function markStatus(BackupStatus $status, ?\DateTimeImmutable $completedAt = null): void
     {
         $this->status = $status;
         if ($completedAt !== null) {
             $this->completedAt = $completedAt;
+        }
+        if ($status === BackupStatus::Succeeded) {
+            $this->errorCode = null;
+            $this->errorMessage = null;
         }
         $this->touch();
     }

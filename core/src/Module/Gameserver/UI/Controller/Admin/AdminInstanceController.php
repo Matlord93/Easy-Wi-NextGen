@@ -7,11 +7,10 @@ namespace App\Module\Gameserver\UI\Controller\Admin;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
-use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
-use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use App\Module\Core\Domain\Entity\InvoicePreferences;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
@@ -27,8 +26,12 @@ use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use App\Repository\AgentRepository;
+use App\Repository\BackupScheduleRepository;
+use App\Repository\InstanceMetricSampleRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\InstanceScheduleRepository;
 use App\Repository\InstanceSftpCredentialRepository;
+use App\Repository\JobRepository;
 use App\Repository\TemplateRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -49,6 +52,10 @@ final class AdminInstanceController
 
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
+        private readonly InstanceScheduleRepository $instanceScheduleRepository,
+        private readonly BackupScheduleRepository $backupScheduleRepository,
+        private readonly JobRepository $jobRepository,
         private readonly UserRepository $userRepository,
         private readonly TemplateRepository $templateRepository,
         private readonly AgentRepository $agentRepository,
@@ -57,10 +64,10 @@ final class AdminInstanceController
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly EncryptionService $encryptionService,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly AppSettingsService $appSettingsService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
-        private readonly EncryptionService $encryptionService,
         private readonly InstanceInstallService $instanceInstallService,
         private readonly InstanceQueryService $instanceQueryService,
         private readonly AgentGameServerClient $agentGameServerClient,
@@ -85,6 +92,7 @@ final class AdminInstanceController
         return new Response($this->twig->render('admin/instances/index.html.twig', [
             'instances' => $normalizedInstances,
             'summary' => $this->buildSummary($normalizedInstances),
+            'ops' => $this->buildOpsSummary($normalizedInstances),
             'activeNav' => 'game-instances',
         ]));
     }
@@ -396,18 +404,20 @@ final class AdminInstanceController
         $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
         if ($credential === null) {
             $username = $this->buildSftpUsername($instance);
-            $password = $this->generateSftpPassword();
-            $encryptedPassword = $this->encryptionService->encrypt($password);
-
-            $credential = new InstanceSftpCredential($instance, $username, $encryptedPassword);
+            $credential = new InstanceSftpCredential($instance, $username, $this->encryptionService->encrypt(bin2hex(random_bytes(24))));
+            $credential->setRotatedAt(null);
+            $credential->setExpiresAt((new \DateTimeImmutable('+30 days'))->setTimezone(new \DateTimeZone('UTC')));
             $this->entityManager->persist($credential);
+            $this->entityManager->flush();
 
             $job = new Job('instance.sftp.credentials.reset', [
                 'instance_id' => (string) $instance->getId(),
                 'customer_id' => (string) $instance->getCustomer()->getId(),
                 'agent_id' => $instance->getNode()->getId(),
+                'credential_id' => $credential->getId(),
                 'username' => $username,
-                'password' => $password,
+                'rotate' => true,
+                'expires_at' => $credential->getExpiresAt()?->format(DATE_RFC3339),
             ]);
             $this->entityManager->persist($job);
 
@@ -416,6 +426,8 @@ final class AdminInstanceController
                 'customer_id' => $instance->getCustomer()->getId(),
                 'job_id' => $job->getId(),
                 'username' => $username,
+                'credential_id' => $credential->getId(),
+                'rotate' => true,
             ]);
             $this->entityManager->flush();
         }
@@ -940,11 +952,12 @@ final class AdminInstanceController
             $installStatus = $this->instanceInstallService->getInstallStatus($instance);
             $portBlock = $portBlockIndex[$instance->getId()] ?? null;
             $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, false);
-            $runtimeStatus = $this->resolveRuntimeStatus($instance)
-                ?? (is_string($querySnapshot['status'] ?? null)
-                    ? strtolower((string) $querySnapshot['status'])
-                    : null);
+            $runtimeState = $this->resolveRuntimeState($instance, $querySnapshot);
+            $runtimeStatus = $runtimeState['status'];
             $displayStatus = $this->resolveDisplayStatus($instance, $runtimeStatus);
+            $instanceMetric = $this->instanceMetricSampleRepository->findLatestForInstance($instance);
+            $bookedRamBytes = (int) $instance->getRamLimit() * 1024 * 1024;
+            $usedRamBytes = $instanceMetric?->getMemUsedBytes();
 
             return [
                 'id' => $instance->getId(),
@@ -954,6 +967,9 @@ final class AdminInstanceController
                 'node' => $instance->getNode()->getName() ?? $instance->getNode()->getId(),
                 'cpu_limit' => $instance->getCpuLimit(),
                 'ram_limit' => $instance->getRamLimit(),
+                'booked_cpu_cores' => (float) $instance->getCpuLimit(),
+                'booked_ram_bytes' => $bookedRamBytes,
+                'booked_ram_mb' => $instance->getRamLimit(),
                 'disk_limit' => $instance->getDiskLimit(),
                 'disk_limit_bytes' => $diskLimitBytes,
                 'disk_used_bytes' => $diskUsedBytes,
@@ -965,6 +981,13 @@ final class AdminInstanceController
                 'disk_scan_error' => $instance->getDiskScanError(),
                 'status' => $instance->getStatus()->value,
                 'display_status' => $displayStatus,
+                'runtime_status' => $runtimeStatus,
+                'runtime_status_reason' => $runtimeState['reason'],
+                'runtime_status_error_code' => $runtimeState['error_code'],
+                'runtime_status_last_checked_at' => $runtimeState['checked_at'],
+                'instance_cpu_percent' => $instanceMetric?->getCpuPercent(),
+                'instance_mem_used_bytes' => $usedRamBytes,
+                'instance_mem_percent' => ($usedRamBytes !== null && $bookedRamBytes > 0) ? (($usedRamBytes / $bookedRamBytes) * 100) : null,
                 'current_slots' => $instance->getCurrentSlots(),
                 'max_slots' => $instance->getMaxSlots(),
                 'lock_slots' => $instance->isLockSlots(),
@@ -996,20 +1019,43 @@ final class AdminInstanceController
         return $status->value;
     }
 
-    private function resolveRuntimeStatus(Instance $instance): ?string
+    /**
+     * @param array<string, mixed> $querySnapshot
+     * @return array{status: ?string, reason: ?string, error_code: ?string, checked_at: string}
+     */
+    private function resolveRuntimeState(Instance $instance, array $querySnapshot): array
     {
+        $checkedAt = (new \DateTimeImmutable())->format(DATE_ATOM);
+
         try {
             $status = $this->agentGameServerClient->getInstanceStatus($instance);
-        } catch (\Throwable) {
-            return null;
+        } catch (\Throwable $exception) {
+            $queryStatus = is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null;
+
+            return [
+                'status' => $queryStatus,
+                'reason' => sprintf('Agent status probe failed: %s', $exception->getMessage()),
+                'error_code' => 'agent_status_probe_failed',
+                'checked_at' => $checkedAt,
+            ];
         }
 
         $statusValue = $status['status'] ?? null;
         if (!is_string($statusValue)) {
-            return null;
+            return [
+                'status' => is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null,
+                'reason' => 'Agent status response missing status field.',
+                'error_code' => 'agent_status_missing_field',
+                'checked_at' => $checkedAt,
+            ];
         }
 
-        return strtolower($statusValue);
+        return [
+            'status' => strtolower($statusValue),
+            'reason' => null,
+            'error_code' => null,
+            'checked_at' => $checkedAt,
+        ];
     }
 
     /**
@@ -1037,10 +1083,6 @@ final class AdminInstanceController
         return sprintf('sftp%d', $instance->getId());
     }
 
-    private function generateSftpPassword(): string
-    {
-        return bin2hex(random_bytes(12));
-    }
 
     private function buildSummary(array $instances): array
     {
@@ -1072,6 +1114,61 @@ final class AdminInstanceController
         }
 
         return $summary;
+    }
+
+    private function buildOpsSummary(array $instances): array
+    {
+        $offlineAgents = [];
+        $diskProblemCount = 0;
+        $runtimeUnknownCount = 0;
+
+        foreach ($instances as $instance) {
+            if (($instance['disk_state'] ?? 'ok') !== 'ok') {
+                $diskProblemCount++;
+            }
+
+            $runtimeStatus = (string) ($instance['runtime_status'] ?? '');
+            if ($runtimeStatus === '' || $runtimeStatus === 'unknown') {
+                $runtimeUnknownCount++;
+            }
+
+            if ((string) ($instance['runtime_status_error_code'] ?? '') === 'agent_status_probe_failed') {
+                $offlineAgents[(string) ($instance['node'] ?? 'unknown')] = true;
+            }
+        }
+
+        $failedJobs = [];
+        foreach ($this->jobRepository->findLatest(300) as $job) {
+            if ($job->getStatus()->value !== 'failed') {
+                continue;
+            }
+
+            $errorCode = $job->getLastErrorCode() ?? 'unknown';
+            $failedJobs[$errorCode] = ($failedJobs[$errorCode] ?? 0) + 1;
+        }
+        arsort($failedJobs);
+
+        $blockedSchedules = 0;
+        foreach ($this->instanceScheduleRepository->findBy([], ['updatedAt' => 'DESC'], 500) as $schedule) {
+            if (!in_array($schedule->getLastStatus(), ['blocked', 'skipped'], true)) {
+                continue;
+            }
+            $blockedSchedules++;
+        }
+        foreach ($this->backupScheduleRepository->findBy([], ['updatedAt' => 'DESC'], 500) as $schedule) {
+            if (!in_array($schedule->getLastStatus(), ['blocked', 'skipped'], true)) {
+                continue;
+            }
+            $blockedSchedules++;
+        }
+
+        return [
+            'offline_agents' => count($offlineAgents),
+            'disk_problem_instances' => $diskProblemCount,
+            'runtime_unknown_instances' => $runtimeUnknownCount,
+            'failed_jobs_by_error' => array_slice($failedJobs, 0, 5, true),
+            'blocked_schedules' => $blockedSchedules,
+        ];
     }
 
     private function isAdmin(Request $request): bool

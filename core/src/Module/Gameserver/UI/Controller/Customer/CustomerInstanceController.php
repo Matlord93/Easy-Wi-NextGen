@@ -10,6 +10,7 @@ use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\SetupChecker;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSchedule;
 use App\Module\Core\Domain\Entity\Job;
@@ -25,10 +26,14 @@ use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\InstanceQueryService;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Ports\Infrastructure\Repository\PortAllocationRepository;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\BackupDefinitionRepository;
+use App\Repository\BackupRepository;
+use App\Repository\BackupTargetRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\InstanceMetricSampleRepository;
 use App\Repository\InstanceScheduleRepository;
 use App\Repository\JobRepository;
 use Cron\CronExpression;
@@ -40,6 +45,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Twig\Environment;
 
 #[Route(path: '/instances')]
@@ -48,8 +54,12 @@ final class CustomerInstanceController
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
+        private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
         private readonly PortBlockRepository $portBlockRepository,
+        private readonly PortAllocationRepository $portAllocationRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
+        private readonly BackupRepository $backupRepository,
+        private readonly BackupTargetRepository $backupTargetRepository,
         private readonly JobRepository $jobRepository,
         private readonly GamePluginRepository $gamePluginRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
@@ -63,8 +73,10 @@ final class CustomerInstanceController
         private readonly AgentGameServerClient $agentGameServerClient,
         private readonly SetupChecker $setupChecker,
         private readonly AppSettingsService $appSettingsService,
+        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
+        private readonly UrlGeneratorInterface $urlGenerator,
     ) {
     }
 
@@ -607,6 +619,51 @@ final class CustomerInstanceController
             throw new BadRequestHttpException('Invalid action.');
         }
 
+        $runtimeState = $this->resolveRuntimeState($instance, $this->instanceQueryService->getSnapshot($instance, null, false));
+        if (($runtimeState['status'] ?? null) === 'unknown') {
+            return $this->powerConflictResponse(
+                $request,
+                $instance,
+                $runtimeState['reason'] ?? 'Instance runtime state is unknown.',
+                'instance_state_unknown',
+                15,
+            );
+        }
+
+        if (in_array($instance->getStatus(), [InstanceStatus::Provisioning, InstanceStatus::PendingSetup], true)) {
+            return $this->powerConflictResponse(
+                $request,
+                $instance,
+                'Instance is currently transitioning. Please retry shortly.',
+                'instance_transitioning',
+                20,
+            );
+        }
+
+        $activePowerJob = $this->findActivePowerJob($instance);
+        if ($activePowerJob !== null) {
+            if ($activePowerJob->getType() === $jobType) {
+                if ($this->prefersJsonResponse($request)) {
+                    return $this->responseEnvelopeFactory->success(
+                        $request,
+                        $activePowerJob->getId(),
+                        'Power action already in progress.',
+                        JsonResponse::HTTP_ACCEPTED,
+                    );
+                }
+
+                return $this->renderInstanceCard($instance, 'Power action already in progress.', null);
+            }
+
+            return $this->powerConflictResponse(
+                $request,
+                $instance,
+                'Another power action is already running.',
+                'power_action_in_progress',
+                10,
+            );
+        }
+
         $payload = [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $customer->getId(),
@@ -637,11 +694,12 @@ final class CustomerInstanceController
         };
 
         if ($this->prefersJsonResponse($request)) {
-            return new JsonResponse([
-                'job_id' => $job->getId(),
-                'status' => 'queued',
-                'message' => $notice,
-            ], JsonResponse::HTTP_ACCEPTED);
+            return $this->responseEnvelopeFactory->success(
+                $request,
+                $job->getId(),
+                $notice,
+                JsonResponse::HTTP_ACCEPTED,
+            );
         }
 
         return $this->renderInstanceCard($instance, $notice, null);
@@ -727,13 +785,20 @@ final class CustomerInstanceController
         $diskLimitBytes = $instance->getDiskLimitBytes();
         $diskUsedBytes = $instance->getDiskUsedBytes();
         $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
-        $connection = $this->buildConnectionData($instance, $portBlock);
+        $ports = $this->normalizeInstancePorts($instance);
+        $connection = $this->buildConnectionData($instance, $portBlock, $ports);
         $querySnapshot = $this->instanceQueryService->getSnapshot($instance, $portBlock, $queueQuery);
         $installStatus = $this->instanceInstallService->getInstallStatus($instance);
         $instanceStatus = $instance->getStatus();
-        $runtimeStatus = $this->resolveRuntimeStatus($instance)
-            ?? (is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null);
+        $runtimeState = $this->resolveRuntimeState($instance, $querySnapshot);
+        $instanceMetric = $this->instanceMetricSampleRepository->findLatestForInstance($instance);
+        $bookedRamBytes = (int) $instance->getRamLimit() * 1024 * 1024;
+        $usedRamBytes = $instanceMetric?->getMemUsedBytes();
+        $ramPercent = ($usedRamBytes !== null && $bookedRamBytes > 0) ? (($usedRamBytes / $bookedRamBytes) * 100) : null;
+        $runtimeStatus = $runtimeState['status'];
         $displayStatus = $this->resolveDisplayStatus($instance, $runtimeStatus);
+        $activePowerJob = $this->findActivePowerJob($instance);
+        $powerState = $this->resolvePowerState($instance, $runtimeStatus, $runtimeState, $activePowerJob);
 
         return [
             'id' => $instance->getId(),
@@ -750,6 +815,10 @@ final class CustomerInstanceController
             'status' => $instance->getStatus()->value,
             'display_status' => $displayStatus,
             'runtime_status' => $runtimeStatus,
+            'runtime_status_reason' => $runtimeState['reason'],
+            'runtime_status_error_code' => $runtimeState['error_code'],
+            'runtime_status_last_checked_at' => $runtimeState['checked_at'],
+            'power' => $powerState,
             'update_policy' => $instance->getUpdatePolicy()->value,
             'current_build_id' => $instance->getCurrentBuildId(),
             'current_version' => $instance->getCurrentVersion(),
@@ -772,14 +841,38 @@ final class CustomerInstanceController
             'current_slots' => $instance->getCurrentSlots(),
             'max_slots' => $instance->getMaxSlots(),
             'lock_slots' => $instance->isLockSlots(),
+            'slots_configured' => $instance->getCurrentSlots() > 0 ? $instance->getCurrentSlots() : null,
+            'slots_effective' => isset($querySnapshot['max_players']) && is_numeric($querySnapshot['max_players']) && (int) $querySnapshot['max_players'] > 0
+                ? (int) $querySnapshot['max_players']
+                : null,
             'install_ready' => $installStatus['is_ready'] ?? false,
             'install_error_code' => $installStatus['error_code'] ?? null,
             'query' => $querySnapshot,
+            'query_players_online' => isset($querySnapshot['players']) && is_numeric($querySnapshot['players']) ? (int) $querySnapshot['players'] : null,
+            'query_players_max' => isset($querySnapshot['max_players']) && is_numeric($querySnapshot['max_players']) ? (int) $querySnapshot['max_players'] : null,
+            'query_checked_at' => $querySnapshot['checked_at'] ?? null,
+            'query_reason' => $querySnapshot['error'] ?? null,
+            'booked_cpu_cores' => (float) $instance->getCpuLimit(),
+            'booked_ram_bytes' => $bookedRamBytes,
+            'booked_ram_mb' => $instance->getRamLimit(),
+            'instance_cpu_percent' => $instanceMetric?->getCpuPercent(),
+            'instance_mem_used_bytes' => $usedRamBytes,
+            'instance_mem_percent' => $ramPercent,
+            'instance_tasks_current' => $instanceMetric?->getTasksCurrent(),
+            'instance_metrics_checked_at' => $instanceMetric?->getCollectedAt(),
+            'instance_metrics_reason' => $instanceMetric?->getErrorCode(),
             'connection' => $connection,
+            'ports' => $ports,
+            'ports_state' => $ports === [] ? 'pending' : 'ready',
+            'has_ports' => $ports !== [],
             'schedule' => $schedule === null ? null : [
                 'cron_expression' => $schedule->getCronExpression(),
                 'time_zone' => $schedule->getTimeZone() ?? 'UTC',
                 'enabled' => $schedule->isEnabled(),
+                'last_run_at' => $schedule->getLastRunAt()?->format(DATE_ATOM),
+                'last_status' => $schedule->getLastStatus(),
+                'last_error_code' => $schedule->getLastErrorCode(),
+                'next_run_at' => $this->calculateNextRunAt($schedule->getCronExpression(), $schedule->getTimeZone() ?? 'UTC'),
             ],
             'notice' => $notice,
             'error' => $error,
@@ -804,20 +897,117 @@ final class CustomerInstanceController
         return $status->value;
     }
 
-    private function resolveRuntimeStatus(Instance $instance): ?string
+    /**
+     * @param array<string, mixed> $querySnapshot
+     * @return array{status: ?string, reason: ?string, error_code: ?string, checked_at: string}
+     */
+    private function resolveRuntimeState(Instance $instance, array $querySnapshot): array
     {
+        $checkedAt = (new \DateTimeImmutable())->format(DATE_ATOM);
+
         try {
             $status = $this->agentGameServerClient->getInstanceStatus($instance);
-        } catch (\Throwable) {
-            return null;
+        } catch (\Throwable $exception) {
+            $queryStatus = is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null;
+
+            return [
+                'status' => $queryStatus,
+                'reason' => sprintf('Agent status probe failed: %s', $exception->getMessage()),
+                'error_code' => 'agent_status_probe_failed',
+                'checked_at' => $checkedAt,
+            ];
         }
 
         $statusValue = $status['status'] ?? null;
         if (!is_string($statusValue)) {
+            return [
+                'status' => is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null,
+                'reason' => 'Agent status response missing status field.',
+                'error_code' => 'agent_status_missing_field',
+                'checked_at' => $checkedAt,
+            ];
+        }
+
+        return [
+            'status' => strtolower($statusValue),
+            'reason' => null,
+            'error_code' => null,
+            'checked_at' => $checkedAt,
+        ];
+    }
+
+    private function findActivePowerJob(Instance $instance): ?Job
+    {
+        $instanceId = $instance->getId();
+        if ($instanceId === null) {
             return null;
         }
 
-        return strtolower($statusValue);
+        return $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+        ], $instanceId);
+    }
+
+    /**
+     * @return array{disabled: bool, reason: ?string, active_job_id: ?string, retry_after: ?int}
+     */
+    private function resolvePowerState(Instance $instance, ?string $runtimeStatus, array $runtimeState, ?Job $activePowerJob): array
+    {
+        if (in_array($instance->getStatus(), [InstanceStatus::Provisioning, InstanceStatus::PendingSetup], true)) {
+            return [
+                'disabled' => true,
+                'reason' => 'Instance is currently transitioning. Please retry shortly.',
+                'active_job_id' => null,
+                'retry_after' => 20,
+            ];
+        }
+
+        if ($activePowerJob !== null) {
+            return [
+                'disabled' => true,
+                'reason' => 'Power action already in progress.',
+                'active_job_id' => $activePowerJob->getId(),
+                'retry_after' => 10,
+            ];
+        }
+
+        if ($runtimeStatus === 'unknown') {
+            return [
+                'disabled' => true,
+                'reason' => (string) ($runtimeState['reason'] ?? 'Instance runtime state is unknown.'),
+                'active_job_id' => null,
+                'retry_after' => 15,
+            ];
+        }
+
+        return [
+            'disabled' => false,
+            'reason' => null,
+            'active_job_id' => null,
+            'retry_after' => null,
+        ];
+    }
+
+    private function powerConflictResponse(
+        Request $request,
+        Instance $instance,
+        string $message,
+        string $errorCode,
+        int $retryAfter,
+    ): Response {
+        if ($this->prefersJsonResponse($request)) {
+            return $this->responseEnvelopeFactory->error(
+                $request,
+                $message,
+                $errorCode,
+                JsonResponse::HTTP_CONFLICT,
+                $retryAfter,
+            );
+        }
+
+        return $this->renderInstanceCard($instance, null, $message);
     }
 
     private function normalizeConfigFiles(array $configFiles): array
@@ -852,7 +1042,7 @@ final class CustomerInstanceController
     }
 
     /**
-     * @return array<int, array{id: int, name: string, version: string, description: ?string}>
+     * @return array<int, array<string, mixed>>
      */
     private function normalizePlugins(Instance $instance): array
     {
@@ -861,12 +1051,38 @@ final class CustomerInstanceController
             ['name' => 'ASC'],
         );
 
-        return array_map(static fn ($plugin) => [
-            'id' => $plugin->getId(),
-            'name' => $plugin->getName(),
-            'version' => $plugin->getVersion(),
-            'description' => $plugin->getDescription(),
-        ], $plugins);
+        $installedVersions = [];
+        $installedRaw = $instance->getConfigOverrides()['addons'] ?? [];
+        if (is_array($installedRaw)) {
+            foreach ($installedRaw as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $name = strtolower(trim((string) ($entry['name'] ?? '')));
+                if ($name === '') {
+                    continue;
+                }
+                $installedVersions[$name] = trim((string) ($entry['version'] ?? ''));
+            }
+        }
+
+        return array_map(static function ($plugin) use ($installedVersions): array {
+            $latestVersion = $plugin->getVersion();
+            $installedVersion = $installedVersions[strtolower($plugin->getName())] ?? null;
+            $installedVersion = is_string($installedVersion) && trim($installedVersion) !== '' ? trim($installedVersion) : null;
+
+            return [
+                'id' => $plugin->getId(),
+                'name' => $plugin->getName(),
+                'version' => $latestVersion,
+                'latest_version' => $latestVersion,
+                'installed_version' => $installedVersion,
+                'is_installed' => $installedVersion !== null,
+                'can_update' => $installedVersion !== null && $installedVersion !== $latestVersion,
+                'can_remove' => $installedVersion !== null,
+                'description' => $plugin->getDescription(),
+            ];
+        }, $plugins);
     }
 
     private function normalizeBackupDefinitions(User $customer, Instance $instance): array
@@ -890,11 +1106,103 @@ final class CustomerInstanceController
                     'retention_days' => $schedule->getRetentionDays(),
                     'retention_count' => $schedule->getRetentionCount(),
                     'enabled' => $schedule->isEnabled(),
+                    'time_zone' => $schedule->getTimeZone(),
+                    'compression' => $schedule->getCompression(),
+                    'stop_before' => $schedule->isStopBefore(),
+                    'backup_target_id' => $schedule->getBackupTarget()?->getId(),
+                    'last_run_at' => $schedule->getLastRunAt()?->format(DATE_ATOM),
+                    'last_status' => $schedule->getLastStatus(),
+                    'last_error_code' => $schedule->getLastErrorCode(),
+                    'next_run_at' => $this->calculateNextRunAt($schedule->getCronExpression(), $schedule->getTimeZone()),
                 ],
             ];
         }
 
         return $results;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeBackupTargets(User $customer): array
+    {
+        $targets = $this->backupTargetRepository->findByCustomer($customer);
+
+        return array_map(static fn ($target): array => [
+            'id' => $target->getId(),
+            'label' => $target->getLabel(),
+            'type' => $target->getType()->value,
+            'enabled' => $target->isEnabled(),
+        ], array_values(array_filter($targets, static fn ($target): bool => $target->isEnabled())));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function normalizeBackupDefaults(): array
+    {
+        $settings = $this->appSettingsService->getSettings();
+
+        return [
+            'target_id' => is_scalar($settings[AppSettingsService::KEY_BACKUP_DEFAULT_TARGET_ID] ?? null)
+                ? (string) $settings[AppSettingsService::KEY_BACKUP_DEFAULT_TARGET_ID]
+                : null,
+            'retention_count' => (int) ($settings[AppSettingsService::KEY_BACKUP_DEFAULT_RETENTION_COUNT] ?? 7),
+            'retention_days' => (int) ($settings[AppSettingsService::KEY_BACKUP_DEFAULT_RETENTION_AGE_DAYS] ?? 30),
+            'compression' => (string) ($settings[AppSettingsService::KEY_BACKUP_DEFAULT_COMPRESSION] ?? 'gzip'),
+            'stop_before' => (bool) ($settings[AppSettingsService::KEY_BACKUP_STOP_BEFORE] ?? false),
+        ];
+    }
+
+    private function calculateNextRunAt(string $cronExpression, string $timeZone): ?string
+    {
+        if (!CronExpression::isValidExpression($cronExpression)) {
+            return null;
+        }
+
+        try {
+            $tz = new \DateTimeZone($timeZone !== '' ? $timeZone : 'UTC');
+        } catch (\Throwable) {
+            $tz = new \DateTimeZone('UTC');
+        }
+
+        try {
+            $next = CronExpression::factory($cronExpression)->getNextRunDate('now', 0, true, $tz->getName());
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $next->format(DATE_ATOM);
+    }
+
+    private function normalizeBackupsForInstance(User $customer, Instance $instance): array
+    {
+        $definitions = $this->backupDefinitionRepository->findByCustomer($customer);
+        $matched = [];
+        foreach ($definitions as $definition) {
+            if ($definition->getTargetType() !== BackupTargetType::Game) {
+                continue;
+            }
+            if ($definition->getTargetId() !== (string) $instance->getId()) {
+                continue;
+            }
+            $matched[] = $definition;
+        }
+
+        $backups = $this->backupRepository->findByDefinitions($matched);
+
+        return array_map(static fn (\App\Module\Core\Domain\Entity\Backup $backup): array => [
+            'id' => $backup->getId(),
+            'definition_id' => $backup->getDefinition()->getId(),
+            'status' => $backup->getStatus()->value,
+            'job_id' => $backup->getJob()?->getId(),
+            'created_at' => $backup->getCreatedAt()->format(DATE_ATOM),
+            'completed_at' => $backup->getCompletedAt()?->format(DATE_ATOM),
+            'size_bytes' => $backup->getSizeBytes(),
+            'checksum_sha256' => $backup->getChecksumSha256(),
+            'error_code' => $backup->getErrorCode(),
+            'error_message' => $backup->getErrorMessage(),
+        ], $backups);
     }
 
     private function normalizeJobsForInstance(Instance $instance): array
@@ -924,57 +1232,70 @@ final class CustomerInstanceController
             [
                 'key' => 'overview',
                 'label' => 'customer_instance_tab_overview',
-                'href' => sprintf('/instances/%d?tab=overview', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'overview'),
             ],
             [
                 'key' => 'setup',
+                'label' => 'customer_instance_tab_setup',
+                'href' => $this->instanceTabUrl($instanceId, 'setup'),
+            ],
+            [
+                'key' => 'configs',
                 'label' => 'customer_instance_tab_configs',
-                'href' => sprintf('/instances/%d?tab=setup', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'configs'),
             ],
             $this->appSettingsService->isCustomerDataManagerEnabled() ? [
                 'key' => 'files',
                 'label' => 'customer_instance_tab_files',
-                'href' => sprintf('/instances/%d?tab=files', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'files'),
             ] : null,
             [
                 'key' => 'addons',
                 'label' => 'customer_instance_tab_addons',
-                'href' => sprintf('/instances/%d?tab=addons', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'addons'),
             ],
             [
                 'key' => 'restart_planner',
                 'label' => 'customer_instance_tab_restart_planner',
-                'href' => sprintf('/instances/%d?tab=restart_planner', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'restart_planner'),
             ],
             [
                 'key' => 'backups',
                 'label' => 'customer_instance_tab_backups',
-                'href' => sprintf('/instances/%d?tab=backups', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'backups'),
             ],
             [
                 'key' => 'console',
                 'label' => $this->appSettingsService->getCustomerConsoleLabel() ?? 'customer_instance_tab_console',
                 'label_is_key' => $this->appSettingsService->getCustomerConsoleLabel() === null,
-                'href' => sprintf('/instances/%d?tab=console', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'console'),
             ],
             [
                 'key' => 'settings',
                 'label' => 'customer_instance_tab_settings',
-                'href' => sprintf('/instances/%d?tab=settings', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'settings'),
             ],
             [
                 'key' => 'reinstall',
                 'label' => 'customer_instance_tab_reinstall',
-                'href' => sprintf('/instances/%d?tab=reinstall', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'reinstall'),
             ],
             [
                 'key' => 'tasks',
                 'label' => 'customer_instance_tab_tasks',
-                'href' => sprintf('/instances/%d?tab=tasks', $instanceId),
+                'href' => $this->instanceTabUrl($instanceId, 'tasks'),
             ],
         ];
 
         return array_values(array_filter($tabs));
+    }
+
+    private function instanceTabUrl(int $instanceId, string $tab): string
+    {
+        return $this->urlGenerator->generate('customer_instance_detail', [
+            'id' => $instanceId,
+            'tab' => $tab,
+        ]);
     }
 
     private function resolveTab(string $tab): string
@@ -983,6 +1304,7 @@ final class CustomerInstanceController
             'overview',
             'setup',
             'addons',
+            'configs',
             'restart_planner',
             'backups',
             'console',
@@ -1024,6 +1346,8 @@ final class CustomerInstanceController
             'cron_expression' => $restartSchedule->getCronExpression(),
             'time_zone' => $restartSchedule->getTimeZone() ?? 'UTC',
             'enabled' => $restartSchedule->isEnabled(),
+            'last_run_at' => $restartSchedule->getLastQueuedAt()?->format(DATE_ATOM),
+            'next_run_at' => $this->calculateNextRunAt($restartSchedule->getCronExpression(), $restartSchedule->getTimeZone() ?? 'UTC'),
         ];
 
         $tabs = $this->buildTabs($instance->getId() ?? 0);
@@ -1040,6 +1364,9 @@ final class CustomerInstanceController
             'fastdl' => $this->normalizeFastdlSettings($instance->getTemplate()->getFastdlSettings()),
             'restartSchedule' => $restartScheduleView,
             'backups' => $this->normalizeBackupDefinitions($customer, $instance),
+            'backupHistory' => $this->normalizeBackupsForInstance($customer, $instance),
+            'backupTargets' => $this->normalizeBackupTargets($customer),
+            'backupDefaults' => $this->normalizeBackupDefaults(),
             'jobs' => $this->normalizeJobsForInstance($instance),
             'activeNav' => 'instances',
             'tabs' => $tabs,
@@ -1381,35 +1708,27 @@ final class CustomerInstanceController
         };
     }
 
-    private function buildConnectionData(Instance $instance, ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock): array
+    private function buildConnectionData(Instance $instance, ?\App\Module\Ports\Domain\Entity\PortBlock $portBlock, array $ports): array
     {
         $host = $instance->getNode()->getLastHeartbeatIp();
-        $requiredPorts = $instance->getTemplate()->getRequiredPorts();
         $assignedPorts = [];
         $primaryPort = null;
 
-        if ($portBlock !== null) {
-            $ports = $portBlock->getPorts();
-
-            foreach ($requiredPorts as $index => $definition) {
-                if (!isset($ports[$index])) {
-                    continue;
-                }
-
-                $label = (string) ($definition['name'] ?? 'port');
-                $protocol = (string) ($definition['protocol'] ?? 'udp');
-                $assignedPorts[] = [
-                    'label' => sprintf('%s/%s', $label, $protocol),
-                    'port' => $ports[$index],
-                ];
-
-                if ($primaryPort === null) {
-                    $primaryPort = $ports[$index];
-                }
+        foreach ($ports as $portEntry) {
+            $label = (string) ($portEntry['name'] ?? 'port');
+            $protocol = (string) ($portEntry['protocol'] ?? 'udp');
+            $port = (int) ($portEntry['port'] ?? 0);
+            if ($port <= 0) {
+                continue;
             }
 
-            if ($primaryPort === null && isset($ports[0])) {
-                $primaryPort = $ports[0];
+            $assignedPorts[] = [
+                'label' => sprintf('%s/%s', $label, $protocol),
+                'port' => $port,
+            ];
+
+            if ($primaryPort === null) {
+                $primaryPort = $port;
             }
         }
 
@@ -1425,5 +1744,27 @@ final class CustomerInstanceController
             ],
             'assigned_ports' => $assignedPorts,
         ];
+    }
+
+    /**
+     * @return array<int, array{name: string, port: int, protocol: string, bind_ip: ?string, is_auto: bool, purpose: ?string, created_at: string}>
+     */
+    private function normalizeInstancePorts(Instance $instance): array
+    {
+        $allocations = $this->portAllocationRepository->findByInstanceOrdered($instance);
+
+        return array_map(static function (\App\Module\Ports\Domain\Entity\PortAllocation $allocation): array {
+            $strategy = strtolower($allocation->getAllocationStrategy());
+
+            return [
+                'name' => $allocation->getRoleKey(),
+                'port' => $allocation->getPort(),
+                'protocol' => strtolower($allocation->getProto()),
+                'bind_ip' => null,
+                'is_auto' => !in_array($strategy, ['manual', 'custom', 'user', 'user_selected', 'admin', 'admin_selected'], true),
+                'purpose' => $allocation->getPurpose(),
+                'created_at' => $allocation->getCreatedAt()->format(DATE_ATOM),
+            ];
+        }, $allocations);
     }
 }

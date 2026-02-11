@@ -485,7 +485,7 @@ final class CustomerInstanceFileManagerController
     }
 
     /**
-     * @return array<int, array{id: int, name: string, version: string, description: ?string}>
+     * @return array<int, array<string, mixed>>
      */
     private function normalizePlugins(Instance $instance): array
     {
@@ -494,12 +494,38 @@ final class CustomerInstanceFileManagerController
             ['name' => 'ASC'],
         );
 
-        return array_map(static fn ($plugin) => [
-            'id' => $plugin->getId(),
-            'name' => $plugin->getName(),
-            'version' => $plugin->getVersion(),
-            'description' => $plugin->getDescription(),
-        ], $plugins);
+        $installedVersions = [];
+        $installedRaw = $instance->getConfigOverrides()['addons'] ?? [];
+        if (is_array($installedRaw)) {
+            foreach ($installedRaw as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $name = strtolower(trim((string) ($entry['name'] ?? '')));
+                if ($name === '') {
+                    continue;
+                }
+                $installedVersions[$name] = trim((string) ($entry['version'] ?? ''));
+            }
+        }
+
+        return array_map(static function ($plugin) use ($installedVersions): array {
+            $latestVersion = $plugin->getVersion();
+            $installedVersion = $installedVersions[strtolower($plugin->getName())] ?? null;
+            $installedVersion = is_string($installedVersion) && trim($installedVersion) !== '' ? trim($installedVersion) : null;
+
+            return [
+                'id' => $plugin->getId(),
+                'name' => $plugin->getName(),
+                'version' => $latestVersion,
+                'latest_version' => $latestVersion,
+                'installed_version' => $installedVersion,
+                'is_installed' => $installedVersion !== null,
+                'can_update' => $installedVersion !== null && $installedVersion !== $latestVersion,
+                'can_remove' => $installedVersion !== null,
+                'description' => $plugin->getDescription(),
+            ];
+        }, $plugins);
     }
 
     private function queueListingJob(Instance $instance, User $actor, string $path): Job

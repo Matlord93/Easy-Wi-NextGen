@@ -9,6 +9,7 @@ use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\JobPayloadMasker;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
@@ -49,6 +50,7 @@ final class CustomerJobApiController
         private readonly PortBlockRepository $portBlockRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
+        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
     ) {
     }
 
@@ -66,7 +68,34 @@ final class CustomerJobApiController
         }
 
         if (!$this->appSettingsService->isGameserverStartStopAllowed() && in_array($jobType, ['instance.start', 'instance.stop', 'instance.restart'], true)) {
-            return new JsonResponse(['error' => 'Start/stop actions are disabled.'], JsonResponse::HTTP_FORBIDDEN);
+            return $this->responseEnvelopeFactory->error(
+                $request,
+                'Start/stop actions are disabled.',
+                'start_stop_disabled',
+                JsonResponse::HTTP_FORBIDDEN,
+            );
+        }
+
+        if (in_array($jobType, ['instance.start', 'instance.stop', 'instance.restart'], true)) {
+            $activePowerJob = $this->findActivePowerJob($instance);
+            if ($activePowerJob !== null) {
+                if ($activePowerJob->getType() === $jobType) {
+                    return $this->responseEnvelopeFactory->success(
+                        $request,
+                        $activePowerJob->getId(),
+                        'Power action already in progress.',
+                        JsonResponse::HTTP_ACCEPTED,
+                    );
+                }
+
+                return $this->responseEnvelopeFactory->error(
+                    $request,
+                    'Another power action is already running.',
+                    'power_action_in_progress',
+                    JsonResponse::HTTP_CONFLICT,
+                    10,
+                );
+            }
         }
 
         $blocked = $this->guardSetupRequirements($instance, $jobType);
@@ -81,7 +110,12 @@ final class CustomerJobApiController
         if (in_array($jobType, ['instance.reinstall', 'instance.backup.create', 'instance.backup.restore', 'instance.addon.install', 'instance.addon.remove', 'instance.addon.update'], true)) {
             $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
             if ($blockMessage !== null) {
-                return new JsonResponse(['error' => $blockMessage], JsonResponse::HTTP_BAD_REQUEST);
+                return $this->responseEnvelopeFactory->error(
+                    $request,
+                    $blockMessage,
+                    'disk_quota_blocked',
+                    JsonResponse::HTTP_BAD_REQUEST,
+                );
             }
         }
 
@@ -107,9 +141,15 @@ final class CustomerJobApiController
 
         $this->messageBus->dispatch(new RunInstanceActionMessage($job->getId()));
 
-        return new JsonResponse([
-            'job' => $this->normalizeJob($job),
-        ], JsonResponse::HTTP_ACCEPTED);
+        return $this->responseEnvelopeFactory->success(
+            $request,
+            $job->getId(),
+            'Job queued.',
+            JsonResponse::HTTP_ACCEPTED,
+            [
+                'job' => $this->normalizeJob($job),
+            ],
+        );
     }
 
     #[Route(path: '/api/customer/jobs/{jobId}', name: 'customer_job_api_show', methods: ['GET'])]
@@ -222,6 +262,20 @@ final class CustomerJobApiController
         }
 
         throw new AccessDeniedHttpException('Forbidden.');
+    }
+
+    private function findActivePowerJob(Instance $instance): ?Job
+    {
+        $instanceId = $instance->getId();
+        if ($instanceId === null) {
+            return null;
+        }
+
+        return $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+        ], $instanceId);
     }
 
     /**

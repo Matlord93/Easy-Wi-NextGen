@@ -50,6 +50,15 @@ class InstanceSchedule implements ResourceEventSource
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastQueuedAt = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastRunAt = null;
+
+    #[ORM\Column(length: 32, nullable: true)]
+    private ?string $lastStatus = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $lastErrorCode = null;
+
     public function __construct(
         Instance $instance,
         User $customer,
@@ -134,6 +143,29 @@ class InstanceSchedule implements ResourceEventSource
         $this->cronExpression = $cronExpression;
         $this->timeZone = $timeZone;
         $this->enabled = $enabled;
+        $this->touch();
+    }
+
+    public function getLastRunAt(): ?\DateTimeImmutable
+    {
+        return $this->lastRunAt;
+    }
+
+    public function getLastStatus(): ?string
+    {
+        return $this->lastStatus;
+    }
+
+    public function getLastErrorCode(): ?string
+    {
+        return $this->lastErrorCode;
+    }
+
+    public function markRun(\DateTimeImmutable $runAt, string $status, ?string $errorCode = null): void
+    {
+        $this->lastRunAt = $runAt;
+        $this->lastStatus = $status;
+        $this->lastErrorCode = $errorCode;
         $this->touch();
     }
 

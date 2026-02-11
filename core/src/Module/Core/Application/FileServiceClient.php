@@ -563,6 +563,9 @@ final class FileServiceClient
     private function normalizeRelativePath(string $path): string
     {
         $path = str_replace('\\', '/', trim($path));
+        if (str_starts_with($path, '/')) {
+            throw new FileServiceException('path_outside_instance_root', 'Absolute paths are not allowed.', 400);
+        }
         $path = trim($path, '/');
         if ($path === '') {
             return '';
@@ -576,7 +579,7 @@ final class FileServiceClient
                 continue;
             }
             if ($segment === '..') {
-                throw new \RuntimeException('Path traversal is not allowed.');
+                throw new FileServiceException('path_outside_instance_root', 'Path traversal is not allowed.', 400);
             }
             $safe[] = $segment;
         }
@@ -610,10 +613,10 @@ final class FileServiceClient
     private function assertValidName(string $name): void
     {
         if ($name === '' || $name === '.' || $name === '..') {
-            throw new \RuntimeException('Invalid name.');
+            throw new FileServiceException('invalid_path', 'Invalid name.', 400);
         }
         if (str_contains($name, '/') || str_contains($name, '\\') || str_contains($name, "\0")) {
-            throw new \RuntimeException('Invalid name.');
+            throw new FileServiceException('invalid_path', 'Invalid name.', 400);
         }
     }
 

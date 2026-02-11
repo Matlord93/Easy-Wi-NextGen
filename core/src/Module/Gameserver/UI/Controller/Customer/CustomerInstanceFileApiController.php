@@ -6,10 +6,12 @@ namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InstanceRepository;
 use Psr\Log\LoggerInterface;
@@ -27,16 +29,19 @@ use Symfony\Component\Routing\Attribute\Route;
 final class CustomerInstanceFileApiController
 {
     private const int EDITOR_MAX_BYTES = 1_048_576;
+    private const int UPLOAD_MAX_BYTES = 104_857_600;
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly FileServiceClient $fileService,
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $appSettingsService,
+        private readonly DiskEnforcementService $diskEnforcementService,
         private readonly LoggerInterface $logger,
         #[Autowire(service: 'limiter.instance_files_uploads')]
         private readonly RateLimiterFactory $uploadsLimiter,
         #[Autowire(service: 'limiter.instance_files_commands')]
         private readonly RateLimiterFactory $commandsLimiter,
+        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
     ) {
     }
 
@@ -182,6 +187,36 @@ final class CustomerInstanceFileApiController
         if (!$upload instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
             throw new BadRequestHttpException('Missing upload.');
         }
+
+        $uploadBytes = $this->resolveUploadBytes($request, $upload);
+        $maxUploadBytes = $this->getMaxUploadBytes();
+        if ($uploadBytes > $maxUploadBytes) {
+            return $this->errorResponse(
+                $request,
+                'file_too_large',
+                sprintf('Upload exceeds maximum size of %d bytes.', $maxUploadBytes),
+                JsonResponse::HTTP_REQUEST_ENTITY_TOO_LARGE,
+                [
+                    'max_bytes' => $maxUploadBytes,
+                    'upload_bytes' => $uploadBytes,
+                ],
+            );
+        }
+
+        $quotaBlock = $this->diskEnforcementService->guardUpload($instance, $uploadBytes);
+        if ($quotaBlock !== null) {
+            return $this->errorResponse(
+                $request,
+                'disk_quota_exceeded',
+                $quotaBlock,
+                JsonResponse::HTTP_CONFLICT,
+                [
+                    'disk_state' => $instance->getDiskState()->value,
+                    'upload_bytes' => $uploadBytes,
+                ],
+            );
+        }
+
         if ($this->isProtectedFilename($upload->getClientOriginalName())) {
             return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
         }
@@ -225,6 +260,20 @@ final class CustomerInstanceFileApiController
         }
         if ($this->isProtectedFilename($name)) {
             return $this->errorResponse($request, 'files_protected', 'File is protected.', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $quotaBlock = $this->diskEnforcementService->guardUpload($instance, strlen($content));
+        if ($quotaBlock !== null) {
+            return $this->errorResponse(
+                $request,
+                'disk_quota_exceeded',
+                $quotaBlock,
+                JsonResponse::HTTP_CONFLICT,
+                [
+                    'disk_state' => $instance->getDiskState()->value,
+                    'upload_bytes' => strlen($content),
+                ],
+            );
         }
 
         try {
@@ -431,6 +480,17 @@ final class CustomerInstanceFileApiController
             throw new BadRequestHttpException('Missing archive name.');
         }
 
+        $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
+        if ($blockMessage !== null) {
+            return $this->errorResponse(
+                $request,
+                'disk_quota_exceeded',
+                $blockMessage,
+                JsonResponse::HTTP_CONFLICT,
+                ['disk_state' => $instance->getDiskState()->value],
+            );
+        }
+
         try {
             $this->fileService->extract($instance, $path, $name, $destination);
         } catch (\RuntimeException $exception) {
@@ -533,7 +593,7 @@ final class CustomerInstanceFileApiController
 
         if ($exception instanceof FileServiceException) {
             $statusCode = $exception->getStatusCode();
-            $errorCode = $exception->getErrorCode();
+            $errorCode = $this->normalizeFileErrorCode($exception->getErrorCode());
             $details = $exception->getDetails();
         }
 
@@ -585,7 +645,7 @@ final class CustomerInstanceFileApiController
 
         if ($exception instanceof FileServiceException) {
             $statusCode = $exception->getStatusCode();
-            $errorCode = $exception->getErrorCode();
+            $errorCode = $this->normalizeFileErrorCode($exception->getErrorCode());
             $details = $exception->getDetails();
         }
 
@@ -619,7 +679,7 @@ final class CustomerInstanceFileApiController
 
         if ($exception instanceof FileServiceException) {
             $statusCode = $exception->getStatusCode();
-            $errorCode = $exception->getErrorCode();
+            $errorCode = $this->normalizeFileErrorCode($exception->getErrorCode());
             $errorDetails = array_merge($details, $exception->getDetails());
         }
 
@@ -635,6 +695,16 @@ final class CustomerInstanceFileApiController
         ]);
 
         return $this->errorResponse($request, $errorCode, $exception->getMessage(), $statusCode, $errorDetails);
+    }
+
+
+    private function normalizeFileErrorCode(string $errorCode): string
+    {
+        return match (strtoupper(trim($errorCode))) {
+            'INVALID_PATH' => 'invalid_path',
+            'PATH_OUTSIDE_INSTANCE_ROOT' => 'path_outside_instance_root',
+            default => strtolower(trim($errorCode)) !== '' ? strtolower(trim($errorCode)) : 'files_action_failed',
+        };
     }
 
     private function assertEditorContent(string $content): void
@@ -714,19 +784,36 @@ final class CustomerInstanceFileApiController
      */
     private function errorResponse(Request $request, string $code, string $message, int $statusCode, array $details = []): JsonResponse
     {
-        $payload = [
-            'error' => [
-                'code' => $code,
-                'message' => $message,
-                'request_id' => $this->getRequestId($request),
-            ],
-        ];
+        $extra = $details === [] ? [] : ['details' => $details];
 
-        if ($details !== []) {
-            $payload['error']['details'] = $details;
+        return $this->responseEnvelopeFactory->error(
+            $request,
+            $message,
+            $code,
+            $statusCode,
+            null,
+            $extra,
+        );
+    }
+
+    private function getMaxUploadBytes(): int
+    {
+        return self::UPLOAD_MAX_BYTES;
+    }
+
+    private function resolveUploadBytes(Request $request, \Symfony\Component\HttpFoundation\File\UploadedFile $upload): int
+    {
+        $uploadSize = (int) ($upload->getSize() ?? 0);
+        if ($uploadSize > 0) {
+            return $uploadSize;
         }
 
-        return new JsonResponse($payload, $statusCode);
+        $contentLength = (int) $request->headers->get('Content-Length', '0');
+        if ($contentLength > 0) {
+            return $contentLength;
+        }
+
+        return 0;
     }
 
     /**

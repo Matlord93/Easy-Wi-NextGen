@@ -59,6 +59,13 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS = 'anti_abuse_min_submit_seconds';
     public const KEY_ANTI_ABUSE_POW_DIFFICULTY = 'anti_abuse_pow_difficulty';
     public const KEY_ANTI_ABUSE_DAILY_IP_LIMIT = 'anti_abuse_daily_ip_limit';
+    public const KEY_BACKUP_DEFAULT_TARGET_ID = 'backup_default_target_id';
+    public const KEY_BACKUP_DEFAULT_RETENTION_COUNT = 'backup_default_retention_count';
+    public const KEY_BACKUP_DEFAULT_RETENTION_AGE_DAYS = 'backup_default_retention_age_days';
+    public const KEY_BACKUP_DEFAULT_COMPRESSION = 'backup_default_compression';
+    public const KEY_BACKUP_STOP_BEFORE = 'backup_stop_before';
+    public const KEY_BACKUP_MAX_SIZE_BYTES = 'backup_max_size_bytes';
+    public const KEY_BACKUP_WEBDAV_VERIFY_TLS = 'backup_webdav_verify_tls';
 
     private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
 <div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
@@ -153,6 +160,13 @@ TWIG;
         self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS => 2,
         self::KEY_ANTI_ABUSE_POW_DIFFICULTY => 4,
         self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT => 20,
+        self::KEY_BACKUP_DEFAULT_TARGET_ID => null,
+        self::KEY_BACKUP_DEFAULT_RETENTION_COUNT => 7,
+        self::KEY_BACKUP_DEFAULT_RETENTION_AGE_DAYS => 30,
+        self::KEY_BACKUP_DEFAULT_COMPRESSION => 'gzip',
+        self::KEY_BACKUP_STOP_BEFORE => false,
+        self::KEY_BACKUP_MAX_SIZE_BYTES => null,
+        self::KEY_BACKUP_WEBDAV_VERIFY_TLS => true,
     ];
 
     private const SECRET_KEYS = [

@@ -17,6 +17,7 @@ use App\Module\Core\Domain\Entity\DdosPolicy;
 use App\Module\Core\Domain\Entity\DdosStatus;
 use App\Module\Core\Domain\Entity\JobResult;
 use App\Module\Core\Domain\Entity\MetricSample;
+use App\Module\Core\Domain\Entity\InstanceMetricSample;
 use App\Module\Core\Domain\Entity\SecurityEvent;
 use App\Module\Core\Domain\Enum\BackupStatus;
 use App\Module\Core\Domain\Enum\InstanceStatus;
@@ -25,12 +26,16 @@ use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\Query\QueryResultNormalizer;
 use App\Repository\AgentRepository;
+use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
+use App\Repository\BackupTargetRepository;
 use App\Repository\DdosPolicyRepository;
 use App\Repository\DdosStatusRepository;
 use App\Repository\DomainRepository;
 use App\Repository\GdprDeletionRequestRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\InstanceMetricSampleRepository;
+use App\Repository\InstanceSftpCredentialRepository;
 use App\Repository\JobRepository;
 use App\Repository\PublicServerRepository;
 use App\Repository\SecurityPolicyRevisionRepository;
@@ -63,12 +68,16 @@ final class AgentApiController
         private readonly JobRepository $jobRepository,
         private readonly DomainRepository $domainRepository,
         private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
+        private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly PublicServerRepository $publicServerRepository,
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
         private readonly UserRepository $userRepository,
         private readonly GdprDeletionRequestRepository $gdprDeletionRequestRepository,
+        private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupRepository $backupRepository,
+        private readonly BackupTargetRepository $backupTargetRepository,
         private readonly DdosPolicyRepository $ddosPolicyRepository,
         private readonly DdosStatusRepository $ddosStatusRepository,
         private readonly SecurityPolicyRevisionRepository $policyRevisionRepository,
@@ -122,6 +131,7 @@ final class AgentApiController
                 'recorded_at' => $metricSample->getRecordedAt()->format(DATE_RFC3339),
             ]);
         }
+        $this->ingestInstanceMetrics($stats['metrics']['instance_metrics'] ?? null);
         $this->auditLogger->log(null, 'agent.heartbeat', [
             'agent_id' => $agent->getId(),
             'version' => $version,
@@ -200,6 +210,7 @@ final class AgentApiController
             }
 
             $payload = $job->getPayload();
+            $payload = $this->resolveBackupTargetPayload($job->getType(), $payload);
             $targetAgentId = is_string($payload['agent_id'] ?? null) ? $payload['agent_id'] : '';
             if ($targetAgentId !== '' && $targetAgentId !== $agent->getId()) {
                 $rejections['agent_mismatch']++;
@@ -332,6 +343,7 @@ final class AgentApiController
         $completedAt = $this->parseCompletedAt($payload['completed_at'] ?? null);
         $output = is_array($payload['output'] ?? null) ? $payload['output'] : [];
 
+        $this->applyInstanceSftpCredentialUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->appendJobLogsFromOutput($job, $output);
 
         $jobResult = new JobResult($job, $resultStatus, $output, $completedAt);
@@ -723,6 +735,44 @@ final class AgentApiController
         }
 
         return (int) $cursor;
+    }
+
+    private function ingestInstanceMetrics(mixed $payload): void
+    {
+        if (!is_array($payload)) {
+            return;
+        }
+
+        $samples = is_array($payload['samples'] ?? null) ? $payload['samples'] : [];
+        $retentionThreshold = (new \DateTimeImmutable('-1 day'));
+
+        foreach ($samples as $sample) {
+            if (!is_array($sample)) {
+                continue;
+            }
+
+            $instanceId = $sample['instance_id'] ?? null;
+            if (!is_numeric($instanceId)) {
+                continue;
+            }
+
+            $instance = $this->instanceRepository->find((int) $instanceId);
+            if ($instance === null) {
+                continue;
+            }
+
+            $metricSample = new InstanceMetricSample(
+                $instance,
+                is_numeric($sample['cpu_percent'] ?? null) ? (float) $sample['cpu_percent'] : null,
+                is_numeric($sample['mem_current_bytes'] ?? null) ? (int) $sample['mem_current_bytes'] : null,
+                is_numeric($sample['tasks_current'] ?? null) ? (int) $sample['tasks_current'] : null,
+                $this->parseMetricTimestamp($sample['collected_at'] ?? null),
+                is_string($sample['error_code'] ?? null) ? (string) $sample['error_code'] : null,
+            );
+            $this->entityManager->persist($metricSample);
+        }
+
+        $this->instanceMetricSampleRepository->deleteOlderThan($retentionThreshold);
     }
 
     private function applyDdosStatusFromJob(
@@ -1337,6 +1387,69 @@ final class AgentApiController
         ]);
     }
 
+    private function applyInstanceSftpCredentialUpdatesFromJob(
+        \App\Module\Core\Domain\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        string $agentId,
+        array &$output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'instance.sftp.credentials.reset' || $resultStatus !== JobResultStatus::Succeeded) {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $instanceId = $payload['instance_id'] ?? null;
+        if (!is_int($instanceId) && !is_string($instanceId)) {
+            return;
+        }
+
+        $instance = $this->instanceRepository->find((int) $instanceId);
+        if ($instance === null || $instance->getNode()->getId() !== $agentId) {
+            return;
+        }
+
+        $password = is_string($output['password'] ?? null) ? trim((string) $output['password']) : '';
+        if ($password === '') {
+            return;
+        }
+
+        $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
+        if ($credential === null) {
+            $credential = new \App\Module\Core\Domain\Entity\InstanceSftpCredential(
+                $instance,
+                (string) ($output['username'] ?? sprintf('sftp%d', $instance->getId())),
+                $this->encryptionService->encrypt($password),
+            );
+        } else {
+            $credential->setEncryptedPassword($this->encryptionService->encrypt($password));
+        }
+
+        $expiresAt = null;
+        $expiresRaw = is_string($payload['expires_at'] ?? null) ? (string) $payload['expires_at'] : null;
+        if ($expiresRaw !== null && $expiresRaw !== '') {
+            try {
+                $expiresAt = new DateTimeImmutable($expiresRaw);
+            } catch (\Exception) {
+                $expiresAt = null;
+            }
+        }
+
+        $credential->setRotatedAt($completedAt);
+        $credential->setExpiresAt($expiresAt);
+        $this->entityManager->persist($credential);
+
+        $this->auditLogger->log(null, 'instance.sftp.credentials.rotated', [
+            'instance_id' => $instance->getId(),
+            'customer_id' => $instance->getCustomer()->getId(),
+            'job_id' => $job->getId(),
+            'credential_id' => $credential->getId(),
+            'rotated_at' => $completedAt->format(DATE_RFC3339),
+            'expires_at' => $expiresAt?->format(DATE_RFC3339),
+        ]);
+
+    }
+
     private function queueDiskScanIfNeeded(\App\Module\Core\Domain\Entity\Instance $instance, DateTimeImmutable $completedAt): void
     {
         if ($instance->getDiskLastScannedAt() !== null) {
@@ -1625,7 +1738,7 @@ final class AgentApiController
         array $output,
         DateTimeImmutable $completedAt,
     ): void {
-        if ($job->getType() !== 'instance.backup.create') {
+        if (!in_array($job->getType(), ['instance.backup.create', 'instance.backup.restore'], true)) {
             return;
         }
 
@@ -1640,18 +1753,150 @@ final class AgentApiController
             return;
         }
 
-        $status = $resultStatus === JobResultStatus::Succeeded ? BackupStatus::Succeeded : BackupStatus::Failed;
-        $backup->markStatus($status, $completedAt);
-        $this->entityManager->persist($backup);
+        if ($job->getType() === 'instance.backup.create') {
+            $status = $resultStatus === JobResultStatus::Succeeded ? BackupStatus::Succeeded : BackupStatus::Failed;
+            $backup->markStatus($status, $completedAt);
 
-        $this->auditLogger->log(null, 'instance.backup.completed', [
+            if ($resultStatus === JobResultStatus::Succeeded) {
+                $sizeBytes = is_numeric($output['size_bytes'] ?? null) ? (int) $output['size_bytes'] : null;
+                $checksum = is_string($output['sha256'] ?? null) ? trim((string) $output['sha256']) : null;
+                $archivePath = is_string($output['backup_path'] ?? null) ? trim((string) $output['backup_path']) : null;
+
+                $backup->setSizeBytes($sizeBytes);
+                $backup->setChecksumSha256($checksum !== '' ? $checksum : null);
+                $backup->setArchivePath($archivePath !== '' ? $archivePath : null);
+                $backup->setError(null, null);
+
+                $this->enforceBackupRetention($backup->getDefinition(), $backup);
+            } else {
+                $errorCode = is_string($output['error_code'] ?? null) ? (string) $output['error_code'] : 'backup_create_failed';
+                $errorMessage = is_string($output['error'] ?? null) ? (string) $output['error'] : 'Backup creation failed.';
+                $backup->setError($errorCode, $errorMessage);
+            }
+
+            $this->entityManager->persist($backup);
+
+            $this->auditLogger->log(null, 'instance.backup.completed', [
+                'backup_id' => $backup->getId(),
+                'definition_id' => $backup->getDefinition()->getId(),
+                'job_id' => $job->getId(),
+                'agent_id' => $agentId,
+                'status' => $status->value,
+                'size_bytes' => $backup->getSizeBytes(),
+                'checksum_sha256' => $backup->getChecksumSha256(),
+                'error_code' => $backup->getErrorCode(),
+            ]);
+
+            return;
+        }
+
+        $this->auditLogger->log(null, 'instance.backup.restore_completed', [
             'backup_id' => $backup->getId(),
             'definition_id' => $backup->getDefinition()->getId(),
             'job_id' => $job->getId(),
             'agent_id' => $agentId,
-            'status' => $status->value,
-            'output' => $output,
+            'status' => $resultStatus->value,
+            'error_code' => is_string($output['error_code'] ?? null) ? $output['error_code'] : null,
         ]);
+    }
+
+    private function enforceBackupRetention(\App\Module\Core\Domain\Entity\BackupDefinition $definition, \App\Module\Core\Domain\Entity\Backup $keepBackup): void
+    {
+        $schedule = $definition->getSchedule();
+        if ($schedule === null) {
+            return;
+        }
+
+        $backups = $this->backupRepository->findByDefinition($definition);
+        $now = new DateTimeImmutable();
+
+        $retentionCount = max(0, $schedule->getRetentionCount());
+        $retentionDays = max(0, $schedule->getRetentionDays());
+        $cutoff = $retentionDays > 0 ? $now->modify(sprintf('-%d days', $retentionDays)) : null;
+
+        $keptSucceeded = 0;
+        foreach ($backups as $entry) {
+            if ($entry->getId() === $keepBackup->getId()) {
+                $keptSucceeded++;
+                continue;
+            }
+
+            if ($entry->getStatus() !== BackupStatus::Succeeded) {
+                continue;
+            }
+
+            $deleteForAge = $cutoff !== null && ($entry->getCompletedAt() ?? $entry->getCreatedAt()) < $cutoff;
+            $deleteForCount = $retentionCount > 0 && $keptSucceeded >= $retentionCount;
+
+            if ($deleteForAge || $deleteForCount) {
+                $this->entityManager->remove($entry);
+                continue;
+            }
+
+            $keptSucceeded++;
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     * @return array<string,mixed>
+     */
+    private function resolveBackupTargetPayload(string $jobType, array $payload): array
+    {
+        if (!in_array($jobType, ['instance.backup.create', 'instance.backup.restore'], true)) {
+            return $payload;
+        }
+
+        $definition = null;
+        if ($jobType === 'instance.backup.create') {
+            $definitionId = $payload['definition_id'] ?? null;
+            if (is_int($definitionId) || is_string($definitionId)) {
+                $definition = $this->backupDefinitionRepository->find((int) $definitionId);
+            }
+        }
+
+        if ($jobType === 'instance.backup.restore') {
+            $backupId = $payload['backup_id'] ?? null;
+            if (is_int($backupId) || is_string($backupId)) {
+                $backup = $this->backupRepository->find((int) $backupId);
+                $definition = $backup?->getDefinition();
+            }
+        }
+
+        if (!$definition instanceof \App\Module\Core\Domain\Entity\BackupDefinition) {
+            return $payload;
+        }
+
+        $target = null;
+        $payloadTargetId = $payload['backup_target_id'] ?? null;
+        if ((is_int($payloadTargetId) || is_string($payloadTargetId)) && (string) $payloadTargetId !== '') {
+            $target = $this->backupTargetRepository->find((int) $payloadTargetId);
+        }
+
+        if (!$target instanceof \App\Module\Core\Domain\Entity\BackupTarget) {
+            $target = $definition->getBackupTarget();
+        }
+
+        if ($target === null || !$target->isEnabled()) {
+            $payload['backup_target_type'] = 'local';
+            return $payload;
+        }
+
+        $config = $target->getConfig();
+        $payload['backup_target_id'] = (string) $target->getId();
+        $payload['backup_target_type'] = $target->getType()->value;
+        $payload['backup_target_config'] = $config;
+
+        if (in_array($target->getType()->value, ['webdav', 'nextcloud'], true)) {
+            $encrypted = $target->getEncryptedCredentials();
+            if (is_string($encrypted['password'] ?? null) && $encrypted['password'] !== '') {
+                $payload['backup_target_secret'] = [
+                    'password' => $this->encryptionService->decrypt((string) $encrypted['password']),
+                ];
+            }
+        }
+
+        return $payload;
     }
 
     private function applyGdprAnonymizationFromJob(\App\Module\Core\Domain\Entity\Job $job, JobResultStatus $resultStatus, string $agentId): void

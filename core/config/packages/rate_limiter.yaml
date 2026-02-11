@@ -72,6 +72,10 @@ framework:
             policy: 'fixed_window'
             limit: 120
             interval: '1 minute'
+        instance_console_commands:
+            policy: 'fixed_window'
+            limit: 10
+            interval: '10 seconds'
         admin_update_jobs:
             policy: 'fixed_window'
             limit: 6

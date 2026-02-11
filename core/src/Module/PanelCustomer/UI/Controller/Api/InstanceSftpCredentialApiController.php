@@ -11,7 +11,6 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
-use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceSftpCredentialRepository;
 use App\Repository\JobRepository;
@@ -68,17 +67,6 @@ final class InstanceSftpCredentialApiController
                 ]);
             }
 
-            $includePassword = filter_var($request->query->get('include_password', false), FILTER_VALIDATE_BOOLEAN);
-            $allowPassword = $includePassword && ($actor->isAdmin() || $actor->getType() === UserType::Customer);
-            $password = null;
-            if ($allowPassword) {
-                try {
-                    $password = $this->encryptionService->decrypt($credential->getEncryptedPassword());
-                } catch (\RuntimeException $exception) {
-                    return $this->errorResponse($request, JsonResponse::HTTP_INTERNAL_SERVER_ERROR, 'sftp_decrypt_failed', 'Unable to decrypt credentials.');
-                }
-            }
-
             $this->logger->info('instance.sftp.credentials.show', [
                 'request_id' => $this->getRequestId($request),
                 'user_id' => $actor->getId(),
@@ -90,7 +78,7 @@ final class InstanceSftpCredentialApiController
             ]);
 
             return new JsonResponse([
-                'credential' => $this->normalizeCredential($credential, $password),
+                'credential' => $this->normalizeCredential($credential),
                 'job' => $jobSummary,
                 'agent' => $this->normalizeAgentState($instance),
                 'request_id' => $this->getRequestId($request),
@@ -134,26 +122,31 @@ final class InstanceSftpCredentialApiController
 
             $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
             $username = $credential?->getUsername() ?? $this->buildUsername($instance);
-            $password = $this->generatePassword();
-            $encryptedPassword = $this->encryptionService->encrypt($password);
+            $expiresAt = (new \DateTimeImmutable('+30 days'))->setTimezone(new \DateTimeZone('UTC'));
 
             if ($credential === null) {
-                $credential = new InstanceSftpCredential($instance, $username, $encryptedPassword);
+                $credential = new InstanceSftpCredential($instance, $username, $this->encryptionService->encrypt(bin2hex(random_bytes(24))));
+                $credential->setRotatedAt(null);
+                $credential->setExpiresAt($expiresAt);
+                $this->entityManager->persist($credential);
+                $this->entityManager->flush();
             } else {
-                $credential->setEncryptedPassword($encryptedPassword);
+                $credential->setExpiresAt($expiresAt);
             }
 
-            $this->entityManager->persist($credential);
-
-            $job = $this->queueResetJob($request, $actor, $instance, $username, $password);
+            $job = $this->queueResetJob($request, $actor, $instance, $credential, $username, $expiresAt);
             $job->setMaxAttempts(3);
 
             $this->entityManager->flush();
 
             $response = new JsonResponse([
-                'credential' => $this->normalizeCredential($credential, $password),
+                'credential' => $this->normalizeCredential($credential),
                 'job' => $this->normalizeJobSummary($job),
                 'agent' => $this->normalizeAgentState($instance),
+                'password_delivery' => [
+                    'mode' => 'job_result',
+                    'one_time' => true,
+                ],
                 'request_id' => $this->getRequestId($request),
             ], JsonResponse::HTTP_ACCEPTED);
 
@@ -211,12 +204,8 @@ final class InstanceSftpCredentialApiController
         return sprintf('sftp%d', $instance->getId());
     }
 
-    private function generatePassword(): string
-    {
-        return bin2hex(random_bytes(12));
-    }
 
-    private function normalizeCredential(InstanceSftpCredential $credential, ?string $password = null): array
+    private function normalizeCredential(InstanceSftpCredential $credential): array
     {
         $instance = $credential->getInstance();
         $data = [
@@ -224,25 +213,25 @@ final class InstanceSftpCredentialApiController
             'username' => $credential->getUsername(),
             'host' => $this->resolveHost($instance),
             'port' => $this->resolvePort($instance),
-            'password_masked' => $password === null ? $this->maskPassword() : $this->maskPassword($password),
+            'password_masked' => $this->maskPassword(),
+            'rotated_at' => $credential->getRotatedAt()?->format(DATE_RFC3339),
+            'expires_at' => $credential->getExpiresAt()?->format(DATE_RFC3339),
             'updated_at' => $credential->getUpdatedAt()->format(DATE_RFC3339),
         ];
-
-        if ($password !== null) {
-            $data['password'] = $password;
-        }
 
         return $data;
     }
 
-    private function queueResetJob(Request $request, User $actor, Instance $instance, string $username, string $password): Job
+    private function queueResetJob(Request $request, User $actor, Instance $instance, InstanceSftpCredential $credential, string $username, \DateTimeImmutable $expiresAt): Job
     {
         $job = new Job('instance.sftp.credentials.reset', [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'agent_id' => $instance->getNode()->getId(),
+            'credential_id' => $credential->getId(),
             'username' => $username,
-            'password' => $password,
+            'rotate' => true,
+            'expires_at' => $expiresAt->format(DATE_RFC3339),
             'request_id' => $this->getRequestId($request),
         ]);
         $this->entityManager->persist($job);
@@ -252,6 +241,8 @@ final class InstanceSftpCredentialApiController
             'customer_id' => $instance->getCustomer()->getId(),
             'job_id' => $job->getId(),
             'username' => $username,
+            'credential_id' => $credential->getId(),
+            'rotate' => true,
         ]);
 
         return $job;

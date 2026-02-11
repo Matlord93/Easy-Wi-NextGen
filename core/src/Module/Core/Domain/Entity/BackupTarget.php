@@ -34,6 +34,9 @@ class BackupTarget
     private ?array $encryptedCredentials;
 
     #[ORM\Column]
+    private bool $enabled = true;
+
+    #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
@@ -45,12 +48,14 @@ class BackupTarget
         string $label,
         array $config,
         ?array $encryptedCredentials = null,
+        bool $enabled = true,
     ) {
         $this->customer = $customer;
         $this->type = $type;
         $this->label = $label;
         $this->config = $config;
         $this->encryptedCredentials = $encryptedCredentials;
+        $this->enabled = $enabled;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -106,6 +111,7 @@ class BackupTarget
     public function setEncryptedCredentials(?array $encryptedCredentials): void
     {
         $this->encryptedCredentials = $encryptedCredentials;
+        $this->enabled = $enabled;
         $this->touch();
     }
 
@@ -114,6 +120,18 @@ class BackupTarget
         $credentials = $this->encryptedCredentials ?? [];
 
         return array_key_exists($key, $credentials);
+    }
+
+
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
+
+    public function setEnabled(bool $enabled): void
+    {
+        $this->enabled = $enabled;
+        $this->touch();
     }
 
     public function getCreatedAt(): \DateTimeImmutable

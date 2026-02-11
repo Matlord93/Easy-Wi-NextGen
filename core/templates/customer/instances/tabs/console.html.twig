@@ -4,6 +4,8 @@
     data-instance-id="{{ instance.id }}"
     data-instance-status="{{ instance.status }}"
     data-runtime-status="{{ instance.runtime_status ?? '' }}"
+    data-runtime-reason="{{ instance.runtime_status_reason ?? '' }}"
+    data-runtime-checked-at="{{ instance.runtime_status_last_checked_at ? instance.runtime_status_last_checked_at|date('Y-m-d H:i:s') : '' }}"
     data-console-command-url="{{ path('customer_instance_console_command', {id: instance.id}) }}"
     data-console-logs-url="{{ path('customer_instance_console_logs', {id: instance.id}) }}"
     data-job-logs-url-template="{{ path('customer_job_api_logs', {jobId: '__JOB_ID__'}) }}"
@@ -13,11 +15,12 @@
         {% set consoleLabel = app_setting('customer_console_label', t('customer_instance_tab_console', page_locale())) %}
         <h2 class="text-lg font-semibold text-slate-900">{{ consoleLabel }}</h2>
         <p class="text-sm text-slate-700">{{ t('customer_instance_console_intro', page_locale()) }}</p>
+        <p class="mt-1 text-xs text-indigo-700">{{ t('customer_instance_console_isolation_notice', page_locale()) }}</p>
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
-            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_console_live_log_title', page_locale()) }}</p>
+            <p class="text-xs font-semibold uppercase text-slate-700">Konsole</p>
             <span id="instance-console-log-status" class="text-xs text-slate-500">{{ t('customer_instance_console_log_loading', page_locale()) }}</span>
         </div>
         <p class="mt-2 text-xs text-slate-500">{{ t('customer_instance_console_live_log_intro', page_locale()) }}</p>
@@ -63,6 +66,20 @@
             </div>
         </div>
     </div>
+
+    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <p class="text-xs font-semibold uppercase text-slate-700">Daten senden</p>
+        <p class="mt-2 text-sm text-slate-600">Sendet Daten über die Konsole (nur wenn der Server läuft).</p>
+        <div class="mt-4 space-y-2">
+            <label for="instance-console-data" class="text-xs font-semibold text-slate-600">Daten</label>
+            <input id="instance-console-data" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700" placeholder="z. B. say status">
+            <div class="flex flex-wrap items-center gap-3">
+                <button id="instance-console-send-data" type="button" class="rounded-lg border border-indigo-200 px-4 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">
+                    Daten senden
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -75,25 +92,46 @@
         const status = container.dataset.instanceStatus;
         const commandUrl = container.dataset.consoleCommandUrl;
         const runtimeStatus = (container.dataset.runtimeStatus || '').toLowerCase();
+        const runtimeReason = container.dataset.runtimeReason || '';
+        const runtimeCheckedAt = container.dataset.runtimeCheckedAt || '';
         const logsUrl = container.dataset.consoleLogsUrl;
         const jobLogsUrlTemplate = container.dataset.jobLogsUrlTemplate;
         const jobUrlTemplate = container.dataset.jobUrlTemplate;
         const input = document.getElementById('instance-console-command');
         const button = document.getElementById('instance-console-send');
+        const dataInput = document.getElementById('instance-console-data');
+        const dataButton = document.getElementById('instance-console-send-data');
         const feedback = document.getElementById('instance-console-feedback');
         const logContainer = document.getElementById('instance-console-log');
         const logStatus = document.getElementById('instance-console-log-status');
 
-        if (!instanceId || !commandUrl || !input || !button || !feedback || !logContainer || !logStatus) {
+        if (!instanceId || !commandUrl || !input || !button || !feedback || !logContainer || !logStatus || !dataInput || !dataButton) {
             return;
         }
 
         let commandAllowed = status === 'running' || runtimeStatus === 'online';
+        let commandCooldownUntil = 0;
 
         const setFeedback = (message, isError = false) => {
             feedback.textContent = message;
             feedback.classList.toggle('text-rose-600', isError);
             feedback.classList.toggle('text-slate-500', !isError);
+        };
+
+        const updateSendButtonState = () => {
+            const now = Date.now();
+            const inCooldown = commandCooldownUntil > now;
+            const disabled = !commandAllowed || inCooldown;
+            button.disabled = disabled;
+            dataButton.disabled = disabled;
+            button.classList.toggle('opacity-50', disabled);
+            button.classList.toggle('cursor-not-allowed', disabled);
+            dataButton.classList.toggle('opacity-50', disabled);
+            dataButton.classList.toggle('cursor-not-allowed', disabled);
+            if (inCooldown) {
+                const retryIn = Math.max(1, Math.ceil((commandCooldownUntil - now) / 1000));
+                setFeedback(`Rate limited. Retry in ${retryIn}s.`, true);
+            }
         };
 
         const setLogStatus = (message, isError = false) => {
@@ -108,7 +146,7 @@
             }
             const jobUrl = jobUrlTemplate.replace('__JOB_ID__', jobId);
             let attempts = 0;
-            const maxAttempts = 10;
+            const maxAttempts = 30;
 
             const poll = async () => {
                 attempts += 1;
@@ -136,7 +174,7 @@
                 }
 
                 if (attempts < maxAttempts) {
-                    setTimeout(poll, 1000);
+                    setTimeout(poll, attempts < 10 ? 1000 : 2500);
                 }
             };
 
@@ -204,9 +242,8 @@
                 setLogStatus('{{ t('customer_instance_console_log_streaming', page_locale()) }}');
                 if (!commandAllowed && ['instance.start', 'instance.restart'].includes(payload.job_type)) {
                     commandAllowed = true;
-                    button.disabled = false;
-                    button.classList.remove('opacity-50', 'cursor-not-allowed');
                     setFeedback('');
+                    updateSendButtonState();
                 }
             } catch (err) {
                 setLogStatus(err.message || '{{ t('customer_instance_console_log_error', page_locale()) }}', true);
@@ -333,26 +370,71 @@
                 return;
             }
 
-            fetchLogSnapshot();
-            pollJobLogs();
-            pollJobOutput();
-            setInterval(pollJobLogs, 2000);
-            setInterval(fetchLogSnapshot, 12000);
-            setInterval(pollJobOutput, 4000);
+            const nextLogsDelay = () => {
+                if (runtimeStatus === 'unknown') {
+                    return 10000;
+                }
+                if (runtimeStatus === 'offline' || status === 'stopped') {
+                    return 6000;
+                }
+                return activeJobId ? 2000 : 3500;
+            };
+
+            const nextSnapshotDelay = () => {
+                if (runtimeStatus === 'unknown') {
+                    return 20000;
+                }
+                if (runtimeStatus === 'offline' || status === 'stopped') {
+                    return 15000;
+                }
+                return 12000;
+            };
+
+            const nextOutputDelay = () => {
+                if (runtimeStatus === 'unknown') {
+                    return 12000;
+                }
+                return activeJobId ? 2500 : 5000;
+            };
+
+            const logsLoop = async () => {
+                await pollJobLogs();
+                setTimeout(logsLoop, nextLogsDelay());
+            };
+
+            const snapshotLoop = async () => {
+                await fetchLogSnapshot();
+                setTimeout(snapshotLoop, nextSnapshotDelay());
+            };
+
+            const outputLoop = async () => {
+                await pollJobOutput();
+                setTimeout(outputLoop, nextOutputDelay());
+            };
+
+            snapshotLoop();
+            logsLoop();
+            outputLoop();
         };
 
         const applyCommandLock = () => {
-            button.disabled = true;
-            button.classList.add('opacity-50', 'cursor-not-allowed');
-            setFeedback('{{ t('customer_instance_console_send_requires_running', page_locale()) }}', true);
+            const reason = runtimeReason || '{{ t('customer_instance_console_send_requires_running', page_locale()) }}';
+            const checkedSuffix = runtimeCheckedAt ? ` (last checked: ${runtimeCheckedAt})` : '';
+            setFeedback(`${reason}${checkedSuffix}`, true);
+            updateSendButtonState();
         };
 
         if (!commandAllowed) {
             applyCommandLock();
+        } else {
+            updateSendButtonState();
         }
 
-        button.addEventListener('click', async () => {
-            const command = input.value.trim();
+        const sendCommand = async (command, clearInput) => {
+            updateSendButtonState();
+            if (button.disabled || dataButton.disabled) {
+                return;
+            }
             if (!command) {
                 setFeedback('{{ t('customer_instance_console_send_command_required', page_locale()) }}', true);
                 return;
@@ -373,16 +455,33 @@
 
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    setFeedback(payload.error || 'Command failed.', true);
+                    if (response.status === 429) {
+                        const retryAfter = Number(payload.retry_after || 1);
+                        commandCooldownUntil = Date.now() + (Math.max(1, retryAfter) * 1000);
+                        updateSendButtonState();
+                        setFeedback(`${payload.message || payload.error || 'Rate limited.'} (retry in ${Math.max(1, retryAfter)}s)`, true);
+                        return;
+                    }
+                    setFeedback(payload.message || payload.error || 'Command failed.', true);
                     return;
                 }
 
-                input.value = '';
+                if (clearInput) {
+                    clearInput.value = '';
+                }
                 setFeedback('{{ t('customer_instance_console_send_status_sent', page_locale()) }}');
                 pollCommandStatus(payload.job_id);
             } catch (err) {
                 setFeedback(err.message || 'Command failed.', true);
             }
+        };
+
+        button.addEventListener('click', async () => {
+            await sendCommand(input.value.trim(), input);
+        });
+
+        dataButton.addEventListener('click', async () => {
+            await sendCommand(dataInput.value.trim(), dataInput);
         });
 
         startLogPolling();

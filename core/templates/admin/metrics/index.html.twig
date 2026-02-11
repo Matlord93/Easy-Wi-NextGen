@@ -1,6 +1,5 @@
 {% extends 'admin/base.html.twig' %}
 
-
 {% block content %}
 <div class="flex flex-col gap-6">
     {% if loadError %}
@@ -14,221 +13,258 @@
             <h1 class="text-2xl font-semibold">{{ t('admin_metrics_heading', page_locale()) }}</h1>
             <p class="text-sm text-slate-700">{{ t('admin_metrics_intro', page_locale()) }}</p>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
-            <span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">{{ t('admin_metrics_live_data', page_locale()) }}</span>
-            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">{{ t('admin_metrics_create_alert', page_locale()) }}</button>
+        <div class="text-xs text-slate-600">
+            Window since: {{ since|date('Y-m-d H:i') }}
         </div>
     </div>
 
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <form method="get" class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div class="grid flex-1 gap-4 md:grid-cols-3">
-                <label class="text-sm font-medium text-slate-600">
-                    {{ t('admin_metrics_filter_node', page_locale()) }}
-                    <select name="agent" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                        {% for agent in agents %}
-                            <option value="{{ agent.id }}" {{ selectedAgent and selectedAgent.id == agent.id ? 'selected' : '' }}>
-                                {{ agent.name ?? t('admin_metrics_node_unnamed', page_locale()) }} · {{ agent.id }}
-                            </option>
+    <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <div class="flex gap-2">
+            <a href="{{ path('admin_metrics', {tab: 'host', agent: selectedAgent ? selectedAgent.id : '', window: window, per_page: perPage, page: 1}) }}" class="rounded-lg border px-3 py-2 text-sm {{ tab == 'host' ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700' }}">Host</a>
+            <a href="{{ path('admin_metrics', {tab: 'instances', node: nodeFilter, customer: customerFilter, instance: selectedInstanceId, window: window, per_page: perPage, page: 1}) }}" class="rounded-lg border px-3 py-2 text-sm {{ tab == 'instances' ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-700' }}">Instances</a>
+        </div>
+    </div>
+
+    {% if tab == 'host' %}
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <form method="get" action="{{ path('admin_metrics') }}" class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <input type="hidden" name="tab" value="host">
+                <div class="grid flex-1 gap-4 md:grid-cols-3">
+                    <label class="text-sm font-medium text-slate-600">
+                        {{ t('admin_metrics_filter_node', page_locale()) }}
+                        <select name="agent" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            {% for agent in agents %}
+                                <option value="{{ agent.id }}" {{ selectedAgent and selectedAgent.id == agent.id ? 'selected' : '' }}>
+                                    {{ agent.name ?? t('admin_metrics_node_unnamed', page_locale()) }} · {{ agent.id }}
+                                </option>
+                            {% else %}
+                                <option value="">{{ t('admin_metrics_no_nodes', page_locale()) }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="text-sm font-medium text-slate-600">
+                        Time window
+                        <select name="window" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            <option value="15m" {{ window == '15m' ? 'selected' : '' }}>15m</option>
+                            <option value="60m" {{ window == '60m' ? 'selected' : '' }}>60m</option>
+                            <option value="6h" {{ window == '6h' ? 'selected' : '' }}>6h</option>
+                            <option value="24h" {{ window == '24h' ? 'selected' : '' }}>24h</option>
+                            <option value="7d" {{ window == '7d' ? 'selected' : '' }}>7d</option>
+                        </select>
+                    </label>
+                    <label class="text-sm font-medium text-slate-600">
+                        Per page
+                        <select name="per_page" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            {% for size in [50, 100, 200] %}
+                                <option value="{{ size }}" {{ perPage == size ? 'selected' : '' }}>{{ size }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                </div>
+                <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">{{ t('admin_metrics_filter_apply', page_locale()) }}</button>
+            </form>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+                <p class="text-xs uppercase text-slate-700">CPU</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestCpu is not null ? latestCpu|number_format(1, '.', ',') ~ '%' : '—' }}</p>
+                <p class="text-xs text-slate-600">avg {{ aggregate.cpu_avg is not null ? aggregate.cpu_avg|number_format(1, '.', ',') ~ '%' : '—' }} · max {{ aggregate.cpu_max is not null ? aggregate.cpu_max|number_format(1, '.', ',') ~ '%' : '—' }}</p>
+                <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">{% if cpuPoints %}<polyline fill="none" stroke="#6366f1" stroke-width="2" points="{{ cpuPoints }}" />{% else %}<text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>{% endif %}</svg>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+                <p class="text-xs uppercase text-slate-700">Memory</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestMemory is not null ? latestMemory|number_format(1, '.', ',') ~ '%' : '—' }}</p>
+                <p class="text-xs text-slate-600">avg {{ aggregate.memory_avg is not null ? aggregate.memory_avg|number_format(1, '.', ',') ~ '%' : '—' }} · max {{ aggregate.memory_max is not null ? aggregate.memory_max|number_format(1, '.', ',') ~ '%' : '—' }}</p>
+                <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">{% if memoryPoints %}<polyline fill="none" stroke="#10b981" stroke-width="2" points="{{ memoryPoints }}" />{% else %}<text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>{% endif %}</svg>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+                <p class="text-xs uppercase text-slate-700">Disk</p>
+                <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestDisk is not null ? latestDisk|number_format(1, '.', ',') ~ '%' : '—' }}</p>
+                <p class="text-xs text-slate-600">avg {{ aggregate.disk_avg is not null ? aggregate.disk_avg|number_format(1, '.', ',') ~ '%' : '—' }} · max {{ aggregate.disk_max is not null ? aggregate.disk_max|number_format(1, '.', ',') ~ '%' : '—' }}</p>
+                <svg viewBox="0 0 240 60" class="mt-3 h-16 w-full">{% if diskPoints %}<polyline fill="none" stroke="#f59e0b" stroke-width="2" points="{{ diskPoints }}" />{% else %}<text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>{% endif %}</svg>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold">Recent samples (host)</h2>
+                <span class="text-xs text-slate-600">Page {{ page }} / {{ hostTotalPages }}</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-600">
+                    <tr>
+                        <th class="px-3 py-2 text-left">Recorded at</th>
+                        <th class="px-3 py-2 text-left">CPU %</th>
+                        <th class="px-3 py-2 text-left">RAM %</th>
+                        <th class="px-3 py-2 text-left">Disk %</th>
+                        <th class="px-3 py-2 text-left">Net out</th>
+                        <th class="px-3 py-2 text-left">Net in</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for sample in recentSamples %}
+                        <tr class="border-t border-slate-100">
+                            <td class="px-3 py-2">{{ sample.recordedAt ? sample.recordedAt|date('Y-m-d H:i:s') : '—' }}</td>
+                            <td class="px-3 py-2">{{ sample.cpuPercent is not null ? sample.cpuPercent|number_format(2, '.', ',') : '—' }}</td>
+                            <td class="px-3 py-2">{{ sample.memoryPercent is not null ? sample.memoryPercent|number_format(2, '.', ',') : '—' }}</td>
+                            <td class="px-3 py-2">{{ sample.diskPercent is not null ? sample.diskPercent|number_format(2, '.', ',') : '—' }}</td>
+                            <td class="px-3 py-2">{{ sample.netBytesSent is not null ? sample.netBytesSent : '—' }}</td>
+                            <td class="px-3 py-2">{{ sample.netBytesRecv is not null ? sample.netBytesRecv : '—' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">{{ t('admin_metrics_no_data', page_locale()) }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-sm">
+                <a class="rounded border border-slate-200 px-3 py-1 {{ page <= 1 ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'host', agent: selectedAgent ? selectedAgent.id : '', window: window, per_page: perPage, page: page - 1}) }}">Previous</a>
+                <a class="rounded border border-slate-200 px-3 py-1 {{ page >= hostTotalPages ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'host', agent: selectedAgent ? selectedAgent.id : '', window: window, per_page: perPage, page: page + 1}) }}">Next</a>
+            </div>
+        </div>
+    {% else %}
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <form method="get" action="{{ path('admin_metrics') }}" class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <input type="hidden" name="tab" value="instances">
+                <div class="grid flex-1 gap-4 md:grid-cols-5">
+                    <label class="text-sm font-medium text-slate-600">
+                        {{ t('admin_metrics_filter_node', page_locale()) }}
+                        <select name="node" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            <option value="">All</option>
+                            {% for agent in agents %}
+                                <option value="{{ agent.id }}" {{ nodeFilter == agent.id ? 'selected' : '' }}>{{ agent.name ?? t('admin_metrics_node_unnamed', page_locale()) }} · {{ agent.id }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="text-sm font-medium text-slate-600">
+                        Customer
+                        <input name="customer" type="text" value="{{ customerFilter }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" placeholder="id or email">
+                    </label>
+                    <label class="text-sm font-medium text-slate-600">
+                        {{ t('admin_metrics_filter_instance', page_locale()) }}
+                        <select name="instance" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            <option value="">{{ t('admin_metrics_all_instances', page_locale()) }}</option>
+                            {% for instance in instances %}
+                                <option value="{{ instance.id }}" {{ selectedInstanceId == instance.id ? 'selected' : '' }}>{{ t('admin_metrics_instance_label', page_locale())|replace({'%id%': instance.id}) }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="text-sm font-medium text-slate-600">
+                        Time window
+                        <select name="window" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            <option value="15m" {{ window == '15m' ? 'selected' : '' }}>15m</option>
+                            <option value="60m" {{ window == '60m' ? 'selected' : '' }}>60m</option>
+                            <option value="6h" {{ window == '6h' ? 'selected' : '' }}>6h</option>
+                            <option value="24h" {{ window == '24h' ? 'selected' : '' }}>24h</option>
+                            <option value="7d" {{ window == '7d' ? 'selected' : '' }}>7d</option>
+                        </select>
+                    </label>
+                    <label class="text-sm font-medium text-slate-600">
+                        Per page
+                        <select name="per_page" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            {% for size in [50, 100, 200] %}
+                                <option value="{{ size }}" {{ perPage == size ? 'selected' : '' }}>{{ size }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                </div>
+                <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">{{ t('admin_metrics_filter_apply', page_locale()) }}</button>
+            </form>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold">Instance metrics (paged)</h2>
+                <span class="text-xs text-slate-600">Samples: {{ instanceBrowseTotal }} · Page {{ page }} / {{ instanceBrowsePages }}</span>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-600">
+                    <tr>
+                        <th class="px-3 py-2 text-left">Instance</th>
+                        <th class="px-3 py-2 text-left">Customer</th>
+                        <th class="px-3 py-2 text-left">Node</th>
+                        <th class="px-3 py-2 text-left">CPU %</th>
+                        <th class="px-3 py-2 text-left">RAM Used</th>
+                        <th class="px-3 py-2 text-left">Booked CPU/RAM</th>
+                        <th class="px-3 py-2 text-left">Collected</th>
+                        <th class="px-3 py-2 text-left">Reason</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in instanceBrowseRows %}
+                        <tr class="border-t border-slate-100">
+                            <td class="px-3 py-2"><a class="text-indigo-700 underline" href="{{ path('admin_metrics', {tab: 'instances', node: nodeFilter, customer: customerFilter, instance: row.instance_id, window: window, per_page: perPage, page: 1}) }}">#{{ row.instance_id }}</a></td>
+                            <td class="px-3 py-2">{{ row.customer_email }}</td>
+                            <td class="px-3 py-2">{{ row.node_name ?? row.node_id }}</td>
+                            <td class="px-3 py-2">{{ row.cpu_percent is not null ? row.cpu_percent|number_format(2, '.', ',') ~ '%' : '—' }}</td>
+                            <td class="px-3 py-2">{{ row.mem_used_bytes is not null ? (row.mem_used_bytes / 1024 / 1024)|number_format(0, '.', ',') ~ ' MiB' : '—' }}</td>
+                            <td class="px-3 py-2">{{ row.booked_cpu_cores }} vCPU / {{ row.booked_ram_mb }} MiB</td>
+                            <td class="px-3 py-2">{{ row.collected_at ? row.collected_at|date('Y-m-d H:i:s') : '—' }}</td>
+                            <td class="px-3 py-2">{{ row.error_code ?: '—' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="8" class="px-3 py-6 text-center text-slate-500">{{ t('admin_metrics_no_data', page_locale()) }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-sm">
+                <a class="rounded border border-slate-200 px-3 py-1 {{ page <= 1 ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'instances', node: nodeFilter, customer: customerFilter, instance: selectedInstanceId, window: window, per_page: perPage, page: page - 1}) }}">Previous</a>
+                <a class="rounded border border-slate-200 px-3 py-1 {{ page >= instanceBrowsePages ? 'pointer-events-none opacity-50' : '' }}" href="{{ path('admin_metrics', {tab: 'instances', node: nodeFilter, customer: customerFilter, instance: selectedInstanceId, window: window, per_page: perPage, page: page + 1}) }}">Next</a>
+            </div>
+        </div>
+
+        {% if selectedInstance %}
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-semibold">Instance detail · #{{ selectedInstance.id }}</h2>
+                    <span class="text-xs text-slate-600">Samples: {{ instanceMetricTotal }}</span>
+                </div>
+                <p class="mt-1 text-xs text-slate-600">{{ selectedInstance.customer_email }} · {{ selectedInstance.node_name ?? selectedInstance.node_id }} · {{ t('customer_resource_booked_cpu', page_locale()) }} {{ selectedInstance.booked_cpu_cores|number_format(2, '.', ',') }} · {{ t('customer_resource_booked_ram', page_locale()) }} {{ selectedInstance.booked_ram_mb }} MiB</p>
+                <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div class="rounded border border-slate-200 p-3">
+                        <p class="text-xs uppercase text-slate-600">CPU sparkline</p>
+                        <svg viewBox="0 0 240 60" class="mt-2 h-16 w-full">{% if instanceCpuPoints %}<polyline fill="none" stroke="#6366f1" stroke-width="2" points="{{ instanceCpuPoints }}" />{% else %}<text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>{% endif %}</svg>
+                    </div>
+                    <div class="rounded border border-slate-200 p-3">
+                        <p class="text-xs uppercase text-slate-600">RAM sparkline (MiB)</p>
+                        <svg viewBox="0 0 240 60" class="mt-2 h-16 w-full">{% if instanceMemPoints %}<polyline fill="none" stroke="#10b981" stroke-width="2" points="{{ instanceMemPoints }}" />{% else %}<text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>{% endif %}</svg>
+                    </div>
+                </div>
+
+                <div class="mt-4 overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-slate-50 text-slate-600">
+                        <tr>
+                            <th class="px-3 py-2 text-left">Collected at</th>
+                            <th class="px-3 py-2 text-left">CPU %</th>
+                            <th class="px-3 py-2 text-left">RAM Used</th>
+                            <th class="px-3 py-2 text-left">Booked CPU/RAM</th>
+                            <th class="px-3 py-2 text-left">Tasks</th>
+                            <th class="px-3 py-2 text-left">Reason</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for sample in instanceMetricRecent %}
+                            <tr class="border-t border-slate-100">
+                                <td class="px-3 py-2">{{ sample.collectedAt ? sample.collectedAt|date('Y-m-d H:i:s') : '—' }}</td>
+                                <td class="px-3 py-2">{{ sample.cpuPercent is not null ? sample.cpuPercent|number_format(2, '.', ',') : '—' }}</td>
+                                <td class="px-3 py-2">{{ sample.memUsedBytes is not null ? (sample.memUsedBytes / 1024 / 1024)|number_format(0, '.', ',') ~ ' MiB' : '—' }}</td>
+                                <td class="px-3 py-2">{{ selectedInstance.booked_cpu_cores|number_format(2, '.', ',') }} vCPU / {{ selectedInstance.booked_ram_mb }} MiB</td>
+                                <td class="px-3 py-2">{{ sample.tasksCurrent is not null ? sample.tasksCurrent : '—' }}</td>
+                                <td class="px-3 py-2">{{ sample.errorCode ?: '—' }}</td>
+                            </tr>
                         {% else %}
-                            <option value="">{{ t('admin_metrics_no_nodes', page_locale()) }}</option>
+                            <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">{{ t('admin_metrics_no_data', page_locale()) }}</td></tr>
                         {% endfor %}
-                    </select>
-                </label>
-                <label class="text-sm font-medium text-slate-600">
-                    {{ t('admin_metrics_filter_range', page_locale()) }}
-                    <select name="range" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                        <option value="24h" {{ range == '24h' ? 'selected' : '' }}>{{ t('admin_metrics_range_24h', page_locale()) }}</option>
-                        <option value="7d" {{ range == '7d' ? 'selected' : '' }}>{{ t('admin_metrics_range_7d', page_locale()) }}</option>
-                    </select>
-                </label>
-                <label class="text-sm font-medium text-slate-600">
-                    {{ t('admin_metrics_filter_instance', page_locale()) }}
-                    <select name="instance" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                        <option value="">{{ t('admin_metrics_all_instances', page_locale()) }}</option>
-                        {% for instance in instances %}
-                            <option value="{{ instance.id }}">{{ t('admin_metrics_instance_label', page_locale())|replace({'%id%': instance.id}) }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-            </div>
-            <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">{{ t('admin_metrics_filter_apply', page_locale()) }}</button>
-        </form>
-    </div>
-
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_cpu_usage', page_locale()) }}</p>
-                    <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestCpu is not null ? latestCpu|number_format(1, '.', ',') ~ '%' : '—' }}</p>
+                        </tbody>
+                    </table>
                 </div>
-                <span class="text-xs text-slate-600">{{ t('admin_metrics_average', page_locale()) }}</span>
             </div>
-            <div class="mt-4">
-                <svg viewBox="0 0 240 60" class="h-16 w-full">
-                    {% if cpuPoints %}
-                        <polyline fill="none" stroke="#6366f1" stroke-width="2" points="{{ cpuPoints }}" />
-                    {% else %}
-                        <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                    {% endif %}
-                </svg>
-            </div>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_memory_usage', page_locale()) }}</p>
-                    <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestMemory is not null ? latestMemory|number_format(1, '.', ',') ~ '%' : '—' }}</p>
-                </div>
-                <span class="text-xs text-slate-600">{{ t('admin_metrics_average', page_locale()) }}</span>
-            </div>
-            <div class="mt-4">
-                <svg viewBox="0 0 240 60" class="h-16 w-full">
-                    {% if memoryPoints %}
-                        <polyline fill="none" stroke="#10b981" stroke-width="2" points="{{ memoryPoints }}" />
-                    {% else %}
-                        <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                    {% endif %}
-                </svg>
-            </div>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_disk_usage', page_locale()) }}</p>
-                    <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestDisk is not null ? latestDisk|number_format(1, '.', ',') ~ '%' : '—' }}</p>
-                </div>
-                <span class="text-xs text-slate-600">{{ t('admin_metrics_average', page_locale()) }}</span>
-            </div>
-            <div class="mt-4">
-                <svg viewBox="0 0 240 60" class="h-16 w-full">
-                    {% if diskPoints %}
-                        <polyline fill="none" stroke="#f97316" stroke-width="2" points="{{ diskPoints }}" />
-                    {% else %}
-                        <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                    {% endif %}
-                </svg>
-            </div>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_network_traffic', page_locale()) }}</p>
-                    <p class="mt-2 text-2xl font-semibold text-slate-900">
-                        {{ latestNetRecv is not null ? ((latestNetRecv * 8) / 1000000)|number_format(2, '.', ',') : '—' }}
-                        <span class="text-xs font-normal text-slate-600">{{ t('admin_metrics_download', page_locale()) }}</span>
-                    </p>
-                    <p class="text-sm text-slate-700">
-                        {{ latestNetSent is not null ? ((latestNetSent * 8) / 1000000)|number_format(2, '.', ',') : '—' }}
-                        <span class="text-xs font-normal text-slate-600">{{ t('admin_metrics_upload', page_locale()) }}</span>
-                    </p>
-                </div>
-                <span class="text-xs text-slate-600">{{ t('admin_metrics_bandwidth_unit', page_locale()) }}</span>
-            </div>
-            <div class="mt-4">
-                <svg viewBox="0 0 240 60" class="h-16 w-full">
-                    {% if netSentPoints %}
-                        <polyline fill="none" stroke="#0ea5e9" stroke-width="2" points="{{ netSentPoints }}" />
-                    {% endif %}
-                    {% if netRecvPoints %}
-                        <polyline fill="none" stroke="#94a3b8" stroke-width="2" points="{{ netRecvPoints }}" />
-                    {% endif %}
-                    {% if not netSentPoints and not netRecvPoints %}
-                        <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                    {% endif %}
-                </svg>
-            </div>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_process_count', page_locale()) }}</p>
-                    <p class="mt-2 text-2xl font-semibold text-slate-900">{{ latestProcessCount is not null ? latestProcessCount|number_format(0, '.', ',') : '—' }}</p>
-                </div>
-                <span class="text-xs text-slate-600">{{ t('admin_metrics_processes', page_locale()) }}</span>
-            </div>
-            <div class="mt-4">
-                <svg viewBox="0 0 240 60" class="h-16 w-full">
-                    {% if processPoints %}
-                        <polyline fill="none" stroke="#14b8a6" stroke-width="2" points="{{ processPoints }}" />
-                    {% else %}
-                        <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                    {% endif %}
-                </svg>
-            </div>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-xs uppercase text-slate-700">{{ t('admin_metrics_temperature', page_locale()) }}</p>
-                    <p class="mt-2 text-2xl font-semibold text-slate-900">
-                        {{ latestTemperature is not null ? latestTemperature|number_format(1, '.', ',') ~ '°C' : '—' }}
-                    </p>
-                </div>
-                <span class="text-xs text-slate-600">{{ t('admin_metrics_celsius', page_locale()) }}</span>
-            </div>
-            <div class="mt-4">
-                <svg viewBox="0 0 240 60" class="h-16 w-full">
-                    {% if temperaturePoints %}
-                        <polyline fill="none" stroke="#ef4444" stroke-width="2" points="{{ temperaturePoints }}" />
-                    {% else %}
-                        <text x="10" y="30" class="fill-slate-300 text-xs">{{ t('admin_metrics_no_data', page_locale()) }}</text>
-                    {% endif %}
-                </svg>
-            </div>
-        </div>
-    </div>
-
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <h2 class="text-lg font-semibold">{{ t('admin_metrics_instance_metrics_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('admin_metrics_instance_metrics_intro', page_locale()) }}</p>
-            </div>
-            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{{ t('admin_metrics_planned', page_locale()) }}</span>
-        </div>
-        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-600">
-                {{ t('admin_metrics_instance_card_cpu', page_locale()) }}
-            </div>
-            <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-600">
-                {{ t('admin_metrics_instance_card_filter', page_locale()) }}
-            </div>
-            <div class="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-600">
-                {{ t('admin_metrics_instance_card_alerts', page_locale()) }}
-            </div>
-        </div>
-    </div>
+        {% endif %}
+    {% endif %}
 </div>
-
-<script>
-    (() => {
-        const refreshIntervalMs = 30000;
-        let refreshTimer = null;
-
-        const scheduleRefresh = () => {
-            if (refreshTimer !== null) {
-                window.clearTimeout(refreshTimer);
-            }
-
-            if (document.hidden) {
-                return;
-            }
-
-            refreshTimer = window.setTimeout(() => {
-                window.location.reload();
-            }, refreshIntervalMs);
-        };
-
-        document.addEventListener('visibilitychange', scheduleRefresh);
-        window.addEventListener('focus', scheduleRefresh);
-        scheduleRefresh();
-    })();
-</script>
 {% endblock %}

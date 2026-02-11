@@ -80,7 +80,7 @@ final class AdminDashboardController
         $bandwidthValue = null;
         if ($primaryAgent !== null) {
             $since = (new \DateTimeImmutable())->sub(new \DateInterval('PT2H'));
-            $metricSeries = $this->metricSampleRepository->findSeriesForAgentSince($primaryAgent, $since);
+            $metricSeries = $this->metricSampleRepository->findSparklineSeriesForAgentSince($primaryAgent, $since, 30);
             if (count($metricSeries) > 30) {
                 $metricSeries = array_slice($metricSeries, -30);
             }

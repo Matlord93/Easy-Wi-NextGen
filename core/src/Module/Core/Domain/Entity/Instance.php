@@ -526,7 +526,7 @@ class Instance implements ResourceEventSource
     }
 
     /**
-     * @return array<string, array{content: string, updated_at: string}>
+     * @return array<string, array{content: string, updated_at: string, last_updated_at?: string, last_hash?: string, previous_hash?: string}>
      */
     public function getConfigOverrides(): array
     {
@@ -534,7 +534,7 @@ class Instance implements ResourceEventSource
     }
 
     /**
-     * @param array<string, array{content: string, updated_at: string}> $configOverrides
+     * @param array<string, array{content: string, updated_at: string, last_updated_at?: string, last_hash?: string, previous_hash?: string}> $configOverrides
      */
     public function setConfigOverrides(array $configOverrides): void
     {
@@ -549,9 +549,21 @@ class Instance implements ResourceEventSource
             return;
         }
 
+        $now = (new \DateTimeImmutable())->format(DATE_ATOM);
+        $newHash = hash('sha256', $content);
+        $previousHash = null;
+        if (isset($this->configOverrides[$normalized]) && is_array($this->configOverrides[$normalized])) {
+            $previousHash = is_string($this->configOverrides[$normalized]['last_hash'] ?? null)
+                ? (string) $this->configOverrides[$normalized]['last_hash']
+                : hash('sha256', (string) ($this->configOverrides[$normalized]['content'] ?? ''));
+        }
+
         $this->configOverrides[$normalized] = [
             'content' => $content,
-            'updated_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
+            'updated_at' => $now,
+            'last_updated_at' => $now,
+            'last_hash' => $newHash,
+            'previous_hash' => $previousHash,
         ];
         $this->touch();
     }

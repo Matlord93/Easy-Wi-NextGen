@@ -7,7 +7,7 @@
         <h1 class="text-2xl font-semibold">{{ t('admin_instances_new_title', page_locale()) }}</h1>
         <p class="text-sm text-slate-700">{{ t('admin_instances_new_intro', page_locale()) }}</p>
     </div>
-    <a class="text-sm font-medium text-slate-600 hover:text-slate-900" href="/admin/instances">
+    <a class="text-sm font-medium text-slate-600 hover:text-slate-900" href="{{ path('admin_instances') }}">
         {{ t('admin_instances_back', page_locale()) }}
     </a>
 </div>
@@ -23,7 +23,7 @@
                 <li>• {{ t('admin_instances_new_overview_step_resources', page_locale()) }}</li>
             </ul>
             <p class="mt-4 text-sm text-slate-700">{{ t('admin_instances_new_overview_note', page_locale()) }}</p>
-            <a class="mt-6 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white" href="/admin/instances/provision">
+            <a class="mt-6 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white" href="{{ path('admin_instances_provision') }}">
                 {{ t('admin_instances_new_action', page_locale()) }}
             </a>
         </div>

@@ -176,4 +176,34 @@ final class JobRepository extends ServiceEntityRepository
 
         return null;
     }
+
+    /**
+     * @param list<string> $types
+     */
+    public function findLatestActiveByTypesAndInstanceId(array $types, int $instanceId, int $limitPerType = 40): ?Job
+    {
+        $active = [];
+        foreach ($types as $type) {
+            $jobs = $this->findLatestByType($type, $limitPerType);
+            foreach ($jobs as $job) {
+                $payload = $job->getPayload();
+                if ((int) ($payload['instance_id'] ?? 0) !== $instanceId) {
+                    continue;
+                }
+                if ($job->getStatus()->isTerminal()) {
+                    continue;
+                }
+                $active[] = $job;
+                break;
+            }
+        }
+
+        if ($active === []) {
+            return null;
+        }
+
+        usort($active, static fn (Job $a, Job $b): int => $b->getCreatedAt() <=> $a->getCreatedAt());
+
+        return $active[0] ?? null;
+    }
 }

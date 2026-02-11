@@ -7,14 +7,14 @@
         <h1 class="text-2xl font-semibold">{{ t('admin_instances_provision_page_title', page_locale()) }}</h1>
         <p class="text-sm text-slate-700">{{ t('admin_instances_provision_page_intro', page_locale()) }}</p>
     </div>
-    <a class="text-sm font-medium text-slate-600 hover:text-slate-900" href="/admin/instances/new">
+    <a class="text-sm font-medium text-slate-600 hover:text-slate-900" href="{{ path('admin_instances_new') }}">
         {{ t('admin_instances_provision_page_back', page_locale()) }}
     </a>
 </div>
 
 <div id="instance-form"
      class="rounded-xl bg-white border border-slate-200"
-     hx-get="/admin/instances/form"
+     hx-get="{{ path('admin_instances_form') }}"
      hx-trigger="instances-form-refresh from:body"
      hx-swap="outerHTML">
     {% include 'admin/instances/_form.html.twig' with { customers: customers, nodes: nodes, templates: templates, form: form } %}

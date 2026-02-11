@@ -6,7 +6,10 @@
     data-config-show-url="{{ path('customer_instance_configs_api_show', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
     data-config-generate-url="{{ path('customer_instance_configs_api_generate', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
     data-config-update-url="{{ path('customer_instance_configs_api_update', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-config-apply-url="{{ path('customer_instance_configs_api_apply', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
     data-job-show-url="{{ path('customer_job_api_show', {jobId: '__JOB_ID__'}) }}"
+    data-runtime-status="{{ instance.runtime_status ?? "" }}"
+    data-runtime-status-reason="{{ instance.runtime_status_reason ?? "" }}"
 >
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -77,6 +80,9 @@
                 <button id="config-schema-save-raw" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">
                     {{ t('customer_instance_configs_schema_save_raw', page_locale()) }}
                 </button>
+                <button id="config-schema-apply" class="rounded-lg border border-indigo-200 px-4 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">
+                    Apply config
+                </button>
                 <span id="config-schema-feedback" class="text-xs text-slate-500"></span>
             </div>
         </div>
@@ -98,6 +104,7 @@
         const showUrlTemplate = app.dataset.configShowUrl;
         const generateUrlTemplate = app.dataset.configGenerateUrl;
         const updateUrlTemplate = app.dataset.configUpdateUrl;
+        const applyUrlTemplate = app.dataset.configApplyUrl;
         const jobShowUrlTemplate = app.dataset.jobShowUrl;
         const select = document.getElementById('config-schema-select');
         const status = document.getElementById('config-schema-status');
@@ -115,11 +122,28 @@
         const emptyState = document.getElementById('config-schema-empty');
         const generateButton = document.getElementById('config-schema-generate');
         const saveRawButton = document.getElementById('config-schema-save-raw');
+        const applyButton = document.getElementById('config-schema-apply');
         const feedback = document.getElementById('config-schema-feedback');
+        const runtimeStatus = (app.dataset.runtimeStatus || '').toLowerCase();
+        const runtimeStatusReason = app.dataset.runtimeStatusReason || '';
 
         let configs = [];
         let currentConfig = null;
         let currentSchema = null;
+        let currentFieldErrors = {};
+
+        const applyState = (() => {
+            if (runtimeStatus === '' || runtimeStatus === 'unknown' || runtimeStatus === 'offline') {
+                return { disabled: true, reason: runtimeStatusReason || '{{ t('customer_instance_configs_apply_unavailable_runtime', page_locale()) }}' };
+            }
+            return { disabled: false, reason: '' };
+        })();
+
+        if (applyState.disabled) {
+            applyButton.disabled = true;
+            applyButton.title = applyState.reason;
+            feedback.textContent = applyState.reason;
+        }
 
         const setStatus = (message, isError = false) => {
             status.textContent = message || '';
@@ -191,6 +215,15 @@
                 input.dataset.fieldId = field.id;
                 wrapper.appendChild(input);
 
+                const fieldError = currentFieldErrors[field.id];
+                if (fieldError) {
+                    input.classList.add('border-rose-400');
+                    const errorText = document.createElement('p');
+                    errorText.className = 'text-xs text-rose-600';
+                    errorText.textContent = fieldError;
+                    wrapper.appendChild(errorText);
+                }
+
                 if (field.description) {
                     const desc = document.createElement('p');
                     desc.className = 'text-xs text-slate-500';
@@ -218,6 +251,7 @@
         const updateEditor = (payload) => {
             currentConfig = payload.config;
             currentSchema = payload.schema;
+            currentFieldErrors = {};
             renderFields(payload.schema, payload.values || {});
             rawEditor.value = payload.raw || '';
             formatBadge.textContent = payload.config.format || '';
@@ -231,12 +265,35 @@
             setStatus('');
         };
 
+
+        const applyValidationErrors = (payload) => {
+            currentFieldErrors = {};
+            const fieldErrors = payload?.details?.field_errors || [];
+            if (!Array.isArray(fieldErrors)) {
+                return false;
+            }
+            fieldErrors.forEach((item) => {
+                if (!item || typeof item !== 'object') {
+                    return;
+                }
+                const field = String(item.field || '');
+                const message = String(item.message || 'Invalid value.');
+                if (field !== '') {
+                    currentFieldErrors[field] = message;
+                }
+            });
+            renderFields(currentSchema, collectValues());
+            return Object.keys(currentFieldErrors).length > 0;
+        };
+
         const request = async (url, options = {}) => {
             const response = await fetch(url, options);
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
                 const message = payload.error || payload.message || 'Request failed.';
-                throw new Error(message);
+                const err = new Error(message);
+                err.payload = payload;
+                throw err;
             }
             return payload;
         };
@@ -346,6 +403,10 @@
                     });
                 }
             } catch (err) {
+                if (err.payload && err.payload.error_code === 'config_validation_failed' && applyValidationErrors(err.payload)) {
+                    setStatus(err.message, true);
+                    return;
+                }
                 setStatus(err.message, true);
             }
         });
@@ -368,6 +429,34 @@
                         feedback.textContent = '{{ t('customer_instance_configs_schema_status_saved', page_locale()) }}';
                     });
                 }
+            } catch (err) {
+                if (err.payload && err.payload.error_code === 'config_validation_failed' && applyValidationErrors(err.payload)) {
+                    setStatus(err.message, true);
+                    return;
+                }
+                setStatus(err.message, true);
+            }
+        });
+
+        applyButton.addEventListener('click', async () => {
+            if (!currentConfig) {
+                return;
+            }
+            feedback.textContent = '';
+            try {
+                const payload = await request(applyUrlTemplate.replace('__CONFIG_ID__', currentConfig.key || currentConfig.id), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({}),
+                });
+                if (payload.job_id) {
+                    feedback.textContent = payload.message || 'Apply queued.';
+                    pollJob(payload.job_id, () => {
+                        feedback.textContent = 'Config apply completed.';
+                    });
+                    return;
+                }
+                feedback.textContent = payload.message || 'No apply action queued.';
             } catch (err) {
                 setStatus(err.message, true);
             }

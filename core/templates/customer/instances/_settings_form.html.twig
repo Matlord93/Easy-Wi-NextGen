@@ -32,6 +32,20 @@
                     <input type="text" name="time_zone" value="{{ instance.schedule ? instance.schedule.time_zone : 'UTC' }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                 </div>
             </div>
+            <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                Pin status:
+                {% if (instance.locked_build_id ?? '') != '' or (instance.locked_version ?? '') != '' %}
+                    <span class="font-semibold text-amber-700">locked</span>
+                {% else %}
+                    <span class="font-semibold text-emerald-700">not pinned</span>
+                {% endif %}
+                {% if instance.schedule %}
+                    · Last run: {{ instance.schedule.last_run_at ? instance.schedule.last_run_at|date('Y-m-d H:i:s') : '—' }}
+                    · Last status: {{ instance.schedule.last_status ?: '—' }}
+                    {% if instance.schedule.last_error_code %}(error: {{ instance.schedule.last_error_code }}){% endif %}
+                    {% if instance.schedule.next_run_at %} · Next run: {{ instance.schedule.next_run_at|date('Y-m-d H:i:s') }}{% endif %}
+                {% endif %}
+            </div>
         </div>
         <div class="rounded-lg border border-slate-200 bg-white p-4">
             <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_version_lock', page_locale()) }}</p>

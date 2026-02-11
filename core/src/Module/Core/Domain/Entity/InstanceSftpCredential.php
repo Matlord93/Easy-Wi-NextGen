@@ -32,6 +32,12 @@ class InstanceSftpCredential
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $rotatedAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $expiresAt = null;
+
     /**
      * @param array{key_id: string, nonce: string, ciphertext: string} $encryptedPassword
      */
@@ -42,6 +48,7 @@ class InstanceSftpCredential
         $this->encryptedPassword = $encryptedPassword;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
+        $this->rotatedAt = $this->createdAt;
     }
 
     public function getId(): ?int
@@ -84,6 +91,29 @@ class InstanceSftpCredential
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+
+    public function getRotatedAt(): ?\DateTimeImmutable
+    {
+        return $this->rotatedAt;
+    }
+
+    public function setRotatedAt(?\DateTimeImmutable $rotatedAt): void
+    {
+        $this->rotatedAt = $rotatedAt;
+        $this->touch();
+    }
+
+    public function getExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->expiresAt;
+    }
+
+    public function setExpiresAt(?\DateTimeImmutable $expiresAt): void
+    {
+        $this->expiresAt = $expiresAt;
+        $this->touch();
     }
 
     private function touch(): void

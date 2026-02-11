@@ -240,12 +240,36 @@ final class InstanceActionMessageHandler
             throw new \RuntimeException('Backup id is required.');
         }
 
+        if (!((string) ($payload['confirm'] ?? 'false') === 'true')) {
+            throw new \RuntimeException('Restore confirmation is required.');
+        }
+
         $backup = $this->backupRepository->find((int) $backupId);
         if (!$backup instanceof Backup) {
             throw new \RuntimeException('Backup not found.');
         }
 
-        $job = new Job('instance.backup.restore', $payload);
+        if (($backup->getArchivePath() ?? '') === '') {
+            throw new \RuntimeException('Backup archive path is missing.');
+        }
+
+        $preBackupJob = null;
+        if ((string) ($payload['pre_backup'] ?? 'false') === 'true') {
+            $preBackupPayload = $payload;
+            $preBackupPayload['definition_id'] = $backup->getDefinition()->getId();
+            $preBackupResult = $this->handleBackupCreate($instance, $actor, $preBackupPayload);
+            $preBackupJobId = $preBackupResult['job_id'] ?? null;
+            if (is_string($preBackupJobId) && $preBackupJobId !== '') {
+                $preBackupJob = $preBackupJobId;
+            }
+        }
+
+        $jobPayload = array_merge($payload, [
+            'backup_path' => $backup->getArchivePath(),
+            'backup_sha256' => $backup->getChecksumSha256(),
+        ]);
+
+        $job = new Job('instance.backup.restore', $jobPayload);
         $this->entityManager->persist($job);
         $this->jobLogger->log($job, 'Restore queued.', 0);
 
@@ -254,6 +278,7 @@ final class InstanceActionMessageHandler
             'customer_id' => $instance->getCustomer()->getId(),
             'backup_id' => $backup->getId(),
             'job_id' => $job->getId(),
+            'pre_backup_job_id' => $preBackupJob,
         ]);
 
         $this->entityManager->flush();
@@ -261,6 +286,7 @@ final class InstanceActionMessageHandler
         return [
             'job_id' => $job->getId(),
             'backup_id' => $backup->getId(),
+            'pre_backup_job_id' => $preBackupJob,
         ];
     }
 

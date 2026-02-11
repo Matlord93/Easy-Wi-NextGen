@@ -29,18 +29,20 @@ final class InstanceSftpProvisioner
         }
 
         $username = sprintf('sftp%d', $instance->getId());
-        $password = bin2hex(random_bytes(12));
-        $encryptedPassword = $this->encryptionService->encrypt($password);
-
-        $credential = new InstanceSftpCredential($instance, $username, $encryptedPassword);
+        $credential = new InstanceSftpCredential($instance, $username, $this->encryptionService->encrypt(bin2hex(random_bytes(24))));
+        $credential->setRotatedAt(null);
+        $credential->setExpiresAt((new \DateTimeImmutable('+30 days'))->setTimezone(new \DateTimeZone('UTC')));
         $this->entityManager->persist($credential);
+        $this->entityManager->flush();
 
         $job = new Job('instance.sftp.credentials.reset', [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'agent_id' => $instance->getNode()->getId(),
+            'credential_id' => $credential->getId(),
             'username' => $username,
-            'password' => $password,
+            'rotate' => true,
+            'expires_at' => $credential->getExpiresAt()?->format(DATE_RFC3339),
         ]);
         $this->entityManager->persist($job);
 
@@ -49,6 +51,7 @@ final class InstanceSftpProvisioner
             'customer_id' => $instance->getCustomer()->getId(),
             'job_id' => $job->getId(),
             'username' => $username,
+            'credential_id' => $credential->getId(),
             'source' => 'instance.provisioning',
         ]);
 

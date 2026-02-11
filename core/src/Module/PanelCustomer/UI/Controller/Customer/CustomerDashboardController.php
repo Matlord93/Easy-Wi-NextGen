@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Application\DiskUsageFormatter;
+use App\Module\PanelCustomer\Application\BookedResourceUsageAggregator;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Ticket;
 use App\Module\Core\Domain\Entity\User;
@@ -14,6 +15,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\CustomerProfileRepository;
 use App\Repository\DatabaseRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\InstanceMetricSampleRepository;
 use App\Repository\InvoiceRepository;
 use App\Repository\ShopRentalRepository;
 use App\Repository\TicketRepository;
@@ -28,6 +30,7 @@ final class CustomerDashboardController
 {
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly DatabaseRepository $databaseRepository,
         private readonly TicketRepository $ticketRepository,
@@ -35,6 +38,7 @@ final class CustomerDashboardController
         private readonly ShopRentalRepository $rentalRepository,
         private readonly CustomerProfileRepository $profileRepository,
         private readonly DiskUsageFormatter $diskUsageFormatter,
+        private readonly BookedResourceUsageAggregator $bookedResourceUsageAggregator,
         private readonly Environment $twig,
     ) {
     }
@@ -58,10 +62,17 @@ final class CustomerDashboardController
             'tickets_pending' => $this->countTicketsByStatus($tickets, TicketStatus::Pending),
         ];
 
-        $resourceUsage = $this->calculateResourceUsage($instances);
+        $latestInstanceMetrics = $this->instanceMetricSampleRepository->findLatestByInstances($instances);
+        $resourceUsage = $this->calculateResourceUsage($instances, $latestInstanceMetrics);
         $resourceUsage['disk_used_human'] = $this->diskUsageFormatter->formatBytes($resourceUsage['disk_used_bytes']);
         $resourceUsage['disk_limit_human'] = $resourceUsage['disk_limit_bytes'] > 0
             ? $this->diskUsageFormatter->formatBytes($resourceUsage['disk_limit_bytes'])
+            : null;
+        $resourceUsage['booked_ram_human'] = is_numeric($resourceUsage['total_booked_ram_bytes'] ?? null)
+            ? $this->diskUsageFormatter->formatBytes((int) $resourceUsage['total_booked_ram_bytes'])
+            : null;
+        $resourceUsage['used_ram_human'] = is_numeric($resourceUsage['total_used_ram_bytes'] ?? null)
+            ? $this->diskUsageFormatter->formatBytes((int) $resourceUsage['total_used_ram_bytes'])
             : null;
         $nextPayment = $this->resolveNextPayment($invoices);
 
@@ -69,7 +80,7 @@ final class CustomerDashboardController
             'activeNav' => 'dashboard',
             'customerName' => $this->resolveCustomerDisplayName($customer),
             'summary' => $summary,
-            'instances' => $this->normalizeInstances(array_slice($instances, 0, 3)),
+            'instances' => $this->normalizeInstances(array_slice($instances, 0, 3), $latestInstanceMetrics),
             'tickets' => $this->normalizeTickets(array_slice($tickets, 0, 3)),
             'resourceUsage' => $resourceUsage,
             'activePlan' => $this->resolveActivePlan($rentals),
@@ -91,9 +102,9 @@ final class CustomerDashboardController
     /**
      * @param Instance[] $instances
      */
-    private function normalizeInstances(array $instances): array
+    private function normalizeInstances(array $instances, array $latestInstanceMetrics): array
     {
-        return array_map(static function (Instance $instance): array {
+        return array_map(static function (Instance $instance) use ($latestInstanceMetrics): array {
             $statusLabel = ucwords(str_replace('_', ' ', $instance->getStatus()->value));
             $queryCache = $instance->getQueryStatusCache();
             $latencyMs = isset($queryCache['latency_ms']) && is_numeric($queryCache['latency_ms'])
@@ -108,6 +119,12 @@ final class CustomerDashboardController
                 'status' => $instance->getStatus()->value,
                 'status_label' => $statusLabel,
                 'latency_ms' => $latencyMs,
+                'ram_limit' => $instance->getRamLimit(),
+                'booked_cpu_cores' => (float) $instance->getCpuLimit(),
+                'booked_ram_bytes' => (int) $instance->getRamLimit() * 1024 * 1024,
+                'cpu_percent' => is_numeric($latestInstanceMetrics[$instance->getId()]['cpu_percent'] ?? null) ? (float) $latestInstanceMetrics[$instance->getId()]['cpu_percent'] : null,
+                'mem_used_bytes' => is_numeric($latestInstanceMetrics[$instance->getId()]['mem_used_bytes'] ?? null) ? (int) $latestInstanceMetrics[$instance->getId()]['mem_used_bytes'] : null,
+                'metrics_reason' => is_string($latestInstanceMetrics[$instance->getId()]['error_code'] ?? null) ? $latestInstanceMetrics[$instance->getId()]['error_code'] : null,
             ];
         }, $instances);
     }
@@ -165,61 +182,45 @@ final class CustomerDashboardController
 
     /**
      * @param Instance[] $instances
-     * @return array{cpu: int, ram: int, disk: int}
+     * @param array<int, array{cpu_percent: ?float, mem_used_bytes: ?int, tasks_current: ?int, collected_at: \DateTimeImmutable, error_code: ?string}> $latestInstanceMetrics
+     * @return array{cpu: int|null, ram: int|null, disk: int, disk_used_bytes:int, disk_limit_bytes:int, total_booked_cpu_cores:?float, total_used_cpu_cores:?float, total_cpu_percent:?float, total_booked_ram_bytes:?int, total_used_ram_bytes:?int, total_ram_percent:?float}
      */
-    private function calculateResourceUsage(array $instances): array
+    private function calculateResourceUsage(array $instances, array $latestInstanceMetrics): array
     {
         $diskLimitBytes = 0.0;
         $diskUsedBytes = 0.0;
-        $cpuWeighted = 0.0;
-        $ramWeighted = 0.0;
-        $cpuTotal = 0.0;
-        $ramTotal = 0.0;
-        $nodeLimits = [];
-        $nodeMap = [];
+        $rows = [];
 
         foreach ($instances as $instance) {
-            $nodeId = $instance->getNode()->getId();
-            $nodeMap[$nodeId] = $instance->getNode();
-            $nodeLimits[$nodeId]['cpu'] = ($nodeLimits[$nodeId]['cpu'] ?? 0) + $instance->getCpuLimit();
-            $nodeLimits[$nodeId]['ram'] = ($nodeLimits[$nodeId]['ram'] ?? 0) + $instance->getRamLimit();
-
-            $cpuTotal += $instance->getCpuLimit();
-            $ramTotal += $instance->getRamLimit();
             $diskLimitBytes += $instance->getDiskLimitBytes();
             $diskUsedBytes += $instance->getDiskUsedBytes();
+
+            $metrics = $latestInstanceMetrics[$instance->getId()] ?? null;
+            $rows[] = [
+                'booked_cpu_cores' => (float) $instance->getCpuLimit(),
+                'booked_ram_bytes' => (int) $instance->getRamLimit() * 1024 * 1024,
+                'used_cpu_percent' => is_array($metrics) && is_numeric($metrics['cpu_percent'] ?? null) ? (float) $metrics['cpu_percent'] : null,
+                'used_ram_bytes' => is_array($metrics) && is_numeric($metrics['mem_used_bytes'] ?? null) ? (int) $metrics['mem_used_bytes'] : null,
+            ];
         }
 
-        foreach ($nodeLimits as $nodeId => $limits) {
-            $node = $nodeMap[$nodeId] ?? null;
-            if ($node === null) {
-                continue;
-            }
-
-            $stats = $node->getLastHeartbeatStats() ?? [];
-            $metrics = is_array($stats['metrics'] ?? null) ? $stats['metrics'] : [];
-            $nodeCpuPercent = $this->extractMetricPercent($metrics, 'cpu')
-                ?? $this->extractMetricPercent($stats, 'cpu');
-            $nodeMemoryPercent = $this->extractMetricPercent($metrics, 'memory')
-                ?? $this->extractMetricPercent($stats, 'memory');
-
-            if ($nodeCpuPercent !== null && ($limits['cpu'] ?? 0) > 0) {
-                $cpuWeighted += $nodeCpuPercent * $limits['cpu'];
-            }
-
-            if ($nodeMemoryPercent !== null && ($limits['ram'] ?? 0) > 0) {
-                $ramWeighted += $nodeMemoryPercent * $limits['ram'];
-            }
-        }
+        $totals = $this->bookedResourceUsageAggregator->aggregate($rows);
 
         return [
-            'cpu' => $this->formatUsagePercent($cpuWeighted, $cpuTotal),
-            'ram' => $this->formatUsagePercent($ramWeighted, $ramTotal),
+            'cpu' => isset($totals['total_cpu_percent']) ? (int) round((float) $totals['total_cpu_percent']) : null,
+            'ram' => isset($totals['total_ram_percent']) ? (int) round((float) $totals['total_ram_percent']) : null,
             'disk' => $this->formatUsagePercent($diskUsedBytes, $diskLimitBytes),
             'disk_used_bytes' => (int) $diskUsedBytes,
             'disk_limit_bytes' => (int) $diskLimitBytes,
+            'total_booked_cpu_cores' => $totals['total_booked_cpu_cores'],
+            'total_used_cpu_cores' => $totals['total_used_cpu_cores'],
+            'total_cpu_percent' => $totals['total_cpu_percent'],
+            'total_booked_ram_bytes' => $totals['total_booked_ram_bytes'],
+            'total_used_ram_bytes' => $totals['total_used_ram_bytes'],
+            'total_ram_percent' => $totals['total_ram_percent'],
         ];
     }
+
 
     private function formatUsagePercent(float $used, float $total): int
     {
@@ -230,16 +231,6 @@ final class CustomerDashboardController
         return (int) min(100, round(($used / $total) * 100));
     }
 
-    private function extractMetricPercent(array $metrics, string $key): ?float
-    {
-        $metric = $metrics[$key] ?? null;
-        if (is_array($metric)) {
-            $value = $metric['percent'] ?? null;
-            return is_numeric($value) ? (float) $value : null;
-        }
-
-        return is_numeric($metric) ? (float) $metric : null;
-    }
 
     private function resolveActivePlan(array $rentals): ?array
     {

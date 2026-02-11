@@ -26,6 +26,14 @@ final class PortAllocationRepository extends ServiceEntityRepository
     }
 
     /**
+     * @return PortAllocation[]
+     */
+    public function findByInstanceOrdered(Instance $instance): array
+    {
+        return $this->findBy(['instance' => $instance], ['createdAt' => 'ASC', 'port' => 'ASC']);
+    }
+
+    /**
      * @return int[]
      */
     public function findUsedPorts(Agent $node, string $proto, int $start, int $end): array

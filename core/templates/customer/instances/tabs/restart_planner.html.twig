@@ -30,6 +30,13 @@
             {{ t('customer_instance_restart_planner_enabled', page_locale()) }}
         </label>
 
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+            Last run: {{ restartSchedule and restartSchedule.last_run_at ? restartSchedule.last_run_at|date('Y-m-d H:i:s') : '—' }} ·
+            Last status: {{ restartSchedule and restartSchedule.last_status ? restartSchedule.last_status : '—' }}
+            {% if restartSchedule and restartSchedule.last_error_code %}(error: {{ restartSchedule.last_error_code }}){% endif %}
+            {% if restartSchedule and restartSchedule.next_run_at %} · Next run: {{ restartSchedule.next_run_at|date('Y-m-d H:i:s') }}{% endif %}
+        </div>
+
         <div class="flex justify-end">
             <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800">
                 {{ t('customer_instance_restart_planner_save', page_locale()) }}

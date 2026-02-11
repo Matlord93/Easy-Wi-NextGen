@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\BackupSchedule;
+use App\Module\Core\Domain\Entity\BackupTarget;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\UserType;
@@ -26,6 +29,8 @@ final class BackupApiController
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly AppSettingsService $appSettingsService,
+        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
     ) {
     }
 
@@ -51,7 +56,7 @@ final class BackupApiController
         $actor = $this->requireUser($request);
         $payload = $this->parseJsonPayload($request);
 
-        $validation = $this->validateDefinitionPayload($actor, $payload);
+        $validation = $this->validateDefinitionPayload($request, $actor, $payload);
         if ($validation['error'] instanceof JsonResponse) {
             return $validation['error'];
         }
@@ -92,10 +97,11 @@ final class BackupApiController
                 'retention_days' => $schedule->getRetentionDays(),
                 'retention_count' => $schedule->getRetentionCount(),
                 'enabled' => $schedule->isEnabled(),
+                'time_zone' => $schedule->getTimeZone(),
+                'compression' => $schedule->getCompression(),
+                'stop_before' => $schedule->isStopBefore(),
             ]);
         }
-
-        $this->entityManager->flush();
 
         return new JsonResponse([
             'backup' => $this->normalizeDefinition($definition),
@@ -109,15 +115,15 @@ final class BackupApiController
         $actor = $this->requireUser($request);
         $definition = $this->backupDefinitionRepository->find($id);
         if ($definition === null) {
-            return new JsonResponse(['error' => 'Backup definition not found.'], JsonResponse::HTTP_NOT_FOUND);
+            return $this->responseEnvelopeFactory->error($request, 'Backup definition not found.', 'backup_definition_not_found', JsonResponse::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccessDefinition($actor, $definition)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+            return $this->responseEnvelopeFactory->error($request, 'Forbidden.', 'forbidden', JsonResponse::HTTP_FORBIDDEN);
         }
 
         $payload = $this->parseJsonPayload($request);
-        $scheduleData = $this->validateSchedulePayload($payload);
+        $scheduleData = $this->validateSchedulePayload($request, $payload, $definition->getCustomer());
         if ($scheduleData['error'] instanceof JsonResponse) {
             return $scheduleData['error'];
         }
@@ -135,7 +141,11 @@ final class BackupApiController
                 $scheduleData['retention_days'],
                 $scheduleData['retention_count'],
                 $scheduleData['enabled'],
+                $scheduleData['time_zone'],
+                $scheduleData['compression'],
+                $scheduleData['stop_before'],
             );
+            $schedule->setBackupTarget($scheduleData['backup_target']);
         }
 
         $this->auditLogger->log($actor, $action, [
@@ -145,20 +155,34 @@ final class BackupApiController
             'retention_days' => $schedule->getRetentionDays(),
             'retention_count' => $schedule->getRetentionCount(),
             'enabled' => $schedule->isEnabled(),
+            'time_zone' => $schedule->getTimeZone(),
+            'compression' => $schedule->getCompression(),
+            'stop_before' => $schedule->isStopBefore(),
+            'backup_target_id' => $schedule->getBackupTarget()?->getId(),
         ]);
 
         $this->entityManager->flush();
 
-        return new JsonResponse([
-            'backup' => $this->normalizeDefinition($definition),
-        ]);
+        return $this->responseEnvelopeFactory->success(
+            $request,
+            null,
+            'Backup schedule saved.',
+            JsonResponse::HTTP_OK,
+            [
+                'backup' => $this->normalizeDefinition($definition),
+            ],
+        );
     }
 
     private function requireUser(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \RuntimeException('Unauthorized.');
+        }
+
+        if (!$actor->isAdmin() && $actor->getType() !== UserType::Customer) {
+            throw new \RuntimeException('Forbidden.');
         }
 
         return $actor;
@@ -168,61 +192,58 @@ final class BackupApiController
     {
         try {
             return $request->toArray();
-        } catch (\JsonException $exception) {
-            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException('Invalid JSON payload.', $exception);
+        } catch (\JsonException) {
+            return [];
         }
     }
 
-    private function validateDefinitionPayload(User $actor, array $payload): array
+    private function validateDefinitionPayload(Request $request, User $actor, array $payload): array
     {
-        $customerId = $payload['customer_id'] ?? null;
+        $customerIdValue = $payload['customer_id'] ?? null;
         $targetTypeValue = strtolower(trim((string) ($payload['target_type'] ?? '')));
         $targetId = trim((string) ($payload['target_id'] ?? ''));
         $label = trim((string) ($payload['label'] ?? ''));
-        $label = $label === '' ? null : $label;
+        $label = $label !== '' ? $label : null;
         $backupTargetId = $payload['backup_target_id'] ?? null;
-
-        if ($actor->isAdmin()) {
-            if (!is_numeric($customerId)) {
-                return ['error' => new JsonResponse(['error' => 'Customer is required.'], JsonResponse::HTTP_BAD_REQUEST)];
-            }
-        }
 
         $customer = $actor;
         if ($actor->isAdmin()) {
-            $customer = $this->userRepository->find((int) $customerId);
-            if ($customer === null || $customer->getType() !== UserType::Customer) {
-                return ['error' => new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND)];
+            if ($customerIdValue === null || $customerIdValue === '' || !is_numeric($customerIdValue)) {
+                return ['error' => $this->responseEnvelopeFactory->error($request, 'Customer id is required for admin.', 'backup_definition_invalid', JsonResponse::HTTP_BAD_REQUEST)];
+            }
+            $customer = $this->userRepository->find((int) $customerIdValue);
+            if (!$customer instanceof User) {
+                return ['error' => $this->responseEnvelopeFactory->error($request, 'Customer not found.', 'backup_definition_invalid', JsonResponse::HTTP_NOT_FOUND)];
             }
         }
 
         if ($targetTypeValue === '') {
-            return ['error' => new JsonResponse(['error' => 'Target type is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Target type is required.', 'backup_definition_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $targetType = BackupTargetType::tryFrom($targetTypeValue);
         if ($targetType === null) {
-            return ['error' => new JsonResponse(['error' => 'Target type is invalid.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Target type is invalid.', 'backup_definition_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($targetId === '') {
-            return ['error' => new JsonResponse(['error' => 'Target id is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Target id is required.', 'backup_definition_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $backupTarget = null;
         if ($backupTargetId !== null && $backupTargetId !== '') {
             if (!is_numeric($backupTargetId)) {
-                return ['error' => new JsonResponse(['error' => 'Backup target id must be numeric.'], JsonResponse::HTTP_BAD_REQUEST)];
+                return ['error' => $this->responseEnvelopeFactory->error($request, 'Backup target id must be numeric.', 'backup_target_invalid', JsonResponse::HTTP_BAD_REQUEST)];
             }
             $backupTarget = $this->backupTargetRepository->find((int) $backupTargetId);
-            if ($backupTarget === null || $backupTarget->getCustomer()->getId() !== $customer->getId()) {
-                return ['error' => new JsonResponse(['error' => 'Backup target not found.'], JsonResponse::HTTP_NOT_FOUND)];
+            if (!$backupTarget instanceof BackupTarget || $backupTarget->getCustomer()->getId() !== $customer->getId()) {
+                return ['error' => $this->responseEnvelopeFactory->error($request, 'Backup target not found.', 'backup_target_invalid', JsonResponse::HTTP_NOT_FOUND)];
             }
         }
 
         $schedule = null;
         if ($this->hasSchedulePayload($payload)) {
-            $scheduleValidation = $this->validateSchedulePayload($payload);
+            $scheduleValidation = $this->validateSchedulePayload($request, $payload, $customer);
             if ($scheduleValidation['error'] instanceof JsonResponse) {
                 return ['error' => $scheduleValidation['error']];
             }
@@ -245,10 +266,14 @@ final class BackupApiController
         return array_key_exists('cron_expression', $payload)
             || array_key_exists('retention_days', $payload)
             || array_key_exists('retention_count', $payload)
-            || array_key_exists('enabled', $payload);
+            || array_key_exists('enabled', $payload)
+            || array_key_exists('time_zone', $payload)
+            || array_key_exists('compression', $payload)
+            || array_key_exists('stop_before', $payload)
+            || array_key_exists('backup_target_id', $payload);
     }
 
-    private function validateSchedulePayload(array $payload): array
+    private function validateSchedulePayload(Request $request, array $payload, User $customer): array
     {
         $cronExpression = trim((string) ($payload['cron_expression'] ?? ''));
         $retentionDaysValue = $payload['retention_days'] ?? null;
@@ -256,30 +281,62 @@ final class BackupApiController
         $enabledValue = $payload['enabled'] ?? true;
 
         if ($cronExpression === '') {
-            return ['error' => new JsonResponse(['error' => 'Cron expression is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Cron expression is required.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($retentionDaysValue === null || $retentionDaysValue === '' || !is_numeric($retentionDaysValue)) {
-            return ['error' => new JsonResponse(['error' => 'Retention days must be numeric.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Retention days must be numeric.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($retentionCountValue === null || $retentionCountValue === '' || !is_numeric($retentionCountValue)) {
-            return ['error' => new JsonResponse(['error' => 'Retention count must be numeric.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Retention count must be numeric.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $retentionDays = (int) $retentionDaysValue;
         $retentionCount = (int) $retentionCountValue;
         if ($retentionDays < 1) {
-            return ['error' => new JsonResponse(['error' => 'Retention days must be at least 1.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Retention days must be at least 1.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($retentionCount < 1) {
-            return ['error' => new JsonResponse(['error' => 'Retention count must be at least 1.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Retention count must be at least 1.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $enabled = filter_var($enabledValue, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
         if ($enabled === null) {
-            return ['error' => new JsonResponse(['error' => 'Enabled must be a boolean.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Enabled must be a boolean.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
+        }
+
+        $timeZone = trim((string) ($payload['time_zone'] ?? 'UTC'));
+        $timeZone = $timeZone === '' ? 'UTC' : $timeZone;
+        try {
+            new \DateTimeZone($timeZone);
+        } catch (\Throwable) {
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Time zone is invalid.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
+        }
+
+        $settings = $this->appSettingsService->getSettings();
+        $compression = strtolower(trim((string) ($payload['compression'] ?? $settings[AppSettingsService::KEY_BACKUP_DEFAULT_COMPRESSION] ?? 'gzip')));
+        if (!in_array($compression, ['gzip', 'zstd'], true)) {
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'Compression must be gzip or zstd.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
+        }
+
+        $stopBefore = filter_var($payload['stop_before'] ?? ($settings[AppSettingsService::KEY_BACKUP_STOP_BEFORE] ?? false), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($stopBefore === null) {
+            return ['error' => $this->responseEnvelopeFactory->error($request, 'stop_before must be a boolean.', 'backup_schedule_invalid', JsonResponse::HTTP_BAD_REQUEST)];
+        }
+
+        $backupTarget = null;
+        $backupTargetIdValue = $payload['backup_target_id'] ?? null;
+        if ($backupTargetIdValue !== null && $backupTargetIdValue !== '' && $backupTargetIdValue !== 'default') {
+            if (!is_numeric($backupTargetIdValue)) {
+                return ['error' => $this->responseEnvelopeFactory->error($request, 'Backup target id must be numeric.', 'backup_target_invalid', JsonResponse::HTTP_BAD_REQUEST)];
+            }
+
+            $backupTarget = $this->backupTargetRepository->find((int) $backupTargetIdValue);
+            if (!$backupTarget instanceof BackupTarget || $backupTarget->getCustomer()->getId() !== $customer->getId() || !$backupTarget->isEnabled()) {
+                return ['error' => $this->responseEnvelopeFactory->error($request, 'Backup target is invalid or disabled.', 'backup_target_invalid', JsonResponse::HTTP_CONFLICT)];
+            }
         }
 
         return [
@@ -288,18 +345,28 @@ final class BackupApiController
             'retention_days' => $retentionDays,
             'retention_count' => $retentionCount,
             'enabled' => $enabled,
+            'time_zone' => $timeZone,
+            'compression' => $compression,
+            'stop_before' => (bool) $stopBefore,
+            'backup_target' => $backupTarget,
         ];
     }
 
     private function createSchedule(BackupDefinition $definition, array $scheduleData): BackupSchedule
     {
-        return new BackupSchedule(
+        $schedule = new BackupSchedule(
             $definition,
             $scheduleData['cron_expression'],
             $scheduleData['retention_days'],
             $scheduleData['retention_count'],
             $scheduleData['enabled'],
         );
+        $schedule->setTimeZone($scheduleData['time_zone'] ?? 'UTC');
+        $schedule->setCompression($scheduleData['compression'] ?? 'gzip');
+        $schedule->setStopBefore((bool) ($scheduleData['stop_before'] ?? false));
+        $schedule->setBackupTarget($scheduleData['backup_target'] ?? null);
+
+        return $schedule;
     }
 
     private function canAccessDefinition(User $actor, BackupDefinition $definition): bool
@@ -331,6 +398,13 @@ final class BackupApiController
                 'retention_days' => $schedule->getRetentionDays(),
                 'retention_count' => $schedule->getRetentionCount(),
                 'enabled' => $schedule->isEnabled(),
+                'time_zone' => $schedule->getTimeZone(),
+                'compression' => $schedule->getCompression(),
+                'stop_before' => $schedule->isStopBefore(),
+                'backup_target_id' => $schedule->getBackupTarget()?->getId(),
+                'last_run_at' => $schedule->getLastRunAt()?->format(DATE_ATOM),
+                'last_status' => $schedule->getLastStatus(),
+                'last_error_code' => $schedule->getLastErrorCode(),
             ],
         ];
     }

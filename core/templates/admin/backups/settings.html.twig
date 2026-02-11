@@ -1,0 +1,46 @@
+{% extends 'admin/base.html.twig' %}
+{% block title %}Backup Settings{% endblock %}
+{% block body %}
+<div class="space-y-4" data-settings-url="{{ path('admin_settings_backups_update') }}">
+    <div class="flex items-center justify-between">
+        <h1 class="text-lg font-semibold">Backup Settings</h1>
+        <a class="rounded bg-slate-800 px-3 py-2 text-xs text-white" href="{{ path('admin_backups_overview') }}">Overview</a>
+    </div>
+    <p id="settings-feedback" class="text-xs text-slate-600"></p>
+    <form id="settings-form" class="grid gap-2 sm:grid-cols-2 rounded border border-slate-200 bg-white p-4">
+        <label class="text-xs">Default target
+            <select class="w-full rounded border p-2" name="default_target_id">
+                <option value="">none</option>
+                {% for target in targets %}
+                    <option value="{{ target.id }}" {{ settings.backup_default_target_id == target.id ? 'selected' }}>{{ target.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="text-xs">Retention count <input class="w-full rounded border p-2" type="number" name="retention_count" value="{{ settings.backup_default_retention_count }}"></label>
+        <label class="text-xs">Retention age days <input class="w-full rounded border p-2" type="number" name="retention_age_days" value="{{ settings.backup_default_retention_age_days }}"></label>
+        <label class="text-xs">Compression
+            <select class="w-full rounded border p-2" name="compression">
+                <option value="gzip" {{ settings.backup_default_compression == 'gzip' ? 'selected' }}>gzip</option>
+                <option value="zstd" {{ settings.backup_default_compression == 'zstd' ? 'selected' }}>zstd</option>
+            </select>
+        </label>
+        <label class="text-xs">Stop before backup <input type="checkbox" name="stop_before_backup" {{ settings.backup_stop_before ? 'checked' }}></label>
+        <label class="text-xs">WebDAV verify TLS default <input type="checkbox" name="webdav_verify_tls" {{ settings.backup_webdav_verify_tls ? 'checked' }}></label>
+        <label class="text-xs">Max backup size bytes <input class="w-full rounded border p-2" type="number" name="max_backup_size_bytes" value="{{ settings.backup_max_size_bytes ?: '' }}"></label>
+        <div class="sm:col-span-2"><button class="rounded bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" type="submit">Save settings</button></div>
+    </form>
+</div>
+<script>
+(() => {
+  const root=document.querySelector('[data-settings-url]'); if(!root) return;
+  const form=document.getElementById('settings-form'); const feedback=document.getElementById('settings-feedback');
+  form.addEventListener('submit', async (e)=>{e.preventDefault(); const fd=new FormData(form); const payload=Object.fromEntries(fd.entries());
+    payload.stop_before_backup=form.querySelector('[name="stop_before_backup"]').checked;
+    payload.webdav_verify_tls=form.querySelector('[name="webdav_verify_tls"]').checked;
+    const res=await fetch(root.dataset.settingsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json().catch(()=>({})); feedback.textContent=res.ok?'Saved.':(data.message||data.error||'Failed.');
+    feedback.className=`text-xs ${res.ok?'text-emerald-600':'text-rose-600'}`;
+  });
+})();
+</script>
+{% endblock %}

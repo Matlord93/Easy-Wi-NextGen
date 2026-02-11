@@ -3,7 +3,7 @@
     <p class="text-sm text-slate-700">{{ t('admin_instances_customer_create_intro', page_locale()) }}</p>
 </div>
 <form class="p-6 space-y-4"
-      hx-post="/admin/instances/customers"
+      hx-post="{{ path('admin_instances_customers_create') }}"
       hx-target="#instance-customer-form"
       hx-swap="outerHTML">
     {% if customerForm.success %}

@@ -7,6 +7,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentRepository;
+use App\Repository\InstanceMetricSampleRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\MetricSampleRepository;
 use Psr\Log\LoggerInterface;
@@ -22,6 +23,7 @@ final class AdminMetricsController
         private readonly AgentRepository $agentRepository,
         private readonly InstanceRepository $instanceRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
+        private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
         private readonly Environment $twig,
         private readonly LoggerInterface $logger,
     ) {
@@ -34,11 +36,27 @@ final class AdminMetricsController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $range = (string) $request->query->get('range', '24h');
-        $since = match ($range) {
-            '7d' => new \DateTimeImmutable('-7 days'),
-            default => new \DateTimeImmutable('-24 hours'),
-        };
+        $tab = (string) $request->query->get('tab', 'host');
+        if (!in_array($tab, ['host', 'instances'], true)) {
+            $tab = 'host';
+        }
+
+        $window = (string) $request->query->get('window', '60m');
+        $since = $this->resolveSince($window);
+        $page = max(1, (int) $request->query->get('page', 1));
+        $perPage = max(1, min(200, (int) $request->query->get('per_page', 100)));
+        $nodeFilter = trim((string) $request->query->get('node', ''));
+        $customerFilter = trim((string) $request->query->get('customer', ''));
+        $selectedInstanceId = trim((string) $request->query->get('instance', ''));
+        $selectedInstance = ctype_digit($selectedInstanceId) ? $this->instanceRepository->find((int) $selectedInstanceId) : null;
+        $selectedInstanceView = $selectedInstance === null ? null : [
+            'id' => $selectedInstance->getId(),
+            'booked_cpu_cores' => (float) $selectedInstance->getCpuLimit(),
+            'booked_ram_mb' => $selectedInstance->getRamLimit(),
+            'customer_email' => $selectedInstance->getCustomer()->getEmail(),
+            'node_id' => $selectedInstance->getNode()->getId(),
+            'node_name' => $selectedInstance->getNode()->getName(),
+        ];
 
         $loadError = null;
 
@@ -52,37 +70,82 @@ final class AdminMetricsController
             $loadError = 'agents';
         }
 
-        $selectedAgent = $this->resolveSelectedAgent($agents, (string) $request->query->get('agent', ''));
+        $selectedAgent = $this->resolveSelectedAgent($agents, (string) $request->query->get('agent', ''), $selectedInstanceId);
+
+        $recentSamples = [];
+        $sparklineSamples = [];
+        $aggregate = [
+            'count' => 0,
+            'cpu_avg' => null,
+            'cpu_max' => null,
+            'memory_avg' => null,
+            'memory_max' => null,
+            'disk_avg' => null,
+            'disk_max' => null,
+        ];
+        $totalSamples = 0;
+        $hostTotalPages = 1;
+
+        $instanceMetricAggregate = ['count' => 0, 'cpu_avg' => null, 'cpu_max' => null, 'mem_avg' => null, 'mem_max' => null];
+        $instanceMetricRecent = [];
+        $instanceMetricTotal = 0;
+        $instanceCpuPoints = null;
+        $instanceMemPoints = null;
+
+        $instanceBrowseRows = [];
+        $instanceBrowseTotal = 0;
+        $instanceBrowsePages = 1;
 
         try {
-            $samples = $selectedAgent === null
-                ? []
-                : $this->metricSampleRepository->findSeriesForAgentSince($selectedAgent, $since);
+            if ($selectedAgent !== null) {
+                $aggregate = $this->metricSampleRepository->fetchAggregateSnapshotForAgentSince($selectedAgent, $since);
+                $totalSamples = $this->metricSampleRepository->countSamplesForAgentSince($selectedAgent, $since);
+                $recentSamples = $this->metricSampleRepository->findRecentSamplesForAgentSince($selectedAgent, $since, $page, $perPage);
+                $sparklineSamples = $this->metricSampleRepository->findSparklineSeriesForAgentSince($selectedAgent, $since, 240);
+                $hostTotalPages = max(1, (int) ceil(max(1, $totalSamples) / $perPage));
+            }
+
+            $instanceFilterValue = ctype_digit($selectedInstanceId) ? (int) $selectedInstanceId : null;
+            $instanceBrowseRows = $this->instanceMetricSampleRepository->findAdminBrowseRows(
+                $since,
+                $page,
+                $perPage,
+                $nodeFilter !== '' ? $nodeFilter : null,
+                $customerFilter !== '' ? $customerFilter : null,
+                $instanceFilterValue,
+            );
+            $instanceBrowseTotal = $this->instanceMetricSampleRepository->countAdminBrowseRows(
+                $since,
+                $nodeFilter !== '' ? $nodeFilter : null,
+                $customerFilter !== '' ? $customerFilter : null,
+                $instanceFilterValue,
+            );
+            $instanceBrowsePages = max(1, (int) ceil(max(1, $instanceBrowseTotal) / $perPage));
+
+            if ($selectedInstance !== null) {
+                $instanceMetricAggregate = $this->instanceMetricSampleRepository->fetchAggregateForInstanceSince($selectedInstance, $since);
+                $instanceMetricTotal = $this->instanceMetricSampleRepository->countForInstanceSince($selectedInstance, $since);
+                $instanceMetricRecent = $this->instanceMetricSampleRepository->findRecentForInstanceSince($selectedInstance, $since, $page, $perPage);
+                $instanceSparkline = $this->instanceMetricSampleRepository->findSparklineForInstanceSince($selectedInstance, $since, 500);
+                $instanceCpuPoints = $this->buildSparklinePoints($this->buildInstanceSeries($instanceSparkline, 'cpu'));
+                $instanceMemPoints = $this->buildSparklinePoints($this->buildInstanceSeries($instanceSparkline, 'memory'));
+            }
         } catch (\Throwable $exception) {
             $this->logger->error('admin.metrics.series_failed', [
                 'agent_id' => $selectedAgent?->getId(),
                 'message' => $exception->getMessage(),
             ]);
-            $samples = [];
             $loadError = $loadError ?? 'series';
         }
 
-        $bandwidth = $this->calculateBandwidth($samples);
-
-        $cpuSeries = $this->buildSeries($samples, 'cpu');
-        $memorySeries = $this->buildSeries($samples, 'memory');
-        $diskSeries = $this->buildSeries($samples, 'disk');
-        $netSentSeries = $bandwidth['upload'];
-        $netRecvSeries = $bandwidth['download'];
-        $processSeries = $this->buildSeries($samples, 'process_count');
-        $temperatureSeries = $this->buildSeries($samples, 'temperature');
-
-        $latest = $samples !== [] ? $samples[array_key_last($samples)] : null;
-        $latestProcessCount = $this->extractPayloadValue($latest, 'process_count');
-        $latestTemperature = $this->extractTemperature($latest);
+        $bandwidth = $this->calculateBandwidth($sparklineSamples);
+        $cpuSeries = $this->buildSeries($sparklineSamples, 'cpu');
+        $memorySeries = $this->buildSeries($sparklineSamples, 'memory');
+        $diskSeries = $this->buildSeries($sparklineSamples, 'disk');
+        $latest = $recentSamples !== [] ? $recentSamples[0] : null;
 
         try {
-            $instances = $this->instanceRepository->findBy([], ['createdAt' => 'DESC'], 10);
+            $instances = $this->instanceRepository->findBy([], ['createdAt' => 'DESC'], 200);
         } catch (\Throwable $exception) {
             $this->logger->error('admin.metrics.instances_failed', [
                 'message' => $exception->getMessage(),
@@ -93,25 +156,41 @@ final class AdminMetricsController
 
         return new Response($this->twig->render('admin/metrics/index.html.twig', [
             'activeNav' => 'metrics',
+            'tab' => $tab,
             'agents' => $agents,
             'instances' => $instances,
             'selectedAgent' => $selectedAgent,
-            'range' => $range,
+            'selectedInstanceId' => $selectedInstanceId,
+            'selectedInstance' => $selectedInstanceView,
+            'nodeFilter' => $nodeFilter,
+            'customerFilter' => $customerFilter,
+            'window' => $window,
+            'page' => $page,
+            'perPage' => $perPage,
+            'hostTotalPages' => $hostTotalPages,
+            'instanceBrowsePages' => $instanceBrowsePages,
+            'totalSamples' => $totalSamples,
             'loadError' => $loadError,
+            'recentSamples' => $recentSamples,
+            'aggregate' => $aggregate,
             'cpuPoints' => $this->buildSparklinePoints($cpuSeries),
             'memoryPoints' => $this->buildSparklinePoints($memorySeries),
             'diskPoints' => $this->buildSparklinePoints($diskSeries),
-            'netSentPoints' => $this->buildSparklinePoints($netSentSeries),
-            'netRecvPoints' => $this->buildSparklinePoints($netRecvSeries),
-            'processPoints' => $this->buildSparklinePoints($processSeries),
-            'temperaturePoints' => $this->buildSparklinePoints($temperatureSeries),
+            'netSentPoints' => $this->buildSparklinePoints($bandwidth['upload']),
+            'netRecvPoints' => $this->buildSparklinePoints($bandwidth['download']),
             'latestCpu' => $latest['cpuPercent'] ?? null,
             'latestMemory' => $latest['memoryPercent'] ?? null,
             'latestDisk' => $latest['diskPercent'] ?? null,
             'latestNetSent' => $bandwidth['latestUpload'],
             'latestNetRecv' => $bandwidth['latestDownload'],
-            'latestProcessCount' => $latestProcessCount,
-            'latestTemperature' => $latestTemperature,
+            'since' => $since,
+            'instanceMetricAggregate' => $instanceMetricAggregate,
+            'instanceMetricRecent' => $instanceMetricRecent,
+            'instanceMetricTotal' => $instanceMetricTotal,
+            'instanceCpuPoints' => $instanceCpuPoints,
+            'instanceMemPoints' => $instanceMemPoints,
+            'instanceBrowseRows' => $instanceBrowseRows,
+            'instanceBrowseTotal' => $instanceBrowseTotal,
         ]));
     }
 
@@ -124,8 +203,20 @@ final class AdminMetricsController
     /**
      * @param Agent[] $agents
      */
-    private function resolveSelectedAgent(array $agents, string $agentId): ?Agent
+    private function resolveSelectedAgent(array $agents, string $agentId, string $instanceId): ?Agent
     {
+        if ($instanceId !== '' && ctype_digit($instanceId)) {
+            $instance = $this->instanceRepository->find((int) $instanceId);
+            if ($instance !== null) {
+                $instanceAgentId = $instance->getNode()->getId();
+                foreach ($agents as $agent) {
+                    if ($agent->getId() === $instanceAgentId) {
+                        return $agent;
+                    }
+                }
+            }
+        }
+
         if ($agentId !== '') {
             foreach ($agents as $agent) {
                 if ($agent->getId() === $agentId) {
@@ -137,6 +228,16 @@ final class AdminMetricsController
         return $agents[0] ?? null;
     }
 
+    private function resolveSince(string $window): \DateTimeImmutable
+    {
+        return match ($window) {
+            '15m' => new \DateTimeImmutable('-15 minutes'),
+            '6h' => new \DateTimeImmutable('-6 hours'),
+            '24h' => new \DateTimeImmutable('-24 hours'),
+            '7d' => new \DateTimeImmutable('-7 days'),
+            default => new \DateTimeImmutable('-60 minutes'),
+        };
+    }
 
     /**
      * @param array<int, array{recordedAt: mixed, netBytesSent: mixed, netBytesRecv: mixed}> $samples
@@ -199,6 +300,10 @@ final class AdminMetricsController
         return $delta >= 0 ? $delta : null;
     }
 
+    /**
+     * @param array<int, array<string, mixed>> $samples
+     * @return float[]
+     */
     private function buildSeries(array $samples, string $metric): array
     {
         $values = [];
@@ -209,8 +314,6 @@ final class AdminMetricsController
                 'disk' => $sample['diskPercent'] ?? null,
                 'net_sent' => $sample['netBytesSent'] ?? null,
                 'net_recv' => $sample['netBytesRecv'] ?? null,
-                'process_count' => $this->extractPayloadValue($sample, 'process_count'),
-                'temperature' => $this->extractTemperature($sample),
                 default => null,
             };
 
@@ -222,42 +325,29 @@ final class AdminMetricsController
         return $values;
     }
 
-    private function extractPayloadValue(?array $sample, string $key): ?float
+
+    /**
+     * @param array<int, array<string, mixed>> $samples
+     * @return float[]
+     */
+    private function buildInstanceSeries(array $samples, string $metric): array
     {
-        if (!is_array($sample)) {
-            return null;
-        }
-        $payload = $sample['payload'] ?? null;
-        if (!is_array($payload)) {
-            return null;
-        }
-        $value = $payload[$key] ?? null;
-        if (!is_numeric($value)) {
-            return null;
+        $values = [];
+        foreach ($samples as $sample) {
+            $value = match ($metric) {
+                'cpu' => $sample['cpuPercent'] ?? null,
+                'memory' => isset($sample['memUsedBytes']) && is_numeric($sample['memUsedBytes'])
+                    ? ((float) $sample['memUsedBytes'] / 1024 / 1024)
+                    : null,
+                default => null,
+            };
+
+            if ($value !== null) {
+                $values[] = (float) $value;
+            }
         }
 
-        return (float) $value;
-    }
-
-    private function extractTemperature(?array $sample): ?float
-    {
-        if (!is_array($sample)) {
-            return null;
-        }
-        $payload = $sample['payload'] ?? null;
-        if (!is_array($payload)) {
-            return null;
-        }
-        $temperature = $payload['temperature'] ?? null;
-        if (!is_array($temperature)) {
-            return null;
-        }
-        $value = $temperature['celsius'] ?? null;
-        if (!is_numeric($value)) {
-            return null;
-        }
-
-        return (float) $value;
+        return $values;
     }
 
     private function buildSparklinePoints(array $values, int $width = 240, int $height = 60): ?string

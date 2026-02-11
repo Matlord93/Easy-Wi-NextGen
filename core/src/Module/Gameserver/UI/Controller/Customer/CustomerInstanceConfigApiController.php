@@ -13,6 +13,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\Application\InstanceSlotService;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Repository\ConfigSchemaRepository;
@@ -39,6 +40,7 @@ final class CustomerInstanceConfigApiController
         private readonly AuditLogger $auditLogger,
         private readonly InstanceSlotService $instanceSlotService,
         private readonly EntityManagerInterface $entityManager,
+        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
     ) {
     }
 
@@ -74,7 +76,7 @@ final class CustomerInstanceConfigApiController
         if ($jobId !== '') {
             $job = $this->findConfigJob($instance, $customer, $jobId, 'instance.files.read');
 
-            return $this->buildConfigResponseFromJob($configSchema, $job);
+            return $this->buildConfigResponseFromJob($instance, $configSchema, $job);
         }
 
         $job = $this->queueReadJob($instance, $customer, $configSchema);
@@ -110,6 +112,18 @@ final class CustomerInstanceConfigApiController
             $this->entityManager->persist($instance);
         }
 
+        $validationErrors = $this->validateValuesAgainstSchema($configSchema, $values);
+        if ($validationErrors !== []) {
+            return $this->responseEnvelopeFactory->error(
+                $request,
+                'Config values are invalid.',
+                'config_validation_failed',
+                JsonResponse::HTTP_BAD_REQUEST,
+                null,
+                ['details' => ['field_errors' => $validationErrors]],
+            );
+        }
+
         $content = $this->configSchemaService->generate($configSchema, $values);
         $instance->setConfigOverride($configSchema->getFilePath(), $content);
         $this->entityManager->persist($instance);
@@ -119,6 +133,9 @@ final class CustomerInstanceConfigApiController
         return new JsonResponse([
             'status' => 'queued',
             'job_id' => $job->getId(),
+            'snapshot' => $this->configSnapshotMeta($instance, $configSchema),
+            'apply_required' => true,
+            'apply_mode' => $this->resolveApplyMode($configSchema),
         ], JsonResponse::HTTP_ACCEPTED);
     }
 
@@ -137,6 +154,19 @@ final class CustomerInstanceConfigApiController
         }
 
         $content = (string) $payload['content'];
+
+        $parseResult = $this->configSchemaService->parse($configSchema, $content);
+        $fieldErrors = $this->validateValuesAgainstSchema($configSchema, $parseResult->getValues());
+        if ($fieldErrors !== []) {
+            return $this->responseEnvelopeFactory->error(
+                $request,
+                'Config values are invalid.',
+                'config_validation_failed',
+                JsonResponse::HTTP_BAD_REQUEST,
+                null,
+                ['details' => ['field_errors' => $fieldErrors]],
+            );
+        }
         $slotUpdate = $this->resolveRequestedSlotsFromContent($instance, $configSchema, $content);
         if ($slotUpdate !== null) {
             $content = $this->configSchemaService->generate($configSchema, $slotUpdate['values']);
@@ -152,6 +182,68 @@ final class CustomerInstanceConfigApiController
         return new JsonResponse([
             'status' => 'queued',
             'job_id' => $job->getId(),
+            'snapshot' => $this->configSnapshotMeta($instance, $configSchema),
+            'apply_required' => true,
+            'apply_mode' => $this->resolveApplyMode($configSchema),
+        ], JsonResponse::HTTP_ACCEPTED);
+    }
+
+
+    #[Route(path: '/api/customer/instances/{id}/configs/{configId}/apply', name: 'customer_instance_configs_api_apply', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/configs/{configId}/apply', name: 'customer_instance_configs_api_apply_v1', methods: ['POST'])]
+    public function apply(Request $request, int $id, string $configId): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+        $configSchema = $this->resolveConfigSchema($instance, $configId);
+
+        $applyMode = $this->resolveApplyMode($configSchema);
+        $active = $this->jobRepository->findLatestActiveByTypesAndInstanceId(['instance.config.apply', 'instance.restart'], (int) $instance->getId());
+        if ($active !== null) {
+            return new JsonResponse([
+                'status' => 'queued',
+                'job_id' => $active->getId(),
+                'message' => 'Apply job already in progress.',
+                'apply_mode' => $applyMode,
+            ], JsonResponse::HTTP_ACCEPTED);
+        }
+
+        if ($applyMode === 'restart') {
+            $job = new Job('instance.restart', [
+                'instance_id' => (string) $instance->getId(),
+                'customer_id' => (string) $customer->getId(),
+                'agent_id' => $instance->getNode()->getId(),
+                'action' => 'config_apply_restart',
+                'config_id' => (string) $configSchema->getId(),
+            ]);
+            $this->entityManager->persist($job);
+            $this->entityManager->flush();
+
+            return new JsonResponse([
+                'status' => 'queued',
+                'job_id' => $job->getId(),
+                'message' => 'Config apply requires restart. Restart job queued.',
+                'apply_mode' => 'restart',
+            ], JsonResponse::HTTP_ACCEPTED);
+        }
+
+        $job = new Job('instance.config.apply', [
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $customer->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+            'config_id' => (string) $configSchema->getId(),
+            'config_key' => $configSchema->getConfigKey(),
+            'file_path' => $configSchema->getFilePath(),
+            'apply_mode' => $applyMode,
+        ]);
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'status' => 'queued',
+            'job_id' => $job->getId(),
+            'message' => 'Config apply job queued.',
+            'apply_mode' => $applyMode,
         ], JsonResponse::HTTP_ACCEPTED);
     }
 
@@ -377,7 +469,7 @@ final class CustomerInstanceConfigApiController
         return $job;
     }
 
-    private function buildConfigResponseFromJob(ConfigSchema $configSchema, Job $job): JsonResponse
+    private function buildConfigResponseFromJob(Instance $instance, ConfigSchema $configSchema, Job $job): JsonResponse
     {
         $status = $job->getStatus();
         $result = $job->getResult();
@@ -388,6 +480,8 @@ final class CustomerInstanceConfigApiController
                 'job_id' => $job->getId(),
                 'config' => $this->normalizeConfigSchema($configSchema),
                 'schema' => $this->configSchemaService->normalizeSchema($configSchema),
+                'snapshot' => $this->configSnapshotMeta($instance, $configSchema),
+                'apply_mode' => $this->resolveApplyMode($configSchema),
             ]);
         }
 
@@ -399,6 +493,7 @@ final class CustomerInstanceConfigApiController
                     'status' => 'error',
                     'job_id' => $job->getId(),
                     'error' => $error,
+                    'snapshot' => $this->configSnapshotMeta($instance, $configSchema),
                 ]);
             }
 
@@ -412,6 +507,8 @@ final class CustomerInstanceConfigApiController
                 'values' => $parseResult->getValues(),
                 'raw' => $content,
                 'warnings' => $parseResult->getWarnings(),
+                'snapshot' => $this->configSnapshotMeta($instance, $configSchema),
+                'apply_mode' => $this->resolveApplyMode($configSchema),
             ]);
         }
 
@@ -421,6 +518,7 @@ final class CustomerInstanceConfigApiController
             'status' => 'error',
             'job_id' => $job->getId(),
             'error' => $message,
+            'snapshot' => $this->configSnapshotMeta($instance, $configSchema),
         ]);
     }
 
@@ -436,6 +534,86 @@ final class CustomerInstanceConfigApiController
         return [$dir === '.' ? '' : $dir, $name];
     }
 
+
+    private function resolveApplyMode(ConfigSchema $schema): string
+    {
+        $raw = strtolower(trim((string) ($schema->getSchema()['apply_mode'] ?? $schema->getSchema()['applyMode'] ?? 'restart')));
+
+        return in_array($raw, ['reload', 'restart'], true) ? $raw : 'restart';
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<int, array{field: string, message: string, code: string}>
+     */
+    private function validateValuesAgainstSchema(ConfigSchema $configSchema, array $values): array
+    {
+        $errors = [];
+        $schema = $this->configSchemaService->normalizeSchema($configSchema);
+        foreach (($schema['fields'] ?? []) as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+            $id = (string) ($field['id'] ?? $field['key'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+
+            $label = (string) ($field['label'] ?? $id);
+            $type = strtolower((string) ($field['type'] ?? 'string'));
+            $required = filter_var($field['required'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $exists = array_key_exists($id, $values);
+            $value = $exists ? $values[$id] : null;
+
+            if ($required && (!$exists || $value === null || $value === '')) {
+                $errors[] = ['field' => $id, 'message' => sprintf('%s is required.', $label), 'code' => 'required'];
+                continue;
+            }
+            if (!$exists || $value === null || $value === '') {
+                continue;
+            }
+
+            if (in_array($type, ['int', 'integer', 'float', 'number'], true) && !is_numeric($value)) {
+                $errors[] = ['field' => $id, 'message' => sprintf('%s must be numeric.', $label), 'code' => 'invalid_number'];
+                continue;
+            }
+
+            if (in_array($type, ['bool', 'boolean'], true)) {
+                $normalized = strtolower((string) $value);
+                if (!in_array($normalized, ['1', '0', 'true', 'false', 'yes', 'no', 'on', 'off'], true)) {
+                    $errors[] = ['field' => $id, 'message' => sprintf('%s must be boolean.', $label), 'code' => 'invalid_boolean'];
+                }
+            }
+
+            if (isset($field['options']) && is_array($field['options']) && $field['options'] !== []) {
+                $allowed = array_map('strval', array_keys($field['options']));
+                if (!in_array((string) $value, $allowed, true)) {
+                    $errors[] = ['field' => $id, 'message' => sprintf('%s has an invalid value.', $label), 'code' => 'invalid_choice'];
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function configSnapshotMeta(Instance $instance, ConfigSchema $schema): array
+    {
+        $overrides = $instance->getConfigOverrides();
+        $entry = $overrides[$schema->getFilePath()] ?? null;
+        if (!is_array($entry)) {
+            return [];
+        }
+
+        return [
+            'last_updated_at' => (string) ($entry['last_updated_at'] ?? $entry['updated_at'] ?? ''),
+            'last_hash' => (string) ($entry['last_hash'] ?? ''),
+            'previous_hash' => (string) ($entry['previous_hash'] ?? ''),
+        ];
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -447,6 +625,7 @@ final class CustomerInstanceConfigApiController
             'name' => $schema->getName(),
             'format' => $schema->getFormat(),
             'file_path' => $schema->getFilePath(),
+            'apply_mode' => $this->resolveApplyMode($schema),
         ];
     }
 
