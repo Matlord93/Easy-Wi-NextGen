@@ -119,27 +119,33 @@ final class AgentGameServerClient
 
     private function resolveBaseUrl(Agent $node): string
     {
+        $baseUrl = trim($node->getServiceBaseUrl());
+        if ($baseUrl !== '') {
+            return rtrim($baseUrl, '/');
+        }
+
         $metadata = $node->getMetadata();
         $metadata = is_array($metadata) ? $metadata : [];
 
         $url = $metadata['gamesvc_url'] ?? null;
-        if (is_string($url) && $url !== '') {
-            return rtrim($url, '/');
+        if (is_string($url) && trim($url) !== '') {
+            return rtrim(trim($url), '/');
         }
 
-        $host = $metadata['gamesvc_host'] ?? null;
-        if (!is_string($host) || $host === '') {
-            $host = $node->getLastHeartbeatIp();
-        }
-        if (!is_string($host) || $host === '') {
-            throw new \RuntimeException('Game service host not configured.');
+
+        $heartbeatIp = trim((string) $node->getLastHeartbeatIp());
+        $metadataScheme = $metadata['agent_service_scheme'] ?? null;
+        $metadataPort = $metadata['agent_service_port'] ?? null;
+        if ($heartbeatIp !== '' && is_numeric($metadataPort)) {
+            $scheme = is_string($metadataScheme) && trim($metadataScheme) !== '' ? trim($metadataScheme) : 'https';
+            return sprintf('%s://%s:%d', $scheme, $heartbeatIp, (int) $metadataPort);
         }
 
-        $port = $metadata['gamesvc_port'] ?? null;
-        $port = is_numeric($port) ? (int) $port : 8444;
-        $scheme = $metadata['gamesvc_scheme'] ?? null;
-        $scheme = is_string($scheme) && $scheme !== '' ? $scheme : 'https';
+        $heartbeatIp = trim((string) $node->getLastHeartbeatIp());
+        if ($heartbeatIp !== '') {
+            return sprintf('https://%s', $heartbeatIp);
+        }
 
-        return sprintf('%s://%s:%d', $scheme, $host, $port);
+        throw new \RuntimeException('Game service base URL not configured.');
     }
 }

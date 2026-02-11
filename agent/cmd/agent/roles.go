@@ -2,10 +2,14 @@ package main
 
 import (
 	"bufio"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+
+	"easywi/agent/internal/config"
 )
 
 const rolesDir = "/etc/easywi/roles.d"
@@ -130,7 +134,7 @@ func canonicalRoleName(role string) string {
 	}
 }
 
-func collectMetadata() map[string]any {
+func collectMetadata(cfg config.Config) map[string]any {
 	metadata := map[string]any{
 		"ts6_supported": detectTS6Support(),
 	}
@@ -142,6 +146,11 @@ func collectMetadata() map[string]any {
 	}
 	if release := readOSRelease(); release != nil {
 		metadata["os_release"] = release
+	}
+
+	if servicePort := parseServiceListenPort(cfg.ServiceListen); servicePort > 0 {
+		metadata["agent_service_port"] = servicePort
+		metadata["agent_service_scheme"] = "http"
 	}
 	if runtime.GOOS == "windows" {
 		metadata["capabilities"] = []string{
@@ -155,6 +164,26 @@ func collectMetadata() map[string]any {
 		return nil
 	}
 	return metadata
+}
+
+func parseServiceListenPort(listen string) int {
+	listen = strings.TrimSpace(listen)
+	if listen == "" {
+		return 0
+	}
+	_, port, err := net.SplitHostPort(listen)
+	if err == nil {
+		if parsed, convErr := strconv.Atoi(port); convErr == nil && parsed > 0 && parsed <= 65535 {
+			return parsed
+		}
+		return 0
+	}
+	if strings.HasPrefix(listen, ":") {
+		if parsed, convErr := strconv.Atoi(strings.TrimPrefix(listen, ":")); convErr == nil && parsed > 0 && parsed <= 65535 {
+			return parsed
+		}
+	}
+	return 0
 }
 
 func readOSRelease() map[string]string {

@@ -57,7 +57,7 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 
 	maxConcurrency := resolveMaxConcurrency(cfg.MaxConcurrency, 0)
 	roles := collectRoles()
-	metadata := collectMetadata()
+	metadata := collectMetadata(cfg)
 	runner := newJobRunner(maxConcurrency)
 
 	startServiceServer(ctx, cfg)
@@ -72,7 +72,7 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 			return
 		case <-heartbeatTicker.C:
 			roles = collectRoles()
-			metadata = collectMetadata()
+			metadata = collectMetadata(cfg)
 			if err := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); err != nil {
 				log.Printf("heartbeat failed: %v", err)
 			}
