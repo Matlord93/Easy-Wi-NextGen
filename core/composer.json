@@ -78,7 +78,7 @@
       "PHP_CS_FIXER_IGNORE_ENV=1 php vendor/bin/php-cs-fixer fix --dry-run --diff"
     ],
     "auto-scripts": {
-      "cache:clear": "symfony-cmd",
+      "cache:clear --no-warmup": "symfony-cmd",
       "assets:install %PUBLIC_DIR%": "symfony-cmd"
     },
     "post-install-cmd": [
