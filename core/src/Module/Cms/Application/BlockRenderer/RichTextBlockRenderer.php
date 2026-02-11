@@ -18,4 +18,3 @@ final class RichTextBlockRenderer extends AbstractTwigBlockRenderer
         ]);
     }
 }
-

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Module\Core\Domain\Entity\ForumBoard;
-use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\ForumThread;
+use App\Module\Core\Domain\Entity\Site;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 

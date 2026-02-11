@@ -58,18 +58,54 @@ class ForumPostReport
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getPost(): ForumPost { return $this->post; }
-    public function getReporter(): ?User { return $this->reporter; }
-    public function getReason(): string { return $this->reason; }
-    public function getDetails(): ?string { return $this->details; }
-    public function setDetails(?string $details): void { $this->details = $details !== null ? trim($details) : null; }
-    public function getStatus(): string { return $this->status; }
-    public function getReporterIpHash(): ?string { return $this->reporterIpHash; }
-    public function setReporterIpHash(?string $reporterIpHash): void { $this->reporterIpHash = $reporterIpHash; }
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
-    public function getResolvedAt(): ?\DateTimeImmutable { return $this->resolvedAt; }
-    public function getResolvedBy(): ?User { return $this->resolvedBy; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getPost(): ForumPost
+    {
+        return $this->post;
+    }
+    public function getReporter(): ?User
+    {
+        return $this->reporter;
+    }
+    public function getReason(): string
+    {
+        return $this->reason;
+    }
+    public function getDetails(): ?string
+    {
+        return $this->details;
+    }
+    public function setDetails(?string $details): void
+    {
+        $this->details = $details !== null ? trim($details) : null;
+    }
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+    public function getReporterIpHash(): ?string
+    {
+        return $this->reporterIpHash;
+    }
+    public function setReporterIpHash(?string $reporterIpHash): void
+    {
+        $this->reporterIpHash = $reporterIpHash;
+    }
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+    public function getResolvedAt(): ?\DateTimeImmutable
+    {
+        return $this->resolvedAt;
+    }
+    public function getResolvedBy(): ?User
+    {
+        return $this->resolvedBy;
+    }
 
     public function resolve(?User $admin): void
     {

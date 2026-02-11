@@ -117,9 +117,15 @@ final class AdminSettingsController
             } elseif ((int) $sessionIdleMinutesRaw < 5) {
                 $errors[] = 'Session idle timeout must be at least 5 minutes.';
             }
-            if (!is_numeric($minSubmitSecondsRaw) || (int) $minSubmitSecondsRaw < 1) { $errors[] = 'Minimum submit seconds must be numeric and >= 1.'; }
-            if (!is_numeric($powDifficultyRaw) || (int) $powDifficultyRaw < 0 || (int) $powDifficultyRaw > 6) { $errors[] = 'PoW difficulty must be between 0 and 6.'; }
-            if (!is_numeric($dailyIpLimitRaw) || (int) $dailyIpLimitRaw < 1) { $errors[] = 'Daily IP limit must be numeric and >= 1.'; }
+            if (!is_numeric($minSubmitSecondsRaw) || (int) $minSubmitSecondsRaw < 1) {
+                $errors[] = 'Minimum submit seconds must be numeric and >= 1.';
+            }
+            if (!is_numeric($powDifficultyRaw) || (int) $powDifficultyRaw < 0 || (int) $powDifficultyRaw > 6) {
+                $errors[] = 'PoW difficulty must be between 0 and 6.';
+            }
+            if (!is_numeric($dailyIpLimitRaw) || (int) $dailyIpLimitRaw < 1) {
+                $errors[] = 'Daily IP limit must be numeric and >= 1.';
+            }
         }
 
         $maintenanceStartsAt = null;

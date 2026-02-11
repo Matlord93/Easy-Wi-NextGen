@@ -53,9 +53,18 @@ class CmsSiteSettings
         $this->updatedAt = $this->createdAt;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getSite(): Site { return $this->site; }
-    public function getActiveTheme(): ?string { return $this->activeTheme; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getSite(): Site
+    {
+        return $this->site;
+    }
+    public function getActiveTheme(): ?string
+    {
+        return $this->activeTheme;
+    }
 
     public function setActiveTheme(?string $activeTheme): void
     {
@@ -65,27 +74,64 @@ class CmsSiteSettings
     }
 
     /** @return array<string, mixed>|null */
-    public function getBrandingJson(): ?array { return $this->brandingJson; }
+    public function getBrandingJson(): ?array
+    {
+        return $this->brandingJson;
+    }
     /** @param array<string, mixed>|null $brandingJson */
-    public function setBrandingJson(?array $brandingJson): void { $this->brandingJson = $brandingJson; $this->touch(); }
+    public function setBrandingJson(?array $brandingJson): void
+    {
+        $this->brandingJson = $brandingJson;
+        $this->touch();
+    }
 
     /** @return array<string, bool>|null */
-    public function getModuleTogglesJson(): ?array { return $this->moduleTogglesJson; }
+    public function getModuleTogglesJson(): ?array
+    {
+        return $this->moduleTogglesJson;
+    }
     /** @param array<string, bool>|null $moduleTogglesJson */
-    public function setModuleTogglesJson(?array $moduleTogglesJson): void { $this->moduleTogglesJson = $moduleTogglesJson; $this->touch(); }
+    public function setModuleTogglesJson(?array $moduleTogglesJson): void
+    {
+        $this->moduleTogglesJson = $moduleTogglesJson;
+        $this->touch();
+    }
 
     /** @return list<array{label: string, url: string, external: bool}>|null */
-    public function getHeaderLinksJson(): ?array { return $this->headerLinksJson; }
+    public function getHeaderLinksJson(): ?array
+    {
+        return $this->headerLinksJson;
+    }
     /** @param list<array{label: string, url: string, external: bool}>|null $headerLinksJson */
-    public function setHeaderLinksJson(?array $headerLinksJson): void { $this->headerLinksJson = $headerLinksJson; $this->touch(); }
+    public function setHeaderLinksJson(?array $headerLinksJson): void
+    {
+        $this->headerLinksJson = $headerLinksJson;
+        $this->touch();
+    }
 
     /** @return list<array{label: string, url: string, external: bool}>|null */
-    public function getFooterLinksJson(): ?array { return $this->footerLinksJson; }
+    public function getFooterLinksJson(): ?array
+    {
+        return $this->footerLinksJson;
+    }
     /** @param list<array{label: string, url: string, external: bool}>|null $footerLinksJson */
-    public function setFooterLinksJson(?array $footerLinksJson): void { $this->footerLinksJson = $footerLinksJson; $this->touch(); }
+    public function setFooterLinksJson(?array $footerLinksJson): void
+    {
+        $this->footerLinksJson = $footerLinksJson;
+        $this->touch();
+    }
 
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
-    public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+    public function getUpdatedAt(): \DateTimeImmutable
+    {
+        return $this->updatedAt;
+    }
 
-    private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
+    private function touch(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 }

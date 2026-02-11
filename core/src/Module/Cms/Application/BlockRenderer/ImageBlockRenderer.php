@@ -20,4 +20,3 @@ final class ImageBlockRenderer extends AbstractTwigBlockRenderer
         ]);
     }
 }
-

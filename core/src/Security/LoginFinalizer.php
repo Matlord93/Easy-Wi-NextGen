@@ -58,4 +58,3 @@ final class LoginFinalizer
         return $response;
     }
 }
-

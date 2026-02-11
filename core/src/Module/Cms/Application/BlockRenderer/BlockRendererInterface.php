@@ -13,4 +13,3 @@ interface BlockRendererInterface
      */
     public function render(array $payload): string;
 }
-

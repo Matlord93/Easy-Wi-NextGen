@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\SiteResolver;
-use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\UserRepository;

@@ -42,13 +42,40 @@ class ForumCategory
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getSite(): Site { return $this->site; }
-    public function getTitle(): string { return $this->title; }
-    public function setTitle(string $title): void { $this->title = trim($title); }
-    public function getSlug(): string { return $this->slug; }
-    public function setSlug(string $slug): void { $this->slug = trim($slug); }
-    public function getSortOrder(): int { return $this->sortOrder; }
-    public function setSortOrder(int $sortOrder): void { $this->sortOrder = $sortOrder; }
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getSite(): Site
+    {
+        return $this->site;
+    }
+    public function getTitle(): string
+    {
+        return $this->title;
+    }
+    public function setTitle(string $title): void
+    {
+        $this->title = trim($title);
+    }
+    public function getSlug(): string
+    {
+        return $this->slug;
+    }
+    public function setSlug(string $slug): void
+    {
+        $this->slug = trim($slug);
+    }
+    public function getSortOrder(): int
+    {
+        return $this->sortOrder;
+    }
+    public function setSortOrder(int $sortOrder): void
+    {
+        $this->sortOrder = $sortOrder;
+    }
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
 }

@@ -45,18 +45,60 @@ class MediaAsset
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getSite(): ?Site { return $this->site; }
-    public function setSite(?Site $site): void { $this->site = $site; }
-    public function getPath(): string { return $this->path; }
-    public function setPath(string $path): void { $this->path = trim($path); }
-    public function getTitle(): ?string { return $this->title; }
-    public function setTitle(?string $title): void { $this->title = $title === null ? null : trim($title); }
-    public function getAlt(): ?string { return $this->alt; }
-    public function setAlt(?string $alt): void { $this->alt = $alt === null ? null : trim($alt); }
-    public function getMime(): ?string { return $this->mime; }
-    public function setMime(?string $mime): void { $this->mime = $mime; }
-    public function getSize(): ?int { return $this->size; }
-    public function setSize(?int $size): void { $this->size = $size; }
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getSite(): ?Site
+    {
+        return $this->site;
+    }
+    public function setSite(?Site $site): void
+    {
+        $this->site = $site;
+    }
+    public function getPath(): string
+    {
+        return $this->path;
+    }
+    public function setPath(string $path): void
+    {
+        $this->path = trim($path);
+    }
+    public function getTitle(): ?string
+    {
+        return $this->title;
+    }
+    public function setTitle(?string $title): void
+    {
+        $this->title = $title === null ? null : trim($title);
+    }
+    public function getAlt(): ?string
+    {
+        return $this->alt;
+    }
+    public function setAlt(?string $alt): void
+    {
+        $this->alt = $alt === null ? null : trim($alt);
+    }
+    public function getMime(): ?string
+    {
+        return $this->mime;
+    }
+    public function setMime(?string $mime): void
+    {
+        $this->mime = $mime;
+    }
+    public function getSize(): ?int
+    {
+        return $this->size;
+    }
+    public function setSize(?int $size): void
+    {
+        $this->size = $size;
+    }
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
 }

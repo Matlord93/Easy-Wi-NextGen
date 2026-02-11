@@ -32,12 +32,30 @@ class ForumMemberBan
         $this->user = $user;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getUser(): User { return $this->user; }
-    public function getBannedUntil(): ?\DateTimeImmutable { return $this->bannedUntil; }
-    public function setBannedUntil(?\DateTimeImmutable $bannedUntil): void { $this->bannedUntil = $bannedUntil; }
-    public function getReason(): ?string { return $this->reason; }
-    public function setReason(?string $reason): void { $this->reason = $reason !== null ? trim($reason) : null; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getUser(): User
+    {
+        return $this->user;
+    }
+    public function getBannedUntil(): ?\DateTimeImmutable
+    {
+        return $this->bannedUntil;
+    }
+    public function setBannedUntil(?\DateTimeImmutable $bannedUntil): void
+    {
+        $this->bannedUntil = $bannedUntil;
+    }
+    public function getReason(): ?string
+    {
+        return $this->reason;
+    }
+    public function setReason(?string $reason): void
+    {
+        $this->reason = $reason !== null ? trim($reason) : null;
+    }
 
     public function isActive(): bool
     {

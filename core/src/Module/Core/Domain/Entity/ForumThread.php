@@ -67,22 +67,82 @@ class ForumThread
         $this->lastActivityAt = $this->createdAt;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getSite(): Site { return $this->site; }
-    public function getBoard(): ForumBoard { return $this->board; }
-    public function getAuthorUser(): ?User { return $this->authorUser; }
-    public function getTitle(): string { return $this->title; }
-    public function setTitle(string $title): void { $this->title = trim($title); $this->touch(); }
-    public function getSlug(): string { return $this->slug; }
-    public function setSlug(string $slug): void { $this->slug = trim($slug); $this->touch(); }
-    public function isPinned(): bool { return $this->isPinned; }
-    public function setPinned(bool $isPinned): void { $this->isPinned = $isPinned; $this->touch(); }
-    public function isClosed(): bool { return $this->isClosed; }
-    public function setClosed(bool $isClosed): void { $this->isClosed = $isClosed; $this->touch(); }
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
-    public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
-    public function getLastPostAt(): \DateTimeImmutable { return $this->lastPostAt; }
-    public function getLastActivityAt(): \DateTimeImmutable { return $this->lastActivityAt; }
-    public function markPostActivity(): void { $this->lastPostAt = new \DateTimeImmutable(); $this->lastActivityAt = $this->lastPostAt; $this->touch(); }
-    private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getSite(): Site
+    {
+        return $this->site;
+    }
+    public function getBoard(): ForumBoard
+    {
+        return $this->board;
+    }
+    public function getAuthorUser(): ?User
+    {
+        return $this->authorUser;
+    }
+    public function getTitle(): string
+    {
+        return $this->title;
+    }
+    public function setTitle(string $title): void
+    {
+        $this->title = trim($title);
+        $this->touch();
+    }
+    public function getSlug(): string
+    {
+        return $this->slug;
+    }
+    public function setSlug(string $slug): void
+    {
+        $this->slug = trim($slug);
+        $this->touch();
+    }
+    public function isPinned(): bool
+    {
+        return $this->isPinned;
+    }
+    public function setPinned(bool $isPinned): void
+    {
+        $this->isPinned = $isPinned;
+        $this->touch();
+    }
+    public function isClosed(): bool
+    {
+        return $this->isClosed;
+    }
+    public function setClosed(bool $isClosed): void
+    {
+        $this->isClosed = $isClosed;
+        $this->touch();
+    }
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+    public function getUpdatedAt(): \DateTimeImmutable
+    {
+        return $this->updatedAt;
+    }
+    public function getLastPostAt(): \DateTimeImmutable
+    {
+        return $this->lastPostAt;
+    }
+    public function getLastActivityAt(): \DateTimeImmutable
+    {
+        return $this->lastActivityAt;
+    }
+    public function markPostActivity(): void
+    {
+        $this->lastPostAt = new \DateTimeImmutable();
+        $this->lastActivityAt = $this->lastPostAt;
+        $this->touch();
+    }
+    private function touch(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 }

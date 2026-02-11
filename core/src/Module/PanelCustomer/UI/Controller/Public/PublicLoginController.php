@@ -9,7 +9,6 @@ use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
-use App\Module\Core\Domain\Entity\User;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\UserRepository;
 use App\Security\LoginFinalizer;

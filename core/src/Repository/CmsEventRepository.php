@@ -40,7 +40,8 @@ final class CmsEventRepository extends ServiceEntityRepository
     public function findOneBySiteAndSlug(Site $site, string $slug, bool $publishedOnly = true): ?CmsEvent
     {
         /** @var CmsEvent|null $row */
-        $row = $this->findOneBy($publishedOnly
+        $row = $this->findOneBy(
+            $publishedOnly
             ? ['site' => $site, 'slug' => $slug, 'isPublished' => true]
             : ['site' => $site, 'slug' => $slug]
         );

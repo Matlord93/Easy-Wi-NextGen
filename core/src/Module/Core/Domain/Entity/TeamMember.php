@@ -57,24 +57,88 @@ class TeamMember
         $this->updatedAt = $this->createdAt;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getSite(): Site { return $this->site; }
-    public function getName(): string { return $this->name; }
-    public function setName(string $name): void { $this->name = trim($name); $this->touch(); }
-    public function getRoleTitle(): string { return $this->roleTitle; }
-    public function setRoleTitle(string $roleTitle): void { $this->roleTitle = trim($roleTitle); $this->touch(); }
-    public function getBio(): string { return $this->bio; }
-    public function setBio(string $bio): void { $this->bio = $bio; $this->touch(); }
-    public function getAvatarPath(): ?string { return $this->avatarPath; }
-    public function setAvatarPath(?string $avatarPath): void { $this->avatarPath = $avatarPath === null ? null : trim($avatarPath); $this->touch(); }
-    public function getSocialsJson(): ?array { return $this->socialsJson; }
-    public function setSocialsJson(?array $socialsJson): void { $this->socialsJson = $socialsJson; $this->touch(); }
-    public function getSortOrder(): int { return $this->sortOrder; }
-    public function setSortOrder(int $sortOrder): void { $this->sortOrder = $sortOrder; $this->touch(); }
-    public function isActive(): bool { return $this->isActive; }
-    public function setActive(bool $isActive): void { $this->isActive = $isActive; $this->touch(); }
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
-    public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getSite(): Site
+    {
+        return $this->site;
+    }
+    public function getName(): string
+    {
+        return $this->name;
+    }
+    public function setName(string $name): void
+    {
+        $this->name = trim($name);
+        $this->touch();
+    }
+    public function getRoleTitle(): string
+    {
+        return $this->roleTitle;
+    }
+    public function setRoleTitle(string $roleTitle): void
+    {
+        $this->roleTitle = trim($roleTitle);
+        $this->touch();
+    }
+    public function getBio(): string
+    {
+        return $this->bio;
+    }
+    public function setBio(string $bio): void
+    {
+        $this->bio = $bio;
+        $this->touch();
+    }
+    public function getAvatarPath(): ?string
+    {
+        return $this->avatarPath;
+    }
+    public function setAvatarPath(?string $avatarPath): void
+    {
+        $this->avatarPath = $avatarPath === null ? null : trim($avatarPath);
+        $this->touch();
+    }
+    public function getSocialsJson(): ?array
+    {
+        return $this->socialsJson;
+    }
+    public function setSocialsJson(?array $socialsJson): void
+    {
+        $this->socialsJson = $socialsJson;
+        $this->touch();
+    }
+    public function getSortOrder(): int
+    {
+        return $this->sortOrder;
+    }
+    public function setSortOrder(int $sortOrder): void
+    {
+        $this->sortOrder = $sortOrder;
+        $this->touch();
+    }
+    public function isActive(): bool
+    {
+        return $this->isActive;
+    }
+    public function setActive(bool $isActive): void
+    {
+        $this->isActive = $isActive;
+        $this->touch();
+    }
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+    public function getUpdatedAt(): \DateTimeImmutable
+    {
+        return $this->updatedAt;
+    }
 
-    private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
+    private function touch(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 }

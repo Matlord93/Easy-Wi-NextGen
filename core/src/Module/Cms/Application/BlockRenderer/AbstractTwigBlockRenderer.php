@@ -22,4 +22,3 @@ abstract class AbstractTwigBlockRenderer implements BlockRendererInterface
         ]);
     }
 }
-

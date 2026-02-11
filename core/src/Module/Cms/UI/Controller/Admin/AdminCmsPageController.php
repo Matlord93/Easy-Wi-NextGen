@@ -545,7 +545,7 @@ final class AdminCmsPageController
         ]);
     }
 
-     /**
+    /**
      * @param array<string, mixed>|null $overrides
      * @return array<string, mixed>
      */
@@ -569,7 +569,7 @@ final class AdminCmsPageController
 
         return $context;
     }
-   
+
     private function parsePayload(Request $request, \App\Module\Core\Domain\Entity\Site $site, ?CmsPage $existingPage = null): array
     {
         $errors = [];

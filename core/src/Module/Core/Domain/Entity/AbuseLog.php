@@ -39,7 +39,16 @@ final class AbuseLog
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    public function setIpHash(?string $ipHash): void { $this->ipHash = $ipHash; }
-    public function setUaHash(?string $uaHash): void { $this->uaHash = $uaHash; }
-    public function setEmailHash(?string $emailHash): void { $this->emailHash = $emailHash; }
+    public function setIpHash(?string $ipHash): void
+    {
+        $this->ipHash = $ipHash;
+    }
+    public function setUaHash(?string $uaHash): void
+    {
+        $this->uaHash = $uaHash;
+    }
+    public function setEmailHash(?string $emailHash): void
+    {
+        $this->emailHash = $emailHash;
+    }
 }

@@ -58,17 +58,51 @@ class ForumPost
         $this->updatedAt = $this->createdAt;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getSite(): Site { return $this->site; }
-    public function getThread(): ForumThread { return $this->thread; }
-    public function getAuthorUser(): ?User { return $this->authorUser; }
-    public function getContent(): string { return $this->content; }
-    public function setContent(string $content): void { $this->content = trim($content); $this->updatedAt = new \DateTimeImmutable(); }
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
-    public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
-    public function isDeleted(): bool { return $this->isDeleted; }
-    public function getDeletedAt(): ?\DateTimeImmutable { return $this->deletedAt; }
-    public function getDeletedBy(): ?User { return $this->deletedBy; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getSite(): Site
+    {
+        return $this->site;
+    }
+    public function getThread(): ForumThread
+    {
+        return $this->thread;
+    }
+    public function getAuthorUser(): ?User
+    {
+        return $this->authorUser;
+    }
+    public function getContent(): string
+    {
+        return $this->content;
+    }
+    public function setContent(string $content): void
+    {
+        $this->content = trim($content);
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+    public function getUpdatedAt(): \DateTimeImmutable
+    {
+        return $this->updatedAt;
+    }
+    public function isDeleted(): bool
+    {
+        return $this->isDeleted;
+    }
+    public function getDeletedAt(): ?\DateTimeImmutable
+    {
+        return $this->deletedAt;
+    }
+    public function getDeletedBy(): ?User
+    {
+        return $this->deletedBy;
+    }
     public function setDeleted(bool $isDeleted, ?User $actor = null): void
     {
         $this->isDeleted = $isDeleted;

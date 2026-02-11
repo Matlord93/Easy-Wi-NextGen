@@ -53,19 +53,64 @@ class ForumBoard
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getSite(): Site { return $this->site; }
-    public function getCategory(): ForumCategory { return $this->category; }
-    public function setCategory(ForumCategory $category): void { $this->category = $category; }
-    public function getTitle(): string { return $this->title; }
-    public function setTitle(string $title): void { $this->title = trim($title); }
-    public function getSlug(): string { return $this->slug; }
-    public function setSlug(string $slug): void { $this->slug = trim($slug); }
-    public function getDescription(): ?string { return $this->description; }
-    public function setDescription(?string $description): void { $this->description = $description; }
-    public function getSortOrder(): int { return $this->sortOrder; }
-    public function setSortOrder(int $sortOrder): void { $this->sortOrder = $sortOrder; }
-    public function isActive(): bool { return $this->isActive; }
-    public function setActive(bool $isActive): void { $this->isActive = $isActive; }
-    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getSite(): Site
+    {
+        return $this->site;
+    }
+    public function getCategory(): ForumCategory
+    {
+        return $this->category;
+    }
+    public function setCategory(ForumCategory $category): void
+    {
+        $this->category = $category;
+    }
+    public function getTitle(): string
+    {
+        return $this->title;
+    }
+    public function setTitle(string $title): void
+    {
+        $this->title = trim($title);
+    }
+    public function getSlug(): string
+    {
+        return $this->slug;
+    }
+    public function setSlug(string $slug): void
+    {
+        $this->slug = trim($slug);
+    }
+    public function getDescription(): ?string
+    {
+        return $this->description;
+    }
+    public function setDescription(?string $description): void
+    {
+        $this->description = $description;
+    }
+    public function getSortOrder(): int
+    {
+        return $this->sortOrder;
+    }
+    public function setSortOrder(int $sortOrder): void
+    {
+        $this->sortOrder = $sortOrder;
+    }
+    public function isActive(): bool
+    {
+        return $this->isActive;
+    }
+    public function setActive(bool $isActive): void
+    {
+        $this->isActive = $isActive;
+    }
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
 }
