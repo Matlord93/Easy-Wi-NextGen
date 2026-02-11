@@ -545,6 +545,31 @@ final class AdminCmsPageController
         ]);
     }
 
+     /**
+     * @param array<string, mixed>|null $overrides
+     * @return array<string, mixed>
+     */
+    private function buildMaintenanceFormContext(
+        \App\Module\Core\Domain\Entity\Site $site,
+        ?array $overrides = null,
+    ): array {
+        $context = [
+            'errors' => [],
+            'enabled' => $site->isMaintenanceEnabled(),
+            'message' => $site->getMaintenanceMessage(),
+            'graphic_path' => $site->getMaintenanceGraphicPath(),
+            'allowlist' => $site->getMaintenanceAllowlist(),
+            'starts_at' => $this->formatDateTime($site->getMaintenanceStartsAt()),
+            'ends_at' => $this->formatDateTime($site->getMaintenanceEndsAt()),
+        ];
+
+        if ($overrides !== null) {
+            $context = array_merge($context, $overrides);
+        }
+
+        return $context;
+    }
+   
     private function parsePayload(Request $request, \App\Module\Core\Domain\Entity\Site $site, ?CmsPage $existingPage = null): array
     {
         $errors = [];
