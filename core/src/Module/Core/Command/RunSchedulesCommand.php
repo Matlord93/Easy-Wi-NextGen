@@ -68,183 +68,183 @@ final class RunSchedulesCommand extends Command
         try {
             $instanceSchedules = $this->instanceScheduleRepository->findBy(['enabled' => true], ['id' => 'ASC'], self::DEFAULT_BATCH_SIZE);
             foreach ($instanceSchedules as $schedule) {
-            $instance = $schedule->getInstance();
-            $action = $schedule->getAction();
+                $instance = $schedule->getInstance();
+                $action = $schedule->getAction();
 
-            if ($action === InstanceScheduleAction::Update && $instance->getUpdatePolicy() !== InstanceUpdatePolicy::Auto) {
-                continue;
-            }
+                if ($action === InstanceScheduleAction::Update && $instance->getUpdatePolicy() !== InstanceUpdatePolicy::Auto) {
+                    continue;
+                }
 
-            $cronExpression = $schedule->getCronExpression();
-            if (!CronExpression::isValidExpression($cronExpression)) {
-                continue;
-            }
+                $cronExpression = $schedule->getCronExpression();
+                if (!CronExpression::isValidExpression($cronExpression)) {
+                    continue;
+                }
 
-            $timeZone = $schedule->getTimeZone() ?? 'UTC';
-            try {
-                $timeZoneObj = new \DateTimeZone($timeZone);
-            } catch (\Exception) {
-                continue;
-            }
+                $timeZone = $schedule->getTimeZone() ?? 'UTC';
+                try {
+                    $timeZoneObj = new \DateTimeZone($timeZone);
+                } catch (\Exception) {
+                    continue;
+                }
 
-            $nowLocal = $now->setTimezone($timeZoneObj);
-            $cron = CronExpression::factory($cronExpression);
-            $previousRun = $cron->getPreviousRunDate($nowLocal, 0, true);
+                $nowLocal = $now->setTimezone($timeZoneObj);
+                $cron = CronExpression::factory($cronExpression);
+                $previousRun = $cron->getPreviousRunDate($nowLocal, 0, true);
 
-            $lastQueuedAt = $schedule->getLastQueuedAt();
-            if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZoneObj) >= $previousRun) {
-                continue;
-            }
+                $lastQueuedAt = $schedule->getLastQueuedAt();
+                if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZoneObj) >= $previousRun) {
+                    continue;
+                }
 
-            if (strtolower($instance->getNode()->getStatus()) !== 'online') {
-                $schedule->markRun($now, 'blocked', 'agent_offline_or_unknown');
-                $schedule->setLastQueuedAt($now);
-                $this->entityManager->persist($schedule);
-                continue;
-            }
+                if (strtolower($instance->getNode()->getStatus()) !== 'online') {
+                    $schedule->markRun($now, 'blocked', 'agent_offline_or_unknown');
+                    $schedule->setLastQueuedAt($now);
+                    $this->entityManager->persist($schedule);
+                    continue;
+                }
 
-            if ($this->diskEnforcementService->guardInstanceAction($instance, $now) !== null) {
-                $schedule->markRun($now, 'blocked', 'disk_quota_exceeded');
-                $schedule->setLastQueuedAt($now);
-                $this->entityManager->persist($schedule);
-                continue;
-            }
+                if ($this->diskEnforcementService->guardInstanceAction($instance, $now) !== null) {
+                    $schedule->markRun($now, 'blocked', 'disk_quota_exceeded');
+                    $schedule->setLastQueuedAt($now);
+                    $this->entityManager->persist($schedule);
+                    continue;
+                }
 
-            $job = null;
-            $activeJob = $this->findActiveAutomationJob($instance, $action);
-            if ($activeJob instanceof Job) {
-                $errorCode = match ($action) {
-                    InstanceScheduleAction::Start => 'start_action_in_progress',
-                    InstanceScheduleAction::Stop => 'stop_action_in_progress',
-                    InstanceScheduleAction::Restart => 'restart_action_in_progress',
-                    InstanceScheduleAction::Update => 'update_action_in_progress',
+                $job = null;
+                $activeJob = $this->findActiveAutomationJob($instance, $action);
+                if ($activeJob instanceof Job) {
+                    $errorCode = match ($action) {
+                        InstanceScheduleAction::Start => 'start_action_in_progress',
+                        InstanceScheduleAction::Stop => 'stop_action_in_progress',
+                        InstanceScheduleAction::Restart => 'restart_action_in_progress',
+                        InstanceScheduleAction::Update => 'update_action_in_progress',
+                    };
+                    $schedule->markRun($now, 'skipped', $errorCode);
+                    $schedule->setLastQueuedAt($now);
+                    $this->entityManager->persist($schedule);
+                    continue;
+                }
+
+                if ($action === InstanceScheduleAction::Update && ($instance->getLockedBuildId() !== null || $instance->getLockedVersion() !== null)) {
+                    $schedule->markRun($now, 'skipped', 'update_locked_by_pin');
+                    $schedule->setLastQueuedAt($now);
+                    $this->entityManager->persist($schedule);
+                    continue;
+                }
+
+                $job = match ($action) {
+                    InstanceScheduleAction::Update => $this->queueUpdateJob($instance, $now),
+                    InstanceScheduleAction::Start => $this->queueInstanceJob('instance.start', $instance),
+                    InstanceScheduleAction::Stop => $this->queueInstanceJob('instance.stop', $instance),
+                    InstanceScheduleAction::Restart => $this->queueInstanceJob('instance.restart', $instance),
                 };
-                $schedule->markRun($now, 'skipped', $errorCode);
+
                 $schedule->setLastQueuedAt($now);
+                $schedule->markRun($now, 'queued');
                 $this->entityManager->persist($schedule);
-                continue;
+                $this->jobLogger->log($job, sprintf('Scheduled %s job queued.', $action->value), 0);
+                $this->auditLogger->log(null, 'instance.schedule.queued', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'cron_expression' => $cronExpression,
+                    'time_zone' => $timeZone,
+                    'job_id' => $job->getId(),
+                ]);
+                $queued++;
             }
 
-            if ($action === InstanceScheduleAction::Update && ($instance->getLockedBuildId() !== null || $instance->getLockedVersion() !== null)) {
-                $schedule->markRun($now, 'skipped', 'update_locked_by_pin');
+            $backupSchedules = $this->backupScheduleRepository->findBy(['enabled' => true], ['id' => 'ASC'], self::DEFAULT_BATCH_SIZE);
+            foreach ($backupSchedules as $schedule) {
+                $definition = $schedule->getDefinition();
+                if ($definition->getTargetType() !== BackupTargetType::Game) {
+                    continue;
+                }
+
+                $instanceId = (int) $definition->getTargetId();
+                $instance = $this->instanceRepository->find($instanceId);
+                if ($instance === null) {
+                    $schedule->markRun($now, 'skipped', 'instance_not_found');
+                    $this->entityManager->persist($schedule);
+                    continue;
+                }
+
+                $cronExpression = $schedule->getCronExpression();
+                if (!CronExpression::isValidExpression($cronExpression)) {
+                    $schedule->markRun($now, 'skipped', 'backup_schedule_invalid');
+                    $this->entityManager->persist($schedule);
+                    continue;
+                }
+
+                $scheduleTz = $schedule->getTimeZone() !== '' ? $schedule->getTimeZone() : 'UTC';
+                try {
+                    $timeZone = new \DateTimeZone($scheduleTz);
+                } catch (\Throwable) {
+                    $schedule->markRun($now, 'skipped', 'backup_schedule_invalid_timezone');
+                    $this->entityManager->persist($schedule);
+                    continue;
+                }
+
+                $cron = CronExpression::factory($cronExpression);
+                $previousRun = $cron->getPreviousRunDate($now->setTimezone($timeZone), 0, true);
+                $lastQueuedAt = $schedule->getLastQueuedAt();
+                if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZone) >= $previousRun) {
+                    continue;
+                }
+
+                if ($this->jobRepository->findLatestActiveByTypesAndInstanceId(['instance.backup.create', 'instance.backup.restore'], $instance->getId() ?? 0) instanceof Job) {
+                    $schedule->markRun($now, 'skipped', 'backup_action_in_progress');
+                    $schedule->setLastQueuedAt($now);
+                    $this->entityManager->persist($schedule);
+                    continue;
+                }
+
+                if ($this->diskEnforcementService->guardInstanceAction($instance, $now) !== null) {
+                    $schedule->markRun($now, 'blocked', 'disk_quota_exceeded');
+                    $schedule->setLastQueuedAt($now);
+                    $this->entityManager->persist($schedule);
+                    continue;
+                }
+
+                $backup = new Backup($definition, BackupStatus::Queued);
+                $this->entityManager->persist($backup);
+                $this->entityManager->flush();
+
+                $targetId = $this->resolveBackupTargetId($definition, $schedule);
+                $job = $this->queueInstanceJob('instance.backup.create', $instance, [
+                    'definition_id' => $definition->getId(),
+                    'backup_id' => $backup->getId(),
+                    'retention_days' => (string) $schedule->getRetentionDays(),
+                    'retention_count' => (string) $schedule->getRetentionCount(),
+                    'compression' => $schedule->getCompression(),
+                    'stop_before' => $schedule->isStopBefore() ? 'true' : 'false',
+                    'backup_target_id' => $targetId,
+                ]);
+                $backup->setJob($job);
+                $this->entityManager->persist($backup);
                 $schedule->setLastQueuedAt($now);
+                $schedule->markRun($now, 'queued');
                 $this->entityManager->persist($schedule);
-                continue;
+                $this->jobLogger->log($job, 'Scheduled backup queued.', 0);
+
+                $this->auditLogger->log(null, 'instance.backup.schedule_queued', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'definition_id' => $definition->getId(),
+                    'backup_id' => $backup->getId(),
+                    'cron_expression' => $cronExpression,
+                    'time_zone' => $scheduleTz,
+                    'job_id' => $job->getId(),
+                    'backup_target_id' => $targetId,
+                ]);
+                $queued++;
             }
 
-            $job = match ($action) {
-                InstanceScheduleAction::Update => $this->queueUpdateJob($instance, $now),
-                InstanceScheduleAction::Start => $this->queueInstanceJob('instance.start', $instance),
-                InstanceScheduleAction::Stop => $this->queueInstanceJob('instance.stop', $instance),
-                InstanceScheduleAction::Restart => $this->queueInstanceJob('instance.restart', $instance),
-            };
-
-            $schedule->setLastQueuedAt($now);
-            $schedule->markRun($now, 'queued');
-            $this->entityManager->persist($schedule);
-            $this->jobLogger->log($job, sprintf('Scheduled %s job queued.', $action->value), 0);
-            $this->auditLogger->log(null, 'instance.schedule.queued', [
-                'instance_id' => $instance->getId(),
-                'customer_id' => $instance->getCustomer()->getId(),
-                'action' => $action->value,
-                'cron_expression' => $cronExpression,
-                'time_zone' => $timeZone,
-                'job_id' => $job->getId(),
-            ]);
-            $queued++;
-        }
-
-        $backupSchedules = $this->backupScheduleRepository->findBy(['enabled' => true], ['id' => 'ASC'], self::DEFAULT_BATCH_SIZE);
-        foreach ($backupSchedules as $schedule) {
-            $definition = $schedule->getDefinition();
-            if ($definition->getTargetType() !== BackupTargetType::Game) {
-                continue;
-            }
-
-            $instanceId = (int) $definition->getTargetId();
-            $instance = $this->instanceRepository->find($instanceId);
-            if ($instance === null) {
-                $schedule->markRun($now, 'skipped', 'instance_not_found');
-                $this->entityManager->persist($schedule);
-                continue;
-            }
-
-            $cronExpression = $schedule->getCronExpression();
-            if (!CronExpression::isValidExpression($cronExpression)) {
-                $schedule->markRun($now, 'skipped', 'backup_schedule_invalid');
-                $this->entityManager->persist($schedule);
-                continue;
-            }
-
-            $scheduleTz = $schedule->getTimeZone() !== '' ? $schedule->getTimeZone() : 'UTC';
-            try {
-                $timeZone = new \DateTimeZone($scheduleTz);
-            } catch (\Throwable) {
-                $schedule->markRun($now, 'skipped', 'backup_schedule_invalid_timezone');
-                $this->entityManager->persist($schedule);
-                continue;
-            }
-
-            $cron = CronExpression::factory($cronExpression);
-            $previousRun = $cron->getPreviousRunDate($now->setTimezone($timeZone), 0, true);
-            $lastQueuedAt = $schedule->getLastQueuedAt();
-            if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZone) >= $previousRun) {
-                continue;
-            }
-
-            if ($this->jobRepository->findLatestActiveByTypesAndInstanceId(['instance.backup.create', 'instance.backup.restore'], $instance->getId() ?? 0) instanceof Job) {
-                $schedule->markRun($now, 'skipped', 'backup_action_in_progress');
-                $schedule->setLastQueuedAt($now);
-                $this->entityManager->persist($schedule);
-                continue;
-            }
-
-            if ($this->diskEnforcementService->guardInstanceAction($instance, $now) !== null) {
-                $schedule->markRun($now, 'blocked', 'disk_quota_exceeded');
-                $schedule->setLastQueuedAt($now);
-                $this->entityManager->persist($schedule);
-                continue;
-            }
-
-            $backup = new Backup($definition, BackupStatus::Queued);
-            $this->entityManager->persist($backup);
             $this->entityManager->flush();
 
-            $targetId = $this->resolveBackupTargetId($definition, $schedule);
-            $job = $this->queueInstanceJob('instance.backup.create', $instance, [
-                'definition_id' => $definition->getId(),
-                'backup_id' => $backup->getId(),
-                'retention_days' => (string) $schedule->getRetentionDays(),
-                'retention_count' => (string) $schedule->getRetentionCount(),
-                'compression' => $schedule->getCompression(),
-                'stop_before' => $schedule->isStopBefore() ? 'true' : 'false',
-                'backup_target_id' => $targetId,
-            ]);
-            $backup->setJob($job);
-            $this->entityManager->persist($backup);
-            $schedule->setLastQueuedAt($now);
-            $schedule->markRun($now, 'queued');
-            $this->entityManager->persist($schedule);
-            $this->jobLogger->log($job, 'Scheduled backup queued.', 0);
+            $output->writeln(sprintf('Queued %d scheduled job(s).', $queued));
 
-            $this->auditLogger->log(null, 'instance.backup.schedule_queued', [
-                'instance_id' => $instance->getId(),
-                'customer_id' => $instance->getCustomer()->getId(),
-                'definition_id' => $definition->getId(),
-                'backup_id' => $backup->getId(),
-                'cron_expression' => $cronExpression,
-                'time_zone' => $scheduleTz,
-                'job_id' => $job->getId(),
-                'backup_target_id' => $targetId,
-            ]);
-            $queued++;
-        }
-
-        $this->entityManager->flush();
-
-        $output->writeln(sprintf('Queued %d scheduled job(s).', $queued));
-
-        return Command::SUCCESS;
+            return Command::SUCCESS;
         } finally {
             $this->releaseProcessLock($lockHandle);
         }

@@ -64,4 +64,3 @@ final class ResponseEnvelopeFactory
         return $traceId;
     }
 }
-

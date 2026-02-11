@@ -40,9 +40,6 @@ final class JobPayloadMasker
         return $this->maskString($value);
     }
 
-    /**
-     * @return mixed
-     */
     public function maskValue(mixed $value): mixed
     {
         if (is_array($value)) {

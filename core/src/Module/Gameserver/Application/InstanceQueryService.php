@@ -92,7 +92,6 @@ final class InstanceQueryService
     }
 
     /**
-     * @param array<string, mixed> $cached
      * @return array<string, mixed>
      */
     private function runHttpQuery(Instance $instance, ?PortBlock $portBlock, array $config): array

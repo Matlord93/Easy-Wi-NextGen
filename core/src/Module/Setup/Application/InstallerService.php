@@ -261,9 +261,6 @@ final class InstallerService
         }
     }
 
-    /**
-     * @param array<string, mixed> $databaseState
-     */
     public function storeDatabaseConfig(array $payload): void
     {
         $this->ensureSecretKeyExists();

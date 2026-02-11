@@ -53,7 +53,6 @@ final class InstanceConfigService
     }
 
     /**
-     * @param array<string, int> $ports
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */

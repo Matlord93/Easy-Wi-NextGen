@@ -975,7 +975,6 @@ final class AdminNodeController
     }
 
     /**
-     * @param mixed $value
      * @return array<int, string>
      */
     private function normalizeInstanceBaseDirs(mixed $value): array

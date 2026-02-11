@@ -820,9 +820,6 @@ final class AdminCmsPageController
         return filter_var($path, FILTER_VALIDATE_URL) !== false;
     }
 
-    /**
-     * @param array<string, mixed> $template
-     */
     private function buildServerBlockPreview(string $content): string
     {
         $data = json_decode($content, true);
