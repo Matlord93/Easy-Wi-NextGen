@@ -225,7 +225,7 @@ func applyDefaults(cfg *Config) {
 		if cfg.HealthListen != "" {
 			cfg.ServiceListen = cfg.HealthListen
 		} else {
-			cfg.ServiceListen = "0.0.0.0:8087"
+			cfg.ServiceListen = "0.0.0.0:7456"
 		}
 	}
 	if cfg.FileBaseDir == "" {
