@@ -7,7 +7,7 @@
         <div class="sinusbot-header">
             <div>
                 <h1>SinusBot Node hinzufügen</h1>
-                <p>Wähle den Agenten aus, die Verbindungsdaten werden automatisch übernommen.</p>
+                <p>Der registrierte Webinterface-Agent wird automatisch genutzt. Eine manuelle Agent-Service-URL ist nicht mehr nötig.</p>
             </div>
         </div>
 
@@ -17,7 +17,6 @@
                 <div class="sinusbot-grid">
                     {{ form_row(form.name, { label: 'Name' }) }}
                     {{ form_row(form.customerId, { label: 'Kunde' }) }}
-                    {{ form_row(form.agentNodeId, { label: 'Agent Node' }) }}
                     {{ form_row(form.downloadUrl, { label: 'SinusBot Download URL' }) }}
                     {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
                     {{ form_row(form.webBindIp, { label: 'Web Bind IP' }) }}

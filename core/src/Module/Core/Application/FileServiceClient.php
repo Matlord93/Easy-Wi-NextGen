@@ -530,7 +530,7 @@ final class FileServiceClient
             throw new FileServiceException('agent_misconfigured', 'Agent service host not configured.', 422);
         }
 
-        $port = $this->defaultServicePort > 0 ? $this->defaultServicePort : 8087;
+        $port = $this->defaultServicePort > 0 ? $this->defaultServicePort : 7456;
         $scheme = $this->defaultServiceScheme !== '' ? $this->defaultServiceScheme : 'http';
 
         return sprintf('%s://%s:%d', $scheme, $host, $port);

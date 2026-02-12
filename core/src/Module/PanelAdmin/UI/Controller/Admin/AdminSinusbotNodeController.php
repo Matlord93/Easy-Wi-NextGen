@@ -11,6 +11,7 @@ use App\Module\Core\Application\Sinusbot\AgentUnavailableException;
 use App\Module\Core\Application\Sinusbot\SinusbotInstanceProvisioner;
 use App\Module\Core\Application\Sinusbot\SinusbotNodeService;
 use App\Module\Core\Application\Sinusbot\SinusbotQuotaValidator;
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -72,8 +73,11 @@ final class AdminSinusbotNodeController
         $this->requireAdmin($request);
 
         $dto = new SinusbotNodeDto();
+        $defaultAgent = $this->resolveDefaultAgent();
+        if ($defaultAgent !== null) {
+            $dto->agentNodeId = $defaultAgent->getId();
+        }
         $form = $this->formFactory->create(SinusbotNodeType::class, $dto, [
-            'agent_choices' => $this->buildAgentChoices(),
             'customer_choices' => $this->buildCustomerChoices(),
         ]);
         $form->handleRequest($request);
@@ -168,8 +172,6 @@ final class AdminSinusbotNodeController
         return new Response($this->twig->render('admin/sinusbot/nodes/show.html.twig', [
             'activeNav' => 'sinusbot',
             'node' => $node,
-            'agent_base_url' => $node->getAgent()->getServiceBaseUrl(),
-            'agent_id' => $node->getAgent()->getId(),
             'admin_password' => null,
             'management_url' => $this->buildManagementUrl($node),
             'agent_jobs' => $this->loadAgentJobs($node),
@@ -301,8 +303,6 @@ final class AdminSinusbotNodeController
         return new Response($this->twig->render('admin/sinusbot/nodes/show.html.twig', [
             'activeNav' => 'sinusbot',
             'node' => $node,
-            'agent_base_url' => $node->getAgent()->getServiceBaseUrl(),
-            'agent_id' => $node->getAgent()->getId(),
             'admin_password' => $adminPassword,
             'management_url' => $this->buildManagementUrl($node),
             'agent_jobs' => $this->loadAgentJobs($node),
@@ -381,39 +381,15 @@ final class AdminSinusbotNodeController
         ], 5);
     }
 
-    /**
-     * @return array<string, string>
-     */
-    private function buildAgentChoices(): array
-    {
-        $choices = [];
-        $agents = $this->agentRepository->findBy([], ['name' => 'ASC']);
-
-        foreach ($agents as $agent) {
-            $label = $agent->getName() !== null && $agent->getName() !== ''
-                ? sprintf('%s (%s)', $agent->getName(), $agent->getId())
-                : $agent->getId();
-            $choices[$label] = $agent->getId();
-        }
-
-        return $choices;
-    }
-
     private function applyAgentDefaults(SinusbotNodeDto $dto, \Symfony\Component\Form\FormInterface $form): void
     {
-        $agentId = trim($dto->agentNodeId);
-        if ($agentId === '') {
-            $form->addError(new FormError('Agent Node is required.'));
-            return;
-        }
-
-        $agent = $this->agentRepository->find($agentId);
+        $agent = $this->resolveDefaultAgent();
         if ($agent === null) {
-            $form->addError(new FormError('Selected agent was not found.'));
-
+            $form->addError(new FormError('Kein Agent verfügbar. Bitte zuerst einen Agent im Webinterface registrieren.'));
             return;
         }
 
+        $dto->agentNodeId = $agent->getId();
         $dto->agentBaseUrl = '';
         $dto->agentApiToken = '';
 
@@ -430,6 +406,14 @@ final class AdminSinusbotNodeController
         if (!$this->isValidInstallPath($dto->installPath)) {
             $form->addError(new FormError('Installationspfad muss absolut sein und darf kein "..", "~" oder Nullbytes enthalten.'));
         }
+    }
+
+
+    private function resolveDefaultAgent(): ?Agent
+    {
+        $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+
+        return $agents[0] ?? null;
     }
 
     private function buildManagementUrl(SinusbotNode $node): ?string

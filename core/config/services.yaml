@@ -42,7 +42,7 @@ parameters:
   app.sinusbot_quota_min: '%env(int:default:app.sinusbot_quota_min_default:APP_SINUSBOT_QUOTA_MIN)%'
   app.sinusbot_quota_max_default: '100'
   app.sinusbot_quota_max: '%env(int:default:app.sinusbot_quota_max_default:APP_SINUSBOT_QUOTA_MAX)%'
-  app.agent_service_port_default: '8087'
+  app.agent_service_port_default: '7456'
   app.agent_service_port: '%env(int:default:app.agent_service_port_default:APP_AGENT_SERVICE_PORT)%'
 
 services:
@@ -82,6 +82,11 @@ services:
   App\Module\Core\Application\AgentCreator:
     arguments:
       $defaultServicePort: '%app.agent_service_port%'
+
+  App\Module\Core\Application\AgentEndpointResolver:
+    arguments:
+      $defaultServicePort: '%app.agent_service_port%'
+      $defaultServiceScheme: 'http'
 
   App\Module\Core\Application\FileServiceClient:
     arguments:

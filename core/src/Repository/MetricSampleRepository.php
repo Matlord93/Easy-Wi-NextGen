@@ -21,7 +21,7 @@ final class MetricSampleRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array<int, array{id: int, recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int}>
+     * @return array<int, array{id: int, recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int, payload: ?array}>
      */
     public function findRecentSamplesForAgentSince(Agent $agent, \DateTimeImmutable $since, int $page, int $perPage): array
     {
@@ -78,7 +78,7 @@ final class MetricSampleRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array<int, array{recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int}>
+     * @return array<int, array{recordedAt: \DateTimeImmutable, cpuPercent: ?float, memoryPercent: ?float, diskPercent: ?float, netBytesSent: ?int, netBytesRecv: ?int, payload: ?array}>
      */
     public function findSparklineSeriesForAgentSince(Agent $agent, \DateTimeImmutable $since, int $limit = 240): array
     {
@@ -90,6 +90,7 @@ final class MetricSampleRepository extends ServiceEntityRepository
                 'sample.diskPercent AS diskPercent',
                 'sample.netBytesSent AS netBytesSent',
                 'sample.netBytesRecv AS netBytesRecv',
+                'sample.payload AS payload',
             )
             ->andWhere('sample.agent = :agent')
             ->andWhere('sample.recordedAt >= :since')
@@ -117,6 +118,7 @@ final class MetricSampleRepository extends ServiceEntityRepository
                 'sample.diskPercent AS diskPercent',
                 'sample.netBytesSent AS netBytesSent',
                 'sample.netBytesRecv AS netBytesRecv',
+                'sample.payload AS payload',
             )
             ->andWhere('sample.agent = :agent')
             ->andWhere('sample.recordedAt >= :since')

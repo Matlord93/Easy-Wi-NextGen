@@ -85,7 +85,22 @@ final class AgentGameServerClient
             'timeout' => $this->timeoutSeconds,
         ]);
 
-        return $response->toArray(false);
+        $content = $response->getContent(false);
+        if (trim($content) === '') {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException('Agent response was not valid JSON.', previous: $exception);
+        }
+
+        if (!is_array($decoded)) {
+            throw new \RuntimeException('Agent response was not a JSON object.');
+        }
+
+        return $decoded;
     }
 
     /**
@@ -121,7 +136,7 @@ final class AgentGameServerClient
     {
         $baseUrl = trim($node->getServiceBaseUrl());
         if ($baseUrl !== '') {
-            return rtrim($baseUrl, '/');
+            return $this->normalizeBaseUrl($baseUrl);
         }
 
         $metadata = $node->getMetadata();
@@ -129,7 +144,7 @@ final class AgentGameServerClient
 
         $url = $metadata['gamesvc_url'] ?? null;
         if (is_string($url) && trim($url) !== '') {
-            return rtrim(trim($url), '/');
+            return $this->normalizeBaseUrl($url);
         }
 
 
@@ -147,5 +162,28 @@ final class AgentGameServerClient
         }
 
         throw new \RuntimeException('Game service base URL not configured.');
+    }
+
+    private function normalizeBaseUrl(string $url): string
+    {
+        $trimmedUrl = trim($url);
+        $parsed = parse_url($trimmedUrl);
+
+        if (!is_array($parsed) || !isset($parsed['scheme'], $parsed['host'])) {
+            return rtrim($trimmedUrl, '/');
+        }
+
+        $normalized = sprintf('%s://%s', $parsed['scheme'], $parsed['host']);
+
+        if (isset($parsed['port'])) {
+            $normalized .= sprintf(':%d', (int) $parsed['port']);
+        }
+
+        $path = isset($parsed['path']) ? trim($parsed['path']) : '';
+        if ($path !== '' && $path !== '/') {
+            $normalized .= '/' . ltrim($path, '/');
+        }
+
+        return rtrim($normalized, '/');
     }
 }

@@ -31,6 +31,26 @@ final class AgentGameServerClientTest extends TestCase
         self::assertSame('https://agent.example.test:9999', $resolvedUrl);
     }
 
+
+    public function testResolveBaseUrlStripsFragmentsFromConfiguredBaseUrl(): void
+    {
+        $agent = new Agent('agent-1b', [
+            'key_id' => 'unused',
+            'nonce' => base64_encode('nonce'),
+            'ciphertext' => base64_encode('ciphertext'),
+        ]);
+        $agent->setServiceBaseUrl('http://88.99.212.160:8087/#/instance/status');
+
+        $client = new AgentGameServerClient(
+            new MockHttpClient(),
+            new EncryptionService(null, null),
+        );
+
+        $resolvedUrl = $this->invokeResolveBaseUrl($client, $agent);
+
+        self::assertSame('http://88.99.212.160:8087', $resolvedUrl);
+    }
+
     public function testResolveBaseUrlFallsBackToExplicitGamesvcUrlMetadata(): void
     {
         $agent = new Agent('agent-2', [

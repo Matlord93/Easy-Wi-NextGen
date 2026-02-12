@@ -9,13 +9,17 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\InstanceSchedule;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\ShopOrder;
+use App\Module\Core\Domain\Entity\ShopRental;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\Application\GameServerInstallPathManager;
 use App\Module\Ports\Application\PortLeaseManager;
+use App\Module\Ports\Domain\Entity\PortAllocation;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
@@ -303,6 +307,7 @@ final class InstanceApiController
             'base_dir' => $instance->getInstanceBaseDir(),
         ]);
         $this->entityManager->persist($deleteJob);
+        $this->removeDependentRecords($instance);
         $this->entityManager->remove($instance);
 
         $job = null;
@@ -333,6 +338,25 @@ final class InstanceApiController
         $this->entityManager->flush();
 
         return new JsonResponse(['status' => 'deleted']);
+    }
+
+    private function removeDependentRecords(Instance $instance): void
+    {
+        $this->entityManager->createQuery(sprintf('DELETE FROM %s schedule WHERE schedule.instance = :instance', InstanceSchedule::class))
+            ->setParameter('instance', $instance)
+            ->execute();
+
+        $this->entityManager->createQuery(sprintf('DELETE FROM %s allocation WHERE allocation.instance = :instance', PortAllocation::class))
+            ->setParameter('instance', $instance)
+            ->execute();
+
+        $this->entityManager->createQuery(sprintf('DELETE FROM %s rental WHERE rental.instance = :instance', ShopRental::class))
+            ->setParameter('instance', $instance)
+            ->execute();
+
+        $this->entityManager->createQuery(sprintf('UPDATE %s shopOrder SET shopOrder.instance = null WHERE shopOrder.instance = :instance', ShopOrder::class))
+            ->setParameter('instance', $instance)
+            ->execute();
     }
 
     #[Route(path: '/api/admin/instances/{id}/update-settings', name: 'admin_instances_update_settings', methods: ['POST'])]

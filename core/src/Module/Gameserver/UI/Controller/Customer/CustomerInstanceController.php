@@ -795,7 +795,11 @@ final class CustomerInstanceController
         $bookedRamBytes = (int) $instance->getRamLimit() * 1024 * 1024;
         $usedRamBytes = $instanceMetric?->getMemUsedBytes();
         $ramPercent = ($usedRamBytes !== null && $bookedRamBytes > 0) ? (($usedRamBytes / $bookedRamBytes) * 100) : null;
-        $runtimeStatus = $runtimeState['status'];
+        $metricsRuntimeStatus = $this->inferRuntimeStatusFromMetrics($instanceMetric);
+        $runtimeStatus = $runtimeState['status'] ?? $metricsRuntimeStatus;
+        if ($runtimeStatus === InstanceStatus::Stopped->value && $metricsRuntimeStatus === InstanceStatus::Running->value) {
+            $runtimeStatus = InstanceStatus::Running->value;
+        }
         $displayStatus = $this->resolveDisplayStatus($instance, $runtimeStatus);
         $activePowerJob = $this->findActivePowerJob($instance);
         $powerState = $this->resolvePowerState($instance, $runtimeStatus, $runtimeState, $activePowerJob);
@@ -897,6 +901,41 @@ final class CustomerInstanceController
         return $status->value;
     }
 
+
+    private function inferRuntimeStatusFromMetrics(mixed $instanceMetric): ?string
+    {
+        if ($instanceMetric === null || !method_exists($instanceMetric, 'getCollectedAt')) {
+            return null;
+        }
+
+        $collectedAt = $instanceMetric->getCollectedAt();
+        if (!$collectedAt instanceof \DateTimeImmutable) {
+            return null;
+        }
+
+        $cutoff = new \DateTimeImmutable('-90 seconds');
+        if ($collectedAt < $cutoff) {
+            return null;
+        }
+
+        $tasksCurrent = method_exists($instanceMetric, 'getTasksCurrent') ? $instanceMetric->getTasksCurrent() : null;
+        if (is_int($tasksCurrent) && $tasksCurrent > 0) {
+            return InstanceStatus::Running->value;
+        }
+
+        $memUsedBytes = method_exists($instanceMetric, 'getMemUsedBytes') ? $instanceMetric->getMemUsedBytes() : null;
+        if (is_int($memUsedBytes) && $memUsedBytes > 0) {
+            return InstanceStatus::Running->value;
+        }
+
+        $cpuPercent = method_exists($instanceMetric, 'getCpuPercent') ? $instanceMetric->getCpuPercent() : null;
+        if (is_float($cpuPercent) && $cpuPercent > 0.15) {
+            return InstanceStatus::Running->value;
+        }
+
+        return null;
+    }
+
     /**
      * @param array<string, mixed> $querySnapshot
      * @return array{status: ?string, reason: ?string, error_code: ?string, checked_at: string}
@@ -904,36 +943,120 @@ final class CustomerInstanceController
     private function resolveRuntimeState(Instance $instance, array $querySnapshot): array
     {
         $checkedAt = (new \DateTimeImmutable())->format(DATE_ATOM);
+        $queryStatus = $this->normalizeQueryStatus($querySnapshot['status'] ?? null, $querySnapshot['result']['online'] ?? null);
+        $hasFreshQueryStatus = $queryStatus !== null && $this->hasFreshQueryRuntimeStatus($querySnapshot);
+
+        if ($hasFreshQueryStatus) {
+            return [
+                'status' => $queryStatus,
+                'reason' => null,
+                'error_code' => null,
+                'checked_at' => $checkedAt,
+            ];
+        }
 
         try {
             $status = $this->agentGameServerClient->getInstanceStatus($instance);
         } catch (\Throwable $exception) {
-            $queryStatus = is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null;
+            $message = strtolower(trim($exception->getMessage()));
+            if (str_contains($message, 'not valid json') || str_contains($message, 'not a json object') || str_contains($message, 'syntax error')) {
+                return [
+                    'status' => $hasFreshQueryStatus ? $queryStatus : null,
+                    'reason' => null,
+                    'error_code' => null,
+                    'checked_at' => $checkedAt,
+                ];
+            }
 
             return [
-                'status' => $queryStatus,
+                'status' => $hasFreshQueryStatus ? $queryStatus : null,
                 'reason' => sprintf('Agent status probe failed: %s', $exception->getMessage()),
                 'error_code' => 'agent_status_probe_failed',
                 'checked_at' => $checkedAt,
             ];
         }
 
-        $statusValue = $status['status'] ?? null;
-        if (!is_string($statusValue)) {
+        $runtimeStatus = $this->normalizeRuntimeStatus(
+            $status['status'] ?? null,
+            $status['running'] ?? null,
+            $status['online'] ?? null,
+        );
+        if ($runtimeStatus === null) {
             return [
-                'status' => is_string($querySnapshot['status'] ?? null) ? strtolower((string) $querySnapshot['status']) : null,
-                'reason' => 'Agent status response missing status field.',
+                'status' => $hasFreshQueryStatus ? $queryStatus : null,
+                'reason' => 'Agent status response missing recognizable runtime status field.',
                 'error_code' => 'agent_status_missing_field',
                 'checked_at' => $checkedAt,
             ];
         }
 
         return [
-            'status' => strtolower($statusValue),
+            'status' => $runtimeStatus,
             'reason' => null,
             'error_code' => null,
             'checked_at' => $checkedAt,
         ];
+    }
+
+
+    /**
+     * @param array<string, mixed> $querySnapshot
+     */
+    private function hasFreshQueryRuntimeStatus(array $querySnapshot): bool
+    {
+        $checkedAtRaw = $querySnapshot['checked_at'] ?? null;
+        if (!is_string($checkedAtRaw) || trim($checkedAtRaw) === '') {
+            return false;
+        }
+
+        try {
+            $checkedAt = new \DateTimeImmutable($checkedAtRaw);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $checkedAt >= new \DateTimeImmutable('-90 seconds');
+    }
+
+    private function normalizeRuntimeStatus(mixed $status, mixed $running = null, mixed $online = null): ?string
+    {
+        if (is_string($status)) {
+            return match (strtolower(trim($status))) {
+                'online', 'running', 'up' => InstanceStatus::Running->value,
+                'offline', 'stopped', 'down' => InstanceStatus::Stopped->value,
+                default => null,
+            };
+        }
+
+        if (is_bool($running)) {
+            return $running ? InstanceStatus::Running->value : InstanceStatus::Stopped->value;
+        }
+
+        if (is_bool($online)) {
+            return $online ? InstanceStatus::Running->value : InstanceStatus::Stopped->value;
+        }
+
+        return null;
+    }
+
+    private function normalizeQueryStatus(mixed $value, mixed $onlineHint = null): ?string
+    {
+        if (is_string($value)) {
+            $normalized = match (strtolower(trim($value))) {
+                'online', 'running', 'up' => InstanceStatus::Running->value,
+                'offline', 'stopped', 'down' => InstanceStatus::Stopped->value,
+                default => null,
+            };
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        if (is_bool($onlineHint)) {
+            return $onlineHint ? InstanceStatus::Running->value : InstanceStatus::Stopped->value;
+        }
+
+        return null;
     }
 
     private function findActivePowerJob(Instance $instance): ?Job

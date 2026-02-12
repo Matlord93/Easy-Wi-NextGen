@@ -25,19 +25,6 @@ final class SinusbotNodeType extends AbstractType
                 'choices' => $options['customer_choices'],
                 'empty_data' => null,
             ])
-            ->add('agentNodeId', ChoiceType::class, [
-                'required' => false,
-                'placeholder' => 'Agent auswählen',
-                'choices' => $options['agent_choices'],
-            ])
-            ->add('agentBaseUrl', TextType::class, [
-                'required' => false,
-                'empty_data' => '',
-            ])
-            ->add('agentApiToken', TextType::class, [
-                'required' => false,
-                'empty_data' => '',
-            ])
             ->add('downloadUrl', TextType::class)
             ->add('installPath', TextType::class, [
                 'required' => true,
@@ -62,11 +49,9 @@ final class SinusbotNodeType extends AbstractType
     {
         $resolver->setDefaults([
             'data_class' => SinusbotNodeDto::class,
-            'agent_choices' => [],
             'customer_choices' => [],
         ]);
 
-        $resolver->setAllowedTypes('agent_choices', 'array');
         $resolver->setAllowedTypes('customer_choices', 'array');
     }
 }

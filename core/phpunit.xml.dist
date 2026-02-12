@@ -29,7 +29,7 @@
     <env name="APP_CORE_RELEASE_CACHE_TTL" value="300" force="true"/>
     <env name="APP_CORE_RELEASE_REPOSITORY" value="Matlord93/Easy-Wi-NextGen" force="true"/>
     <env name="APP_CORE_RELEASE_CHANNEL" value="beta" force="true"/>
-    <env name="APP_AGENT_SERVICE_PORT" value="8087" force="true"/>
+    <env name="APP_AGENT_SERVICE_PORT" value="7456" force="true"/>
     <env name="APP_AGENT_FILE_TIMEOUT_SECONDS" value="10" force="true"/>
     <env name="APP_SECRET_FALLBACKS" value="" force="true"/>
     <env name="APP_CORE_UPDATE_REPOSITORY" value="Matlord93/Easy-Wi-NextGen" force="true"/>

@@ -142,7 +142,11 @@ final class AdminMetricsController
         $cpuSeries = $this->buildSeries($sparklineSamples, 'cpu');
         $memorySeries = $this->buildSeries($sparklineSamples, 'memory');
         $diskSeries = $this->buildSeries($sparklineSamples, 'disk');
+        $temperatureSeries = $this->buildTemperatureSeries($sparklineSamples);
+        $temperatureAggregate = $this->buildAggregate($temperatureSeries);
+        $sampleBandwidth = $this->calculateSampleBandwidth($recentSamples);
         $latest = $recentSamples !== [] ? $recentSamples[0] : null;
+        $latestTemperature = $this->extractTemperatureCelsius($latest);
 
         try {
             $instances = $this->instanceRepository->findBy([], ['createdAt' => 'DESC'], 200);
@@ -183,6 +187,10 @@ final class AdminMetricsController
             'latestDisk' => $latest['diskPercent'] ?? null,
             'latestNetSent' => $bandwidth['latestUpload'],
             'latestNetRecv' => $bandwidth['latestDownload'],
+            'temperaturePoints' => $this->buildSparklinePoints($temperatureSeries),
+            'latestTemperature' => $latestTemperature,
+            'temperatureAggregate' => $temperatureAggregate,
+            'sampleBandwidth' => $sampleBandwidth,
             'since' => $since,
             'instanceMetricAggregate' => $instanceMetricAggregate,
             'instanceMetricRecent' => $instanceMetricRecent,
@@ -289,6 +297,51 @@ final class AdminMetricsController
         ];
     }
 
+    /**
+     * @param array<int, array{id: mixed, recordedAt: mixed, netBytesSent: mixed, netBytesRecv: mixed}> $samples
+     * @return array<int, array{upload: ?float, download: ?float}>
+     */
+    private function calculateSampleBandwidth(array $samples): array
+    {
+        $bySampleId = [];
+
+        foreach ($samples as $index => $sample) {
+            $sampleId = $sample['id'] ?? null;
+            if (!is_numeric($sampleId)) {
+                continue;
+            }
+
+            $previous = $samples[$index + 1] ?? null;
+            if (!is_array($previous)) {
+                $bySampleId[(int) $sampleId] = ['upload' => null, 'download' => null];
+                continue;
+            }
+
+            $currentAt = $sample['recordedAt'] ?? null;
+            $previousAt = $previous['recordedAt'] ?? null;
+            if (!$currentAt instanceof \DateTimeImmutable || !$previousAt instanceof \DateTimeImmutable) {
+                $bySampleId[(int) $sampleId] = ['upload' => null, 'download' => null];
+                continue;
+            }
+
+            $seconds = $currentAt->getTimestamp() - $previousAt->getTimestamp();
+            if ($seconds <= 0) {
+                $bySampleId[(int) $sampleId] = ['upload' => null, 'download' => null];
+                continue;
+            }
+
+            $sentDelta = $this->toNonNegativeDelta($sample['netBytesSent'] ?? null, $previous['netBytesSent'] ?? null);
+            $recvDelta = $this->toNonNegativeDelta($sample['netBytesRecv'] ?? null, $previous['netBytesRecv'] ?? null);
+
+            $bySampleId[(int) $sampleId] = [
+                'upload' => $sentDelta !== null ? (($sentDelta * 8) / $seconds / 1_000_000) : null,
+                'download' => $recvDelta !== null ? (($recvDelta * 8) / $seconds / 1_000_000) : null,
+            ];
+        }
+
+        return $bySampleId;
+    }
+
     private function toNonNegativeDelta(mixed $current, mixed $previous): ?float
     {
         if (!is_numeric($current) || !is_numeric($previous)) {
@@ -323,6 +376,71 @@ final class AdminMetricsController
         }
 
         return $values;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $samples
+     * @return float[]
+     */
+    private function buildTemperatureSeries(array $samples): array
+    {
+        $values = [];
+
+        foreach ($samples as $sample) {
+            $temperature = $this->extractTemperatureCelsius($sample);
+            if ($temperature !== null) {
+                $values[] = $temperature;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, mixed>|null $sample
+     */
+    private function extractTemperatureCelsius(?array $sample): ?float
+    {
+        if (!is_array($sample)) {
+            return null;
+        }
+
+        $payload = $sample['payload'] ?? null;
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        $candidates = [
+            $payload['temperature']['celsius'] ?? null,
+            $payload['temp']['celsius'] ?? null,
+            $payload['thermal']['celsius'] ?? null,
+            $payload['temperature'] ?? null,
+            $payload['temp'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_numeric($candidate)) {
+                return (float) $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param float[] $values
+     * @return array{avg: ?float, max: ?float}
+     */
+    private function buildAggregate(array $values): array
+    {
+        if ($values === []) {
+            return ['avg' => null, 'max' => null];
+        }
+
+        return [
+            'avg' => array_sum($values) / count($values),
+            'max' => max($values),
+        ];
     }
 
 

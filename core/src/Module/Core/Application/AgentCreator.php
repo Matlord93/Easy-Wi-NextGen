@@ -28,7 +28,7 @@ final class AgentCreator
 
     private function buildServiceUrl(string $ipv4Address): string
     {
-        $port = $this->defaultServicePort > 0 ? $this->defaultServicePort : 8087;
+        $port = $this->defaultServicePort > 0 ? $this->defaultServicePort : 7456;
 
         return sprintf('http://%s:%d', $ipv4Address, $port);
     }

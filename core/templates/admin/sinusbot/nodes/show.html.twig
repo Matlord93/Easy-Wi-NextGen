@@ -263,13 +263,8 @@
                         <p class="sinusbot-muted">Management-Zugriff und Service-Konfiguration der Node.</p>
                     </div>
                 </div>
-                {% if agent_base_url is empty %}
-                    <div class="sinusbot-alert sinusbot-alert-warning">Agent-Konfiguration unvollständig: Service-URL fehlt.</div>
-                {% endif %}
                 <div class="sinusbot-meta">
                     <div><strong>Zugewiesener Kunde:</strong> {{ node.customer ? node.customer.email : '–' }}</div>
-                    <div><strong>Agent-ID:</strong> {{ agent_id }}</div>
-                    <div><strong>{{ t('admin_sinusbot_agent_url_label', page_locale()) }}</strong> {{ agent_base_url ?: '–' }}</div>
                     <div><strong>{{ t('admin_sinusbot_install_path_label', page_locale()) }}</strong> {{ node.installPath }}</div>
                     <div><strong>{{ t('admin_sinusbot_web_bind_label', page_locale()) }}</strong> {{ node.webBindIp }}:{{ node.webPortBase }}</div>
                     <div><strong>TS3-Client:</strong> {{ node.ts3ClientInstalled ? 'Installiert (Installed)' : 'Nicht installiert (Not installed)' }}</div>
