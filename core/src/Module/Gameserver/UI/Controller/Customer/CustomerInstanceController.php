@@ -1855,6 +1855,17 @@ final class CustomerInstanceController
             }
         }
 
+        if ($primaryPort === null) {
+            $legacyPort = $instance->getAssignedPort();
+            if ($legacyPort !== null && $legacyPort > 0) {
+                $primaryPort = $legacyPort;
+                $assignedPorts[] = [
+                    'label' => 'legacy/udp',
+                    'port' => $legacyPort,
+                ];
+            }
+        }
+
         $address = $host !== null && $primaryPort !== null ? sprintf('%s:%d', $host, $primaryPort) : null;
 
         return [
@@ -1876,7 +1887,7 @@ final class CustomerInstanceController
     {
         $allocations = $this->portAllocationRepository->findByInstanceOrdered($instance);
 
-        return array_map(static function (\App\Module\Ports\Domain\Entity\PortAllocation $allocation): array {
+        $ports = array_map(static function (\App\Module\Ports\Domain\Entity\PortAllocation $allocation): array {
             $strategy = strtolower($allocation->getAllocationStrategy());
 
             return [
@@ -1889,5 +1900,22 @@ final class CustomerInstanceController
                 'created_at' => $allocation->getCreatedAt()->format(DATE_ATOM),
             ];
         }, $allocations);
+
+        if ($ports === []) {
+            $legacyPort = $instance->getAssignedPort();
+            if ($legacyPort !== null && $legacyPort > 0) {
+                $ports[] = [
+                    'name' => 'legacy',
+                    'port' => $legacyPort,
+                    'protocol' => 'udp',
+                    'bind_ip' => null,
+                    'is_auto' => true,
+                    'purpose' => 'legacy_assigned_port',
+                    'created_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
+                ];
+            }
+        }
+
+        return $ports;
     }
 }
