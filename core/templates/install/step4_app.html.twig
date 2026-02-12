@@ -31,6 +31,28 @@
             </div>
         </div>
 
+
+        <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+            <h3 class="text-sm font-semibold text-slate-900">{{ 'app.cms_section'|trans }}</h3>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="cms_template">{{ 'app.cms_template_label'|trans }}</label>
+                    <select id="cms_template" name="cms_template" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <option value="esports" {% if application.cms_template == 'esports' %}selected{% endif %}>esports</option>
+                        <option value="minimal" {% if application.cms_template == 'minimal' %}selected{% endif %}>minimal</option>
+                        <option value="fantasy" {% if application.cms_template == 'fantasy' %}selected{% endif %}>fantasy</option>
+                        <option value="xenal" {% if application.cms_template == 'xenal' %}selected{% endif %}>xenal</option>
+                    </select>
+                    <p class="mt-1 text-xs text-slate-700">{{ 'app.cms_template_hint'|trans }}</p>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700" for="cms_homepage_slug">{{ 'app.cms_homepage_slug_label'|trans }}</label>
+                    <input id="cms_homepage_slug" name="cms_homepage_slug" type="text" value="{{ application.cms_homepage_slug|default('startseite') }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="startseite">
+                    <p class="mt-1 text-xs text-slate-700">{{ 'app.cms_homepage_slug_hint'|trans }}</p>
+                </div>
+            </div>
+        </div>
+
         <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
             <h3 class="text-sm font-semibold text-slate-900">{{ 'app.admin_section'|trans }}</h3>
             <div class="mt-4 grid gap-4 sm:grid-cols-2">

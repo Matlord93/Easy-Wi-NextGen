@@ -86,6 +86,7 @@ errors:
   admin_ssh_key_store_failed: "Unable to store the SSH key on the server."
   install_failed: "Installation failed. Check logs for details and try again."
   cms_template_invalid: "Select a valid CMS template."
+  cms_homepage_slug_invalid: "Enter a valid homepage slug (a-z, 0-9, -)."
   env_bootstrap_failed: "Unable to write bootstrap secrets to %path%. Fix permissions (example: chmod 600 %path% && chown www-data:www-data %path%), then reload /install or run php bin/console app:setup:env-bootstrap."
 
 step4:
@@ -102,6 +103,9 @@ app:
   cms_template_label: "CMS template"
   cms_template_placeholder: "Select a CMS template"
   cms_template_hint: "Choose the design and starter pages for the public site."
+  cms_section: "CMS"
+  cms_homepage_slug_label: "Homepage slug"
+  cms_homepage_slug_hint: "This slug is created as the published homepage during installation."
   admin_section: "Superadmin account"
   admin_name: "Superadmin name"
   admin_name_placeholder: "Jane Doe"

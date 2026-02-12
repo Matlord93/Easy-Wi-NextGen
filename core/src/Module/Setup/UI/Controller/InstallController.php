@@ -64,6 +64,8 @@ final class InstallController
             'admin_name' => '',
             'admin_email' => '',
             'admin_ssh_key' => '',
+            'cms_template' => 'minimal',
+            'cms_homepage_slug' => 'startseite',
         ];
         $settingsDefaults = [
             'instance_base_dir' => '/home',
@@ -210,6 +212,8 @@ final class InstallController
                     'admin_name' => trim((string) ($payload['admin_name'] ?? $applicationState['admin_name'])),
                     'admin_email' => trim((string) ($payload['admin_email'] ?? $applicationState['admin_email'])),
                     'admin_ssh_key' => trim((string) ($payload['admin_ssh_key'] ?? $applicationState['admin_ssh_key'])),
+                    'cms_template' => trim((string) ($payload['cms_template'] ?? $applicationState['cms_template'])),
+                    'cms_homepage_slug' => trim((string) ($payload['cms_homepage_slug'] ?? $applicationState['cms_homepage_slug'])),
                 ]);
                 $settingsState = array_merge($settingsState, [
                     'instance_base_dir' => trim((string) ($payload['instance_base_dir'] ?? $settingsState['instance_base_dir'])),
@@ -243,6 +247,18 @@ final class InstallController
 
                 if ($applicationState['admin_ssh_key'] !== '' && !$this->isValidSshPublicKey($applicationState['admin_ssh_key'])) {
                     $errors[] = ['key' => 'errors.admin_ssh_key_invalid'];
+                }
+
+                $supportedThemes = ['esports', 'minimal', 'fantasy', 'xenal'];
+                if (!in_array($applicationState['cms_template'], $supportedThemes, true)) {
+                    $errors[] = ['key' => 'errors.cms_template_invalid'];
+                }
+
+                if ($applicationState['cms_homepage_slug'] === '') {
+                    $applicationState['cms_homepage_slug'] = 'startseite';
+                }
+                if (!preg_match('/^[a-z0-9][a-z0-9-]*$/', (string) $applicationState['cms_homepage_slug'])) {
+                    $errors[] = ['key' => 'errors.cms_homepage_slug_invalid'];
                 }
 
                 if (mb_strlen($adminPassword) < 8) {
@@ -314,7 +330,7 @@ final class InstallController
                                 ];
                             } catch (\Throwable $exception) {
                                 $this->installerService->logException($exception, 'Installer failed during install step.');
-                                $errors[] = ['key' => 'errors.install_failed'];
+                                $errors[] = ['key' => 'errors.cms_homepage_slug_invalid'];
                             }
                         }
                     }

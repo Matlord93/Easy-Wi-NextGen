@@ -96,7 +96,7 @@ func a2sPing(host string, port int, r *CheckResult) bool {
 		r.Error = &e
 		return false
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(2 * time.Second))
 	payload := append([]byte{0xFF, 0xFF, 0xFF, 0xFF}, []byte("TSource Engine Query\x00")...)
 	if _, err = conn.Write(payload); err != nil {
@@ -139,7 +139,7 @@ func udpPing(host string, port int, p []byte) bool {
 	if err != nil {
 		return false
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(2 * time.Second))
 	_, _ = conn.Write(p)
 	b := make([]byte, 64)
@@ -152,7 +152,7 @@ func httpPing(url string, r *CheckResult) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var players []any
 	_ = json.NewDecoder(resp.Body).Decode(&players)
 	p := len(players)
@@ -166,7 +166,7 @@ func (c *client) pullServers(ctx context.Context) ([]ServerConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var payload struct {
 		Items []ServerConfig `json:"items"`
 	}
@@ -190,7 +190,7 @@ func (c *client) pushBatch(ctx context.Context, items []CheckResult) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("push failed: %s", string(b))

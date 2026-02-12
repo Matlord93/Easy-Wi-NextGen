@@ -30,6 +30,20 @@ final class PageResolver
         ]);
     }
 
+
+    public function resolveHomePage(Site $site, string $preferredSlug = 'startseite'): ?CmsPage
+    {
+        $preferred = $this->resolvePublishedPage($site, $preferredSlug);
+        if ($preferred instanceof CmsPage) {
+            return $preferred;
+        }
+
+        return $this->pageRepository->findOneBy([
+            'site' => $site,
+            'isPublished' => true,
+        ], ['id' => 'ASC']);
+    }
+
     public function isReservedSlug(string $slug): bool
     {
         return in_array($slug, self::RESERVED_SLUGS, true);

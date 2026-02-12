@@ -86,6 +86,7 @@ errors:
   admin_ssh_key_store_failed: "Der SSH-Key konnte nicht auf dem Server hinterlegt werden."
   install_failed: "Installation fehlgeschlagen. Prüfen Sie die Logs und versuchen Sie es erneut."
   cms_template_invalid: "Bitte eine gültige CMS-Vorlage auswählen."
+  cms_homepage_slug_invalid: "Bitte einen gültigen Startseiten-Slug (a-z, 0-9, -) angeben."
   env_bootstrap_failed: "Bootstrap-Secrets konnten nicht nach %path% geschrieben werden. Rechte korrigieren (Beispiel: chmod 600 %path% && chown www-data:www-data %path%), dann /install neu laden oder php bin/console app:setup:env-bootstrap ausführen."
 
 step4:
@@ -102,6 +103,9 @@ app:
   cms_template_label: "CMS-Vorlage"
   cms_template_placeholder: "CMS-Vorlage auswählen"
   cms_template_hint: "Wählen Sie Design und Startseiten für die öffentliche Seite."
+  cms_section: "CMS"
+  cms_homepage_slug_label: "Startseiten-Slug"
+  cms_homepage_slug_hint: "Dieser Slug wird beim Installieren als veröffentlichte Startseite angelegt."
   admin_section: "Superadmin-Konto"
   admin_name: "Superadmin-Name"
   admin_name_placeholder: "Max Mustermann"

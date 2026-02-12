@@ -37,7 +37,7 @@ final class PublicCmsPageController
     #[Route(path: '/', name: 'public_cms_home', methods: ['GET'], priority: 20)]
     public function home(Request $request): Response
     {
-        return $this->renderPage($request, 'startseite');
+        return $this->renderHomePage($request);
     }
 
     #[Route(
@@ -50,6 +50,36 @@ final class PublicCmsPageController
     public function show(Request $request, string $slug): Response
     {
         return $this->renderPage($request, $slug);
+    }
+
+    private function renderHomePage(Request $request): Response
+    {
+        if (!$this->installerService->isLocked()) {
+            return new RedirectResponse('/install');
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return new Response('Site not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $maintenance = $this->maintenanceService->resolve($request, $site);
+        if ($maintenance['active']) {
+            return new Response($this->twig->render('public/maintenance.html.twig', [
+                'message' => $maintenance['message'],
+                'graphic_path' => $maintenance['graphic_path'],
+                'starts_at' => $maintenance['starts_at'],
+                'ends_at' => $maintenance['ends_at'],
+                'scope' => $maintenance['scope'],
+            ]), Response::HTTP_SERVICE_UNAVAILABLE);
+        }
+
+        $page = $this->pageResolver->resolveHomePage($site);
+        if ($page === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        return $this->renderResolvedPage($site, $page);
     }
 
     private function renderPage(Request $request, string $slug): Response
@@ -83,13 +113,19 @@ final class PublicCmsPageController
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
+        return $this->renderResolvedPage($site, $page);
+    }
+
+    private function renderResolvedPage(\App\Module\Core\Domain\Entity\Site $site, \App\Module\Core\Domain\Entity\CmsPage $page): Response
+    {
         $blocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);
         $templateKey = $this->themeResolver->resolveThemeKey($site);
+        $slug = $page->getSlug();
 
         return new Response($this->twig->render($this->resolveTemplate($templateKey, $slug), [
             'page' => [
                 'title' => $page->getTitle(),
-                'slug' => $page->getSlug(),
+                'slug' => $slug,
             ],
             'blocks' => $this->normalizeBlocks($blocks),
             'template_key' => $templateKey,

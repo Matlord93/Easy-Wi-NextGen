@@ -8,6 +8,7 @@ use App\Infrastructure\Config\DbConfigProvider;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Setup\Application\InstallEnvBootstrap;
 use App\Module\Core\Domain\Entity\AppSetting;
+use App\Module\Core\Domain\Entity\CmsPage;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
@@ -488,7 +489,7 @@ final class InstallerService
         $settings = $settingsRepository->findOneBy(['site' => $site]);
         if (!$settings instanceof CmsSiteSettings) {
             $settings = new CmsSiteSettings($site);
-            $settings->setActiveTheme('minimal');
+            $settings->setActiveTheme((string) ($data['cms_template'] ?? 'minimal'));
             $settings->setModuleTogglesJson([
                 'blog' => true,
                 'events' => true,
@@ -498,6 +499,20 @@ final class InstallerService
                 'gameserver' => true,
             ]);
             $entityManager->persist($settings);
+        }
+
+        $homepageSlug = trim((string) ($data['cms_homepage_slug'] ?? 'startseite'));
+        if ($homepageSlug === '') {
+            $homepageSlug = 'startseite';
+        }
+        $pageRepository = $entityManager->getRepository(CmsPage::class);
+        $homepage = $pageRepository->findOneBy(['site' => $site, 'slug' => $homepageSlug]);
+        if (!$homepage instanceof CmsPage) {
+            $homepageTitle = $homepageSlug === 'startseite' ? 'Startseite' : ucfirst(str_replace('-', ' ', $homepageSlug));
+            $homepage = new CmsPage($site, $homepageTitle, $homepageSlug, true);
+            $entityManager->persist($homepage);
+        } elseif (!$homepage->isPublished()) {
+            $homepage->setPublished(true);
         }
 
         $entityManager->flush();
@@ -524,6 +539,20 @@ final class InstallerService
             }
 
             $entityManager->persist(new AppSetting($key, $value));
+        }
+
+        $homepageSlug = trim((string) ($data['cms_homepage_slug'] ?? 'startseite'));
+        if ($homepageSlug === '') {
+            $homepageSlug = 'startseite';
+        }
+        $pageRepository = $entityManager->getRepository(CmsPage::class);
+        $homepage = $pageRepository->findOneBy(['site' => $site, 'slug' => $homepageSlug]);
+        if (!$homepage instanceof CmsPage) {
+            $homepageTitle = $homepageSlug === 'startseite' ? 'Startseite' : ucfirst(str_replace('-', ' ', $homepageSlug));
+            $homepage = new CmsPage($site, $homepageTitle, $homepageSlug, true);
+            $entityManager->persist($homepage);
+        } elseif (!$homepage->isPublished()) {
+            $homepage->setPublished(true);
         }
 
         $entityManager->flush();
