@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\UserRepository;
 use Symfony\Component\HttpFoundation\IpUtils;
@@ -12,6 +13,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/settings')]
@@ -20,6 +22,8 @@ final class AdminSettingsController
     public function __construct(
         private readonly AppSettingsService $settingsService,
         private readonly UserRepository $userRepository,
+        private readonly AuditLogger $auditLogger,
+        private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Environment $twig,
     ) {
     }
@@ -40,6 +44,9 @@ final class AdminSettingsController
             'saved' => $request->query->getBoolean('saved'),
             'errors' => [],
             'twoFactorOverview' => $this->resolveTwoFactorOverview($activeTab),
+            'agentRegistrationTokenMasked' => $this->settingsService->getAgentRegistrationTokenMasked(),
+            'agentRegistrationTokenSet' => $this->settingsService->hasAgentRegistrationTokenInDb(),
+            'tokenRotated' => $request->query->getBoolean('tokenRotated'),
         ]));
     }
 
@@ -154,6 +161,9 @@ final class AdminSettingsController
                 'saved' => false,
                 'errors' => $errors,
                 'twoFactorOverview' => $this->resolveTwoFactorOverview($activeTab),
+            'agentRegistrationTokenMasked' => $this->settingsService->getAgentRegistrationTokenMasked(),
+            'agentRegistrationTokenSet' => $this->settingsService->hasAgentRegistrationTokenInDb(),
+            'tokenRotated' => $request->query->getBoolean('tokenRotated'),
             ]), Response::HTTP_BAD_REQUEST);
         }
 
@@ -222,6 +232,24 @@ final class AdminSettingsController
         return new RedirectResponse(sprintf('/admin/settings?saved=1&tab=%s', $activeTab));
     }
 
+    #[Route(path: '/agent-registration-token/rotate', name: 'admin_settings_agent_token_rotate', methods: ['POST'])]
+    public function rotateAgentRegistrationToken(Request $request): Response
+    {
+        if (!$this->isAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $this->settingsService->rotateAgentRegistrationToken();
+        $this->auditLogger->log($actor, 'admin.agent_registration_token.rotated', []);
+
+        return new RedirectResponse($this->urlGenerator->generate('admin_settings', ['tab' => 'agent', 'tokenRotated' => 1]));
+    }
+
     private function isAdmin(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
@@ -231,7 +259,7 @@ final class AdminSettingsController
     private function resolveTab(string $tab): string
     {
         $tab = strtolower(trim($tab));
-        $allowed = ['general', 'email', 'gameserver', 'customer', 'security', 'maintenance'];
+        $allowed = ['general', 'email', 'gameserver', 'customer', 'security', 'maintenance', 'agent'];
 
         return in_array($tab, $allowed, true) ? $tab : 'general';
     }

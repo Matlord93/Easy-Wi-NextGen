@@ -1,0 +1,139 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block content %}
+<div class="space-y-6" id="voice-root" data-api-base="{{ path('customer_voice_list_v1') }}">
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-semibold text-slate-900">Voice</h1>
+            <p class="text-sm text-slate-700">TeamSpeak v3/v6 Status mit Cache, Retry-After und idempotenten Aktionen.</p>
+        </div>
+        <button type="button" data-refresh class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">Aktualisieren</button>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
+        <table class="min-w-full text-sm divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 text-left">Name</th>
+                    <th class="px-4 py-3 text-left">Provider</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-left">Players</th>
+                    <th class="px-4 py-3 text-left">Last probed</th>
+                    <th class="px-4 py-3 text-left">Reason</th>
+                    <th class="px-4 py-3 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200" data-voice-table>
+                <tr><td colspan="7" class="px-4 py-6 text-center text-slate-600">Lade Voice-Instanzen ...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+(() => {
+    const root = document.getElementById('voice-root');
+    if (!root) {
+        return;
+    }
+
+    const table = root.querySelector('[data-voice-table]');
+    const refreshButton = root.querySelector('[data-refresh]');
+    const apiBase = root.dataset.apiBase || '';
+    if (!apiBase) {
+        return;
+    }
+    let instances = [];
+
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+    const fmtDate = (value) => value ? new Date(value).toLocaleString() : '-';
+
+    const disableByState = (instance) => instance.action_in_progress || instance.probe_in_progress;
+
+    const actionButtons = (instance) => ['start', 'stop', 'restart'].map((action) => {
+        const disabled = disableByState(instance);
+        const label = action.charAt(0).toUpperCase() + action.slice(1);
+        const retry = instance.retry_after ? ` · retry in ${instance.retry_after}s` : '';
+
+        return `<button type="button" data-action="${action}" data-id="${instance.id}" class="rounded border px-2 py-1 text-xs ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" ${disabled ? 'disabled' : ''}>${label}${disabled ? retry : ''}</button>`;
+    }).join(' ');
+
+    const probeBadge = (instance) => {
+        if (instance.probe_in_progress) {
+            return `<span class="rounded bg-amber-100 px-2 py-1 text-xs text-amber-700">queued${instance.retry_after ? ` · ${instance.retry_after}s` : ''}</span>`;
+        }
+        return `<span class="rounded ${instance.stale ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'} px-2 py-1 text-xs">${instance.stale ? 'stale' : 'cached'}</span>`;
+    };
+
+    const render = () => {
+        if (!instances.length) {
+            table.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-600">Keine Voice-Instanzen vorhanden.</td></tr>';
+            return;
+        }
+
+        table.innerHTML = instances.map((i) => {
+            const reason = i.reason || i.error_code || '-';
+            return `<tr>
+                <td class="px-4 py-3">${escapeHtml(i.name)}</td>
+                <td class="px-4 py-3">${escapeHtml((i.provider_type || '').toUpperCase())}</td>
+                <td class="px-4 py-3">${escapeHtml(i.status || 'unknown')}</td>
+                <td class="px-4 py-3">${escapeHtml(i.players_online ?? '-')} / ${escapeHtml(i.players_max ?? '-')}</td>
+                <td class="px-4 py-3">${escapeHtml(fmtDate(i.checked_at))}<div class="mt-1">${probeBadge(i)}</div></td>
+                <td class="px-4 py-3">${escapeHtml(reason)}</td>
+                <td class="px-4 py-3 flex gap-1 flex-wrap">
+                    <button type="button" data-action="probe" data-id="${i.id}" class="rounded border px-2 py-1 text-xs ${disableByState(i) ? 'opacity-50 cursor-not-allowed' : ''}" ${disableByState(i) ? 'disabled' : ''}>Probe</button>
+                    ${actionButtons(i)}
+                </td>
+            </tr>`;
+        }).join('');
+    };
+
+    const load = async () => {
+        const response = await fetch(apiBase, { headers: { 'Accept': 'application/json' } });
+        const payload = await response.json();
+        instances = Array.isArray(payload.instances) ? payload.instances : [];
+        render();
+    };
+
+    const mutate = async (id, action) => {
+        const url = action === 'probe' ? `${apiBase}/${id}/probe` : `${apiBase}/${id}/actions/${action}`;
+        const response = await fetch(url, { method: 'POST', headers: { 'Accept': 'application/json' } });
+        const payload = await response.json();
+
+        const row = instances.find((i) => String(i.id) === String(id));
+        if (row) {
+            row.retry_after = payload.retry_after ?? null;
+            if (payload.error_code === 'voice_probe_in_progress') {
+                row.probe_in_progress = true;
+            }
+            if (payload.error_code === 'voice_action_in_progress') {
+                row.action_in_progress = true;
+            }
+            if (payload.message) {
+                row.reason = payload.message;
+            }
+        }
+
+        render();
+        setTimeout(() => load().catch(() => {}), 1000);
+    };
+
+    root.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-action][data-id]');
+        if (!button || button.disabled) {
+            return;
+        }
+
+        mutate(button.dataset.id, button.dataset.action).catch(() => {
+            button.disabled = true;
+        });
+    });
+
+    refreshButton?.addEventListener('click', () => load().catch(() => {}));
+
+    load().catch(() => {
+        table.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-rose-700">Voice API nicht erreichbar.</td></tr>';
+    });
+})();
+</script>
+{% endblock %}

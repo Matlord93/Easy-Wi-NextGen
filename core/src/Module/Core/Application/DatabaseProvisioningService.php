@@ -5,63 +5,52 @@ declare(strict_types=1);
 namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Database;
+use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\Job;
 
 final class DatabaseProvisioningService
 {
     private const DEFAULT_MAX_ATTEMPTS = 5;
-    private const DEFAULT_PRIVILEGES = 'SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX';
+    private const DEFAULT_ALLOWED_HOSTS = '%';
 
-    /**
-     * @return Job[]
-     */
-    public function buildCreateJobs(Database $database, array $encryptedPassword, string $agentId): array
+    /** @return Job[] */
+    public function buildCreateJobs(Database $database, string $agentId): array
     {
-        $payload = $this->buildPayload($database, $encryptedPassword, $agentId);
-
-        $jobs = [
-            $this->createJob('database.create', $payload),
-            $this->createJob('database.user.create', $payload),
-            $this->createJob('database.grant.apply', array_merge($payload, ['privileges' => self::DEFAULT_PRIVILEGES])),
-        ];
-
-        return $jobs;
+        return [$this->createJob('database.create', $this->buildPayload($database, $agentId))];
     }
 
-    public function buildPasswordRotateJob(Database $database, array $encryptedPassword, string $agentId): Job
+    public function buildPasswordRotateJob(Database $database, string $agentId): Job
     {
-        $payload = $this->buildPayload($database, $encryptedPassword, $agentId);
-
-        return $this->createJob('database.password.rotate', $payload);
+        return $this->createJob('database.rotate_password', $this->buildPayload($database, $agentId));
     }
 
     public function buildDeleteJob(Database $database, string $agentId): Job
     {
-        $payload = $this->buildPayload($database, $database->getEncryptedPassword(), $agentId);
-
-        return $this->createJob('database.delete', $payload);
+        return $this->createJob('database.delete', $this->buildPayload($database, $agentId));
     }
 
-    /**
-     * @param array{key_id: string, nonce: string, ciphertext: string} $encryptedPassword
-     * @return array<string, string>
-     */
-    private function buildPayload(Database $database, array $encryptedPassword, string $agentId): array
+    /** @return array<string,string> */
+    private function buildPayload(Database $database, string $agentId): array
     {
         $payload = [
             'database_id' => (string) ($database->getId() ?? ''),
             'customer_id' => (string) $database->getCustomer()->getId(),
-            'engine' => $database->getEngine(),
+            'engine' => strtolower($database->getEngine()),
             'host' => $database->getHost(),
             'port' => (string) $database->getPort(),
             'database' => $database->getName(),
             'username' => $database->getUsername(),
-            'encrypted_password' => $encryptedPassword,
+            'allowed_hosts' => self::DEFAULT_ALLOWED_HOSTS,
             'agent_id' => $agentId,
         ];
 
-        if ($database->getNode() !== null) {
-            $payload['database_node_id'] = (string) $database->getNode()?->getId();
+        $node = $database->getNode();
+        if ($node instanceof DatabaseNode) {
+            $payload['database_node_id'] = (string) $node->getId();
+            $payload['tls_mode'] = $node->getTlsMode();
+            if ($node->getCaCert() !== null && trim($node->getCaCert()) !== '') {
+                $payload['ca_cert'] = $node->getCaCert();
+            }
         }
 
         return $payload;

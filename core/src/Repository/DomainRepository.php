@@ -19,8 +19,14 @@ final class DomainRepository extends ServiceEntityRepository
     /**
      * @return Domain[]
      */
-    public function findByCustomer(User $customer): array
+    public function findByCustomer(User $customer, int $limit = 200): array
     {
-        return $this->findBy(['customer' => $customer], ['createdAt' => 'DESC']);
+        return $this->createQueryBuilder('domain')
+            ->andWhere('domain.customer = :customer')
+            ->setParameter('customer', $customer)
+            ->orderBy('domain.createdAt', 'DESC')
+            ->setMaxResults(max(1, min(500, $limit)))
+            ->getQuery()
+            ->getResult();
     }
 }

@@ -55,6 +55,27 @@ class Webspace implements ResourceEventSource
 
     #[ORM\Column(length: 20)]
     private string $status;
+    #[ORM\Column(length: 20, options: ['default' => 'pending'])]
+    private string $applyStatus = 'pending';
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $applyRequired = false;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $lastApplyErrorCode = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $lastApplyErrorMessage = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $lastAppliedHash = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastAppliedAt = null;
+
+    #[ORM\Column(length: 20, options: ['default' => 'nginx'])]
+    private string $runtime = 'nginx';
+
 
     #[ORM\Column]
     private int $diskLimitBytes;
@@ -176,6 +197,77 @@ class Webspace implements ResourceEventSource
     public function getStatus(): string
     {
         return $this->status;
+    }
+
+    public function getApplyStatus(): string
+    {
+        return $this->applyStatus;
+    }
+
+    public function setApplyStatus(string $applyStatus): void
+    {
+        $this->applyStatus = $applyStatus;
+        $this->touch();
+    }
+
+    public function isApplyRequired(): bool
+    {
+        return $this->applyRequired;
+    }
+
+    public function setApplyRequired(bool $applyRequired): void
+    {
+        $this->applyRequired = $applyRequired;
+        $this->touch();
+    }
+
+    public function getLastApplyErrorCode(): ?string
+    {
+        return $this->lastApplyErrorCode;
+    }
+
+    public function getLastApplyErrorMessage(): ?string
+    {
+        return $this->lastApplyErrorMessage;
+    }
+
+    public function setApplyError(?string $code, ?string $message): void
+    {
+        $this->lastApplyErrorCode = $code;
+        $this->lastApplyErrorMessage = $message;
+        $this->touch();
+    }
+
+    public function getLastAppliedHash(): ?string
+    {
+        return $this->lastAppliedHash;
+    }
+
+    public function getLastAppliedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastAppliedAt;
+    }
+
+    public function markApplied(string $hash): void
+    {
+        $this->lastAppliedHash = $hash;
+        $this->lastAppliedAt = new \DateTimeImmutable();
+        $this->applyRequired = false;
+        $this->applyStatus = 'succeeded';
+        $this->lastApplyErrorCode = null;
+        $this->lastApplyErrorMessage = null;
+        $this->touch();
+    }
+
+    public function getRuntime(): string
+    {
+        return $this->runtime;
+    }
+
+    public function setRuntime(string $runtime): void
+    {
+        $this->runtime = $runtime;
+        $this->touch();
     }
 
     public function getDiskLimitBytes(): int

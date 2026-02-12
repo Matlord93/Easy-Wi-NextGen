@@ -227,6 +227,32 @@
                     <label class="text-sm font-medium text-slate-700">{{ t('admin_database_nodes_port', page_locale()) }}</label>
                     <input name="port" type="number" min="1" max="65535" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
                 </div>
+
+                <div>
+                    <label class="text-sm font-medium text-slate-700">TLS mode</label>
+                    <select name="tls_mode" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                        <option value="off">off</option>
+                        <option value="required">required</option>
+                        <option value="verify_ca">verify_ca</option>
+                        <option value="verify_full">verify_full</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700">Admin user</label>
+                    <input name="admin_user" type="text" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700">Admin secret</label>
+                    <input name="admin_secret" type="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700">CA cert (optional)</label>
+                    <textarea name="ca_cert" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></textarea>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-700">Tags (comma-separated)</label>
+                    <input name="tags" type="text" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                </div>
                 <div>
                     <label class="text-sm font-medium text-slate-700">{{ t('admin_database_nodes_agent', page_locale()) }}</label>
                     <select name="agent_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>

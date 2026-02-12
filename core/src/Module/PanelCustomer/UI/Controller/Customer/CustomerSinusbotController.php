@@ -15,11 +15,16 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 
 #[Route(path: '/customer/infrastructure/sinusbot')]
+/**
+ * @deprecated since 2026-02. Unified customer voice SoT is /customer/voice.
+ *             Keep legacy SinusBot UI reachable during migration horizon.
+ */
 final class CustomerSinusbotController
 {
     public function __construct(
@@ -27,6 +32,7 @@ final class CustomerSinusbotController
         private readonly SinusbotInstanceProvisioner $provisioner,
         private readonly SecretsCrypto $crypto,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Environment $twig,
     ) {
     }
@@ -140,7 +146,7 @@ final class CustomerSinusbotController
     private function redirectToIndex(): Response
     {
         return new Response('', Response::HTTP_FOUND, [
-            'Location' => '/customer/infrastructure/sinusbot',
+            'Location' => $this->urlGenerator->generate('customer_sinusbot_index'),
         ]);
     }
 

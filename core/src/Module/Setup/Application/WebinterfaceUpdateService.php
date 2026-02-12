@@ -259,6 +259,21 @@ final class WebinterfaceUpdateService
             $schema = $this->runCommand('php bin/console doctrine:schema:validate --no-interaction', $appRoot);
             $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema, true);
 
+            $seedSettings = $this->runCommand('php bin/console app:settings:ensure-defaults --no-interaction', $appRoot);
+            $this->logCommandResult($logPath, 'app:settings:ensure-defaults', $seedSettings);
+            if ($seedSettings['exitCode'] !== 0) {
+                return new UpdateResult(
+                    false,
+                    'Settings-Defaults konnten nicht sichergestellt werden.',
+                    'Runtime-Konfigurationsdefaults konnten nicht in app_settings geschrieben werden.',
+                    $logPath,
+                    $this->getInstalledVersion(),
+                    null,
+                );
+            }
+
+            $this->logMissingEnvSecretsHint($appRoot, $logPath);
+
             $cache = $this->runCommand('php bin/console cache:clear', $appRoot);
             $this->logCommandResult($logPath, 'cache:clear', $cache);
             if ($cache['exitCode'] !== 0) {
@@ -711,6 +726,17 @@ final class WebinterfaceUpdateService
         );
         $this->logCommandResult($logPath, 'doctrine:schema:validate', $schema, true);
 
+        $seedSettings = $this->runCommand(
+            sprintf('php bin/console app:settings:ensure-defaults --no-interaction%s%s', $envFlag, $debugFlag),
+            $appRoot,
+        );
+        $this->logCommandResult($logPath, 'app:settings:ensure-defaults', $seedSettings);
+        if ($seedSettings['exitCode'] !== 0) {
+            return false;
+        }
+
+        $this->logMissingEnvSecretsHint($appRoot, $logPath);
+
         $cache = $this->runCommand(
             sprintf('php bin/console cache:clear%s%s', $envFlag, $debugFlag),
             $appRoot,
@@ -721,6 +747,26 @@ final class WebinterfaceUpdateService
         }
 
         return true;
+    }
+
+
+    private function logMissingEnvSecretsHint(string $appRoot, string $logPath): void
+    {
+        $check = (new InstallEnvBootstrap())->checkMissing($appRoot);
+        if (($check['missing_keys'] ?? []) === []) {
+            return;
+        }
+
+        $missing = implode(', ', $check['missing_keys']);
+        $envPath = (string) ($check['env_path'] ?? rtrim($appRoot, '/\\') . '/.env.local');
+        $this->log(
+            $logPath,
+            sprintf(
+                'Hinweis: Fehlende ENV-Secrets (%s). Update überschreibt nicht automatisch. Bitte ausführen: php bin/console app:setup:env-bootstrap (target: %s)',
+                $missing,
+                $envPath,
+            ),
+        );
     }
 
     private function resolveAppRoot(string $baseDir): string

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
@@ -14,6 +15,9 @@ use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use App\Repository\AgentRepository;
 use App\Repository\UserRepository;
 use App\Repository\WebspaceRepository;
+use App\Repository\DomainRepository;
+use App\Repository\JobRepository;
+use App\Module\Core\Application\WebspacePathSanitizer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -28,8 +32,12 @@ final class WebspaceApiController
         private readonly UserRepository $userRepository,
         private readonly AgentRepository $agentRepository,
         private readonly WebspaceRepository $webspaceRepository,
+        private readonly DomainRepository $domainRepository,
+        private readonly JobRepository $jobRepository,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly AuditLogger $auditLogger,
+        private readonly WebspacePathSanitizer $pathSanitizer,
+        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly EntityManagerInterface $entityManager,
     ) {
     }
@@ -213,7 +221,9 @@ final class WebspaceApiController
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
-        $webspaces = $this->webspaceRepository->findBy([], ['createdAt' => 'DESC']);
+        $page = max(1, (int) $request->query->get('page', 1));
+        $perPage = max(1, min(200, (int) $request->query->get('per_page', 50)));
+        $pagination = $this->webspaceRepository->findPaginated($page, $perPage);
         $payload = array_map(function (Webspace $webspace): array {
             $node = $webspace->getNode();
             $customer = $webspace->getCustomer();
@@ -239,11 +249,16 @@ final class WebspaceApiController
                 'ftp_enabled' => $webspace->isFtpEnabled(),
                 'sftp_enabled' => $webspace->isSftpEnabled(),
                 'status' => $webspace->getStatus(),
+                'apply_status' => $webspace->getApplyStatus(),
+                'apply_required' => $webspace->isApplyRequired(),
+                'last_apply_error_code' => $webspace->getLastApplyErrorCode(),
+                'last_apply_error_message' => $webspace->getLastApplyErrorMessage(),
+                'last_applied_at' => $webspace->getLastAppliedAt()?->format(DATE_RFC3339),
                 'created_at' => $webspace->getCreatedAt()->format(DATE_RFC3339),
             ];
-        }, $webspaces);
+        }, $pagination['items']);
 
-        $response = new JsonResponse(['webspaces' => $payload]);
+        $response = new JsonResponse(['webspaces' => $payload, 'page' => $pagination['page'], 'per_page' => $pagination['per_page'], 'total' => $pagination['total']]);
         if ($request->attributes->get('_route') === 'admin_list_webspaces') {
             $response->headers->set('Deprecation', 'true');
         }
@@ -281,6 +296,11 @@ final class WebspaceApiController
                 'ftp_enabled' => $webspace->isFtpEnabled(),
                 'sftp_enabled' => $webspace->isSftpEnabled(),
                 'status' => $webspace->getStatus(),
+                'apply_status' => $webspace->getApplyStatus(),
+                'apply_required' => $webspace->isApplyRequired(),
+                'last_apply_error_code' => $webspace->getLastApplyErrorCode(),
+                'last_apply_error_message' => $webspace->getLastApplyErrorMessage(),
+                'last_applied_at' => $webspace->getLastAppliedAt()?->format(DATE_RFC3339),
             ];
         }
 
@@ -406,6 +426,223 @@ final class WebspaceApiController
             $response->headers->set('Deprecation', 'true');
         }
         return $response;
+    }
+
+
+    #[Route(path: '/api/v1/customer/webspaces', name: 'customer_webspaces_create_v1', methods: ['POST'])]
+    public function createCustomerWebspace(Request $request): JsonResponse
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
+            return $this->responseEnvelopeFactory->error($request, 'Unauthorized.', 'unauthorized', 401);
+        }
+
+        try {
+            $payload = $request->toArray();
+        } catch (\JsonException) {
+            return $this->responseEnvelopeFactory->error($request, 'Invalid JSON payload.', 'invalid_payload', 400);
+        }
+
+        $name = trim((string) ($payload['name'] ?? ''));
+        $runtime = trim((string) ($payload['runtime'] ?? 'nginx'));
+        $documentRoot = (string) ($payload['document_root'] ?? 'public');
+        $nodeId = (string) ($payload['node_id'] ?? '');
+
+        try {
+            $documentRoot = $this->pathSanitizer->sanitizeRelativePath($documentRoot);
+        } catch (\InvalidArgumentException $e) {
+            return $this->responseEnvelopeFactory->error($request, 'Invalid document root.', (string) $e->getMessage(), 400);
+        }
+
+        if ($name === '' || !in_array($runtime, ['nginx', 'apache'], true)) {
+            return $this->responseEnvelopeFactory->error($request, 'Missing required fields.', 'validation_failed', 400);
+        }
+
+        $node = $this->agentRepository->find($nodeId);
+        if ($node === null || !$node->isActive()) {
+            return $this->responseEnvelopeFactory->error($request, 'Node not found or inactive.', 'webspace_node_invalid', 404);
+        }
+
+        $domain = $this->normalizeDomain($name);
+        [$path, ] = $this->buildWebspacePaths($domain);
+        $docroot = rtrim($path, '/') . '/' . ($documentRoot === '' ? 'public' : $documentRoot);
+
+        $webspace = new Webspace($actor, $node, $path, $docroot, $domain, self::DEFAULT_PHP_VERSION, 1024);
+        $webspace->setRuntime($runtime);
+        $webspace->setApplyRequired(true);
+        $webspace->setApplyStatus('running');
+        $this->entityManager->persist($webspace);
+        $this->entityManager->flush();
+
+        $active = $this->jobRepository->findActiveByTypeAndPayloadField('webspace.provision', 'webspace_id', (string) $webspace->getId());
+        if ($active !== null) {
+            return $this->responseEnvelopeFactory->error($request, 'Provision already running.', 'webspace_action_in_progress', 409, 10, ['job_id' => $active->getId()]);
+        }
+
+        $job = new Job('webspace.provision', [
+            'agent_id' => $node->getId(),
+            'webspace_id' => (string) $webspace->getId(),
+            'runtime' => $runtime,
+            'web_root' => $path,
+            'docroot' => $docroot,
+        ]);
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Provision queued.', 202, [
+            'details' => ['webspace_id' => $webspace->getId()],
+        ]);
+    }
+
+    #[Route(path: '/api/v1/customer/webspaces/{id}/domains', name: 'customer_webspaces_domain_add_v1', methods: ['POST'])]
+    public function addDomain(Request $request, int $id): JsonResponse
+    {
+        $actor = $request->attributes->get('current_user');
+        $webspace = $this->webspaceRepository->find($id);
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || $webspace->getCustomer()->getId() !== $actor->getId()) {
+            return $this->responseEnvelopeFactory->error($request, 'Webspace not found.', 'webspace_not_found', 404);
+        }
+
+        try {
+            $payload = $request->toArray();
+        } catch (\JsonException) {
+            return $this->responseEnvelopeFactory->error($request, 'Invalid JSON payload.', 'invalid_payload', 400);
+        }
+
+        $fqdn = $this->normalizeDomain((string) ($payload['fqdn'] ?? ''));
+        $type = (string) ($payload['type'] ?? 'domain');
+        $targetPath = (string) ($payload['target_path'] ?? '');
+        $redirectHttps = (bool) ($payload['redirect_https'] ?? false);
+        $redirectWww = (bool) ($payload['redirect_www'] ?? false);
+
+        try {
+            $targetPath = $this->pathSanitizer->sanitizeRelativePath($targetPath);
+        } catch (\InvalidArgumentException $e) {
+            return $this->responseEnvelopeFactory->error($request, 'Invalid target path.', (string) $e->getMessage(), 400);
+        }
+
+        if ($fqdn === '') {
+            return $this->responseEnvelopeFactory->error($request, 'Domain invalid.', 'validation_failed', 400);
+        }
+
+        $active = $this->findActiveWebspaceActionJob((string) $webspace->getId());
+        if ($active !== null) {
+            if ($active->getType() === 'webspace.domain.apply' && (($active->getPayload()['action'] ?? 'add') === 'add') && (string) ($active->getPayload()['domain'] ?? '') === $fqdn) {
+                return $this->responseEnvelopeFactory->success($request, $active->getId(), 'Domain apply already running.', 202, ['status' => 'running', 'error_code' => 'webspace_action_in_progress', 'retry_after' => 10]);
+            }
+
+            return $this->responseEnvelopeFactory->error($request, 'Another webspace action is already running.', 'webspace_action_in_progress', 409, 10, ['job_id' => $active->getId()]);
+        }
+
+        $domain = new Domain($actor, $webspace, $fqdn, 'pending');
+        $domain->setType($type === 'subdomain' ? 'subdomain' : 'domain');
+        $domain->setTargetPath($targetPath === '' ? null : $targetPath);
+        $domain->setRedirectHttps($redirectHttps);
+        $domain->setRedirectWww($redirectWww);
+        $domain->setApplyStatus('pending');
+        $this->entityManager->persist($domain);
+        $this->entityManager->flush();
+
+        $job = new Job('webspace.domain.apply', [
+            'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => (string) $webspace->getId(),
+            'domain_id' => (string) $domain->getId(),
+            'domain' => $fqdn,
+            'target_path' => $targetPath,
+            'runtime' => $webspace->getRuntime(),
+            'redirect_https' => $redirectHttps ? '1' : '0',
+            'redirect_www' => $redirectWww ? '1' : '0',
+        ]);
+        $this->entityManager->persist($job);
+        $webspace->setApplyRequired(true);
+        $webspace->setApplyStatus('running');
+        $this->entityManager->flush();
+
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Domain apply queued.', 202);
+    }
+
+    #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}', name: 'customer_webspaces_domain_remove_v1', methods: ['DELETE'])]
+    public function removeDomain(Request $request, int $id, int $domainId): JsonResponse
+    {
+        $actor = $request->attributes->get('current_user');
+        $webspace = $this->webspaceRepository->find($id);
+        $domain = $this->domainRepository->find($domainId);
+
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || !$domain instanceof Domain || $webspace->getCustomer()->getId() !== $actor->getId() || $domain->getWebspace()->getId() !== $webspace->getId()) {
+            return $this->responseEnvelopeFactory->error($request, 'Domain not found.', 'domain_not_found', 404);
+        }
+
+        $active = $this->findActiveWebspaceActionJob((string) $webspace->getId());
+        if ($active !== null) {
+            if ($active->getType() === 'webspace.domain.apply' && (($active->getPayload()['action'] ?? '') === 'remove') && (string) ($active->getPayload()['domain_id'] ?? '') === (string) $domain->getId()) {
+                return $this->responseEnvelopeFactory->success($request, $active->getId(), 'Domain removal already running.', 202, ['status' => 'running', 'error_code' => 'webspace_action_in_progress', 'retry_after' => 10]);
+            }
+
+            return $this->responseEnvelopeFactory->error($request, 'Another webspace action is already running.', 'webspace_action_in_progress', 409, 10, ['job_id' => $active->getId()]);
+        }
+
+        $job = new Job('webspace.domain.apply', [
+            'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => (string) $webspace->getId(),
+            'domain_id' => (string) $domain->getId(),
+            'domain' => $domain->getName(),
+            'action' => 'remove',
+            'runtime' => $webspace->getRuntime(),
+            'web_root' => $webspace->getPath(),
+            'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
+        ]);
+        $this->entityManager->persist($job);
+        $this->entityManager->remove($domain);
+        $webspace->setApplyRequired(true);
+        $webspace->setApplyStatus('running');
+        $this->entityManager->flush();
+
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Domain removal queued.', 202);
+    }
+
+    #[Route(path: '/api/v1/customer/webspaces/{id}/apply', name: 'customer_webspaces_apply_v1', methods: ['POST'])]
+    public function apply(Request $request, int $id): JsonResponse
+    {
+        $actor = $request->attributes->get('current_user');
+        $webspace = $this->webspaceRepository->find($id);
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || $webspace->getCustomer()->getId() !== $actor->getId()) {
+            return $this->responseEnvelopeFactory->error($request, 'Webspace not found.', 'webspace_not_found', 404);
+        }
+
+        $active = $this->findActiveWebspaceActionJob((string) $webspace->getId());
+        if ($active !== null) {
+            if ($active->getType() === 'webspace.apply') {
+                return $this->responseEnvelopeFactory->success($request, $active->getId(), 'Apply already running.', 202, ['status' => 'running', 'error_code' => 'webspace_action_in_progress', 'retry_after' => 10]);
+            }
+
+            return $this->responseEnvelopeFactory->error($request, 'Another webspace action is already running.', 'webspace_action_in_progress', 409, 10, ['job_id' => $active->getId()]);
+        }
+
+        $job = new Job('webspace.apply', [
+            'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => (string) $webspace->getId(),
+            'runtime' => $webspace->getRuntime(),
+            'web_root' => $webspace->getPath(),
+            'docroot' => $webspace->getDocroot(),
+        ]);
+        $webspace->setApplyStatus('running');
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Apply queued.', 202);
+    }
+
+
+    private function findActiveWebspaceActionJob(string $webspaceId): ?Job
+    {
+        foreach (['webspace.apply', 'webspace.domain.apply', 'webspace.provision'] as $type) {
+            $active = $this->jobRepository->findActiveByTypeAndPayloadField($type, 'webspace_id', $webspaceId);
+            if ($active !== null) {
+                return $active;
+            }
+        }
+
+        return null;
     }
 
     private function assignPort(\App\Module\Core\Domain\Entity\Agent $node): ?int

@@ -63,7 +63,6 @@ final class CustomerDatabaseController
         $nodeId = (int) $request->request->get('node_id', 0);
         $name = trim((string) $request->request->get('name', ''));
         $username = trim((string) $request->request->get('username', ''));
-        $password = trim((string) $request->request->get('password', ''));
 
         $errors = [];
         $node = $nodeId > 0 ? $this->databaseNodeRepository->find($nodeId) : null;
@@ -78,9 +77,6 @@ final class CustomerDatabaseController
         if ($username === '') {
             $errors[] = 'Username is required.';
         }
-        if ($password === '' || mb_strlen($password) < 8) {
-            $errors[] = 'Password must be at least 8 characters.';
-        }
         $errors = array_merge($errors, $this->namingPolicy->validateDatabaseName($name));
         $errors = array_merge($errors, $this->namingPolicy->validateUsername($username));
 
@@ -94,7 +90,7 @@ final class CustomerDatabaseController
             return $this->renderWithErrors($customer, $errors);
         }
 
-        $encryptedPassword = $this->encryptionService->encrypt($password);
+        $encryptedPassword = null;
         $database = new Database(
             $customer,
             $node->getEngine(),
@@ -109,7 +105,7 @@ final class CustomerDatabaseController
         $this->entityManager->persist($database);
         $this->entityManager->flush();
 
-        $jobs = $this->provisioningService->buildCreateJobs($database, $database->getEncryptedPassword(), $node->getAgent()->getId());
+        $jobs = $this->provisioningService->buildCreateJobs($database, $node->getAgent()->getId());
         foreach ($jobs as $job) {
             $this->entityManager->persist($job);
         }

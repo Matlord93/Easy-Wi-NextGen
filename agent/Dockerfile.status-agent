@@ -1,0 +1,11 @@
+FROM golang:1.24-alpine AS build
+WORKDIR /src
+COPY . .
+RUN go build -o /out/status-agent ./cmd/status-agent
+
+FROM alpine:3.20
+RUN adduser -D -u 10001 app
+USER app
+COPY --from=build /out/status-agent /usr/local/bin/status-agent
+EXPOSE 8099
+ENTRYPOINT ["/usr/local/bin/status-agent"]

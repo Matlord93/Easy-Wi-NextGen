@@ -43,8 +43,23 @@ class Database implements ResourceEventSource
     #[ORM\JoinColumn(name: 'database_node_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?DatabaseNode $node = null;
 
-    #[ORM\Column(type: 'json')]
-    private array $encryptedPassword;
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $encryptedPassword = null;
+
+    #[ORM\Column(length: 20, options: ['default' => 'pending'])]
+    private string $status = 'pending';
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $lastErrorCode = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $lastErrorMessage = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $rotatedAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $expiresAt = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -62,7 +77,7 @@ class Database implements ResourceEventSource
         int $port,
         string $name,
         string $username,
-        array $encryptedPassword,
+        ?array $encryptedPassword = null,
         ?DatabaseNode $node = null,
     ) {
         $this->customer = $customer;
@@ -120,7 +135,7 @@ class Database implements ResourceEventSource
     /**
      * @return array{key_id: string, nonce: string, ciphertext: string}
      */
-    public function getEncryptedPassword(): array
+    public function getEncryptedPassword(): ?array
     {
         return $this->encryptedPassword;
     }
@@ -130,6 +145,56 @@ class Database implements ResourceEventSource
         return $this->createdAt;
     }
 
+
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+
+    public function setStatus(string $status): void
+    {
+        $this->status = $status;
+        $this->touch();
+    }
+
+    public function getLastErrorCode(): ?string
+    {
+        return $this->lastErrorCode;
+    }
+
+    public function getLastErrorMessage(): ?string
+    {
+        return $this->lastErrorMessage;
+    }
+
+    public function setLastError(?string $code, ?string $message): void
+    {
+        $this->lastErrorCode = $code;
+        $this->lastErrorMessage = $message;
+        $this->touch();
+    }
+
+    public function getRotatedAt(): ?\DateTimeImmutable
+    {
+        return $this->rotatedAt;
+    }
+
+    public function markRotated(): void
+    {
+        $this->rotatedAt = new \DateTimeImmutable();
+        $this->touch();
+    }
+
+    public function getExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->expiresAt;
+    }
+
+    public function setExpiresAt(?\DateTimeImmutable $expiresAt): void
+    {
+        $this->expiresAt = $expiresAt;
+        $this->touch();
+    }
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
@@ -138,7 +203,7 @@ class Database implements ResourceEventSource
     /**
      * @param array{key_id: string, nonce: string, ciphertext: string} $encryptedPassword
      */
-    public function setEncryptedPassword(array $encryptedPassword): void
+    public function setEncryptedPassword(?array $encryptedPassword): void
     {
         $this->encryptedPassword = $encryptedPassword;
         $this->touch();

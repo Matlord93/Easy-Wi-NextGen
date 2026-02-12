@@ -17,6 +17,10 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 #[Route(path: '/kunden/servers')]
+/**
+ * @deprecated since 2026-02, kept as compatibility shim for legacy SFTP form endpoints.
+ *             Use SoT instance file/SFTP actions under /instances.
+ */
 final class CustomerServerSftpController
 {
     public function __construct(

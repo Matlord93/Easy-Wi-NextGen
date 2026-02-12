@@ -256,6 +256,25 @@ func resolveJobLockKey(job jobs.Job) string {
 	return ""
 }
 
+
+var jobTypeAliases = map[string]string{
+	"database.rotate_password":      "database.password.rotate",
+	"instance.files.listing":        "instance.files.list",
+	"instance.files.download":       "instance.files.read",
+	"instance.files.upload":         "instance.files.write",
+	"webspace.files.listing":        "webspace.files.list",
+	"webspace.files.download":       "webspace.files.read",
+	"webspace.files.upload":         "webspace.files.write",
+}
+
+func normalizeJobType(jobType string) (string, bool) {
+	canonical, ok := jobTypeAliases[jobType]
+	if !ok {
+		return jobType, false
+	}
+	return canonical, true
+}
+
 func collectStats(version string, roles []string) map[string]any {
 	return map[string]any{
 		"version":         version,
@@ -271,7 +290,12 @@ func collectStats(version string, roles []string) map[string]any {
 }
 
 func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
-	if runtime.GOOS == "windows" && !isWindowsSafeJob(job.Type) {
+	jobType, aliased := normalizeJobType(job.Type)
+	if aliased {
+		log.Printf("[DEPRECATION] alias_hit legacy_job_type=%q canonical_job_type=%q", job.Type, jobType)
+	}
+
+	if runtime.GOOS == "windows" && !isWindowsSafeJob(jobType) {
 		return jobs.Result{
 			JobID:     job.ID,
 			Status:    "failed",
@@ -280,7 +304,7 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		}, nil
 	}
 
-	switch job.Type {
+	switch jobType {
 	case "agent.update":
 		return handleAgentUpdate(job)
 	case "agent.self_update":
@@ -313,6 +337,10 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleWebspaceCreate(job)
 	case "webspace.update":
 		return handleWebspaceUpdate(job)
+	case "webspace.apply":
+		return handleWebspaceApply(job)
+	case "webspace.provision":
+		return handleWebspaceCreate(job)
 	case "webspace.backup":
 		return handleWebspaceBackup(job)
 	case "webspace.restore":
@@ -327,6 +355,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleWebspaceComposerInstall(job)
 	case "domain.add":
 		return handleDomainAdd(job)
+	case "webspace.domain.apply":
+		return handleWebspaceDomainApply(job)
 	case "domain.update":
 		return handleDomainAdd(job)
 	case "domain.ssl.issue":
@@ -347,6 +377,14 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleDatabaseGrantApply(job)
 	case "database.delete":
 		return handleDatabaseDelete(job)
+	case "voice.probe":
+		return handleVoiceProbe(job)
+	case "voice.action.start":
+		return handleVoiceAction(job, "start")
+	case "voice.action.stop":
+		return handleVoiceAction(job, "stop")
+	case "voice.action.restart":
+		return handleVoiceAction(job, "restart")
 	case "mail.alias.create":
 		return handleMailAliasCreate(job)
 	case "mail.alias.update":
@@ -421,15 +459,9 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceDiskTop(job)
 	case "instance.files.list":
 		return handleInstanceFilesList(job)
-	case "instance.files.listing":
-		return handleInstanceFilesList(job)
 	case "instance.files.read":
 		return handleInstanceFileRead(job)
-	case "instance.files.download":
-		return handleInstanceFileRead(job)
 	case "instance.files.write":
-		return handleInstanceFileWrite(job)
-	case "instance.files.upload":
 		return handleInstanceFileWrite(job)
 	case "instance.files.delete":
 		return handleInstanceFileDelete(job)
@@ -459,15 +491,9 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleNodeDiskStat(job)
 	case "webspace.files.list":
 		return handleWebspaceFilesList(job)
-	case "webspace.files.listing":
-		return handleWebspaceFilesList(job)
 	case "webspace.files.read":
 		return handleWebspaceFileRead(job)
-	case "webspace.files.download":
-		return handleWebspaceFileRead(job)
 	case "webspace.files.write":
-		return handleWebspaceFileWrite(job)
-	case "webspace.files.upload":
 		return handleWebspaceFileWrite(job)
 	case "webspace.files.delete":
 		return handleWebspaceFileDelete(job)

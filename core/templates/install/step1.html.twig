@@ -23,6 +23,13 @@
         </ul>
     </div>
 
+
+
+    <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-5 text-sm text-indigo-900">
+        <p class="font-semibold">Upgrade-Hinweis</p>
+        <p class="mt-1">Für bestehende Installationen bitte den Update-Workflow nutzen (Migrationen + Settings-Defaults), nicht den Fresh-Installer.</p>
+    </div>
+
     <form method="post" action="{{ path('public_install', {'step': step}) }}" class="flex justify-end">
         <input type="hidden" name="step" value="{{ step }}">
         <button type="submit" name="action" value="continue" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">

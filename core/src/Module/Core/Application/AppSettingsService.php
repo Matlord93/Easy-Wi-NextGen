@@ -20,6 +20,8 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_MAIL_FROM_ADDRESS = 'mail_from_address';
     public const KEY_MAIL_REPLY_TO = 'mail_reply_to';
     public const KEY_MAIL_DEFAULT_LOCALE = 'mail_default_locale';
+    public const KEY_MAILER_DSN = 'mailer_dsn';
+    public const KEY_MAILER_VERIFY_TLS = 'mailer_verify_tls';
     public const KEY_GAMESERVER_DEFAULT_SLOTS = 'gameserver_default_slots';
     public const KEY_GAMESERVER_MIN_SLOTS = 'gameserver_min_slots';
     public const KEY_GAMESERVER_MAX_SLOTS = 'gameserver_max_slots';
@@ -66,6 +68,13 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_BACKUP_STOP_BEFORE = 'backup_stop_before';
     public const KEY_BACKUP_MAX_SIZE_BYTES = 'backup_max_size_bytes';
     public const KEY_BACKUP_WEBDAV_VERIFY_TLS = 'backup_webdav_verify_tls';
+    public const KEY_WEBSPACE_DEFAULT_PHP_VERSION = 'webspace_default_php_version';
+    public const KEY_WEBSPACE_DEFAULT_DISK_MB = 'webspace_default_disk_mb';
+    public const KEY_WEBSPACE_DEFAULT_TRAFFIC_MB = 'webspace_default_traffic_mb';
+    public const KEY_METRICS_RETENTION_DAYS = 'metrics_retention_days';
+    public const KEY_METRICS_INSTANCE_RETENTION_DAYS = 'metrics_instance_retention_days';
+    public const KEY_VOICE_PROBE_CACHE_SECONDS = 'voice_probe_cache_seconds';
+    public const KEY_VOICE_PROBE_COOLDOWN_SECONDS = 'voice_probe_cooldown_seconds';
 
     private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
 <div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
@@ -121,6 +130,8 @@ TWIG;
         self::KEY_MAIL_FROM_ADDRESS => null,
         self::KEY_MAIL_REPLY_TO => null,
         self::KEY_MAIL_DEFAULT_LOCALE => 'en',
+        self::KEY_MAILER_DSN => null,
+        self::KEY_MAILER_VERIFY_TLS => true,
         self::KEY_GAMESERVER_DEFAULT_SLOTS => 16,
         self::KEY_GAMESERVER_MIN_SLOTS => 1,
         self::KEY_GAMESERVER_MAX_SLOTS => 128,
@@ -167,6 +178,13 @@ TWIG;
         self::KEY_BACKUP_STOP_BEFORE => false,
         self::KEY_BACKUP_MAX_SIZE_BYTES => null,
         self::KEY_BACKUP_WEBDAV_VERIFY_TLS => true,
+        self::KEY_WEBSPACE_DEFAULT_PHP_VERSION => '8.3',
+        self::KEY_WEBSPACE_DEFAULT_DISK_MB => 2048,
+        self::KEY_WEBSPACE_DEFAULT_TRAFFIC_MB => 10240,
+        self::KEY_METRICS_RETENTION_DAYS => 30,
+        self::KEY_METRICS_INSTANCE_RETENTION_DAYS => 14,
+        self::KEY_VOICE_PROBE_CACHE_SECONDS => 45,
+        self::KEY_VOICE_PROBE_COOLDOWN_SECONDS => 10,
     ];
 
     private const SECRET_KEYS = [
@@ -174,6 +192,7 @@ TWIG;
         self::KEY_SFTP_PRIVATE_KEY,
         self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE,
         self::KEY_AGENT_REGISTRATION_TOKEN,
+        self::KEY_MAILER_DSN,
     ];
 
     /** @var array<string, mixed>|null */
@@ -243,6 +262,20 @@ TWIG;
         $this->cachedSettings = $normalized;
 
         return $normalized;
+    }
+
+    /**
+     * Persistiert alle bekannten Default-Keys idempotent in die Datenbank (SoT).
+     */
+    public function ensureRuntimeDefaultsPersisted(): void
+    {
+        $settings = $this->getSettings();
+        if (!is_string($settings[self::KEY_AGENT_REGISTRATION_TOKEN] ?? null) || trim((string) $settings[self::KEY_AGENT_REGISTRATION_TOKEN]) === '') {
+            $settings[self::KEY_AGENT_REGISTRATION_TOKEN] = bin2hex(random_bytes(32));
+        }
+
+        $this->persistSettings($settings);
+        $this->cachedSettings = $settings;
     }
 
     public function getSiteTitle(): string
@@ -356,14 +389,50 @@ TWIG;
 
         $env = $_ENV['AGENT_REGISTRATION_TOKEN'] ?? $_SERVER['AGENT_REGISTRATION_TOKEN'] ?? null;
         if (is_string($env) && $env !== '') {
-            $this->updateSettings([self::KEY_AGENT_REGISTRATION_TOKEN => $env], false);
             return $env;
         }
 
-        $generated = bin2hex(random_bytes(32));
-        $this->updateSettings([self::KEY_AGENT_REGISTRATION_TOKEN => $generated], false);
+        $this->ensureRuntimeDefaultsPersisted();
 
-        return $generated;
+        $settings = $this->getSettings();
+        $value = $settings[self::KEY_AGENT_REGISTRATION_TOKEN] ?? null;
+
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        throw new \RuntimeException('Agent registration token could not be initialized.');
+    }
+
+    public function hasAgentRegistrationTokenInDb(): bool
+    {
+        $settings = $this->getSettings();
+        $value = $settings[self::KEY_AGENT_REGISTRATION_TOKEN] ?? null;
+
+        return is_string($value) && trim($value) !== '';
+    }
+
+    public function getAgentRegistrationTokenMasked(): string
+    {
+        $settings = $this->getSettings();
+        $value = $settings[self::KEY_AGENT_REGISTRATION_TOKEN] ?? null;
+
+        if (!is_string($value) || $value === '') {
+            return 'not set';
+        }
+
+        if (strlen($value) <= 8) {
+            return 'set';
+        }
+
+        return substr($value, 0, 4) . '…' . substr($value, -4);
+    }
+
+    public function rotateAgentRegistrationToken(): void
+    {
+        $this->updateSettings([
+            self::KEY_AGENT_REGISTRATION_TOKEN => bin2hex(random_bytes(32)),
+        ], false);
     }
 
     public function getGameserverDefaultSlots(): int
@@ -628,6 +697,7 @@ TWIG;
                 self::KEY_ANTI_ABUSE_ENABLE_POW_REGISTRATION,
                 self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION,
                 self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT,
+                self::KEY_MAILER_VERIFY_TLS,
             ], true)) {
                 $value = (bool) $value;
             }
@@ -652,6 +722,17 @@ TWIG;
 
             if ($key === self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT) {
                 $value = is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[self::KEY_ANTI_ABUSE_DAILY_IP_LIMIT];
+            }
+
+            if (in_array($key, [
+                self::KEY_WEBSPACE_DEFAULT_DISK_MB,
+                self::KEY_WEBSPACE_DEFAULT_TRAFFIC_MB,
+                self::KEY_METRICS_RETENTION_DAYS,
+                self::KEY_METRICS_INSTANCE_RETENTION_DAYS,
+                self::KEY_VOICE_PROBE_CACHE_SECONDS,
+                self::KEY_VOICE_PROBE_COOLDOWN_SECONDS,
+            ], true)) {
+                $value = is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[$key];
             }
 
             $normalized[$key] = $value;

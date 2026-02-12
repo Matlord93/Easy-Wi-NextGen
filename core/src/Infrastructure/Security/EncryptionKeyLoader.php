@@ -35,6 +35,17 @@ final class EncryptionKeyLoader
      */
     public function loadKeyring(): array
     {
+
+        $envKeyring = trim((string) ($_ENV['APP_ENCRYPTION_KEYS'] ?? $_SERVER['APP_ENCRYPTION_KEYS'] ?? ''));
+        if ($envKeyring !== '') {
+            $activeFromEnv = trim((string) ($_ENV['ACTIVE_ENCRYPTION_KEY_ID'] ?? $_SERVER['ACTIVE_ENCRYPTION_KEY_ID'] ?? $_ENV['APP_ENCRYPTION_ACTIVE_KEY_ID'] ?? $_SERVER['APP_ENCRYPTION_ACTIVE_KEY_ID'] ?? ''));
+            if ($activeFromEnv === '') {
+                $activeFromEnv = trim((string) strtok($envKeyring, ':'));
+            }
+
+            return ['active_key_id' => $activeFromEnv, 'keyring' => $envKeyring];
+        }
+
         if (!$this->isReadable()) {
             return ['active_key_id' => '', 'keyring' => ''];
         }

@@ -86,6 +86,7 @@ errors:
   admin_ssh_key_store_failed: "Unable to store the SSH key on the server."
   install_failed: "Installation failed. Check logs for details and try again."
   cms_template_invalid: "Select a valid CMS template."
+  env_bootstrap_failed: "Unable to write bootstrap secrets to %path%. Fix permissions (example: chmod 600 %path% && chown www-data:www-data %path%), then reload /install or run php bin/console app:setup:env-bootstrap."
 
 step4:
   title: "Application Setup"

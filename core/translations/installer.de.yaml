@@ -86,6 +86,7 @@ errors:
   admin_ssh_key_store_failed: "Der SSH-Key konnte nicht auf dem Server hinterlegt werden."
   install_failed: "Installation fehlgeschlagen. Prüfen Sie die Logs und versuchen Sie es erneut."
   cms_template_invalid: "Bitte eine gültige CMS-Vorlage auswählen."
+  env_bootstrap_failed: "Bootstrap-Secrets konnten nicht nach %path% geschrieben werden. Rechte korrigieren (Beispiel: chmod 600 %path% && chown www-data:www-data %path%), dann /install neu laden oder php bin/console app:setup:env-bootstrap ausführen."
 
 step4:
   title: "Anwendungseinrichtung"

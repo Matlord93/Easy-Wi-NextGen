@@ -58,6 +58,16 @@ class JobResult
         return $this->output;
     }
 
+    /**
+     * @param list<string> $keys
+     */
+    public function consumeOutputKeys(array $keys): void
+    {
+        foreach ($keys as $key) {
+            unset($this->output[$key]);
+        }
+    }
+
     public function getCompletedAt(): \DateTimeImmutable
     {
         return $this->completedAt;

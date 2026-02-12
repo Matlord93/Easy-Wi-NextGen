@@ -10,11 +10,16 @@ use App\Module\Core\Application\DatabaseProvisioningService;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\JobResult;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Repository\DatabaseNodeRepository;
 use App\Repository\DatabaseRepository;
+use App\Repository\JobRepository;
 use App\Repository\UserRepository;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -26,11 +31,13 @@ final class DatabaseApiController
         private readonly DatabaseRepository $databaseRepository,
         private readonly DatabaseNodeRepository $databaseNodeRepository,
         private readonly UserRepository $userRepository,
+        private readonly JobRepository $jobRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
-        private readonly EncryptionService $encryptionService,
         private readonly DatabaseProvisioningService $provisioningService,
         private readonly DatabaseNamingPolicy $namingPolicy,
+        private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly EncryptionService $encryptionService,
     ) {
     }
 
@@ -39,10 +46,9 @@ final class DatabaseApiController
     public function list(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
-
         $databases = $actor->isAdmin()
-            ? $this->databaseRepository->findBy([], ['updatedAt' => 'DESC'])
-            : $this->databaseRepository->findByCustomer($actor);
+            ? $this->databaseRepository->findBy([], ['updatedAt' => 'DESC'], 200)
+            : $this->databaseRepository->findByCustomer($actor, 200);
 
         return new JsonResponse([
             'databases' => array_map(fn (Database $database) => $this->normalizeDatabase($database), $databases),
@@ -54,60 +60,72 @@ final class DatabaseApiController
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
-        $payload = $this->parseJsonPayload($request);
 
-        $formData = $this->validatePayload($actor, $payload, true);
-        if ($formData['error'] instanceof JsonResponse) {
-            return $formData['error'];
+        try {
+            $payload = $request->toArray();
+        } catch (\JsonException) {
+            return $this->responseEnvelopeFactory->error($request, 'Invalid JSON payload.', 'invalid_payload', JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        $customer = $formData['customer'];
-        if (!$actor->isAdmin()) {
-            $limit = $customer->getDatabaseLimit();
-            if ($limit > 0 && $this->databaseRepository->count(['customer' => $customer]) >= $limit) {
-                return new JsonResponse(['error' => 'Database limit reached.'], JsonResponse::HTTP_FORBIDDEN);
-            }
+        $validated = $this->validateCreatePayload($request, $actor, $payload);
+        if ($validated['error'] instanceof JsonResponse) {
+            return $validated['error'];
+        }
+
+        $customer = $validated['customer'];
+        $node = $validated['node'];
+        $name = $validated['name'];
+        $username = $validated['username'];
+
+        $active = $this->jobRepository->findActiveByTypeAndPayloadField('database.create', 'customer_id', (string) $customer->getId());
+        if ($active !== null && (string) ($active->getPayload()['database'] ?? '') === $name) {
+            return $this->responseEnvelopeFactory->success(
+                $request,
+                $active->getId(),
+                'Create operation already running.',
+                JsonResponse::HTTP_ACCEPTED,
+                ['status' => 'running', 'error_code' => 'db_action_in_progress', 'retry_after' => 10],
+            );
+        }
+
+        $existing = $this->databaseRepository->findOneByCustomerAndName($customer, $name);
+        if ($existing instanceof Database) {
+            return $this->responseEnvelopeFactory->success($request, 'existing-'.$existing->getId(), 'Database already exists.', JsonResponse::HTTP_OK, [
+                'status' => 'succeeded',
+                'details' => ['database' => $this->normalizeDatabase($existing)],
+            ]);
         }
 
         $database = new Database(
             $customer,
-            $formData['engine'],
-            $formData['host'],
-            $formData['port'],
-            $formData['name'],
-            $formData['username'],
-            $formData['encrypted_password'],
-            $formData['node'],
+            strtolower($node->getEngine()),
+            $node->getHost(),
+            $node->getPort(),
+            $name,
+            $username,
+            null,
+            $node,
         );
-
+        $database->setStatus('pending');
+        $database->setLastError(null, null);
+        $database->setEncryptedPassword(null);
         $this->entityManager->persist($database);
         $this->entityManager->flush();
 
-        $agentId = $formData['node']?->getAgent()->getId() ?? '';
-        $jobs = $this->provisioningService->buildCreateJobs($database, $database->getEncryptedPassword(), $agentId);
-        foreach ($jobs as $job) {
-            $this->entityManager->persist($job);
-        }
-
+        $job = $this->provisioningService->buildCreateJobs($database, $node->getAgent()->getId())[0];
+        $this->entityManager->persist($job);
         $this->auditLogger->log($actor, 'database.created', [
             'database_id' => $database->getId(),
-            'customer_id' => $database->getCustomer()->getId(),
-            'engine' => $database->getEngine(),
-            'host' => $database->getHost(),
-            'port' => $database->getPort(),
+            'customer_id' => $customer->getId(),
             'name' => $database->getName(),
             'username' => $database->getUsername(),
-            'job_id' => $jobs[0]->getId(),
-            'database_node_id' => $formData['node']?->getId(),
-            'agent_id' => $agentId,
+            'job_id' => $job->getId(),
         ]);
-
         $this->entityManager->flush();
 
-        return new JsonResponse([
-            'database' => $this->normalizeDatabase($database),
-            'job_id' => $jobs[0]->getId(),
-        ], JsonResponse::HTTP_CREATED);
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Database creation queued.', JsonResponse::HTTP_ACCEPTED, [
+            'details' => ['database' => $this->normalizeDatabase($database)],
+        ]);
     }
 
     #[Route(path: '/api/databases/{id}/password', name: 'databases_password_reset', methods: ['PATCH'])]
@@ -116,45 +134,37 @@ final class DatabaseApiController
     {
         $actor = $this->requireUser($request);
         $database = $this->databaseRepository->find($id);
-        if ($database === null) {
-            return new JsonResponse(['error' => 'Database not found.'], JsonResponse::HTTP_NOT_FOUND);
+        if (!$database instanceof Database || !$this->canAccessDatabase($actor, $database)) {
+            return $this->responseEnvelopeFactory->error($request, 'Database not found.', 'database_not_found', JsonResponse::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canAccessDatabase($actor, $database)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        if (!$this->isNodeEligible($database->getNode())) {
+            return $this->responseEnvelopeFactory->error($request, 'Database node is disabled.', 'database_node_disabled', JsonResponse::HTTP_CONFLICT);
         }
 
-        $payload = $this->parseJsonPayload($request);
-        $password = trim((string) ($payload['password'] ?? ''));
-        if ($password === '') {
-            return new JsonResponse(['error' => 'Password is required.'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-        if (mb_strlen($password) < 8) {
-            return new JsonResponse(['error' => 'Password must be at least 8 characters.'], JsonResponse::HTTP_BAD_REQUEST);
+        $active = $this->findActiveDatabaseActionJob((string) $id);
+        if ($active !== null) {
+            if ($active->getType() === 'database.rotate_password') {
+                return $this->responseEnvelopeFactory->success(
+                    $request,
+                    $active->getId(),
+                    'Password rotation already running.',
+                    JsonResponse::HTTP_ACCEPTED,
+                    ['status' => 'running', 'error_code' => 'db_action_in_progress', 'retry_after' => 10],
+                );
+            }
+
+            return $this->responseEnvelopeFactory->error($request, 'Another database action is already running.', 'db_action_in_progress', JsonResponse::HTTP_CONFLICT, 10, ['job_id' => $active->getId()]);
         }
 
-        $encryptedPassword = $this->encryptionService->encrypt($password);
-        $database->setEncryptedPassword($encryptedPassword);
+        $database->setStatus('pending');
+        $database->setLastError(null, null);
 
-        $agentId = $database->getNode()?->getAgent()->getId() ?? '';
-        $job = $this->provisioningService->buildPasswordRotateJob($database, $database->getEncryptedPassword(), $agentId);
+        $job = $this->provisioningService->buildPasswordRotateJob($database, $database->getNode()?->getAgent()->getId() ?? '');
         $this->entityManager->persist($job);
-
-        $this->auditLogger->log($actor, 'database.password_reset', [
-            'database_id' => $database->getId(),
-            'name' => $database->getName(),
-            'username' => $database->getUsername(),
-            'job_id' => $job->getId(),
-            'database_node_id' => $database->getNode()?->getId(),
-            'agent_id' => $agentId,
-        ]);
-
         $this->entityManager->flush();
 
-        return new JsonResponse([
-            'database' => $this->normalizeDatabase($database),
-            'job_id' => $job->getId(),
-        ]);
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Password rotation queued.', JsonResponse::HTTP_ACCEPTED);
     }
 
     #[Route(path: '/api/databases/{id}', name: 'databases_delete', methods: ['DELETE'])]
@@ -163,31 +173,88 @@ final class DatabaseApiController
     {
         $actor = $this->requireUser($request);
         $database = $this->databaseRepository->find($id);
-        if ($database === null) {
-            return new JsonResponse(['error' => 'Database not found.'], JsonResponse::HTTP_NOT_FOUND);
+        if (!$database instanceof Database || !$this->canAccessDatabase($actor, $database)) {
+            return $this->responseEnvelopeFactory->error($request, 'Database not found.', 'database_not_found', JsonResponse::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canAccessDatabase($actor, $database)) {
-            return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        $active = $this->findActiveDatabaseActionJob((string) $id);
+        if ($active !== null) {
+            if ($active->getType() === 'database.delete') {
+                return $this->responseEnvelopeFactory->success(
+                    $request,
+                    $active->getId(),
+                    'Delete operation already running.',
+                    JsonResponse::HTTP_ACCEPTED,
+                    ['status' => 'running', 'error_code' => 'db_action_in_progress', 'retry_after' => 10],
+                );
+            }
+
+            return $this->responseEnvelopeFactory->error($request, 'Another database action is already running.', 'db_action_in_progress', JsonResponse::HTTP_CONFLICT, 10, ['job_id' => $active->getId()]);
         }
 
-        $agentId = $database->getNode()?->getAgent()->getId() ?? '';
-        $job = $this->provisioningService->buildDeleteJob($database, $agentId);
+        $database->setStatus('deleting');
+        $database->setLastError(null, null);
+
+        $job = $this->provisioningService->buildDeleteJob($database, $database->getNode()?->getAgent()->getId() ?? '');
         $this->entityManager->persist($job);
-
-        $this->auditLogger->log($actor, 'database.deleted', [
-            'database_id' => $database->getId(),
-            'name' => $database->getName(),
-            'username' => $database->getUsername(),
-            'job_id' => $job->getId(),
-            'database_node_id' => $database->getNode()?->getId(),
-            'agent_id' => $agentId,
-        ]);
-
-        $this->entityManager->remove($database);
         $this->entityManager->flush();
 
-        return new JsonResponse([], JsonResponse::HTTP_NO_CONTENT);
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Database deletion queued.', JsonResponse::HTTP_ACCEPTED);
+    }
+
+    #[Route(path: '/api/v1/customer/databases/{id}/jobs/{jobId}/credential', name: 'databases_job_credential_v1', methods: ['GET'])]
+    public function consumeCredential(Request $request, int $id, string $jobId): JsonResponse
+    {
+        $actor = $this->requireUser($request);
+
+        try {
+            $credential = $this->entityManager->getConnection()->transactional(function () use ($actor, $id, $jobId): string {
+                $database = $this->entityManager->find(Database::class, $id, LockMode::PESSIMISTIC_WRITE);
+                if (!$database instanceof Database || !$this->canAccessDatabase($actor, $database)) {
+                    throw new \RuntimeException('database_not_found');
+                }
+
+                $job = $this->jobRepository->find($jobId);
+                if (!$job instanceof Job || !in_array($job->getType(), ['database.create', 'database.rotate_password'], true)) {
+                    throw new \RuntimeException('job_not_found');
+                }
+                if ((string) ($job->getPayload()['database_id'] ?? '') !== (string) $id) {
+                    throw new \RuntimeException('job_not_found');
+                }
+
+                $result = $job->getResult();
+                if (!$result instanceof JobResult || $result->getStatus()->value !== 'succeeded') {
+                    throw new \RuntimeException('credential_not_ready');
+                }
+
+                $encrypted = $database->getEncryptedPassword();
+                if (!is_array($encrypted)) {
+                    throw new \RuntimeException('db_credential_already_consumed');
+                }
+
+                $credential = trim((string) $this->encryptionService->decrypt($encrypted));
+                if ($credential === '') {
+                    throw new \RuntimeException('db_credential_already_consumed');
+                }
+
+                $database->setEncryptedPassword(null);
+                $this->entityManager->flush();
+
+                return $credential;
+            });
+        } catch (\RuntimeException $exception) {
+            return match ($exception->getMessage()) {
+                'database_not_found' => $this->responseEnvelopeFactory->error($request, 'Database not found.', 'database_not_found', JsonResponse::HTTP_NOT_FOUND),
+                'job_not_found' => $this->responseEnvelopeFactory->error($request, 'Job not found.', 'job_not_found', JsonResponse::HTTP_NOT_FOUND),
+                'credential_not_ready' => $this->responseEnvelopeFactory->error($request, 'Credential is not available yet.', 'credential_not_ready', JsonResponse::HTTP_CONFLICT, 5),
+                default => $this->responseEnvelopeFactory->error($request, 'Credential already consumed.', 'db_credential_already_consumed', JsonResponse::HTTP_GONE),
+            };
+        }
+
+        return $this->responseEnvelopeFactory->success($request, $jobId, 'Credential delivered (one-time).', JsonResponse::HTTP_OK, [
+            'status' => 'succeeded',
+            'details' => ['password' => $credential],
+        ]);
     }
 
     private function requireUser(Request $request): User
@@ -200,124 +267,87 @@ final class DatabaseApiController
         return $actor;
     }
 
-    private function parseJsonPayload(Request $request): array
+    /**
+     * @param array<string,mixed> $payload
+     * @return array{customer:?User,node:?DatabaseNode,name:string,username:string,error:?JsonResponse}
+     */
+    private function validateCreatePayload(Request $request, User $actor, array $payload): array
     {
-        try {
-            return $request->toArray();
-        } catch (\JsonException $exception) {
-            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException('Invalid JSON payload.', $exception);
-        }
-    }
-
-    private function validatePayload(User $actor, array $payload, bool $requirePassword): array
-    {
-        $customerId = $payload['customer_id'] ?? null;
-        $engine = strtolower(trim((string) ($payload['engine'] ?? '')));
-        $host = trim((string) ($payload['host'] ?? ''));
-        $portValue = $payload['port'] ?? null;
         $nodeId = $payload['node_id'] ?? null;
         $name = trim((string) ($payload['name'] ?? ''));
         $username = trim((string) ($payload['username'] ?? ''));
-        $password = trim((string) ($payload['password'] ?? ''));
 
-        if ($actor->isAdmin()) {
-            if (!is_numeric($customerId)) {
-                return ['error' => new JsonResponse(['error' => 'Customer is required.'], JsonResponse::HTTP_BAD_REQUEST)];
-            }
+        if (!is_numeric($nodeId)) {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Node ID must be numeric.', 'database_node_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
-        $node = null;
-        if ($nodeId !== null && $nodeId !== '') {
-            if (!is_numeric($nodeId)) {
-                return ['error' => new JsonResponse(['error' => 'Node ID must be numeric.'], JsonResponse::HTTP_BAD_REQUEST)];
-            }
-            $node = $this->databaseNodeRepository->find((int) $nodeId);
-            if (!$node instanceof DatabaseNode) {
-                return ['error' => new JsonResponse(['error' => 'Database node not found.'], JsonResponse::HTTP_NOT_FOUND)];
-            }
-            if (!$node->isActive()) {
-                return ['error' => new JsonResponse(['error' => 'Database node is inactive.'], JsonResponse::HTTP_BAD_REQUEST)];
-            }
-            $engine = $node->getEngine();
-            $host = $node->getHost();
-            $portValue = $node->getPort();
+        $node = $this->databaseNodeRepository->find((int) $nodeId);
+        if (!$node instanceof DatabaseNode) {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Database node not found.', 'database_node_not_found', JsonResponse::HTTP_NOT_FOUND)];
+        }
+        if (!$node->isActive()) {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Database node is disabled.', 'database_node_disabled', JsonResponse::HTTP_CONFLICT)];
         }
 
-        if ($engine === '') {
-            return ['error' => new JsonResponse(['error' => 'Engine is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+        $engine = strtolower($node->getEngine());
+        if (!in_array($engine, ['mysql', 'mariadb'], true)) {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Only MySQL/MariaDB nodes are allowed.', 'database_engine_unsupported', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
-        if ($host === '') {
-            return ['error' => new JsonResponse(['error' => 'Host is required.'], JsonResponse::HTTP_BAD_REQUEST)];
+        if ($name === '' || $username === '') {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Missing required fields.', 'validation_failed', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
-        if ($portValue === null || $portValue === '' || !is_numeric($portValue)) {
-            return ['error' => new JsonResponse(['error' => 'Port must be numeric.'], JsonResponse::HTTP_BAD_REQUEST)];
-        }
-
-        $port = (int) $portValue;
-        if ($port <= 0 || $port > 65535) {
-            return ['error' => new JsonResponse(['error' => 'Port must be between 1 and 65535.'], JsonResponse::HTTP_BAD_REQUEST)];
-        }
-
-        if ($name === '') {
-            return ['error' => new JsonResponse(['error' => 'Database name is required.'], JsonResponse::HTTP_BAD_REQUEST)];
-        }
         $nameErrors = $this->namingPolicy->validateDatabaseName($name);
         if ($nameErrors !== []) {
-            return ['error' => new JsonResponse(['error' => $nameErrors[0]], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $nameErrors[0], 'db_name_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
-        if ($username === '') {
-            return ['error' => new JsonResponse(['error' => 'Username is required.'], JsonResponse::HTTP_BAD_REQUEST)];
-        }
         $userErrors = $this->namingPolicy->validateUsername($username);
         if ($userErrors !== []) {
-            return ['error' => new JsonResponse(['error' => $userErrors[0]], JsonResponse::HTTP_BAD_REQUEST)];
-        }
-
-        if ($requirePassword && $password === '') {
-            return ['error' => new JsonResponse(['error' => 'Password is required.'], JsonResponse::HTTP_BAD_REQUEST)];
-        }
-
-        if ($password !== '' && mb_strlen($password) < 8) {
-            return ['error' => new JsonResponse(['error' => 'Password must be at least 8 characters.'], JsonResponse::HTTP_BAD_REQUEST)];
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, $userErrors[0], 'db_user_invalid', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         $customer = $actor;
         if ($actor->isAdmin()) {
-            $customer = $this->userRepository->find((int) $customerId);
-            if ($customer === null || $customer->getType() !== UserType::Customer) {
-                return ['error' => new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND)];
-            }
+            $customer = $this->userRepository->find((int) ($payload['customer_id'] ?? 0));
+        }
+        if (!$customer instanceof User || $customer->getType() !== UserType::Customer) {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Customer not found.', 'customer_not_found', JsonResponse::HTTP_NOT_FOUND)];
         }
 
-        if ($customer->getType() !== UserType::Customer) {
-            return ['error' => new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND)];
+        return ['customer' => $customer, 'node' => $node, 'name' => $name, 'username' => $username, 'error' => null];
+    }
+
+    private function isNodeEligible(?DatabaseNode $node): bool
+    {
+        if (!$node instanceof DatabaseNode || !$node->isActive()) {
+            return false;
         }
 
-        return [
-            'customer' => $customer,
-            'engine' => $engine,
-            'host' => $host,
-            'port' => $port,
-            'name' => $name,
-            'username' => $username,
-            'encrypted_password' => $password !== '' ? $this->encryptionService->encrypt($password) : null,
-            'node' => $node,
-            'error' => null,
-        ];
+        return in_array(strtolower($node->getEngine()), ['mysql', 'mariadb'], true);
     }
 
     private function canAccessDatabase(User $actor, Database $database): bool
     {
-        if ($actor->isAdmin()) {
-            return true;
-        }
-
-        return $database->getCustomer()->getId() === $actor->getId();
+        return $actor->isAdmin() || $database->getCustomer()->getId() === $actor->getId();
     }
 
+    private function findActiveDatabaseActionJob(string $databaseId): ?Job
+    {
+        foreach (['database.rotate_password', 'database.delete'] as $type) {
+            $active = $this->jobRepository->findActiveByTypeAndPayloadField($type, 'database_id', $databaseId);
+            if ($active !== null) {
+                return $active;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
     private function normalizeDatabase(Database $database): array
     {
         return [
@@ -327,11 +357,14 @@ final class DatabaseApiController
             'port' => $database->getPort(),
             'name' => $database->getName(),
             'username' => $database->getUsername(),
+            'status' => $database->getStatus(),
+            'last_error_code' => $database->getLastErrorCode(),
+            'last_error_message' => $database->getLastErrorMessage(),
+            'rotated_at' => $database->getRotatedAt()?->format(DATE_RFC3339),
             'customer_id' => $database->getCustomer()->getId(),
             'node' => $database->getNode() === null ? null : [
                 'id' => $database->getNode()?->getId(),
                 'name' => $database->getNode()?->getName(),
-                'engine' => $database->getNode()?->getEngine(),
             ],
             'updated_at' => $database->getUpdatedAt()->format(DATE_RFC3339),
         ];

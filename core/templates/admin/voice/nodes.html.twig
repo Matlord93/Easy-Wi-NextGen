@@ -1,0 +1,111 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block content %}
+<div class="space-y-6" id="voice-admin-root">
+    <div>
+        <h1 class="text-2xl font-semibold text-slate-900">Voice Nodes</h1>
+        <p class="text-sm text-slate-700">Provider-Knoten für TS3/TS6 verwalten.</p>
+    </div>
+
+    <form method="get" action="{{ path('admin_voice_nodes') }}" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm grid gap-3 md:grid-cols-4">
+        <select name="provider" class="rounded border border-slate-300 px-3 py-2">
+            <option value="">Provider: alle</option>
+            <option value="ts3" {{ filter_provider == 'ts3' ? 'selected' : '' }}>TS3</option>
+            <option value="ts6" {{ filter_provider == 'ts6' ? 'selected' : '' }}>TS6</option>
+        </select>
+        <select name="enabled" class="rounded border border-slate-300 px-3 py-2">
+            <option value="" {{ filter_enabled == '' ? 'selected' : '' }}>Status: alle</option>
+            <option value="1" {{ filter_enabled == '1' ? 'selected' : '' }}>enabled</option>
+            <option value="0" {{ filter_enabled == '0' ? 'selected' : '' }}>disabled</option>
+        </select>
+        <input name="per_page" value="{{ per_page }}" type="number" min="1" max="200" class="rounded border border-slate-300 px-3 py-2" placeholder="Per Page">
+        <button class="rounded bg-slate-900 text-white px-3 py-2">Filter</button>
+    </form>
+
+    <form method="post" action="{{ path('admin_voice_nodes_create') }}" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm grid gap-3 md:grid-cols-5">
+        <input name="name" placeholder="Name" class="rounded border border-slate-300 px-3 py-2" required>
+        <select name="provider_type" class="rounded border border-slate-300 px-3 py-2" required>
+            <option value="ts3">TS3</option>
+            <option value="ts6">TS6</option>
+        </select>
+        <input name="host" placeholder="Host" class="rounded border border-slate-300 px-3 py-2" required>
+        <input name="query_port" placeholder="Query Port" type="number" class="rounded border border-slate-300 px-3 py-2" required>
+        <button class="rounded bg-indigo-600 text-white px-3 py-2">Create</button>
+        <input name="query_user" placeholder="Query User" class="rounded border border-slate-300 px-3 py-2 md:col-span-2">
+        <input name="query_secret" placeholder="Query Secret" type="password" class="rounded border border-slate-300 px-3 py-2 md:col-span-2">
+    </form>
+
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
+        <table class="min-w-full text-sm divide-y divide-slate-200">
+            <thead class="bg-slate-50"><tr><th class="px-4 py-3 text-left">Name</th><th class="px-4 py-3 text-left">Provider</th><th class="px-4 py-3 text-left">Host</th><th class="px-4 py-3 text-left">Enabled</th><th class="px-4 py-3 text-left">Query</th><th class="px-4 py-3 text-left">Rate/Circuit</th><th class="px-4 py-3 text-left">Last Probe</th><th class="px-4 py-3 text-left">Last Error</th><th class="px-4 py-3 text-left">Action</th></tr></thead>
+            <tbody class="divide-y divide-slate-200">
+                {% for row in rows %}
+                    {% set n = row.node %}
+                    {% set state = row.state %}
+                    {% set latest = row.latest %}
+                    <tr>
+                        <td class="px-4 py-3">{{ n.name }}</td>
+                        <td class="px-4 py-3">{{ n.providerType|upper }}</td>
+                        <td class="px-4 py-3">{{ n.host }}:{{ n.queryPort }}</td>
+                        <td class="px-4 py-3">{{ n.enabled ? 'yes' : 'no' }}</td>
+                        <td class="px-4 py-3">{{ n.credentialsEncrypted is not empty ? 'configured' : 'missing' }}</td>
+                        <td class="px-4 py-3">
+                            {% if state %}
+                                <div>tokens: {{ state.tokens|number_format(2, '.', ',') }}</div>
+                                <div>locked_until: {{ state.lockedUntil ? state.lockedUntil|date('Y-m-d H:i:s') : '-' }}</div>
+                                <div>circuit_until: {{ state.circuitOpenUntil ? state.circuitOpenUntil|date('Y-m-d H:i:s') : '-' }}</div>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">{{ latest and latest.checkedAt ? latest.checkedAt|date('Y-m-d H:i:s') : '-' }}</td>
+                        <td class="px-4 py-3">{{ latest and latest.errorCode ? latest.errorCode ~ ' · ' ~ (latest.reason ?? '') : '-' }}</td>
+                        <td class="px-4 py-3 flex gap-2 flex-wrap">
+                            <form method="post" action="{{ path('admin_voice_nodes_toggle', {id: n.id}) }}"><button class="rounded border px-3 py-1">Toggle</button></form>
+                            <button type="button" data-probe-node="{{ n.id }}" class="rounded border border-indigo-300 px-3 py-1 text-indigo-700">Probe now</button>
+                            <span data-probe-status="{{ n.id }}" class="text-xs text-slate-600"></span>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="9" class="px-4 py-6 text-center text-slate-600">Keine Nodes.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% set total_pages = (total / per_page)|round(0, 'ceil') %}
+        <div class="border-t border-slate-200 px-4 py-2 text-xs text-slate-600">Page {{ page }} / {{ total_pages > 0 ? total_pages : 1 }} · {{ total }} rows</div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const root = document.getElementById('voice-admin-root');
+    if (!root) {
+        return;
+    }
+
+    root.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-probe-node]');
+        if (!button) {
+            return;
+        }
+
+        const nodeId = button.getAttribute('data-probe-node');
+        const status = root.querySelector(`[data-probe-status="${nodeId}"]`);
+        button.disabled = true;
+        status.textContent = 'queue...';
+
+        try {
+            const probeUrlTemplate = '{{ path('admin_voice_nodes_probe_v1', {id: 0}) }}';
+            const response = await fetch(probeUrlTemplate.replace('/0/probe', `/${nodeId}/probe`), {method: 'POST', headers: {'Accept': 'application/json'}});
+            const payload = await response.json();
+            const retry = payload.retry_after ? ` (retry ${payload.retry_after}s)` : '';
+            status.textContent = `${payload.message || 'done'}${retry}`;
+        } catch (e) {
+            status.textContent = 'request failed';
+        } finally {
+            button.disabled = false;
+        }
+    });
+})();
+</script>
+{% endblock %}

@@ -6,12 +6,14 @@ namespace App\Module\Setup\Application;
 
 use App\Infrastructure\Config\DbConfigProvider;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Setup\Application\InstallEnvBootstrap;
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\Application\AdminSshKeyService;
+use Doctrine\Common\EventManager;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\DBAL\Exception\TableExistsException;
@@ -48,6 +50,7 @@ final class InstallerService
         private readonly AdminSshKeyService $sshKeyService,
         private readonly DbConfigProvider $configProvider,
         private readonly EncryptionService $encryptionService,
+        private readonly InstallEnvBootstrap $installEnvBootstrap,
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
     ) {
@@ -89,6 +92,7 @@ final class InstallerService
 
         $requirements[] = $this->buildWritableRequirement('var', $this->projectDir . '/var', 'hints.writable_var');
         $requirements[] = $this->buildWritableRequirement('var_cache', $this->projectDir . '/var/cache', 'hints.writable_cache');
+        $requirements[] = $this->buildEnvLocalRequirement($this->projectDir . '/.env.local');
         $requirements[] = $this->buildWritableRequirement(
             'srv_setup',
             $this->projectDir . '/' . self::SETUP_DIR,
@@ -261,10 +265,61 @@ final class InstallerService
         }
     }
 
+
+    /**
+     * @return array{ok: bool, error_code?: string, env_path: string}
+     */
+    public function ensureEnvSecretsPresent(): array
+    {
+        return $this->installEnvBootstrap->ensure($this->projectDir);
+    }
+
+
+    /**
+     * @return array{ok: bool, error_code?: string, env_path: string, written_keys?: list<string>}
+     */
+    public function ensureInstallerEnvironmentBootstrap(): array
+    {
+        return $this->ensureEnvSecretsPresent();
+    }
+
     public function storeDatabaseConfig(array $payload): void
     {
         $this->ensureSecretKeyExists();
         $this->configProvider->store($payload);
+        $this->applyRuntimeDatabaseUrl($payload);
+    }
+
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function applyRuntimeDatabaseUrl(array $payload): void
+    {
+        $databaseUrl = $this->buildDatabaseUrlFromPayload($payload);
+        putenv('DATABASE_URL=' . $databaseUrl);
+        $_ENV['DATABASE_URL'] = $databaseUrl;
+        $_SERVER['DATABASE_URL'] = $databaseUrl;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function buildDatabaseUrlFromPayload(array $payload): string
+    {
+        $user = rawurlencode((string) ($payload['user'] ?? ''));
+        $password = (string) ($payload['password'] ?? '');
+        $passwordSegment = $password !== '' ? ':' . rawurlencode($password) : '';
+        $host = (string) ($payload['host'] ?? '127.0.0.1');
+        $dbname = rawurlencode((string) ($payload['dbname'] ?? ''));
+
+        $portRaw = $payload['port'] ?? null;
+        if (is_string($portRaw) && ctype_digit($portRaw)) {
+            $portRaw = (int) $portRaw;
+        }
+        $port = is_int($portRaw) ? ':' . $portRaw : '';
+
+        return sprintf('mysql://%s%s@%s%s/%s?charset=utf8mb4', $user, $passwordSegment, $host, $port, $dbname);
     }
 
     private function ensureSecretKeyExists(): void
@@ -663,7 +718,7 @@ final class InstallerService
         return new EntityManager(
             $connection,
             $this->defaultEntityManager->getConfiguration(),
-            $this->defaultEntityManager->getEventManager(),
+            new EventManager(),
         );
     }
 
@@ -681,6 +736,25 @@ final class InstallerService
             'messageKey' => 'requirements.writable',
             'messageParams' => ['%path%' => $path],
             'fixHintKey' => $ok ? null : $hintKey,
+            'fixHintParams' => ['%path%' => $path],
+        ];
+    }
+
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildEnvLocalRequirement(string $path): array
+    {
+        $ok = is_file($path) ? is_writable($path) : $this->isDirectoryWritable(dirname($path));
+
+        return [
+            'key' => 'env_local',
+            'ok' => $ok,
+            'required' => true,
+            'messageKey' => 'requirements.env_local',
+            'messageParams' => ['%path%' => $path],
+            'fixHintKey' => $ok ? null : 'hints.writable_env',
             'fixHintParams' => ['%path%' => $path],
         ];
     }

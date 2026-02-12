@@ -37,9 +37,9 @@ final class TwoFactorQrController
         }
 
         $otp = $this->twoFactorService->getOtpAuthUri($this->settings->getBrandingName(), $user->getEmail(), $secret);
-        $png = $this->qrCodeService->renderPng($otp);
+        $image = $this->qrCodeService->renderImage($otp);
 
-        $response = new Response($png, Response::HTTP_OK, ['Content-Type' => 'image/png']);
+        $response = new Response($image['content'], Response::HTTP_OK, ['Content-Type' => $image['mimeType']]);
         $response->headers->set('Cache-Control', 'no-store, private');
 
         return $response;

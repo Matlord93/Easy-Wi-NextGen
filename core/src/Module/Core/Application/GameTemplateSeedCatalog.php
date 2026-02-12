@@ -1513,50 +1513,6 @@ final class GameTemplateSeedCatalog
                 'powershell -Command "$ProgressPreference = \'SilentlyContinue\'; $page = Invoke-WebRequest -UseBasicParsing https://runtime.fivem.net/artifacts/fivem/build_server_windows/master/; $match = ($page.Links | Where-Object href -match \'server.zip\' | Select-Object -Last 1).href; Invoke-WebRequest -UseBasicParsing -OutFile server.zip (\"https://runtime.fivem.net/artifacts/fivem/build_server_windows/master/$match\"); Expand-Archive -Force server.zip ."',
                 [],
             ),
-            $this->template(
-                'teamspeak3',
-                'TeamSpeak 3 Server',
-                'Download and run TeamSpeak 3 server binaries.',
-                null,
-                null,
-                [
-                    ['name' => 'voice', 'label' => 'Voice', 'protocol' => 'udp'],
-                    ['name' => 'query', 'label' => 'Query', 'protocol' => 'tcp'],
-                    ['name' => 'filetransfer', 'label' => 'File Transfer', 'protocol' => 'tcp'],
-                ],
-                './ts3server_minimal_runscript.sh default_voice_port={{PORT_VOICE}} query_port={{PORT_QUERY}} filetransfer_port={{PORT_FILETRANSFER}} serveradmin_password={{SERVER_ADMIN_PASSWORD}}',
-                [
-                    ['key' => 'SERVER_ADMIN_PASSWORD', 'value' => 'change-me'],
-                ],
-                [],
-                [],
-                $fastdl,
-                'cd {{INSTANCE_DIR}} && curl -L -o ts3.tar.bz2 https://files.teamspeak-services.com/releases/server/3.13.7/teamspeak3-server_linux_amd64-3.13.7.tar.bz2 && tar -xjf ts3.tar.bz2 --strip-components=1',
-                'cd {{INSTANCE_DIR}} && curl -L -o ts3.tar.bz2 https://files.teamspeak-services.com/releases/server/3.13.7/teamspeak3-server_linux_amd64-3.13.7.tar.bz2 && tar -xjf ts3.tar.bz2 --strip-components=1',
-                [],
-            ),
-            $this->template(
-                'teamspeak3_windows',
-                'TeamSpeak 3 Server (Windows)',
-                'Download and run TeamSpeak 3 Windows binaries.',
-                null,
-                null,
-                [
-                    ['name' => 'voice', 'label' => 'Voice', 'protocol' => 'udp'],
-                    ['name' => 'query', 'label' => 'Query', 'protocol' => 'tcp'],
-                    ['name' => 'filetransfer', 'label' => 'File Transfer', 'protocol' => 'tcp'],
-                ],
-                '{{INSTANCE_DIR}}/ts3server.exe default_voice_port={{PORT_VOICE}} query_port={{PORT_QUERY}} filetransfer_port={{PORT_FILETRANSFER}} serveradmin_password={{SERVER_ADMIN_PASSWORD}}',
-                [
-                    ['key' => 'SERVER_ADMIN_PASSWORD', 'value' => 'change-me'],
-                ],
-                [],
-                [],
-                $fastdl,
-                'powershell -Command "$ProgressPreference = \'SilentlyContinue\'; Invoke-WebRequest -UseBasicParsing -OutFile ts3.zip https://files.teamspeak-services.com/releases/server/3.13.7/teamspeak3-server_win64-3.13.7.zip; Expand-Archive -Force ts3.zip ."',
-                'powershell -Command "$ProgressPreference = \'SilentlyContinue\'; Invoke-WebRequest -UseBasicParsing -OutFile ts3.zip https://files.teamspeak-services.com/releases/server/3.13.7/teamspeak3-server_win64-3.13.7.zip; Expand-Archive -Force ts3.zip ."',
-                [],
-            ),
         ];
     }
 

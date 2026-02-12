@@ -141,6 +141,7 @@
                             <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_table_php', page_locale()) }}</th>
                             <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_table_quota', page_locale()) }}</th>
                             <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_table_status', page_locale()) }}</th>
+                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Apply</th>
                             <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">{{ t('customer_webspace_table_updated', page_locale()) }}</th>
                         </tr>
                     </thead>
@@ -156,6 +157,12 @@
                                 <td class="px-5 py-4 text-slate-600">{{ webspace.php_version }}</td>
                                 <td class="px-5 py-4 text-slate-600">{{ webspace.quota }} MB</td>
                                 <td class="px-5 py-4 text-slate-600">{{ webspace.status|replace({'_': ' '})|title }}</td>
+                                <td class="px-5 py-4 text-slate-600">
+                                    <div>{{ webspace.apply_status|default('unknown')|replace({'_':' '})|title }}</div>
+                                    <div class="text-xs">{% if webspace.apply_required %}required{% else %}clean{% endif %}</div>
+                                    {% if webspace.last_applied_at %}<div class="text-xs">{{ webspace.last_applied_at|date('Y-m-d H:i') }}</div>{% endif %}
+                                    {% if webspace.last_apply_error_code %}<div class="text-xs text-rose-600">{{ webspace.last_apply_error_code }}</div>{% endif %}
+                                </td>
                                 <td class="px-5 py-4 text-slate-600">{{ webspace.updated_at|date('Y-m-d H:i') }}</td>
                             </tr>
                         {% endfor %}

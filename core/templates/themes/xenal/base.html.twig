@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="{{ page_locale() }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page.title|default(app_setting('branding_name', 'Xenal')) }}</title>
+    {% block head %}{% endblock %}
+    <link rel="stylesheet" href="{{ asset('themes/' ~ (active_theme|default('xenal')) ~ '/css/theme.css') }}">
+</head>
+<body class="theme-shell theme-{{ active_theme|default('xenal') }}">
+{% include 'themes/' ~ (active_theme|default('xenal')) ~ '/header.html.twig' %}
+<main class="theme-main">{% block content %}{% endblock %}</main>
+{% include 'themes/' ~ (active_theme|default('xenal')) ~ '/footer.html.twig' %}
+{% include 'cms/layout/_cookie_consent.html.twig' %}
+</body>
+</html>

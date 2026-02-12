@@ -44,6 +44,9 @@ parameters:
   app.sinusbot_quota_max: '%env(int:default:app.sinusbot_quota_max_default:APP_SINUSBOT_QUOTA_MAX)%'
   app.agent_service_port_default: '7456'
   app.agent_service_port: '%env(int:default:app.agent_service_port_default:APP_AGENT_SERVICE_PORT)%'
+  app.status_agent_shared_secret: '%env(default::APP_STATUS_AGENT_SHARED_SECRET)%'
+  app.status_agent_signature_skew_seconds: '%env(int:default:300:APP_STATUS_AGENT_SIGNATURE_SKEW_SECONDS)%'
+  app.status_stale_grace_seconds: '%env(int:default:20:APP_STATUS_STALE_GRACE_SECONDS)%'
 
 services:
   _defaults:
@@ -203,3 +206,31 @@ services:
   Symfony\Component\HttpFoundation\UriSigner:
     arguments:
       $secret: '%kernel.secret%'
+
+
+  App\Module\Gameserver\Application\Status\HmacRequestValidator:
+    arguments:
+      $sharedSecret: '%app.status_agent_shared_secret%'
+      $maxSkewSeconds: '%app.status_agent_signature_skew_seconds%'
+
+  App\Module\Gameserver\UI\Controller\Api\ServerStatusApiController:
+    arguments:
+      $staleGraceSeconds: '%app.status_stale_grace_seconds%'
+
+  App\Module\Voice\Application\VoiceRateLimitStateStoreInterface: '@App\Module\Voice\Application\DoctrineVoiceRateLimitStateStore'
+
+  App\Module\Voice\Application\Provider\VoiceProviderRegistry:
+    arguments:
+      $adapters: !tagged_iterator 'app.voice_provider_adapter'
+
+  App\Module\Voice\Application\Provider\Teamspeak3Adapter:
+    tags: ['app.voice_provider_adapter']
+
+  App\Module\Voice\Application\Provider\Teamspeak6Adapter:
+    tags: ['app.voice_provider_adapter']
+
+  App\Module\Voice\Application\Provider\SinusbotAdapter:
+    tags: ['app.voice_provider_adapter']
+
+  App\Module\Voice\Application\Provider\Ts3ServerLookupInterface: '@App\Module\Voice\Application\Provider\DoctrineTs3ServerLookup'
+  App\Module\Voice\Application\Provider\Ts6ServerLookupInterface: '@App\Module\Voice\Application\Provider\DoctrineTs6ServerLookup'

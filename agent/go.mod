@@ -5,11 +5,13 @@ go 1.24.0
 toolchain go1.24.13
 
 require (
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/shirou/gopsutil/v4 v4.24.9
 	golang.org/x/crypto v0.47.0
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/ebitengine/purego v0.8.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect

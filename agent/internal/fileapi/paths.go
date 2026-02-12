@@ -103,14 +103,35 @@ func validateServerRootAgainstBase(serverRoot, baseDir string) (string, error) {
 	if cleanBase == "" || !filepath.IsAbs(cleanBase) {
 		return "", fmt.Errorf("INVALID_SERVER_ROOT")
 	}
-	rel, err := filepath.Rel(cleanBase, cleanRoot)
+
+	baseAbs, err := filepath.Abs(cleanBase)
+	if err != nil {
+		return "", fmt.Errorf("INVALID_SERVER_ROOT")
+	}
+	rootAbs, err := filepath.Abs(cleanRoot)
+	if err != nil {
+		return "", fmt.Errorf("INVALID_SERVER_ROOT")
+	}
+
+	baseCanonical := baseAbs
+	if resolvedBase, err := filepath.EvalSymlinks(baseAbs); err == nil {
+		baseCanonical = resolvedBase
+	}
+
+	rootCanonical := rootAbs
+	if resolvedRoot, err := filepath.EvalSymlinks(rootAbs); err == nil {
+		rootCanonical = resolvedRoot
+	}
+
+	rel, err := filepath.Rel(baseCanonical, rootCanonical)
 	if err != nil {
 		return "", fmt.Errorf("INVALID_SERVER_ROOT")
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("INVALID_SERVER_ROOT")
 	}
-	info, err := os.Stat(cleanRoot)
+
+	info, err := os.Stat(rootCanonical)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", fmt.Errorf("SERVER_ROOT_NOT_FOUND")
@@ -120,8 +141,8 @@ func validateServerRootAgainstBase(serverRoot, baseDir string) (string, error) {
 	if !info.IsDir() {
 		return "", fmt.Errorf("SERVER_ROOT_NOT_ACCESSIBLE")
 	}
-	if _, err := os.ReadDir(cleanRoot); err != nil {
+	if _, err := os.ReadDir(rootCanonical); err != nil {
 		return "", fmt.Errorf("SERVER_ROOT_NOT_ACCESSIBLE")
 	}
-	return cleanRoot, nil
+	return rootCanonical, nil
 }

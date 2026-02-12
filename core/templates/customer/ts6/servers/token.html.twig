@@ -10,7 +10,7 @@
                 <p>{{ server.name }} · SID {{ server.sid }}</p>
             </div>
             <div class="ts6-actions">
-                <a class="ts6-link" href="/customer/ts6/servers/{{ server.id }}">Zurück</a>
+                <a class="ts6-link" href="{{ path('customer_ts6_servers_show', {id: server.id}) }}">Zurück</a>
             </div>
         </div>
 
@@ -26,10 +26,10 @@
                 <div><strong>Owner Token</strong></div>
                 <div class="ts6-secret">{{ token ?? '—' }}</div>
             </div>
-            <form class="ts6-form" method="post" action="/customer/ts6/servers/{{ server.id }}/token/rotate">
+            <form class="ts6-form" method="post" action="{{ path('customer_ts6_servers_token_rotate', {id: server.id}) }}">
                 <input type="hidden" name="_token" value="{{ csrf.rotate }}">
                 <label for="ts6-server-group">Servergruppe (SGID)</label>
-                <select id="ts6-server-group" name="server_group_id" data-url="/customer/ts6/servers/{{ server.id }}/server-groups.json">
+                <select id="ts6-server-group" name="server_group_id" data-url="{{ path('customer_ts6_servers_groups', {id: server.id}) }}">
                     <option value="6">Lade Servergruppen…</option>
                 </select>
                 <p class="ts6-muted">Nutze die SGID aus <code>servergrouplist</code>, z.B. 6 für Server Admin.</p>

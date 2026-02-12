@@ -34,6 +34,30 @@ class Domain implements ResourceEventSource
     #[ORM\Column(length: 32)]
     private string $status;
 
+    #[ORM\Column(length: 20, options: ['default' => 'domain'])]
+    private string $type = 'domain';
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $targetPath = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $redirectHttps = false;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $redirectWww = false;
+
+    #[ORM\Column(length: 20, options: ['default' => 'pending'])]
+    private string $applyStatus = 'pending';
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $lastErrorCode = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $lastErrorMessage = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastAppliedAt = null;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $serverAliases = null;
 
@@ -90,6 +114,92 @@ class Domain implements ResourceEventSource
     public function setStatus(string $status): void
     {
         $this->status = $status;
+        $this->touch();
+    }
+
+    public function getType(): string
+    {
+        return $this->type;
+    }
+
+    public function setType(string $type): void
+    {
+        $this->type = $type;
+        $this->touch();
+    }
+
+    public function getTargetPath(): ?string
+    {
+        return $this->targetPath;
+    }
+
+    public function setTargetPath(?string $targetPath): void
+    {
+        $this->targetPath = $targetPath;
+        $this->touch();
+    }
+
+    public function isRedirectHttps(): bool
+    {
+        return $this->redirectHttps;
+    }
+
+    public function setRedirectHttps(bool $redirectHttps): void
+    {
+        $this->redirectHttps = $redirectHttps;
+        $this->touch();
+    }
+
+    public function isRedirectWww(): bool
+    {
+        return $this->redirectWww;
+    }
+
+    public function setRedirectWww(bool $redirectWww): void
+    {
+        $this->redirectWww = $redirectWww;
+        $this->touch();
+    }
+
+    public function getApplyStatus(): string
+    {
+        return $this->applyStatus;
+    }
+
+    public function setApplyStatus(string $applyStatus): void
+    {
+        $this->applyStatus = $applyStatus;
+        $this->touch();
+    }
+
+    public function setApplyError(?string $code, ?string $message): void
+    {
+        $this->lastErrorCode = $code;
+        $this->lastErrorMessage = $message;
+        $this->touch();
+    }
+
+    public function getLastErrorCode(): ?string
+    {
+        return $this->lastErrorCode;
+    }
+
+    public function getLastErrorMessage(): ?string
+    {
+        return $this->lastErrorMessage;
+    }
+
+    public function getLastAppliedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastAppliedAt;
+    }
+
+    public function markApplied(): void
+    {
+        $this->applyStatus = 'succeeded';
+        $this->lastAppliedAt = new \DateTimeImmutable();
+        $this->lastErrorCode = null;
+        $this->lastErrorMessage = null;
         $this->touch();
     }
 

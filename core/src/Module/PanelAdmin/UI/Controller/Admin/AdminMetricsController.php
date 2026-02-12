@@ -280,10 +280,10 @@ final class AdminMetricsController
             $recvDelta = $this->toNonNegativeDelta($sample['netBytesRecv'] ?? null, $previous['netBytesRecv'] ?? null);
 
             if ($sentDelta !== null) {
-                $upload[] = $sentDelta / $seconds;
+                $upload[] = ($sentDelta * 8) / $seconds / 1_000_000;
             }
             if ($recvDelta !== null) {
-                $download[] = $recvDelta / $seconds;
+                $download[] = ($recvDelta * 8) / $seconds / 1_000_000;
             }
 
             $previous = $sample;

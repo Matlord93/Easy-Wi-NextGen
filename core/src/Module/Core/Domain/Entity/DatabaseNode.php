@@ -11,6 +11,11 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'database_nodes')]
 class DatabaseNode
 {
+    public const TLS_OFF = 'off';
+    public const TLS_REQUIRED = 'required';
+    public const TLS_VERIFY_CA = 'verify_ca';
+    public const TLS_VERIFY_FULL = 'verify_full';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -43,6 +48,21 @@ class DatabaseNode
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastCheckedAt = null;
+
+    #[ORM\Column(length: 20, options: ['default' => self::TLS_OFF])]
+    private string $tlsMode = self::TLS_OFF;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $caCert = null;
+
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $tags = [];
+
+    #[ORM\Column(length: 190, nullable: true)]
+    private ?string $adminUser = null;
+
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $encryptedAdminSecret = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -145,6 +165,61 @@ class DatabaseNode
     public function getLastCheckedAt(): ?\DateTimeImmutable
     {
         return $this->lastCheckedAt;
+    }
+
+    public function getTlsMode(): string
+    {
+        return $this->tlsMode;
+    }
+
+    public function setTlsMode(string $tlsMode): void
+    {
+        $this->tlsMode = $tlsMode;
+        $this->touch();
+    }
+
+    public function getCaCert(): ?string
+    {
+        return $this->caCert;
+    }
+
+    public function setCaCert(?string $caCert): void
+    {
+        $this->caCert = $caCert;
+        $this->touch();
+    }
+
+    public function getTags(): array
+    {
+        return $this->tags ?? [];
+    }
+
+    public function setTags(array $tags): void
+    {
+        $this->tags = array_values(array_filter(array_map('trim', $tags), static fn (string $tag): bool => $tag !== ''));
+        $this->touch();
+    }
+
+    public function getAdminUser(): ?string
+    {
+        return $this->adminUser;
+    }
+
+    public function setAdminUser(?string $adminUser): void
+    {
+        $this->adminUser = $adminUser;
+        $this->touch();
+    }
+
+    public function getEncryptedAdminSecret(): ?array
+    {
+        return $this->encryptedAdminSecret;
+    }
+
+    public function setEncryptedAdminSecret(?array $encryptedAdminSecret): void
+    {
+        $this->encryptedAdminSecret = $encryptedAdminSecret;
+        $this->touch();
     }
 
     public function markHealthy(?string $message = null): void

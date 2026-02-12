@@ -1,0 +1,29 @@
+{% extends 'themes/xenal/base.html.twig' %}
+{% set cms_navigation = [] %}
+
+{% block content %}
+<section class="theme-wrap xenal-auth-wrap">
+  <div class="xenal-card xenal-auth-box">
+    <p class="xenal-kicker">Clan Access</p>
+    <h2>Login</h2>
+    <p class="xenal-muted">Melde dich im Xenal Portal an, um auf Forum, Teams und Panel zuzugreifen.</p>
+
+    {% for error in errors %}
+      <p class="error">{{ error }}</p>
+    {% endfor %}
+
+    <form method="post" action="{{ path('public_login') }}" class="xenal-auth-form">
+      <input type="hidden" name="target" value="{{ loginTarget|default('') }}">
+      <input name="email" type="email" value="{{ form.email }}" placeholder="E-Mail" required>
+      <input name="password" type="password" placeholder="Passwort" required>
+      <button class="xenal-btn xenal-btn--primary" type="submit">Einloggen</button>
+    </form>
+
+    {% if registrationAllowed %}
+      <a href="{{ path('public_register') }}" class="theme-btn">Jetzt registrieren</a>
+    {% else %}
+      <p class="xenal-muted">Registrierung ist aktuell deaktiviert.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

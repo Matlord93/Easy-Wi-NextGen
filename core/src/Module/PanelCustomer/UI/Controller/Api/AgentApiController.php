@@ -32,6 +32,7 @@ use App\Repository\BackupTargetRepository;
 use App\Repository\DdosPolicyRepository;
 use App\Repository\DdosStatusRepository;
 use App\Repository\DomainRepository;
+use App\Repository\DatabaseRepository;
 use App\Repository\GdprDeletionRequestRepository;
 use App\Repository\InstanceMetricSampleRepository;
 use App\Repository\InstanceRepository;
@@ -42,6 +43,8 @@ use App\Repository\SecurityPolicyRevisionRepository;
 use App\Repository\Ts3InstanceRepository;
 use App\Repository\Ts6InstanceRepository;
 use App\Repository\UserRepository;
+use App\Repository\VoiceInstanceRepository;
+use App\Repository\WebspaceRepository;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -67,6 +70,7 @@ final class AgentApiController
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
         private readonly DomainRepository $domainRepository,
+        private readonly DatabaseRepository $databaseRepository,
         private readonly InstanceRepository $instanceRepository,
         private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
         private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
@@ -74,6 +78,8 @@ final class AgentApiController
         private readonly Ts3InstanceRepository $ts3InstanceRepository,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
         private readonly UserRepository $userRepository,
+        private readonly VoiceInstanceRepository $voiceInstanceRepository,
+        private readonly WebspaceRepository $webspaceRepository,
         private readonly GdprDeletionRequestRepository $gdprDeletionRequestRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupRepository $backupRepository,
@@ -342,6 +348,13 @@ final class AgentApiController
 
         $completedAt = $this->parseCompletedAt($payload['completed_at'] ?? null);
         $output = is_array($payload['output'] ?? null) ? $payload['output'] : [];
+        $databaseCredential = is_string($output['one_time_credential'] ?? null)
+            ? trim((string) $output['one_time_credential'])
+            : null;
+        if ($databaseCredential === '') {
+            $databaseCredential = null;
+        }
+        unset($output['one_time_credential']);
 
         $this->applyInstanceSftpCredentialUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->appendJobLogsFromOutput($job, $output);
@@ -363,6 +376,7 @@ final class AgentApiController
 
         $this->entityManager->persist($jobResult);
         $this->applyDomainUpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
+        $this->applyDatabaseUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $databaseCredential);
         if ($resultStatus === JobResultStatus::Succeeded) {
             $this->firewallStateManager->applyFirewallJobResult($job, $agent, $output);
         }
@@ -377,6 +391,8 @@ final class AgentApiController
         $this->applyDiskUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyPublicServerUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyInstanceQueryUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
+        $this->applyVoiceUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
+        $this->applyWebspaceUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyGdprAnonymizationFromJob($job, $resultStatus, $agent->getId());
         $this->applyBackupUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->eventDispatcher->dispatch(
@@ -775,6 +791,123 @@ final class AgentApiController
         $this->instanceMetricSampleRepository->deleteOlderThan($retentionThreshold);
     }
 
+
+
+    private function applyWebspaceUpdatesFromJob(\App\Module\Core\Domain\Entity\Job $job, JobResultStatus $resultStatus, string $agentId, array $output, DateTimeImmutable $completedAt): void
+    {
+        if (!in_array($job->getType(), ['webspace.provision', 'webspace.apply', 'webspace.domain.apply'], true)) {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $webspaceId = (int) ($payload['webspace_id'] ?? 0);
+        if ($webspaceId <= 0) {
+            return;
+        }
+
+        $webspace = $this->webspaceRepository->find($webspaceId);
+        if ($webspace === null || $webspace->getNode()->getId() !== $agentId) {
+            return;
+        }
+
+        if ($resultStatus === JobResultStatus::Succeeded) {
+            $agentApplyStatus = is_string($output['apply_status'] ?? null) ? trim((string) $output['apply_status']) : 'succeeded';
+            $normalizedApplyStatus = in_array($agentApplyStatus, ['succeeded', 'success'], true) ? 'succeeded' : $agentApplyStatus;
+
+            if ($job->getType() === 'webspace.provision') {
+                $webspace->setApplyStatus($normalizedApplyStatus);
+                $webspace->setApplyRequired(true);
+                $webspace->setApplyError(null, null);
+            } else {
+                $webspace->markApplied(hash('sha256', implode('|', [
+                    $webspace->getRuntime(),
+                    $webspace->getPath(),
+                    $webspace->getDocroot(),
+                    $webspace->getDomain(),
+                    $completedAt->format(DATE_RFC3339),
+                ])));
+                $webspace->setApplyStatus($normalizedApplyStatus);
+            }
+
+            if ($job->getType() === 'webspace.domain.apply') {
+                $domainId = (int) ($payload['domain_id'] ?? 0);
+                if ($domainId > 0) {
+                    $domain = $this->domainRepository->find($domainId);
+                    if ($domain !== null) {
+                        $domain->markApplied();
+                    }
+                }
+            }
+
+            return;
+        }
+
+        $errorCode = is_string($output['error_code'] ?? null) ? (string) $output['error_code'] : 'webspace_apply_failed';
+        $errorMessage = is_string($output['error_message'] ?? ($output['message'] ?? null)) ? trim((string) ($output['error_message'] ?? $output['message'])) : 'Apply failed.';
+        $webspace->setApplyStatus('failed');
+        $webspace->setApplyRequired(true);
+        $webspace->setApplyError(substr($errorCode, 0, 64), substr($errorMessage, 0, 500));
+
+        if ($job->getType() === 'webspace.domain.apply') {
+            $domainId = (int) ($payload['domain_id'] ?? 0);
+            if ($domainId > 0) {
+                $domain = $this->domainRepository->find($domainId);
+                if ($domain !== null) {
+                    $domain->setApplyStatus('failed');
+                    $domain->setApplyError(substr($errorCode, 0, 64), substr($errorMessage, 0, 500));
+                }
+            }
+        }
+    }
+    private function applyDatabaseUpdatesFromJob(\App\Module\Core\Domain\Entity\Job $job, JobResultStatus $resultStatus, string $agentId, array $output, ?string $databaseCredential): void
+    {
+        if (!in_array($job->getType(), ['database.create', 'database.rotate_password', 'database.delete'], true)) {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $databaseId = (int) ($payload['database_id'] ?? 0);
+        if ($databaseId <= 0) {
+            return;
+        }
+
+        $database = $this->databaseRepository->find($databaseId);
+        if ($database === null) {
+            return;
+        }
+
+        if ($database->getNode()?->getAgent()->getId() !== $agentId) {
+            return;
+        }
+
+        if ($resultStatus === JobResultStatus::Succeeded) {
+            if ($job->getType() === 'database.delete') {
+                $this->entityManager->remove($database);
+                return;
+            }
+
+            $database->setStatus('provisioned');
+            $database->setLastError(null, null);
+            if (is_string($databaseCredential) && $databaseCredential !== '') {
+                $database->setEncryptedPassword($this->encryptionService->encrypt($databaseCredential));
+            }
+            if ($job->getType() === 'database.rotate_password') {
+                $database->markRotated();
+            }
+
+            return;
+        }
+
+        if ($job->getType() === 'database.delete') {
+            $database->setStatus('failed');
+        } else {
+            $database->setStatus('failed');
+        }
+
+        $errorCode = is_string($output['error_code'] ?? null) ? (string) $output['error_code'] : 'db_action_failed';
+        $message = is_string($output['error_message'] ?? null) ? trim((string) $output['error_message']) : 'Database operation failed.';
+        $database->setLastError(substr($errorCode, 0, 120), substr($message, 0, 500));
+    }
     private function applyDdosStatusFromJob(
         \App\Module\Core\Domain\Entity\Job $job,
         JobResultStatus $resultStatus,
@@ -1897,6 +2030,61 @@ final class AgentApiController
         }
 
         return $payload;
+    }
+
+
+    private function applyVoiceUpdatesFromJob(
+        \App\Module\Core\Domain\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        string $agentId,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if (!in_array($job->getType(), ['voice.probe', 'voice.action.start', 'voice.action.stop', 'voice.action.restart'], true)) {
+            return;
+        }
+
+        $voiceInstanceId = (int) ($job->getPayload()['voice_instance_id'] ?? 0);
+        if ($voiceInstanceId <= 0) {
+            return;
+        }
+
+        $instance = $this->voiceInstanceRepository->find($voiceInstanceId);
+        if ($instance === null) {
+            return;
+        }
+
+        if ($job->getType() === 'voice.probe') {
+            $status = $resultStatus === JobResultStatus::Succeeded ? (string) ($output['status'] ?? 'unknown') : 'unknown';
+            $instance->updateStatus(
+                strtolower($status),
+                is_numeric($output['players_online'] ?? null) ? (int) $output['players_online'] : null,
+                is_numeric($output['players_max'] ?? null) ? (int) $output['players_max'] : null,
+                $resultStatus === JobResultStatus::Failed ? ((string) ($output['message'] ?? 'Probe failed.')) : null,
+                $resultStatus === JobResultStatus::Failed ? ((string) ($output['error_code'] ?? 'voice_query_failed')) : null,
+                $completedAt,
+            );
+        } else {
+            if ($resultStatus === JobResultStatus::Failed) {
+                $instance->updateStatus(
+                    $instance->getStatus(),
+                    $instance->getPlayersOnline(),
+                    $instance->getPlayersMax(),
+                    (string) ($output['message'] ?? 'Action failed.'),
+                    (string) ($output['error_code'] ?? 'voice_action_failed'),
+                    $completedAt,
+                );
+            }
+        }
+
+        $this->entityManager->persist($instance);
+        $this->auditLogger->log(null, 'voice.job_applied', [
+            'voice_instance_id' => $instance->getId(),
+            'job_id' => $job->getId(),
+            'agent_id' => $agentId,
+            'job_type' => $job->getType(),
+            'status' => $resultStatus->value,
+        ]);
     }
 
     private function applyGdprAnonymizationFromJob(\App\Module\Core\Domain\Entity\Job $job, JobResultStatus $resultStatus, string $agentId): void

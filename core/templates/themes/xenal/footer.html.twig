@@ -1,0 +1,12 @@
+<footer class="theme-footer">
+  <div class="theme-wrap xenal-footer-row">
+    <p>© {{ "now"|date("Y") }} {{ app_setting('branding_name', 'Xenal Gaming') }} · Powered by Easy-Wi</p>
+    <nav class="xenal-footer-nav">
+      {% for item in cms_footer_links|default([]) %}
+        {% if item.url is defined and item.url is not empty %}
+          <a href="{{ item.url }}"{% if item.external|default(false) %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.label|default('Link') }}</a>
+        {% endif %}
+      {% endfor %}
+    </nav>
+  </div>
+</footer>

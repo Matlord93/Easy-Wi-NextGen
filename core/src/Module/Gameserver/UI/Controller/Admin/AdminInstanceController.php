@@ -124,7 +124,7 @@ final class AdminInstanceController
         return new Response($this->twig->render('admin/instances/provision.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
-            'templates' => $this->templateRepository->findBy([], ['displayName' => 'ASC']),
+            'templates' => $this->listDistinctTemplates(),
             'form' => $this->buildFormContext(),
             'activeNav' => 'game-instances',
         ]));
@@ -152,7 +152,7 @@ final class AdminInstanceController
         return new Response($this->twig->render('admin/instances/_form.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
-            'templates' => $this->templateRepository->findBy([], ['displayName' => 'ASC']),
+            'templates' => $this->listDistinctTemplates(),
             'form' => $this->buildFormContext(),
         ]));
     }
@@ -775,7 +775,7 @@ final class AdminInstanceController
         return new Response($this->twig->render('admin/instances/_form.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
-            'templates' => $this->templateRepository->findBy([], ['displayName' => 'ASC']),
+            'templates' => $this->listDistinctTemplates(),
             'form' => $this->buildFormContext([
                 'customer_id' => $formData['customer_id'],
                 'template_id' => $formData['template_id'],
@@ -798,6 +798,27 @@ final class AdminInstanceController
                 'errors' => $formData['errors'],
             ]),
         ]), $status);
+    }
+
+
+    /**
+     * @return array<int, \App\Module\Core\Domain\Entity\Template>
+     */
+    private function listDistinctTemplates(): array
+    {
+        $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC', 'id' => 'ASC']);
+        $byGameKey = [];
+
+        foreach ($templates as $template) {
+            $gameKey = strtolower(trim($template->getGameKey()));
+            if ($gameKey === '' || isset($byGameKey[$gameKey])) {
+                continue;
+            }
+
+            $byGameKey[$gameKey] = $template;
+        }
+
+        return array_values($byGameKey);
     }
 
     /**

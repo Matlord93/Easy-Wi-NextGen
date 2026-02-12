@@ -26,6 +26,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Component\Uid\Uuid;
@@ -34,6 +35,10 @@ use Symfony\Contracts\Cache\ItemInterface;
 use Twig\Environment;
 
 #[Route(path: '/customer/ts3/servers')]
+/**
+ * @deprecated since 2026-02. Unified customer voice SoT is /customer/voice.
+ *             Kept for compatibility during migration horizon.
+ */
 final class CustomerTs3ServerController
 {
     public function __construct(
@@ -47,6 +52,7 @@ final class CustomerTs3ServerController
         private readonly EntityManagerInterface $entityManager,
         private readonly FormFactoryInterface $formFactory,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Environment $twig,
         private readonly CacheInterface $cache,
         private readonly ServerQueryLimiterInterface $queryLimiter,
@@ -67,7 +73,7 @@ final class CustomerTs3ServerController
             return [
                 'server' => $server,
                 'connectIp' => $this->resolveExternalHost($server),
-                'summaryUrl' => sprintf('/customer/ts3/servers/%d/summary.json', $id),
+                'summaryUrl' => $this->urlGenerator->generate('customer_ts3_servers_summary', ['id' => $id]),
                 'csrf' => [
                     'start' => $this->csrfTokenManager->getToken('ts3_server_start_' . $id)->getValue(),
                     'stop' => $this->csrfTokenManager->getToken('ts3_server_stop_' . $id)->getValue(),
@@ -593,14 +599,14 @@ final class CustomerTs3ServerController
     private function redirectToServer(Ts3VirtualServer $server): Response
     {
         return new Response('', Response::HTTP_FOUND, [
-            'Location' => sprintf('/customer/ts3/servers/%d', $server->getId()),
+            'Location' => $this->urlGenerator->generate('customer_ts3_servers_show', ['id' => $server->getId()]),
         ]);
     }
 
     private function redirectToToken(Ts3VirtualServer $server): Response
     {
         return new Response('', Response::HTTP_FOUND, [
-            'Location' => sprintf('/customer/ts3/servers/%d/token', $server->getId()),
+            'Location' => $this->urlGenerator->generate('customer_ts3_servers_token', ['id' => $server->getId()]),
         ]);
     }
 

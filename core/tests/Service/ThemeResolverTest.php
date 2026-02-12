@@ -36,6 +36,17 @@ final class ThemeResolverTest extends TestCase
         self::assertSame('minimal', $resolver->resolveThemeKey($site));
     }
 
+    public function testLegacyTheme4AliasResolvesToXenal(): void
+    {
+        [$provider] = $this->createProviderWithStorage($storage);
+        $resolver = new ThemeResolver($provider);
+
+        $site = new Site('Demo', 'demo.local');
+        $provider->save($site, 'theme4', [], CmsSettingsProvider::DEFAULT_MODULE_TOGGLES);
+
+        self::assertSame('xenal', $resolver->resolveThemeKey($site));
+    }
+
     /**
      * @param array<string, CmsSiteSettings>|null $storage
      * @return array{CmsSettingsProvider, EntityManagerInterface}

@@ -10,7 +10,7 @@
                 <p>{{ server.name }}</p>
             </div>
             <div class="ts3-actions">
-                <a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}">Zurück</a>
+                <a class="ts3-link" href="{{ path('customer_ts3_servers_show', {id: server.id}) }}">Zurück</a>
             </div>
         </div>
 
@@ -26,10 +26,10 @@
                 <div><strong>Owner Token</strong></div>
                 <div class="ts3-secret">{{ token ?? '—' }}</div>
             </div>
-            <form class="ts3-form" method="post" action="/customer/ts3/servers/{{ server.id }}/token/rotate">
+            <form class="ts3-form" method="post" action="{{ path('customer_ts3_servers_token_rotate', {id: server.id}) }}">
                 <input type="hidden" name="_token" value="{{ csrf.rotate }}">
                 <label for="ts3-server-group">Servergruppe (SGID)</label>
-                <select id="ts3-server-group" name="server_group_id" data-url="/customer/ts3/servers/{{ server.id }}/server-groups.json">
+                <select id="ts3-server-group" name="server_group_id" data-url="{{ path('customer_ts3_servers_groups', {id: server.id}) }}">
                     <option value="6">Lade Servergruppen…</option>
                 </select>
                 <p class="ts3-muted">Nutze die SGID aus <code>servergrouplist</code>, z.B. 6 für Server Admin.</p>

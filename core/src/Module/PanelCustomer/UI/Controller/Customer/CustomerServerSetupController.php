@@ -17,6 +17,10 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 #[Route(path: '/kunden/servers')]
+/**
+ * @deprecated since 2026-02, kept as compatibility shim for legacy customer setup endpoints.
+ *             Use SoT /instances setup endpoints (customer_instance_setup_vars/secrets).
+ */
 final class CustomerServerSetupController
 {
     public function __construct(

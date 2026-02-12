@@ -16,6 +16,10 @@
                 {% endfor %}
             </ul>
         </div>
+    {% elseif tokenRotated %}
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
+            Agent registration token rotated successfully.
+        </div>
     {% elseif saved %}
         <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
             {{ t('admin_settings_saved', page_locale()) }}
@@ -30,11 +34,12 @@
                 { key: 'gameserver', label: t('admin_webinterface_tab_gameserver', page_locale()) },
                 { key: 'customer', label: t('admin_webinterface_tab_customer', page_locale()) },
                 { key: 'security', label: t('admin_webinterface_tab_security', page_locale()) },
-                { key: 'maintenance', label: t('admin_webinterface_tab_maintenance', page_locale()) }
+                { key: 'maintenance', label: t('admin_webinterface_tab_maintenance', page_locale()) },
+                { key: 'agent', label: 'Agent' }
             ] %}
             {% for tab in tabs %}
                 <a
-                    href="/admin/settings?tab={{ tab.key }}"
+                    href="{{ path('admin_settings', {tab: tab.key}) }}"
                     class="rounded-lg border px-4 py-2 text-xs font-semibold {{ activeTab == tab.key ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600 hover:text-slate-800' }}"
                 >
                     {{ tab.label }}
@@ -42,7 +47,7 @@
             {% endfor %}
         </div>
 
-        <form method="post" action="/admin/settings" class="mt-6 space-y-6">
+        <form method="post" action="{{ path('admin_settings_update') }}" class="mt-6 space-y-6">
             <input type="hidden" name="tab" value="{{ activeTab }}">
 
             {% if activeTab == 'general' %}
@@ -345,6 +350,14 @@
                         <textarea name="cms_maintenance_allowlist" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="203.0.113.10&#10;198.51.100.0/24">{{ settings.cms_maintenance_allowlist }}</textarea>
                         <p class="mt-2 text-xs text-slate-600">{{ t('admin_webinterface_maintenance_hint', page_locale()) }}</p>
                     </div>
+                </div>
+            {% elseif activeTab == 'agent' %}
+                <div class="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <h2 class="text-sm font-semibold uppercase text-slate-700">Agent Registration Token</h2>
+                    <p class="text-sm text-slate-700">Status: {{ agentRegistrationTokenSet ? 'set' : 'not set' }}</p>
+                    <p class="text-sm text-slate-700">Masked: <code>{{ agentRegistrationTokenMasked }}</code></p>
+                    <button type="submit" formaction="{{ path('admin_settings_agent_token_rotate') }}" formmethod="post" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">Rotate token</button>
+                    <p class="text-xs text-slate-500">After rotation, existing agents using the old token for new registrations will fail immediately.</p>
                 </div>
             {% endif %}
 

@@ -1,0 +1,41 @@
+{% extends 'themes/xenal/base.html.twig' %}
+
+{% block content %}
+{% set heroBlocks = [] %}
+{% set contentBlocks = [] %}
+{% for block in blocks %}
+    {% if block.type == 'hero' %}
+        {% set heroBlocks = heroBlocks|merge([block]) %}
+    {% else %}
+        {% set contentBlocks = contentBlocks|merge([block]) %}
+    {% endif %}
+{% endfor %}
+
+{% set heroBlock = heroBlocks[0]|default(null) %}
+
+<section class="xenal-page theme-wrap">
+    <div class="xenal-bg-glow xenal-bg-glow--one"></div>
+    <div class="xenal-bg-glow xenal-bg-glow--two"></div>
+
+    <section class="xenal-hero xenal-glass">
+        {% if heroBlock %}
+            {% include 'public/blocks/_block.html.twig' with { block: heroBlock, text_class: 'xenal-hero-block' } only %}
+        {% else %}
+            <div class="xenal-placeholder">Lege einen Hero-Block (V2) an, um die Startseite zu füllen.</div>
+        {% endif %}
+    </section>
+
+    {% for block in contentBlocks %}
+        <section class="xenal-section">
+            <div class="xenal-glass xenal-panel{% if block.type != 'cards' %} xenal-panel--narrow{% endif %}">
+                {% set textClass = block.type == 'cards' ? 'xenal-cards' : null %}
+                {% include 'public/blocks/_block.html.twig' with { block: block, text_class: textClass } only %}
+            </div>
+        </section>
+    {% else %}
+        <section class="xenal-section xenal-glass xenal-panel xenal-panel--narrow">
+            <h3>Keine weiteren Inhalte hinterlegt.</h3>
+        </section>
+    {% endfor %}
+</section>
+{% endblock %}

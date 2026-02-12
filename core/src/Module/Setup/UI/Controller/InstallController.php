@@ -33,10 +33,18 @@ final class InstallController
             ]), Response::HTTP_FORBIDDEN);
         }
 
+        $bootstrapStatus = $this->installerService->ensureEnvSecretsPresent();
+
         $state = $this->installerService->readState();
         $stepParam = $request->query->get('step');
         $step = max(1, min(4, (int) ($stepParam ?? 1)));
         $errors = [];
+        if (!($bootstrapStatus['ok'] ?? false)) {
+            $errors[] = [
+                'key' => 'errors.env_bootstrap_failed',
+                'params' => ['%path%' => (string) ($bootstrapStatus['env_path'] ?? '.env.local')],
+            ];
+        }
         $success = [];
         $dbVersion = $state['database']['version'] ?? null;
         $requirements = $this->installerService->checkRequirements();
@@ -58,7 +66,7 @@ final class InstallController
             'admin_ssh_key' => '',
         ];
         $settingsDefaults = [
-            'instance_base_dir' => $this->envValue('EASYWI_INSTANCE_BASE_DIR', '/home'),
+            'instance_base_dir' => '/home',
             'sftp_host' => '',
             'sftp_port' => '22',
             'sftp_username' => '',
@@ -459,21 +467,6 @@ final class InstallController
             '/^(ssh-(?:rsa|ed25519)|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh\\.com|sk-ecdsa-sha2-nistp256@openssh\\.com)\\s+[A-Za-z0-9+\\/=]+(?:\\s+.+)?$/',
             $sshKey,
         );
-    }
-
-    private function envValue(string $key, string $default): string
-    {
-        $value = $_ENV[$key] ?? $_SERVER[$key] ?? null;
-        if (!is_string($value)) {
-            return $default;
-        }
-
-        $trimmed = trim($value);
-        if ($trimmed === '') {
-            return $default;
-        }
-
-        return $trimmed;
     }
 
     /**

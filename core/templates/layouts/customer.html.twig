@@ -4,10 +4,7 @@
 
 {% block body %}
 {% set activeNav = activeNav|default('') %}
-{% set voiceserverUrl = module_enabled('ts6')
-    ? path('customer_ts6_servers_index')
-    : path('customer_ts3_servers_index')
-%}
+{% set voiceserverUrl = path('customer_voice') %}
 {% set moduleGame = module_enabled('game') %}
 {% set moduleTs = module_enabled('ts') %}
 {% set moduleTs6 = module_enabled('ts6') %}

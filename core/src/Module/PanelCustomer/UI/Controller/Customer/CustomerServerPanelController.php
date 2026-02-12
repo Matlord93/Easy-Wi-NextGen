@@ -17,6 +17,10 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 #[Route(path: '/kunden/servers')]
+/**
+ * @deprecated since 2026-02, kept as compatibility shim for legacy customer links.
+ *             Use SoT routes customer_instances/customer_instance_detail under /instances.
+ */
 final class CustomerServerPanelController
 {
     public function __construct(

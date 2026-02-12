@@ -25,7 +25,7 @@ use Twig\Environment;
 #[Route(path: '/admin/databases')]
 final class AdminDatabaseController
 {
-    private const ENGINES = ['mariadb', 'postgresql'];
+    private const ENGINES = ['mysql', 'mariadb'];
 
     public function __construct(
         private readonly DatabaseRepository $databaseRepository,
@@ -48,12 +48,12 @@ final class AdminDatabaseController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $databases = $this->databaseRepository->findBy([], ['updatedAt' => 'DESC']);
-        $customers = $this->userRepository->findBy(['type' => UserType::Customer->value], ['email' => 'ASC']);
-        $databaseNodes = $this->databaseNodeRepository->findBy([], ['updatedAt' => 'DESC']);
+        $databases = $this->databaseRepository->findBy([], ['updatedAt' => 'DESC'], 200);
+        $customers = $this->userRepository->findBy(['type' => UserType::Customer->value], ['email' => 'ASC'], 200);
+        $databaseNodes = $this->databaseNodeRepository->findBy([], ['updatedAt' => 'DESC'], 200);
         $nodeCandidates = $this->databaseNodeRepository->findActiveByEngine();
         $agents = array_filter(
-            $this->agentRepository->findBy([], ['updatedAt' => 'DESC']),
+            $this->agentRepository->findBy([], ['updatedAt' => 'DESC'], 200),
             static fn ($agent) => in_array('DB', $agent->getRoles(), true),
         );
 
@@ -80,7 +80,6 @@ final class AdminDatabaseController
         $nodeId = (int) $request->request->get('node_id', 0);
         $name = trim((string) $request->request->get('name', ''));
         $username = trim((string) $request->request->get('username', ''));
-        $password = trim((string) $request->request->get('password', ''));
 
         $errors = [];
         $customer = $customerId > 0 ? $this->userRepository->find($customerId) : null;
@@ -100,9 +99,6 @@ final class AdminDatabaseController
         if ($username === '') {
             $errors[] = 'Username is required.';
         }
-        if ($password === '' || mb_strlen($password) < 8) {
-            $errors[] = 'Password must be at least 8 characters.';
-        }
         $errors = array_merge($errors, $this->namingPolicy->validateDatabaseName($name));
         $errors = array_merge($errors, $this->namingPolicy->validateUsername($username));
 
@@ -110,7 +106,7 @@ final class AdminDatabaseController
             return $this->renderWithErrors($errors);
         }
 
-        $encryptedPassword = $this->encryptionService->encrypt($password);
+        $encryptedPassword = null;
         $database = new Database(
             $customer,
             $node->getEngine(),
@@ -126,7 +122,7 @@ final class AdminDatabaseController
         $this->entityManager->flush();
 
         $agentId = $node->getAgent()->getId();
-        $jobs = $this->provisioningService->buildCreateJobs($database, $database->getEncryptedPassword(), $agentId);
+        $jobs = $this->provisioningService->buildCreateJobs($database, $agentId);
         foreach ($jobs as $job) {
             $this->entityManager->persist($job);
         }
@@ -162,16 +158,12 @@ final class AdminDatabaseController
             return new Response('Database not found.', Response::HTTP_NOT_FOUND);
         }
 
-        $password = trim((string) $request->request->get('password', ''));
-        if ($password === '' || mb_strlen($password) < 8) {
-            return $this->renderWithErrors(['Password must be at least 8 characters.']);
-        }
 
-        $encryptedPassword = $this->encryptionService->encrypt($password);
+        $encryptedPassword = null;
         $database->setEncryptedPassword($encryptedPassword);
 
         $agentId = $database->getNode()?->getAgent()->getId() ?? '';
-        $job = $this->provisioningService->buildPasswordRotateJob($database, $database->getEncryptedPassword(), $agentId);
+        $job = $this->provisioningService->buildPasswordRotateJob($database, $agentId);
         $this->entityManager->persist($job);
 
         $this->auditLogger->log($actor, 'database.password_reset', [
@@ -230,6 +222,11 @@ final class AdminDatabaseController
 
         $name = trim((string) $request->request->get('name', ''));
         $engine = strtolower(trim((string) $request->request->get('engine', '')));
+        $tlsMode = strtolower(trim((string) $request->request->get('tls_mode', 'off')));
+        $adminUser = trim((string) $request->request->get('admin_user', ''));
+        $adminSecret = trim((string) $request->request->get('admin_secret', ''));
+        $caCert = trim((string) $request->request->get('ca_cert', ''));
+        $tags = array_filter(array_map('trim', explode(',', (string) $request->request->get('tags', ''))));
         $host = trim((string) $request->request->get('host', ''));
         $port = (int) $request->request->get('port', 0);
         $agentId = trim((string) $request->request->get('agent_id', ''));
@@ -259,6 +256,13 @@ final class AdminDatabaseController
         }
 
         $node = new DatabaseNode($name, $engine, $host, $port, $agent);
+        $node->setTlsMode(in_array($tlsMode, ['off', 'required', 'verify_ca', 'verify_full'], true) ? $tlsMode : 'off');
+        $node->setCaCert($caCert !== '' ? $caCert : null);
+        $node->setTags($tags);
+        $node->setAdminUser($adminUser !== '' ? $adminUser : null);
+        if ($adminSecret !== '') {
+            $node->setEncryptedAdminSecret($this->encryptionService->encrypt($adminSecret));
+        }
         $this->entityManager->persist($node);
         $this->entityManager->flush();
         $this->auditLogger->log($actor, 'database.node.created', [
@@ -313,13 +317,20 @@ final class AdminDatabaseController
         $host = $node->getHost();
         $port = $node->getPort();
         $timeout = 2.5;
-        $connection = @stream_socket_client(sprintf('tcp://%s:%d', $host, $port), $errNo, $errStr, $timeout);
-        if (is_resource($connection)) {
-            fclose($connection);
-            $node->markHealthy('TCP connection OK.');
-        } else {
-            $error = sprintf('%s (%s)', $errStr ?: 'Connection failed', $errNo ?: 'n/a');
-            $node->markUnhealthy($error);
+        $errorCode = null;
+        try {
+            $dsn = sprintf('mysql:host=%s;port=%d;dbname=information_schema;charset=utf8mb4', $host, $port);
+            $secret = $node->getEncryptedAdminSecret() === null ? '' : $this->encryptionService->decrypt($node->getEncryptedAdminSecret());
+            $pdo = new \PDO($dsn, (string) $node->getAdminUser(), $secret, [\PDO::ATTR_TIMEOUT => (int) $timeout]);
+            $pdo->query('SELECT 1');
+            $node->markHealthy('SELECT 1 ok');
+        } catch (\PDOException $exception) {
+            $message = strtolower($exception->getMessage());
+            $errorCode = str_contains($message, 'ssl') || str_contains($message, 'tls') ? 'db_node_tls_failed' : (str_contains($message, 'access denied') ? 'db_node_auth_failed' : 'db_node_connection_failed');
+            $node->markUnhealthy($errorCode);
+        } catch (\Throwable) {
+            $errorCode = 'db_node_timeout';
+            $node->markUnhealthy($errorCode);
         }
 
         $this->auditLogger->log($actor, 'database.node.health_checked', [
@@ -334,12 +345,12 @@ final class AdminDatabaseController
 
     private function renderWithErrors(array $errors = []): Response
     {
-        $databases = $this->databaseRepository->findBy([], ['updatedAt' => 'DESC']);
-        $customers = $this->userRepository->findBy(['type' => UserType::Customer->value], ['email' => 'ASC']);
-        $databaseNodes = $this->databaseNodeRepository->findBy([], ['updatedAt' => 'DESC']);
+        $databases = $this->databaseRepository->findBy([], ['updatedAt' => 'DESC'], 200);
+        $customers = $this->userRepository->findBy(['type' => UserType::Customer->value], ['email' => 'ASC'], 200);
+        $databaseNodes = $this->databaseNodeRepository->findBy([], ['updatedAt' => 'DESC'], 200);
         $nodeCandidates = $this->databaseNodeRepository->findActiveByEngine();
         $agents = array_filter(
-            $this->agentRepository->findBy([], ['updatedAt' => 'DESC']),
+            $this->agentRepository->findBy([], ['updatedAt' => 'DESC'], 200),
             static fn ($agent) => in_array('DB', $agent->getRoles(), true),
         );
 

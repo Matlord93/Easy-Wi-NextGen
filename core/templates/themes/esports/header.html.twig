@@ -13,7 +13,7 @@
       {% endfor %}
       {% if module_toggles.blog|default(false) %}<a href="/blog{{ langSuffix }}">{{ t('cms_nav_blog', page_locale()) }}</a>{% endif %}
       {% if module_toggles.events|default(false) %}<a href="/events{{ langSuffix }}">{{ t('cms_nav_events', page_locale()) }}</a>{% endif %}
-      {% if module_toggles.team|default(false) %}<a href="/team{{ langSuffix }}">{{ t('cms_nav_team', page_locale()) }}</a>{% endif %}
+      {% if module_toggles.team|default(false) %}<a href="/teams{{ langSuffix }}">{{ t('cms_nav_team', page_locale()) }}</a>{% endif %}
       {% if module_toggles.forum|default(false) %}<a href="/forum{{ langSuffix }}">{{ t('cms_nav_forum', page_locale()) }}</a>{% endif %}
       {% set currentUser = current_user() %}
       {% if currentUser %}

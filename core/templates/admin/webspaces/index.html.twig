@@ -19,7 +19,7 @@
     <div class="mt-6 grid gap-6 lg:grid-cols-2">
         <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 class="text-sm font-semibold uppercase text-slate-700">{{ t('admin_webspaces_create_title', page_locale()) }}</h2>
-            <form class="mt-4 space-y-4" method="post" action="/admin/webspaces">
+            <form class="mt-4 space-y-4" method="post" action="{{ path('admin_webspaces_create') }}">
                 <div>
                     <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_customer_label', page_locale()) }}</label>
                     <select name="customer_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
@@ -126,6 +126,7 @@
                         <th class="px-6 py-3">{{ t('admin_webspaces_ddos_label', page_locale()) }}</th>
                         <th class="px-6 py-3">{{ t('admin_webspaces_php_label', page_locale()) }}</th>
                         <th class="px-6 py-3">{{ t('admin_webspaces_status_label', page_locale()) }}</th>
+                        <th class="px-6 py-3">Apply</th>
                         <th class="px-6 py-3">{{ t('admin_actions', page_locale()) }}</th>
                     </tr>
                 </thead>
@@ -155,23 +156,28 @@
                                 {% set statusClass = statusClasses[webspace.status] ?? 'bg-slate-100 text-slate-700' %}
                                 <span class="rounded-full px-3 py-1 text-xs font-semibold {{ statusClass }}">{{ webspace.status|title }}</span>
                             </td>
+                            <td class="px-6 py-3 text-xs text-slate-600">
+                                <div>{{ webspace.apply_status|default('unknown')|replace({'_':' '})|title }}</div>
+                                <div>{% if webspace.apply_required %}required{% else %}clean{% endif %}</div>
+                                {% if webspace.last_apply_error_code %}<div class="text-rose-600">{{ webspace.last_apply_error_code }}</div>{% endif %}
+                            </td>
                             <td class="px-6 py-3">
                                 <div class="flex flex-wrap gap-2">
                                     {% if webspace.status != 'deleted' %}
                                         {% if webspace.status == 'active' %}
-                                            <form method="post" action="/admin/webspaces/{{ webspace.id }}/suspend">
+                                            <form method="post" action="{{ path('admin_webspaces_suspend', {id: webspace.id}) }}">
                                                 <button class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
                                                     {{ t('admin_webspaces_suspend_action', page_locale()) }}
                                                 </button>
                                             </form>
                                         {% elseif webspace.status == 'suspended' %}
-                                            <form method="post" action="/admin/webspaces/{{ webspace.id }}/resume">
+                                            <form method="post" action="{{ path('admin_webspaces_resume', {id: webspace.id}) }}">
                                                 <button class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                                                     {{ t('admin_webspaces_resume_action', page_locale()) }}
                                                 </button>
                                             </form>
                                         {% endif %}
-                                        <form method="post" action="/admin/webspaces/{{ webspace.id }}/delete" onsubmit="return confirm('{{ t('admin_webspaces_delete_confirm', page_locale()) }}');">
+                                        <form method="post" action="{{ path('admin_webspaces_delete', {id: webspace.id}) }}" onsubmit="return confirm('{{ t('admin_webspaces_delete_confirm', page_locale()) }}');">
                                             <button class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
                                                 {{ t('admin_webspaces_delete_action', page_locale()) }}
                                             </button>
@@ -184,11 +190,15 @@
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="10" class="px-6 py-6 text-center text-sm text-slate-600">{{ t('admin_webspaces_empty', page_locale()) }}</td>
+                            <td colspan="11" class="px-6 py-6 text-center text-sm text-slate-600">{{ t('admin_webspaces_empty', page_locale()) }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+        {% set total_pages = (total / per_page)|round(0, 'ceil') %}
+        <div class="border-t border-slate-200 px-6 py-3 text-xs text-slate-600">
+            Page {{ page }} / {{ total_pages > 0 ? total_pages : 1 }} · {{ total }} items
         </div>
     </div>
 {% endblock %}

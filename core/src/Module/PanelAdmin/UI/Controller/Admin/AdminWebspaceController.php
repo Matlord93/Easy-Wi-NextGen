@@ -44,7 +44,7 @@ final class AdminWebspaceController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        return $this->renderPage();
+        return $this->renderPage($request);
     }
 
     #[Route(path: '', name: 'admin_webspaces_create', methods: ['POST'])]
@@ -66,43 +66,43 @@ final class AdminWebspaceController
         $sftpEnabled = $payload->getBoolean('sftp_enabled');
 
         if ($customerId === null || $nodeId === '' || $domain === '' || $quotaValue === null) {
-            return $this->renderPage('Please complete all required fields.');
+            return $this->renderPage($request, 'Please complete all required fields.');
         }
 
         if (!is_numeric($quotaValue) || !is_numeric($diskLimitValue)) {
-            return $this->renderPage('Disk limit and quota must be numeric.');
+            return $this->renderPage($request, 'Disk limit and quota must be numeric.');
         }
 
         $quota = (int) $quotaValue;
         $diskLimitBytes = (int) $diskLimitValue;
         if ($quota < 0 || $diskLimitBytes < 0) {
-            return $this->renderPage('Disk limit and quota must be zero or positive.');
+            return $this->renderPage($request, 'Disk limit and quota must be zero or positive.');
         }
 
         $normalizedDomain = $this->normalizeDomain($domain);
         if ($normalizedDomain === '') {
-            return $this->renderPage('Domain is invalid.');
+            return $this->renderPage($request, 'Domain is invalid.');
         }
         $domain = $normalizedDomain;
 
         $customer = $this->userRepository->find($customerId);
         if ($customer === null || $customer->getType() !== UserType::Customer) {
-            return $this->renderPage('Customer not found.');
+            return $this->renderPage($request, 'Customer not found.');
         }
 
         $node = $this->agentRepository->find($nodeId);
         if ($node === null) {
-            return $this->renderPage('Node not found.');
+            return $this->renderPage($request, 'Node not found.');
         }
 
         $availablePhpVersions = $this->extractPhpVersions($node->getMetadata());
         if ($availablePhpVersions !== [] && !in_array($phpVersion, $availablePhpVersions, true)) {
-            return $this->renderPage('Selected PHP version is not available on the node.');
+            return $this->renderPage($request, 'Selected PHP version is not available on the node.');
         }
 
         $assignedPort = $this->assignPort($node);
         if ($assignedPort === null) {
-            return $this->renderPage('No available ports in the pool for this node.');
+            return $this->renderPage($request, 'No available ports in the pool for this node.');
         }
 
         [$path, $docroot] = $this->buildWebspacePaths($normalizedDomain);
@@ -189,7 +189,7 @@ final class AdminWebspaceController
         ]);
         $this->entityManager->flush();
 
-        return $this->renderPage(null, 'Webspace created.');
+        return $this->renderPage($request, null, 'Webspace created.');
     }
 
     #[Route(path: '/{id}/suspend', name: 'admin_webspaces_suspend', methods: ['POST'])]
@@ -214,7 +214,7 @@ final class AdminWebspaceController
 
         $webspace = $this->webspaceRepository->find($id);
         if ($webspace === null) {
-            return $this->renderPage('Webspace not found.');
+            return $this->renderPage($request, 'Webspace not found.');
         }
 
         $webspace->setStatus(Webspace::STATUS_DELETED);
@@ -242,7 +242,7 @@ final class AdminWebspaceController
         ]);
         $this->entityManager->flush();
 
-        return $this->renderPage(null, 'Webspace deleted.');
+        return $this->renderPage($request, null, 'Webspace deleted.');
     }
 
     private function queueWebspaceFirewall(Webspace $webspace): ?Job
@@ -277,7 +277,7 @@ final class AdminWebspaceController
 
         $webspace = $this->webspaceRepository->find($id);
         if ($webspace === null) {
-            return $this->renderPage('Webspace not found.');
+            return $this->renderPage($request, 'Webspace not found.');
         }
 
         $previousStatus = $webspace->getStatus();
@@ -293,24 +293,30 @@ final class AdminWebspaceController
         ]);
         $this->entityManager->flush();
 
-        return $this->renderPage(null, $notice);
+        return $this->renderPage($request, null, $notice);
     }
 
-    private function renderPage(?string $error = null, ?string $notice = null): Response
+    private function renderPage(Request $request, ?string $error = null, ?string $notice = null): Response
     {
-        $webspaces = $this->webspaceRepository->findBy([], ['createdAt' => 'DESC']);
+        $page = max(1, (int) $request->query->get('page', 1));
+        $perPage = max(1, min(200, (int) $request->query->get('per_page', 50)));
+
+        $pagination = $this->webspaceRepository->findPaginated($page, $perPage);
         $customers = $this->userRepository->findCustomers();
-        $nodes = $this->agentRepository->findBy([], ['name' => 'ASC']);
+        $nodes = $this->agentRepository->findBy([], ['name' => 'ASC'], 200);
         $phpVersions = $this->collectPhpVersions($nodes);
 
         return new Response($this->twig->render('admin/webspaces/index.html.twig', [
-            'webspaces' => array_map(fn (Webspace $webspace) => $this->normalizeWebspace($webspace), $webspaces),
+            'webspaces' => array_map(fn (Webspace $webspace) => $this->normalizeWebspace($webspace), $pagination['items']),
             'customers' => $customers,
             'nodes' => $nodes,
             'phpVersions' => $phpVersions === [] ? [self::DEFAULT_PHP_VERSION] : $phpVersions,
             'defaultPhpVersion' => self::DEFAULT_PHP_VERSION,
             'error' => $error,
             'notice' => $notice,
+            'page' => $pagination['page'],
+            'per_page' => $pagination['per_page'],
+            'total' => $pagination['total'],
             'activeNav' => 'webspaces',
         ]));
     }
@@ -338,6 +344,11 @@ final class AdminWebspaceController
             'ftp_enabled' => $webspace->isFtpEnabled(),
             'sftp_enabled' => $webspace->isSftpEnabled(),
             'status' => $webspace->getStatus(),
+            'apply_status' => $webspace->getApplyStatus(),
+            'apply_required' => $webspace->isApplyRequired(),
+            'last_apply_error_code' => $webspace->getLastApplyErrorCode(),
+            'last_apply_error_message' => $webspace->getLastApplyErrorMessage(),
+            'last_applied_at' => $webspace->getLastAppliedAt(),
             'created_at' => $webspace->getCreatedAt(),
         ];
     }

@@ -164,6 +164,44 @@ final class JobRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+
+    public function findActiveByTypeAndDatabaseId(string $type, int $databaseId, int $limit = 40): ?Job
+    {
+        $jobs = $this->findLatestByType($type, $limit);
+        foreach ($jobs as $job) {
+            if ($job->getStatus()->isTerminal()) {
+                continue;
+            }
+            $payload = $job->getPayload();
+            if ((int) ($payload['database_id'] ?? 0) !== $databaseId) {
+                continue;
+            }
+
+            return $job;
+        }
+
+        return null;
+    }
+
+
+    public function findActiveByTypeAndPayloadField(string $type, string $field, string $value, int $limit = 40): ?Job
+    {
+        $jobs = $this->findLatestByType($type, $limit);
+        foreach ($jobs as $job) {
+            if ($job->getStatus()->isTerminal()) {
+                continue;
+            }
+            $payload = $job->getPayload();
+            if ((string) ($payload[$field] ?? '') !== $value) {
+                continue;
+            }
+
+            return $job;
+        }
+
+        return null;
+    }
+
     public function findLatestByTypeAndInstanceId(string $type, int $instanceId, int $limit = 50): ?Job
     {
         $jobs = $this->findLatestByType($type, $limit);
