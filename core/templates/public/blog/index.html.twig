@@ -1,5 +1,7 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
+{% set siteTitle = app_setting('site_title', 'Easy-Wi NextGen') %}
+
 {% block head %}
     <title>{{ t('cms_blog_title', page_locale()) }} · {{ siteTitle }}</title>
 {% endblock %}

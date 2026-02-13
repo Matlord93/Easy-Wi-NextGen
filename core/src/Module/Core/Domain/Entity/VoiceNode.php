@@ -50,15 +50,47 @@ class VoiceNode
         $this->updatedAt = $this->createdAt;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getName(): string { return $this->name; }
-    public function getProviderType(): string { return $this->providerType; }
-    public function getHost(): string { return $this->host; }
-    public function getQueryPort(): int { return $this->queryPort; }
-    public function isEnabled(): bool { return $this->enabled; }
-    public function setEnabled(bool $enabled): void { $this->enabled = $enabled; $this->touch(); }
-    public function setCredentialsEncrypted(?array $credentialsEncrypted): void { $this->credentialsEncrypted = $credentialsEncrypted; $this->touch(); }
-    public function getCredentialsEncrypted(): ?array { return $this->credentialsEncrypted; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getName(): string
+    {
+        return $this->name;
+    }
+    public function getProviderType(): string
+    {
+        return $this->providerType;
+    }
+    public function getHost(): string
+    {
+        return $this->host;
+    }
+    public function getQueryPort(): int
+    {
+        return $this->queryPort;
+    }
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
+    public function setEnabled(bool $enabled): void
+    {
+        $this->enabled = $enabled;
+        $this->touch();
+    }
+    public function setCredentialsEncrypted(?array $credentialsEncrypted): void
+    {
+        $this->credentialsEncrypted = $credentialsEncrypted;
+        $this->touch();
+    }
+    public function getCredentialsEncrypted(): ?array
+    {
+        return $this->credentialsEncrypted;
+    }
 
-    private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
+    private function touch(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 }

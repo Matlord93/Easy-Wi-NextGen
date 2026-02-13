@@ -131,7 +131,7 @@ final class EnvFileWriter
     private function escapeValue(string $value): string
     {
         if ($value === '' || preg_match('/\s|#|"|\'|=/', $value) === 1) {
-            return '"' . addcslashes($value, "\\\"") . '"';
+            return '"' . addcslashes($value, '\\"') . '"';
         }
 
         return $value;

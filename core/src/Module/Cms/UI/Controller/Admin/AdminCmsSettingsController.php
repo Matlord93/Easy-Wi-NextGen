@@ -105,7 +105,6 @@ final class AdminCmsSettingsController
 
         $this->settingsProvider->save($site, $theme, $branding, $toggles, $headerLinks, $footerLinks);
         $this->ensureRequiredPagesExist($site);
-        $this->ensureHomepageExists($site);
         $this->entityManager->flush();
 
         return new RedirectResponse('/admin/cms/settings?saved=1');

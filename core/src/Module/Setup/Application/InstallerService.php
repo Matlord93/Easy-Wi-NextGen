@@ -6,9 +6,7 @@ namespace App\Module\Setup\Application;
 
 use App\Infrastructure\Config\DbConfigProvider;
 use App\Module\Core\Application\EncryptionService;
-use App\Module\Setup\Application\InstallEnvBootstrap;
 use App\Module\Core\Domain\Entity\AppSetting;
-use App\Module\Core\Domain\Entity\CmsPage;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
 use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;

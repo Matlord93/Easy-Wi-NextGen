@@ -64,17 +64,50 @@ class VoiceInstance
         $this->updatedAt = $this->createdAt;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getCustomer(): User { return $this->customer; }
-    public function getNode(): VoiceNode { return $this->node; }
-    public function getExternalId(): string { return $this->externalId; }
-    public function getName(): string { return $this->name; }
-    public function getStatus(): string { return $this->status; }
-    public function getPlayersOnline(): ?int { return $this->playersOnline; }
-    public function getPlayersMax(): ?int { return $this->playersMax; }
-    public function getReason(): ?string { return $this->reason; }
-    public function getErrorCode(): ?string { return $this->errorCode; }
-    public function getCheckedAt(): ?\DateTimeImmutable { return $this->checkedAt; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getCustomer(): User
+    {
+        return $this->customer;
+    }
+    public function getNode(): VoiceNode
+    {
+        return $this->node;
+    }
+    public function getExternalId(): string
+    {
+        return $this->externalId;
+    }
+    public function getName(): string
+    {
+        return $this->name;
+    }
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+    public function getPlayersOnline(): ?int
+    {
+        return $this->playersOnline;
+    }
+    public function getPlayersMax(): ?int
+    {
+        return $this->playersMax;
+    }
+    public function getReason(): ?string
+    {
+        return $this->reason;
+    }
+    public function getErrorCode(): ?string
+    {
+        return $this->errorCode;
+    }
+    public function getCheckedAt(): ?\DateTimeImmutable
+    {
+        return $this->checkedAt;
+    }
 
     public function updateStatus(string $status, ?int $playersOnline, ?int $playersMax, ?string $reason, ?string $errorCode, ?\DateTimeImmutable $checkedAt = null): void
     {
@@ -87,5 +120,8 @@ class VoiceInstance
         $this->touch();
     }
 
-    private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
+    private function touch(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 }

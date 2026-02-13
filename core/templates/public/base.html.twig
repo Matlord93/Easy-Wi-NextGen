@@ -98,7 +98,6 @@
                     <a href="{{ path('public_cms_page_slug', {slug: 'agb'}) }}" class="hover:text-cyan-300">{{ t('terms_of_service', page_locale()) }}</a>
                     <a href="{{ path('public_cms_page_slug', {slug: 'datenschutz'}) }}" class="hover:text-cyan-300">{{ t('privacy_policy', page_locale()) }}</a>
                     <a href="{{ path('public_cms_page_slug', {slug: 'cookies'}) }}" class="hover:text-cyan-300">{{ t('cookie_policy', page_locale()) }}</a>
-                    <button type="button" class="hover:text-cyan-300" data-cookie-open>{{ t('cookie_settings', page_locale()) }}</button>
                 </div>
             </div>
         </footer>
@@ -118,7 +117,6 @@
                 <a href="{{ path('public_cms_page_slug', {slug: 'agb'}) }}" class="hover:text-slate-700">{{ t('terms_of_service', page_locale()) }}</a>
                 <a href="{{ path('public_cms_page_slug', {slug: 'datenschutz'}) }}" class="hover:text-slate-700">{{ t('privacy_policy', page_locale()) }}</a>
                 <a href="{{ path('public_cms_page_slug', {slug: 'cookies'}) }}" class="hover:text-slate-700">{{ t('cookie_policy', page_locale()) }}</a>
-                    <button type="button" class="hover:text-slate-700" data-cookie-open>{{ t('cookie_settings', page_locale()) }}</button>
             </div>
         </div>
     </footer>
@@ -171,6 +169,33 @@
                 </div>
                 <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600" data-cookie-toggle="marketing">
             </label>
+        </div>
+
+
+        <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <h3 class="text-sm font-semibold text-slate-900">Cookie-Details dieser Seite</h3>
+            <p class="mt-1 text-xs text-slate-600">Notwendige Cookies sind immer aktiv. Statistik und Marketing kannst du deaktivieren. Aktuell werden optionale Kategorien nur nach Zustimmung aktiviert.</p>
+            <div class="mt-3 overflow-x-auto">
+                <table class="min-w-full text-xs text-slate-700">
+                    <thead class="text-left text-slate-500">
+                        <tr>
+                            <th class="px-2 py-1">Name</th>
+                            <th class="px-2 py-1">Zweck</th>
+                            <th class="px-2 py-1">Kategorie</th>
+                            <th class="px-2 py-1">Deaktivierbar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="px-2 py-1 font-mono">easywi_session</td><td class="px-2 py-1">Admin-/Backend-Sitzung</td><td class="px-2 py-1">Notwendig</td><td class="px-2 py-1">Nein</td></tr>
+                        <tr><td class="px-2 py-1 font-mono">easywi_customer_session</td><td class="px-2 py-1">Kundenbereich-Sitzung</td><td class="px-2 py-1">Notwendig</td><td class="px-2 py-1">Nein</td></tr>
+                        <tr><td class="px-2 py-1 font-mono">PHPSESSID</td><td class="px-2 py-1">Temporäre Session/CSRF</td><td class="px-2 py-1">Notwendig</td><td class="px-2 py-1">Nein</td></tr>
+                        <tr><td class="px-2 py-1 font-mono">{{ cookie_consent_cookie_name() }}</td><td class="px-2 py-1">Speichert deine Einwilligung</td><td class="px-2 py-1">Notwendig</td><td class="px-2 py-1">Nein</td></tr>
+                        <tr><td class="px-2 py-1 font-mono">portal_language</td><td class="px-2 py-1">Sprachpräferenz</td><td class="px-2 py-1">Notwendig</td><td class="px-2 py-1">Nein</td></tr>
+                        <tr><td class="px-2 py-1 font-mono">Optionale Statistik-Cookies</td><td class="px-2 py-1">Nutzungsanalyse zur Verbesserung</td><td class="px-2 py-1">Statistik</td><td class="px-2 py-1">Ja</td></tr>
+                        <tr><td class="px-2 py-1 font-mono">Optionale Marketing-Cookies</td><td class="px-2 py-1">Externe Inhalte/Kampagnen</td><td class="px-2 py-1">Marketing</td><td class="px-2 py-1">Ja</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">

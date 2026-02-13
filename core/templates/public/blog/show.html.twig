@@ -1,7 +1,7 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
 {% block head %}
-    <title>{{ post.seo_title ?: post.title }} · {{ siteTitle }}</title>
+    <title>{{ post.seo_title ?: post.title }} · {{ app_setting('site_title', 'Easy-Wi NextGen') }}</title>
     {% if post.seo_description %}<meta name="description" content="{{ post.seo_description }}">{% endif %}
 {% endblock %}
 

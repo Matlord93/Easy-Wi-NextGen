@@ -63,27 +63,103 @@ class WebspaceNode
         $this->updatedAt = $this->createdAt;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getName(): string { return $this->name; }
-    public function setName(string $name): void { $this->name = $name; $this->touch(); }
-    public function getHost(): string { return $this->host; }
-    public function setHost(string $host): void { $this->host = $host; $this->touch(); }
-    public function isEnabled(): bool { return $this->enabled; }
-    public function setEnabled(bool $enabled): void { $this->enabled = $enabled; $this->touch(); }
-    public function getWebserverType(): string { return $this->webserverType; }
-    public function setWebserverType(string $webserverType): void { $this->webserverType = $webserverType; $this->touch(); }
-    public function getBasePath(): string { return $this->basePath; }
-    public function setBasePath(string $basePath): void { $this->basePath = $basePath; $this->touch(); }
-    public function getVhostPaths(): array { return $this->vhostPaths; }
-    public function setVhostPaths(array $vhostPaths): void { $this->vhostPaths = $vhostPaths; $this->touch(); }
-    public function getPhpFpmMode(): ?string { return $this->phpFpmMode; }
-    public function setPhpFpmMode(?string $phpFpmMode): void { $this->phpFpmMode = $phpFpmMode; $this->touch(); }
-    public function getDefaultTemplates(): ?array { return $this->defaultTemplates; }
-    public function setDefaultTemplates(?array $defaultTemplates): void { $this->defaultTemplates = $defaultTemplates; $this->touch(); }
-    public function getTlsDefaults(): ?array { return $this->tlsDefaults; }
-    public function setTlsDefaults(?array $tlsDefaults): void { $this->tlsDefaults = $tlsDefaults; $this->touch(); }
-    public function getAgent(): Agent { return $this->agent; }
-    public function setAgent(Agent $agent): void { $this->agent = $agent; $this->touch(); }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getName(): string
+    {
+        return $this->name;
+    }
+    public function setName(string $name): void
+    {
+        $this->name = $name;
+        $this->touch();
+    }
+    public function getHost(): string
+    {
+        return $this->host;
+    }
+    public function setHost(string $host): void
+    {
+        $this->host = $host;
+        $this->touch();
+    }
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
+    public function setEnabled(bool $enabled): void
+    {
+        $this->enabled = $enabled;
+        $this->touch();
+    }
+    public function getWebserverType(): string
+    {
+        return $this->webserverType;
+    }
+    public function setWebserverType(string $webserverType): void
+    {
+        $this->webserverType = $webserverType;
+        $this->touch();
+    }
+    public function getBasePath(): string
+    {
+        return $this->basePath;
+    }
+    public function setBasePath(string $basePath): void
+    {
+        $this->basePath = $basePath;
+        $this->touch();
+    }
+    public function getVhostPaths(): array
+    {
+        return $this->vhostPaths;
+    }
+    public function setVhostPaths(array $vhostPaths): void
+    {
+        $this->vhostPaths = $vhostPaths;
+        $this->touch();
+    }
+    public function getPhpFpmMode(): ?string
+    {
+        return $this->phpFpmMode;
+    }
+    public function setPhpFpmMode(?string $phpFpmMode): void
+    {
+        $this->phpFpmMode = $phpFpmMode;
+        $this->touch();
+    }
+    public function getDefaultTemplates(): ?array
+    {
+        return $this->defaultTemplates;
+    }
+    public function setDefaultTemplates(?array $defaultTemplates): void
+    {
+        $this->defaultTemplates = $defaultTemplates;
+        $this->touch();
+    }
+    public function getTlsDefaults(): ?array
+    {
+        return $this->tlsDefaults;
+    }
+    public function setTlsDefaults(?array $tlsDefaults): void
+    {
+        $this->tlsDefaults = $tlsDefaults;
+        $this->touch();
+    }
+    public function getAgent(): Agent
+    {
+        return $this->agent;
+    }
+    public function setAgent(Agent $agent): void
+    {
+        $this->agent = $agent;
+        $this->touch();
+    }
 
-    private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
+    private function touch(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 }

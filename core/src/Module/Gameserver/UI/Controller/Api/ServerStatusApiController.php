@@ -8,10 +8,10 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\Status\HmacRequestValidator;
 use App\Module\Gameserver\Application\Status\StatusBatchUpdater;
 use App\Repository\InstanceRepository;
-use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Cache\CacheInterface;
 
 #[Route(path: '/api')]
 final class ServerStatusApiController

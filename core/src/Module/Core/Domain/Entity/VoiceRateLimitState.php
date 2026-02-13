@@ -45,18 +45,61 @@ class VoiceRateLimitState
         $this->updatedAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getNode(): VoiceNode { return $this->node; }
-    public function getProviderType(): string { return $this->providerType; }
-    public function getTokens(): float { return $this->tokens; }
-    public function setTokens(float $tokens): void { $this->tokens = $tokens; $this->touch(); }
-    public function getLockedUntil(): ?\DateTimeImmutable { return $this->lockedUntil; }
-    public function setLockedUntil(?\DateTimeImmutable $lockedUntil): void { $this->lockedUntil = $lockedUntil; $this->touch(); }
-    public function getConsecutiveFailures(): int { return $this->consecutiveFailures; }
-    public function setConsecutiveFailures(int $consecutiveFailures): void { $this->consecutiveFailures = max(0, $consecutiveFailures); $this->touch(); }
-    public function getCircuitOpenUntil(): ?\DateTimeImmutable { return $this->circuitOpenUntil; }
-    public function setCircuitOpenUntil(?\DateTimeImmutable $circuitOpenUntil): void { $this->circuitOpenUntil = $circuitOpenUntil; $this->touch(); }
-    public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getNode(): VoiceNode
+    {
+        return $this->node;
+    }
+    public function getProviderType(): string
+    {
+        return $this->providerType;
+    }
+    public function getTokens(): float
+    {
+        return $this->tokens;
+    }
+    public function setTokens(float $tokens): void
+    {
+        $this->tokens = $tokens;
+        $this->touch();
+    }
+    public function getLockedUntil(): ?\DateTimeImmutable
+    {
+        return $this->lockedUntil;
+    }
+    public function setLockedUntil(?\DateTimeImmutable $lockedUntil): void
+    {
+        $this->lockedUntil = $lockedUntil;
+        $this->touch();
+    }
+    public function getConsecutiveFailures(): int
+    {
+        return $this->consecutiveFailures;
+    }
+    public function setConsecutiveFailures(int $consecutiveFailures): void
+    {
+        $this->consecutiveFailures = max(0, $consecutiveFailures);
+        $this->touch();
+    }
+    public function getCircuitOpenUntil(): ?\DateTimeImmutable
+    {
+        return $this->circuitOpenUntil;
+    }
+    public function setCircuitOpenUntil(?\DateTimeImmutable $circuitOpenUntil): void
+    {
+        $this->circuitOpenUntil = $circuitOpenUntil;
+        $this->touch();
+    }
+    public function getUpdatedAt(): \DateTimeImmutable
+    {
+        return $this->updatedAt;
+    }
 
-    private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
+    private function touch(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 }

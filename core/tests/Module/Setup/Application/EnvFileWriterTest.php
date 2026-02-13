@@ -51,8 +51,8 @@ final class EnvFileWriterTest extends TestCase
     {
         $writer = new EnvFileWriter();
         $dir = $this->createTempDir();
-        file_put_contents($dir . '/.env.local', "APP_SECRET=
-");
+        file_put_contents($dir . '/.env.local', 'APP_SECRET=
+');
 
         $written = $writer->setMissingKeys(
             $dir . '/.env.local',
