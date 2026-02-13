@@ -51,20 +51,37 @@ final class InstanceSftpCredentialApiController
             $jobSummary = $this->normalizeJobSummary($job);
 
             if ($credential === null) {
-                $this->logger->info('instance.sftp.credentials.show', [
-                    'request_id' => $this->getRequestId($request),
-                    'user_id' => $actor->getId(),
-                    'instance_id' => $instance->getId(),
-                    'customer_id' => $instance->getCustomer()->getId(),
-                    'status_code' => JsonResponse::HTTP_NOT_FOUND,
-                    'job_id' => $job?->getId(),
-                    'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
-                ]);
+                if ($this->isProvisioningPending($job)) {
+                    return new JsonResponse([
+                        'error_code' => 'sftp_provisioning_pending',
+                        'message' => 'SFTP provisioning is already in progress.',
+                        'job' => $jobSummary,
+                        'agent' => $this->normalizeAgentState($instance),
+                        'request_id' => $this->getRequestId($request),
+                    ], JsonResponse::HTTP_ACCEPTED);
+                }
 
-                return $this->errorResponse($request, JsonResponse::HTTP_NOT_FOUND, 'sftp_credentials_missing', 'SFTP credentials are not available yet.', [
-                    'job' => $jobSummary,
+                $username = $this->buildUsername($instance);
+                $expiresAt = (new \DateTimeImmutable('+30 days'))->setTimezone(new \DateTimeZone('UTC'));
+                $credential = new InstanceSftpCredential($instance, $username, $this->encryptionService->encrypt(bin2hex(random_bytes(24))));
+                $credential->setRotatedAt(null);
+                $credential->setExpiresAt($expiresAt);
+                $this->entityManager->persist($credential);
+
+                $job = $this->queueResetJob($request, $actor, $instance, $credential, $username, $expiresAt);
+                $job->setMaxAttempts(3);
+                $this->entityManager->flush();
+
+                return new JsonResponse([
+                    'credential' => $this->normalizeCredential($credential),
+                    'job' => $this->normalizeJobSummary($job),
                     'agent' => $this->normalizeAgentState($instance),
-                ]);
+                    'password_delivery' => [
+                        'mode' => 'job_result',
+                        'one_time' => true,
+                    ],
+                    'request_id' => $this->getRequestId($request),
+                ], JsonResponse::HTTP_ACCEPTED);
             }
 
             $this->logger->info('instance.sftp.credentials.show', [
@@ -90,6 +107,14 @@ final class InstanceSftpCredentialApiController
                 $this->mapHttpErrorCode($exception),
                 $exception->getMessage(),
             );
+        } catch (\Throwable $exception) {
+            $this->logger->error('instance.sftp.credentials.show_failed', [
+                'request_id' => $this->getRequestId($request),
+                'instance_id' => $id,
+                'exception' => $exception,
+            ]);
+
+            return $this->errorResponse($request, JsonResponse::HTTP_INTERNAL_SERVER_ERROR, 'sftp_request_failed', 'Unable to load SFTP credentials.');
         }
     }
 
@@ -106,11 +131,7 @@ final class InstanceSftpCredentialApiController
             $instance = $this->findInstance($actor, $id);
             $job = $this->findLatestJob($instance->getId());
 
-            if ($job !== null && in_array($job->getStatus(), [
-                \App\Module\Core\Domain\Enum\JobStatus::Queued,
-                \App\Module\Core\Domain\Enum\JobStatus::Claimed,
-                \App\Module\Core\Domain\Enum\JobStatus::Running,
-            ], true)) {
+            if ($this->isProvisioningPending($job)) {
                 return new JsonResponse([
                     'error_code' => 'sftp_provisioning_pending',
                     'message' => 'SFTP provisioning is already in progress.',
@@ -168,6 +189,14 @@ final class InstanceSftpCredentialApiController
                 $this->mapHttpErrorCode($exception),
                 $exception->getMessage(),
             );
+        } catch (\Throwable $exception) {
+            $this->logger->error('instance.sftp.credentials.reset_failed', [
+                'request_id' => $this->getRequestId($request),
+                'instance_id' => $id,
+                'exception' => $exception,
+            ]);
+
+            return $this->errorResponse($request, JsonResponse::HTTP_INTERNAL_SERVER_ERROR, 'sftp_request_failed', 'Unable to reset SFTP credentials.');
         }
     }
 
@@ -251,6 +280,20 @@ final class InstanceSftpCredentialApiController
     private function findLatestJob(int $instanceId): ?Job
     {
         return $this->jobRepository->findLatestByTypeAndInstanceId('instance.sftp.credentials.reset', $instanceId);
+    }
+
+
+    private function isProvisioningPending(?Job $job): bool
+    {
+        if ($job === null) {
+            return false;
+        }
+
+        return in_array($job->getStatus(), [
+            \App\Module\Core\Domain\Enum\JobStatus::Queued,
+            \App\Module\Core\Domain\Enum\JobStatus::Claimed,
+            \App\Module\Core\Domain\Enum\JobStatus::Running,
+        ], true);
     }
 
     private function normalizeJobSummary(?Job $job): ?array

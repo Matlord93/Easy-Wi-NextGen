@@ -46,10 +46,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	run(ctx, client, cfg)
+	run(ctx, client, cfg, *configPath)
 }
 
-func run(ctx context.Context, client *api.Client, cfg config.Config) {
+func run(ctx context.Context, client *api.Client, cfg config.Config, configPath string) {
 	heartbeatTicker := time.NewTicker(cfg.HeartbeatInterval)
 	pollTicker := time.NewTicker(cfg.PollInterval)
 	defer heartbeatTicker.Stop()
@@ -59,11 +59,19 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 	roles := collectRoles()
 	metadata := collectMetadata(cfg)
 	runner := newJobRunner(maxConcurrency)
+	lastCredentialRefresh := time.Time{}
+	credentialRefreshCooldown := 2 * time.Minute
 
 	startServiceServer(ctx, cfg)
 
 	if err := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); err != nil {
 		log.Printf("heartbeat failed: %v", err)
+		if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
+			log.Printf("agent credentials refreshed; retrying heartbeat")
+			if retryErr := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); retryErr != nil {
+				log.Printf("heartbeat retry failed: %v", retryErr)
+			}
+		}
 	}
 
 	for {
@@ -75,11 +83,17 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 			metadata = collectMetadata(cfg)
 			if err := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); err != nil {
 				log.Printf("heartbeat failed: %v", err)
+				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
+					log.Printf("agent credentials refreshed; heartbeat will use the new secret")
+				}
 			}
 		case <-pollTicker.C:
 			jobsList, reportedConcurrency, err := client.PollJobs(ctx)
 			if err != nil {
 				log.Printf("poll jobs failed: %v", err)
+				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
+					log.Printf("agent credentials refreshed after poll auth failure")
+				}
 				continue
 			}
 			maxConcurrency = resolveMaxConcurrency(maxConcurrency, reportedConcurrency)
@@ -111,6 +125,9 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 			orchestratorJobs, reportedAgentConcurrency, err := client.PollAgentJobs(ctx, cfg.AgentID, maxConcurrency)
 			if err != nil {
 				log.Printf("poll orchestrator jobs failed: %v", err)
+				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
+					log.Printf("agent credentials refreshed after orchestrator poll auth failure")
+				}
 				continue
 			}
 			maxConcurrency = resolveMaxConcurrency(cfg.MaxConcurrency, reportedAgentConcurrency)
@@ -134,6 +151,44 @@ func run(ctx context.Context, client *api.Client, cfg config.Config) {
 			}
 		}
 	}
+}
+
+func tryRefreshAgentCredentials(ctx context.Context, client *api.Client, cfg *config.Config, configPath string, requestErr error, lastRefresh *time.Time, cooldown time.Duration) bool {
+	if !isAuthFailure(requestErr) {
+		return false
+	}
+	if strings.TrimSpace(cfg.BootstrapToken) == "" {
+		log.Printf("agent auth failed, but bootstrap_token is not configured; cannot auto-refresh credentials")
+		return false
+	}
+	if !lastRefresh.IsZero() && time.Since(*lastRefresh) < cooldown {
+		return false
+	}
+
+	secret, err := client.RefreshSecretWithBootstrap(ctx, cfg.BootstrapToken, runtime.GOOS)
+	*lastRefresh = time.Now()
+	if err != nil {
+		log.Printf("auto-refresh agent credentials failed: %v", err)
+		return false
+	}
+
+	client.Secret = secret
+	cfg.Secret = secret
+	if err := config.UpdateSecret(configPath, secret); err != nil {
+		log.Printf("warning: refreshed secret but failed to persist to config: %v", err)
+	} else {
+		log.Printf("agent secret refreshed and persisted to config")
+	}
+
+	return true
+}
+
+func isAuthFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "api error 401") || strings.Contains(msg, "unauthorized")
 }
 
 func resolveMaxConcurrency(configured int, reported int) int {
@@ -256,15 +311,14 @@ func resolveJobLockKey(job jobs.Job) string {
 	return ""
 }
 
-
 var jobTypeAliases = map[string]string{
-	"database.rotate_password":      "database.password.rotate",
-	"instance.files.listing":        "instance.files.list",
-	"instance.files.download":       "instance.files.read",
-	"instance.files.upload":         "instance.files.write",
-	"webspace.files.listing":        "webspace.files.list",
-	"webspace.files.download":       "webspace.files.read",
-	"webspace.files.upload":         "webspace.files.write",
+	"database.rotate_password": "database.password.rotate",
+	"instance.files.listing":   "instance.files.list",
+	"instance.files.download":  "instance.files.read",
+	"instance.files.upload":    "instance.files.write",
+	"webspace.files.listing":   "webspace.files.list",
+	"webspace.files.download":  "webspace.files.read",
+	"webspace.files.upload":    "webspace.files.write",
 }
 
 func normalizeJobType(jobType string) (string, bool) {

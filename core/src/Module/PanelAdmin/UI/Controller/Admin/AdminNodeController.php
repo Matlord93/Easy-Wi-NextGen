@@ -528,6 +528,38 @@ final class AdminNodeController
         return $this->renderNodesTable('Agent settings updated.', $connectivityError);
     }
 
+
+    #[Route(path: '/{id}/rotate-secret', name: 'admin_nodes_rotate_secret', methods: ['POST'])]
+    public function rotateSecret(Request $request, string $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $node = $this->agentRepository->find($id);
+        if ($node === null) {
+            return new Response('Node not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $secret = bin2hex(random_bytes(32));
+
+        try {
+            $secretPayload = $this->encryptionService->encrypt($secret);
+        } catch (RuntimeException $exception) {
+            return $this->renderNodesTable(null, sprintf(self::ENCRYPTION_CONFIG_ERROR, $exception->getMessage() . '.'));
+        }
+
+        $node->setSecretPayload($secretPayload);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($actor, 'node.agent.secret_rotated', [
+            'node_id' => $node->getId(),
+        ]);
+
+        return $this->renderNodesTable(sprintf('Agent secret rotated for %s. New secret (update /etc/easywi/agent.conf): %s', $node->getId(), $secret));
+    }
+
     #[Route(path: '/{id}/disk-protection-override', name: 'admin_nodes_disk_protection_override', methods: ['POST'])]
     public function updateDiskProtectionOverride(Request $request, string $id): Response
     {

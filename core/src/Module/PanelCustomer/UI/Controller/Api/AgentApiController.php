@@ -592,7 +592,19 @@ final class AgentApiController
             throw new UnauthorizedHttpException('hmac', 'Unknown agent.');
         }
 
-        $secret = $this->encryptionService->decrypt($agent->getSecretPayload());
+        try {
+            $secret = $this->encryptionService->decrypt($agent->getSecretPayload());
+        } catch (\RuntimeException $exception) {
+            $this->logger->error('Failed to decrypt agent secret for authenticated request.', [
+                'agent_id' => $agentId,
+                'method' => $request->getMethod(),
+                'path' => $request->getPathInfo(),
+                'client_ip' => $request->getClientIp(),
+                'error' => $exception->getMessage(),
+            ]);
+            throw new UnauthorizedHttpException('hmac', 'Invalid agent credentials.', $exception);
+        }
+
         $this->signatureVerifier->verify($request, $agentId, $secret);
 
         return $agent;

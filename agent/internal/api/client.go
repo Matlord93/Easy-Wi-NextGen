@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -141,7 +142,127 @@ func (c *Client) SubmitJobLogs(ctx context.Context, jobID string, logs []string,
 	return err
 }
 
+type bootstrapResponse struct {
+	RegisterURL   string `json:"register_url"`
+	RegisterToken string `json:"register_token"`
+	AgentID       string `json:"agent_id"`
+}
+
+// RefreshSecretWithBootstrap requests a short-lived registration token and rotates the current agent secret.
+func (c *Client) RefreshSecretWithBootstrap(ctx context.Context, bootstrapToken string, osName string) (string, error) {
+	hostname, err := os.Hostname()
+	if err != nil || strings.TrimSpace(hostname) == "" {
+		hostname = c.AgentID
+	}
+
+	bootstrapPayload := map[string]any{
+		"bootstrap_token": bootstrapToken,
+		"hostname":        hostname,
+		"os":              osName,
+		"agent_version":   c.Version,
+	}
+
+	var boot bootstrapResponse
+	if _, err := c.doUnsignedJSON(ctx, http.MethodPost, "/api/v1/agent/bootstrap", bootstrapPayload, &boot); err != nil {
+		return "", err
+	}
+	if boot.RegisterURL == "" || boot.RegisterToken == "" || boot.AgentID == "" {
+		return "", fmt.Errorf("bootstrap response missing registration fields")
+	}
+	if boot.AgentID != c.AgentID {
+		return "", fmt.Errorf("bootstrap returned mismatched agent id: %s", boot.AgentID)
+	}
+
+	registerPayload := map[string]any{
+		"agent_id":        c.AgentID,
+		"register_token":  boot.RegisterToken,
+		"rotate_existing": true,
+	}
+	var registerResp struct {
+		Secret string `json:"secret"`
+	}
+	registerPath, err := pathFromURLOrFallback(boot.RegisterURL, "/api/v1/agent/register")
+	if err != nil {
+		return "", err
+	}
+	if _, err := c.doSignedJSONWithSecret(ctx, http.MethodPost, registerPath, registerPayload, &registerResp, boot.RegisterToken); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(registerResp.Secret) == "" {
+		return "", fmt.Errorf("register response did not include secret")
+	}
+
+	return strings.TrimSpace(registerResp.Secret), nil
+}
+
+func pathFromURLOrFallback(raw string, fallback string) (string, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("parse register url: %w", err)
+	}
+	path := parsed.EscapedPath()
+	if path == "" {
+		path = parsed.Path
+	}
+	if path == "" {
+		path = fallback
+	}
+	if parsed.RawQuery != "" {
+		path = path + "?" + parsed.RawQuery
+	}
+	return path, nil
+}
+
+func (c *Client) doUnsignedJSON(ctx context.Context, method, path string, body any, out any) (resp *http.Response, err error) {
+	var requestBody []byte
+	if body != nil {
+		requestBody, err = json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("encode json: %w", err)
+		}
+	}
+
+	requestPath, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf("parse request path: %w", err)
+	}
+	requestURL := c.BaseURL.ResolveReference(requestPath)
+	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("User-Agent", c.UserAgent)
+
+	resp, err = c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close response body: %w", closeErr)
+		}
+	}()
+	if resp.StatusCode >= http.StatusBadRequest {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return resp, fmt.Errorf("api error %s: %s", resp.Status, string(bodyBytes))
+	}
+	if out != nil {
+		decoder := json.NewDecoder(resp.Body)
+		if err := decoder.Decode(out); err != nil {
+			return resp, fmt.Errorf("decode response: %w", err)
+		}
+	}
+	return resp, nil
+}
+
 func (c *Client) doSignedJSON(ctx context.Context, method, path string, body any, out any) (resp *http.Response, err error) {
+	return c.doSignedJSONWithSecret(ctx, method, path, body, out, c.Secret)
+}
+
+func (c *Client) doSignedJSONWithSecret(ctx context.Context, method, path string, body any, out any, secret string) (resp *http.Response, err error) {
 	var requestBody []byte
 	if body != nil {
 		requestBody, err = json.Marshal(body)
@@ -179,7 +300,7 @@ func (c *Client) doSignedJSON(ctx context.Context, method, path string, body any
 		return nil, err
 	}
 
-	headers, err := agentcrypto.Sign(c.AgentID, c.Secret, method, requestPath.Path, requestBody, time.Now(), nonce)
+	headers, err := agentcrypto.Sign(c.AgentID, secret, method, requestPath.Path, requestBody, time.Now(), nonce)
 	if err != nil {
 		return nil, err
 	}

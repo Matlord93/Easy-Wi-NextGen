@@ -195,6 +195,12 @@ TWIG;
         self::KEY_MAILER_DSN,
     ];
 
+    private const RESET_ON_DECRYPT_FAILURE_KEYS = [
+        self::KEY_SFTP_PASSWORD,
+        self::KEY_SFTP_PRIVATE_KEY,
+        self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE,
+    ];
+
     /** @var array<string, mixed>|null */
     private ?array $cachedSettings = null;
 
@@ -216,11 +222,16 @@ TWIG;
         }
 
         $settings = self::DEFAULTS;
+        $keysToReset = [];
 
         try {
             foreach ($this->repository->findAll() as $setting) {
                 $key = $setting->getSettingKey();
-                $settings[$key] = $this->decryptSetting($key, $setting->getValue());
+                $settings[$key] = $this->decryptSetting($key, $setting->getValue(), $keysToReset);
+            }
+
+            if ($keysToReset !== []) {
+                $this->resetCorruptedSecrets($keysToReset);
             }
         } catch (\Throwable) {
             $this->cachedSettings = $this->normalizeSettings($settings);
@@ -831,7 +842,10 @@ TWIG;
         $this->entityManager->flush();
     }
 
-    private function decryptSetting(string $key, mixed $value): mixed
+    /**
+     * @param array<string, bool> $keysToReset
+     */
+    private function decryptSetting(string $key, mixed $value, array &$keysToReset): mixed
     {
         if (!in_array($key, self::SECRET_KEYS, true)) {
             return $value;
@@ -846,11 +860,36 @@ TWIG;
                     'exception' => $exception,
                 ]);
 
+                if (in_array($key, self::RESET_ON_DECRYPT_FAILURE_KEYS, true)) {
+                    $keysToReset[$key] = true;
+                }
+
                 return null;
             }
         }
 
         return is_string($value) ? $value : null;
+    }
+
+    /**
+     * @param array<string, bool> $keysToReset
+     */
+    private function resetCorruptedSecrets(array $keysToReset): void
+    {
+        foreach (array_keys($keysToReset) as $key) {
+            $setting = $this->repository->find($key);
+            if ($setting === null) {
+                continue;
+            }
+
+            $setting->setValue(null);
+        }
+
+        $this->entityManager->flush();
+
+        $this->logger->warning('settings.decrypt_failed.secret_reset', [
+            'keys' => array_keys($keysToReset),
+        ]);
     }
 
     private function encryptSetting(string $key, mixed $value): mixed

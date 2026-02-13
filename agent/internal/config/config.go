@@ -18,6 +18,7 @@ type Config struct {
 	AgentID           string
 	Secret            string
 	APIURL            string
+	BootstrapToken    string
 	PollInterval      time.Duration
 	HeartbeatInterval time.Duration
 	MaxConcurrency    int
@@ -91,6 +92,8 @@ func Load(path string) (cfg Config, err error) {
 			cfg.Secret = value
 		case "api_url":
 			cfg.APIURL = value
+		case "bootstrap_token":
+			cfg.BootstrapToken = value
 		case "poll_interval":
 			cfg.PollInterval, err = time.ParseDuration(value)
 			if err != nil {
@@ -253,6 +256,54 @@ func max(a int, b int) int {
 		return a
 	}
 	return b
+}
+
+func UpdateSecret(path string, secret string) error {
+	if strings.TrimSpace(path) == "" {
+		defaultPath, err := DefaultPath()
+		if err != nil {
+			return err
+		}
+		path = defaultPath
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read config: %w", err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	replaced := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, ";") {
+			continue
+		}
+		key, _, ok := strings.Cut(trimmed, "=")
+		if !ok {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(key), "secret") {
+			lines[i] = "secret=" + secret
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		lines = append(lines, "secret="+secret)
+	}
+
+	tmpPath := path + ".tmp"
+	updated := strings.Join(lines, "\n")
+	if err := os.WriteFile(tmpPath, []byte(updated), 0o600); err != nil {
+		return fmt.Errorf("write temp config: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("replace config: %w", err)
+	}
+
+	return nil
 }
 
 func defaultVersion() string {

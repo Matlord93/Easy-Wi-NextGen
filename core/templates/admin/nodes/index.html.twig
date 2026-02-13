@@ -244,7 +244,17 @@
                         >
                             <div class="nodes-detail-card__header">
                                 <div class="nodes-detail-card__title">Agent (TS/Sinusbot)</div>
-                                <button class="btn btn--secondary" type="submit">Speichern</button>
+                                <div class="nodes-inline-actions">
+                                    <button class="btn btn--secondary" type="submit">Speichern</button>
+                                    <button
+                                        class="btn btn--tertiary"
+                                        type="button"
+                                        hx-post="/admin/nodes/{{ selectedNode.id }}/rotate-secret"
+                                        hx-target="#nodes-table-wrap"
+                                        hx-swap="innerHTML"
+                                        hx-confirm="Agent-Secret wirklich rotieren? Danach muss der neue Wert in /etc/easywi/agent.conf hinterlegt und der Dienst neu gestartet werden."
+                                    >Secret rotieren</button>
+                                </div>
                             </div>
                             <div class="nodes-form-grid">
                                 <div class="form-field">
