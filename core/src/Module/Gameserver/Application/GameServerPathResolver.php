@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Application;
 
+use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Domain\Entity\Instance;
 use Psr\Log\LoggerInterface;
 
 final class GameServerPathResolver
 {
     public function __construct(
+        private readonly InstanceFilesystemResolver $instanceFilesystemResolver,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -17,7 +19,17 @@ final class GameServerPathResolver
     public function resolveRoot(Instance $server): string
     {
         $path = trim((string) $server->getInstallPath());
-        if ($path === '' || !str_starts_with($path, '/')) {
+        if ($path === '') {
+            $path = $this->instanceFilesystemResolver->resolveInstanceDir($server);
+            $server->setInstallPath($path);
+
+            $this->logger->warning('gameserver.install_path_bootstrapped_runtime', [
+                'server_id' => $server->getId(),
+                'install_path' => $path,
+            ]);
+        }
+
+        if (!str_starts_with($path, '/')) {
             throw new \RuntimeException('INVALID_SERVER_ROOT');
         }
 

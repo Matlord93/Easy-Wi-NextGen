@@ -586,6 +586,7 @@ install_panel() {
   local app_github_token="${20}"
   local run_migrations="${21}"
   local web_scheme="${22}"
+  local provision_database="${23}"
 
   step "Prüfe Panel-Abhängigkeiten."
   local pkg_manager
@@ -638,14 +639,18 @@ install_panel() {
 
   ensure_system_user "${system_user}" "${install_dir}"
 
-  case "${db_system}" in
-    mariadb|mysql)
-      setup_database_mysql "${db_name}" "${db_user}" "${db_password}" "${db_root_password}"
-      ;;
-    postgresql)
-      setup_database_postgresql "${db_name}" "${db_user}" "${db_password}"
-      ;;
-  esac
+  if [[ "${provision_database}" == "true" ]]; then
+    case "${db_system}" in
+      mariadb|mysql)
+        setup_database_mysql "${db_name}" "${db_user}" "${db_password}" "${db_root_password}"
+        ;;
+      postgresql)
+        setup_database_postgresql "${db_name}" "${db_user}" "${db_password}"
+        ;;
+    esac
+  else
+    log "Überspringe DB-Provisionierung (CREATE DATABASE/CREATE USER), nutze bestehende Datenbankkonfiguration."
+  fi
 
   step "Lade Panel-Quellcode."
   if [[ -d "${install_dir}/.git" ]]; then
@@ -710,6 +715,14 @@ install_panel() {
   fi
 }
 
+
+prepare_agent_runtime_layout() {
+  mkdir -p /etc/easywi
+  mkdir -p /opt/easywi/templates
+  mkdir -p /opt/easywi/instances
+  mkdir -p /opt/sinusbot/instances
+}
+
 install_agent_binaries_only() {
   local agent_version="$1"
 
@@ -718,15 +731,18 @@ install_agent_binaries_only() {
 
   download_release_asset "easywi-agent-linux-amd64" "/usr/local/bin/easywi-agent" "${agent_version}"
 
-  mkdir -p /etc/easywi
+  prepare_agent_runtime_layout
   if [[ ! -f /etc/easywi/agent.conf ]]; then
     cat <<'CONF' >/etc/easywi/agent.conf
 # Beispiel-Konfiguration für die spätere Registrierung
 # agent_id=<AGENT_ID>
 # secret=<SECRET>
 # api_url=https://panel.example.com
-# service_listen=0.0.0.0:8087
+# service_listen=0.0.0.0:7456
 # file_base_dir=/home
+#
+# Hinweis: Der normale easywi-agent stellt zusätzlich die internen
+# Game- und Sinusbot-Endpunkte bereit (kein separater gamesvc/sinusbotsvc Dienst nötig).
 CONF
     chmod 600 /etc/easywi/agent.conf
   fi
@@ -739,7 +755,7 @@ CONF
 Die Binaries wurden installiert. Die Konfiguration und Dienste können
 nach der Registrierung im Webinterface ergänzt werden:
   - /etc/easywi/agent.conf
-Die Systemd-Services wurden angelegt und für den Autostart aktiviert.
+Der Systemd-Service wurde angelegt und für den Autostart aktiviert.
 INFO
 }
 
@@ -749,13 +765,14 @@ install_agent_services() {
   local api_url="$3"
   local file_base_dir="$4"
 
-  mkdir -p /etc/easywi
+  prepare_agent_runtime_layout
   cat <<CONF >/etc/easywi/agent.conf
 agent_id=${agent_id}
 secret=${secret}
 api_url=${api_url}
-service_listen=0.0.0.0:8087
+service_listen=0.0.0.0:7456
 file_base_dir=${file_base_dir}
+# Der Agent stellt auch die internen Game-/Sinusbot-Endpunkte bereit.
 CONF
   chmod 600 /etc/easywi/agent.conf
 
@@ -979,6 +996,7 @@ run_panel_install() {
   local app_github_token="${EASYWI_APP_GITHUB_TOKEN:-}"
   local run_migrations="${EASYWI_RUN_MIGRATIONS:-true}"
   local web_scheme="${EASYWI_WEB_SCHEME:-https}"
+  local provision_database="${EASYWI_DB_PROVISION:-true}"
 
   echo
   echo "Panel-Setup: Wir laden den Quellcode, schreiben die .env.local,"
@@ -1021,6 +1039,7 @@ run_panel_install() {
   prompt_value app_encryption_keys "Encryption key (base64, stored in /etc/easywi/secret.key)" "${app_encryption_keys}"
   prompt_value agent_registration_token "AGENT_REGISTRATION_TOKEN (optional)" "${agent_registration_token}"
   prompt_value app_github_token "GitHub Token (optional)" "${app_github_token}"
+  prompt_value provision_database "DB automatisch erstellen? (true/false)" "${provision_database}"
   prompt_value run_migrations "Migrationen ausführen? (true/false)" "${run_migrations}"
 
   prompt_value php_version "PHP-Version (8.4)" "${php_version}"
@@ -1048,7 +1067,7 @@ run_panel_install() {
   log "System-User: ${system_user}"
   log "Web-User: ${web_user}"
 
-  install_panel "${mode}" "${install_dir}" "${repo_url}" "${repo_ref}" "${db_driver}" "${db_system}" "${db_root_password}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" "${php_version}" "${web_hostname}" "${web_user}" "${system_user}" "${app_secret}" "${app_encryption_keys}" "${agent_registration_token}" "${app_github_token}" "${run_migrations}" "${web_scheme}"
+  install_panel "${mode}" "${install_dir}" "${repo_url}" "${repo_ref}" "${db_driver}" "${db_system}" "${db_root_password}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" "${php_version}" "${web_hostname}" "${web_user}" "${system_user}" "${app_secret}" "${app_encryption_keys}" "${agent_registration_token}" "${app_github_token}" "${run_migrations}" "${web_scheme}" "${provision_database}"
 }
 
 run_agent_install() {

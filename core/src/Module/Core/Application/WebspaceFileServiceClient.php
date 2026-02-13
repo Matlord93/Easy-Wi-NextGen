@@ -406,7 +406,8 @@ final class WebspaceFileServiceClient
 
         $headers = $this->buildAuthHeaders($webspace, $method, $endpointWithQuery);
         $headers['Accept'] = 'application/json';
-        $headers['X-Server-Root'] = rtrim($webspace->getPath(), '/');
+        $serverRoot = rtrim($webspace->getPath(), '/');
+        $headers['X-Server-Root'] = $serverRoot !== '' ? $serverRoot : '/';
 
         $options = [
             'headers' => $headers,

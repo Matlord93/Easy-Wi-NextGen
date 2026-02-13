@@ -246,22 +246,65 @@ final class InstallerService
     {
         $connection = DriverManager::getConnection($databaseConfig['connection']);
 
-        $tableName = '_install_priv_test';
+        $grants = $connection->fetchFirstColumn('SHOW GRANTS FOR CURRENT_USER');
+        if ($grants === []) {
+            throw new \RuntimeException('Unable to read grants for current MySQL user.');
+        }
 
-        try {
-            $connection->executeStatement(sprintf(
-                'CREATE TABLE %s (id INT PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
-                $tableName,
-            ));
-        } finally {
-            try {
-                $connection->executeStatement(sprintf('DROP TABLE IF EXISTS %s', $tableName));
-            } catch (\Throwable $exception) {
-                $this->logger->warning('Failed to drop installer privilege test table.', [
-                    'exception' => $exception,
-                ]);
+        $databaseName = strtolower((string) ($databaseConfig['connection']['dbname'] ?? ''));
+        $requiredPrivileges = ['create', 'alter', 'index'];
+
+        if (!$this->hasRequiredMySqlPrivileges($grants, $databaseName, $requiredPrivileges)) {
+            throw new \RuntimeException('Missing required CREATE/ALTER/INDEX privileges for configured database.');
+        }
+    }
+
+    /**
+     * @param list<string> $grants
+     * @param list<string> $requiredPrivileges
+     */
+    private function hasRequiredMySqlPrivileges(array $grants, string $databaseName, array $requiredPrivileges): bool
+    {
+        foreach ($grants as $grantRaw) {
+            $grant = strtolower($grantRaw);
+
+            if (!str_starts_with($grant, 'grant ')) {
+                continue;
+            }
+
+            $onPos = strpos($grant, ' on ');
+            $toPos = strpos($grant, ' to ');
+            if ($onPos === false || $toPos === false || $toPos <= $onPos + 4) {
+                continue;
+            }
+
+            $privilegeSegment = trim(substr($grant, 6, $onPos - 6));
+            $scope = trim(substr($grant, $onPos + 4, $toPos - ($onPos + 4)));
+            $scope = str_replace('`', '', $scope);
+
+            if ($scope !== '*.*' && $scope !== $databaseName . '.*') {
+                continue;
+            }
+
+            if ($privilegeSegment === 'all privileges' || $privilegeSegment === 'all') {
+                return true;
+            }
+
+            $privileges = array_map('trim', explode(',', $privilegeSegment));
+            $hasAll = true;
+            foreach ($requiredPrivileges as $requiredPrivilege) {
+                if (!in_array($requiredPrivilege, $privileges, true)) {
+                    $hasAll = false;
+                    break;
+                }
+            }
+
+            if ($hasAll) {
+                return true;
             }
         }
+
+        return false;
     }
 
 
@@ -286,40 +329,8 @@ final class InstallerService
     {
         $this->ensureSecretKeyExists();
         $this->configProvider->store($payload);
-        $this->applyRuntimeDatabaseUrl($payload);
     }
 
-
-    /**
-     * @param array<string, mixed> $payload
-     */
-    private function applyRuntimeDatabaseUrl(array $payload): void
-    {
-        $databaseUrl = $this->buildDatabaseUrlFromPayload($payload);
-        putenv('DATABASE_URL=' . $databaseUrl);
-        $_ENV['DATABASE_URL'] = $databaseUrl;
-        $_SERVER['DATABASE_URL'] = $databaseUrl;
-    }
-
-    /**
-     * @param array<string, mixed> $payload
-     */
-    private function buildDatabaseUrlFromPayload(array $payload): string
-    {
-        $user = rawurlencode((string) ($payload['user'] ?? ''));
-        $password = (string) ($payload['password'] ?? '');
-        $passwordSegment = $password !== '' ? ':' . rawurlencode($password) : '';
-        $host = (string) ($payload['host'] ?? '127.0.0.1');
-        $dbname = rawurlencode((string) ($payload['dbname'] ?? ''));
-
-        $portRaw = $payload['port'] ?? null;
-        if (is_string($portRaw) && ctype_digit($portRaw)) {
-            $portRaw = (int) $portRaw;
-        }
-        $port = is_int($portRaw) ? ':' . $portRaw : '';
-
-        return sprintf('mysql://%s%s@%s%s/%s?charset=utf8mb4', $user, $passwordSegment, $host, $port, $dbname);
-    }
 
     private function ensureSecretKeyExists(): void
     {
