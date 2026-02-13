@@ -6,6 +6,8 @@ namespace App\Module\Cms\UI\Controller\Admin;
 
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Core\Application\SiteResolver;
+use App\Module\Core\Domain\Entity\CmsPage;
+use App\Module\Core\Domain\Entity\Site;
 use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -102,9 +104,36 @@ final class AdminCmsSettingsController
         $site->setMaintenanceEndsAt($this->parseDateTime((string) $request->request->get('maintenance_ends_at', '')));
 
         $this->settingsProvider->save($site, $theme, $branding, $toggles, $headerLinks, $footerLinks);
+        $this->ensureRequiredPagesExist($site);
+        $this->ensureHomepageExists($site);
         $this->entityManager->flush();
 
         return new RedirectResponse('/admin/cms/settings?saved=1');
+    }
+
+    private function ensureRequiredPagesExist(Site $site): void
+    {
+        $requiredPages = [
+            'startseite' => 'Startseite',
+            'ueber-uns' => 'Über uns',
+            'agb' => 'AGB',
+        ];
+
+        $pageRepository = $this->entityManager->getRepository(CmsPage::class);
+        foreach ($requiredPages as $slug => $title) {
+            $page = $pageRepository->findOneBy([
+                'site' => $site,
+                'slug' => $slug,
+            ]);
+            if ($page instanceof CmsPage) {
+                if (!$page->isPublished()) {
+                    $page->setPublished(true);
+                }
+                continue;
+            }
+
+            $this->entityManager->persist(new CmsPage($site, $title, $slug, true));
+        }
     }
 
     private function parseDateTime(string $value): ?\DateTimeImmutable

@@ -501,20 +501,6 @@ final class InstallerService
             $entityManager->persist($settings);
         }
 
-        $homepageSlug = trim((string) ($data['cms_homepage_slug'] ?? 'startseite'));
-        if ($homepageSlug === '') {
-            $homepageSlug = 'startseite';
-        }
-        $pageRepository = $entityManager->getRepository(CmsPage::class);
-        $homepage = $pageRepository->findOneBy(['site' => $site, 'slug' => $homepageSlug]);
-        if (!$homepage instanceof CmsPage) {
-            $homepageTitle = $homepageSlug === 'startseite' ? 'Startseite' : ucfirst(str_replace('-', ' ', $homepageSlug));
-            $homepage = new CmsPage($site, $homepageTitle, $homepageSlug, true);
-            $entityManager->persist($homepage);
-        } elseif (!$homepage->isPublished()) {
-            $homepage->setPublished(true);
-        }
-
         $entityManager->flush();
     }
 
@@ -541,19 +527,6 @@ final class InstallerService
             $entityManager->persist(new AppSetting($key, $value));
         }
 
-        $homepageSlug = trim((string) ($data['cms_homepage_slug'] ?? 'startseite'));
-        if ($homepageSlug === '') {
-            $homepageSlug = 'startseite';
-        }
-        $pageRepository = $entityManager->getRepository(CmsPage::class);
-        $homepage = $pageRepository->findOneBy(['site' => $site, 'slug' => $homepageSlug]);
-        if (!$homepage instanceof CmsPage) {
-            $homepageTitle = $homepageSlug === 'startseite' ? 'Startseite' : ucfirst(str_replace('-', ' ', $homepageSlug));
-            $homepage = new CmsPage($site, $homepageTitle, $homepageSlug, true);
-            $entityManager->persist($homepage);
-        } elseif (!$homepage->isPublished()) {
-            $homepage->setPublished(true);
-        }
 
         $entityManager->flush();
     }

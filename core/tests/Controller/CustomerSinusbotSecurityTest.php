@@ -15,6 +15,7 @@ use App\Repository\SinusbotInstanceRepository;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 
@@ -45,6 +46,7 @@ final class CustomerSinusbotSecurityTest extends TestCase
             $provisioner,
             $this->createMock(SecretsCrypto::class),
             $csrfManager,
+            $this->createMock(UrlGeneratorInterface::class),
             $this->createMock(Environment::class),
         );
 

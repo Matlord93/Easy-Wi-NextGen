@@ -19,6 +19,8 @@ final class CmsSettingsProvider
         'forum' => true,
         'media' => true,
         'gameserver' => true,
+        'impressum' => true,
+        'datenschutz' => true,
     ];
 
     /** @var array<string, string> */
@@ -100,7 +102,16 @@ final class CmsSettingsProvider
             ['label' => 'Cookie-Richtlinie', 'url' => '/cookies', 'external' => false],
         ];
 
-        return $this->normalizeLinks($this->findForSite($site)?->getFooterLinksJson(), $default);
+        $links = $this->normalizeLinks($this->findForSite($site)?->getFooterLinksJson(), $default);
+        $moduleToggles = $this->getModuleToggles($site);
+
+        return array_values(array_filter($links, static function (array $link) use ($moduleToggles): bool {
+            return match ($link['url']) {
+                '/impressum' => $moduleToggles['impressum'] ?? true,
+                '/datenschutz' => $moduleToggles['datenschutz'] ?? true,
+                default => true,
+            };
+        }));
     }
 
     /** @return array<string, bool> */
