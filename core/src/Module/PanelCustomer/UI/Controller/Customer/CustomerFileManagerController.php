@@ -87,10 +87,12 @@ final class CustomerFileManagerController extends AbstractController
                     $details = $exception->getDetails();
                     $candidateRoot = (string) ($details['candidate_root'] ?? '');
                     $agentRoot = (string) ($details['agent_root'] ?? '');
+                    $suggestedBaseDir = $this->suggestedAgentBaseDir($candidateRoot);
                     $listError = sprintf(
-                        'Agent-Konfiguration erforderlich: Webspace-Pfad "%s" liegt außerhalb von "%s". Setze auf dem Node in /etc/easywi/agent.conf: file_base_dir=/var/www (oder ein gemeinsames Parent-Verzeichnis), danach Agent neu starten (systemctl restart easywi-agent) und Dateirechte prüfen. (%s)',
+                        'Agent-Konfiguration erforderlich: Webspace-Pfad "%s" liegt außerhalb von "%s". Setze auf dem Node in /etc/easywi/agent.conf: file_base_dir=%s (oder ein gemeinsames Parent-Verzeichnis), danach Agent neu starten (systemctl restart easywi-agent) und Dateirechte prüfen. (%s)',
                         $candidateRoot,
                         $agentRoot,
+                        $suggestedBaseDir,
                         $exception->getErrorCode(),
                     );
                 } else {
@@ -158,10 +160,12 @@ final class CustomerFileManagerController extends AbstractController
                     $details = $exception->getDetails();
                     $candidateRoot = (string) ($details['candidate_root'] ?? '');
                     $agentRoot = (string) ($details['agent_root'] ?? '');
+                    $suggestedBaseDir = $this->suggestedAgentBaseDir($candidateRoot);
                     $message = sprintf(
-                        'Agent-Konfiguration erforderlich (Webspace: "%s", Agent: "%s"). In /etc/easywi/agent.conf file_base_dir auf /var/www (oder Parent) setzen, Agent neu starten und Rechte prüfen. (%s)',
+                        'Agent-Konfiguration erforderlich (Webspace: "%s", Agent: "%s"). In /etc/easywi/agent.conf file_base_dir auf %s (oder Parent) setzen, Agent neu starten und Rechte prüfen. (%s)',
                         $candidateRoot,
                         $agentRoot,
+                        $suggestedBaseDir,
                         $exception->getErrorCode(),
                     );
                 } else {
@@ -476,10 +480,12 @@ final class CustomerFileManagerController extends AbstractController
                 $details = $exception instanceof FileServiceException ? $exception->getDetails() : [];
                 $candidateRoot = (string) ($details['candidate_root'] ?? '');
                 $agentRoot = (string) ($details['agent_root'] ?? '');
+                $suggestedBaseDir = $this->suggestedAgentBaseDir($candidateRoot);
                 $message = sprintf(
-                    'Agent file_base_dir mismatch: webspace root "%s" outside "%s". Set file_base_dir in /etc/easywi/agent.conf to include webspaces (e.g. /var/www), restart easywi-agent, then retry. (%s)',
+                    'Agent file_base_dir mismatch: webspace root "%s" outside "%s". Set file_base_dir in /etc/easywi/agent.conf to include webspaces (e.g. %s), restart easywi-agent, then retry. (%s)',
                     $candidateRoot,
                     $agentRoot,
+                    $suggestedBaseDir,
                     $errorCode,
                 );
             } elseif ($errorCode !== null) {
@@ -556,6 +562,22 @@ final class CustomerFileManagerController extends AbstractController
         }
 
         return $webspace;
+    }
+
+    private function suggestedAgentBaseDir(string $candidateRoot): string
+    {
+        if ($candidateRoot === '' || $candidateRoot === '/') {
+            return '/var/www';
+        }
+
+        $normalized = rtrim($candidateRoot, '/');
+        $parent = dirname($normalized);
+
+        if ($parent === '' || $parent === '.' || $parent === '/') {
+            return $normalized;
+        }
+
+        return $parent;
     }
 
     /**

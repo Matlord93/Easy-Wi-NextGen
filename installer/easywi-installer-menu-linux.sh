@@ -740,6 +740,7 @@ install_agent_binaries_only() {
 # api_url=https://panel.example.com
 # service_listen=0.0.0.0:7456
 # file_base_dir=/home
+# file_base_dirs=/home,/var/www
 #
 # Hinweis: Der normale easywi-agent stellt zusätzlich die internen
 # Game- und Sinusbot-Endpunkte bereit (kein separater gamesvc/sinusbotsvc Dienst nötig).
@@ -765,13 +766,18 @@ install_agent_services() {
   local api_url="$3"
   local file_base_dir="$4"
 
+  mapfile -t base_dir_config < <(build_agent_base_dir_config "${file_base_dir}")
+  local primary_base_dir="${base_dir_config[0]}"
+  local all_base_dirs="${base_dir_config[1]}"
+
   prepare_agent_runtime_layout
   cat <<CONF >/etc/easywi/agent.conf
 agent_id=${agent_id}
 secret=${secret}
 api_url=${api_url}
 service_listen=0.0.0.0:7456
-file_base_dir=${file_base_dir}
+file_base_dir=${primary_base_dir}
+file_base_dirs=${all_base_dirs}
 # Der Agent stellt auch die internen Game-/Sinusbot-Endpunkte bereit.
 CONF
   chmod 600 /etc/easywi/agent.conf
@@ -1070,11 +1076,66 @@ run_panel_install() {
   install_panel "${mode}" "${install_dir}" "${repo_url}" "${repo_ref}" "${db_driver}" "${db_system}" "${db_root_password}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" "${php_version}" "${web_hostname}" "${web_user}" "${system_user}" "${app_secret}" "${app_encryption_keys}" "${agent_registration_token}" "${app_github_token}" "${run_migrations}" "${web_scheme}" "${provision_database}"
 }
 
+build_agent_base_dir_config() {
+  local base_input="$1"
+
+  if [[ -z "${base_input}" ]]; then
+    base_input="/home,/var/www"
+  fi
+
+  local primary=""
+  local -a unique_dirs=()
+  IFS=',' read -ra raw_dirs <<<"${base_input}"
+  for raw_dir in "${raw_dirs[@]}"; do
+    local dir
+    dir="$(printf '%s' "${raw_dir}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [[ -z "${dir}" ]]; then
+      continue
+    fi
+    if [[ "${dir}" != /* ]]; then
+      fatal "File Base Directory muss absolut sein: ${dir}"
+    fi
+
+    if [[ -z "${primary}" ]]; then
+      primary="${dir}"
+    fi
+
+    local exists="false"
+    local candidate
+    for candidate in "${unique_dirs[@]}"; do
+      if [[ "${candidate}" == "${dir}" ]]; then
+        exists="true"
+        break
+      fi
+    done
+    if [[ "${exists}" == "false" ]]; then
+      unique_dirs+=("${dir}")
+    fi
+  done
+
+  if [[ -z "${primary}" ]]; then
+    primary="/home"
+    unique_dirs=("/home" "/var/www")
+  fi
+
+  local joined=""
+  local dir
+  for dir in "${unique_dirs[@]}"; do
+    if [[ -z "${joined}" ]]; then
+      joined="${dir}"
+    else
+      joined+=",${dir}"
+    fi
+  done
+
+  printf '%s\n%s\n' "${primary}" "${joined}"
+}
+
 run_agent_install() {
   local core_url="${EASYWI_CORE_URL:-${EASYWI_API_URL:-}}"
   local bootstrap_token="${EASYWI_BOOTSTRAP_TOKEN:-}"
   local agent_version="${EASYWI_AGENT_VERSION:-latest}"
-  local file_base_dir="${EASYWI_FILE_BASE_DIR:-/home}"
+  local file_base_dir="${EASYWI_FILE_BASE_DIR:-/home,/var/www}"
   local agent_name="${EASYWI_AGENT_NAME:-}"
   local agent_hostname="${EASYWI_AGENT_HOSTNAME:-}"
   local bootstrap_state_file="${EASYWI_BOOTSTRAP_STATE_FILE:-/etc/easywi/bootstrap-state.json}"
@@ -1089,7 +1150,7 @@ run_agent_install() {
   prompt_value core_url "Core API URL" "${core_url}"
   prompt_value bootstrap_token "Bootstrap Token" "${bootstrap_token}"
   prompt_value agent_version "Agent Version (latest oder Tag)" "${agent_version}"
-  prompt_value file_base_dir "File Base Directory" "${file_base_dir}"
+  prompt_value file_base_dir "File Base Directory(s, comma separated)" "${file_base_dir}"
   prompt_value agent_name "Agent Name (optional)" "${agent_name}"
   prompt_value agent_hostname "Agent Hostname (optional)" "${agent_hostname}"
 
