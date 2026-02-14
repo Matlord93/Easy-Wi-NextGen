@@ -724,6 +724,23 @@ final class InstallerService
      */
     public function createInstallEntityManager(array $connectionParams): EntityManagerInterface
     {
+        if ($this->configProvider->exists()) {
+            $payload = $this->configProvider->load();
+            $validationErrors = $this->configProvider->validate($payload);
+            if ($validationErrors !== []) {
+                throw new \RuntimeException('Stored database configuration is invalid.');
+            }
+
+            $connectionParams = $this->configProvider->toConnectionParams($payload);
+        }
+
+        $connectionParams['driver'] = (string) ($connectionParams['driver'] ?? 'pdo_mysql');
+        if ($connectionParams['driver'] !== 'pdo_mysql') {
+            throw new \RuntimeException(sprintf('Unsupported installer database driver: %s', $connectionParams['driver']));
+        }
+
+        unset($connectionParams['url'], $connectionParams['path']);
+
         $connection = DriverManager::getConnection($connectionParams);
 
         return new EntityManager(

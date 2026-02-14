@@ -1,9 +1,13 @@
 doctrine:
   dbal:
-    # Keep DATABASE_URL as a plain env var so percent-encoded credentials
-    # (for example passwords containing "%") are not interpreted as
-    # container parameters during cache warmup.
-    url: '%env(DATABASE_URL)%'
+    # Runtime DB credentials are loaded from encrypted db config (DbConfigProvider)
+    # via DynamicConnectionFactory. Do not depend on DATABASE_URL from .env here.
+    driver: 'pdo_mysql'
+    host: '127.0.0.1'
+    port: 3306
+    dbname: 'easywi'
+    user: 'easywi'
+    password: ''
     charset: 'utf8mb4'
     default_table_options:
       charset: 'utf8mb4'

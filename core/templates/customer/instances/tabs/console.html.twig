@@ -41,6 +41,7 @@
                     Daten senden
                 </button>
             </div>
+            <p id="instance-console-feedback" class="text-xs text-slate-500"></p>
         </div>
     </div>
 </div>
@@ -68,7 +69,7 @@
         const logContainer = document.getElementById('instance-console-log');
         const logStatus = document.getElementById('instance-console-log-status');
 
-        if (!instanceId || !commandUrl || !input || !button || !feedback || !logContainer || !logStatus || !dataInput || !dataButton) {
+        if (!instanceId || !commandUrl || !logContainer || !logStatus || !dataInput || !dataButton) {
             return;
         }
 
@@ -76,6 +77,9 @@
         let commandCooldownUntil = 0;
 
         const setFeedback = (message, isError = false) => {
+            if (!feedback) {
+                return;
+            }
             feedback.textContent = message;
             feedback.classList.toggle('text-rose-600', isError);
             feedback.classList.toggle('text-slate-500', !isError);
@@ -85,10 +89,12 @@
             const now = Date.now();
             const inCooldown = commandCooldownUntil > now;
             const disabled = !commandAllowed || inCooldown;
-            button.disabled = disabled;
             dataButton.disabled = disabled;
-            button.classList.toggle('opacity-50', disabled);
-            button.classList.toggle('cursor-not-allowed', disabled);
+            if (button) {
+                button.disabled = disabled;
+                button.classList.toggle('opacity-50', disabled);
+                button.classList.toggle('cursor-not-allowed', disabled);
+            }
             dataButton.classList.toggle('opacity-50', disabled);
             dataButton.classList.toggle('cursor-not-allowed', disabled);
             if (inCooldown) {
@@ -393,9 +399,9 @@
             updateSendButtonState();
         }
 
-        const sendCommand = async (command, clearInput) => {
+        const sendCommand = async (command, clearInput, triggerButton = null) => {
             updateSendButtonState();
-            if (button.disabled || dataButton.disabled) {
+            if (triggerButton && triggerButton.disabled) {
                 return;
             }
             if (!command) {
@@ -439,12 +445,14 @@
             }
         };
 
-        button.addEventListener('click', async () => {
-            await sendCommand(input.value.trim(), input);
-        });
+        if (button && input) {
+            button.addEventListener('click', async () => {
+                await sendCommand(input.value.trim(), input, button);
+            });
+        }
 
         dataButton.addEventListener('click', async () => {
-            await sendCommand(dataInput.value.trim(), dataInput);
+            await sendCommand(dataInput.value.trim(), dataInput, dataButton);
         });
 
         startLogPolling();
