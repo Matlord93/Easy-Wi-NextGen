@@ -7,6 +7,9 @@ const fs = require('fs');
     assert.ok(source.includes('apiClient.request'), 'settings app must use shared api client');
     assert.ok(source.includes('errors.showAll'), 'settings app must show inline+toast errors');
     assert.ok(source.includes('MOUNT_CONFIG_MISSING'), 'settings app should fail loudly on bad mount');
+    assert.ok(source.includes('summary.data || {}'), 'settings app should bootstrap configs from settings payload');
+    assert.ok(source.includes('gs-settings-create'), 'settings app should support creating configs');
+    assert.ok(source.includes('errors.showToast'), 'settings app should show success/error feedback through shared errors helper');
 })();
 
 console.log('gameserver-settings-app smoke test passed');

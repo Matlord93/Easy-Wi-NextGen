@@ -19,6 +19,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
@@ -26,6 +27,8 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class CustomerInstanceSettingsApiController
 {
+    private const int MAX_CONFIG_BYTES = 1_048_576;
+
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly GameDefinitionRepository $gameDefinitionRepository,
@@ -57,6 +60,7 @@ final class CustomerInstanceSettingsApiController
                 'lock_slots' => $instance->isLockSlots(),
             ],
             'supports_slots' => $this->gameProfileRepository->findOneByGameKey($instance->getTemplate()->getGameKey()) !== null,
+            'configs' => $this->resolveSettingsConfigsForInstance($instance),
         ]);
     }
 
@@ -88,20 +92,7 @@ final class CustomerInstanceSettingsApiController
             return $this->mapException($request, $exception);
         }
 
-        $gameDefinition = $this->gameDefinitionRepository->findOneBy(['gameKey' => $instance->getTemplate()->getGameKey()]);
-        if ($gameDefinition === null) {
-            return $this->apiOk($request, ['configs' => []]);
-        }
-
-        $configs = array_map(fn (ConfigSchema $schema): array => [
-            'id' => (string) $schema->getId(),
-            'config_key' => $schema->getConfigKey(),
-            'file_path' => $schema->getFilePath(),
-            'label' => $schema->getDisplayName(),
-            'editable' => $schema->isEditable(),
-        ], $this->configSchemaRepository->findByGameDefinition($gameDefinition));
-
-        return $this->apiOk($request, ['configs' => $configs]);
+        return $this->apiOk($request, ['configs' => $this->resolveSettingsConfigsForInstance($instance)]);
     }
 
     #[Route(path: '/api/instances/{id}/configs/{configId}', name: 'customer_instance_configs_envelope_show', methods: ['GET'])]
@@ -111,22 +102,79 @@ final class CustomerInstanceSettingsApiController
         try {
             $customer = $this->requireCustomer($request);
             $instance = $this->findCustomerInstance($customer, $id);
-            $schema = $this->resolveConfigSchema($instance, $configId);
+            $config = $this->resolveConfigForInstance($instance, $configId);
         } catch (HttpExceptionInterface $exception) {
             return $this->mapException($request, $exception);
         }
 
-        $overrides = $instance->getConfigOverrides();
-        $raw = (string) (($overrides[$schema->getFilePath()]['content'] ?? ''));
+        return $this->apiOk($request, $config);
+    }
+
+    #[Route(path: '/api/instances/{id}/configs', name: 'customer_instance_configs_envelope_create', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/configs', name: 'customer_instance_configs_envelope_create_v1', methods: ['POST'])]
+    public function createConfig(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+            $payload = $request->toArray();
+        } catch (\JsonException) {
+            return $this->apiError($request, 'INVALID_INPUT', 'Invalid JSON payload.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->mapException($request, $exception);
+        }
+
+        $name = trim((string) ($payload['name'] ?? ''));
+        if ($name === '') {
+            return $this->apiError($request, 'INVALID_INPUT', 'name is required.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $baseConfigId = trim((string) ($payload['base_config_id'] ?? ''));
+        $format = strtolower(trim((string) ($payload['format'] ?? 'txt')));
+        $initialContent = (string) ($payload['initial_content'] ?? '');
+
+        $base = null;
+        if ($baseConfigId !== '') {
+            try {
+                $base = $this->resolveConfigForInstance($instance, $baseConfigId);
+            } catch (HttpExceptionInterface $exception) {
+                return $this->mapException($request, $exception);
+            }
+
+            if ($initialContent === '') {
+                $initialContent = (string) ($base['content'] ?? '');
+            }
+            if ($format === '' || $format === 'txt') {
+                $format = (string) ($base['format'] ?? 'txt');
+            }
+        }
+
+        if (!$this->isSupportedFormat($format)) {
+            return $this->apiError($request, 'INVALID_INPUT', 'Unsupported format.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if (strlen($initialContent) > self::MAX_CONFIG_BYTES) {
+            return $this->apiError($request, 'INVALID_INPUT', 'Config content exceeds maximum size.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $filePath = $this->buildInstanceConfigPath($name, $format);
+        if ($this->configPathExists($instance, $filePath)) {
+            return $this->apiError($request, 'CONFLICT', 'Config name already exists.', JsonResponse::HTTP_CONFLICT);
+        }
+
+        $this->storeInstanceOverride($instance, $filePath, $initialContent, [
+            'name' => $name,
+            'format' => $format,
+            'source' => 'instance',
+            'scope' => 'instance',
+            'editable' => true,
+        ]);
+        $this->entityManager->persist($instance);
+        $this->entityManager->flush();
 
         return $this->apiOk($request, [
-            'config' => [
-                'id' => (string) $schema->getId(),
-                'config_key' => $schema->getConfigKey(),
-                'file_path' => $schema->getFilePath(),
-            ],
-            'raw' => $raw,
-        ]);
+            'created' => $this->resolveConfigForInstance($instance, $this->instanceConfigIdForPath($filePath)),
+        ], JsonResponse::HTTP_CREATED);
     }
 
     #[Route(path: '/api/instances/{id}/configs/{configId}', name: 'customer_instance_configs_envelope_update', methods: ['PUT'])]
@@ -146,21 +194,38 @@ final class CustomerInstanceSettingsApiController
         if (!array_key_exists('content', $payload)) {
             return $this->apiError($request, 'INVALID_INPUT', 'content is required.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
-
         try {
-            $schema = $this->resolveConfigSchema($instance, $configId);
+            $config = $this->resolveConfigForInstance($instance, $configId);
         } catch (HttpExceptionInterface $exception) {
             return $this->mapException($request, $exception);
         }
 
+        if (($config['editable'] ?? false) !== true) {
+            return $this->apiError($request, 'FORBIDDEN', 'Config is not editable.', JsonResponse::HTTP_FORBIDDEN);
+        }
+
         $content = (string) $payload['content'];
-        $instance->setConfigOverride($schema->getFilePath(), $content);
+        if (strlen($content) > self::MAX_CONFIG_BYTES) {
+            return $this->apiError($request, 'INVALID_INPUT', 'Config content exceeds maximum size.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $this->storeInstanceOverride($instance, (string) $config['file_path'], $content, [
+            'name' => (string) $config['name'],
+            'format' => (string) $config['format'],
+            'source' => 'instance',
+            'scope' => (string) $config['scope'],
+            'editable' => (bool) $config['editable'],
+        ]);
         $this->entityManager->persist($instance);
         $this->entityManager->flush();
 
+        $updated = $this->resolveConfigForInstance($instance, $configId);
+
         return $this->apiOk($request, [
-            'config_id' => (string) $schema->getId(),
             'updated' => true,
+            'id' => $updated['id'],
+            'etag' => $updated['etag'],
+            'size' => $updated['size'],
         ], JsonResponse::HTTP_ACCEPTED);
     }
 
@@ -171,7 +236,7 @@ final class CustomerInstanceSettingsApiController
         try {
             $customer = $this->requireCustomer($request);
             $instance = $this->findCustomerInstance($customer, $id);
-            $schema = $this->resolveConfigSchema($instance, $configId);
+            $config = $this->resolveConfigForInstance($instance, $configId);
         } catch (HttpExceptionInterface $exception) {
             return $this->mapException($request, $exception);
         }
@@ -180,40 +245,185 @@ final class CustomerInstanceSettingsApiController
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'agent_id' => $instance->getNode()->getId(),
-            'config_id' => (string) $schema->getId(),
-            'config_key' => $schema->getConfigKey(),
-            'file_path' => $schema->getFilePath(),
+            'config_id' => (string) $config['id'],
+            'config_key' => (string) ($config['config_key'] ?? $config['id']),
+            'file_path' => (string) $config['file_path'],
         ]);
         $this->entityManager->persist($job);
         $this->entityManager->flush();
 
         return $this->apiOk($request, [
             'job_id' => $job->getId(),
-            'config_id' => (string) $schema->getId(),
+            'job_type' => 'instance.config.apply',
             'status' => 'queued',
+            'config_id' => (string) $config['id'],
         ], JsonResponse::HTTP_ACCEPTED);
     }
 
-    private function resolveConfigSchema(Instance $instance, string $configId): ConfigSchema
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function resolveSettingsConfigsForInstance(Instance $instance): array
     {
         $gameDefinition = $this->gameDefinitionRepository->findOneBy(['gameKey' => $instance->getTemplate()->getGameKey()]);
-        if ($gameDefinition === null) {
-            throw new NotFoundHttpException('Config schema not found.');
+        $schemas = $gameDefinition === null ? [] : $this->configSchemaRepository->findByGameDefinition($gameDefinition);
+        $overrides = $instance->getConfigOverrides();
+
+        $configs = [];
+        $knownPaths = [];
+
+        foreach ($schemas as $schema) {
+            if (!$schema instanceof ConfigSchema) {
+                continue;
+            }
+            $filePath = $schema->getFilePath();
+            $knownPaths[$filePath] = true;
+            $override = $overrides[$filePath] ?? null;
+            $exists = is_array($override);
+            $updatedAt = $exists ? (string) ($override['last_updated_at'] ?? $override['updated_at'] ?? '') : $schema->getUpdatedAt()->format(DATE_ATOM);
+
+            $configs[] = [
+                'id' => (string) $schema->getId(),
+                'name' => $schema->getName(),
+                'config_key' => $schema->getConfigKey(),
+                'file_path' => $filePath,
+                'scope' => 'template',
+                'format' => $schema->getFormat(),
+                'editable' => true,
+                'exists' => $exists,
+                'source' => $exists ? 'instance' : 'template',
+                'updated_at' => $updatedAt,
+            ];
         }
 
-        if (ctype_digit($configId)) {
-            $byId = $this->configSchemaRepository->find((int) $configId);
-            if ($byId !== null && $byId->getGameDefinition()->getId() === $gameDefinition->getId()) {
-                return $byId;
+        foreach ($overrides as $filePath => $override) {
+            if (!is_string($filePath) || isset($knownPaths[$filePath]) || !is_array($override)) {
+                continue;
+            }
+
+            $format = is_string($override['format'] ?? null) && $override['format'] !== ''
+                ? (string) $override['format']
+                : $this->inferFormatFromPath($filePath);
+            $name = is_string($override['name'] ?? null) && trim((string) $override['name']) !== ''
+                ? trim((string) $override['name'])
+                : basename($filePath);
+
+            $configs[] = [
+                'id' => $this->instanceConfigIdForPath($filePath),
+                'name' => $name,
+                'config_key' => $filePath,
+                'file_path' => $filePath,
+                'scope' => 'instance',
+                'format' => $format,
+                'editable' => true,
+                'exists' => true,
+                'source' => 'instance',
+                'updated_at' => (string) ($override['last_updated_at'] ?? $override['updated_at'] ?? ''),
+            ];
+        }
+
+        usort($configs, static fn (array $a, array $b): int => strcasecmp((string) $a['name'], (string) $b['name']));
+
+        return $configs;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveConfigForInstance(Instance $instance, string $configId): array
+    {
+        $configs = $this->resolveSettingsConfigsForInstance($instance);
+        foreach ($configs as $config) {
+            if ((string) ($config['id'] ?? '') !== $configId) {
+                continue;
+            }
+
+            $overrides = $instance->getConfigOverrides();
+            $filePath = (string) $config['file_path'];
+            $override = $overrides[$filePath] ?? null;
+            $content = is_array($override) ? (string) ($override['content'] ?? '') : '';
+            $etag = hash('sha256', $content);
+
+            return [
+                'id' => $config['id'],
+                'name' => $config['name'],
+                'scope' => $config['scope'],
+                'format' => $config['format'],
+                'editable' => (bool) $config['editable'],
+                'exists' => (bool) $config['exists'],
+                'source' => $config['source'],
+                'file_path' => $filePath,
+                'config_key' => $config['config_key'] ?? $filePath,
+                'content' => $content,
+                'etag' => $etag,
+                'size' => strlen($content),
+                'updated_at' => $config['updated_at'] ?? '',
+            ];
+        }
+
+        throw new NotFoundHttpException('Config not found for this instance.');
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function storeInstanceOverride(Instance $instance, string $filePath, string $content, array $metadata): void
+    {
+        $instance->setConfigOverride($filePath, $content);
+        $overrides = $instance->getConfigOverrides();
+        if (!isset($overrides[$filePath]) || !is_array($overrides[$filePath])) {
+            return;
+        }
+
+        foreach ($metadata as $key => $value) {
+            $overrides[$filePath][$key] = $value;
+        }
+
+        $instance->setConfigOverrides($overrides);
+    }
+
+    private function configPathExists(Instance $instance, string $filePath): bool
+    {
+        foreach ($this->resolveSettingsConfigsForInstance($instance) as $config) {
+            if (($config['file_path'] ?? null) === $filePath) {
+                return true;
             }
         }
 
-        $schema = $this->configSchemaRepository->findOneByGameAndKey($gameDefinition, $configId);
-        if ($schema === null) {
-            throw new NotFoundHttpException('Config schema not found.');
+        return false;
+    }
+
+    private function buildInstanceConfigPath(string $name, string $format): string
+    {
+        $base = strtolower(trim($name));
+        $base = preg_replace('/[^a-z0-9._-]+/i', '-', $base) ?? '';
+        $base = trim($base, '-.');
+        if ($base === '') {
+            throw new BadRequestHttpException('Invalid config name.');
         }
 
-        return $schema;
+        $extension = strtolower(trim($format));
+        $hasExtension = str_contains($base, '.');
+        $filename = $hasExtension ? $base : sprintf('%s.%s', $base, $extension);
+
+        return 'custom/' . $filename;
+    }
+
+    private function inferFormatFromPath(string $filePath): string
+    {
+        $extension = strtolower((string) pathinfo($filePath, PATHINFO_EXTENSION));
+
+        return $this->isSupportedFormat($extension) ? $extension : 'txt';
+    }
+
+    private function isSupportedFormat(string $format): bool
+    {
+        return in_array(strtolower($format), ['txt', 'cfg', 'ini', 'json', 'yaml', 'yml', 'xml', 'properties', 'conf', 'env', 'log'], true);
+    }
+
+    private function instanceConfigIdForPath(string $filePath): string
+    {
+        return 'instance:' . rawurlencode($filePath);
     }
 
     private function requireCustomer(Request $request): User
@@ -243,7 +453,9 @@ final class CustomerInstanceSettingsApiController
     {
         return $this->apiError(
             $request,
-            $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+            $exception instanceof BadRequestHttpException
+                ? 'INVALID_INPUT'
+                : ($exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND')),
             $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
             $exception->getStatusCode(),
         );

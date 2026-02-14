@@ -203,6 +203,80 @@ final class CustomerInstanceFileApiController
         return $response;
     }
 
+    #[Route(path: '/api/instances/{id}/files/content', name: 'customer_instance_files_api_content', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/content', name: 'customer_instance_files_api_content_v1', methods: ['GET'])]
+    public function content(Request $request, int $id): JsonResponse
+    {
+        try {
+            $this->assertDataManagerEnabled();
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+            $path = trim((string) $request->query->get('path', ''));
+            if ($path === '') {
+                throw new BadRequestHttpException('Missing file path.');
+            }
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
+            return $this->handleHttpError($request, $exception);
+        }
+
+        try {
+            $payload = $this->fileService->readFileContent($instance, $path);
+        } catch (\RuntimeException $exception) {
+            return $this->handleActionError($request, 'content', $customer->getId(), $instance->getId(), $path, $exception);
+        }
+
+        return new JsonResponse([
+            'path' => $payload['path'],
+            'content' => $payload['content'],
+            'encoding' => $payload['encoding'],
+            'is_binary' => $payload['is_binary'],
+            'size' => $payload['size'],
+            'etag' => $payload['etag'],
+            'request_id' => $this->getRequestId($request),
+        ]);
+    }
+
+    #[Route(path: '/api/instances/{id}/files/content', name: 'customer_instance_files_api_content_save', methods: ['PUT'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/files/content', name: 'customer_instance_files_api_content_save_v1', methods: ['PUT'])]
+    public function saveContent(Request $request, int $id): JsonResponse
+    {
+        $this->assertDataManagerEnabled();
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+
+        if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
+            return $this->rateLimitResponse($request);
+        }
+
+        $payload = $this->parsePayload($request);
+        $path = trim((string) ($payload['path'] ?? ''));
+        $content = (string) ($payload['content'] ?? '');
+        $etag = isset($payload['etag']) ? trim((string) $payload['etag']) : null;
+        if ($path === '') {
+            throw new BadRequestHttpException('Missing file path.');
+        }
+
+        try {
+            $saved = $this->fileService->writeFileContent($instance, $path, $content, $etag);
+        } catch (\RuntimeException $exception) {
+            return $this->handleActionError($request, 'content_save', $customer->getId(), $instance->getId(), $path, $exception);
+        }
+
+        $this->auditLogger->log($customer, 'instance.files.saved', [
+            'instance_id' => $instance->getId(),
+            'node_id' => $instance->getNode()->getId(),
+            'path' => $path,
+        ]);
+
+        return new JsonResponse([
+            'path' => $saved['path'],
+            'size' => $saved['size'],
+            'saved' => $saved['saved'],
+            'new_etag' => $saved['new_etag'],
+            'request_id' => $this->getRequestId($request),
+        ]);
+    }
+
     #[Route(path: '/api/instances/{id}/files/upload', name: 'customer_instance_files_api_upload', methods: ['POST'])]
     #[Route(path: '/api/v1/customer/instances/{id}/files/upload', name: 'customer_instance_files_api_upload_v1', methods: ['POST'])]
     public function upload(Request $request, int $id): JsonResponse
@@ -737,6 +811,9 @@ final class CustomerInstanceFileApiController
         return match (strtoupper(trim($errorCode))) {
             'INVALID_PATH' => 'invalid_path',
             'PATH_OUTSIDE_INSTANCE_ROOT' => 'path_outside_instance_root',
+            'FILE_TOO_LARGE' => 'file_too_large',
+            'BINARY_FILE' => 'binary_file',
+            'ETAG_MISMATCH' => 'etag_mismatch',
             default => strtolower(trim($errorCode)) !== '' ? strtolower(trim($errorCode)) : 'files_action_failed',
         };
     }

@@ -1,6 +1,8 @@
 package fileapi
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -35,6 +37,8 @@ type healthResponse struct {
 
 const headerServerRoot = "X-Server-Root"
 
+const maxEditableFileBytes int64 = 1_048_576
+
 const (
 	errorInvalidServerRoot    = "INVALID_SERVER_ROOT"
 	errorPathOutsideRoot      = "PATH_OUTSIDE_INSTANCE_ROOT"
@@ -48,6 +52,9 @@ const (
 	errorInternal             = "INTERNAL"
 	errorMethodNotAllowed     = "METHOD_NOT_ALLOWED"
 	errorUnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE"
+	errorFileTooLarge         = "FILE_TOO_LARGE"
+	errorBinaryFile           = "BINARY_FILE"
+	errorEtagMismatch         = "ETAG_MISMATCH"
 )
 
 type Server struct {
@@ -88,6 +95,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 			"files",
 			"read",
 			"download",
+			"content",
 			"write",
 			"upload",
 			"mkdir",
@@ -127,6 +135,8 @@ func (s *Server) handleServers(w http.ResponseWriter, r *http.Request) {
 		s.handleRead(w, r, instanceID, false)
 	case "download":
 		s.handleRead(w, r, instanceID, true)
+	case "content":
+		s.handleContent(w, r, instanceID)
 	case "write":
 		s.handleWrite(w, r, instanceID)
 	case "upload":
@@ -144,6 +154,183 @@ func (s *Server) handleServers(w http.ResponseWriter, r *http.Request) {
 	default:
 		respondError(r, w, http.StatusNotFound, errorNotFound, "unknown endpoint")
 	}
+}
+
+func (s *Server) handleContent(w http.ResponseWriter, r *http.Request, instanceID string) {
+	switch r.Method {
+	case http.MethodGet:
+		s.handleContentRead(w, r, instanceID)
+	case http.MethodPut:
+		s.handleContentWrite(w, r, instanceID)
+	default:
+		respondError(r, w, http.StatusMethodNotAllowed, errorMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (s *Server) handleContentRead(w http.ResponseWriter, r *http.Request, instanceID string) {
+	err := s.locks.WithReadLock(instanceID, func() error {
+		rootPath, err := s.resolveServerRoot(r)
+		if err != nil {
+			respondServerRootError(r, w, err)
+			return nil
+		}
+
+		rawPath := r.URL.Query().Get("path")
+		if err := validateRelativePathInput(rawPath); err != nil {
+			respondPathError(r, w, err)
+			return nil
+		}
+
+		cleanPath := sanitizeRelativePath(rawPath)
+		if cleanPath == "" {
+			respondError(r, w, http.StatusBadRequest, errorInvalidPath, "missing path")
+			return nil
+		}
+
+		target, err := sanitizeInstancePath(rootPath, cleanPath)
+		if err != nil {
+			respondPathError(r, w, err)
+			return nil
+		}
+
+		info, err := os.Stat(target)
+		if err != nil {
+			respondError(r, w, statusFromError(err), codeFromError(err), "stat failed")
+			return nil
+		}
+		if info.IsDir() {
+			respondError(r, w, http.StatusBadRequest, errorInvalidPath, "path is a directory")
+			return nil
+		}
+		if info.Size() > maxEditableFileBytes {
+			respondError(r, w, http.StatusRequestEntityTooLarge, errorFileTooLarge, "file too large")
+			return nil
+		}
+
+		content, err := os.ReadFile(target)
+		if err != nil {
+			respondError(r, w, statusFromError(err), codeFromError(err), "read failed")
+			return nil
+		}
+
+		if isLikelyBinary(content) {
+			respondError(r, w, http.StatusUnsupportedMediaType, errorBinaryFile, "binary file cannot be edited")
+			return nil
+		}
+
+		respondJSON(w, http.StatusOK, map[string]any{
+			"path":      cleanPath,
+			"content":   string(content),
+			"encoding":  "utf-8",
+			"is_binary": false,
+			"size":      len(content),
+			"etag":      contentETag(content),
+		})
+		return nil
+	})
+	if err != nil {
+		respondError(r, w, http.StatusInternalServerError, errorInternal, "content read failed")
+	}
+}
+
+func (s *Server) handleContentWrite(w http.ResponseWriter, r *http.Request, instanceID string) {
+	err := s.locks.WithWriteLock(instanceID, func() error {
+		var payload struct {
+			Path    string `json:"path"`
+			Content string `json:"content"`
+			ETag    string `json:"etag"`
+		}
+		if err := decodeJSON(r, &payload); err != nil {
+			respondError(r, w, http.StatusBadRequest, errorInvalidPath, "invalid json payload")
+			return nil
+		}
+
+		rootPath, err := s.resolveServerRoot(r)
+		if err != nil {
+			respondServerRootError(r, w, err)
+			return nil
+		}
+
+		if err := validateRelativePathInput(payload.Path); err != nil {
+			respondPathError(r, w, err)
+			return nil
+		}
+
+		cleanPath := sanitizeRelativePath(payload.Path)
+		if cleanPath == "" {
+			respondError(r, w, http.StatusBadRequest, errorInvalidPath, "missing path")
+			return nil
+		}
+
+		target, err := sanitizeInstancePath(rootPath, cleanPath)
+		if err != nil {
+			respondPathError(r, w, err)
+			return nil
+		}
+
+		if int64(len(payload.Content)) > maxEditableFileBytes {
+			respondError(r, w, http.StatusRequestEntityTooLarge, errorFileTooLarge, "file too large")
+			return nil
+		}
+
+		currentContent, err := os.ReadFile(target)
+		if err != nil {
+			respondError(r, w, statusFromError(err), codeFromError(err), "read failed")
+			return nil
+		}
+		if isLikelyBinary(currentContent) {
+			respondError(r, w, http.StatusUnsupportedMediaType, errorBinaryFile, "binary file cannot be edited")
+			return nil
+		}
+
+		currentETag := contentETag(currentContent)
+		if payload.ETag != "" && payload.ETag != currentETag {
+			respondError(r, w, http.StatusConflict, errorEtagMismatch, "etag mismatch")
+			return nil
+		}
+
+		if err := writeFileAtomic(target, strings.NewReader(payload.Content), 0o640); err != nil {
+			respondError(r, w, http.StatusInternalServerError, errorInternal, "write failed")
+			return nil
+		}
+
+		s.invalidateCache(rootPath)
+		respondJSON(w, http.StatusOK, map[string]any{
+			"path":     cleanPath,
+			"size":     len(payload.Content),
+			"saved":    true,
+			"new_etag": contentETag([]byte(payload.Content)),
+		})
+		return nil
+	})
+	if err != nil {
+		respondError(r, w, http.StatusInternalServerError, errorInternal, "content write failed")
+	}
+}
+
+func contentETag(content []byte) string {
+	hash := sha256.Sum256(content)
+	return hex.EncodeToString(hash[:])
+}
+
+func isLikelyBinary(content []byte) bool {
+	if len(content) == 0 {
+		return false
+	}
+	sample := content
+	if len(sample) > 8192 {
+		sample = sample[:8192]
+	}
+	var control int
+	for _, b := range sample {
+		if b == 0 {
+			return true
+		}
+		if b < 32 && b != '\n' && b != '\r' && b != '\t' {
+			control++
+		}
+	}
+	return float64(control)/float64(len(sample)) > 0.3
 }
 
 func parseServerPath(path string) (string, string, error) {
@@ -326,6 +513,11 @@ func (s *Server) handleWrite(w http.ResponseWriter, r *http.Request, instanceID 
 			return nil
 		}
 
+		if err := validateRelativePathInput(payload.Path); err != nil {
+			respondPathError(r, w, err)
+			return nil
+		}
+
 		cleanPath := sanitizeRelativePath(payload.Path)
 		if cleanPath == "" {
 			respondError(r, w, http.StatusBadRequest, errorInvalidPath, "missing path")
@@ -477,6 +669,11 @@ func (s *Server) handleMkdir(w http.ResponseWriter, r *http.Request, instanceID 
 		rootPath, err := s.resolveServerRoot(r)
 		if err != nil {
 			respondServerRootError(r, w, err)
+			return nil
+		}
+
+		if err := validateRelativePathInput(payload.Path); err != nil {
+			respondPathError(r, w, err)
 			return nil
 		}
 
@@ -645,6 +842,11 @@ func (s *Server) handleChmod(w http.ResponseWriter, r *http.Request, instanceID 
 		rootPath, err := s.resolveServerRoot(r)
 		if err != nil {
 			respondServerRootError(r, w, err)
+			return nil
+		}
+
+		if err := validateRelativePathInput(payload.Path); err != nil {
+			respondPathError(r, w, err)
 			return nil
 		}
 

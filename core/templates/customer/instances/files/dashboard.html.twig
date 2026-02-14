@@ -9,7 +9,8 @@
          data-files-download-url="{{ path('customer_instance_files_api_download', {id: instance.id}) }}"
          data-files-mkdir-url="{{ path('customer_instance_files_api_mkdir', {id: instance.id}) }}"
          data-files-rename-url="{{ path('customer_instance_files_api_rename', {id: instance.id}) }}"
-         data-files-delete-url="{{ path('customer_instance_files_api_delete', {id: instance.id}) }}">
+         data-files-delete-url="{{ path('customer_instance_files_api_delete', {id: instance.id}) }}"
+         data-files-content-url="{{ path('customer_instance_files_api_content', {id: instance.id}) }}">
         <div>
             <h2 class="text-3xl font-semibold text-slate-100">{{ instance.template.name }} · #{{ instance.id }}</h2>
             <p class="mt-2 text-base text-slate-400">{{ t('customer_instance_detail_intro', page_locale()) }}</p>
@@ -69,6 +70,22 @@
             </div>
         </section>
     </div>
+
+    <div id="gf-editor-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-950/70 p-4">
+        <div class="w-full max-w-4xl rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl">
+            <div class="flex items-center justify-between">
+                <h4 class="text-base font-semibold text-slate-100" id="gf-editor-title">Edit file</h4>
+                <button type="button" class="ui-button ui-button--ghost" id="gf-editor-close">Close</button>
+            </div>
+            <div id="gf-editor-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
+            <textarea id="gf-editor-content" class="mt-3 h-[420px] w-full rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-sm text-slate-100"></textarea>
+            <div class="mt-3 flex justify-end gap-2">
+                <button type="button" class="ui-button ui-button--ghost" id="gf-editor-cancel">Cancel</button>
+                <button type="button" class="ui-button ui-button--primary" id="gf-editor-save">Save</button>
+            </div>
+        </div>
+    </div>
+
     <div id="gameserver-files-toast" class="hidden fixed bottom-4 right-4 z-50 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-xl"></div>
     <script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
     <script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>

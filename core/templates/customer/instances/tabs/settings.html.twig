@@ -3,8 +3,10 @@
     class="space-y-4"
     data-url-settings="{{ path('customer_instance_settings_api_summary', {id: instance.id}) }}"
     data-url-configs="{{ path('customer_instance_configs_envelope_list', {id: instance.id}) }}"
-    data-url-config-template="{{ path('customer_instance_configs_envelope_show', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
-    data-url-apply-template="{{ path('customer_instance_configs_envelope_apply', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-url-config-show="{{ path('customer_instance_configs_envelope_show', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-url-config-save="{{ path('customer_instance_configs_envelope_update', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-url-config-apply="{{ path('customer_instance_configs_envelope_apply', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-url-config-create="{{ path('customer_instance_configs_envelope_create', {id: instance.id}) }}"
     data-url-slots="{{ path('customer_instance_slots_update', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_settings_api_health', {id: instance.id}) }}"
 >
@@ -18,14 +20,26 @@
 
     <div class="grid gap-4 lg:grid-cols-3">
         <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
-            <h4 class="text-xs font-semibold uppercase text-slate-300">Configs</h4>
+            <div class="flex items-center justify-between gap-2">
+                <h4 class="text-xs font-semibold uppercase text-slate-300">Configs</h4>
+                <button type="button" id="gs-settings-create" class="ui-button ui-button--ghost">Create</button>
+            </div>
+            <div class="mt-3 space-y-2">
+                <input id="gs-settings-config-search" type="search" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100" placeholder="Search configs">
+                <select id="gs-settings-config-scope" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100">
+                    <option value="">All scopes</option>
+                    <option value="template">Template</option>
+                    <option value="instance">Instance</option>
+                </select>
+            </div>
             <ul id="gs-settings-config-list" class="mt-3 space-y-2">
                 <li class="text-sm text-slate-400">Loading configs…</li>
             </ul>
         </div>
         <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4 lg:col-span-2">
             <h4 class="text-xs font-semibold uppercase text-slate-300">Editor</h4>
-            <textarea id="gs-settings-content" class="mt-3 h-64 w-full rounded-lg border border-slate-600 bg-slate-900 p-3 text-xs text-slate-100" placeholder="Select config to edit"></textarea>
+            <p id="gs-settings-selected" class="mt-2 text-xs text-slate-400">Select a config to edit</p>
+            <textarea id="gs-settings-content" class="mt-3 h-64 w-full rounded-lg border border-slate-600 bg-slate-900 p-3 font-mono text-xs text-slate-100" placeholder="Select config to edit"></textarea>
             <div class="mt-3 flex flex-wrap gap-2">
                 <button type="button" id="gs-settings-save" class="ui-button ui-button--primary">Save</button>
                 <button type="button" id="gs-settings-apply" class="ui-button ui-button--ghost">Apply</button>

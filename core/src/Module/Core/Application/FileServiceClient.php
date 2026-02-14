@@ -99,6 +99,60 @@ final class FileServiceClient
         ]);
     }
 
+    /**
+     * @return array{path: string, content: string, encoding: string, is_binary: bool, size: int, etag: string}
+     */
+    public function readFileContent(Instance $instance, string $path): array
+    {
+        $normalizedPath = $this->normalizeRelativePath($path);
+        if ($normalizedPath === '') {
+            throw new FileServiceException('invalid_path', 'Missing file path.', 400);
+        }
+
+        $endpoint = $this->buildEndpoint($instance, '/content');
+        $payload = $this->requestJsonWithPassthroughErrors($instance, 'GET', $endpoint, [
+            'path' => $normalizedPath,
+        ]);
+
+        return [
+            'path' => (string) ($payload['path'] ?? $normalizedPath),
+            'content' => (string) ($payload['content'] ?? ''),
+            'encoding' => (string) ($payload['encoding'] ?? 'utf-8'),
+            'is_binary' => (bool) ($payload['is_binary'] ?? false),
+            'size' => (int) ($payload['size'] ?? 0),
+            'etag' => (string) ($payload['etag'] ?? ''),
+        ];
+    }
+
+    /**
+     * @return array{path: string, size: int, saved: bool, new_etag: string}
+     */
+    public function writeFileContent(Instance $instance, string $path, string $content, ?string $etag = null): array
+    {
+        $normalizedPath = $this->normalizeRelativePath($path);
+        if ($normalizedPath === '') {
+            throw new FileServiceException('invalid_path', 'Missing file path.', 400);
+        }
+
+        $endpoint = $this->buildEndpoint($instance, '/content');
+        $payload = [
+            'path' => $normalizedPath,
+            'content' => $content,
+        ];
+        if (is_string($etag) && $etag !== '') {
+            $payload['etag'] = $etag;
+        }
+
+        $response = $this->requestJsonWithPassthroughErrors($instance, 'PUT', $endpoint, [], $payload);
+
+        return [
+            'path' => (string) ($response['path'] ?? $normalizedPath),
+            'size' => (int) ($response['size'] ?? strlen($content)),
+            'saved' => (bool) ($response['saved'] ?? true),
+            'new_etag' => (string) ($response['new_etag'] ?? ''),
+        ];
+    }
+
     public function uploadFile(Instance $instance, string $path, UploadedFile $upload): void
     {
         $endpoint = $this->buildEndpoint($instance, '/upload');
@@ -358,6 +412,53 @@ final class FileServiceClient
                 'response_body' => $payload,
             ]);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     * @param array<string, mixed>|null $json
+     * @return array<string, mixed>
+     */
+    private function requestJsonWithPassthroughErrors(Instance $instance, string $method, string $endpoint, array $query = [], ?array $json = null): array
+    {
+        $response = $this->requestRaw($instance, $method, $endpoint, $query, $json);
+        try {
+            $status = $response->getStatusCode();
+        } catch (TransportExceptionInterface $exception) {
+            throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [], $exception);
+        }
+
+        try {
+            $payload = $response->toArray(false);
+        } catch (\Throwable $exception) {
+            if ($status >= 200 && $status < 300) {
+                throw new FileServiceException('agent_unreachable', 'Agent file API unavailable.', 502, [], $exception);
+            }
+
+            throw new FileServiceException('agent_error', 'Agent file API error.', $status, [
+                'status_code' => $status,
+                'response_body' => $response->getContent(false),
+            ], $exception);
+        }
+
+        if ($status < 200 || $status >= 300) {
+            $message = 'Agent file API error.';
+            if (is_array($payload)) {
+                $errorField = $payload['error'] ?? null;
+                if (is_string($errorField) && $errorField !== '') {
+                    $message = $errorField;
+                } elseif (is_array($errorField) && is_string($errorField['message'] ?? null) && $errorField['message'] !== '') {
+                    $message = $errorField['message'];
+                }
+            }
+
+            throw new FileServiceException($this->extractErrorCode($payload) ?? 'agent_error', $message, $status, [
+                'status_code' => $status,
+                'response_body' => $payload,
+            ]);
+        }
+
+        return is_array($payload) ? $payload : [];
     }
 
     /**

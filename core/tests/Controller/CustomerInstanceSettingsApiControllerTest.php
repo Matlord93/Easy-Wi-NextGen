@@ -53,6 +53,24 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         self::assertSame('INVALID_INPUT', $payload['error_code']);
     }
 
+    public function testShowConfigUnauthorizedReturnsEnvelope(): void
+    {
+        $reflection = new \ReflectionClass(CustomerInstanceSettingsApiController::class);
+        /** @var CustomerInstanceSettingsApiController $controller */
+        $controller = $reflection->newInstanceWithoutConstructor();
+
+        $request = Request::create('/api/instances/7/configs/1', 'GET');
+        $request->headers->set('X-Request-ID', 'req-settings-show');
+
+        $response = $controller->showConfig($request, 7, '1');
+        $payload = json_decode((string) $response->getContent(), true);
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertFalse((bool) $payload['ok']);
+        self::assertSame('UNAUTHORIZED', $payload['error_code']);
+        self::assertSame('req-settings-show', $payload['request_id']);
+    }
+
     public function testHealthReturnsOkForOwner(): void
     {
         $customer = new User('customer@example.test', UserType::Customer);

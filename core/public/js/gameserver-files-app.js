@@ -17,6 +17,7 @@
         'filesMkdirUrl',
         'filesRenameUrl',
         'filesDeleteUrl',
+        'filesContentUrl',
     ]);
 
     const inlineErrorEl = document.getElementById('gameserver-files-inline-error');
@@ -28,11 +29,27 @@
         return;
     }
 
-    const state = { cwd: '' };
+    const EDITABLE_EXTENSIONS = new Set(['cfg', 'ini', 'json', 'yaml', 'yml', 'txt', 'log', 'properties', 'conf', 'env', 'xml']);
+
+    const state = {
+        cwd: '',
+        editor: {
+            path: '',
+            etag: '',
+            isOpen: false,
+            isSaving: false,
+        },
+    };
+
     const listEl = document.getElementById('gf-list');
     const cwdEl = document.getElementById('gf-cwd');
     const breadcrumbsEl = document.getElementById('gf-breadcrumbs');
     const uploadEl = document.getElementById('gf-upload');
+    const editorModalEl = document.getElementById('gf-editor-modal');
+    const editorTitleEl = document.getElementById('gf-editor-title');
+    const editorErrorEl = document.getElementById('gf-editor-error');
+    const editorContentEl = document.getElementById('gf-editor-content');
+    const editorSaveEl = document.getElementById('gf-editor-save');
 
     const normalizeListing = (payload) => {
         const body = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
@@ -40,6 +57,93 @@
             files: body?.files || body?.entries || [],
             cwd: body?.cwd || body?.path || '',
         };
+    };
+
+    const isEditableFile = (entry) => {
+        if (!entry || entry.is_dir) {
+            return false;
+        }
+
+        const parts = String(entry.name || '').toLowerCase().split('.');
+        const extension = parts.length > 1 ? parts.pop() : '';
+        return EDITABLE_EXTENSIONS.has(extension);
+    };
+
+    const joinPath = (base, name) => {
+        if (!base) {
+            return name;
+        }
+        return `${base}/${name}`;
+    };
+
+    const setEditorSaving = (saving) => {
+        state.editor.isSaving = saving;
+        if (editorSaveEl) {
+            editorSaveEl.disabled = saving;
+            editorSaveEl.textContent = saving ? 'Saving…' : 'Save';
+        }
+    };
+
+    const closeEditor = () => {
+        state.editor = { path: '', etag: '', isOpen: false, isSaving: false };
+        errors.clearInline(editorErrorEl);
+        setEditorSaving(false);
+        if (editorContentEl) {
+            editorContentEl.value = '';
+        }
+        editorModalEl?.classList.add('hidden');
+        editorModalEl?.classList.remove('flex');
+    };
+
+    const openEditor = async (entryName) => {
+        const fullPath = joinPath(state.cwd, entryName);
+        try {
+            const payload = await apiClient.request(`${app.dataset.filesContentUrl}?path=${encodeURIComponent(fullPath)}`);
+            state.editor.path = payload.path || fullPath;
+            state.editor.etag = payload.etag || '';
+            state.editor.isOpen = true;
+            errors.clearInline(editorErrorEl);
+            editorTitleEl.textContent = `Edit ${state.editor.path}`;
+            editorContentEl.value = payload.content || '';
+            editorModalEl.classList.remove('hidden');
+            editorModalEl.classList.add('flex');
+            editorContentEl.focus();
+        } catch (error) {
+            errors.showAll(inlineErrorEl, error);
+        }
+    };
+
+    const saveEditor = async () => {
+        if (!state.editor.isOpen || state.editor.isSaving) {
+            return;
+        }
+
+        setEditorSaving(true);
+        try {
+            const payload = await apiClient.request(app.dataset.filesContentUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    path: state.editor.path,
+                    content: editorContentEl.value,
+                    etag: state.editor.etag || undefined,
+                }),
+            });
+
+            state.editor.etag = payload.new_etag || state.editor.etag;
+            errors.clearInline(editorErrorEl);
+            errors.showToast({
+                message: 'File saved successfully.',
+                error_code: 'OK',
+                request_id: payload.request_id || '',
+            });
+            closeEditor();
+            await loadList(state.cwd);
+        } catch (error) {
+            errors.showAll(editorErrorEl, error);
+        } finally {
+            setEditorSaving(false);
+        }
     };
 
     const renderBreadcrumbs = (cwd) => {
@@ -64,6 +168,9 @@
             const openButton = entry.is_dir
                 ? `<button class="ui-button ui-button--ghost" data-action="open" data-name="${entry.name}">Open</button>`
                 : `<button class="ui-button ui-button--ghost" data-action="download" data-name="${entry.name}">Download</button>`;
+            const editButton = isEditableFile(entry)
+                ? `<button class="ui-button ui-button--ghost" data-action="edit" data-name="${entry.name}">Edit</button>`
+                : '';
             return `<tr>
                 <td>${entry.name}</td>
                 <td>${type}</td>
@@ -71,6 +178,7 @@
                 <td>${entry.modified_at || ''}</td>
                 <td>
                     ${openButton}
+                    ${editButton}
                     <button class="ui-button ui-button--ghost" data-action="rename" data-name="${entry.name}">Rename</button>
                     <button class="ui-button ui-button--danger" data-action="delete" data-name="${entry.name}">Delete</button>
                 </td>
@@ -136,6 +244,11 @@
             return;
         }
 
+        if (action === 'edit') {
+            await openEditor(name);
+            return;
+        }
+
         try {
             if (action === 'rename') {
                 const to = window.prompt('New name', name);
@@ -193,6 +306,10 @@
             errors.showAll(inlineErrorEl, error);
         }
     });
+
+    document.getElementById('gf-editor-close')?.addEventListener('click', closeEditor);
+    document.getElementById('gf-editor-cancel')?.addEventListener('click', closeEditor);
+    editorSaveEl?.addEventListener('click', saveEditor);
 
     (async () => {
         try {
