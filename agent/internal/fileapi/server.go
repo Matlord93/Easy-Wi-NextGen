@@ -77,7 +77,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	_, rootErr := validateServerRootAgainstBase(s.config.BaseDir, s.config.BaseDir)
+	_, rootErr := validateServerRootAgainstBases(s.config.BaseDir, s.config.BaseDirs)
 	payload := healthResponse{
 		Status:        "ok",
 		Version:       s.config.Version,
@@ -161,7 +161,7 @@ func (s *Server) resolveServerRoot(r *http.Request) (string, error) {
 		return "", errors.New(errorInvalidServerRoot)
 	}
 
-	rootPath, err := validateServerRootAgainstBase(serverRoot, s.config.BaseDir)
+	rootPath, err := validateServerRootAgainstBases(serverRoot, s.config.BaseDirs)
 	if err != nil {
 		return "", err
 	}

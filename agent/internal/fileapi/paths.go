@@ -146,3 +146,25 @@ func validateServerRootAgainstBase(serverRoot, baseDir string) (string, error) {
 	}
 	return rootCanonical, nil
 }
+
+func validateServerRootAgainstBases(serverRoot string, baseDirs []string) (string, error) {
+	if len(baseDirs) == 0 {
+		return "", fmt.Errorf("INVALID_SERVER_ROOT")
+	}
+	var lastErr error
+	for _, baseDir := range baseDirs {
+		baseDir = strings.TrimSpace(baseDir)
+		if baseDir == "" {
+			continue
+		}
+		resolved, err := validateServerRootAgainstBase(serverRoot, baseDir)
+		if err == nil {
+			return resolved, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return "", lastErr
+	}
+	return "", fmt.Errorf("INVALID_SERVER_ROOT")
+}

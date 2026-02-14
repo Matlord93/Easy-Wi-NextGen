@@ -29,25 +29,41 @@ final class SessionAuthenticator
     {
         $path = $request->getPathInfo();
         $token = $this->extractBearerToken($request);
-        if ($token === null) {
+        $candidateTokens = [];
+        if ($token !== null) {
+            $candidateTokens[] = $token;
+        } else {
             if (!$this->isAdminPath($path) && !$this->isResellerPath($path)) {
-                $token = $this->extractCookieToken($request, self::CUSTOMER_SESSION_COOKIE);
+                $customerToken = $this->extractCookieToken($request, self::CUSTOMER_SESSION_COOKIE);
+                if ($customerToken !== null) {
+                    $candidateTokens[] = $customerToken;
+                }
             }
 
-            if ($token === null) {
-                $token = $this->extractCookieToken($request, self::ADMIN_SESSION_COOKIE);
+            $adminToken = $this->extractCookieToken($request, self::ADMIN_SESSION_COOKIE);
+            if ($adminToken !== null) {
+                $candidateTokens[] = $adminToken;
             }
         }
-        if ($token === null) {
+
+        if ($candidateTokens === []) {
             return null;
         }
 
-        $tokenHash = hash('sha256', $token);
-        try {
-            $session = $this->sessionRepository->findActiveByTokenHash($tokenHash);
-        } catch (TableNotFoundException) {
-            return null;
+        $session = null;
+        foreach (array_unique($candidateTokens) as $candidateToken) {
+            $tokenHash = hash('sha256', $candidateToken);
+            try {
+                $session = $this->sessionRepository->findActiveByTokenHash($tokenHash);
+            } catch (TableNotFoundException) {
+                return null;
+            }
+
+            if ($session !== null) {
+                break;
+            }
         }
+
         if ($session === null) {
             return null;
         }

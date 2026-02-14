@@ -371,7 +371,7 @@ final class FileServiceClient
         $fullUrl = $baseUrl . $options['endpoint'];
         $startedAt = microtime(true);
 
-        $resolvedPath = $this->gameServerPathResolver->resolveRoot($instance);
+        $resolvedPath = (string) ($options['options']['headers']['X-Server-Root'] ?? '');
 
         $this->logger->debug('agent.file_api.request', [
             'agent_id' => $instance->getNode()->getId(),
@@ -461,7 +461,7 @@ final class FileServiceClient
         $headers = $this->buildAuthHeaders($instance, $method, $endpointWithQuery);
         $headers['Accept'] = 'application/json';
         try {
-            $headers['X-Server-Root'] = $this->gameServerPathResolver->resolveRoot($instance);
+            $headers['X-Server-Root'] = $this->resolveServerRoot($instance);
         } catch (\RuntimeException $exception) {
             throw new FileServiceException('INVALID_SERVER_ROOT', 'Canonical server root is invalid or missing.', 422, [], $exception);
         }
@@ -553,6 +553,18 @@ final class FileServiceClient
             return $error;
         }
         return null;
+    }
+
+
+    private function resolveServerRoot(Instance $instance): string
+    {
+        $path = $this->gameServerPathResolver->resolveRoot($instance);
+        $path = rtrim(trim($path), '/');
+        if ($path === '' || !str_starts_with($path, '/')) {
+            throw new \RuntimeException('INVALID_SERVER_ROOT');
+        }
+
+        return $path;
     }
 
     private function buildEndpoint(Instance $instance, string $suffix): string

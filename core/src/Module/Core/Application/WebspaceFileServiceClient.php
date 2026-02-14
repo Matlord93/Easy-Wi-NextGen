@@ -24,6 +24,11 @@ final class WebspaceFileServiceClient
     private const HEADER_TIMESTAMP = 'X-Timestamp';
     private const HEADER_SIGNATURE = 'X-Signature';
 
+    /**
+     * @var array<string, string>
+     */
+    private array $agentRootCache = [];
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly EncryptionService $encryptionService,
@@ -33,6 +38,23 @@ final class WebspaceFileServiceClient
         private readonly LoggerInterface $logger,
         private readonly RequestStack $requestStack,
     ) {
+    }
+
+    /**
+     * @return array{resolved_root: string|null, candidate_root: string|null, agent_root: string|null, path: string, docroot: string}
+     */
+    public function debugRootResolution(Webspace $webspace): array
+    {
+        $candidate = $this->resolveWebspaceCandidateRoot($webspace);
+        $agentRoot = $this->resolveAgentConfiguredRoot($webspace);
+
+        return [
+            'resolved_root' => $candidate ?? $agentRoot,
+            'candidate_root' => $candidate,
+            'agent_root' => $agentRoot,
+            'path' => $webspace->getPath(),
+            'docroot' => $webspace->getDocroot(),
+        ];
     }
 
     /**
@@ -323,7 +345,9 @@ final class WebspaceFileServiceClient
             'agent_id' => $webspace->getNode()->getId(),
             'webspace_id' => $webspace->getId(),
             'customer_id' => $webspace->getCustomer()->getId(),
-            'resolved_path' => $webspace->getPath(),
+            'resolved_path' => (string) ($options['options']['headers']['X-Server-Root'] ?? ''),
+            'configured_path' => $webspace->getPath(),
+            'configured_docroot' => $webspace->getDocroot(),
             'method' => $method,
             'url' => $fullUrl,
             'timeout_seconds' => $this->timeoutSeconds,
@@ -406,8 +430,24 @@ final class WebspaceFileServiceClient
 
         $headers = $this->buildAuthHeaders($webspace, $method, $endpointWithQuery);
         $headers['Accept'] = 'application/json';
-        $serverRoot = rtrim($webspace->getPath(), '/');
-        $headers['X-Server-Root'] = $serverRoot !== '' ? $serverRoot : '/';
+        try {
+            $headers['X-Server-Root'] = $this->resolveServerRoot($webspace);
+        } catch (\RuntimeException $exception) {
+            $errorCode = $exception->getMessage();
+            if (!in_array($errorCode, ['INVALID_SERVER_ROOT', 'AGENT_BASEDIR_MISMATCH'], true)) {
+                $errorCode = 'INVALID_SERVER_ROOT';
+            }
+            $resolution = $this->debugRootResolution($webspace);
+            $message = $errorCode === 'AGENT_BASEDIR_MISMATCH'
+                ? sprintf(
+                    'Agent file_base_dir mismatch: webspace root "%s" is outside agent root "%s".',
+                    (string) ($resolution['candidate_root'] ?? ''),
+                    (string) ($resolution['agent_root'] ?? ''),
+                )
+                : 'Canonical server root is invalid or missing.';
+
+            throw new FileServiceException($errorCode, $message, 422, $resolution, $exception);
+        }
 
         $options = [
             'headers' => $headers,
@@ -501,6 +541,130 @@ final class WebspaceFileServiceClient
     private function buildEndpoint(Webspace $webspace, string $suffix): string
     {
         return sprintf('/v1/servers/webspace-%s%s', $webspace->getId(), $suffix);
+    }
+
+    private function resolveServerRoot(Webspace $webspace): string
+    {
+        $candidate = $this->resolveWebspaceCandidateRoot($webspace);
+        $configuredRoot = $this->resolveAgentConfiguredRoot($webspace);
+
+        if ($candidate !== null) {
+            if ($configuredRoot !== null && !$this->isWithinRoot($candidate, $configuredRoot)) {
+                $this->logger->error('agent.file_api.candidate_outside_agent_root', [
+                    'agent_id' => $webspace->getNode()->getId(),
+                    'webspace_id' => $webspace->getId(),
+                    'candidate_root' => $candidate,
+                    'agent_root' => $configuredRoot,
+                    'configured_path' => $webspace->getPath(),
+                    'configured_docroot' => $webspace->getDocroot(),
+                ]);
+
+                throw new \RuntimeException('AGENT_BASEDIR_MISMATCH');
+            }
+
+            return $candidate;
+        }
+
+        if ($configuredRoot !== null) {
+            return $configuredRoot;
+        }
+
+        $this->logger->error('agent.file_api.invalid_server_root', [
+            'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => $webspace->getId(),
+            'configured_path' => $webspace->getPath(),
+            'configured_docroot' => $webspace->getDocroot(),
+        ]);
+
+        throw new \RuntimeException('INVALID_SERVER_ROOT');
+    }
+
+    private function resolveWebspaceCandidateRoot(Webspace $webspace): ?string
+    {
+        $path = trim($webspace->getPath());
+        if ($path !== '') {
+            $path = rtrim($path, '/');
+            if ($path !== '' && str_starts_with($path, '/')) {
+                return $path;
+            }
+        }
+
+        $docroot = rtrim(trim($webspace->getDocroot()), '/');
+        if ($docroot !== '' && str_starts_with($docroot, '/')) {
+            $leaf = strtolower(basename($docroot));
+            if (in_array($leaf, ['public', 'www', 'htdocs', 'httpdocs'], true)) {
+                $candidate = rtrim(dirname($docroot), '/');
+                if ($candidate !== '') {
+                    return $candidate;
+                }
+            }
+
+            return $docroot;
+        }
+
+        return null;
+    }
+
+    private function resolveAgentConfiguredRoot(Webspace $webspace): ?string
+    {
+        $agentId = $webspace->getNode()->getId();
+        if (isset($this->agentRootCache[$agentId])) {
+            return $this->agentRootCache[$agentId];
+        }
+
+        $baseUrl = $this->resolveBaseUrl($webspace->getNode());
+        $healthUrl = $baseUrl . '/health';
+
+        try {
+            $response = $this->httpClient->request('GET', $healthUrl, [
+                'timeout' => min(3, $this->timeoutSeconds),
+                'max_duration' => min(3, $this->timeoutSeconds),
+            ]);
+            $payload = $response->toArray(false);
+        } catch (\Throwable $exception) {
+            $this->logger->debug('agent.file_api.health_probe_failed', [
+                'agent_id' => $agentId,
+                'url' => $healthUrl,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        $root = is_array($payload) ? ($payload['root'] ?? null) : null;
+        if (!is_string($root)) {
+            return null;
+        }
+
+        $root = rtrim(trim($root), '/');
+        if ($root === '' || !str_starts_with($root, '/')) {
+            $this->logger->debug('agent.file_api.health_root_invalid', [
+                'agent_id' => $agentId,
+                'raw_root' => $root,
+            ]);
+            return null;
+        }
+
+        $this->agentRootCache[$agentId] = $root;
+
+        return $root;
+    }
+
+
+    private function isWithinRoot(string $path, string $root): bool
+    {
+        $normalizedPath = rtrim(trim($path), '/');
+        $normalizedRoot = rtrim(trim($root), '/');
+
+        if ($normalizedPath === '' || $normalizedRoot === '') {
+            return false;
+        }
+
+        if ($normalizedPath === $normalizedRoot) {
+            return true;
+        }
+
+        return str_starts_with($normalizedPath . '/', $normalizedRoot . '/');
     }
 
     private function normalizeRelativePath(string $path): string

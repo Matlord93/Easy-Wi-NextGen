@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Application\WebspaceFileServiceClient;
+use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\Form\EditFileType;
@@ -81,9 +82,27 @@ final class CustomerFileManagerController extends AbstractController
             $listing = $this->fileService->list($webspace, $path);
             $entries = $this->normalizeEntries($listing['entries'], $path);
         } catch (\Throwable $exception) {
-            $listError = $exception->getMessage();
+            if ($exception instanceof FileServiceException) {
+                if ($exception->getErrorCode() === 'AGENT_BASEDIR_MISMATCH') {
+                    $details = $exception->getDetails();
+                    $candidateRoot = (string) ($details['candidate_root'] ?? '');
+                    $agentRoot = (string) ($details['agent_root'] ?? '');
+                    $listError = sprintf(
+                        'Agent-Konfiguration erforderlich: Webspace-Pfad "%s" liegt außerhalb von "%s". Setze auf dem Node in /etc/easywi/agent.conf: file_base_dir=/var/www (oder ein gemeinsames Parent-Verzeichnis), danach Agent neu starten (systemctl restart easywi-agent) und Dateirechte prüfen. (%s)',
+                        $candidateRoot,
+                        $agentRoot,
+                        $exception->getErrorCode(),
+                    );
+                } else {
+                    $listError = sprintf('%s (%s)', $exception->getMessage(), $exception->getErrorCode());
+                }
+            } else {
+                $listError = $exception->getMessage();
+            }
             $this->logger->error('files.list_failed', [
                 'path' => $pathInput,
+                'webspace_id' => $webspace->getId(),
+                'root_resolution' => $this->fileService->debugRootResolution($webspace),
                 'exception' => $exception,
             ]);
         }
@@ -127,12 +146,31 @@ final class CustomerFileManagerController extends AbstractController
                 'entries' => $sample,
             ]);
         } catch (\Throwable $exception) {
+            $rootResolution = $this->fileService->debugRootResolution($webspace);
             $this->logger->error('files.test_connection_failed', [
+                'webspace_id' => $webspace->getId(),
+                'root_resolution' => $rootResolution,
                 'exception' => $exception,
             ]);
+            $message = $exception->getMessage();
+            if ($exception instanceof FileServiceException) {
+                if ($exception->getErrorCode() === 'AGENT_BASEDIR_MISMATCH') {
+                    $details = $exception->getDetails();
+                    $candidateRoot = (string) ($details['candidate_root'] ?? '');
+                    $agentRoot = (string) ($details['agent_root'] ?? '');
+                    $message = sprintf(
+                        'Agent-Konfiguration erforderlich (Webspace: "%s", Agent: "%s"). In /etc/easywi/agent.conf file_base_dir auf /var/www (oder Parent) setzen, Agent neu starten und Rechte prüfen. (%s)',
+                        $candidateRoot,
+                        $agentRoot,
+                        $exception->getErrorCode(),
+                    );
+                } else {
+                    $message = sprintf('%s (%s)', $exception->getMessage(), $exception->getErrorCode());
+                }
+            }
             $this->addFlash('agent_test', [
                 'status' => 'error',
-                'message' => sprintf('Agent-Verbindung fehlgeschlagen: %s', $exception->getMessage()),
+                'message' => sprintf('Agent-Verbindung fehlgeschlagen: %s', $message),
                 'entries' => [],
             ]);
         }
@@ -422,7 +460,9 @@ final class CustomerFileManagerController extends AbstractController
                 'webspace' => [
                     'id' => $webspace->getId(),
                     'path' => $webspace->getPath(),
+                    'docroot' => $webspace->getDocroot(),
                 ],
+                'root_resolution' => $this->fileService->debugRootResolution($webspace),
             ]);
         } catch (\Throwable $exception) {
             $this->logger->error('files.health_failed', [
@@ -430,15 +470,34 @@ final class CustomerFileManagerController extends AbstractController
                 'exception' => $exception,
             ]);
 
+            $errorCode = $exception instanceof FileServiceException ? $exception->getErrorCode() : null;
+            $message = $exception->getMessage();
+            if ($errorCode === 'AGENT_BASEDIR_MISMATCH') {
+                $details = $exception instanceof FileServiceException ? $exception->getDetails() : [];
+                $candidateRoot = (string) ($details['candidate_root'] ?? '');
+                $agentRoot = (string) ($details['agent_root'] ?? '');
+                $message = sprintf(
+                    'Agent file_base_dir mismatch: webspace root "%s" outside "%s". Set file_base_dir in /etc/easywi/agent.conf to include webspaces (e.g. /var/www), restart easywi-agent, then retry. (%s)',
+                    $candidateRoot,
+                    $agentRoot,
+                    $errorCode,
+                );
+            } elseif ($errorCode !== null) {
+                $message = sprintf('%s (%s)', $message, $errorCode);
+            }
+
             return new JsonResponse([
                 'ok' => false,
-                'message' => sprintf('Agent check failed: %s', $exception->getMessage()),
+                'message' => sprintf('Agent check failed: %s', $message),
                 'missing' => [],
                 'root_readable' => false,
+                'error_code' => $errorCode,
                 'webspace' => [
                     'id' => $webspace->getId(),
                     'path' => $webspace->getPath(),
+                    'docroot' => $webspace->getDocroot(),
                 ],
+                'root_resolution' => $this->fileService->debugRootResolution($webspace),
             ]);
         }
     }

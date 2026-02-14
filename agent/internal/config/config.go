@@ -28,6 +28,7 @@ type Config struct {
 	ServiceListen     string
 	HealthListen      string
 	FileBaseDir       string
+	FileBaseDirs      []string
 	FileCacheSize     int
 	FileMaxSkew       time.Duration
 	FileReadTimeout   time.Duration
@@ -122,6 +123,16 @@ func Load(path string) (cfg Config, err error) {
 			cfg.ServiceListen = value
 		case "file_base_dir":
 			cfg.FileBaseDir = value
+		case "file_base_dirs":
+			parts := strings.Split(value, ",")
+			dirs := make([]string, 0, len(parts))
+			for _, part := range parts {
+				dir := strings.TrimSpace(part)
+				if dir != "" {
+					dirs = append(dirs, dir)
+				}
+			}
+			cfg.FileBaseDirs = dirs
 		case "file_cache_size":
 			parsed, parseErr := strconv.Atoi(value)
 			if parseErr != nil {
@@ -199,6 +210,11 @@ func validate(cfg Config) error {
 	if cfg.FileBaseDir != "" && !filepath.IsAbs(cfg.FileBaseDir) {
 		return errors.New("file_base_dir must be absolute")
 	}
+	for _, baseDir := range cfg.FileBaseDirs {
+		if !filepath.IsAbs(baseDir) {
+			return errors.New("file_base_dirs must be absolute")
+		}
+	}
 	if cfg.FileCacheSize < 0 {
 		return errors.New("file_cache_size must be positive")
 	}
@@ -231,8 +247,16 @@ func applyDefaults(cfg *Config) {
 			cfg.ServiceListen = "0.0.0.0:7456"
 		}
 	}
-	if cfg.FileBaseDir == "" {
-		cfg.FileBaseDir = "/home"
+	if cfg.FileBaseDirs == nil {
+		cfg.FileBaseDirs = []string{}
+	}
+	if cfg.FileBaseDir == "" && len(cfg.FileBaseDirs) == 0 {
+		cfg.FileBaseDirs = []string{"/home", "/var/www"}
+		cfg.FileBaseDir = cfg.FileBaseDirs[0]
+	} else if cfg.FileBaseDir != "" && len(cfg.FileBaseDirs) == 0 {
+		cfg.FileBaseDirs = []string{cfg.FileBaseDir}
+	} else if cfg.FileBaseDir == "" && len(cfg.FileBaseDirs) > 0 {
+		cfg.FileBaseDir = cfg.FileBaseDirs[0]
 	}
 	if cfg.FileCacheSize == 0 {
 		cfg.FileCacheSize = 256

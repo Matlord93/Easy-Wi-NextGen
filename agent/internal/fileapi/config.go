@@ -12,6 +12,7 @@ type Config struct {
 	AgentID        string
 	Secret         string
 	BaseDir        string
+	BaseDirs       []string
 	CacheSize      int
 	MaxSkew        time.Duration
 	ReadTimeout    time.Duration
@@ -29,14 +30,19 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Secret) == "" {
 		missing = append(missing, "secret")
 	}
-	if strings.TrimSpace(c.BaseDir) == "" {
+	if strings.TrimSpace(c.BaseDir) == "" && len(c.BaseDirs) == 0 {
 		missing = append(missing, "base_dir")
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing config values: %s", strings.Join(missing, ", "))
 	}
-	if !filepath.IsAbs(c.BaseDir) {
+	if strings.TrimSpace(c.BaseDir) != "" && !filepath.IsAbs(c.BaseDir) {
 		return errors.New("base_dir must be absolute")
+	}
+	for _, baseDir := range c.BaseDirs {
+		if !filepath.IsAbs(strings.TrimSpace(baseDir)) {
+			return errors.New("base_dirs must be absolute")
+		}
 	}
 	return nil
 }

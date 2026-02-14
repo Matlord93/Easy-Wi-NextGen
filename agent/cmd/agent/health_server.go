@@ -23,6 +23,7 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 		AgentID:        cfg.AgentID,
 		Secret:         cfg.Secret,
 		BaseDir:        cfg.FileBaseDir,
+		BaseDirs:       cfg.FileBaseDirs,
 		CacheSize:      cfg.FileCacheSize,
 		MaxSkew:        cfg.FileMaxSkew,
 		ReadTimeout:    cfg.FileReadTimeout,

@@ -31,18 +31,33 @@
     </div>
 
     <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <p class="text-xs font-semibold uppercase text-slate-700">Daten senden</p>
-        <p class="mt-2 text-sm text-slate-600">Sendet Daten über die Konsole (nur wenn der Server läuft).</p>
+        <p class="text-xs font-semibold uppercase text-slate-700">Befehl senden</p>
+        <p class="mt-2 text-sm text-slate-600">Sendet einen Konsolenbefehl (nur wenn der Server läuft).</p>
         <div class="mt-4 space-y-2">
-            <label for="instance-console-data" class="text-xs font-semibold text-slate-600">Daten</label>
-            <input id="instance-console-data" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700" placeholder="z. B. say status">
+            <label for="instance-console-command" class="text-xs font-semibold text-slate-600">Befehl</label>
+            <input id="instance-console-command" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700" placeholder="z. B. status">
             <div class="flex flex-wrap items-center gap-3">
-                <button id="instance-console-send-data" type="button" class="rounded-lg border border-indigo-200 px-4 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">
-                    Daten senden
+                <button id="instance-console-send" type="button" class="rounded-lg border border-indigo-200 px-4 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">
+                    Befehl senden
                 </button>
             </div>
-            <p id="instance-console-feedback" class="text-xs text-slate-500"></p>
         </div>
+
+        <div class="mt-6 border-t border-slate-200 pt-4">
+            <p class="text-xs font-semibold uppercase text-slate-700">Daten senden</p>
+            <p class="mt-2 text-sm text-slate-600">Sendet Daten über die Konsole (nur wenn der Server läuft).</p>
+            <div class="mt-4 space-y-2">
+                <label for="instance-console-data" class="text-xs font-semibold text-slate-600">Daten</label>
+                <input id="instance-console-data" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700" placeholder="z. B. say status">
+                <div class="flex flex-wrap items-center gap-3">
+                    <button id="instance-console-send-data" type="button" class="rounded-lg border border-indigo-200 px-4 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">
+                        Daten senden
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <p id="instance-console-feedback" class="mt-4 text-xs text-slate-500"></p>
     </div>
 </div>
 
