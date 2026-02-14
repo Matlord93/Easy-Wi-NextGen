@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 )
 
 func TestJobRunnerParallelDifferentInstances(t *testing.T) {
-	runner := newJobRunner(2)
+	runner := newJobRunner(2, 2)
 	started := make(chan string, 2)
 	release := make(chan struct{})
 
@@ -20,14 +21,16 @@ func TestJobRunnerParallelDifferentInstances(t *testing.T) {
 	}
 
 	runner.Submit(jobTask{
-		job:     jobs.Job{ID: "job-1", Payload: map[string]any{"instance_id": "1"}},
-		lockKey: "instance:1",
-		handler: handler("job-1"),
+		job:          jobs.Job{ID: "job-1", Payload: map[string]any{"instance_id": "1"}},
+		instanceLock: "instance:1",
+		lockMode:     jobLockRead,
+		handler:      handler("job-1"),
 	})
 	runner.Submit(jobTask{
-		job:     jobs.Job{ID: "job-2", Payload: map[string]any{"instance_id": "2"}},
-		lockKey: "instance:2",
-		handler: handler("job-2"),
+		job:          jobs.Job{ID: "job-2", Payload: map[string]any{"instance_id": "2"}},
+		instanceLock: "instance:2",
+		lockMode:     jobLockRead,
+		handler:      handler("job-2"),
 	})
 
 	seen := map[string]bool{}
@@ -44,8 +47,8 @@ func TestJobRunnerParallelDifferentInstances(t *testing.T) {
 	close(release)
 }
 
-func TestJobRunnerSerializesSameInstance(t *testing.T) {
-	runner := newJobRunner(2)
+func TestJobRunnerReadLockAllowsConcurrentSameInstance(t *testing.T) {
+	runner := newJobRunner(2, 2)
 	started := make(chan string, 2)
 	release := make(chan struct{})
 
@@ -56,31 +59,108 @@ func TestJobRunnerSerializesSameInstance(t *testing.T) {
 		}
 	}
 
+	runner.Submit(jobTask{job: jobs.Job{ID: "job-1"}, instanceLock: "instance:1", lockMode: jobLockRead, handler: handler("job-1")})
+	runner.Submit(jobTask{job: jobs.Job{ID: "job-2"}, instanceLock: "instance:1", lockMode: jobLockRead, handler: handler("job-2")})
+
+	seen := map[string]bool{}
+	timeout := time.After(2 * time.Second)
+	for len(seen) < 2 {
+		select {
+		case id := <-started:
+			seen[id] = true
+		case <-timeout:
+			t.Fatalf("expected both read jobs to run concurrently, saw %v", seen)
+		}
+	}
+
+	close(release)
+}
+
+func TestJobRunnerWriteWaitsForReadSameInstance(t *testing.T) {
+	runner := newJobRunner(2, 2)
+	started := make(chan string, 2)
+	releaseRead := make(chan struct{})
+	done := make(chan struct{})
+
 	runner.Submit(jobTask{
-		job:     jobs.Job{ID: "job-1", Payload: map[string]any{"instance_id": "1"}},
-		lockKey: "instance:1",
-		handler: handler("job-1"),
+		job:          jobs.Job{ID: "stream"},
+		instanceLock: "instance:1",
+		lockMode:     jobLockRead,
+		handler: func(j jobs.Job) {
+			started <- "stream"
+			<-releaseRead
+		},
 	})
 	runner.Submit(jobTask{
-		job:     jobs.Job{ID: "job-2", Payload: map[string]any{"instance_id": "1"}},
-		lockKey: "instance:1",
-		handler: handler("job-2"),
+		job:          jobs.Job{ID: "start"},
+		instanceLock: "instance:1",
+		lockMode:     jobLockWrite,
+		handler: func(j jobs.Job) {
+			started <- "start"
+			close(done)
+		},
 	})
 
 	select {
 	case first := <-started:
-		if first != "job-1" && first != "job-2" {
-			t.Fatalf("unexpected job start %s", first)
+		if first != "stream" {
+			t.Fatalf("expected stream first, got %s", first)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("expected first job to start")
+		t.Fatal("expected first job start")
 	}
 
 	select {
 	case second := <-started:
-		t.Fatalf("expected second job to wait, but got %s", second)
+		t.Fatalf("expected writer to wait for reader, got %s", second)
 	case <-time.After(200 * time.Millisecond):
 	}
 
+	close(releaseRead)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected writer to run after read lock release")
+	}
+}
+
+func TestJobRunnerStreamLimiterCapsConcurrentStreams(t *testing.T) {
+	runner := newJobRunner(3, 1)
+	var active int32
+	peak := int32(0)
+	release := make(chan struct{})
+	done := make(chan struct{}, 2)
+
+	streamTask := func(id string) jobTask {
+		return jobTask{
+			job:          jobs.Job{ID: id},
+			instanceLock: "instance:" + id,
+			lockMode:     jobLockRead,
+			isStream:     true,
+			handler: func(j jobs.Job) {
+				current := atomic.AddInt32(&active, 1)
+				for {
+					maxSeen := atomic.LoadInt32(&peak)
+					if current <= maxSeen || atomic.CompareAndSwapInt32(&peak, maxSeen, current) {
+						break
+					}
+				}
+				<-release
+				atomic.AddInt32(&active, -1)
+				done <- struct{}{}
+			},
+		}
+	}
+
+	runner.Submit(streamTask("1"))
+	runner.Submit(streamTask("2"))
+
+	time.Sleep(250 * time.Millisecond)
+	if got := atomic.LoadInt32(&peak); got != 1 {
+		t.Fatalf("expected at most 1 concurrent stream, got %d", got)
+	}
+
 	close(release)
+	<-done
+	<-done
 }

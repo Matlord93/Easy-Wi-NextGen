@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Message\InstanceActionMessage;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\SetupChecker;
@@ -28,12 +29,14 @@ use App\Repository\BackupRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
+use App\Repository\JobLogRepository;
 use Cron\CronExpression;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -50,11 +53,13 @@ final class CustomerInstanceActionApiController
         private readonly GamePluginRepository $gamePluginRepository,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly JobRepository $jobRepository,
+        private readonly JobLogRepository $jobLogRepository,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly AuditLogger $auditLogger,
         private readonly ConsoleCommandValidator $consoleCommandValidator,
         private readonly GameServerPathResolver $gameServerPathResolver,
         private readonly SetupChecker $setupChecker,
+        private readonly AppSettingsService $appSettingsService,
         private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         #[Autowire(service: 'limiter.instance_console_commands')]
@@ -86,12 +91,90 @@ final class CustomerInstanceActionApiController
         return $this->queueAddonAction($request, $id, 'update');
     }
 
+    #[Route(path: '/api/instances/{id}/power', name: 'customer_instance_power_api', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/power', name: 'customer_instance_power_api_v1', methods: ['POST'])]
+    public function power(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $payload = $this->parsePayload($request);
+        $action = strtolower(trim((string) ($payload['action'] ?? '')));
+        $allowed = ['start', 'stop', 'restart'];
+        if (!in_array($action, $allowed, true)) {
+            return $this->apiError($request, 'INVALID_ACTION', 'Invalid action.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY, [
+                'allowed_actions' => $allowed,
+            ]);
+        }
+
+        if (!$this->appSettingsService->isGameserverStartStopAllowed()) {
+            return $this->apiError($request, 'POWER_DISABLED', 'Start/Stop actions are disabled.', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        if ($instance->getStatus() === InstanceStatus::Suspended) {
+            return $this->apiError($request, 'INSTANCE_SUSPENDED', 'This instance is suspended.', JsonResponse::HTTP_CONFLICT);
+        }
+
+        $existingJob = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+        ], $instance->getId() ?? 0);
+        if ($existingJob instanceof Job) {
+            return $this->apiOk($request, [
+                'current_state' => strtolower($instance->getStatus()->value),
+                'desired_state' => $action === 'stop' ? 'stopped' : 'running',
+                'transition' => true,
+                'job_id' => $existingJob->getId(),
+            ], JsonResponse::HTTP_ACCEPTED);
+        }
+
+        $message = new InstanceActionMessage(sprintf('instance.%s', $action), $customer->getId(), $instance->getId(), [
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $customer->getId(),
+            'node_id' => $instance->getNode()->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+            'action' => $action,
+        ]);
+
+        $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
+        $result = json_decode((string) $response->getContent(), true);
+        if (!is_array($result) || !is_string($result['job_id'] ?? null)) {
+            return $this->apiError($request, 'POWER_QUEUE_FAILED', 'Unable to queue power action.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return $this->apiOk($request, [
+            'current_state' => strtolower($instance->getStatus()->value),
+            'desired_state' => $action === 'stop' ? 'stopped' : 'running',
+            'transition' => true,
+            'job_id' => $result['job_id'],
+        ], JsonResponse::HTTP_ACCEPTED);
+    }
+
     #[Route(path: '/api/instances/{id}/backups', name: 'customer_instance_backups_list', methods: ['GET'])]
     #[Route(path: '/api/v1/customer/instances/{id}/backups', name: 'customer_instance_backups_list_v1', methods: ['GET'])]
     public function listBackups(Request $request, int $id): JsonResponse
     {
-        $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
 
         $definitions = $this->backupDefinitionRepository->findByCustomer($customer);
         $matched = [];
@@ -107,7 +190,7 @@ final class CustomerInstanceActionApiController
 
         $backups = $this->backupRepository->findByDefinitions($matched);
 
-        return new JsonResponse([
+        return $this->apiOk($request, [
             'backups' => array_map(fn ($backup) => $this->normalizeBackup($backup), $backups),
         ]);
     }
@@ -116,28 +199,27 @@ final class CustomerInstanceActionApiController
     #[Route(path: '/api/v1/customer/instances/{id}/backups', name: 'customer_instance_backups_create_v1', methods: ['POST'])]
     public function createBackup(Request $request, int $id): JsonResponse
     {
-        $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
         $payload = $this->parsePayload($request);
 
         $definition = $this->resolveDefinition($customer, $instance, $payload);
         if ($definition === null) {
-            return $this->responseEnvelopeFactory->error(
-                $request,
-                'Backup definition not found.',
-                'backup_definition_not_found',
-                JsonResponse::HTTP_NOT_FOUND,
-            );
+            return $this->apiError($request, 'NOT_FOUND', 'Backup definition not found.', JsonResponse::HTTP_NOT_FOUND);
         }
 
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
-            return $this->responseEnvelopeFactory->error(
-                $request,
-                $blockMessage,
-                'disk_quota_exceeded',
-                JsonResponse::HTTP_CONFLICT,
-            );
+            return $this->apiError($request, 'BACKUP_NOT_SUPPORTED', $blockMessage, JsonResponse::HTTP_CONFLICT);
         }
 
         $message = new InstanceActionMessage('instance.backup.create', $customer->getId(), $instance->getId(), [
@@ -154,60 +236,51 @@ final class CustomerInstanceActionApiController
         $result = json_decode((string) $response->getContent(), true);
 
         if (!is_array($result) || !is_string($result['job_id'] ?? null) || $result['job_id'] === '') {
-            return $this->responseEnvelopeFactory->error(
-                $request,
-                'Unable to queue backup creation job.',
-                'backup_queue_failed',
-                JsonResponse::HTTP_INTERNAL_SERVER_ERROR,
-            );
+            return $this->apiError($request, 'INTERNAL_ERROR', 'Unable to queue backup creation job.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        return $this->responseEnvelopeFactory->success(
-            $request,
-            $result['job_id'],
-            'Backup creation queued.',
-            JsonResponse::HTTP_ACCEPTED,
-            [
+        return $this->apiOk($request, [
+                'job_id' => $result['job_id'],
+                'job_type' => 'instance.backup.create',
                 'backup_id' => $result['backup_id'] ?? null,
-            ],
-        );
+                'message' => 'Backup creation queued.',
+            ], JsonResponse::HTTP_ACCEPTED);
     }
 
     #[Route(path: '/api/instances/{id}/backups/{backupId}/restore', name: 'customer_instance_backups_restore', methods: ['POST'])]
     #[Route(path: '/api/v1/customer/instances/{id}/backups/{backupId}/restore', name: 'customer_instance_backups_restore_v1', methods: ['POST'])]
     public function restoreBackup(Request $request, int $id, int $backupId): JsonResponse
     {
-        $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
         $payload = $this->parsePayload($request);
 
-        $backup = $this->backupRepository->find($backupId);
-        if ($backup === null || $backup->getDefinition()->getTargetType() !== BackupTargetType::Game || $backup->getDefinition()->getTargetId() !== (string) $instance->getId()) {
-            return $this->responseEnvelopeFactory->error(
+        if (!(bool) ($payload['confirm'] ?? false)) {
+            return $this->apiError(
                 $request,
-                'Backup not found.',
-                'backup_not_found',
-                JsonResponse::HTTP_NOT_FOUND,
+                'INVALID_INPUT',
+                'Restore confirmation is required.',
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY,
             );
         }
 
-        if (!(bool) ($payload['confirm'] ?? false)) {
-            return $this->responseEnvelopeFactory->error(
-                $request,
-                'Restore confirmation is required.',
-                'backup_restore_confirm_required',
-                JsonResponse::HTTP_BAD_REQUEST,
-            );
+        $backup = $this->backupRepository->find($backupId);
+        if ($backup === null || $backup->getDefinition()->getTargetType() !== BackupTargetType::Game || $backup->getDefinition()->getTargetId() !== (string) $instance->getId()) {
+            return $this->apiError($request, 'NOT_FOUND', 'Backup not found.', JsonResponse::HTTP_NOT_FOUND);
         }
 
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
-            return $this->responseEnvelopeFactory->error(
-                $request,
-                $blockMessage,
-                'disk_quota_exceeded',
-                JsonResponse::HTTP_CONFLICT,
-            );
+            return $this->apiError($request, 'BACKUP_NOT_SUPPORTED', $blockMessage, JsonResponse::HTTP_CONFLICT);
         }
 
         $message = new InstanceActionMessage('instance.backup.restore', $customer->getId(), $instance->getId(), [
@@ -226,24 +299,276 @@ final class CustomerInstanceActionApiController
         $result = json_decode((string) $response->getContent(), true);
 
         if (!is_array($result) || !is_string($result['job_id'] ?? null) || $result['job_id'] === '') {
-            return $this->responseEnvelopeFactory->error(
+            return $this->apiError($request, 'INTERNAL_ERROR', 'Unable to queue backup restore job.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return $this->apiOk($request, [
+                'job_id' => $result['job_id'],
+                'job_type' => 'instance.backup.restore',
+                'backup_id' => $backup->getId(),
+                'pre_backup_job_id' => $result['pre_backup_job_id'] ?? null,
+                'message' => 'Backup restore queued.',
+            ], JsonResponse::HTTP_ACCEPTED);
+    }
+
+    #[Route(path: '/api/instances/{id}/backups/{backupId}', name: 'customer_instance_backups_delete', methods: ['DELETE'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/backups/{backupId}', name: 'customer_instance_backups_delete_v1', methods: ['DELETE'])]
+    public function deleteBackup(Request $request, int $id, int $backupId): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
                 $request,
-                'Unable to queue backup restore job.',
-                'backup_restore_queue_failed',
-                JsonResponse::HTTP_INTERNAL_SERVER_ERROR,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
             );
         }
 
-        return $this->responseEnvelopeFactory->success(
-            $request,
-            $result['job_id'],
-            'Backup restore queued.',
-            JsonResponse::HTTP_ACCEPTED,
-            [
-                'backup_id' => $backup->getId(),
-                'pre_backup_job_id' => $result['pre_backup_job_id'] ?? null,
-            ],
-        );
+        $backup = $this->backupRepository->find($backupId);
+        if ($backup === null || $backup->getDefinition()->getTargetType() !== BackupTargetType::Game || $backup->getDefinition()->getTargetId() !== (string) $instance->getId()) {
+            return $this->apiError($request, 'NOT_FOUND', 'Backup not found.', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $this->entityManager->remove($backup);
+        $this->entityManager->flush();
+
+        return $this->apiOk($request, [
+            'backup_id' => $backupId,
+            'deleted' => true,
+        ]);
+    }
+
+    #[Route(path: '/api/instances/{id}/backups/health', name: 'customer_instance_backups_health', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/backups/health', name: 'customer_instance_backups_health_v1', methods: ['GET'])]
+    public function backupsHealth(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        return $this->apiOk($request, [
+            'instance_id' => $instance->getId(),
+            'instance_status' => strtolower($instance->getStatus()->value),
+            'backup_supported' => true,
+        ]);
+    }
+
+
+
+    #[Route(path: '/api/instances/{id}/tasks', name: 'customer_instance_tasks_api_list', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/tasks', name: 'customer_instance_tasks_api_list_v1', methods: ['GET'])]
+    public function listTasksEnvelope(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $tasks = [];
+        foreach ($this->jobRepository->findLatest(100) as $job) {
+            $payload = $job->getPayload();
+            if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
+                continue;
+            }
+            $tasks[] = [
+                'id' => $job->getId(),
+                'type' => $job->getType(),
+                'status' => $job->getStatus()->value,
+                'created_at' => $job->getCreatedAt()->format(DATE_ATOM),
+            ];
+        }
+
+        return $this->apiOk($request, ['tasks' => array_slice($tasks, 0, 25)]);
+    }
+
+    #[Route(path: '/api/instances/{id}/tasks/{taskId}/cancel', name: 'customer_instance_tasks_api_cancel', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/tasks/{taskId}/cancel', name: 'customer_instance_tasks_api_cancel_v1', methods: ['POST'])]
+    public function cancelTaskEnvelope(Request $request, int $id, string $taskId): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $job = $this->jobRepository->find($taskId);
+        if (!$job instanceof Job) {
+            return $this->apiError($request, 'NOT_FOUND', 'Task not found.', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $payload = $job->getPayload();
+        if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
+            return $this->apiError($request, 'FORBIDDEN', 'Forbidden.', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        if ($job->getStatus()->isTerminal()) {
+            return $this->apiError($request, 'INVALID_INPUT', 'Task already finished.', JsonResponse::HTTP_CONFLICT);
+        }
+
+        $job->transitionTo(\App\Module\Core\Domain\Enum\JobStatus::Cancelled);
+        $job->clearLock();
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+
+        return $this->apiOk($request, [
+            'task_id' => $job->getId(),
+            'status' => $job->getStatus()->value,
+            'cancelled' => true,
+        ]);
+    }
+
+    #[Route(path: '/api/instances/{id}/tasks/logs', name: 'customer_instance_tasks_api_logs', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/tasks/logs', name: 'customer_instance_tasks_api_logs_v1', methods: ['GET'])]
+    public function taskLogsEnvelope(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $taskId = (string) $request->query->get('task_id', '');
+        if ($taskId === '') {
+            return $this->apiError($request, 'INVALID_INPUT', 'task_id is required.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $job = $this->jobRepository->find($taskId);
+        if (!$job instanceof Job) {
+            return $this->apiError($request, 'NOT_FOUND', 'Task not found.', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $payload = $job->getPayload();
+        if ((string) ($payload['instance_id'] ?? '') !== (string) $instance->getId()) {
+            return $this->apiError($request, 'FORBIDDEN', 'Forbidden.', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $cursor = $request->query->get('cursor');
+        $afterId = is_numeric($cursor) ? (int) $cursor : null;
+        $logs = $this->jobLogRepository->findByJobAfterId($job, $afterId);
+        $normalized = array_map(static fn ($log): array => [
+            'id' => $log->getId(),
+            'message' => $log->getMessage(),
+            'progress' => $log->getProgress(),
+            'created_at' => $log->getCreatedAt()->format(DATE_ATOM),
+        ], $logs);
+        $lastLog = $normalized === [] ? null : $normalized[array_key_last($normalized)];
+        $nextCursor = is_array($lastLog) ? (string) ($lastLog['id'] ?? '') : (string) ($cursor ?? '');
+
+        return $this->apiOk($request, ['logs' => $normalized, 'cursor' => $nextCursor]);
+    }
+
+    #[Route(path: '/api/instances/{id}/tasks/health', name: 'customer_instance_tasks_api_health', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/tasks/health', name: 'customer_instance_tasks_api_health_v1', methods: ['GET'])]
+    public function tasksHealthEnvelope(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        return $this->apiOk($request, [
+            'instance_id' => $instance->getId(),
+            'instance_status' => strtolower($instance->getStatus()->value),
+            'tasks_supported' => true,
+        ]);
+    }
+
+    #[Route(path: '/api/instances/{id}/schedules', name: 'customer_instance_schedule_update_envelope', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/schedules', name: 'customer_instance_schedule_update_envelope_v1', methods: ['PATCH'])]
+    public function updateScheduleEnvelope(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $payload = $this->parsePayload($request);
+        $action = strtolower(trim((string) ($payload['action'] ?? '')));
+        $scheduleAction = InstanceScheduleAction::tryFrom($action);
+        if ($scheduleAction === null) {
+            return $this->apiError($request, 'INVALID_INPUT', 'Invalid schedule action.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $cronExpression = trim((string) ($payload['cron_expression'] ?? ''));
+        $timeZone = trim((string) ($payload['time_zone'] ?? 'UTC'));
+        $enabled = (bool) ($payload['enabled'] ?? true);
+
+        if ($enabled && $cronExpression === '') {
+            return $this->apiError($request, 'INVALID_INPUT', 'Cron expression is required.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($enabled && !CronExpression::isValidExpression($cronExpression)) {
+            return $this->apiError($request, 'INVALID_INPUT', 'Cron expression is invalid.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            new \DateTimeZone($timeZone === '' ? 'UTC' : $timeZone);
+        } catch (\Exception) {
+            return $this->apiError($request, 'INVALID_INPUT', 'Time zone is invalid.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $message = new InstanceActionMessage('instance.schedule.update', $customer->getId(), $instance->getId(), [
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $customer->getId(),
+            'action' => $scheduleAction->value,
+            'cron_expression' => $cronExpression,
+            'time_zone' => $timeZone,
+            'enabled' => $enabled,
+        ]);
+
+        $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
+        $raw = json_decode((string) $response->getContent(), true);
+        if (!is_array($raw) || !isset($raw['job_id'])) {
+            return $this->apiError($request, 'INTERNAL_ERROR', 'Unable to queue schedule update.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return $this->apiOk($request, [
+            'job_id' => $raw['job_id'],
+            'action' => $scheduleAction->value,
+        ], JsonResponse::HTTP_ACCEPTED);
     }
 
     #[Route(path: '/api/instances/{id}/schedules/{action}', name: 'customer_instance_schedule_update', methods: ['PATCH'])]
@@ -394,31 +719,126 @@ final class CustomerInstanceActionApiController
         return $response;
     }
 
+    #[Route(path: '/api/instances/{id}/console/command', name: 'customer_instance_console_command_envelope', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/console/command', name: 'customer_instance_console_command_envelope_v1', methods: ['POST'])]
+    public function sendConsoleCommandEnvelope(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $payload = $this->parsePayload($request);
+        $command = trim((string) ($payload['command'] ?? ''));
+        if ($command === '') {
+            return $this->apiError($request, 'INVALID_INPUT', 'Command is required.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $legacy = $this->sendConsoleCommand($request, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        return $this->mapLegacyConsoleResponse($request, $legacy);
+    }
+
+    #[Route(path: '/api/instances/{id}/console/logs', name: 'customer_instance_console_logs_envelope', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/console/logs', name: 'customer_instance_console_logs_envelope_v1', methods: ['GET'])]
+    public function logsEnvelope(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $job = $this->resolveConsoleLogsJob($instance, $customer);
+        if ($job === null) {
+            return $this->apiError(
+                $request,
+                'INSTANCE_OFFLINE',
+                'No active or recent console source job found.',
+                JsonResponse::HTTP_CONFLICT,
+            );
+        }
+
+        $cursorRaw = trim((string) $request->query->get('cursor', ''));
+        $cursor = $cursorRaw !== '' && ctype_digit($cursorRaw) ? (int) $cursorRaw : null;
+        $logs = $this->jobLogRepository->findByJobAfterId($job, $cursor, 300);
+        $nextCursor = $cursor ?? 0;
+        $lines = [];
+        foreach ($logs as $log) {
+            $logId = (int) ($log->getId() ?? 0);
+            $nextCursor = max($nextCursor, $logId);
+            $lines[] = [
+                'id' => $logId,
+                'message' => $log->getMessage(),
+                'created_at' => $log->getCreatedAt()->format(DATE_ATOM),
+                'progress' => $log->getProgress(),
+            ];
+        }
+
+        return $this->apiOk($request, [
+            'job_id' => $job->getId(),
+            'job_type' => $job->getType(),
+            'status' => $job->getStatus()->value,
+            'cursor' => $nextCursor,
+            'lines' => $lines,
+        ]);
+    }
+
+    #[Route(path: '/api/instances/{id}/console/health', name: 'customer_instance_console_health_envelope', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/console/health', name: 'customer_instance_console_health_envelope_v1', methods: ['GET'])]
+    public function healthEnvelope(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $runtimeStatus = strtolower((string) ($instance->getQueryStatusCache()['status'] ?? 'unknown'));
+
+        return $this->apiOk($request, [
+            'instance_id' => $instance->getId(),
+            'instance_status' => strtolower($instance->getStatus()->value),
+            'runtime_status' => $runtimeStatus,
+            'can_send_command' => $instance->getStatus() === InstanceStatus::Running || $runtimeStatus === 'online',
+        ]);
+    }
+
     #[Route(path: '/api/instances/{id}/console/logs', name: 'customer_instance_console_logs', methods: ['POST'])]
     #[Route(path: '/api/v1/customer/instances/{id}/console/logs', name: 'customer_instance_console_logs_v1', methods: ['POST'])]
     public function requestConsoleLogs(Request $request, int $id): JsonResponse
     {
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
-        $job = null;
-
-        if ($instance->getStatus() === InstanceStatus::Running) {
-            $job = $this->findLatestLogTailJob($instance);
-            if ($job === null || $job->getStatus()->isTerminal()) {
-                $job = new Job('instance.logs.tail', [
-                    'instance_id' => (string) $instance->getId(),
-                    'customer_id' => (string) $customer->getId(),
-                    'node_id' => $instance->getNode()->getId(),
-                    'agent_id' => $instance->getNode()->getId(),
-                ]);
-                $this->entityManager->persist($job);
-                $this->entityManager->flush();
-            }
-        }
-
-        if ($job === null) {
-            $job = $this->findLatestConsoleJob($instance);
-        }
+        $job = $this->resolveConsoleLogsJob($instance, $customer);
 
         if ($job === null) {
             return new JsonResponse(['error' => 'No recent install/start job found.'], JsonResponse::HTTP_NOT_FOUND);
@@ -826,6 +1246,27 @@ final class CustomerInstanceActionApiController
         return null;
     }
 
+    private function resolveConsoleLogsJob(Instance $instance, User $customer): ?Job
+    {
+        if ($instance->getStatus() === InstanceStatus::Running) {
+            $job = $this->findLatestLogTailJob($instance);
+            if ($job === null || $job->getStatus()->isTerminal()) {
+                $job = new Job('instance.logs.tail', [
+                    'instance_id' => (string) $instance->getId(),
+                    'customer_id' => (string) $customer->getId(),
+                    'node_id' => $instance->getNode()->getId(),
+                    'agent_id' => $instance->getNode()->getId(),
+                ]);
+                $this->entityManager->persist($job);
+                $this->entityManager->flush();
+            }
+
+            return $job;
+        }
+
+        return $this->findLatestLogTailJob($instance) ?? $this->findLatestConsoleJob($instance);
+    }
+
     /**
      * @return array{accepted: bool, retry_after: int}
      */
@@ -857,5 +1298,89 @@ final class CustomerInstanceActionApiController
         }
 
         return trim((string) ($request->attributes->get('request_id') ?? ''));
+    }
+
+    private function mapLegacyConsoleResponse(Request $request, JsonResponse $legacy): JsonResponse
+    {
+        $statusCode = $legacy->getStatusCode();
+        $payload = json_decode((string) $legacy->getContent(), true);
+        if (!is_array($payload)) {
+            return $this->apiError($request, 'INTERNAL_ERROR', 'Invalid console response payload.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        $legacyErrorCode = is_string($payload['error_code'] ?? null) ? $payload['error_code'] : null;
+        if ($statusCode >= 400 || $legacyErrorCode !== null || isset($payload['error'])) {
+            $message = (string) ($payload['message'] ?? $payload['error'] ?? 'Console command failed.');
+            $normalized = $this->normalizeConsoleErrorCode($legacyErrorCode, $statusCode);
+
+            return $this->apiError($request, $normalized, $message, $statusCode);
+        }
+
+        $jobId = is_string($payload['job_id'] ?? null) ? $payload['job_id'] : null;
+        if ($jobId === null || $jobId === '') {
+            return $this->apiError($request, 'INTERNAL_ERROR', 'Console command queue result missing job id.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return $this->apiOk($request, [
+            'job_id' => $jobId,
+            'status' => (string) ($payload['status'] ?? 'queued'),
+            'message' => (string) ($payload['message'] ?? 'Command queued.'),
+        ], $statusCode >= 200 && $statusCode < 300 ? $statusCode : JsonResponse::HTTP_ACCEPTED);
+    }
+
+    private function normalizeConsoleErrorCode(?string $legacy, int $statusCode): string
+    {
+        $code = strtoupper(trim((string) $legacy));
+        if ($code === '') {
+            return match ($statusCode) {
+                401 => 'UNAUTHORIZED',
+                403 => 'FORBIDDEN',
+                404 => 'NOT_FOUND',
+                409 => 'INSTANCE_OFFLINE',
+                429 => 'RATE_LIMITED',
+                502, 503 => 'AGENT_UNREACHABLE',
+                default => 'INTERNAL_ERROR',
+            };
+        }
+
+        return match ($code) {
+            'CONSOLE_RATE_LIMITED' => 'RATE_LIMITED',
+            'CONSOLE_COMMAND_REQUIRED', 'CONSOLE_COMMAND_INVALID' => 'INVALID_INPUT',
+            'INSTANCE_NOT_RUNNING' => 'INSTANCE_OFFLINE',
+            'FILES_FORBIDDEN' => 'FORBIDDEN',
+            'FILES_UNAUTHORIZED' => 'UNAUTHORIZED',
+            default => $code,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function apiOk(Request $request, array $data, int $status = JsonResponse::HTTP_OK): JsonResponse
+    {
+        return new JsonResponse([
+            'ok' => true,
+            'data' => $data,
+            'request_id' => $this->resolveRequestId($request),
+        ], $status);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function apiError(Request $request, string $errorCode, string $message, int $status, array $context = []): JsonResponse
+    {
+        $payload = [
+            'ok' => false,
+            'error_code' => $errorCode,
+            'message' => $message,
+            'request_id' => $this->resolveRequestId($request),
+        ];
+
+        if ($context !== []) {
+            $payload['context'] = $context;
+        }
+
+        return new JsonResponse($payload, $status);
     }
 }

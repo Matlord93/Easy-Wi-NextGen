@@ -78,12 +78,46 @@ final class CustomerInstanceFileApiController
             'duration_ms' => $durationMs,
         ]);
 
+        $files = array_map(fn (array $entry) => $this->normalizeEntry($entry), $listing['entries']);
+
         return new JsonResponse([
             'root_path' => $listing['root_path'],
             'path' => $listing['path'],
-            'entries' => array_map(fn (array $entry) => $this->normalizeEntry($entry), $listing['entries']),
+            'cwd' => $listing['path'],
+            'entries' => $files,
+            'files' => $files,
             'request_id' => $this->getRequestId($request),
         ]);
+    }
+
+    #[Route(path: '/api/instances/{id}/files/health', name: 'customer_instance_files_api_health', methods: ['GET'])]
+    public function health(Request $request, int $id): JsonResponse
+    {
+        try {
+            $this->assertDataManagerEnabled();
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+            $listing = $this->fileService->list($instance, '');
+
+            return new JsonResponse([
+                'ok' => true,
+                'cwd' => $listing['path'] ?? '',
+                'request_id' => $this->getRequestId($request),
+            ]);
+        } catch (\RuntimeException $exception) {
+            $errorCode = $exception instanceof FileServiceException
+                ? $this->normalizeFileErrorCode($exception->getErrorCode())
+                : 'health_failed';
+
+            return $this->errorResponse(
+                $request,
+                $errorCode,
+                $exception->getMessage(),
+                $exception instanceof FileServiceException ? $exception->getStatusCode() : JsonResponse::HTTP_BAD_GATEWAY,
+            );
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
+            return $this->handleHttpError($request, $exception);
+        }
     }
 
     #[Route(path: '/api/instances/{id}/files/diagnostics', name: 'customer_instance_files_api_diagnostics', methods: ['GET'])]

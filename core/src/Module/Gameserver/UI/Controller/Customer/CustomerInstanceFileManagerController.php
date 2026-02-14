@@ -41,7 +41,7 @@ final class CustomerInstanceFileManagerController
     ) {
     }
 
-    #[Route(path: '', name: 'customer_instance_files', methods: ['GET'])]
+    #[Route(path: '/legacy', name: 'customer_instance_files_legacy', methods: ['GET'])]
     public function index(Request $request, int $id): Response
     {
         $this->assertDataManagerEnabled();

@@ -388,7 +388,20 @@ func handleInstanceLogsTail(job jobs.Job, logSender JobLogSender) (jobs.Result, 
 		}, nil
 	}
 
-	streamServiceLogs(job.ID, logSender, serviceName, 60*time.Second)
+	streamDuration := 60 * time.Second
+	if globalJournalStreams != nil {
+		detach, err := globalJournalStreams.Subscribe(instanceID, serviceName, job.ID, logSender)
+		if err != nil {
+			if logSender != nil {
+				logSender.Send(job.ID, []string{fmt.Sprintf("journal stream unavailable: %v", err)}, nil)
+			}
+		} else {
+			defer detach()
+			time.Sleep(streamDuration)
+		}
+	} else {
+		streamServiceLogs(job.ID, logSender, serviceName, streamDuration)
+	}
 
 	diagnostics := collectServiceDiagnostics(serviceName)
 	diagnostics["service_name"] = serviceName

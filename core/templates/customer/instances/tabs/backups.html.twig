@@ -1,247 +1,40 @@
-<div class="space-y-6"
-     data-backup-create-url="{{ path('customer_instance_backups_create', {id: instance.id}) }}"
-     data-backup-list-url="{{ path('customer_instance_backups_list', {id: instance.id}) }}"
-     data-backup-restore-url-template="{{ path('customer_instance_backups_restore', {id: instance.id, backupId: '__BACKUP_ID__'}) }}"
-     data-backup-schedule-url-template="{{ path('backups_schedule_upsert', {id: '__DEFINITION_ID__'}) }}"
-     data-job-status-url-template="{{ path('customer_job_api_show', {jobId: '__JOB_ID__'}) }}"
-     data-job-logs-url-template="{{ path('customer_job_api_logs', {jobId: '__JOB_ID__'}) }}">
-    <div>
-        <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_backups', page_locale()) }}</h2>
-        <p class="text-sm text-slate-700">{{ t('customer_instance_backups_intro', page_locale()) }}</p>
-    </div>
-
-    <p id="backup-feedback" class="text-xs text-slate-500"></p>
-
-    <div class="space-y-4">
-        {% for backup in backups %}
-            {% set schedule = backup.schedule %}
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4" data-definition-id="{{ backup.id }}">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <p class="text-sm font-semibold text-slate-800">{{ backup.label ?: t('customer_instance_backups_default_label', page_locale()) }}</p>
-                        <p class="text-xs text-slate-600">{{ t('customer_instance_backups_definition_id', page_locale()) }} {{ backup.id }}</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                            {{ schedule and schedule.enabled ? t('customer_instance_backups_schedule_enabled', page_locale()) : t('customer_instance_backups_schedule_disabled', page_locale()) }}
-                        </span>
-                        <button type="button" class="backup-create-button rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700" data-definition-id="{{ backup.id }}">Create backup</button>
-                    </div>
-                </div>
-
-                <form class="backup-schedule-form mt-4 grid gap-3 md:grid-cols-3" data-definition-id="{{ backup.id }}">
-                    <label class="text-xs text-slate-700">
-                        <span class="font-semibold uppercase text-slate-600">Cron</span>
-                        <input type="text" name="cron_expression" value="{{ schedule ? schedule.cron_expression : '0 4 * * *' }}" class="mt-1 w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm">
-                    </label>
-                    <label class="text-xs text-slate-700">
-                        <span class="font-semibold uppercase text-slate-600">Time zone</span>
-                        <input type="text" name="time_zone" value="{{ schedule ? schedule.time_zone : 'UTC' }}" class="mt-1 w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm">
-                    </label>
-                    <label class="text-xs text-slate-700">
-                        <span class="font-semibold uppercase text-slate-600">Target</span>
-                        <select name="backup_target_id" class="mt-1 w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm">
-                            {% set selectedTarget = schedule and schedule.backup_target_id ? (schedule.backup_target_id ~ '') : (backupDefaults.target_id ?? 'default') %}
-                            <option value="default" {% if selectedTarget in ['default', ''] %}selected{% endif %}>Default target</option>
-                            {% for target in backupTargets %}
-                                <option value="{{ target.id }}" {% if selectedTarget == (target.id ~ '') %}selected{% endif %}>{{ target.label }} ({{ target.type }})</option>
-                            {% endfor %}
-                        </select>
-                    </label>
-                    <label class="text-xs text-slate-700">
-                        <span class="font-semibold uppercase text-slate-600">Retention days</span>
-                        <input type="number" min="1" name="retention_days" value="{{ schedule ? schedule.retention_days : backupDefaults.retention_days }}" class="mt-1 w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm">
-                    </label>
-                    <label class="text-xs text-slate-700">
-                        <span class="font-semibold uppercase text-slate-600">Retention count</span>
-                        <input type="number" min="1" name="retention_count" value="{{ schedule ? schedule.retention_count : backupDefaults.retention_count }}" class="mt-1 w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm">
-                    </label>
-                    <label class="text-xs text-slate-700">
-                        <span class="font-semibold uppercase text-slate-600">Compression</span>
-                        {% set selectedCompression = schedule ? schedule.compression : backupDefaults.compression %}
-                        <select name="compression" class="mt-1 w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm">
-                            <option value="gzip" {% if selectedCompression == 'gzip' %}selected{% endif %}>gzip</option>
-                            <option value="zstd" {% if selectedCompression == 'zstd' %}selected{% endif %}>zstd</option>
-                        </select>
-                    </label>
-                    <label class="flex items-center gap-2 text-xs text-slate-700 md:col-span-3">
-                        <input type="checkbox" name="enabled" value="1" {% if schedule and schedule.enabled %}checked{% endif %}>
-                        Enable auto backup
-                    </label>
-                    <label class="flex items-center gap-2 text-xs text-slate-700 md:col-span-3">
-                        <input type="checkbox" name="stop_before" value="1" {% if (schedule and schedule.stop_before) or (not schedule and backupDefaults.stop_before) %}checked{% endif %}>
-                        Stop before backup
-                    </label>
-                    <div class="md:col-span-3 flex items-center justify-between gap-3">
-                        <p class="text-xs text-slate-500">
-                            Last run: {{ schedule and schedule.last_run_at ? schedule.last_run_at|date('Y-m-d H:i:s') : 'n/a' }} ·
-                            Last status: {{ schedule and schedule.last_status ? schedule.last_status : 'n/a' }}
-                            {% if schedule and schedule.last_error_code %}(error: {{ schedule.last_error_code }}){% endif %}
-                            {% if schedule and schedule.next_run_at %} · Next: {{ schedule.next_run_at|date('Y-m-d H:i:s') }}{% endif %}
-                        </p>
-                        <button type="submit" class="rounded bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800">Save schedule</button>
-                    </div>
-                </form>
-            </div>
-        {% else %}
-            <div class="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-                {{ t('customer_instance_backups_empty', page_locale()) }}
-            </div>
-        {% endfor %}
-    </div>
-
-    <div class="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 class="text-sm font-semibold text-slate-900">Backup history</h3>
-        <div id="backup-history" class="mt-3 space-y-2 text-xs text-slate-700">
-            {% for backup in backupHistory %}
-                <div class="rounded border border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between gap-2" data-backup-id="{{ backup.id }}">
-                    <div>
-                        <div>#{{ backup.id }} · {{ backup.status }} · {{ backup.created_at|date('Y-m-d H:i:s') }}</div>
-                        {% if backup.error_message %}<div class="text-rose-600">{{ backup.error_message }}</div>{% endif %}
-                    </div>
-                    <button type="button" class="backup-restore-button rounded bg-amber-600 px-2 py-1 font-semibold text-white hover:bg-amber-700" data-backup-id="{{ backup.id }}">Restore</button>
-                </div>
-            {% else %}
-                <p class="text-slate-500">No backups yet.</p>
-            {% endfor %}
+<div
+    id="gameserver-backups"
+    class="space-y-4"
+    data-url-list="{{ path('customer_instance_backups_list', {id: instance.id}) }}"
+    data-url-create="{{ path('customer_instance_backups_create', {id: instance.id}) }}"
+    data-url-restore-template="{{ path('customer_instance_backups_restore', {id: instance.id, backupId: '__BACKUP_ID__'}) }}"
+    data-url-delete-template="{{ path('customer_instance_backups_delete', {id: instance.id, backupId: '__BACKUP_ID__'}) }}"
+    data-url-health="{{ path('customer_instance_backups_health', {id: instance.id}) }}"
+>
+    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+        <div class="flex flex-wrap items-center gap-2">
+            <h3 class="text-sm font-semibold text-slate-100">{{ t('customer_instance_tab_backups', page_locale()) }}</h3>
+            <input id="gs-backup-label" type="text" class="ml-auto rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100" placeholder="Backup label (optional)">
+            <button type="button" id="gs-backup-create" class="ui-button ui-button--primary">Create backup</button>
         </div>
-        <pre id="backup-job-logs" class="mt-3 max-h-52 overflow-auto rounded bg-slate-900 p-3 text-xs text-slate-100"></pre>
+        <div id="gs-backups-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
+
+        <div class="dashboard-table-wrapper mt-4">
+            <table class="dashboard-table">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Size</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody id="gs-backups-list">
+                <tr><td colspan="5" class="dashboard-table__empty">Loading backups…</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<script>
-(() => {
-    const root = document.querySelector('[data-backup-create-url]');
-    if (!root) return;
-    const feedback = document.getElementById('backup-feedback');
-    const logsBox = document.getElementById('backup-job-logs');
-    const createUrl = root.dataset.backupCreateUrl;
-    const restoreTpl = root.dataset.backupRestoreUrlTemplate;
-    const scheduleTpl = root.dataset.backupScheduleUrlTemplate;
-    const jobStatusTpl = root.dataset.jobStatusUrlTemplate;
-    const jobLogsTpl = root.dataset.jobLogsUrlTemplate;
-
-    const setFeedback = (message, isError = false) => {
-        if (!feedback) return;
-        feedback.textContent = message;
-        feedback.className = `text-xs ${isError ? 'text-rose-600' : 'text-slate-500'}`;
-    };
-
-    const pollJob = async (jobId) => {
-        if (!jobId || !jobStatusTpl) return;
-        const statusUrl = jobStatusTpl.replace('__JOB_ID__', encodeURIComponent(jobId));
-        const logsUrl = jobLogsTpl.replace('__JOB_ID__', encodeURIComponent(jobId));
-        let afterId = 0;
-
-        for (let i = 0; i < 40; i += 1) {
-            const [statusResp, logsResp] = await Promise.all([
-                fetch(statusUrl, { headers: { Accept: 'application/json' } }),
-                fetch(`${logsUrl}?afterId=${afterId}`, { headers: { Accept: 'application/json' } }),
-            ]);
-            const statusData = await statusResp.json().catch(() => ({}));
-            const logsData = await logsResp.json().catch(() => ({}));
-            if (logsBox && Array.isArray(logsData.logs)) {
-                logsData.logs.forEach((log) => {
-                    afterId = Math.max(afterId, Number(log.id) || afterId);
-                    logsBox.textContent += `${log.created_at || ''} ${log.message || ''}\n`;
-                });
-                logsBox.scrollTop = logsBox.scrollHeight;
-            }
-
-            const state = (statusData.status || '').toString().toLowerCase();
-            if (['succeeded', 'failed', 'cancelled'].includes(state)) {
-                setFeedback(statusData.message || `Backup job ${state}.`, state !== 'succeeded');
-                return;
-            }
-            setFeedback('Backup job running…');
-            await new Promise((r) => setTimeout(r, 2000));
-        }
-    };
-
-    document.querySelectorAll('.backup-schedule-form').forEach((form) => {
-        form.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const definitionId = form.dataset.definitionId;
-            if (!definitionId || !scheduleTpl) return;
-            const data = new FormData(form);
-            const body = {
-                cron_expression: String(data.get('cron_expression') || ''),
-                time_zone: String(data.get('time_zone') || 'UTC'),
-                retention_days: Number(data.get('retention_days') || 0),
-                retention_count: Number(data.get('retention_count') || 0),
-                compression: String(data.get('compression') || 'gzip'),
-                enabled: data.get('enabled') === '1',
-                stop_before: data.get('stop_before') === '1',
-                backup_target_id: String(data.get('backup_target_id') || 'default'),
-            };
-
-            try {
-                const response = await fetch(scheduleTpl.replace('__DEFINITION_ID__', encodeURIComponent(definitionId)), {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                    body: JSON.stringify(body),
-                });
-                const payload = await response.json().catch(() => ({}));
-                if (!response.ok) {
-                    throw new Error(payload.message || payload.error || 'Could not save schedule.');
-                }
-                setFeedback(payload.message || 'Schedule saved.');
-            } catch (error) {
-                setFeedback(error.message || 'Could not save schedule.', true);
-            }
-        });
-    });
-
-    document.querySelectorAll('.backup-create-button').forEach((button) => {
-        button.addEventListener('click', async () => {
-            const definitionId = button.dataset.definitionId;
-            if (!definitionId) return;
-            button.disabled = true;
-            setFeedback('Queuing backup…');
-            try {
-                const response = await fetch(createUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ definition_id: definitionId }),
-                });
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok) throw new Error(data.message || data.error || 'Backup create failed.');
-                setFeedback(data.message || 'Backup queued.');
-                await pollJob(data.job_id);
-            } catch (error) {
-                setFeedback(error.message || 'Backup create failed.', true);
-            } finally {
-                button.disabled = false;
-            }
-        });
-    });
-
-    document.querySelectorAll('.backup-restore-button').forEach((button) => {
-        button.addEventListener('click', async () => {
-            const backupId = button.dataset.backupId;
-            if (!backupId) return;
-            const confirmed = window.confirm('Restore this backup? This overwrites current files.');
-            if (!confirmed) return;
-            const preBackup = window.confirm('Create a pre-restore backup first?');
-
-            button.disabled = true;
-            setFeedback('Queuing restore…');
-            try {
-                const response = await fetch(restoreTpl.replace('__BACKUP_ID__', encodeURIComponent(backupId)), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ confirm: true, pre_backup: preBackup }),
-                });
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok) throw new Error(data.message || data.error || 'Backup restore failed.');
-                setFeedback(data.message || 'Restore queued.');
-                await pollJob(data.job_id);
-            } catch (error) {
-                setFeedback(error.message || 'Backup restore failed.', true);
-            } finally {
-                button.disabled = false;
-            }
-        });
-    });
-})();
-</script>
+<script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
+<script src="{{ asset('js/gameserver/backups-app.js') }}"></script>

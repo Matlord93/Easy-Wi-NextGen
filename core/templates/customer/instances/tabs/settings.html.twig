@@ -1,15 +1,48 @@
-<div class="space-y-4">
-    <div>
-        <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_settings', page_locale()) }}</h2>
-        <p class="text-sm text-slate-700">{{ t('customer_instance_settings_intro', page_locale()) }}</p>
+<div
+    id="gameserver-settings"
+    class="space-y-4"
+    data-url-settings="{{ path('customer_instance_settings_api_summary', {id: instance.id}) }}"
+    data-url-configs="{{ path('customer_instance_configs_envelope_list', {id: instance.id}) }}"
+    data-url-config-template="{{ path('customer_instance_configs_envelope_show', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-url-apply-template="{{ path('customer_instance_configs_envelope_apply', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
+    data-url-slots="{{ path('customer_instance_slots_update', {id: instance.id}) }}"
+    data-url-health="{{ path('customer_instance_settings_api_health', {id: instance.id}) }}"
+>
+    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+        <div class="flex items-center justify-between gap-2">
+            <h3 class="text-sm font-semibold text-slate-100">{{ t('customer_instance_tab_settings', page_locale()) }}</h3>
+            <p id="gs-settings-meta" class="text-xs text-slate-300">Loading settings…</p>
+        </div>
+        <div id="gs-settings-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
     </div>
 
-    {% if tabNotice %}
-        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ t(tabNotice, page_locale()) }}</div>
-    {% endif %}
-    {% if tabError %}
-        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ t(tabError, page_locale()) }}</div>
-    {% endif %}
+    <div class="grid gap-4 lg:grid-cols-3">
+        <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+            <h4 class="text-xs font-semibold uppercase text-slate-300">Configs</h4>
+            <ul id="gs-settings-config-list" class="mt-3 space-y-2">
+                <li class="text-sm text-slate-400">Loading configs…</li>
+            </ul>
+        </div>
+        <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4 lg:col-span-2">
+            <h4 class="text-xs font-semibold uppercase text-slate-300">Editor</h4>
+            <textarea id="gs-settings-content" class="mt-3 h-64 w-full rounded-lg border border-slate-600 bg-slate-900 p-3 text-xs text-slate-100" placeholder="Select config to edit"></textarea>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <button type="button" id="gs-settings-save" class="ui-button ui-button--primary">Save</button>
+                <button type="button" id="gs-settings-apply" class="ui-button ui-button--ghost">Apply</button>
+            </div>
+        </div>
+    </div>
 
-    {% include 'customer/instances/_settings_form.html.twig' with { instance: instance, detailMode: true, minecraftCatalog: minecraftCatalog|default(null) } %}
+    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+        <h4 class="text-xs font-semibold uppercase text-slate-300">Slots</h4>
+        <div class="mt-3 flex items-center gap-2">
+            <input id="gs-settings-slots" type="number" min="1" class="w-40 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100" placeholder="Slots">
+            <button id="gs-settings-slots-save" type="button" class="ui-button ui-button--primary">Update slots</button>
+        </div>
+    </div>
 </div>
+
+<script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
+<script src="{{ asset('js/gameserver/settings-app.js') }}"></script>

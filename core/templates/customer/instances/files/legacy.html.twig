@@ -16,6 +16,13 @@
             </div>
         </div>
 
+
+        <div class="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <p class="font-semibold">Legacy view</p>
+            <p class="mt-1 text-xs">This page is the compatibility file manager view. Use the new dashboard Files page for standard operations.</p>
+            <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="mt-2 inline-flex ui-button ui-button--ghost">Open new Files page</a>
+        </div>
+
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             <p class="font-semibold">Dateimanager läuft im Kompatibilitätsmodus.</p>
             <p class="mt-1 text-xs text-amber-700">

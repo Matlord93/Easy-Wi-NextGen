@@ -58,7 +58,8 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 	maxConcurrency := resolveMaxConcurrency(cfg.MaxConcurrency, 0)
 	roles := collectRoles()
 	metadata := collectMetadata(cfg)
-	runner := newJobRunner(maxConcurrency)
+	globalJournalStreams = newJournalStreamManager(cfg.MaxJournalStreams, cfg.StreamTTL)
+	runner := newJobRunner(maxConcurrency, cfg.MaxJournalStreams)
 	lastCredentialRefresh := time.Time{}
 	credentialRefreshCooldown := 2 * time.Minute
 
@@ -100,9 +101,12 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 			logSender := newApiJobLogSender(client)
 			for _, job := range jobsList {
 				jobCopy := job
+				instanceLock, lockMode, isStream := resolveJobScheduling(jobCopy)
 				runner.Submit(jobTask{
-					job:     jobCopy,
-					lockKey: resolveJobLockKey(jobCopy),
+					job:          jobCopy,
+					instanceLock: instanceLock,
+					lockMode:     lockMode,
+					isStream:     isStream,
 					handler: func(job jobs.Job) {
 						if err := client.StartJob(ctx, job.ID); err != nil {
 							log.Printf("start job failed: %v", err)
@@ -135,8 +139,8 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 			for _, job := range orchestratorJobs {
 				jobCopy := job
 				runner.Submit(jobTask{
-					job:     jobCopy,
-					lockKey: resolveJobLockKey(jobCopy),
+					job:      jobCopy,
+					lockMode: jobLockNone,
 					handler: func(job jobs.Job) {
 						if err := client.StartAgentJob(ctx, cfg.AgentID, job.ID); err != nil {
 							log.Printf("start orchestrator job failed: %v", err)
@@ -204,25 +208,42 @@ func resolveMaxConcurrency(configured int, reported int) int {
 	return configured
 }
 
+type jobLockMode int
+
+const (
+	jobLockNone jobLockMode = iota
+	jobLockRead
+	jobLockWrite
+)
+
 type jobTask struct {
-	job     jobs.Job
-	lockKey string
-	handler func(jobs.Job)
+	job          jobs.Job
+	instanceLock string
+	lockMode     jobLockMode
+	isStream     bool
+	handler      func(jobs.Job)
 }
 
 type jobRunner struct {
-	tasks      chan jobTask
-	stopWorker chan struct{}
-	locks      *instanceLockManager
-	mu         sync.Mutex
-	limit      int
+	tasks         chan jobTask
+	stopWorker    chan struct{}
+	locks         *instanceLockManager
+	streamLimiter chan struct{}
+	maxStreamJobs int
+	mu            sync.Mutex
+	limit         int
 }
 
-func newJobRunner(limit int) *jobRunner {
+func newJobRunner(limit int, maxStreamJobs int) *jobRunner {
+	if maxStreamJobs < 1 {
+		maxStreamJobs = 1
+	}
 	runner := &jobRunner{
-		tasks:      make(chan jobTask, 200),
-		stopWorker: make(chan struct{}, 200),
-		locks:      newInstanceLockManager(),
+		tasks:         make(chan jobTask, 200),
+		stopWorker:    make(chan struct{}, 200),
+		locks:         newInstanceLockManager(),
+		streamLimiter: make(chan struct{}, maxStreamJobs),
+		maxStreamJobs: maxStreamJobs,
 	}
 	runner.SetLimit(limit)
 	return runner
@@ -260,56 +281,140 @@ func (r *jobRunner) worker() {
 	for {
 		select {
 		case task := <-r.tasks:
-			if task.lockKey != "" {
-				r.locks.WithLock(task.lockKey, func() {
-					task.handler(task.job)
-				})
-			} else {
-				task.handler(task.job)
-			}
+			r.execute(task)
 		case <-r.stopWorker:
 			return
 		}
 	}
 }
 
+func (r *jobRunner) execute(task jobTask) {
+	run := func() {
+		task.handler(task.job)
+	}
+	if task.isStream {
+		r.streamLimiter <- struct{}{}
+		defer func() { <-r.streamLimiter }()
+	}
+	switch task.lockMode {
+	case jobLockRead:
+		r.locks.WithReadLock(task.instanceLock, run)
+	case jobLockWrite:
+		r.locks.WithWriteLock(task.instanceLock, run)
+	default:
+		run()
+	}
+}
+
 type instanceLockManager struct {
 	mu    sync.Mutex
-	locks map[string]*sync.Mutex
+	locks map[string]*instanceRWLock
+}
+
+type instanceRWLock struct {
+	mu             sync.Mutex
+	cond           *sync.Cond
+	activeReaders  int
+	activeWriter   bool
+	pendingWriters int
 }
 
 func newInstanceLockManager() *instanceLockManager {
-	return &instanceLockManager{locks: map[string]*sync.Mutex{}}
+	return &instanceLockManager{locks: map[string]*instanceRWLock{}}
 }
 
-func (m *instanceLockManager) WithLock(key string, fn func()) {
+func newInstanceRWLock() *instanceRWLock {
+	lock := &instanceRWLock{}
+	lock.cond = sync.NewCond(&lock.mu)
+	return lock
+}
+
+func (m *instanceLockManager) getLock(key string) *instanceRWLock {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	lock, ok := m.locks[key]
+	if !ok {
+		lock = newInstanceRWLock()
+		m.locks[key] = lock
+	}
+	return lock
+}
+
+func (m *instanceLockManager) WithReadLock(key string, fn func()) {
 	if key == "" {
 		fn()
 		return
 	}
-	m.mu.Lock()
-	lock, ok := m.locks[key]
-	if !ok {
-		lock = &sync.Mutex{}
-		m.locks[key] = lock
+	lock := m.getLock(key)
+	lock.mu.Lock()
+	for lock.activeWriter || lock.pendingWriters > 0 {
+		lock.cond.Wait()
 	}
-	m.mu.Unlock()
-	lock.Lock()
-	defer lock.Unlock()
+	lock.activeReaders++
+	lock.mu.Unlock()
+
+	defer func() {
+		lock.mu.Lock()
+		lock.activeReaders--
+		if lock.activeReaders == 0 {
+			lock.cond.Broadcast()
+		}
+		lock.mu.Unlock()
+	}()
 	fn()
 }
 
-func resolveJobLockKey(job jobs.Job) string {
-	if job.Payload == nil {
-		return ""
+func (m *instanceLockManager) WithWriteLock(key string, fn func()) {
+	if key == "" {
+		fn()
+		return
 	}
-	if value, ok := job.Payload["instance_id"]; ok {
-		if key := strings.TrimSpace(payloadString(value)); key != "" {
-			return "instance:" + key
+	lock := m.getLock(key)
+	lock.mu.Lock()
+	lock.pendingWriters++
+	for lock.activeWriter || lock.activeReaders > 0 {
+		lock.cond.Wait()
+	}
+	lock.pendingWriters--
+	lock.activeWriter = true
+	lock.mu.Unlock()
+
+	defer func() {
+		lock.mu.Lock()
+		lock.activeWriter = false
+		lock.cond.Broadcast()
+		lock.mu.Unlock()
+	}()
+	fn()
+}
+
+func resolveJobScheduling(job jobs.Job) (instanceLock string, lockMode jobLockMode, isStream bool) {
+	instanceID := ""
+	if job.Payload != nil {
+		if value, ok := job.Payload["instance_id"]; ok {
+			instanceID = strings.TrimSpace(payloadString(value))
 		}
 	}
-	return ""
+	if instanceID != "" {
+		instanceLock = "instance:" + instanceID
+	}
+
+	jobType, _ := normalizeJobType(job.Type)
+	if strings.HasPrefix(jobType, "instance.") {
+		switch jobType {
+		case "instance.start", "instance.stop", "instance.restart", "instance.create", "instance.delete", "instance.config.apply", "instance.reinstall", "instance.backup.restore", "instance.files.write", "instance.files.delete", "instance.files.mkdir":
+			return instanceLock, jobLockWrite, false
+		case "instance.logs.tail":
+			return instanceLock, jobLockRead, true
+		default:
+			return instanceLock, jobLockRead, false
+		}
+	}
+
+	return "", jobLockNone, false
 }
+
+var globalJournalStreams = newJournalStreamManager(4, 75*time.Second)
 
 var jobTypeAliases = map[string]string{
 	"database.rotate_password": "database.password.rotate",

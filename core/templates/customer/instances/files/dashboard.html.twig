@@ -1,0 +1,78 @@
+{% extends 'customer/base.html.twig' %}
+
+{% block content %}
+    <div class="customer-dashboard customer-dashboard--revamp flex flex-col gap-6" id="gameserver-files-app"
+         data-instance-id="{{ instance.id }}"
+         data-files-list-url="{{ path('customer_instance_files_api_list', {id: instance.id}) }}"
+         data-files-health-url="{{ path('customer_instance_files_api_health', {id: instance.id}) }}"
+         data-files-upload-url="{{ path('customer_instance_files_api_upload', {id: instance.id}) }}"
+         data-files-download-url="{{ path('customer_instance_files_api_download', {id: instance.id}) }}"
+         data-files-mkdir-url="{{ path('customer_instance_files_api_mkdir', {id: instance.id}) }}"
+         data-files-rename-url="{{ path('customer_instance_files_api_rename', {id: instance.id}) }}"
+         data-files-delete-url="{{ path('customer_instance_files_api_delete', {id: instance.id}) }}">
+        <div>
+            <h2 class="text-3xl font-semibold text-slate-100">{{ instance.template.name }} · #{{ instance.id }}</h2>
+            <p class="mt-2 text-base text-slate-400">{{ t('customer_instance_detail_intro', page_locale()) }}</p>
+        </div>
+
+        <section class="dashboard-panel">
+            <div class="mt-1 flex flex-wrap gap-2 border-b border-slate-700 pb-3">
+                {% for tab in tabs %}
+                    <a
+                        href="{{ tab.href }}"
+                        class="rounded-lg px-3 py-2 text-xs font-semibold transition {{ tab.key == activeTab ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-slate-100' }}"
+                    >
+                        {% if tab.label_is_key is defined and not tab.label_is_key %}
+                            {{ tab.label }}
+                        {% else %}
+                            {{ t(tab.label, page_locale()) }}
+                        {% endif %}
+                    </a>
+                {% endfor %}
+            </div>
+
+            <div class="dashboard-panel__header mt-4">
+                <div>
+                    <h3>{{ t('customer_instance_files_title', page_locale()) }}</h3>
+                    <p>{{ t('customer_instance_files_intro', page_locale()) }}</p>
+                </div>
+            </div>
+            <div id="gameserver-files-inline-error" class="hidden rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
+            <div class="mt-4 flex flex-wrap items-center gap-2 text-sm text-slate-200">
+                <button type="button" class="ui-button ui-button--ghost" id="gf-up">Up</button>
+                <button type="button" class="ui-button ui-button--primary" id="gf-refresh">Refresh</button>
+                <button type="button" class="ui-button ui-button--ghost" id="gf-mkdir">New folder</button>
+                <div class="ml-auto text-xs text-slate-400" id="gf-cwd"></div>
+            </div>
+            <div class="mt-3 text-sm text-slate-300" id="gf-breadcrumbs"></div>
+
+            <div class="dashboard-table-wrapper mt-4">
+                <table class="dashboard-table">
+                    <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Size</th>
+                        <th>Modified</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody id="gf-list">
+                    <tr><td colspan="5" class="dashboard-table__empty">Loading files…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 rounded-lg border border-dashed border-slate-600 p-4">
+                <label class="text-sm text-slate-200">Upload file</label>
+                <input type="file" id="gf-upload" class="mt-2 block w-full text-sm text-slate-300">
+            </div>
+        </section>
+    </div>
+    <div id="gameserver-files-toast" class="hidden fixed bottom-4 right-4 z-50 rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-xl"></div>
+    <script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
+    <script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
+    <script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
+    <script src="{{ asset('js/gameserver-files-app.js') }}"></script>
+{% endblock %}
+

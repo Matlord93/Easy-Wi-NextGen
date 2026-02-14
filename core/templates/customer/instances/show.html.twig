@@ -2,36 +2,65 @@
 
 
 {% block content %}
-    <div class="space-y-6">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <p class="text-xs uppercase tracking-wide text-slate-600">{{ t('customer_instance_detail_kicker', page_locale()) }}</p>
-                <h1 class="text-2xl font-semibold text-slate-900">{{ instance.template.name }} · #{{ instance.id }}</h1>
-                <p class="text-sm text-slate-700">{{ t('customer_instance_detail_intro', page_locale()) }}</p>
-            </div>
-            <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
-                <p class="font-semibold text-slate-800">{{ instance.template.game_key }}</p>
-                <p class="mt-1">{{ instance.node.name }} ({{ instance.node.id }})</p>
-            </div>
+    <div class="customer-dashboard customer-dashboard--revamp flex flex-col gap-6">
+        <div>
+            <h2 class="text-3xl font-semibold text-slate-100">{{ instance.template.name }} · #{{ instance.id }}</h2>
+            <p class="mt-2 text-base text-slate-400">{{ t('customer_instance_detail_intro', page_locale()) }}</p>
         </div>
 
-        <div class="flex flex-wrap gap-2 border-b border-slate-200">
-            {% for tab in tabs %}
-                <a
-                    href="{{ tab.href }}"
-                    class="rounded-t-lg border border-b-0 px-4 py-2 text-xs font-semibold transition {{ tab.key == activeTab ? 'border-slate-200 bg-white text-slate-900 shadow-sm' : 'border-transparent text-slate-500 hover:text-slate-700' }}"
-                >
-                    {% if tab.label_is_key is defined and not tab.label_is_key %}
-                        {{ tab.label }}
-                    {% else %}
-                        {{ t(tab.label, page_locale()) }}
+
+        {% if legacyQueryMode|default(false) %}
+            <section class="dashboard-panel border border-amber-300 bg-amber-50 text-amber-900">
+                <div class="dashboard-panel__header">
+                    <div>
+                        <h3>Legacy URL mode</h3>
+                        <p>You are viewing this page via the legacy <code>?tab=</code> route. Use the dedicated tab URLs instead.</p>
+                    </div>
+                    {% if legacyPreferredUrl %}
+                        <a href="{{ legacyPreferredUrl }}" class="ui-button ui-button--ghost">Open canonical tab URL</a>
                     {% endif %}
-                </a>
-            {% endfor %}
-        </div>
+                </div>
+            </section>
+        {% endif %}
 
-        <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            {% include tabTemplate %}
-        </div>
+        <section class="dashboard-panel">
+            <div class="dashboard-panel__header">
+                <div>
+                    <h3>{{ t('customer_instance_detail_kicker', page_locale()) }}</h3>
+                    <p>{{ instance.template.game_key }} · {{ instance.node.name }} ({{ instance.node.id }})</p>
+                </div>
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2 border-b border-slate-700 pb-3">
+                {% for tab in tabs %}
+                    <a
+                        href="{{ tab.href }}"
+                        class="rounded-lg px-3 py-2 text-xs font-semibold transition {{ tab.key == activeTab ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-slate-100' }}"
+                    >
+                        {% if tab.label_is_key is defined and not tab.label_is_key %}
+                            {{ tab.label }}
+                        {% else %}
+                            {{ t(tab.label, page_locale()) }}
+                        {% endif %}
+                    </a>
+                {% endfor %}
+            </div>
+
+            <div class="mt-4">
+                {% include tabTemplate %}
+            </div>
+        </section>
+
+        {% if activeTab not in ['overview', 'console', 'backups', 'tasks', 'settings'] %}
+            <section class="dashboard-panel">
+                <div class="dashboard-panel__header">
+                    <div>
+                        <h3>Legacy module view</h3>
+                        <p>This tab remains available for backward compatibility during migration.</p>
+                    </div>
+                </div>
+            </section>
+        {% endif %}
+
     </div>
 {% endblock %}

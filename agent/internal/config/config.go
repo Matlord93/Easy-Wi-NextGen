@@ -35,6 +35,8 @@ type Config struct {
 	FileWriteTimeout  time.Duration
 	FileIdleTimeout   time.Duration
 	FileMaxUploadMB   int64
+	MaxJournalStreams int
+	StreamTTL         time.Duration
 }
 
 // DefaultPath returns the default configuration path for the host OS.
@@ -111,6 +113,17 @@ func Load(path string) (cfg Config, err error) {
 				return Config{}, fmt.Errorf("parse max_concurrency: %w", parseErr)
 			}
 			cfg.MaxConcurrency = parsed
+		case "max_journal_streams":
+			parsed, parseErr := strconv.Atoi(value)
+			if parseErr != nil {
+				return Config{}, fmt.Errorf("parse max_journal_streams: %w", parseErr)
+			}
+			cfg.MaxJournalStreams = parsed
+		case "stream_ttl":
+			cfg.StreamTTL, err = time.ParseDuration(value)
+			if err != nil {
+				return Config{}, fmt.Errorf("parse stream_ttl: %w", err)
+			}
 		case "version":
 			cfg.Version = value
 		case "update_url":
@@ -207,6 +220,12 @@ func validate(cfg Config) error {
 	if cfg.MaxConcurrency < 0 {
 		return errors.New("max_concurrency must be positive")
 	}
+	if cfg.MaxJournalStreams < 0 {
+		return errors.New("max_journal_streams must be positive")
+	}
+	if cfg.StreamTTL < 0 {
+		return errors.New("stream_ttl must be positive")
+	}
 	if cfg.FileBaseDir != "" && !filepath.IsAbs(cfg.FileBaseDir) {
 		return errors.New("file_base_dir must be absolute")
 	}
@@ -233,6 +252,12 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.MaxConcurrency == 0 {
 		cfg.MaxConcurrency = max(2, runtime.NumCPU())
+	}
+	if cfg.MaxJournalStreams == 0 {
+		cfg.MaxJournalStreams = 4
+	}
+	if cfg.StreamTTL == 0 {
+		cfg.StreamTTL = 75 * time.Second
 	}
 	if cfg.Version == "" {
 		cfg.Version = defaultVersion()

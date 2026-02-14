@@ -99,10 +99,41 @@ final class CustomerInstanceController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $activeTab = $this->resolveTab((string) $request->query->get('tab', 'overview'));
+        $legacyQueryMode = $request->query->has('tab');
         $tabNotice = $this->resolveNoticeKey((string) $request->query->get('notice', ''));
         $tabError = $this->resolveErrorKey((string) $request->query->get('error', ''));
 
-        return $this->renderInstanceDetail($instance, $customer, $activeTab, $tabNotice, $tabError);
+        return $this->renderInstanceDetail($instance, $customer, $activeTab, $tabNotice, $tabError, [], Response::HTTP_OK, $legacyQueryMode);
+    }
+
+    #[Route(path: '/{id}/overview', name: 'customer_instance_overview_page', methods: ['GET'])]
+    public function overviewPage(Request $request, int $id): Response
+    {
+        return $this->renderNamedTabPage($request, $id, 'overview');
+    }
+
+    #[Route(path: '/{id}/console', name: 'customer_instance_console_page', methods: ['GET'])]
+    public function consolePage(Request $request, int $id): Response
+    {
+        return $this->renderNamedTabPage($request, $id, 'console');
+    }
+
+    #[Route(path: '/{id}/backups', name: 'customer_instance_backups_page', methods: ['GET'])]
+    public function backupsPage(Request $request, int $id): Response
+    {
+        return $this->renderNamedTabPage($request, $id, 'backups');
+    }
+
+    #[Route(path: '/{id}/tasks', name: 'customer_instance_tasks_page', methods: ['GET'])]
+    public function tasksPage(Request $request, int $id): Response
+    {
+        return $this->renderNamedTabPage($request, $id, 'tasks');
+    }
+
+    #[Route(path: '/{id}/settings', name: 'customer_instance_settings_page', methods: ['GET'])]
+    public function settingsPage(Request $request, int $id): Response
+    {
+        return $this->renderNamedTabPage($request, $id, 'settings');
     }
 
     #[Route(path: '/{id}/setup/vars', name: 'customer_instance_setup_vars', methods: ['POST'])]
@@ -1358,14 +1389,15 @@ final class CustomerInstanceController
                 'href' => $this->instanceTabUrl($instanceId, 'overview'),
             ],
             [
+                'key' => 'console',
+                'label' => $this->appSettingsService->getCustomerConsoleLabel() ?? 'customer_instance_tab_console',
+                'label_is_key' => $this->appSettingsService->getCustomerConsoleLabel() === null,
+                'href' => $this->instanceTabUrl($instanceId, 'console'),
+            ],
+            [
                 'key' => 'setup',
                 'label' => 'customer_instance_tab_setup',
                 'href' => $this->instanceTabUrl($instanceId, 'setup'),
-            ],
-            [
-                'key' => 'configs',
-                'label' => 'customer_instance_tab_configs',
-                'href' => $this->instanceTabUrl($instanceId, 'configs'),
             ],
             $this->appSettingsService->isCustomerDataManagerEnabled() ? [
                 'key' => 'files',
@@ -1373,40 +1405,19 @@ final class CustomerInstanceController
                 'href' => $this->instanceTabUrl($instanceId, 'files'),
             ] : null,
             [
-                'key' => 'addons',
-                'label' => 'customer_instance_tab_addons',
-                'href' => $this->instanceTabUrl($instanceId, 'addons'),
-            ],
-            [
-                'key' => 'restart_planner',
-                'label' => 'customer_instance_tab_restart_planner',
-                'href' => $this->instanceTabUrl($instanceId, 'restart_planner'),
-            ],
-            [
                 'key' => 'backups',
                 'label' => 'customer_instance_tab_backups',
                 'href' => $this->instanceTabUrl($instanceId, 'backups'),
             ],
             [
-                'key' => 'console',
-                'label' => $this->appSettingsService->getCustomerConsoleLabel() ?? 'customer_instance_tab_console',
-                'label_is_key' => $this->appSettingsService->getCustomerConsoleLabel() === null,
-                'href' => $this->instanceTabUrl($instanceId, 'console'),
+                'key' => 'tasks',
+                'label' => 'customer_instance_tab_tasks',
+                'href' => $this->instanceTabUrl($instanceId, 'tasks'),
             ],
             [
                 'key' => 'settings',
                 'label' => 'customer_instance_tab_settings',
                 'href' => $this->instanceTabUrl($instanceId, 'settings'),
-            ],
-            [
-                'key' => 'reinstall',
-                'label' => 'customer_instance_tab_reinstall',
-                'href' => $this->instanceTabUrl($instanceId, 'reinstall'),
-            ],
-            [
-                'key' => 'tasks',
-                'label' => 'customer_instance_tab_tasks',
-                'href' => $this->instanceTabUrl($instanceId, 'tasks'),
             ],
         ];
 
@@ -1415,10 +1426,26 @@ final class CustomerInstanceController
 
     private function instanceTabUrl(int $instanceId, string $tab): string
     {
-        return $this->urlGenerator->generate('customer_instance_detail', [
-            'id' => $instanceId,
-            'tab' => $tab,
-        ]);
+        return match ($tab) {
+            'overview' => $this->urlGenerator->generate('customer_instance_overview_page', ['id' => $instanceId]),
+            'console' => $this->urlGenerator->generate('customer_instance_console_page', ['id' => $instanceId]),
+            'backups' => $this->urlGenerator->generate('customer_instance_backups_page', ['id' => $instanceId]),
+            'tasks' => $this->urlGenerator->generate('customer_instance_tasks_page', ['id' => $instanceId]),
+            'settings' => $this->urlGenerator->generate('customer_instance_settings_page', ['id' => $instanceId]),
+            'files' => $this->urlGenerator->generate('customer_instance_files', ['id' => $instanceId]),
+            default => $this->urlGenerator->generate('customer_instance_detail', [
+                'id' => $instanceId,
+                'tab' => $tab,
+            ]),
+        };
+    }
+
+    private function renderNamedTabPage(Request $request, int $id, string $tab): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+
+        return $this->renderInstanceDetail($instance, $customer, $this->resolveTab($tab), null, null);
     }
 
     private function resolveTab(string $tab): string
@@ -1458,6 +1485,7 @@ final class CustomerInstanceController
         ?string $tabError,
         array $setupMessages = [],
         int $statusCode = Response::HTTP_OK,
+        bool $legacyQueryMode = false,
     ): Response {
         $updateSchedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Update);
         $portBlock = $this->portBlockRepository->findByInstance($instance);
@@ -1494,6 +1522,10 @@ final class CustomerInstanceController
             'activeNav' => 'instances',
             'tabs' => $tabs,
             'activeTab' => $activeTab,
+            'legacyQueryMode' => $legacyQueryMode,
+            'legacyPreferredUrl' => in_array($activeTab, ['overview', 'console', 'backups', 'tasks', 'settings'], true)
+                ? $this->instanceTabUrl((int) ($instance->getId() ?? 0), $activeTab)
+                : null,
             'tabTemplate' => sprintf('customer/instances/tabs/%s.html.twig', $activeTab),
             'tabNotice' => $tabNotice,
             'tabError' => $tabError,

@@ -1,3 +1,23 @@
+<div
+    id="gameserver-overview-mount"
+    class="mb-4 rounded-lg border border-slate-700 bg-slate-900/40 p-4"
+    data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}"
+>
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-semibold uppercase text-slate-400">Power</span>
+        <button type="button" data-power-action="start" class="ui-button ui-button--primary">Start</button>
+        <button type="button" data-power-action="stop" class="ui-button ui-button--danger">Stop</button>
+        <button type="button" data-power-action="restart" class="ui-button ui-button--ghost">Restart</button>
+        <span id="gameserver-overview-state" class="ml-auto text-xs text-slate-300">{{ instance.status }}</span>
+    </div>
+    <div id="gameserver-overview-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
+</div>
+
 <div id="instance-card-{{ instance.id }}">
     {% include 'customer/instances/_card.html.twig' with { instance: instance } %}
 </div>
+
+<script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
+<script src="{{ asset('js/gameserver/overview-app.js') }}"></script>
