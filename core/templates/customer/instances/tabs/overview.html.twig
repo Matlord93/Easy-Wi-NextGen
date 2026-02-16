@@ -2,6 +2,8 @@
     id="gameserver-overview-mount"
     class="mb-4 rounded-lg border border-slate-700 bg-slate-900/40 p-4"
     data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}"
+    data-power-redirect-url="{{ path('customer_instance_tasks_page', {id: instance.id}) }}"
+    data-url-query="{{ path('customer_instance_query_api_v2', {id: instance.id}) }}"
 >
     <div class="flex flex-wrap items-center gap-2">
         <span class="text-xs font-semibold uppercase text-slate-400">Power</span>

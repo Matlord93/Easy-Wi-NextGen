@@ -1,224 +1,29 @@
-<div class="space-y-6">
-    <div>
-        <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_addons', page_locale()) }}</h2>
-        <p class="text-sm text-slate-700">{{ t('customer_instance_addons_intro', page_locale()) }}</p>
-    </div>
-
-    <div class="grid gap-4 lg:grid-cols-2">
-        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_addons_plugin_paths', page_locale()) }}</p>
-            <ul class="mt-3 space-y-2 text-sm text-slate-600">
-                {% for path in pluginPaths %}
-                    <li class="rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-700">{{ path }}</li>
-                {% else %}
-                    <li class="text-sm text-slate-500">{{ t('customer_instance_addons_no_plugins', page_locale()) }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-        <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_addons_fastdl', page_locale()) }}</p>
-            <div class="mt-3 space-y-2 text-sm text-slate-600">
-                <div class="flex items-center justify-between">
-                    <span>{{ t('customer_instance_addons_fastdl_enabled', page_locale()) }}</span>
-                    <span class="text-xs font-semibold {{ fastdl.enabled ? 'text-emerald-700' : 'text-slate-500' }}">
-                        {{ fastdl.enabled ? t('yes', page_locale()) : t('no', page_locale()) }}
-                    </span>
-                </div>
-                <div class="flex flex-col gap-1">
-                    <span class="text-xs uppercase text-slate-500">{{ t('customer_instance_addons_fastdl_base_url', page_locale()) }}</span>
-                    <span class="text-sm text-slate-700">{{ fastdl.base_url ?: '—' }}</span>
-                </div>
-                <div class="flex flex-col gap-1">
-                    <span class="text-xs uppercase text-slate-500">{{ t('customer_instance_addons_fastdl_root', page_locale()) }}</span>
-                    <span class="text-sm text-slate-700">{{ fastdl.root_path ?: '—' }}</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div
-        class="rounded-lg border border-slate-200 bg-white p-4"
-        data-addons-install-url="{{ path('customer_instance_addons_install', {id: instance.id}) }}"
-        data-addons-update-url="{{ path('customer_instance_addons_update', {id: instance.id}) }}"
-        data-addons-remove-url="{{ path('customer_instance_addons_remove', {id: instance.id}) }}"
-        data-job-status-url-template="{{ path('customer_job_api_show', {jobId: '__JOB_ID__'}) }}"
-    >
-        <div class="flex flex-wrap items-center justify-between gap-3">
+<div
+    id="gameserver-addons"
+    class="space-y-4"
+    data-url-health="{{ path('customer_instance_addons_health', {id: instance.id}) }}"
+    data-url-list="{{ path('customer_instance_addons_list', {id: instance.id}) }}"
+    data-url-install-template="{{ path('customer_instance_addons_install_v2', {id: instance.id, addonId: '__ADDON_ID__'}) }}"
+    data-url-update-template="{{ path('customer_instance_addons_update_v2', {id: instance.id, addonId: '__ADDON_ID__'}) }}"
+    data-url-remove-template="{{ path('customer_instance_addons_remove_v2', {id: instance.id, addonId: '__ADDON_ID__'}) }}"
+>
+    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+        <div class="flex items-center justify-between gap-3">
             <div>
-                <h3 class="text-sm font-semibold text-slate-900">{{ t('customer_instance_addons_plugins_title', page_locale()) }}</h3>
-                <p class="text-xs text-slate-600">{{ t('customer_instance_addons_plugins_intro', page_locale()) }}</p>
+                <h3 class="text-sm font-semibold text-slate-100">{{ t('customer_instance_tab_addons', page_locale()) }}</h3>
+                <p class="text-xs text-slate-400">Vorlagenbasierte Addons für diese Instanz.</p>
             </div>
-            <p class="text-xs text-slate-500" id="addons-feedback"></p>
+            <p id="gs-addons-meta" class="text-xs text-slate-400">Loading…</p>
         </div>
-        <div class="mt-4 space-y-3">
-            {% for plugin in availablePlugins %}
-                <div class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3" data-addon-plugin-id="{{ plugin.id }}">
-                    <div>
-                        <p class="text-sm font-semibold text-slate-900">{{ plugin.name }}</p>
-                        <p class="text-xs text-slate-600">
-                            Installed: {{ plugin.installed_version ?: 'not installed' }} · Latest: {{ plugin.latest_version ?: plugin.version }}
-                        </p>
-                        {% if plugin.description %}
-                            <p class="mt-2 text-xs text-slate-600">{{ plugin.description }}</p>
-                        {% endif %}
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 addon-action-button"
-                            data-action="install"
-                            data-plugin-id="{{ plugin.id }}"
-                            {{ plugin.is_installed ? 'disabled' }}
-                        >
-                            {{ t('customer_instance_addons_install', page_locale()) }}
-                        </button>
-                        <button
-                            type="button"
-                            class="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 addon-action-button"
-                            data-action="update"
-                            data-plugin-id="{{ plugin.id }}"
-                            {{ plugin.can_update ? '' : 'disabled' }}
-                        >
-                            {{ t('customer_instance_addons_update', page_locale()) }}
-                        </button>
-                        <button
-                            type="button"
-                            class="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 addon-action-button"
-                            data-action="remove"
-                            data-plugin-id="{{ plugin.id }}"
-                            {{ plugin.can_remove ? '' : 'disabled' }}
-                        >
-                            {{ t('customer_instance_addons_remove', page_locale()) }}
-                        </button>
-                    </div>
-                </div>
-            {% else %}
-                <div class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
-                    {{ t('customer_instance_addons_no_plugins_available', page_locale()) }}
-                </div>
-            {% endfor %}
-        </div>
+        <div id="gs-addons-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
+    </div>
+
+    <div id="gs-addons-list" class="grid gap-3 md:grid-cols-2">
+        <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-400 md:col-span-2">Loading addons…</div>
     </div>
 </div>
 
-<script>
-    (() => {
-        const container = document.querySelector('[data-addons-install-url]');
-        if (!container) {
-            return;
-        }
-
-        const urls = {
-            install: container.dataset.addonsInstallUrl,
-            update: container.dataset.addonsUpdateUrl,
-            remove: container.dataset.addonsRemoveUrl,
-        };
-        const jobStatusTemplate = container.dataset.jobStatusUrlTemplate || '';
-        const feedback = document.getElementById('addons-feedback');
-        const buttons = container.querySelectorAll('.addon-action-button');
-
-        if (!urls.install || !urls.update || !urls.remove || buttons.length === 0) {
-            return;
-        }
-
-        const labels = {
-            queued: "Addon action queued.",
-            failed: "Addon action failed.",
-            inProgress: "Addon action is running…",
-            done: "Addon action completed.",
-            incompatible: "Addon is not compatible with this server.",
-        };
-
-        const setFeedback = (message, isError = false) => {
-            if (!feedback) {
-                return;
-            }
-            feedback.textContent = message;
-            feedback.className = `text-xs ${isError ? 'text-rose-600' : 'text-slate-500'}`;
-        };
-
-        const setButtonsDisabled = (disabled) => {
-            buttons.forEach((button) => {
-                button.disabled = disabled || button.hasAttribute('data-static-disabled');
-            });
-        };
-
-        buttons.forEach((button) => {
-            if (button.disabled) {
-                button.setAttribute('data-static-disabled', '1');
-            }
-        });
-
-        const pollJob = async (jobId) => {
-            if (!jobStatusTemplate || !jobId) {
-                return;
-            }
-            const statusUrl = jobStatusTemplate.replace('__JOB_ID__', encodeURIComponent(jobId));
-            let attempts = 0;
-            while (attempts < 30) {
-                attempts += 1;
-                const response = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
-                const data = await response.json().catch(() => ({}));
-                const status = (data.status || '').toString().toLowerCase();
-                if (status === 'succeeded' || status === 'finished') {
-                    setFeedback(labels.done, false);
-                    return;
-                }
-                if (status === 'failed' || status === 'error' || status === 'cancelled') {
-                    setFeedback(data.message || labels.failed, true);
-                    return;
-                }
-                setFeedback(labels.inProgress, false);
-                await new Promise((resolve) => setTimeout(resolve, attempts <= 5 ? 1500 : 3000));
-            }
-            setFeedback('Addon action is still running. Refresh for latest status.', false);
-        };
-
-        const renderError = (data, fallback) => {
-            if (!data || typeof data !== 'object') {
-                return fallback;
-            }
-            if (data.error_code === 'addon_incompatible') {
-                const details = data.details || {};
-                const requiredOs = Array.isArray(details.required_os) ? details.required_os.join(', ') : 'unknown';
-                return `${labels.incompatible} Required OS: ${requiredOs}.`;
-            }
-            return data.message || data.error || fallback;
-        };
-
-        buttons.forEach((button) => {
-            button.addEventListener('click', async () => {
-                const pluginId = button.dataset.pluginId;
-                const action = button.dataset.action;
-                const url = urls[action];
-                if (!pluginId || !action || !url) {
-                    return;
-                }
-
-                setButtonsDisabled(true);
-                setFeedback(labels.queued);
-
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ plugin_id: pluginId }),
-                    });
-                    const data = await response.json().catch(() => ({}));
-                    if (!response.ok) {
-                        throw new Error(renderError(data, labels.failed));
-                    }
-
-                    setFeedback(data.message || labels.queued);
-                    if (typeof data.job_id === 'string' && data.job_id !== '') {
-                        await pollJob(data.job_id);
-                    }
-                } catch (error) {
-                    setFeedback(error.message || labels.failed, true);
-                } finally {
-                    setButtonsDisabled(false);
-                }
-            });
-        });
-    })();
-</script>
+<script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
+<script src="{{ asset('js/gameserver/addons-app.js') }}"></script>

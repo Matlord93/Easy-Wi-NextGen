@@ -18,6 +18,7 @@
         'urlConfigCreate',
         'urlSlots',
         'urlHealth',
+        'urlAutomation',
     ]);
 
     const errorPanel = document.getElementById('gs-settings-error');
@@ -40,12 +41,66 @@
     const slotInput = document.getElementById('gs-settings-slots');
     const slotBtn = document.getElementById('gs-settings-slots-save');
     const meta = document.getElementById('gs-settings-meta');
+    const autoBackupEnabled = document.getElementById('gs-auto-backup-enabled');
+    const autoBackupMode = document.getElementById('gs-auto-backup-mode');
+    const autoBackupTime = document.getElementById('gs-auto-backup-time');
+    const autoBackupTimeWrap = document.getElementById('gs-auto-backup-time-wrap');
+    const autoRestartEnabled = document.getElementById('gs-auto-restart-enabled');
+    const autoRestartTime = document.getElementById('gs-auto-restart-time');
+    const autoRestartTimeWrap = document.getElementById('gs-auto-restart-time-wrap');
+    const autoUpdateEnabled = document.getElementById('gs-auto-update-enabled');
+    const autoUpdateTime = document.getElementById('gs-auto-update-time');
+    const autoUpdateTimeWrap = document.getElementById('gs-auto-update-time-wrap');
+    const versionLockEnabled = document.getElementById('gs-version-lock-enabled');
+    const versionLockVersion = document.getElementById('gs-version-lock-version');
+    const automationSaveBtn = document.getElementById('gs-automation-save');
 
     const state = {
         activeConfigId: '',
         configs: [],
         loadedConfig: null,
         loadingConfig: false,
+    };
+
+
+    const DEFAULT_BACKUP_TIME = '03:00';
+    const DEFAULT_RESTART_TIME = '04:00';
+    const DEFAULT_UPDATE_TIME = '05:00';
+
+    const buildTimeOptions = () => {
+        const options = [];
+        for (let hour = 0; hour < 24; hour += 1) {
+            for (let minute = 0; minute < 60; minute += 15) {
+                const hh = String(hour).padStart(2, '0');
+                const mm = String(minute).padStart(2, '0');
+                options.push(`${hh}:${mm}`);
+            }
+        }
+        return options;
+    };
+
+    const timeOptions = buildTimeOptions();
+
+    const populateTimeSelect = (select, selected, fallback) => {
+        if (!select) {
+            return;
+        }
+        const requested = selected || fallback;
+        const values = timeOptions.includes(requested) ? timeOptions : [...timeOptions, requested].sort();
+        select.innerHTML = values.map((value) => `<option value="${value}">${value}</option>`).join('');
+        select.value = requested;
+    };
+
+    const updateAutomationTimeVisibility = () => {
+        if (autoBackupTimeWrap) {
+            autoBackupTimeWrap.classList.toggle('hidden', !Boolean(autoBackupEnabled?.checked));
+        }
+        if (autoRestartTimeWrap) {
+            autoRestartTimeWrap.classList.toggle('hidden', !Boolean(autoRestartEnabled?.checked));
+        }
+        if (autoUpdateTimeWrap) {
+            autoUpdateTimeWrap.classList.toggle('hidden', !Boolean(autoUpdateEnabled?.checked));
+        }
     };
 
     const endpointFromTemplate = (templateKey, configId) => mount.dataset[templateKey].replace('__CONFIG_ID__', encodeURIComponent(configId));
@@ -128,6 +183,88 @@
             }
         } catch (error) {
             errors.showAll(errorPanel, error);
+        }
+    };
+
+
+    const populateVersionOptions = (versions, selected) => {
+        if (!versionLockVersion) {
+            return;
+        }
+        const values = Array.isArray(versions) ? versions : [];
+        if (values.length === 0) {
+            versionLockVersion.innerHTML = '<option value="">default</option>';
+        } else {
+            versionLockVersion.innerHTML = values.map((version) => `<option value="${version}">${version}</option>`).join('');
+        }
+        if (selected) {
+            versionLockVersion.value = selected;
+        }
+    };
+
+    const applyAutomationUi = (automation) => {
+        const data = automation || {};
+        if (autoBackupEnabled) {
+            autoBackupEnabled.checked = Boolean(data.auto_backup?.enabled);
+        }
+        if (autoBackupMode) {
+            autoBackupMode.value = data.auto_backup?.mode || 'manual';
+        }
+        populateTimeSelect(autoBackupTime, data.auto_backup?.time || '', DEFAULT_BACKUP_TIME);
+        if (autoRestartEnabled) {
+            autoRestartEnabled.checked = Boolean(data.auto_restart?.enabled);
+        }
+        populateTimeSelect(autoRestartTime, data.auto_restart?.time || '', DEFAULT_RESTART_TIME);
+        if (autoUpdateEnabled) {
+            autoUpdateEnabled.checked = Boolean(data.auto_update?.enabled);
+        }
+        populateTimeSelect(autoUpdateTime, data.auto_update?.time || '', DEFAULT_UPDATE_TIME);
+        if (versionLockEnabled) {
+            versionLockEnabled.checked = Boolean(data.version_lock?.enabled);
+        }
+        populateVersionOptions(data.version_lock?.available_versions || [], data.version_lock?.version || '');
+        updateAutomationTimeVisibility();
+    };
+
+    const saveAutomation = async () => {
+        setBusy(automationSaveBtn, true, 'Saving…', 'Automation speichern');
+        try {
+            const payload = await apiClient.request(mount.dataset.urlAutomation, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    automation: {
+                        auto_backup: {
+                            enabled: Boolean(autoBackupEnabled?.checked),
+                            mode: autoBackupMode?.value || 'manual',
+                            time: autoBackupTime?.value || DEFAULT_BACKUP_TIME,
+                        },
+                        auto_restart: {
+                            enabled: Boolean(autoRestartEnabled?.checked),
+                            time: autoRestartTime?.value || DEFAULT_RESTART_TIME,
+                        },
+                        auto_update: {
+                            enabled: Boolean(autoUpdateEnabled?.checked),
+                            time: autoUpdateTime?.value || DEFAULT_UPDATE_TIME,
+                        },
+                        version_lock: {
+                            enabled: Boolean(versionLockEnabled?.checked),
+                            version: versionLockVersion?.value || null,
+                        },
+                    },
+                }),
+            });
+            applyAutomationUi(payload.data?.automation || {});
+            errors.clearInline(errorPanel);
+            errors.showToast({
+                message: 'Automation settings updated.',
+                error_code: 'OK',
+                request_id: payload.request_id || '',
+            }, 2000);
+        } catch (error) {
+            errors.showAll(errorPanel, error);
+        } finally {
+            setBusy(automationSaveBtn, false, 'Saving…', 'Automation speichern');
         }
     };
 
@@ -217,6 +354,11 @@
             return;
         }
 
+        if (event.target.id === 'gs-automation-save') {
+            saveAutomation();
+            return;
+        }
+
         if (event.target.id === 'gs-settings-slots-save') {
             setBusy(slotBtn, true, 'Saving…', 'Update slots');
             try {
@@ -236,6 +378,9 @@
 
     configSearch?.addEventListener('input', renderConfigList);
     configScope?.addEventListener('change', renderConfigList);
+    autoBackupEnabled?.addEventListener('change', updateAutomationTimeVisibility);
+    autoRestartEnabled?.addEventListener('change', updateAutomationTimeVisibility);
+    autoUpdateEnabled?.addEventListener('change', updateAutomationTimeVisibility);
 
     (async () => {
         try {
@@ -243,6 +388,7 @@
             const summary = await apiClient.request(mount.dataset.urlSettings);
             errors.clearInline(errorPanel);
             slotInput.value = summary.data?.slots?.current_slots ?? '';
+            applyAutomationUi(summary.data?.automation || {});
             meta.textContent = `Settings healthy · request_id=${health.request_id || ''}`;
             await loadConfigs(summary.data || {});
         } catch (error) {

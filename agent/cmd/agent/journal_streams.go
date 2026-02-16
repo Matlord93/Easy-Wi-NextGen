@@ -93,7 +93,6 @@ func (s *journalStreamSession) addSubscriber(jobID string, sender JobLogSender) 
 	s.subscribers[jobID] = sender
 	s.lastAccess = time.Now()
 	s.mu.Unlock()
-	sendToSubscriber(jobID, sender, fmt.Sprintf("--- journalctl %s (live) ---", s.serviceName))
 }
 
 func (s *journalStreamSession) removeSubscriber(jobID string) {
@@ -201,6 +200,13 @@ func (s *journalStreamSession) isExpired() bool {
 		return false
 	}
 	return time.Since(s.lastAccess) > s.manager.ttl
+}
+
+func (m *journalStreamManager) HasSession(instanceID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.sessions[instanceID]
+	return ok
 }
 
 func (m *journalStreamManager) removeSession(instanceID string) {

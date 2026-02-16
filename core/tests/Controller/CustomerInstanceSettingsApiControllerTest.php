@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\InstanceStatus;
+use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceSettingsApiController;
 use App\Repository\InstanceRepository;
@@ -71,6 +74,15 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         self::assertSame('req-settings-show', $payload['request_id']);
     }
 
+
+
+    public function testControllerDefinesFindBackupDefinitionHelper(): void
+    {
+        $reflection = new \ReflectionClass(CustomerInstanceSettingsApiController::class);
+
+        self::assertTrue($reflection->hasMethod('findBackupDefinition'));
+    }
+
     public function testHealthReturnsOkForOwner(): void
     {
         $customer = new User('customer@example.test', UserType::Customer);
@@ -95,6 +107,137 @@ final class CustomerInstanceSettingsApiControllerTest extends TestCase
         self::assertTrue((bool) $payload['ok']);
         self::assertSame(7, $payload['data']['instance_id']);
         self::assertArrayHasKey('request_id', $payload);
+    }
+
+
+
+    public function testSummaryReturnsOkAndAutomationDefaultsWhenSchedulesUnavailable(): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $this->setEntityId($customer, 10);
+
+        $template = $this->createMock(Template::class);
+        $template->method('getGameKey')->willReturn('minecraft');
+        $template->method('getInstallResolver')->willReturn(['type' => 'unknown']);
+
+        $instance = $this->createMock(Instance::class);
+        $instance->method('getId')->willReturn(7);
+        $instance->method('getCustomer')->willReturn($customer);
+        $instance->method('getStatus')->willReturn(InstanceStatus::Running);
+        $instance->method('getSlots')->willReturn(12);
+        $instance->method('getMaxSlots')->willReturn(20);
+        $instance->method('isLockSlots')->willReturn(false);
+        $instance->method('getTemplate')->willReturn($template);
+        $instance->method('getConfigOverrides')->willReturn([]);
+        $instance->method('getSetupVars')->willReturn([]);
+        $instance->method('getUpdatePolicy')->willReturn(InstanceUpdatePolicy::Manual);
+        $instance->method('getLockedVersion')->willReturn(null);
+        $instance->method('getCurrentVersion')->willReturn(null);
+        $instance->method('getPreviousVersion')->willReturn(null);
+
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
+
+        $controller = $this->newController($repo);
+        $request = Request::create('/api/instances/7/settings', 'GET');
+        $request->attributes->set('current_user', $customer);
+
+        $response = $controller->summary($request, 7);
+        $payload = json_decode((string) $response->getContent(), true);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertTrue((bool) $payload['ok']);
+        self::assertSame(false, $payload['data']['automation']['auto_backup']['enabled']);
+        self::assertSame('manual', $payload['data']['automation']['auto_backup']['mode']);
+        self::assertSame('03:00', $payload['data']['automation']['auto_backup']['time']);
+        self::assertSame('04:00', $payload['data']['automation']['auto_restart']['time']);
+        self::assertSame('05:00', $payload['data']['automation']['auto_update']['time']);
+        self::assertArrayHasKey('request_id', $payload);
+    }
+
+    public function testUpdateAutomationRejectsInvalidBackupMode(): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $this->setEntityId($customer, 10);
+
+        $instance = $this->createMock(Instance::class);
+        $instance->method('getId')->willReturn(7);
+        $instance->method('getCustomer')->willReturn($customer);
+
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
+
+        $controller = $this->newController($repo);
+
+        $request = Request::create('/api/instances/7/settings/automation', 'PATCH', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode([
+            'automation' => ['auto_backup' => ['mode' => 'broken']],
+        ]));
+        $request->attributes->set('current_user', $customer);
+
+        $response = $controller->updateAutomation($request, 7);
+        $payload = json_decode((string) $response->getContent(), true);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertFalse((bool) $payload['ok']);
+        self::assertSame('INVALID_INPUT', $payload['error_code']);
+    }
+
+
+
+    public function testUpdateAutomationRejectsInvalidBackupTime(): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $this->setEntityId($customer, 10);
+
+        $instance = $this->createMock(Instance::class);
+        $instance->method('getId')->willReturn(7);
+        $instance->method('getCustomer')->willReturn($customer);
+
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
+
+        $controller = $this->newController($repo);
+
+        $request = Request::create('/api/instances/7/settings/automation', 'PATCH', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode([
+            'automation' => ['auto_backup' => ['enabled' => true, 'mode' => 'auto', 'time' => '25:99']],
+        ]));
+        $request->attributes->set('current_user', $customer);
+
+        $response = $controller->updateAutomation($request, 7);
+        $payload = json_decode((string) $response->getContent(), true);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertFalse((bool) $payload['ok']);
+        self::assertSame('INVALID_INPUT', $payload['error_code']);
+        self::assertArrayHasKey('request_id', $payload);
+    }
+
+    public function testUpdateAutomationReturnsConflictWhenAutoUpdateAndVersionLockActive(): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $this->setEntityId($customer, 10);
+
+        $instance = $this->createMock(Instance::class);
+        $instance->method('getId')->willReturn(7);
+        $instance->method('getCustomer')->willReturn($customer);
+        $instance->method('getLockedVersion')->willReturn('1.20.4');
+
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
+
+        $controller = $this->newController($repo);
+
+        $request = Request::create('/api/instances/7/settings/automation', 'PATCH', server: ['CONTENT_TYPE' => 'application/json'], content: json_encode([
+            'automation' => ['auto_update' => ['enabled' => true]],
+        ]));
+        $request->attributes->set('current_user', $customer);
+
+        $response = $controller->updateAutomation($request, 7);
+        $payload = json_decode((string) $response->getContent(), true);
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertFalse((bool) $payload['ok']);
+        self::assertSame('CONFLICT', $payload['error_code']);
     }
 
     /** @return array{0: CustomerInstanceSettingsApiController, 1: User} */

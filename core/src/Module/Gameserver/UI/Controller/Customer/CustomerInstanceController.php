@@ -39,6 +39,7 @@ use App\Repository\JobRepository;
 use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -99,11 +100,10 @@ final class CustomerInstanceController
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
         $activeTab = $this->resolveTab((string) $request->query->get('tab', 'overview'));
-        $legacyQueryMode = $request->query->has('tab');
         $tabNotice = $this->resolveNoticeKey((string) $request->query->get('notice', ''));
         $tabError = $this->resolveErrorKey((string) $request->query->get('error', ''));
 
-        return $this->renderInstanceDetail($instance, $customer, $activeTab, $tabNotice, $tabError, [], Response::HTTP_OK, $legacyQueryMode);
+        return $this->renderInstanceDetail($instance, $customer, $activeTab, $tabNotice, $tabError, [], Response::HTTP_OK);
     }
 
     #[Route(path: '/{id}/overview', name: 'customer_instance_overview_page', methods: ['GET'])]
@@ -134,6 +134,18 @@ final class CustomerInstanceController
     public function settingsPage(Request $request, int $id): Response
     {
         return $this->renderNamedTabPage($request, $id, 'settings');
+    }
+
+    #[Route(path: '/{id}/addons', name: 'customer_instance_addons_page', methods: ['GET'])]
+    public function addonsPage(Request $request, int $id): Response
+    {
+        return $this->renderNamedTabPage($request, $id, 'addons');
+    }
+
+    #[Route(path: '/{id}/reinstall', name: 'customer_instance_reinstall_page', methods: ['GET'])]
+    public function reinstallPage(Request $request, int $id): Response
+    {
+        return $this->renderNamedTabPage($request, $id, 'reinstall');
     }
 
     #[Route(path: '/{id}/setup/vars', name: 'customer_instance_setup_vars', methods: ['POST'])]
@@ -620,14 +632,14 @@ final class CustomerInstanceController
             if ($this->prefersJsonResponse($request)) {
                 return new JsonResponse(['error' => 'Start/Stop actions are disabled.'], JsonResponse::HTTP_FORBIDDEN);
             }
-            return $this->renderInstanceCard($instance, null, 'Start/Stop actions are disabled.');
+            return $this->renderPowerHtmlResponse($request, $instance, null, 'Start/Stop actions are disabled.');
         }
 
         if ($instance->getStatus() === InstanceStatus::Suspended) {
             if ($this->prefersJsonResponse($request)) {
                 return new JsonResponse(['error' => 'This instance is suspended.'], JsonResponse::HTTP_CONFLICT);
             }
-            return $this->renderInstanceCard($instance, null, 'This instance is suspended.');
+            return $this->renderPowerHtmlResponse($request, $instance, null, 'This instance is suspended.');
         }
 
         if ($action === 'start') {
@@ -636,7 +648,7 @@ final class CustomerInstanceController
                 if ($this->prefersJsonResponse($request)) {
                     return new JsonResponse(['error' => $blocked], JsonResponse::HTTP_CONFLICT);
                 }
-                return $this->renderInstanceCard($instance, null, $blocked);
+                return $this->renderPowerHtmlResponse($request, $instance, null, $blocked);
             }
         }
 
@@ -683,7 +695,7 @@ final class CustomerInstanceController
                     );
                 }
 
-                return $this->renderInstanceCard($instance, 'Power action already in progress.', null);
+                return $this->renderPowerHtmlResponse($request, $instance, 'Power action already in progress.', null);
             }
 
             return $this->powerConflictResponse(
@@ -733,7 +745,23 @@ final class CustomerInstanceController
             );
         }
 
-        return $this->renderInstanceCard($instance, $notice, null);
+        return $this->renderPowerHtmlResponse($request, $instance, $notice, null);
+    }
+
+    private function renderPowerHtmlResponse(Request $request, Instance $instance, ?string $notice, ?string $error): Response
+    {
+        if ($this->isHtmxRequest($request)) {
+            return $this->renderInstanceCard($instance, $notice, $error);
+        }
+
+        if ($notice !== null) {
+            $request->getSession()->getFlashBag()->add('success', $notice);
+        }
+        if ($error !== null) {
+            $request->getSession()->getFlashBag()->add('error', $error);
+        }
+
+        return new RedirectResponse($this->urlGenerator->generate('customer_instance_tasks_page', ['id' => $instance->getId()]));
     }
 
     private function guardSetupRequirements(Instance $instance, string $action): ?string
@@ -886,7 +914,7 @@ final class CustomerInstanceController
             'query_players_online' => isset($querySnapshot['players']) && is_numeric($querySnapshot['players']) ? (int) $querySnapshot['players'] : null,
             'query_players_max' => isset($querySnapshot['max_players']) && is_numeric($querySnapshot['max_players']) ? (int) $querySnapshot['max_players'] : null,
             'query_checked_at' => $querySnapshot['checked_at'] ?? null,
-            'query_reason' => $querySnapshot['error'] ?? null,
+            'query_reason' => $this->normalizeQueryReason(is_string($querySnapshot['error'] ?? null) ? $querySnapshot['error'] : null),
             'booked_cpu_cores' => (float) $instance->getCpuLimit(),
             'booked_ram_bytes' => $bookedRamBytes,
             'booked_ram_mb' => $instance->getRamLimit(),
@@ -1088,6 +1116,33 @@ final class CustomerInstanceController
         }
 
         return null;
+    }
+
+
+    private function normalizeQueryReason(?string $reason): ?string
+    {
+        if ($reason === null) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($reason));
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (str_contains($normalized, 'timeout')) {
+            return 'Query request timed out.';
+        }
+
+        if (str_contains($normalized, 'connection refused')) {
+            return 'Query endpoint unreachable (connection refused).';
+        }
+
+        if (str_contains($normalized, 'network is unreachable')) {
+            return 'Query endpoint unreachable (network unreachable).';
+        }
+
+        return $reason;
     }
 
     private function findActivePowerJob(Instance $instance): ?Job
@@ -1410,6 +1465,11 @@ final class CustomerInstanceController
                 'href' => $this->instanceTabUrl($instanceId, 'backups'),
             ],
             [
+                'key' => 'addons',
+                'label' => 'customer_instance_tab_addons',
+                'href' => $this->instanceTabUrl($instanceId, 'addons'),
+            ],
+            [
                 'key' => 'tasks',
                 'label' => 'customer_instance_tab_tasks',
                 'href' => $this->instanceTabUrl($instanceId, 'tasks'),
@@ -1418,6 +1478,11 @@ final class CustomerInstanceController
                 'key' => 'settings',
                 'label' => 'customer_instance_tab_settings',
                 'href' => $this->instanceTabUrl($instanceId, 'settings'),
+            ],
+            [
+                'key' => 'reinstall',
+                'label' => 'customer_instance_tab_reinstall',
+                'href' => $this->instanceTabUrl($instanceId, 'reinstall'),
             ],
         ];
 
@@ -1430,8 +1495,10 @@ final class CustomerInstanceController
             'overview' => $this->urlGenerator->generate('customer_instance_overview_page', ['id' => $instanceId]),
             'console' => $this->urlGenerator->generate('customer_instance_console_page', ['id' => $instanceId]),
             'backups' => $this->urlGenerator->generate('customer_instance_backups_page', ['id' => $instanceId]),
+            'addons' => $this->urlGenerator->generate('customer_instance_addons_page', ['id' => $instanceId]),
             'tasks' => $this->urlGenerator->generate('customer_instance_tasks_page', ['id' => $instanceId]),
             'settings' => $this->urlGenerator->generate('customer_instance_settings_page', ['id' => $instanceId]),
+            'reinstall' => $this->urlGenerator->generate('customer_instance_reinstall_page', ['id' => $instanceId]),
             'files' => $this->urlGenerator->generate('customer_instance_files', ['id' => $instanceId]),
             default => $this->urlGenerator->generate('customer_instance_detail', [
                 'id' => $instanceId,
@@ -1485,7 +1552,6 @@ final class CustomerInstanceController
         ?string $tabError,
         array $setupMessages = [],
         int $statusCode = Response::HTTP_OK,
-        bool $legacyQueryMode = false,
     ): Response {
         $updateSchedule = $this->instanceScheduleRepository->findOneByInstanceAndAction($instance, InstanceScheduleAction::Update);
         $portBlock = $this->portBlockRepository->findByInstance($instance);
@@ -1522,10 +1588,6 @@ final class CustomerInstanceController
             'activeNav' => 'instances',
             'tabs' => $tabs,
             'activeTab' => $activeTab,
-            'legacyQueryMode' => $legacyQueryMode,
-            'legacyPreferredUrl' => in_array($activeTab, ['overview', 'console', 'backups', 'tasks', 'settings'], true)
-                ? $this->instanceTabUrl((int) ($instance->getId() ?? 0), $activeTab)
-                : null,
             'tabTemplate' => sprintf('customer/instances/tabs/%s.html.twig', $activeTab),
             'tabNotice' => $tabNotice,
             'tabError' => $tabError,
@@ -1850,6 +1912,11 @@ final class CustomerInstanceController
         }
 
         return $request->getRequestFormat(null) === 'json';
+    }
+
+    private function isHtmxRequest(Request $request): bool
+    {
+        return strtolower((string) $request->headers->get('HX-Request', '')) === 'true';
     }
 
     private function resolveInstallErrorMessage(?string $errorCode): string

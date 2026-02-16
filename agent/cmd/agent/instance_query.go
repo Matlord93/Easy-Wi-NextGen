@@ -21,7 +21,7 @@ var bedrockMagic = []byte{0x00, 0xff, 0xff, 0x00, 0xfe, 0xfe, 0xfe, 0xfe, 0xfd, 
 
 func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 	queryType := strings.ToLower(payloadValue(job.Payload, "query_type"))
-	host := payloadValue(job.Payload, "host", "ip")
+	host := normalizeQueryDialHost(payloadValue(job.Payload, "host", "ip"))
 	gamePort := payloadValue(job.Payload, "game_port")
 	queryPort := payloadValue(job.Payload, "query_port")
 	port := queryPort
@@ -109,6 +109,61 @@ func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 			Completed: time.Now().UTC(),
 		}, nil
 	}
+}
+
+func normalizeQueryDialHost(host string) string {
+	normalized := strings.TrimSpace(host)
+	switch normalized {
+	case "", "0.0.0.0", "::", "*":
+		return "127.0.0.1"
+	}
+
+	ip := net.ParseIP(normalized)
+	if ip == nil {
+		return normalized
+	}
+
+	if ip.IsLoopback() {
+		return normalized
+	}
+
+	if isLocalIP(ip) {
+		if ip.To4() != nil {
+			return "127.0.0.1"
+		}
+		return "::1"
+	}
+
+	return normalized
+}
+
+func isLocalIP(target net.IP) bool {
+	if target == nil {
+		return false
+	}
+
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return false
+	}
+
+	for _, iface := range interfaces {
+		addrs, addrErr := iface.Addrs()
+		if addrErr != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok || ipNet.IP == nil {
+				continue
+			}
+			if ipNet.IP.Equal(target) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func buildQueryOutput(status, engine, message string, startedAt time.Time, data map[string]string) map[string]string {

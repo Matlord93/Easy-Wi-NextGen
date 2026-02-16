@@ -1,0 +1,175 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Module\Gameserver\Application;
+
+use App\Module\Core\Domain\Entity\GamePlugin;
+use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\Template;
+use App\Module\Core\Domain\Enum\JobStatus;
+use App\Repository\GamePluginRepository;
+use App\Repository\JobRepository;
+
+final class InstanceAddonResolver
+{
+    public function __construct(
+        private readonly GamePluginRepository $gamePluginRepository,
+        private readonly JobRepository $jobRepository,
+    ) {
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function resolve(Instance $instance): array
+    {
+        $plugins = $this->gamePluginRepository->findBy(['template' => $instance->getTemplate()], ['name' => 'ASC']);
+        $installedVersions = $this->resolveInstalledVersions($instance);
+
+        return array_map(function (GamePlugin $plugin) use ($instance, $installedVersions): array {
+            $pluginName = strtolower(trim($plugin->getName()));
+            $installedVersion = $installedVersions[$pluginName] ?? null;
+            $installedVersion = is_string($installedVersion) && trim($installedVersion) !== '' ? trim($installedVersion) : null;
+
+            $compatibility = $this->resolveCompatibility($instance);
+            $jobStatus = $this->resolveAddonJobStatus($instance, $plugin);
+
+            $installed = $installedVersion !== null;
+            if ($jobStatus === 'removed') {
+                $installed = false;
+                $installedVersion = null;
+            } elseif ($jobStatus === 'installed' && $installedVersion === null) {
+                $installed = true;
+                $installedVersion = $plugin->getVersion();
+            }
+
+            return [
+                'id' => $plugin->getId(),
+                'key' => $this->slugify($plugin->getName()),
+                'name' => $plugin->getName(),
+                'description' => $plugin->getDescription(),
+                'version' => $plugin->getVersion(),
+                'category' => 'template',
+                'tags' => [],
+                'requires_restart' => true,
+                'compatible' => $compatibility['compatible'],
+                'incompatible_reason' => $compatibility['incompatible_reason'],
+                'installed' => $installed,
+                'installed_version' => $installedVersion,
+                'update_available' => $installed && $installedVersion !== $plugin->getVersion(),
+                'source_template' => [
+                    'id' => $plugin->getTemplate()->getId(),
+                    'name' => $plugin->getTemplate()->getDisplayName(),
+                ],
+            ];
+        }, $plugins);
+    }
+
+    public function findAddonForInstance(Instance $instance, int $addonId): ?GamePlugin
+    {
+        $plugin = $this->gamePluginRepository->find($addonId);
+        if (!$plugin instanceof GamePlugin) {
+            return null;
+        }
+        if ($plugin->getTemplate()->getId() !== $instance->getTemplate()->getId()) {
+            return null;
+        }
+
+        return $plugin;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function resolveInstalledVersions(Instance $instance): array
+    {
+        $installedVersions = [];
+        $installedRaw = $instance->getConfigOverrides()['addons'] ?? [];
+        if (!is_array($installedRaw)) {
+            return $installedVersions;
+        }
+
+        foreach ($installedRaw as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $name = strtolower(trim((string) ($entry['name'] ?? '')));
+            if ($name === '') {
+                continue;
+            }
+            $installedVersions[$name] = trim((string) ($entry['version'] ?? ''));
+        }
+
+        return $installedVersions;
+    }
+
+    /**
+     * @return array{compatible: bool, incompatible_reason: ?string}
+     */
+    private function resolveCompatibility(Instance $instance): array
+    {
+        $supportedOs = array_values(array_filter(array_map(
+            static fn (mixed $value): string => strtolower(trim((string) $value)),
+            $instance->getTemplate()->getSupportedOs(),
+        ), static fn (string $value): bool => $value !== ''));
+
+        if ($supportedOs === []) {
+            return ['compatible' => true, 'incompatible_reason' => null];
+        }
+
+        $nodeMetadata = $instance->getNode()->getMetadata() ?? [];
+        $heartbeatStats = $instance->getNode()->getLastHeartbeatStats() ?? [];
+        $nodeOs = strtolower(trim((string) ($nodeMetadata['os'] ?? $heartbeatStats['os'] ?? '')));
+
+        if ($nodeOs !== '' && !in_array($nodeOs, $supportedOs, true)) {
+            return [
+                'compatible' => false,
+                'incompatible_reason' => sprintf('Incompatible OS: %s. Supported: %s', $nodeOs, implode(', ', $supportedOs)),
+            ];
+        }
+
+        return ['compatible' => true, 'incompatible_reason' => null];
+    }
+
+    private function resolveAddonJobStatus(Instance $instance, GamePlugin $plugin): ?string
+    {
+        $jobs = [
+            $this->jobRepository->findLatestByTypeAndInstanceId('instance.addon.install', $instance->getId() ?? 0),
+            $this->jobRepository->findLatestByTypeAndInstanceId('instance.addon.update', $instance->getId() ?? 0),
+            $this->jobRepository->findLatestByTypeAndInstanceId('instance.addon.remove', $instance->getId() ?? 0),
+        ];
+
+        $latest = null;
+        foreach ($jobs as $job) {
+            if ($job === null) {
+                continue;
+            }
+            $payload = $job->getPayload();
+            if ((int) ($payload['plugin_id'] ?? 0) !== (int) ($plugin->getId() ?? 0)) {
+                continue;
+            }
+            if ($latest === null || $job->getCreatedAt() > $latest->getCreatedAt()) {
+                $latest = $job;
+            }
+        }
+
+        if ($latest === null || $latest->getStatus() !== JobStatus::Succeeded) {
+            return null;
+        }
+
+        return match ($latest->getType()) {
+            'instance.addon.install', 'instance.addon.update' => 'installed',
+            'instance.addon.remove' => 'removed',
+            default => null,
+        };
+    }
+
+    private function slugify(string $value): string
+    {
+        $value = strtolower(trim($value));
+        $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
+
+        return trim($value, '-');
+    }
+}

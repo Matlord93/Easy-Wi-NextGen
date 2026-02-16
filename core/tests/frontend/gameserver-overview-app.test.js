@@ -7,6 +7,8 @@ const fs = require('fs');
     assert.ok(source.includes('data-power-action'), 'power action binding missing');
     assert.ok(source.includes('errors.showAll'), 'shared error panel+toast usage missing');
     assert.ok(source.includes('apiClient.request'), 'shared api client usage missing');
+    assert.ok(source.includes('dataset.urlQuery'), 'query endpoint mount binding missing');
+    assert.ok(source.includes('Query not supported'), 'supported=false state handling missing');
 })();
 
 console.log('gameserver-overview-app smoke test passed');

@@ -5,11 +5,17 @@
     data-url-create="{{ path('customer_instance_backups_create', {id: instance.id}) }}"
     data-url-restore-template="{{ path('customer_instance_backups_restore', {id: instance.id, backupId: '__BACKUP_ID__'}) }}"
     data-url-delete-template="{{ path('customer_instance_backups_delete', {id: instance.id, backupId: '__BACKUP_ID__'}) }}"
+    data-url-download-template="{{ path('customer_instance_backups_download', {id: instance.id, backupId: '__BACKUP_ID__'}) }}"
+    data-url-mode="{{ path('customer_instance_backups_mode', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_backups_health', {id: instance.id}) }}"
 >
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
         <div class="flex flex-wrap items-center gap-2">
             <h3 class="text-sm font-semibold text-slate-100">{{ t('customer_instance_tab_backups', page_locale()) }}</h3>
+            <select id="gs-backup-mode" class="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100">
+                <option value="manual">Manual</option>
+                <option value="auto">Auto</option>
+            </select>
             <input id="gs-backup-label" type="text" class="ml-auto rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100" placeholder="Backup label (optional)">
             <button type="button" id="gs-backup-create" class="ui-button ui-button--primary">Create backup</button>
         </div>

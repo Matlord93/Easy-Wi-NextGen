@@ -17,12 +17,15 @@
         'urlCreate',
         'urlRestoreTemplate',
         'urlDeleteTemplate',
+        'urlDownloadTemplate',
+        'urlMode',
         'urlHealth',
     ]);
     const inlineError = document.getElementById('gs-backups-error');
     const listEl = document.getElementById('gs-backups-list');
     const createButton = document.getElementById('gs-backup-create');
     const labelInput = document.getElementById('gs-backup-label');
+    const modeSelect = document.getElementById('gs-backup-mode');
 
     if (!required.ok) {
         errors.showAll(inlineError, {
@@ -37,10 +40,22 @@
         listEl.innerHTML = `<tr><td colspan="5" class="dashboard-table__empty">${message}</td></tr>`;
     };
 
+    const formatSize = (sizeBytes) => {
+        if (typeof sizeBytes !== 'number' || Number.isNaN(sizeBytes) || sizeBytes < 0) {
+            return '—';
+        }
+        const gb = sizeBytes / (1024 * 1024 * 1024);
+        if (gb >= 1) {
+            return `${gb.toFixed(1)} GB`;
+        }
+        const mb = sizeBytes / (1024 * 1024);
+        return `${mb.toFixed(1)} MB`;
+    };
+
     const backupRow = (backup) => {
         const backupId = backup.id;
         const created = backup.created_at || '—';
-        const size = typeof backup.size_bytes === 'number' ? `${backup.size_bytes} B` : '—';
+        const size = formatSize(backup.size_bytes);
 
         return `<tr>
             <td>${backupId}</td>
@@ -50,6 +65,7 @@
             <td>
                 <div class="flex gap-2">
                     <button class="ui-button ui-button--ghost" data-action="restore" data-backup-id="${backupId}">Restore</button>
+                    <button class="ui-button ui-button--ghost" data-action="download" data-backup-id="${backupId}">Download</button>
                     <button class="ui-button ui-button--danger" data-action="delete" data-backup-id="${backupId}">Delete</button>
                 </div>
             </td>
@@ -61,6 +77,9 @@
             errors.clearInline(inlineError);
             const payload = await apiClient.request(root.dataset.urlList);
             const backups = payload.data?.backups || [];
+            if (modeSelect && payload.data?.mode) {
+                modeSelect.value = payload.data.mode;
+            }
             if (!Array.isArray(backups) || backups.length === 0) {
                 renderEmpty('No backups yet.');
                 return;
@@ -98,6 +117,28 @@
         }
     };
 
+
+    const updateMode = async () => {
+        if (!modeSelect) {
+            return;
+        }
+        try {
+            const payload = await apiClient.request(root.dataset.urlMode, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: modeSelect.value }),
+            });
+            errors.clearInline(inlineError);
+            errors.showToast({
+                message: `Backup mode set to ${payload.data?.mode || modeSelect.value}.`,
+                error_code: 'OK',
+                request_id: payload.request_id || '',
+            }, 2000);
+        } catch (error) {
+            errors.showAll(inlineError, error);
+        }
+    };
+
     const handleAction = async (action, backupId) => {
         const id = String(backupId || '').trim();
         if (!id) {
@@ -132,6 +173,12 @@
                 return;
             }
 
+            if (action === 'download') {
+                const url = root.dataset.urlDownloadTemplate.replace('__BACKUP_ID__', encodeURIComponent(id));
+                window.location.assign(url);
+                return;
+            }
+
             if (action === 'delete') {
                 if (!window.confirm('Delete this backup?')) {
                     return;
@@ -148,6 +195,7 @@
     };
 
     createButton.addEventListener('click', postCreate);
+    modeSelect?.addEventListener('change', updateMode);
     listEl.addEventListener('click', (event) => {
         const button = event.target.closest('[data-action][data-backup-id]');
         if (!button) {

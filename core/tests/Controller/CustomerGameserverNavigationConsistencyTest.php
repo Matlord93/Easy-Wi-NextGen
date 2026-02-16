@@ -16,8 +16,10 @@ final class CustomerGameserverNavigationConsistencyTest extends TestCase
         self::assertStringContainsString("generate('customer_instance_overview_page'", $controller);
         self::assertStringContainsString("generate('customer_instance_console_page'", $controller);
         self::assertStringContainsString("generate('customer_instance_backups_page'", $controller);
+        self::assertStringContainsString("generate('customer_instance_addons_page'", $controller);
         self::assertStringContainsString("generate('customer_instance_tasks_page'", $controller);
         self::assertStringContainsString("generate('customer_instance_settings_page'", $controller);
+        self::assertStringContainsString("generate('customer_instance_reinstall_page'", $controller);
         self::assertStringContainsString("generate('customer_instance_files'", $controller);
     }
 

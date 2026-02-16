@@ -37,6 +37,9 @@
 
     const appendLine = (line) => {
         if (!line) return;
+        if (line.includes('--- journalctl ') || line.toLowerCase().includes('console restarted')) {
+            return;
+        }
         const shouldStick = autoScroll && (logEl.scrollTop + logEl.clientHeight + 32 >= logEl.scrollHeight);
         logEl.textContent += (logEl.textContent ? '\n' : '') + line;
         if (shouldStick) {

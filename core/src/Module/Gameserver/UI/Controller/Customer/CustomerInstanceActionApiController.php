@@ -13,6 +13,7 @@ use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\BackupStatus;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
 use App\Module\Core\Domain\Enum\InstanceStatus;
@@ -22,6 +23,7 @@ use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\Application\ConsoleCommandValidator;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
+use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\BackupDefinitionRepository;
@@ -60,6 +62,7 @@ final class CustomerInstanceActionApiController
         private readonly GameServerPathResolver $gameServerPathResolver,
         private readonly SetupChecker $setupChecker,
         private readonly AppSettingsService $appSettingsService,
+        private readonly MinecraftCatalogService $minecraftCatalogService,
         private readonly TemplateInstallResolver $templateInstallResolver,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         #[Autowire(service: 'limiter.instance_console_commands')]
@@ -190,8 +193,48 @@ final class CustomerInstanceActionApiController
 
         $backups = $this->backupRepository->findByDefinitions($matched);
 
+        $setupVars = $instance->getSetupVars();
+        $mode = strtolower(trim((string) ($setupVars['EASYWI_BACKUP_MODE'] ?? 'manual')));
+        if (!in_array($mode, ['auto', 'manual'], true)) {
+            $mode = 'manual';
+        }
+
         return $this->apiOk($request, [
+            'mode' => $mode,
             'backups' => array_map(fn ($backup) => $this->normalizeBackup($backup), $backups),
+        ]);
+    }
+
+    #[Route(path: '/api/instances/{id}/backups/mode', name: 'customer_instance_backups_mode', methods: ['PATCH'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/backups/mode', name: 'customer_instance_backups_mode_v1', methods: ['PATCH'])]
+    public function updateBackupsMode(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $payload = $this->parsePayload($request);
+        $mode = strtolower(trim((string) ($payload['mode'] ?? '')));
+        if (!in_array($mode, ['auto', 'manual'], true)) {
+            return $this->apiError($request, 'INVALID_INPUT', 'mode must be auto or manual.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $setupVars = $instance->getSetupVars();
+        $setupVars['EASYWI_BACKUP_MODE'] = $mode;
+        $instance->setSetupVars($setupVars);
+        $this->entityManager->persist($instance);
+        $this->entityManager->flush();
+
+        return $this->apiOk($request, [
+            'mode' => $mode,
         ]);
     }
 
@@ -361,6 +404,96 @@ final class CustomerInstanceActionApiController
             'instance_id' => $instance->getId(),
             'instance_status' => strtolower($instance->getStatus()->value),
             'backup_supported' => true,
+            'supports_backup_download' => true,
+            'supports_backup_mode' => true,
+        ]);
+    }
+
+    #[Route(path: '/api/instances/{id}/backups/{backupId}/download', name: 'customer_instance_backups_download', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/backups/{backupId}/download', name: 'customer_instance_backups_download_v1', methods: ['GET'])]
+    public function downloadBackup(Request $request, int $id, int $backupId): JsonResponse|\Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $backup = $this->backupRepository->find($backupId);
+        if ($backup === null || $backup->getDefinition()->getTargetType() !== BackupTargetType::Game || $backup->getDefinition()->getTargetId() !== (string) $instance->getId()) {
+            return $this->apiError($request, 'NOT_FOUND', 'Backup not found.', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        if ($backup->getStatus() !== BackupStatus::Succeeded) {
+            return $this->apiError($request, 'CONFLICT', 'Backup is not ready for download.', JsonResponse::HTTP_CONFLICT);
+        }
+
+        $archivePath = trim((string) $backup->getArchivePath());
+        if ($archivePath === '' || !is_file($archivePath) || !is_readable($archivePath)) {
+            return $this->apiError($request, 'NOT_FOUND', 'Backup archive is unavailable.', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $response = new \Symfony\Component\HttpFoundation\BinaryFileResponse($archivePath);
+        $response->setContentDisposition(
+            \Symfony\Component\HttpFoundation\ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+            sprintf('instance-%d-backup-%d.tar.gz', $instance->getId(), $backup->getId()),
+        );
+        $response->headers->set('X-Request-ID', $this->resolveRequestId($request));
+
+        return $response;
+    }
+
+    #[Route(path: '/api/instances/{id}/reinstall/options', name: 'customer_instance_reinstall_api_options', methods: ['GET'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/reinstall/options', name: 'customer_instance_reinstall_api_options_v1', methods: ['GET'])]
+    public function reinstallOptions(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $options = [];
+        $versions = [];
+        $resolver = $instance->getTemplate()->getInstallResolver();
+        $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
+        if ($type === 'minecraft_vanilla') {
+            $versions = $this->minecraftCatalogService->getUiCatalog()['vanilla']['versions'] ?? [];
+        } elseif ($type === 'papermc_paper') {
+            $versions = $this->minecraftCatalogService->getUiCatalog()['paper']['versions'] ?? [];
+        }
+
+        foreach ($versions as $version) {
+            if (!is_string($version) || trim($version) === '') {
+                continue;
+            }
+            $options[] = [
+                'id' => $version,
+                'label' => $version,
+                'version' => $version,
+            ];
+        }
+        if ($options === []) {
+            $fallback = $instance->getCurrentVersion() ?? 'default';
+            $options[] = ['id' => $fallback, 'label' => $fallback, 'version' => $fallback];
+        }
+
+        return $this->apiOk($request, [
+            'instance_id' => $instance->getId(),
+            'warnings' => ['Neuinstallation löscht bestehende Daten dieser Instanz.'],
+            'options' => $options,
         ]);
     }
 
@@ -786,12 +919,18 @@ final class CustomerInstanceActionApiController
         $logs = $this->jobLogRepository->findByJobAfterId($job, $cursor, 300);
         $nextCursor = $cursor ?? 0;
         $lines = [];
+        $unitName = sprintf('gs-%d', $instance->getId());
         foreach ($logs as $log) {
             $logId = (int) ($log->getId() ?? 0);
             $nextCursor = max($nextCursor, $logId);
+            $message = (string) $log->getMessage();
+            if (str_starts_with($message, '--- journalctl ') || stripos($message, 'console restarted') !== false) {
+                continue;
+            }
+
             $lines[] = [
                 'id' => $logId,
-                'message' => $log->getMessage(),
+                'message' => $message,
                 'created_at' => $log->getCreatedAt()->format(DATE_ATOM),
                 'progress' => $log->getProgress(),
             ];
@@ -803,6 +942,11 @@ final class CustomerInstanceActionApiController
             'status' => $job->getStatus()->value,
             'cursor' => $nextCursor,
             'lines' => $lines,
+            'session' => [
+                'connected' => true,
+                'unit_name' => $unitName,
+                'started_at' => $job->getCreatedAt()->format(DATE_ATOM),
+            ],
         ]);
     }
 
@@ -824,11 +968,19 @@ final class CustomerInstanceActionApiController
 
         $runtimeStatus = strtolower((string) ($instance->getQueryStatusCache()['status'] ?? 'unknown'));
 
+        $running = $instance->getStatus() === InstanceStatus::Running || $runtimeStatus === 'online';
+
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
             'instance_status' => strtolower($instance->getStatus()->value),
             'runtime_status' => $runtimeStatus,
-            'can_send_command' => $instance->getStatus() === InstanceStatus::Running || $runtimeStatus === 'online',
+            'can_send_command' => $running,
+            'unit_name' => sprintf('gs-%d', $instance->getId()),
+            'running_state' => $running ? 'running' : 'offline',
+            'supports_live_output' => true,
+            'supports_command_injection' => true,
+            'injection_mechanism' => 'unix_socket',
+            'session_active' => $running,
         ]);
     }
 
@@ -912,21 +1064,26 @@ final class CustomerInstanceActionApiController
         $payload = $this->parsePayload($request);
 
         if (!(bool) ($payload['confirm'] ?? false)) {
-            return new JsonResponse(['error' => 'Confirmation is required.'], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->apiError($request, 'INVALID_INPUT', 'Confirmation is required.', JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $status = $this->setupChecker->getSetupStatus($instance);
         if (!$status['is_ready'] && in_array(SetupChecker::ACTION_INSTALL, $status['blocked_actions'], true)) {
-            return new JsonResponse([
-                'error' => 'Setup requirements missing.',
-                'error_code' => 'MISSING_REQUIREMENTS',
+            return $this->apiError($request, 'CONFLICT', 'Setup requirements missing.', JsonResponse::HTTP_CONFLICT, [
                 'missing' => $status['missing'],
-            ], JsonResponse::HTTP_CONFLICT);
+            ]);
         }
 
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
-            return new JsonResponse(['error' => $blockMessage], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->apiError($request, 'CONFLICT', $blockMessage, JsonResponse::HTTP_CONFLICT);
+        }
+
+        $selectedVersion = trim((string) ($payload['version'] ?? ''));
+        if ($selectedVersion !== '') {
+            $instance->setLockedVersion($selectedVersion);
+            $this->entityManager->persist($instance);
+            $this->entityManager->flush();
         }
 
         $payload = $this->instanceJobPayloadBuilder->buildSniperInstallPayload($instance);
@@ -934,7 +1091,17 @@ final class CustomerInstanceActionApiController
 
         $message = new InstanceActionMessage('instance.reinstall', $customer->getId(), $instance->getId(), $payload);
 
-        return $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
+        $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
+        $result = json_decode((string) $response->getContent(), true);
+        if (!is_array($result) || !is_string($result['job_id'] ?? null)) {
+            return $this->apiError($request, 'INTERNAL_ERROR', 'Unable to queue reinstall job.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return $this->apiOk($request, [
+            'job_id' => $result['job_id'],
+            'job_type' => 'instance.reinstall',
+            'status' => 'queued',
+        ], JsonResponse::HTTP_ACCEPTED);
     }
 
     private function requireCustomer(Request $request): User
@@ -1347,6 +1514,10 @@ final class CustomerInstanceActionApiController
             'CONSOLE_RATE_LIMITED' => 'RATE_LIMITED',
             'CONSOLE_COMMAND_REQUIRED', 'CONSOLE_COMMAND_INVALID' => 'INVALID_INPUT',
             'INSTANCE_NOT_RUNNING' => 'INSTANCE_OFFLINE',
+            'RATE_LIMITED' => 'RATE_LIMITED',
+            'CONSOLE_UNAVAILABLE' => 'CONSOLE_UNAVAILABLE',
+            'PERMISSION_DENIED' => 'FORBIDDEN',
+            'INVALID_INPUT' => 'INVALID_INPUT',
             'FILES_FORBIDDEN' => 'FORBIDDEN',
             'FILES_UNAUTHORIZED' => 'UNAUTHORIZED',
             default => $code,

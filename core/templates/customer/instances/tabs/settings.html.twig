@@ -9,6 +9,7 @@
     data-url-config-create="{{ path('customer_instance_configs_envelope_create', {id: instance.id}) }}"
     data-url-slots="{{ path('customer_instance_slots_update', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_settings_api_health', {id: instance.id}) }}"
+    data-url-automation="{{ path('customer_instance_settings_api_automation_update', {id: instance.id}) }}"
 >
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
         <div class="flex items-center justify-between gap-2">
@@ -52,6 +53,51 @@
         <div class="mt-3 flex items-center gap-2">
             <input id="gs-settings-slots" type="number" min="1" class="w-40 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100" placeholder="Slots">
             <button id="gs-settings-slots-save" type="button" class="ui-button ui-button--primary">Update slots</button>
+        </div>
+    </div>
+
+    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+        <h4 class="text-xs font-semibold uppercase text-slate-300">Automation</h4>
+        <div class="mt-3 grid gap-3 md:grid-cols-2">
+            <div class="rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-200">
+                <span class="mb-2 block font-semibold">Auto-Backup</span>
+                <label class="flex items-center"><input id="gs-auto-backup-enabled" type="checkbox" class="mr-2"> Aktiv</label>
+                <select id="gs-auto-backup-mode" class="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100">
+                    <option value="manual">Manual</option>
+                    <option value="auto">Auto</option>
+                </select>
+                <div id="gs-auto-backup-time-wrap" class="mt-2">
+                    <label for="gs-auto-backup-time" class="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Time</label>
+                    <select id="gs-auto-backup-time" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"></select>
+                </div>
+            </div>
+
+            <div class="rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-200">
+                <span class="mb-2 block font-semibold">Auto-Restart</span>
+                <label class="flex items-center"><input id="gs-auto-restart-enabled" type="checkbox" class="mr-2"> Aktiv</label>
+                <div id="gs-auto-restart-time-wrap" class="mt-2">
+                    <label for="gs-auto-restart-time" class="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Time</label>
+                    <select id="gs-auto-restart-time" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"></select>
+                </div>
+            </div>
+
+            <div class="rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-200">
+                <span class="mb-2 block font-semibold">Auto-Update</span>
+                <label class="flex items-center"><input id="gs-auto-update-enabled" type="checkbox" class="mr-2"> Aktiv</label>
+                <div id="gs-auto-update-time-wrap" class="mt-2">
+                    <label for="gs-auto-update-time" class="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Time</label>
+                    <select id="gs-auto-update-time" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"></select>
+                </div>
+            </div>
+
+            <label class="rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-200">
+                <span class="mb-2 block font-semibold">Versionssperre</span>
+                <input id="gs-version-lock-enabled" type="checkbox" class="mr-2"> Aktiv
+                <select id="gs-version-lock-version" class="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"></select>
+            </label>
+        </div>
+        <div class="mt-3">
+            <button id="gs-automation-save" type="button" class="ui-button ui-button--primary">Automation speichern</button>
         </div>
     </div>
 </div>

@@ -92,3 +92,17 @@ func TestParseMinecraftStatus(t *testing.T) {
 		t.Fatalf("motd=%q, want Hello", status.Motd)
 	}
 }
+
+func TestNormalizeQueryDialHost(t *testing.T) {
+	if got := normalizeQueryDialHost("0.0.0.0"); got != "127.0.0.1" {
+		t.Fatalf("normalizeQueryDialHost(0.0.0.0)=%q, want 127.0.0.1", got)
+	}
+
+	if got := normalizeQueryDialHost("::"); got != "127.0.0.1" {
+		t.Fatalf("normalizeQueryDialHost(::)=%q, want 127.0.0.1", got)
+	}
+
+	if got := normalizeQueryDialHost("  example.com  "); got != "example.com" {
+		t.Fatalf("normalizeQueryDialHost(example.com)=%q, want example.com", got)
+	}
+}

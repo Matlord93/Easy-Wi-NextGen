@@ -2,7 +2,6 @@
     id="gameserver-tasks"
     class="space-y-4"
     data-url-tasks="{{ path('customer_instance_tasks_api_list', {id: instance.id}) }}"
-    data-url-schedules="{{ path('customer_instance_schedule_update_envelope', {id: instance.id}) }}"
     data-url-cancel-template="{{ path('customer_instance_tasks_api_cancel', {id: instance.id, taskId: '__TASK_ID__'}) }}"
     data-url-logs="{{ path('customer_instance_tasks_api_logs', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_tasks_api_health', {id: instance.id}) }}"
@@ -30,20 +29,6 @@
         </div>
     </div>
 
-    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
-        <h4 class="text-xs font-semibold uppercase text-slate-300">Schedule</h4>
-        <form id="gs-schedule-form" class="mt-3 grid gap-2 md:grid-cols-4">
-            <select name="action" class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100">
-                <option value="restart">restart</option>
-                <option value="start">start</option>
-                <option value="stop">stop</option>
-            </select>
-            <input name="cron_expression" class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100" placeholder="0 3 * * *">
-            <input name="time_zone" class="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100" placeholder="UTC">
-            <label class="flex items-center gap-2 text-xs text-slate-200"><input type="checkbox" name="enabled" checked> Enabled</label>
-            <button id="gs-schedule-save" type="submit" class="ui-button ui-button--primary md:col-span-4">Save schedule</button>
-        </form>
-    </div>
 
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
         <h4 class="text-xs font-semibold uppercase text-slate-300">Task logs</h4>

@@ -10,6 +10,9 @@ use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Gameserver\Application\Query\A2sQueryAdapter;
 use App\Module\Gameserver\Application\Query\HttpQueryAdapter;
+use App\Module\Gameserver\Application\Query\InstanceQueryResolver;
+use App\Module\Gameserver\Application\Query\InstanceQuerySpec;
+use App\Module\Gameserver\Application\Query\InvalidInstanceQueryConfiguration;
 use App\Module\Gameserver\Application\Query\NoneQueryAdapter;
 use App\Module\Gameserver\Application\Query\QueryAdapterInterface;
 use App\Module\Gameserver\Application\Query\QueryContext;
@@ -31,7 +34,16 @@ final class InstanceQueryService
         private readonly A2sQueryAdapter $a2sQueryAdapter,
         private readonly RconQueryAdapter $rconQueryAdapter,
         private readonly NoneQueryAdapter $noneQueryAdapter,
+        private readonly InstanceQueryResolver $instanceQueryResolver,
     ) {
+    }
+
+    /**
+     * @throws InvalidInstanceQueryConfiguration
+     */
+    public function resolveQuerySpec(Instance $instance, ?PortBlock $portBlock): InstanceQuerySpec
+    {
+        return $this->instanceQueryResolver->resolve($instance, $portBlock);
     }
 
     /**
@@ -39,8 +51,28 @@ final class InstanceQueryService
      */
     public function getSnapshot(Instance $instance, ?PortBlock $portBlock, bool $queueIfStale = false): array
     {
-        $config = $this->resolveQueryConfig($instance);
-        $type = $config['type'];
+        try {
+            $spec = $this->resolveQuerySpec($instance, $portBlock);
+        } catch (InvalidInstanceQueryConfiguration $exception) {
+            return [
+                'available' => false,
+                'status' => 'error',
+                'players' => null,
+                'max_players' => null,
+                'map' => null,
+                'error' => $exception->getMessage(),
+                'result' => QueryResultNormalizer::build(null, null, null, $exception->getMessage(), [], []),
+                'checked_at' => null,
+                'queued_at' => null,
+            ];
+        }
+
+        $type = $spec->isSupported() ? (string) $spec->getType() : 'none';
+        $config = [
+            'type' => $type,
+            'via' => strtolower((string) ($spec->getExtra()['via'] ?? 'agent')),
+            'config' => ['timeout_ms' => $spec->getTimeoutMs()],
+        ];
         $checkedAt = $instance->getQueryCheckedAt();
 
         $cached = $this->buildSnapshot($instance->getQueryStatusCache(), $checkedAt, $type);
@@ -69,23 +101,6 @@ final class InstanceQueryService
         return $this->buildSnapshot($instance->getQueryStatusCache(), $instance->getQueryCheckedAt(), $type);
     }
 
-    /**
-     * @return array{type: string, via: string, config: array<string, mixed>}
-     */
-    private function resolveQueryConfig(Instance $instance): array
-    {
-        $requirements = $instance->getTemplate()->getRequirements();
-        $queryConfig = is_array($requirements['query'] ?? null) ? $requirements['query'] : [];
-        $type = strtolower(trim((string) ($queryConfig['type'] ?? $requirements['query_type'] ?? 'none')));
-        $via = strtolower(trim((string) ($queryConfig['via'] ?? $queryConfig['mode'] ?? 'agent')));
-
-        return [
-            'type' => $type !== '' ? $type : 'none',
-            'via' => $via !== '' ? $via : 'agent',
-            'config' => $queryConfig,
-        ];
-    }
-
     private function shouldRunHttpQuery(array $config): bool
     {
         return ($config['via'] ?? 'agent') === 'backend';
@@ -96,7 +111,8 @@ final class InstanceQueryService
      */
     private function runHttpQuery(Instance $instance, ?PortBlock $portBlock, array $config): array
     {
-        $context = $this->buildContext($instance, $portBlock, $config['config']);
+        $spec = $this->resolveQuerySpec($instance, $portBlock);
+        $context = $this->buildContext($spec, $config['config']);
         $adapter = $this->resolveAdapter($config['type']);
         $result = $adapter->query($instance, $context);
         $this->persistResult($instance, $result, 'backend');
@@ -140,7 +156,8 @@ final class InstanceQueryService
      */
     private function queueQueryJob(Instance $instance, ?PortBlock $portBlock, array $config): void
     {
-        $context = $this->buildContext($instance, $portBlock, $config['config']);
+        $spec = $this->resolveQuerySpec($instance, $portBlock);
+        $context = $this->buildContext($spec, $config['config']);
         $payload = [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
@@ -171,39 +188,14 @@ final class InstanceQueryService
         $this->entityManager->flush();
     }
 
-    private function buildContext(Instance $instance, ?PortBlock $portBlock, array $config): QueryContext
+    private function buildContext(InstanceQuerySpec $spec, array $config): QueryContext
     {
-        $host = $instance->getNode()->getLastHeartbeatIp();
-        $requiredPorts = $instance->getTemplate()->getRequiredPorts();
-        $gamePort = $this->resolvePort($portBlock, $requiredPorts, 'game');
-        $queryPort = $this->resolvePort($portBlock, $requiredPorts, 'query');
-        $rconPort = $this->resolvePort($portBlock, $requiredPorts, 'rcon');
+        $host = $spec->getHost();
+        $queryPort = $spec->getPort();
+        $gamePort = $queryPort;
+        $rconPort = null;
 
-        return new QueryContext($host, $gamePort, $queryPort, $rconPort, $config);
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $requiredPorts
-     */
-    private function resolvePort(?PortBlock $portBlock, array $requiredPorts, string $target): ?int
-    {
-        if ($portBlock === null) {
-            return null;
-        }
-
-        $ports = $portBlock->getPorts();
-
-        foreach ($requiredPorts as $index => $definition) {
-            if (!isset($ports[$index])) {
-                continue;
-            }
-            $name = strtolower((string) ($definition['name'] ?? ''));
-            if ($name === $target) {
-                return (int) $ports[$index];
-            }
-        }
-
-        return null;
+        return new QueryContext($host, $gamePort, $queryPort, $rconPort, $config + ['query_type' => $spec->getType()]);
     }
 
     /**

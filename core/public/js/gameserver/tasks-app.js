@@ -11,7 +11,6 @@
 
     const required = domMount.requiredDataset(mount, [
         'urlTasks',
-        'urlSchedules',
         'urlCancelTemplate',
         'urlLogs',
         'urlHealth',
@@ -28,8 +27,6 @@
 
     const jobsBody = document.getElementById('gs-tasks-list');
     const logsBox = document.getElementById('gs-tasks-logs');
-    const form = document.getElementById('gs-schedule-form');
-    const saveBtn = document.getElementById('gs-schedule-save');
     let selectedTaskId = null;
     let cursor = '';
     let poll = null;
@@ -138,29 +135,6 @@
         }
     });
 
-    form?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        saveBtn.disabled = true;
-
-        try {
-            await apiClient.request(mount.dataset.urlSchedules, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: form.elements.action.value,
-                    cron_expression: form.elements.cron_expression.value,
-                    time_zone: form.elements.time_zone.value,
-                    enabled: !!form.elements.enabled.checked,
-                }),
-            });
-            errors.clearInline(errorPanel);
-            await loadTasks();
-        } catch (error) {
-            errors.showAll(errorPanel, error);
-        } finally {
-            saveBtn.disabled = false;
-        }
-    });
 
     (async () => {
         try {

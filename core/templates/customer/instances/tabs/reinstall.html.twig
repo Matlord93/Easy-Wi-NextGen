@@ -1,29 +1,34 @@
-<div class="space-y-6">
-    <div>
-        <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_reinstall', page_locale()) }}</h2>
-        <p class="text-sm text-slate-700">{{ t('customer_instance_reinstall_intro', page_locale()) }}</p>
+<div
+    id="gameserver-reinstall"
+    class="space-y-4"
+    data-url-options="{{ path('customer_instance_reinstall_api_options', {id: instance.id}) }}"
+    data-url-reinstall="{{ path('customer_instance_reinstall_api', {id: instance.id}) }}"
+>
+    <div class="rounded-lg border border-rose-700 bg-rose-950/30 p-4">
+        <h3 class="text-sm font-semibold text-rose-200">Neuinstallation</h3>
+        <p class="mt-2 text-sm text-rose-100">Diese Aktion überschreibt die Serverinstallation. Bitte bestätige die Ausführung explizit.</p>
+        <div id="gs-reinstall-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
     </div>
 
-    {% if tabNotice %}
-        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ t(tabNotice, page_locale()) }}</div>
-    {% endif %}
-    {% if tabError %}
-        <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ t(tabError, page_locale()) }}</div>
-    {% endif %}
+    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4 space-y-3">
+        <label class="block text-xs font-semibold uppercase text-slate-300" for="gs-reinstall-option">Version / Option</label>
+        <select id="gs-reinstall-option" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100">
+            <option value="">Lade Optionen…</option>
+        </select>
 
-    <div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-        {{ t('customer_instance_reinstall_warning', page_locale()) }}
-    </div>
-
-<form method="post" action="{{ path('customer_instance_reinstall', {id: instance.id}) }}" class="space-y-3">
-        <label class="flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" name="confirm" value="1" class="text-rose-600">
-            {{ t('customer_instance_reinstall_confirm', page_locale()) }}
+        <label class="inline-flex items-center gap-2 text-sm text-slate-200">
+            <input type="checkbox" id="gs-reinstall-confirm" class="rounded border-slate-500 bg-slate-900">
+            Ich bestätige, dass Daten überschrieben werden können.
         </label>
-        <div class="flex justify-end">
-            <button type="submit" class="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700">
-                {{ t('customer_instance_reinstall_action', page_locale()) }}
-            </button>
+
+        <div class="flex items-center gap-2">
+            <button type="button" id="gs-reinstall-submit" class="ui-button ui-button--danger">Reinstall starten</button>
+            <span id="gs-reinstall-job" class="text-xs text-slate-300"></span>
         </div>
-    </form>
+    </div>
 </div>
+
+<script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
+<script src="{{ asset('js/gameserver/reinstall-app.js') }}"></script>

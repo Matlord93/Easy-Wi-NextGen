@@ -9,20 +9,6 @@
         </div>
 
 
-        {% if legacyQueryMode|default(false) %}
-            <section class="dashboard-panel border border-amber-300 bg-amber-50 text-amber-900">
-                <div class="dashboard-panel__header">
-                    <div>
-                        <h3>Legacy URL mode</h3>
-                        <p>You are viewing this page via the legacy <code>?tab=</code> route. Use the dedicated tab URLs instead.</p>
-                    </div>
-                    {% if legacyPreferredUrl %}
-                        <a href="{{ legacyPreferredUrl }}" class="ui-button ui-button--ghost">Open canonical tab URL</a>
-                    {% endif %}
-                </div>
-            </section>
-        {% endif %}
-
         <section class="dashboard-panel">
             <div class="dashboard-panel__header">
                 <div>
@@ -51,16 +37,6 @@
             </div>
         </section>
 
-        {% if activeTab not in ['overview', 'console', 'backups', 'tasks', 'settings'] %}
-            <section class="dashboard-panel">
-                <div class="dashboard-panel__header">
-                    <div>
-                        <h3>Legacy module view</h3>
-                        <p>This tab remains available for backward compatibility during migration.</p>
-                    </div>
-                </div>
-            </section>
-        {% endif %}
 
     </div>
 {% endblock %}

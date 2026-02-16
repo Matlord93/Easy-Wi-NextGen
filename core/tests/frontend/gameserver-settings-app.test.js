@@ -10,6 +10,10 @@ const fs = require('fs');
     assert.ok(source.includes('summary.data || {}'), 'settings app should bootstrap configs from settings payload');
     assert.ok(source.includes('gs-settings-create'), 'settings app should support creating configs');
     assert.ok(source.includes('errors.showToast'), 'settings app should show success/error feedback through shared errors helper');
+    assert.ok(source.includes('gs-auto-backup-time'), 'settings app should control auto-backup time input');
+    assert.ok(source.includes('gs-auto-restart-time'), 'settings app should control auto-restart time input');
+    assert.ok(source.includes('gs-auto-update-time'), 'settings app should control auto-update time input');
+    assert.ok(source.includes('time: autoBackupTime?.value'), 'settings app should submit automation times');
 })();
 
 console.log('gameserver-settings-app smoke test passed');

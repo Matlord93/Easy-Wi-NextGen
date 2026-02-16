@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Message\InstanceActionMessage;
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\InstanceDiskStateResolver;
@@ -30,6 +31,7 @@ use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\JobLogRepository;
 use App\Repository\JobRepository;
 use App\Repository\MinecraftVersionCatalogRepositoryInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -79,20 +81,21 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
                 return false;
             }
         };
-        $resolver = new TemplateInstallResolver(new MinecraftCatalogService($catalogRepo));
+        $templateResolver = new TemplateInstallResolver(new MinecraftCatalogService($catalogRepo));
+        $appSettings = $this->createMock(AppSettingsService::class);
         $portBlockFinder = new class () implements PortBlockFinderInterface {
             public function findByInstance(Instance $instance): ?\App\Module\Ports\Domain\Entity\PortBlock
             {
                 return null;
             }
         };
-        $payloadBuilder = new InstanceJobPayloadBuilder($resolver, $portBlockFinder);
+        $payloadBuilder = new InstanceJobPayloadBuilder($templateResolver, $portBlockFinder);
 
         $messageBus = $this->createMock(MessageBusInterface::class);
         $captured = null;
         $messageBus->method('dispatch')->willReturnCallback(function (object $message) use (&$captured) {
             $captured = $message;
-            return new Envelope($message, [new HandledStamp(['status' => 'queued'], 'handler')]);
+            return new Envelope($message, [new HandledStamp(['status' => 'queued', 'job_id' => '42'], 'handler')]);
         });
 
         $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver());
@@ -110,12 +113,15 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(GamePluginRepository::class),
             $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $this->newInstanceWithoutConstructor(JobRepository::class),
+            $this->newInstanceWithoutConstructor(JobLogRepository::class),
             $diskEnforcementService,
             $this->newInstanceWithoutConstructor(AuditLogger::class),
             $consoleCommandValidator,
             $this->newInstanceWithoutConstructor(GameServerPathResolver::class),
             new SetupChecker(),
-            $resolver,
+            $appSettings,
+            $this->newInstanceWithoutConstructor(MinecraftCatalogService::class),
+            $templateResolver,
             $payloadBuilder,
             $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
             $this->createMock(EntityManagerInterface::class),
@@ -146,6 +152,68 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         self::assertNotEmpty($payload['env_vars'] ?? null);
     }
 
+
+
+    public function testReinstallWithoutConfirmReturnsInvalidInputEnvelope(): void
+    {
+        $instance = $this->buildInstance();
+
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->willReturn($instance);
+
+        $catalogRepo = $this->newInstanceWithoutConstructor(\App\Repository\MinecraftVersionCatalogRepository::class);
+        $templateResolver = new TemplateInstallResolver(new MinecraftCatalogService($catalogRepo));
+        $portBlockFinder = new class () implements PortBlockFinderInterface {
+            public function findByInstance(Instance $instance): ?\App\Module\Ports\Domain\Entity\PortBlock
+            {
+                return null;
+            }
+        };
+        $payloadBuilder = new InstanceJobPayloadBuilder($templateResolver, $portBlockFinder);
+        $appSettings = $this->createMock(AppSettingsService::class);
+
+        $messageBus = $this->createMock(MessageBusInterface::class);
+        $diskEnforcementService = new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver());
+        $consoleCommandValidator = new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
+            public function getCustomerConsoleAllowedCommands(): array
+            {
+                return [];
+            }
+        });
+
+        $controller = new CustomerInstanceActionApiController(
+            $instanceRepository,
+            $this->newInstanceWithoutConstructor(BackupDefinitionRepository::class),
+            $this->newInstanceWithoutConstructor(BackupRepository::class),
+            $this->newInstanceWithoutConstructor(GamePluginRepository::class),
+            $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
+            $this->newInstanceWithoutConstructor(JobRepository::class),
+            $this->newInstanceWithoutConstructor(\App\Repository\JobLogRepository::class),
+            $diskEnforcementService,
+            $this->newInstanceWithoutConstructor(AuditLogger::class),
+            $consoleCommandValidator,
+            $this->newInstanceWithoutConstructor(GameServerPathResolver::class),
+            new SetupChecker(),
+            $appSettings,
+            $this->newInstanceWithoutConstructor(MinecraftCatalogService::class),
+            $templateResolver,
+            $payloadBuilder,
+            $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
+            $this->createMock(EntityManagerInterface::class),
+            $messageBus,
+            new ResponseEnvelopeFactory(),
+        );
+
+        $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode([]));
+        $request->attributes->set('current_user', $instance->getCustomer());
+
+        $response = $controller->reinstall($request, 1);
+        $payload = json_decode((string) $response->getContent(), true);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertFalse((bool) $payload['ok']);
+        self::assertSame('INVALID_INPUT', $payload['error_code']);
+    }
 
     private function setPrivateProperty(object $target, string $property, mixed $value): void
     {

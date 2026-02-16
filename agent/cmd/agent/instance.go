@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,10 +21,13 @@ import (
 )
 
 const (
-	baseDirMode      = 0o755
-	instanceDirMode  = 0o750
-	instanceFileMode = 0o640
+	baseDirMode             = 0o755
+	instanceDirMode         = 0o750
+	instanceFileMode        = 0o640
+	maxConsoleCommandLength = 512
 )
+
+var consoleCommandRateLimiter = newTokenBucketLimiter(5, time.Second)
 
 func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
@@ -416,7 +421,6 @@ func handleInstanceLogsTail(job jobs.Job, logSender JobLogSender) (jobs.Result, 
 
 func handleInstanceConsoleCommand(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
 	instanceID := payloadValue(job.Payload, "instance_id")
-	instanceRoot := strings.TrimSpace(payloadValue(job.Payload, "instance_root", "install_path", "instance_dir"))
 	command := strings.TrimSpace(payloadValue(job.Payload, "command"))
 
 	serviceName := ""
@@ -431,6 +435,11 @@ func handleInstanceConsoleCommand(job jobs.Job, logSender JobLogSender) (jobs.Re
 			Output:    map[string]string{"message": "missing required values: command"},
 			Completed: time.Now().UTC(),
 		}, nil
+	}
+
+	sanitizedCommand, validationErr := sanitizeConsoleCommand(command)
+	if validationErr != nil {
+		return failedResultWithErrorCode(job.ID, "INVALID_INPUT", validationErr.Error())
 	}
 	if serviceName == "" && instanceID == "" {
 		return jobs.Result{
@@ -449,35 +458,27 @@ func handleInstanceConsoleCommand(job jobs.Job, logSender JobLogSender) (jobs.Re
 		return failureResult(job.ID, fmt.Errorf("service %s is not running", serviceName))
 	}
 
-	pidOutput, err := runCommandOutput("systemctl", "show", "-p", "MainPID", "--value", serviceName)
-	if err != nil {
-		return failureResult(job.ID, err)
-	}
-	pidValue := strings.TrimSpace(pidOutput)
-	pid, err := strconv.Atoi(pidValue)
-	if err != nil || pid <= 0 {
-		return failureResult(job.ID, fmt.Errorf("invalid service pid %q", pidValue))
+	if !consoleCommandRateLimiter.Allow(instanceID) {
+		return failedResultWithErrorCode(job.ID, "RATE_LIMITED", "console command rate limit exceeded")
 	}
 
-	controlGroupValue, err := runCommandOutput("systemctl", "show", "-p", "ControlGroup", "--value", serviceName)
-	if err != nil {
-		return failureResult(job.ID, err)
+	socketPath := systemdConsoleSocketPath(instanceID)
+	if socketPath == "" {
+		return failedResultWithErrorCode(job.ID, "CONSOLE_UNAVAILABLE", "console socket is not configured")
 	}
 
-	if err := assertConsoleTargetMatchesInstance(serviceName, pid, instanceID, strings.TrimSpace(controlGroupValue), instanceRoot); err != nil {
-		return failedResultWithErrorCode(job.ID, "console_target_mismatch", err.Error())
-	}
-
-	consolePath := fmt.Sprintf("/proc/%d/fd/0", pid)
-	consoleHandle, err := os.OpenFile(consolePath, os.O_WRONLY, 0)
-	if err != nil {
-		return failureResult(job.ID, fmt.Errorf("open console %s: %w", consolePath, err))
-	}
-	defer func() {
-		_ = consoleHandle.Close()
-	}()
-	if _, err := consoleHandle.WriteString(command + "\n"); err != nil {
-		return failureResult(job.ID, fmt.Errorf("write console %s: %w", consolePath, err))
+	if err := writeConsoleCommandToSocket(socketPath, sanitizedCommand); err != nil {
+		if os.IsPermission(err) {
+			return failedResultWithErrorCode(job.ID, "PERMISSION_DENIED", err.Error())
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			return failedResultWithErrorCode(job.ID, "CONSOLE_UNAVAILABLE", err.Error())
+		}
+		var netErr net.Error
+		if errors.As(err, &netErr) || strings.Contains(strings.ToLower(err.Error()), "connect") {
+			return failedResultWithErrorCode(job.ID, "CONSOLE_UNAVAILABLE", err.Error())
+		}
+		return failureResult(job.ID, fmt.Errorf("write console socket %s: %w", socketPath, err))
 	}
 
 	if logSender != nil {
@@ -490,6 +491,7 @@ func handleInstanceConsoleCommand(job jobs.Job, logSender JobLogSender) (jobs.Re
 		Output: map[string]string{
 			"message":      "command sent",
 			"service_name": serviceName,
+			"socket_path":  socketPath,
 		},
 		Completed: time.Now().UTC(),
 	}, nil
@@ -502,70 +504,6 @@ func failedResultWithErrorCode(jobID, code, message string) (jobs.Result, func()
 		Output:    map[string]string{"message": message, "error_code": code},
 		Completed: time.Now().UTC(),
 	}, nil
-}
-
-func assertConsoleTargetMatchesInstance(serviceName string, pid int, instanceID, controlGroup, instanceRoot string) error {
-	if instanceID == "" || serviceName != fmt.Sprintf("gs-%s", instanceID) {
-		return fmt.Errorf("service does not match instance id")
-	}
-
-	if err := assertPidInControlGroup(pid, controlGroup); err != nil {
-		return err
-	}
-
-	if instanceRoot == "" {
-		return nil
-	}
-
-	rootEval, err := filepath.EvalSymlinks(instanceRoot)
-	if err != nil {
-		return fmt.Errorf("resolve instance root: %w", err)
-	}
-
-	cwdPath := fmt.Sprintf("/proc/%d/cwd", pid)
-	cwdEval, err := filepath.EvalSymlinks(cwdPath)
-	if err != nil {
-		return fmt.Errorf("resolve process cwd: %w", err)
-	}
-
-	rel, err := filepath.Rel(rootEval, cwdEval)
-	if err != nil {
-		return fmt.Errorf("resolve process path: %w", err)
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("process is outside instance root")
-	}
-
-	return nil
-}
-
-func assertPidInControlGroup(pid int, controlGroup string) error {
-	controlGroup = strings.TrimSpace(controlGroup)
-	if controlGroup == "" || controlGroup == "-" {
-		return fmt.Errorf("unit control group missing")
-	}
-
-	content, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", pid))
-	if err != nil {
-		return fmt.Errorf("read process cgroup: %w", err)
-	}
-
-	for _, line := range strings.Split(string(content), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, ":", 3)
-		if len(parts) != 3 {
-			continue
-		}
-		path := strings.TrimSpace(parts[2])
-		if path == controlGroup || strings.HasPrefix(path, controlGroup+"/") {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("pid is not part of unit control group")
 }
 
 func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
@@ -849,7 +787,12 @@ func systemdUnitTemplate(serviceName, user, workingDir, readWritePath, startComm
 	if startParams != "" && !strings.Contains(startCommand, startParams) {
 		command = strings.TrimSpace(command + " " + startParams)
 	}
+	execStart, runtimeDirectory := buildSystemdExecStart(serviceName, command)
 	limits := buildSystemdLimits(cpuLimit, ramLimit)
+	runtimeDirectoryLine := ""
+	if runtimeDirectory != "" {
+		runtimeDirectoryLine = fmt.Sprintf("RuntimeDirectory=%s\nRuntimeDirectoryMode=0750", runtimeDirectory)
+	}
 	return fmt.Sprintf(`[Unit]
 Description=Easy-Wi Instance %s
 After=network.target
@@ -879,10 +822,21 @@ ProtectSystem=strict
 ProtectHome=false
 ReadWritePaths=%s
 %s
+%s
 
 [Install]
 WantedBy=multi-user.target
-`, serviceName, user, workingDir, workingDir, workingDir, workingDir, workingDir, command, readWritePath, limits)
+`, serviceName, user, workingDir, workingDir, workingDir, workingDir, workingDir, execStart, readWritePath, runtimeDirectoryLine, limits)
+}
+
+func buildSystemdExecStart(serviceName, command string) (string, string) {
+	instanceID := strings.TrimSpace(strings.TrimPrefix(serviceName, "gs-"))
+	if !strings.HasPrefix(serviceName, "gs-") || instanceID == "" {
+		return command, ""
+	}
+	socketPath := systemdConsoleSocketPath(instanceID)
+	runtimeDirectory := filepath.Join("easywi/instances", instanceID)
+	return fmt.Sprintf("/usr/local/bin/easywi-wrapper --instance-id %s --command-socket %s -- %s", instanceID, socketPath, command), runtimeDirectory
 }
 
 func buildSystemdLimits(cpuLimit, ramLimit int) string {
@@ -1341,8 +1295,6 @@ func streamServiceLogs(jobID string, logSender JobLogSender, serviceName string,
 	if logSender == nil || jobID == "" || serviceName == "" || duration <= 0 {
 		return
 	}
-
-	logSender.Send(jobID, []string{fmt.Sprintf("--- journalctl %s (live) ---", serviceName)}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
