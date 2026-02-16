@@ -92,12 +92,21 @@ func writeConsoleCommandToSocket(socketPath, command string) error {
 	if socketPath == "" {
 		return errors.New("empty socket path")
 	}
-	conn, err := net.DialTimeout("unix", socketPath, 500*time.Millisecond)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("console socket unavailable: %w", err)
+	var conn net.Conn
+	var err error
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		conn, err = net.DialTimeout("unix", socketPath, 500*time.Millisecond)
+		if err == nil {
+			break
 		}
-		return err
+		if !shouldRetryConsoleConnect(err) || time.Now().After(deadline) {
+			if errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("console socket unavailable: %w", err)
+			}
+			return err
+		}
+		time.Sleep(150 * time.Millisecond)
 	}
 	defer func() {
 		_ = conn.Close()
@@ -107,4 +116,15 @@ func writeConsoleCommandToSocket(socketPath, command string) error {
 	}
 	_, err = conn.Write([]byte(command + "\n"))
 	return err
+}
+
+func shouldRetryConsoleConnect(err error) bool {
+	if errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	lowerErr := strings.ToLower(err.Error())
+	if strings.Contains(lowerErr, "connection refused") || strings.Contains(lowerErr, "no such file") {
+		return true
+	}
+	return false
 }
