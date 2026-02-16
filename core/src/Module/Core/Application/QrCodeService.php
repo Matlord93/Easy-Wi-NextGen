@@ -38,7 +38,7 @@ final class QrCodeService
 
     private function build(string $data, PngWriter|SvgWriter $writer): string
     {
-        $result = Builder::create()
+        $result = (new Builder())
             ->writer($writer)
             ->writerOptions([])
             ->data($data)
