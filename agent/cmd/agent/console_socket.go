@@ -99,7 +99,9 @@ func writeConsoleCommandToSocket(socketPath, command string) error {
 		}
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 	if err := conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
 		return err
 	}

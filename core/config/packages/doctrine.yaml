@@ -4,10 +4,6 @@ doctrine:
     # via DynamicConnectionFactory. Do not depend on DATABASE_URL from .env here.
     driver: 'pdo_mysql'
     host: '127.0.0.1'
-    port: 3306
-    dbname: 'easywi'
-    user: 'easywi'
-    password: ''
     charset: 'utf8mb4'
     default_table_options:
       charset: 'utf8mb4'

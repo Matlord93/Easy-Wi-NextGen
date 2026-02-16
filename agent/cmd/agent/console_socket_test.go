@@ -14,7 +14,9 @@ func TestWriteConsoleCommandToSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen socket: %v", err)
 	}
-	defer listener.Close()
+	defer func() {
+		_ = listener.Close()
+	}()
 
 	received := make(chan string, 1)
 	go func() {
@@ -22,7 +24,9 @@ func TestWriteConsoleCommandToSocket(t *testing.T) {
 		if acceptErr != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() {
+			_ = conn.Close()
+		}()
 		line, _ := bufio.NewReader(conn).ReadString('\n')
 		received <- line
 	}()

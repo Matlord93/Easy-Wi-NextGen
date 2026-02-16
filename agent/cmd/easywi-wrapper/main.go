@@ -106,7 +106,11 @@ func main() {
 			connWG.Add(1)
 			go func(c net.Conn) {
 				defer connWG.Done()
-				defer c.Close()
+				defer func() {
+					if err := c.Close(); err != nil {
+						log.Printf("command socket close error: %v", err)
+					}
+				}()
 				scanner := bufio.NewScanner(c)
 				scanner.Buffer(make([]byte, 0, 256), maxCommandBytes+2)
 				for scanner.Scan() {
