@@ -15,7 +15,7 @@ final class InstanceAddonResolverContractTest extends TestCase
 
         self::assertStringContainsString("findBy(['template' => \$instance->getTemplate()]", $resolver);
         self::assertStringContainsString('findAddonForInstance', $resolver);
-        self::assertStringContainsString("getTemplate()->getId() !== \$instance->getTemplate()->getId()", $resolver);
+        self::assertStringContainsString('getTemplate()->getId() !== $instance->getTemplate()->getId()', $resolver);
     }
 
     public function testResolverComputesInstalledAndUpdateFlagsPerInstance(): void

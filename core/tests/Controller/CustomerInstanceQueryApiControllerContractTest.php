@@ -12,7 +12,7 @@ final class CustomerInstanceQueryApiControllerContractTest extends TestCase
     {
         $controller = (string) file_get_contents(__DIR__.'/../../src/Module/Gameserver/UI/Controller/Customer/CustomerInstanceQueryApiController.php');
 
-        self::assertStringContainsString("/api/instances/{id}/query", $controller);
+        self::assertStringContainsString('/api/instances/{id}/query', $controller);
         self::assertStringContainsString("'ok' => true", $controller);
         self::assertStringContainsString("'ok' => false", $controller);
         self::assertStringContainsString("'INVALID_QUERY_CONFIG'", $controller);

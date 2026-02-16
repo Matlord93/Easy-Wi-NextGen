@@ -55,7 +55,6 @@ final class InstanceQueryResolver
 
     /**
      * @param array<string, mixed> $requirements
-     * @param mixed $queryConfigRaw
      * @param array<string, mixed> $queryConfig
      */
     private function resolveQueryType(Instance $instance, array $requirements, mixed $queryConfigRaw, array $queryConfig): ?string

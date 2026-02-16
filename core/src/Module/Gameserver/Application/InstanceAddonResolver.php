@@ -6,7 +6,6 @@ namespace App\Module\Gameserver\Application;
 
 use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Instance;
-use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Repository\GamePluginRepository;
 use App\Repository\JobRepository;
