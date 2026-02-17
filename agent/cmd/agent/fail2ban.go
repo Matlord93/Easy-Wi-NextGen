@@ -155,11 +155,11 @@ func buildFail2banConfig(policy fail2banPolicy) string {
 	var builder strings.Builder
 	builder.WriteString("# Managed by Easy-Wi\n")
 	builder.WriteString("[DEFAULT]\n")
-	builder.WriteString(fmt.Sprintf("bantime = %s\n", policy.BanTime))
-	builder.WriteString(fmt.Sprintf("findtime = %s\n", policy.FindTime))
-	builder.WriteString(fmt.Sprintf("maxretry = %d\n", policy.MaxRetry))
+	_, _ = fmt.Fprintf(&builder, "bantime = %s\n", policy.BanTime)
+	_, _ = fmt.Fprintf(&builder, "findtime = %s\n", policy.FindTime)
+	_, _ = fmt.Fprintf(&builder, "maxretry = %d\n", policy.MaxRetry)
 	if len(policy.IgnoreIPs) > 0 {
-		builder.WriteString(fmt.Sprintf("ignoreip = %s\n", strings.Join(policy.IgnoreIPs, " ")))
+		_, _ = fmt.Fprintf(&builder, "ignoreip = %s\n", strings.Join(policy.IgnoreIPs, " "))
 	}
 
 	for _, jail := range policy.Jails {
@@ -167,8 +167,8 @@ func buildFail2banConfig(policy fail2banPolicy) string {
 		if jail == "" {
 			continue
 		}
-		builder.WriteString(fmt.Sprintf("\n[%s]\n", jail))
-		builder.WriteString(fmt.Sprintf("enabled = %v\n", policy.Enabled))
+		_, _ = fmt.Fprintf(&builder, "\n[%s]\n", jail)
+		_, _ = fmt.Fprintf(&builder, "enabled = %v\n", policy.Enabled)
 	}
 
 	if policy.AdvancedConfig != "" {

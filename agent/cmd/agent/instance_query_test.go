@@ -138,7 +138,9 @@ func TestPerformProtocolQueryValveSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen udp: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 	go func() {
 		buf := make([]byte, 2048)
 		for {
