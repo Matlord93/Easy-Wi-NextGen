@@ -314,25 +314,25 @@ func phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, php
 	_, _ = fmt.Fprintf(&buffer, "user = %s\n", user)
 	_, _ = fmt.Fprintf(&buffer, "group = %s\n", group)
 	_, _ = fmt.Fprintf(&buffer, "listen = %s\n", listen)
-	buffer.WriteString(fmt.Sprintf("listen.owner = %s\n", user))
-	buffer.WriteString(fmt.Sprintf("listen.group = %s\n", group))
+	_, _ = fmt.Fprintf(&buffer, "listen.owner = %s\n", user)
+	_, _ = fmt.Fprintf(&buffer, "listen.group = %s\n", group)
 	buffer.WriteString("listen.mode = 0660\n")
 	buffer.WriteString("pm = ondemand\n")
 	buffer.WriteString("pm.max_children = 10\n")
 	buffer.WriteString("pm.process_idle_timeout = 10s\n")
 	buffer.WriteString("pm.max_requests = 500\n")
 	buffer.WriteString("catch_workers_output = yes\n")
-	buffer.WriteString(fmt.Sprintf("access.log = %s/php-fpm-access.log\n", logsDir))
-	buffer.WriteString(fmt.Sprintf("php_admin_value[open_basedir] = %s:/tmp\n", webRoot))
-	buffer.WriteString(fmt.Sprintf("php_admin_value[upload_tmp_dir] = %s\n", tmpDir))
-	buffer.WriteString(fmt.Sprintf("php_admin_value[session.save_path] = %s\n", tmpDir))
+	_, _ = fmt.Fprintf(&buffer, "access.log = %s/php-fpm-access.log\n", logsDir)
+	_, _ = fmt.Fprintf(&buffer, "php_admin_value[open_basedir] = %s:/tmp\n", webRoot)
+	_, _ = fmt.Fprintf(&buffer, "php_admin_value[upload_tmp_dir] = %s\n", tmpDir)
+	_, _ = fmt.Fprintf(&buffer, "php_admin_value[session.save_path] = %s\n", tmpDir)
 	if len(phpSettings) > 0 {
 		for _, key := range sortedPhpSettings(phpSettings) {
 			value := phpSettings[key]
 			if value == "" {
 				continue
 			}
-			buffer.WriteString(fmt.Sprintf("php_admin_value[%s] = %s\n", key, value))
+			_, _ = fmt.Fprintf(&buffer, "php_admin_value[%s] = %s\n", key, value)
 		}
 	}
 	buffer.WriteString("security.limit_extensions = .php\n")
