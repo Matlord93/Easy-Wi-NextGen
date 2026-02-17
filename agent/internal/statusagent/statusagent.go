@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -71,7 +72,8 @@ func checkServer(s ServerConfig) CheckResult {
 	case strings.Contains(s.Type, "minecraft"):
 		ok = tcpPing(s.Host, s.Port)
 	case strings.Contains(s.Type, "fivem"):
-		ok = httpPing(fmt.Sprintf("http://%s:%d/players.json", s.Host, s.Port), &r)
+		u := url.URL{Scheme: "http", Host: net.JoinHostPort(s.Host, strconv.Itoa(s.Port)), Path: "/players.json"}
+		ok = httpPing(u.String(), &r)
 	case strings.Contains(s.Type, "factorio"):
 		ok = udpPing(s.Host, s.Port, []byte{0x01})
 	case strings.Contains(s.Type, "terraria"):
@@ -89,7 +91,7 @@ func checkServer(s ServerConfig) CheckResult {
 }
 
 func a2sPing(host string, port int, r *CheckResult) bool {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	conn, err := net.DialTimeout("udp", addr, 2*time.Second)
 	if err != nil {
 		e := err.Error()
@@ -127,7 +129,7 @@ func a2sPing(host string, port int, r *CheckResult) bool {
 }
 
 func tcpPing(host string, port int) bool {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), 3*time.Second)
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 3*time.Second)
 	if err != nil {
 		return false
 	}
@@ -135,7 +137,7 @@ func tcpPing(host string, port int) bool {
 	return true
 }
 func udpPing(host string, port int, p []byte) bool {
-	conn, err := net.DialTimeout("udp", fmt.Sprintf("%s:%d", host, port), 2*time.Second)
+	conn, err := net.DialTimeout("udp", net.JoinHostPort(host, strconv.Itoa(port)), 2*time.Second)
 	if err != nil {
 		return false
 	}
