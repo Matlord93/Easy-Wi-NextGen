@@ -79,7 +79,7 @@ func buildCoreSshPolicy(accessMode, sftpGroup string) string {
 	}
 
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("PasswordAuthentication %s\n", passwordValue))
+	_, _ = fmt.Fprintf(&builder, "PasswordAuthentication %s\n", passwordValue)
 	builder.WriteString("KbdInteractiveAuthentication no\n")
 	builder.WriteString("PubkeyAuthentication yes\n")
 	builder.WriteString("Subsystem sftp internal-sftp\n")

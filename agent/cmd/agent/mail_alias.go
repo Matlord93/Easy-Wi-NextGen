@@ -267,7 +267,7 @@ func writeAliasMap(path string, entries map[string]string, order []string) error
 		if !ok {
 			continue
 		}
-		builder.WriteString(fmt.Sprintf("%s %s\n", address, destinations))
+		_, _ = fmt.Fprintf(&builder, "%s %s\n", address, destinations)
 		used[address] = struct{}{}
 	}
 
@@ -280,7 +280,7 @@ func writeAliasMap(path string, entries map[string]string, order []string) error
 	}
 	sort.Strings(remaining)
 	for _, address := range remaining {
-		builder.WriteString(fmt.Sprintf("%s %s\n", address, entries[address]))
+		_, _ = fmt.Fprintf(&builder, "%s %s\n", address, entries[address])
 	}
 
 	if err := os.WriteFile(path, []byte(builder.String()), mailAliasFileMode); err != nil {

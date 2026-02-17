@@ -89,7 +89,7 @@ func checkServer(s ServerConfig) CheckResult {
 }
 
 func a2sPing(host string, port int, r *CheckResult) bool {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	conn, err := net.DialTimeout("udp", addr, 2*time.Second)
 	if err != nil {
 		e := err.Error()
