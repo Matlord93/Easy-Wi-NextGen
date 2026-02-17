@@ -60,6 +60,7 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 	metadata := collectMetadata(cfg)
 	globalJournalStreams = newJournalStreamManager(cfg.MaxJournalStreams, cfg.StreamTTL)
 	runner := newJobRunner(maxConcurrency, cfg.MaxJournalStreams)
+	globalInstanceLocks = runner.locks
 	lastCredentialRefresh := time.Time{}
 	credentialRefreshCooldown := 2 * time.Minute
 
@@ -415,6 +416,7 @@ func resolveJobScheduling(job jobs.Job) (instanceLock string, lockMode jobLockMo
 }
 
 var globalJournalStreams = newJournalStreamManager(4, 75*time.Second)
+var globalInstanceLocks = newInstanceLockManager()
 
 var jobTypeAliases = map[string]string{
 	"database.rotate_password": "database.password.rotate",

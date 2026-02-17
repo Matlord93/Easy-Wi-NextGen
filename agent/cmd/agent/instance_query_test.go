@@ -2,8 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"testing"
+	"time"
 
 	"easywi/agent/internal/jobs"
 )
@@ -104,5 +108,79 @@ func TestNormalizeQueryDialHost(t *testing.T) {
 
 	if got := normalizeQueryDialHost("  example.com  "); got != "example.com" {
 		t.Fatalf("normalizeQueryDialHost(example.com)=%q, want example.com", got)
+	}
+}
+
+func TestPerformProtocolQueryUnsupportedProtocol(t *testing.T) {
+	resp := performProtocolQuery(context.Background(), "weird", "127.0.0.1", 27015, "req-1")
+	if resp.OK {
+		t.Fatalf("expected not ok")
+	}
+	if resp.ErrorCode != "UNSUPPORTED_PROTOCOL" {
+		t.Fatalf("error=%s", resp.ErrorCode)
+	}
+}
+
+func TestRunWithContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := runWithContext(ctx, func() (map[string]string, error) {
+		time.Sleep(5 * time.Millisecond)
+		return map[string]string{}, nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled error, got %v", err)
+	}
+}
+
+func TestPerformProtocolQueryValveSuccess(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen udp: %v", err)
+	}
+	defer conn.Close()
+	go func() {
+		buf := make([]byte, 2048)
+		for {
+			n, addr, err := conn.ReadFrom(buf)
+			if err != nil {
+				return
+			}
+			if n >= 5 && buf[4] == 0x54 {
+				payload := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0x49, 0x11}
+				payload = append(payload, []byte("srv\x00de_dust2\x00folder\x00game\x00")...)
+				payload = append(payload, []byte{0xDA, 0x02, 5, 20, 0, 'd', 'l', 0, 1}...)
+				_, _ = conn.WriteTo(payload, addr)
+				continue
+			}
+			if n >= 5 && buf[4] == 0x55 {
+				if n == 9 {
+					_, _ = conn.WriteTo([]byte{0xFF, 0xFF, 0xFF, 0xFF, 0x41, 0x01, 0x02, 0x03, 0x04}, addr)
+				} else {
+					_, _ = conn.WriteTo([]byte{0xFF, 0xFF, 0xFF, 0xFF, 0x44, 5}, addr)
+				}
+			}
+		}
+	}()
+
+	port := conn.LocalAddr().(*net.UDPAddr).Port
+	resp := performProtocolQuery(context.Background(), "valve", "127.0.0.1", port, "req-2")
+	if !resp.OK || resp.Data == nil {
+		t.Fatalf("expected success, got %+v", resp)
+	}
+	if resp.Data.Map != "de_dust2" {
+		t.Fatalf("map=%q", resp.Data.Map)
+	}
+}
+
+func TestRunWithContextTimeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+	defer cancel()
+	_, err := runWithContext(ctx, func() (map[string]string, error) {
+		time.Sleep(40 * time.Millisecond)
+		return map[string]string{}, nil
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded, got %v", err)
 	}
 }
