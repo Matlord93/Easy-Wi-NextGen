@@ -308,9 +308,9 @@ func phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, php
 	var buffer bytes.Buffer
 	buffer.WriteString("; Managed by Easy-Wi agent\n")
 	if phpVersion != "" {
-		buffer.WriteString(fmt.Sprintf("; PHP version: %s\n", phpVersion))
+		_, _ = fmt.Fprintf(&buffer, "; PHP version: %s\n", phpVersion)
 	}
-	buffer.WriteString(fmt.Sprintf("[%s]\n", pool))
+	_, _ = fmt.Fprintf(&buffer, "[%s]\n", pool)
 	buffer.WriteString(fmt.Sprintf("user = %s\n", user))
 	buffer.WriteString(fmt.Sprintf("group = %s\n", group))
 	buffer.WriteString(fmt.Sprintf("listen = %s\n", listen))

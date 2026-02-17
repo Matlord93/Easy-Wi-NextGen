@@ -85,7 +85,7 @@ func buildCoreSshPolicy(accessMode, sftpGroup string) string {
 	builder.WriteString("Subsystem sftp internal-sftp\n")
 
 	if sftpGroup != "" {
-		builder.WriteString(fmt.Sprintf("\nMatch Group %s\n", sftpGroup))
+		_, _ = fmt.Fprintf(&builder, "\nMatch Group %s\n", sftpGroup)
 		builder.WriteString("  ForceCommand internal-sftp\n")
 		builder.WriteString("  AllowTcpForwarding no\n")
 		builder.WriteString("  X11Forwarding no\n")
