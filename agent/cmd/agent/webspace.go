@@ -311,9 +311,9 @@ func phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, php
 		_, _ = fmt.Fprintf(&buffer, "; PHP version: %s\n", phpVersion)
 	}
 	_, _ = fmt.Fprintf(&buffer, "[%s]\n", pool)
-	buffer.WriteString(fmt.Sprintf("user = %s\n", user))
-	buffer.WriteString(fmt.Sprintf("group = %s\n", group))
-	buffer.WriteString(fmt.Sprintf("listen = %s\n", listen))
+	_, _ = fmt.Fprintf(&buffer, "user = %s\n", user)
+	_, _ = fmt.Fprintf(&buffer, "group = %s\n", group)
+	_, _ = fmt.Fprintf(&buffer, "listen = %s\n", listen)
 	buffer.WriteString(fmt.Sprintf("listen.owner = %s\n", user))
 	buffer.WriteString(fmt.Sprintf("listen.group = %s\n", group))
 	buffer.WriteString("listen.mode = 0660\n")
