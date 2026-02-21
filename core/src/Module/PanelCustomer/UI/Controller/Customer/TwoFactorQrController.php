@@ -31,13 +31,22 @@ final class TwoFactorQrController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $secret = $user->getTotpSecret($this->secretsCrypto);
+        try {
+            $secret = $user->getTotpSecret($this->secretsCrypto);
+        } catch (\Throwable) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
         if ($secret === null) {
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
-        $otp = $this->twoFactorService->getOtpAuthUri($this->settings->getBrandingName(), $user->getEmail(), $secret);
-        $image = $this->qrCodeService->renderImage($otp);
+        try {
+            $otp = $this->twoFactorService->getOtpAuthUri($this->settings->getBrandingName(), $user->getEmail(), $secret);
+            $image = $this->qrCodeService->renderImage($otp);
+        } catch (\Throwable) {
+            return new Response('Service unavailable.', Response::HTTP_SERVICE_UNAVAILABLE);
+        }
 
         $response = new Response($image['content'], Response::HTTP_OK, ['Content-Type' => $image['mimeType']]);
         $response->headers->set('Cache-Control', 'no-store, private');

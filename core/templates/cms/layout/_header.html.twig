@@ -12,8 +12,10 @@
       {% if actor %}
         {% set displayName = actor.name ?? actor.email %}
         {% set panelLink = null %}
+        {% set securityLink = '/account/security' %}
         {% if actor.type.value in ['admin', 'superadmin'] %}
           {% set panelLink = '/admin' %}
+          {% set securityLink = '/admin/profile' %}
         {% elseif actor.type.value == 'reseller' %}
           {% set panelLink = '/reseller' %}
         {% elseif actor.type.value == 'customer' and actor.customerAccessEnabled %}
@@ -24,7 +26,7 @@
           <summary class="cursor-pointer list-none rounded-md border border-slate-300 px-3 py-2 text-sm">Hallo, {{ displayName }}</summary>
           <div class="absolute right-0 z-20 mt-2 min-w-[180px] rounded-md border border-slate-200 bg-white p-2 shadow-lg">
             <a href="/profile" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Mein Profil</a>
-            <a href="/account/security" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Sicherheit</a>
+            <a href="{{ securityLink }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Sicherheit</a>
             {% if panelLink %}
               <a href="{{ panelLink }}" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Zum Panel</a>
             {% endif %}

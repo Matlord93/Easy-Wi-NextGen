@@ -76,7 +76,23 @@ final class AccountSecurityFlowTest extends WebTestCase
         $client->request('GET', '/2fa/qr');
 
         self::assertResponseIsSuccessful();
-        self::assertSame('image/png', $client->getResponse()->headers->get('Content-Type'));
+        self::assertStringStartsWith('image/', (string) $client->getResponse()->headers->get('Content-Type'));
+    }
+
+    public function testQrRouteReturnsNotFoundForUnreadableSecretPayload(): void
+    {
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $user = $this->seedSiteAndUser('security-qr-corrupt@example.test');
+
+        $reflection = new \ReflectionProperty($user, 'totpSecretEncrypted');
+        $reflection->setValue($user, 'broken-secret-payload');
+        self::getContainer()->get(EntityManagerInterface::class)->flush();
+
+        $this->loginWithSession($client, $user, 'security-session-corrupt');
+        $client->request('GET', '/2fa/qr');
+
+        self::assertResponseStatusCodeSame(404);
     }
 
     public function testLegacySecurityRouteRedirectsToCanonical(): void

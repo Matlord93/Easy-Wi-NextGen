@@ -13,6 +13,12 @@
 {% set notificationsHref = user and user.isAdmin ? path('admin_notifications') : path('customer_notifications') %}
 {% set unreadCount = unread_notifications() %}
 {% set currentLocale = page_locale() %}
+{% set profileHref = '/profile' %}
+{% set securityHref = '/account/security' %}
+{% if user and user.type.value in ['admin', 'superadmin'] %}
+    {% set profileHref = path('admin_profile') %}
+    {% set securityHref = path('admin_profile') %}
+{% endif %}
 
 <header class="ng-topbar">
     <div class="ng-topbar__title">
@@ -84,6 +90,12 @@
             </summary>
             <div class="ng-user-menu__dropdown" role="menu">
                 <div class="ng-user-menu__label">{{ t('user_menu_account_label', page_locale()) }}</div>
+                <a class="ng-user-menu__item" href="{{ profileHref }}" role="menuitem">
+                    {{ t('public_user_menu_profile', page_locale()) }}
+                </a>
+                <a class="ng-user-menu__item" href="{{ securityHref }}" role="menuitem">
+                    {{ t('public_user_menu_security', page_locale()) }}
+                </a>
                 <a class="ng-user-menu__item" href="{{ path('public_logout') }}" role="menuitem">
                     {{ t('logout', page_locale()) }}
                 </a>
