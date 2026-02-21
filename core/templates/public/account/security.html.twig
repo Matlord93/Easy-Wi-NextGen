@@ -1,9 +1,6 @@
-{% extends 'public/base.html.twig' %}
+{% extends 'customer/base.html.twig' %}
 
 {% block content %}
-<div class="grid gap-6 lg:grid-cols-[220px,1fr]">
-  {% include 'public/account/_nav.html.twig' %}
-
   <div class="space-y-6">
     {% if errors is not empty %}
       <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>
@@ -75,5 +72,4 @@
       {% endif %}
     </div>
   </div>
-</div>
 {% endblock %}

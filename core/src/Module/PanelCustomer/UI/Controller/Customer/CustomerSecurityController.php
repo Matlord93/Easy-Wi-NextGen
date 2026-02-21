@@ -323,6 +323,8 @@ final class CustomerSecurityController
         $otpAuth = $secret !== null ? $this->twoFactorService->getOtpAuthUri($issuer, $user->getEmail(), $secret) : null;
 
         return new Response($this->twig->render('public/account/security.html.twig', [
+            'activeNav' => 'security',
+            'pageTitle' => 'Sicherheit',
             'errors' => $errors,
             'confirmRequired' => $overrides['confirm_required'] ?? !$this->hasFreshReauth($request),
             'twoFactor' => [
