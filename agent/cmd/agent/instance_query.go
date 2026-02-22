@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -17,11 +20,25 @@ import (
 const a2sQueryTimeout = 3 * time.Second
 const minecraftQueryTimeout = 4 * time.Second
 
+const (
+	a2sHeaderSimple  int32 = -1
+	a2sHeaderSplit   int32 = -2
+	a2sTypeInfoReply       = 0x49
+	a2sTypeChallenge       = 0x41
+)
+
 var bedrockMagic = []byte{0x00, 0xff, 0xff, 0x00, 0xfe, 0xfe, 0xfe, 0xfe, 0xfd, 0xfd, 0xfd, 0xfd, 0x12, 0x34, 0x56, 0x78}
+
+var queryA2SDebugEnabled = strings.EqualFold(strings.TrimSpace(os.Getenv("QUERY_A2S_DEBUG")), "1") || strings.EqualFold(strings.TrimSpace(os.Getenv("QUERY_A2S_DEBUG")), "true")
 
 func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 	queryType := strings.ToLower(payloadValue(job.Payload, "query_type"))
-	host := normalizeQueryDialHost(payloadValue(job.Payload, "host", "ip"))
+	host := resolveQueryDialHost(
+		payloadValue(job.Payload, "host", "ip"),
+		payloadValue(job.Payload, "bind_ip", "query_bind_ip"),
+		payloadValue(job.Payload, "node_ip", "public_ip"),
+		payloadValue(job.Payload, "local_only", "is_local_only"),
+	)
 	gamePort := payloadValue(job.Payload, "game_port")
 	queryPort := payloadValue(job.Payload, "query_port")
 	port := queryPort
@@ -137,6 +154,28 @@ func normalizeQueryDialHost(host string) string {
 	return normalized
 }
 
+func resolveQueryDialHost(host, bindIP, nodeIP, localOnly string) string {
+	localOnlyNormalized := strings.EqualFold(strings.TrimSpace(localOnly), "1") || strings.EqualFold(strings.TrimSpace(localOnly), "true") || strings.EqualFold(strings.TrimSpace(localOnly), "yes")
+	if normalized := normalizeQueryDialHost(bindIP); normalized != "" && normalized != "127.0.0.1" {
+		return normalized
+	}
+	if normalized := normalizeQueryDialHost(host); normalized != "" && normalized != "127.0.0.1" {
+		return normalized
+	}
+	if !localOnlyNormalized {
+		if normalized := normalizeQueryDialHost(nodeIP); normalized != "" {
+			return normalized
+		}
+	}
+	if normalized := normalizeQueryDialHost(bindIP); normalized != "" {
+		return normalized
+	}
+	if normalized := normalizeQueryDialHost(host); normalized != "" {
+		return normalized
+	}
+	return "127.0.0.1"
+}
+
 func isLocalIP(target net.IP) bool {
 	if target == nil {
 		return false
@@ -190,6 +229,9 @@ func queryA2S(host, port string) (map[string]string, error) {
 	}
 
 	address := net.JoinHostPort(host, strconv.Itoa(portNum))
+	if queryA2SDebugEnabled {
+		log.Printf("a2s debug: dial_host=%s dial_port=%d", host, portNum)
+	}
 	conn, err := net.DialTimeout("udp", address, a2sQueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("dial udp: %w", err)
@@ -198,22 +240,12 @@ func queryA2S(host, port string) (map[string]string, error) {
 		_ = conn.Close()
 	}()
 
-	if err := conn.SetDeadline(time.Now().Add(a2sQueryTimeout)); err != nil {
+	payload, err := queryA2SInfo(conn)
+	if err != nil {
 		return nil, err
 	}
 
-	payload := append([]byte{0xFF, 0xFF, 0xFF, 0xFF}, []byte("TSource Engine Query\x00")...)
-	if _, err := conn.Write(payload); err != nil {
-		return nil, fmt.Errorf("send query: %w", err)
-	}
-
-	buffer := make([]byte, 1400)
-	n, err := conn.Read(buffer)
-	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
-	}
-
-	players, maxPlayers, mapName, err := parseA2SInfo(buffer[:n])
+	players, maxPlayers, mapName, err := parseA2SInfo(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -227,6 +259,142 @@ func queryA2S(host, port string) (map[string]string, error) {
 		"max_players": strconv.Itoa(maxPlayers),
 		"map":         mapName,
 	}, nil
+}
+
+func queryA2SInfo(conn net.Conn) ([]byte, error) {
+	request := append([]byte{0xFF, 0xFF, 0xFF, 0xFF}, []byte("TSource Engine Query\x00")...)
+	if queryA2SDebugEnabled {
+		log.Printf("a2s debug: bytes_sent=%d", len(request))
+	}
+	if _, err := conn.Write(request); err != nil {
+		return nil, fmt.Errorf("send query: %w", err)
+	}
+
+	retryTimeout := false
+	challengeRetry := false
+	for {
+		packet, err := readA2SPacket(conn)
+		if err != nil {
+			netErr := &net.OpError{}
+			if errors.As(err, &netErr) && netErr.Timeout() && !retryTimeout {
+				retryTimeout = true
+				if _, writeErr := conn.Write(request); writeErr != nil {
+					return nil, fmt.Errorf("resend query: %w", writeErr)
+				}
+				continue
+			}
+			return nil, err
+		}
+		if len(packet) < 5 {
+			return nil, fmt.Errorf("response too short")
+		}
+		if queryA2SDebugEnabled {
+			preview := packet
+			if len(preview) > 8 {
+				preview = preview[:8]
+			}
+			log.Printf("a2s debug: recv_first8=%x", preview)
+		}
+		if packet[4] == a2sTypeChallenge {
+			if challengeRetry {
+				return nil, fmt.Errorf("unexpected repeated challenge response")
+			}
+			if len(packet) < 9 {
+				return nil, fmt.Errorf("invalid challenge response")
+			}
+			challengeRetry = true
+			challengeRequest := append(append([]byte{}, request...), packet[5:9]...)
+			if _, err := conn.Write(challengeRequest); err != nil {
+				return nil, fmt.Errorf("send query with challenge: %w", err)
+			}
+			continue
+		}
+		return packet, nil
+	}
+}
+
+func readA2SPacket(conn net.Conn) ([]byte, error) {
+	if err := conn.SetDeadline(time.Now().Add(a2sQueryTimeout)); err != nil {
+		return nil, err
+	}
+	if queryA2SDebugEnabled {
+		log.Printf("a2s debug: read_attempt deadline_ms=%d", a2sQueryTimeout.Milliseconds())
+	}
+	buffer := make([]byte, 4096)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+	packet := append([]byte(nil), buffer[:n]...)
+	if len(packet) < 4 {
+		return nil, fmt.Errorf("response too short")
+	}
+	header := int32(binary.LittleEndian.Uint32(packet[:4]))
+	if header == a2sHeaderSimple {
+		return packet, nil
+	}
+	if header != a2sHeaderSplit {
+		return nil, fmt.Errorf("invalid response header")
+	}
+	return readA2SSplitPacket(conn, packet)
+}
+
+func readA2SSplitPacket(conn net.Conn, first []byte) ([]byte, error) {
+	fragments := map[byte][]byte{}
+	packetID := int32(0)
+	total := byte(0)
+	readFragment := func(packet []byte) error {
+		if len(packet) < 12 {
+			return fmt.Errorf("split packet too short")
+		}
+		if int32(binary.LittleEndian.Uint32(packet[:4])) != a2sHeaderSplit {
+			return fmt.Errorf("invalid split packet header")
+		}
+		id := int32(binary.LittleEndian.Uint32(packet[4:8]))
+		fragTotal := packet[8]
+		fragNumber := packet[9]
+		if total == 0 {
+			total = fragTotal
+			packetID = id
+		}
+		if id != packetID || fragTotal != total {
+			return fmt.Errorf("mismatched split packet")
+		}
+		payloadOffset := 10
+		if fragNumber == 0 {
+			payloadOffset = 12
+		}
+		if payloadOffset > len(packet) {
+			return fmt.Errorf("invalid split packet payload")
+		}
+		fragments[fragNumber] = append([]byte(nil), packet[payloadOffset:]...)
+		return nil
+	}
+	if err := readFragment(first); err != nil {
+		return nil, err
+	}
+	for byte(len(fragments)) < total {
+		if err := conn.SetDeadline(time.Now().Add(a2sQueryTimeout)); err != nil {
+			return nil, err
+		}
+		buffer := make([]byte, 4096)
+		n, err := conn.Read(buffer)
+		if err != nil {
+			return nil, fmt.Errorf("read split response: %w", err)
+		}
+		if err := readFragment(buffer[:n]); err != nil {
+			return nil, err
+		}
+	}
+	assembled := []byte{0xFF, 0xFF, 0xFF, 0xFF}
+	for i := byte(0); i < total; i++ {
+		part, ok := fragments[i]
+		if !ok {
+			return nil, fmt.Errorf("missing split packet fragment %d", i)
+		}
+		assembled = append(assembled, part...)
+	}
+	return assembled, nil
 }
 
 func parseA2SInfo(payload []byte) (int, int, string, error) {

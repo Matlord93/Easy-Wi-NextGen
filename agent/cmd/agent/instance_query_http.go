@@ -12,11 +12,26 @@ import (
 )
 
 type queryHTTPResponse struct {
-	OK        bool           `json:"ok"`
-	Data      *queryHTTPData `json:"data,omitempty"`
-	ErrorCode string         `json:"error_code,omitempty"`
-	Message   string         `json:"message,omitempty"`
-	RequestID string         `json:"request_id"`
+	OK        bool            `json:"ok"`
+	Data      *queryHTTPData  `json:"data,omitempty"`
+	ErrorCode string          `json:"error_code,omitempty"`
+	Message   string          `json:"message,omitempty"`
+	RequestID string          `json:"request_id"`
+	Debug     *queryHTTPDebug `json:"debug,omitempty"`
+}
+
+type queryHTTPDebug struct {
+	ResolvedHost          string `json:"resolved_host"`
+	ResolvedPort          int    `json:"resolved_port"`
+	ResolvedProtocol      string `json:"resolved_protocol"`
+	TimeoutMS             int    `json:"timeout_ms"`
+	InstanceGamePort      int    `json:"instance_game_port"`
+	InstanceQueryPort     int    `json:"instance_query_port"`
+	TemplateQueryPort     int    `json:"template_query_port"`
+	TemplateQueryProtocol string `json:"template_query_protocol"`
+	LastErrorCode         string `json:"last_error_code,omitempty"`
+	LastErrorMessage      string `json:"last_error_message,omitempty"`
+	RequestID             string `json:"request_id"`
 }
 
 type queryHTTPData struct {
@@ -44,20 +59,34 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 
 	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
 	protocol := normalizeProtocol(r.URL.Query().Get("query_protocol"))
-	host := normalizeQueryDialHost(strings.TrimSpace(r.URL.Query().Get("host")))
-	if host == "" {
-		host = "127.0.0.1"
-	}
+	host := resolveQueryDialHost(
+		strings.TrimSpace(r.URL.Query().Get("host")),
+		strings.TrimSpace(r.URL.Query().Get("bind_ip")),
+		strings.TrimSpace(r.URL.Query().Get("node_ip")),
+		strings.TrimSpace(r.URL.Query().Get("local_only")),
+	)
 	port, err := resolveQueryPort(r)
 	if err != nil {
-		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_PORT", Message: err.Error(), RequestID: requestID})
+		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_PORT", Message: err.Error(), RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, ResolvedProtocol: protocol, LastErrorCode: "INVALID_PORT", LastErrorMessage: err.Error(), RequestID: requestID}})
 		return
+	}
+
+	debug := &queryHTTPDebug{
+		ResolvedHost:          host,
+		ResolvedPort:          port,
+		ResolvedProtocol:      protocol,
+		InstanceGamePort:      parseIntOrDefault(r.URL.Query().Get("game_port"), 0),
+		InstanceQueryPort:     parseIntOrDefault(r.URL.Query().Get("query_port"), 0),
+		TemplateQueryPort:     parseIntOrDefault(r.URL.Query().Get("template_query_port"), 0),
+		TemplateQueryProtocol: normalizeProtocol(r.URL.Query().Get("template_query_protocol")),
+		RequestID:             requestID,
 	}
 
 	timeoutMS := parseIntOrDefault(r.URL.Query().Get("query_timeout_ms"), 3000)
 	if timeoutMS < 250 {
 		timeoutMS = 250
 	}
+	debug.TimeoutMS = timeoutMS
 	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(timeoutMS)*time.Millisecond)
 	defer cancel()
 
@@ -65,49 +94,69 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 	lockKey := "instance:" + instanceID
 	result := queryHTTPResponse{RequestID: requestID}
 	globalInstanceLocks.WithReadLock(lockKey, func() {
-		result = performProtocolQuery(ctx, protocol, host, port, requestID)
+		result = performProtocolQuery(ctx, protocol, host, port, requestID, debug)
 		if result.Data != nil {
 			result.Data.LatencyMS = time.Since(started).Milliseconds()
 		}
 	})
 
 	if errors.Is(ctx.Err(), context.Canceled) {
-		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "QUERY_CANCELED", Message: "query canceled", RequestID: requestID})
+		debug.LastErrorCode = "QUERY_CANCELED"
+		debug.LastErrorMessage = "query canceled"
+		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "QUERY_CANCELED", Message: "query canceled", RequestID: requestID, Debug: debug})
 		return
 	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "QUERY_TIMEOUT", Message: "query timed out", RequestID: requestID})
+		debug.LastErrorCode = "QUERY_TIMEOUT"
+		debug.LastErrorMessage = "query timed out"
+		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "QUERY_TIMEOUT", Message: "query timed out", RequestID: requestID, Debug: debug})
 		return
 	}
 
+	if result.Debug == nil {
+		result.Debug = debug
+	}
 	writeQueryEnvelope(w, http.StatusOK, result)
 }
 
-func performProtocolQuery(ctx context.Context, protocol, host string, port int, requestID string) queryHTTPResponse {
+func performProtocolQuery(ctx context.Context, protocol, host string, port int, requestID string, debug *queryHTTPDebug) queryHTTPResponse {
 	portStr := strconv.Itoa(port)
 	switch protocol {
 	case "valve", "source", "a2s":
 		payload, err := runWithContext(ctx, func() (map[string]string, error) { return queryA2S(host, portStr) })
 		if err != nil {
-			return queryHTTPResponse{OK: false, ErrorCode: resolveQueryErrCode(err), Message: err.Error(), RequestID: requestID}
+			code := resolveQueryErrCode(err)
+			debug.LastErrorCode = code
+			debug.LastErrorMessage = err.Error()
+			return queryHTTPResponse{OK: false, ErrorCode: code, Message: err.Error(), RequestID: requestID, Debug: debug}
 		}
-		return queryHTTPResponse{OK: true, Data: mapResultPayload("running", payload), RequestID: requestID}
+		return queryHTTPResponse{OK: true, Data: mapResultPayload("running", payload), RequestID: requestID, Debug: debug}
 	case "minecraft", "minecraft_java", "java":
 		payload, err := runWithContext(ctx, func() (map[string]string, error) { return queryMinecraftJava(host, portStr) })
 		if err != nil {
-			return queryHTTPResponse{OK: false, ErrorCode: resolveQueryErrCode(err), Message: err.Error(), RequestID: requestID}
+			code := resolveQueryErrCode(err)
+			debug.LastErrorCode = code
+			debug.LastErrorMessage = err.Error()
+			return queryHTTPResponse{OK: false, ErrorCode: code, Message: err.Error(), RequestID: requestID, Debug: debug}
 		}
-		return queryHTTPResponse{OK: true, Data: mapResultPayload("running", payload), RequestID: requestID}
+		return queryHTTPResponse{OK: true, Data: mapResultPayload("running", payload), RequestID: requestID, Debug: debug}
 	case "bedrock", "minecraft_bedrock":
 		payload, err := runWithContext(ctx, func() (map[string]string, error) { return queryMinecraftBedrock(host, portStr) })
 		if err != nil {
-			return queryHTTPResponse{OK: false, ErrorCode: resolveQueryErrCode(err), Message: err.Error(), RequestID: requestID}
+			code := resolveQueryErrCode(err)
+			debug.LastErrorCode = code
+			debug.LastErrorMessage = err.Error()
+			return queryHTTPResponse{OK: false, ErrorCode: code, Message: err.Error(), RequestID: requestID, Debug: debug}
 		}
-		return queryHTTPResponse{OK: true, Data: mapResultPayload("running", payload), RequestID: requestID}
+		return queryHTTPResponse{OK: true, Data: mapResultPayload("running", payload), RequestID: requestID, Debug: debug}
 	case "custom":
-		return queryHTTPResponse{OK: false, ErrorCode: "UNSUPPORTED_PROTOCOL", Message: "custom protocol handler not implemented", RequestID: requestID}
+		debug.LastErrorCode = "UNSUPPORTED_PROTOCOL"
+		debug.LastErrorMessage = "custom protocol handler not implemented"
+		return queryHTTPResponse{OK: false, ErrorCode: "UNSUPPORTED_PROTOCOL", Message: "custom protocol handler not implemented", RequestID: requestID, Debug: debug}
 	default:
-		return queryHTTPResponse{OK: false, ErrorCode: "UNSUPPORTED_PROTOCOL", Message: "unsupported query protocol", RequestID: requestID}
+		debug.LastErrorCode = "UNSUPPORTED_PROTOCOL"
+		debug.LastErrorMessage = "unsupported query protocol"
+		return queryHTTPResponse{OK: false, ErrorCode: "UNSUPPORTED_PROTOCOL", Message: "unsupported query protocol", RequestID: requestID, Debug: debug}
 	}
 }
 

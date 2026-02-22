@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -112,7 +113,7 @@ func TestNormalizeQueryDialHost(t *testing.T) {
 }
 
 func TestPerformProtocolQueryUnsupportedProtocol(t *testing.T) {
-	resp := performProtocolQuery(context.Background(), "weird", "127.0.0.1", 27015, "req-1")
+	resp := performProtocolQuery(context.Background(), "weird", "127.0.0.1", 27015, "req-1", &queryHTTPDebug{})
 	if resp.OK {
 		t.Fatalf("expected not ok")
 	}
@@ -166,7 +167,7 @@ func TestPerformProtocolQueryValveSuccess(t *testing.T) {
 	}()
 
 	port := conn.LocalAddr().(*net.UDPAddr).Port
-	resp := performProtocolQuery(context.Background(), "valve", "127.0.0.1", port, "req-2")
+	resp := performProtocolQuery(context.Background(), "valve", "127.0.0.1", port, "req-2", &queryHTTPDebug{})
 	if !resp.OK || resp.Data == nil {
 		t.Fatalf("expected success, got %+v", resp)
 	}
@@ -184,5 +185,146 @@ func TestRunWithContextTimeout(t *testing.T) {
 	})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected deadline exceeded, got %v", err)
+	}
+}
+
+func TestPerformProtocolQueryConnectionRefused(t *testing.T) {
+	resp := performProtocolQuery(context.Background(), "valve", "127.0.0.1", 1, "req-refused", &queryHTTPDebug{})
+	if resp.OK {
+		t.Fatalf("expected failed query")
+	}
+	if resp.ErrorCode != "CONNECTION_REFUSED" {
+		t.Fatalf("error code=%s", resp.ErrorCode)
+	}
+}
+
+func TestResolveQueryDialHost(t *testing.T) {
+	host := resolveQueryDialHost("", "10.10.10.5", "203.0.113.9", "true")
+	if host != "10.10.10.5" {
+		t.Fatalf("host=%q", host)
+	}
+
+	host = resolveQueryDialHost("", "", "203.0.113.9", "false")
+	if host != "203.0.113.9" {
+		t.Fatalf("host=%q", host)
+	}
+}
+
+func TestQueryA2SInfoHandlesChallenge(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen udp: %v", err)
+	}
+	defer conn.Close()
+
+	go func() {
+		buf := make([]byte, 2048)
+		for {
+			n, addr, err := conn.ReadFrom(buf)
+			if err != nil {
+				return
+			}
+			if n < 5 || buf[4] != 0x54 {
+				continue
+			}
+			if n == 25 {
+				_, _ = conn.WriteTo([]byte{0xFF, 0xFF, 0xFF, 0xFF, 0x41, 0x11, 0x22, 0x33, 0x44}, addr)
+				continue
+			}
+			payload := []byte{0xFF, 0xFF, 0xFF, 0xFF, 0x49, 0x11}
+			payload = append(payload, []byte("srv\x00de_dust2\x00folder\x00game\x00")...)
+			payload = append(payload, []byte{0xDA, 0x02, 5, 20, 0, 'd', 'l', 0, 1}...)
+			_, _ = conn.WriteTo(payload, addr)
+		}
+	}()
+
+	port := conn.LocalAddr().(*net.UDPAddr).Port
+	payload, err := queryA2S("127.0.0.1", strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("queryA2S: %v", err)
+	}
+	if payload["map"] != "de_dust2" {
+		t.Fatalf("map=%q", payload["map"])
+	}
+}
+
+func TestQueryA2SInfoHandlesSplitPackets(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen udp: %v", err)
+	}
+	defer conn.Close()
+
+	go func() {
+		buf := make([]byte, 2048)
+		for {
+			n, addr, err := conn.ReadFrom(buf)
+			if err != nil {
+				return
+			}
+			if n < 5 || buf[4] != 0x54 {
+				continue
+			}
+			full := []byte{0x49, 0x11}
+			full = append(full, []byte("srv\x00l4d_hospital\x00folder\x00game\x00")...)
+			full = append(full, []byte{0xDA, 0x02, 8, 16, 0, 'd', 'l', 0, 1}...)
+			part1 := append([]byte{0xFE, 0xFF, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x10, 0x00}, full[:12]...)
+			part2 := append([]byte{0xFE, 0xFF, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x02, 0x01}, full[12:]...)
+			_, _ = conn.WriteTo(part1, addr)
+			_, _ = conn.WriteTo(part2, addr)
+		}
+	}()
+
+	port := conn.LocalAddr().(*net.UDPAddr).Port
+	payload, err := queryA2S("127.0.0.1", strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("queryA2S: %v", err)
+	}
+	if payload["map"] != "l4d_hospital" {
+		t.Fatalf("map=%q", payload["map"])
+	}
+}
+
+func TestPerformProtocolQueryValveTimeout(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen udp: %v", err)
+	}
+	defer conn.Close()
+	go func() {
+		buf := make([]byte, 128)
+		for {
+			if _, _, err := conn.ReadFrom(buf); err != nil {
+				return
+			}
+		}
+	}()
+
+	port := conn.LocalAddr().(*net.UDPAddr).Port
+	resp := performProtocolQuery(context.Background(), "valve", "127.0.0.1", port, "req-timeout", &queryHTTPDebug{})
+	if resp.OK {
+		t.Fatalf("expected failed query")
+	}
+	if resp.ErrorCode != "QUERY_TIMEOUT" {
+		t.Fatalf("error=%s", resp.ErrorCode)
+	}
+	if resp.RequestID != "req-timeout" {
+		t.Fatalf("request id=%s", resp.RequestID)
+	}
+}
+
+func TestHandleInstanceQueryCheckFallsBackToGamePort(t *testing.T) {
+	job := jobs.Job{
+		ID: "job-game-port",
+		Payload: map[string]any{
+			"query_type": "a2s",
+			"host":       "127.0.0.1",
+			"game_port":  "27015",
+		},
+	}
+
+	result, _ := handleInstanceQueryCheck(job)
+	if result.Status != "success" {
+		t.Fatalf("status=%s", result.Status)
 	}
 }
