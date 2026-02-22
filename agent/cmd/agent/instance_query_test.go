@@ -215,7 +215,11 @@ func TestQueryA2SInfoHandlesChallenge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen udp: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close udp conn: %v", err)
+		}
+	}()
 
 	go func() {
 		buf := make([]byte, 2048)
@@ -253,7 +257,11 @@ func TestQueryA2SInfoHandlesSplitPackets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen udp: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close udp conn: %v", err)
+		}
+	}()
 
 	go func() {
 		buf := make([]byte, 2048)
@@ -290,7 +298,11 @@ func TestPerformProtocolQueryValveTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen udp: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close udp conn: %v", err)
+		}
+	}()
 	go func() {
 		buf := make([]byte, 128)
 		for {
