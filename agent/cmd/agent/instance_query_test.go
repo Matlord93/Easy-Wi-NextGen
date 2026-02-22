@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,6 +124,33 @@ func TestPerformProtocolQueryUnsupportedProtocol(t *testing.T) {
 	}
 	if resp.ErrorCode != "UNSUPPORTED_PROTOCOL" {
 		t.Fatalf("error=%s", resp.ErrorCode)
+	}
+}
+
+func TestHandleInstanceQueryHTTPUsesJSONPayloadFallback(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/v1/instances/inst-1/query", strings.NewReader(`{"host":"127.0.0.1","query_port":27015,"query_protocol":"custom","network_mode":"host"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-ID", "req-json-payload")
+	rr := httptest.NewRecorder()
+
+	handleInstanceQueryHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200", rr.Code)
+	}
+
+	var payload queryHTTPResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.OK {
+		t.Fatalf("expected not ok")
+	}
+	if payload.ErrorCode != "UNSUPPORTED_PROTOCOL" {
+		t.Fatalf("error_code=%s", payload.ErrorCode)
+	}
+	if payload.RequestID != "req-json-payload" {
+		t.Fatalf("request_id=%q", payload.RequestID)
 	}
 }
 

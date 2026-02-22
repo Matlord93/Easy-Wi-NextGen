@@ -74,18 +74,19 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	protocol := normalizeProtocol(r.URL.Query().Get("query_protocol"))
+	payload := parseQueryHTTPPayload(r)
+	protocol := normalizeProtocol(queryParamOrPayload(r, payload, "query_protocol"))
 	resolution := resolveQueryDialHost(
-		strings.TrimSpace(r.URL.Query().Get("host")),
-		strings.TrimSpace(r.URL.Query().Get("bind_ip")),
-		strings.TrimSpace(r.URL.Query().Get("instance_ip")),
-		strings.TrimSpace(r.URL.Query().Get("node_ip")),
-		strings.TrimSpace(r.URL.Query().Get("local_only")),
-		strings.TrimSpace(r.URL.Query().Get("network_mode")),
-		strings.TrimSpace(r.URL.Query().Get("share_host_network")),
+		queryParamOrPayload(r, payload, "host"),
+		queryParamOrPayload(r, payload, "bind_ip"),
+		queryParamOrPayload(r, payload, "instance_ip"),
+		queryParamOrPayload(r, payload, "node_ip"),
+		queryParamOrPayload(r, payload, "local_only"),
+		queryParamOrPayload(r, payload, "network_mode"),
+		queryParamOrPayload(r, payload, "share_host_network"),
 	)
 	host := resolution.Host
-	port, err := resolveQueryPort(r)
+	port, err := resolveQueryPort(r, payload)
 	if err != nil {
 		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_PORT", Message: err.Error(), RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, NetworkMode: resolution.NetworkMode, ChosenDialHostSource: resolution.Source, ResolvedHostSource: resolution.Source, LoopbackUsed: resolution.LoopbackUsed, ResolvedProtocol: protocol, LastErrorCode: "INVALID_PORT", LastErrorMessage: err.Error(), RequestID: requestID}})
 		return
@@ -104,14 +105,14 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 		LoopbackUsed:          resolution.LoopbackUsed,
 		ResolvedPort:          port,
 		ResolvedProtocol:      protocol,
-		InstanceGamePort:      parseIntOrDefault(r.URL.Query().Get("game_port"), 0),
-		InstanceQueryPort:     parseIntOrDefault(r.URL.Query().Get("query_port"), 0),
-		TemplateQueryPort:     parseIntOrDefault(r.URL.Query().Get("template_query_port"), 0),
-		TemplateQueryProtocol: normalizeProtocol(r.URL.Query().Get("template_query_protocol")),
+		InstanceGamePort:      parseIntOrDefault(queryParamOrPayload(r, payload, "game_port"), 0),
+		InstanceQueryPort:     parseIntOrDefault(queryParamOrPayload(r, payload, "query_port"), 0),
+		TemplateQueryPort:     parseIntOrDefault(queryParamOrPayload(r, payload, "template_query_port"), 0),
+		TemplateQueryProtocol: normalizeProtocol(queryParamOrPayload(r, payload, "template_query_protocol")),
 		RequestID:             requestID,
 	}
 
-	timeoutMS := parseIntOrDefault(r.URL.Query().Get("query_timeout_ms"), 3000)
+	timeoutMS := parseIntOrDefault(queryParamOrPayload(r, payload, "query_timeout_ms"), 3000)
 	if timeoutMS < 250 {
 		timeoutMS = 250
 	}
@@ -146,6 +147,50 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 		result.Debug = debug
 	}
 	writeQueryEnvelope(w, http.StatusOK, result)
+}
+
+func parseQueryHTTPPayload(r *http.Request) map[string]string {
+	if r.Body == nil {
+		return nil
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32*1024))
+	if err != nil || len(body) == 0 {
+		return nil
+	}
+	r.Body = io.NopCloser(strings.NewReader(string(body)))
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil
+	}
+
+	result := map[string]string{}
+	for key, value := range payload {
+		switch typed := value.(type) {
+		case string:
+			result[key] = strings.TrimSpace(typed)
+		case float64:
+			result[key] = strconv.FormatFloat(typed, 'f', -1, 64)
+		case bool:
+			if typed {
+				result[key] = "true"
+			} else {
+				result[key] = "false"
+			}
+		}
+	}
+
+	return result
+}
+
+func queryParamOrPayload(r *http.Request, payload map[string]string, key string) string {
+	if value := strings.TrimSpace(r.URL.Query().Get(key)); value != "" {
+		return value
+	}
+	if payload == nil {
+		return ""
+	}
+	return strings.TrimSpace(payload[key])
 }
 
 func performProtocolQuery(ctx context.Context, protocol, host string, port int, requestID string, debug *queryHTTPDebug) queryHTTPResponse {
@@ -221,9 +266,9 @@ func mapResultPayload(status string, payload map[string]string) *queryHTTPData {
 	}
 }
 
-func resolveQueryPort(r *http.Request) (int, error) {
+func resolveQueryPort(r *http.Request, payload map[string]string) (int, error) {
 	for _, key := range []string{"query_port", "port", "game_port"} {
-		value := strings.TrimSpace(r.URL.Query().Get(key))
+		value := queryParamOrPayload(r, payload, key)
 		if value == "" {
 			continue
 		}
