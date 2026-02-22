@@ -154,6 +154,37 @@ func TestHandleInstanceQueryHTTPUsesJSONPayloadFallback(t *testing.T) {
 	}
 }
 
+
+func TestHandleInstanceQueryHTTPUsesIPAliasFromJSONPayload(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/v1/instances/inst-1/query", strings.NewReader(`{"ip":"127.0.0.1","query_port":27015,"query_transport":"custom","network_mode":"host"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-ID", "req-json-ip-alias")
+	rr := httptest.NewRecorder()
+
+	handleInstanceQueryHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200", rr.Code)
+	}
+
+	var payload queryHTTPResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.OK {
+		t.Fatalf("expected not ok")
+	}
+	if payload.ErrorCode != "UNSUPPORTED_PROTOCOL" {
+		t.Fatalf("error_code=%s", payload.ErrorCode)
+	}
+	if payload.RequestID != "req-json-ip-alias" {
+		t.Fatalf("request_id=%q", payload.RequestID)
+	}
+	if payload.Debug == nil || payload.Debug.ResolvedHost != "127.0.0.1" {
+		t.Fatalf("resolved_host=%v, want 127.0.0.1", payload.Debug)
+	}
+}
+
 func TestHandleInstanceQueryHTTPMissingHostReturnsInvalidInput(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/v1/instances/inst-1/query?query_port=27015&query_protocol=valve&network_mode=isolated", nil)
 	req.Header.Set("X-Request-ID", "req-missing-host")

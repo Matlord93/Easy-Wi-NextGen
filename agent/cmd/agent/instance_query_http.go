@@ -75,15 +75,15 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	payload := parseQueryHTTPPayload(r)
-	protocol := normalizeProtocol(queryParamOrPayload(r, payload, "query_protocol"))
+	protocol := normalizeProtocol(queryValueFromKeys(r, payload, "query_protocol", "query_transport", "protocol"))
 	resolution := resolveQueryDialHost(
-		queryParamOrPayload(r, payload, "host"),
-		queryParamOrPayload(r, payload, "bind_ip"),
-		queryParamOrPayload(r, payload, "instance_ip"),
-		queryParamOrPayload(r, payload, "node_ip"),
-		queryParamOrPayload(r, payload, "local_only"),
-		queryParamOrPayload(r, payload, "network_mode"),
-		queryParamOrPayload(r, payload, "share_host_network"),
+		queryValueFromKeys(r, payload, "host", "ip"),
+		queryValueFromKeys(r, payload, "bind_ip", "query_bind_ip"),
+		queryValueFromKeys(r, payload, "instance_ip", "ip"),
+		queryValueFromKeys(r, payload, "node_ip", "public_ip"),
+		queryValueFromKeys(r, payload, "local_only", "is_local_only"),
+		queryValueFromKeys(r, payload, "network_mode"),
+		queryValueFromKeys(r, payload, "share_host_network"),
 	)
 	host := resolution.Host
 	port, err := resolveQueryPort(r, payload)
@@ -108,7 +108,7 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 		InstanceGamePort:      parseIntOrDefault(queryParamOrPayload(r, payload, "game_port"), 0),
 		InstanceQueryPort:     parseIntOrDefault(queryParamOrPayload(r, payload, "query_port"), 0),
 		TemplateQueryPort:     parseIntOrDefault(queryParamOrPayload(r, payload, "template_query_port"), 0),
-		TemplateQueryProtocol: normalizeProtocol(queryParamOrPayload(r, payload, "template_query_protocol")),
+		TemplateQueryProtocol: normalizeProtocol(queryValueFromKeys(r, payload, "template_query_protocol", "query_protocol")),
 		RequestID:             requestID,
 	}
 
@@ -193,6 +193,15 @@ func queryParamOrPayload(r *http.Request, payload map[string]string, key string)
 	return strings.TrimSpace(payload[key])
 }
 
+func queryValueFromKeys(r *http.Request, payload map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if value := queryParamOrPayload(r, payload, key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func performProtocolQuery(ctx context.Context, protocol, host string, port int, requestID string, debug *queryHTTPDebug) queryHTTPResponse {
 	portStr := strconv.Itoa(port)
 	switch protocol {
@@ -267,7 +276,7 @@ func mapResultPayload(status string, payload map[string]string) *queryHTTPData {
 }
 
 func resolveQueryPort(r *http.Request, payload map[string]string) (int, error) {
-	for _, key := range []string{"query_port", "port", "game_port"} {
+	for _, key := range []string{"query_port", "port", "game_port", "query", "server_port"} {
 		value := queryParamOrPayload(r, payload, key)
 		if value == "" {
 			continue
