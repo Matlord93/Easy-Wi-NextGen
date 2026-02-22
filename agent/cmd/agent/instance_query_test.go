@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"net"
@@ -132,8 +133,8 @@ func TestHandleInstanceQueryHTTPMissingHostReturnsInvalidInput(t *testing.T) {
 
 	handleInstanceQueryHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status=%d, want 200", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status=%d, want 422", rr.Code)
 	}
 
 	var payload queryHTTPResponse
@@ -386,5 +387,96 @@ func TestHandleInstanceQueryCheckFallsBackToGamePort(t *testing.T) {
 	result, _ := handleInstanceQueryCheck(job)
 	if result.Status != "success" {
 		t.Fatalf("status=%s", result.Status)
+	}
+}
+
+func TestHandleInstanceQueryCheckMissingHostReturnsInvalidInput(t *testing.T) {
+	job := jobs.Job{
+		ID: "job-missing-host",
+		Payload: map[string]any{
+			"query_type":   "a2s",
+			"query_port":   "27015",
+			"network_mode": "isolated",
+		},
+	}
+
+	result, _ := handleInstanceQueryCheck(job)
+	if result.Status != "failed" {
+		t.Fatalf("status=%s", result.Status)
+	}
+	if code := result.Output["error_code"]; code != "INVALID_INPUT" {
+		t.Fatalf("error_code=%v", code)
+	}
+}
+
+func TestQueryMinecraftJavaParsesStatusResponse(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen tcp: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		_, _ = readMinecraftPacket(conn) // handshake
+		_, _ = readMinecraftPacket(conn) // status req
+		jsonPayload := `{"version":{"name":"1.20.6"},"players":{"online":4,"max":24},"description":"Hi"}`
+		buf := &bytes.Buffer{}
+		_ = writeVarInt(buf, 0x00)
+		_ = writeVarString(buf, jsonPayload)
+		_ = writeMinecraftPacket(conn, buf.Bytes())
+	}()
+
+	port := ln.Addr().(*net.TCPAddr).Port
+	payload, err := queryMinecraftJava("127.0.0.1", strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("queryMinecraftJava: %v", err)
+	}
+	if payload["players"] != "4" || payload["max_players"] != "24" {
+		t.Fatalf("payload=%v", payload)
+	}
+	if payload["version"] != "1.20.6" {
+		t.Fatalf("version=%q", payload["version"])
+	}
+}
+
+func TestQueryMinecraftBedrockParsesPong(t *testing.T) {
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen udp: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	go func() {
+		buf := make([]byte, 2048)
+		n, addr, err := conn.ReadFrom(buf)
+		if err != nil || n == 0 {
+			return
+		}
+		pong := &bytes.Buffer{}
+		pong.WriteByte(0x1c)
+		_ = binary.Write(pong, binary.BigEndian, uint64(1))
+		_ = binary.Write(pong, binary.BigEndian, uint64(2))
+		pong.Write(bedrockMagic)
+		info := "MCPE;EasyWi;589;1.20.80;2;20;12345;World;Survival;1;19132;19133;"
+		_ = binary.Write(pong, binary.BigEndian, uint16(len(info)))
+		pong.WriteString(info)
+		_, _ = conn.WriteTo(pong.Bytes(), addr)
+	}()
+
+	port := conn.LocalAddr().(*net.UDPAddr).Port
+	payload, err := queryMinecraftBedrock("127.0.0.1", strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("queryMinecraftBedrock: %v", err)
+	}
+	if payload["players"] != "2" || payload["max_players"] != "20" {
+		t.Fatalf("payload=%v", payload)
+	}
+	if payload["version"] == "" || payload["motd"] != "EasyWi" {
+		t.Fatalf("payload=%v", payload)
 	}
 }

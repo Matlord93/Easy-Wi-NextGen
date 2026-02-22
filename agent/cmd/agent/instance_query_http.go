@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -25,6 +26,7 @@ type queryHTTPDebug struct {
 	ResolvedHost          string `json:"resolved_host"`
 	NetworkMode           string `json:"network_mode,omitempty"`
 	ChosenDialHostSource  string `json:"chosen_dial_host_source,omitempty"`
+	ResolvedHostSource    string `json:"resolved_host_source,omitempty"`
 	LoopbackUsed          bool   `json:"loopback_used"`
 	ResolvedPort          int    `json:"resolved_port"`
 	ResolvedProtocol      string `json:"resolved_protocol"`
@@ -64,6 +66,13 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
 	if queryPayloadDebugEnabled {
 		log.Printf("instance query http request: path=%s raw_query=%s request_id=%s", r.URL.Path, r.URL.RawQuery, requestID)
+		if r.Body != nil {
+			bodyCopy, _ := io.ReadAll(io.LimitReader(r.Body, 8*1024))
+			r.Body = io.NopCloser(strings.NewReader(string(bodyCopy)))
+			if len(bodyCopy) > 0 {
+				log.Printf("instance query http request body: request_id=%s body=%s", requestID, redactSensitiveQueryJSON(bodyCopy))
+			}
+		}
 	}
 	protocol := normalizeProtocol(r.URL.Query().Get("query_protocol"))
 	resolution := resolveQueryDialHost(
@@ -78,12 +87,12 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 	host := resolution.Host
 	port, err := resolveQueryPort(r)
 	if err != nil {
-		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_PORT", Message: err.Error(), RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, NetworkMode: resolution.NetworkMode, ChosenDialHostSource: resolution.Source, LoopbackUsed: resolution.LoopbackUsed, ResolvedProtocol: protocol, LastErrorCode: "INVALID_PORT", LastErrorMessage: err.Error(), RequestID: requestID}})
+		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_PORT", Message: err.Error(), RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, NetworkMode: resolution.NetworkMode, ChosenDialHostSource: resolution.Source, ResolvedHostSource: resolution.Source, LoopbackUsed: resolution.LoopbackUsed, ResolvedProtocol: protocol, LastErrorCode: "INVALID_PORT", LastErrorMessage: err.Error(), RequestID: requestID}})
 		return
 	}
 
 	if host == "" {
-		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_INPUT", Message: "missing required values: host", RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, NetworkMode: resolution.NetworkMode, ChosenDialHostSource: resolution.Source, LoopbackUsed: resolution.LoopbackUsed, ResolvedProtocol: protocol, LastErrorCode: "INVALID_INPUT", LastErrorMessage: "missing required values: host", RequestID: requestID}})
+		writeQueryEnvelope(w, http.StatusUnprocessableEntity, queryHTTPResponse{OK: false, ErrorCode: "INVALID_INPUT", Message: "missing required values: host", RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, NetworkMode: resolution.NetworkMode, ChosenDialHostSource: resolution.Source, ResolvedHostSource: resolution.Source, LoopbackUsed: resolution.LoopbackUsed, ResolvedProtocol: protocol, LastErrorCode: "INVALID_INPUT", LastErrorMessage: "missing required values: host", RequestID: requestID}})
 		return
 	}
 
@@ -91,6 +100,7 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 		ResolvedHost:          host,
 		NetworkMode:           resolution.NetworkMode,
 		ChosenDialHostSource:  resolution.Source,
+		ResolvedHostSource:    resolution.Source,
 		LoopbackUsed:          resolution.LoopbackUsed,
 		ResolvedPort:          port,
 		ResolvedProtocol:      protocol,
@@ -141,7 +151,7 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 func performProtocolQuery(ctx context.Context, protocol, host string, port int, requestID string, debug *queryHTTPDebug) queryHTTPResponse {
 	portStr := strconv.Itoa(port)
 	switch protocol {
-	case "valve", "source", "a2s":
+	case "valve", "source", "source1", "source2", "a2s", "steam_a2s":
 		payload, err := runWithContext(ctx, func() (map[string]string, error) { return queryA2S(host, portStr) })
 		if err != nil {
 			code := resolveQueryErrCode(err)
@@ -233,12 +243,16 @@ func resolveQueryErrCode(err error) string {
 		return "QUERY_TIMEOUT"
 	case strings.Contains(message, "connection refused"):
 		return "CONNECTION_REFUSED"
+	case strings.Contains(message, "permission denied"):
+		return "PERMISSION_DENIED"
 	case strings.Contains(message, "invalid port"):
-		return "INVALID_PORT"
-	case strings.Contains(message, "network is unreachable"):
-		return "CONNECTION_REFUSED"
+		return "INVALID_INPUT"
+	case strings.Contains(message, "no such host"):
+		return "DNS_FAILED"
+	case strings.Contains(message, "network is unreachable"), strings.Contains(message, "connection reset"):
+		return "PORT_UNREACHABLE"
 	default:
-		return "QUERY_FAILED"
+		return "INSTANCE_OFFLINE"
 	}
 }
 
@@ -253,10 +267,34 @@ func normalizeProtocol(raw string) string {
 	switch value {
 	case "", "none":
 		return ""
-	case "steam_a2s", "a2s":
+	case "steam_a2s", "a2s", "source", "source1", "source2", "valve", "steam":
 		return "valve"
+	case "minecraft", "minecraft_java", "java":
+		return "minecraft_java"
+	case "minecraft_bedrock", "bedrock", "mcpe":
+		return "minecraft_bedrock"
 	}
 	return value
+}
+
+func redactSensitiveQueryJSON(raw []byte) string {
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return string(raw)
+	}
+
+	for _, key := range []string{"token", "secret", "password", "authorization", "auth"} {
+		if _, ok := payload[key]; ok {
+			payload[key] = "[REDACTED]"
+		}
+	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return string(raw)
+	}
+
+	return string(encoded)
 }
 
 func parseOptionalIntString(raw string) *int {

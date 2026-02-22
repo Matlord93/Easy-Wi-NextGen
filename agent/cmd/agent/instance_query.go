@@ -61,12 +61,7 @@ func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 		{key: "protocol", value: queryType},
 	})
 	if len(missing) > 0 {
-		return jobs.Result{
-			JobID:     job.ID,
-			Status:    "failed",
-			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
-			Completed: time.Now().UTC(),
-		}, nil
+		return failedResultWithErrorCode(job.ID, "INVALID_INPUT", "missing required values: "+strings.Join(missing, ", "))
 	}
 
 	switch queryType {
