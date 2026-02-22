@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -61,6 +62,9 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+	if queryPayloadDebugEnabled {
+		log.Printf("instance query http request: path=%s raw_query=%s request_id=%s", r.URL.Path, r.URL.RawQuery, requestID)
+	}
 	protocol := normalizeProtocol(r.URL.Query().Get("query_protocol"))
 	resolution := resolveQueryDialHost(
 		strings.TrimSpace(r.URL.Query().Get("host")),
@@ -75,6 +79,11 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 	port, err := resolveQueryPort(r)
 	if err != nil {
 		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_PORT", Message: err.Error(), RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, NetworkMode: resolution.NetworkMode, ChosenDialHostSource: resolution.Source, LoopbackUsed: resolution.LoopbackUsed, ResolvedProtocol: protocol, LastErrorCode: "INVALID_PORT", LastErrorMessage: err.Error(), RequestID: requestID}})
+		return
+	}
+
+	if host == "" {
+		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_INPUT", Message: "missing required values: host", RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, NetworkMode: resolution.NetworkMode, ChosenDialHostSource: resolution.Source, LoopbackUsed: resolution.LoopbackUsed, ResolvedProtocol: protocol, LastErrorCode: "INVALID_INPUT", LastErrorMessage: "missing required values: host", RequestID: requestID}})
 		return
 	}
 

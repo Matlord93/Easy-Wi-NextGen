@@ -30,9 +30,14 @@ const (
 var bedrockMagic = []byte{0x00, 0xff, 0xff, 0x00, 0xfe, 0xfe, 0xfe, 0xfe, 0xfd, 0xfd, 0xfd, 0xfd, 0x12, 0x34, 0x56, 0x78}
 
 var queryA2SDebugEnabled = strings.EqualFold(strings.TrimSpace(os.Getenv("QUERY_A2S_DEBUG")), "1") || strings.EqualFold(strings.TrimSpace(os.Getenv("QUERY_A2S_DEBUG")), "true")
+var queryPayloadDebugEnabled = strings.EqualFold(strings.TrimSpace(os.Getenv("QUERY_PAYLOAD_DEBUG")), "1") || strings.EqualFold(strings.TrimSpace(os.Getenv("QUERY_PAYLOAD_DEBUG")), "true")
 
 func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
-	queryType := strings.ToLower(payloadValue(job.Payload, "query_type"))
+	queryType := strings.ToLower(payloadValue(job.Payload, "query_type", "protocol"))
+	if queryPayloadDebugEnabled {
+		payloadJSON, _ := json.Marshal(job.Payload)
+		log.Printf("instance.query.check payload: job_id=%s payload=%s", job.ID, payloadJSON)
+	}
 	resolution := resolveQueryDialHost(
 		payloadValue(job.Payload, "host", "ip"),
 		payloadValue(job.Payload, "bind_ip", "query_bind_ip"),
@@ -53,6 +58,7 @@ func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 	missing := missingValues([]requiredValue{
 		{key: "host", value: host},
 		{key: "port", value: port},
+		{key: "protocol", value: queryType},
 	})
 	if len(missing) > 0 {
 		return jobs.Result{
@@ -207,7 +213,10 @@ func resolveQueryDialHost(host, bindIP, instanceIP, nodeIP, localOnly, networkMo
 	if normalized := normalizeQueryDialHost(instanceIP); normalized != "" {
 		return newQueryDialResolution(normalized, "instance_ip", mode)
 	}
-	return newQueryDialResolution("127.0.0.1", "loopback", mode)
+	if mode == "host" {
+		return newQueryDialResolution("127.0.0.1", "loopback", mode)
+	}
+	return newQueryDialResolution("", "", mode)
 }
 
 func normalizeNetworkMode(networkMode, shareHostNetwork string) string {

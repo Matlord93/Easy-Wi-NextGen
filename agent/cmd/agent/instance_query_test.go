@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
@@ -120,6 +122,32 @@ func TestPerformProtocolQueryUnsupportedProtocol(t *testing.T) {
 	}
 	if resp.ErrorCode != "UNSUPPORTED_PROTOCOL" {
 		t.Fatalf("error=%s", resp.ErrorCode)
+	}
+}
+
+func TestHandleInstanceQueryHTTPMissingHostReturnsInvalidInput(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/v1/instances/inst-1/query?query_port=27015&query_protocol=valve&network_mode=isolated", nil)
+	req.Header.Set("X-Request-ID", "req-missing-host")
+	rr := httptest.NewRecorder()
+
+	handleInstanceQueryHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d, want 200", rr.Code)
+	}
+
+	var payload queryHTTPResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.OK {
+		t.Fatalf("expected not ok")
+	}
+	if payload.ErrorCode != "INVALID_INPUT" {
+		t.Fatalf("error_code=%s", payload.ErrorCode)
+	}
+	if payload.RequestID != "req-missing-host" {
+		t.Fatalf("request_id=%q", payload.RequestID)
 	}
 }
 
