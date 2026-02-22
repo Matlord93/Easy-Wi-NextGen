@@ -43,9 +43,10 @@ func TestHandleInstanceQueryCheckInvalidPortReturnsOffline(t *testing.T) {
 	job := jobs.Job{
 		ID: "job-1",
 		Payload: map[string]any{
-			"query_type": "a2s",
-			"host":       "127.0.0.1",
-			"query_port": "99999",
+			"query_type":   "a2s",
+			"host":         "127.0.0.1",
+			"query_port":   "99999",
+			"network_mode": "host",
 		},
 	}
 
@@ -199,14 +200,32 @@ func TestPerformProtocolQueryConnectionRefused(t *testing.T) {
 }
 
 func TestResolveQueryDialHost(t *testing.T) {
-	host := resolveQueryDialHost("", "10.10.10.5", "203.0.113.9", "true")
-	if host != "10.10.10.5" {
-		t.Fatalf("host=%q", host)
+	resolution := resolveQueryDialHost("", "10.10.10.5", "", "203.0.113.9", "true", "host", "")
+	if resolution.Host != "10.10.10.5" {
+		t.Fatalf("host=%q", resolution.Host)
 	}
 
-	host = resolveQueryDialHost("", "", "203.0.113.9", "false")
-	if host != "203.0.113.9" {
-		t.Fatalf("host=%q", host)
+	resolution = resolveQueryDialHost("", "", "", "203.0.113.9", "false", "isolated", "")
+	if resolution.Host != "203.0.113.9" {
+		t.Fatalf("host=%q", resolution.Host)
+	}
+
+	resolution = resolveQueryDialHost("127.0.0.1", "", "", "", "false", "isolated", "")
+	if resolution.Host == "127.0.0.1" {
+		t.Fatalf("isolated mode should never select loopback")
+	}
+
+	resolution = resolveQueryDialHost("", "", "", "", "false", "host", "")
+	if resolution.Host != "127.0.0.1" {
+		t.Fatalf("host=%q", resolution.Host)
+	}
+	if !resolution.LoopbackUsed {
+		t.Fatalf("expected loopback used in host mode fallback")
+	}
+
+	resolution = resolveQueryDialHost("", "", "", "", "false", "", "true")
+	if resolution.NetworkMode != "host" {
+		t.Fatalf("network mode=%q", resolution.NetworkMode)
 	}
 }
 
@@ -329,9 +348,10 @@ func TestHandleInstanceQueryCheckFallsBackToGamePort(t *testing.T) {
 	job := jobs.Job{
 		ID: "job-game-port",
 		Payload: map[string]any{
-			"query_type": "a2s",
-			"host":       "127.0.0.1",
-			"game_port":  "27015",
+			"query_type":   "a2s",
+			"host":         "127.0.0.1",
+			"game_port":    "27015",
+			"network_mode": "host",
 		},
 	}
 

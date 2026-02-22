@@ -33,12 +33,16 @@ var queryA2SDebugEnabled = strings.EqualFold(strings.TrimSpace(os.Getenv("QUERY_
 
 func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 	queryType := strings.ToLower(payloadValue(job.Payload, "query_type"))
-	host := resolveQueryDialHost(
+	resolution := resolveQueryDialHost(
 		payloadValue(job.Payload, "host", "ip"),
 		payloadValue(job.Payload, "bind_ip", "query_bind_ip"),
+		payloadValue(job.Payload, "instance_ip"),
 		payloadValue(job.Payload, "node_ip", "public_ip"),
 		payloadValue(job.Payload, "local_only", "is_local_only"),
+		payloadValue(job.Payload, "network_mode"),
+		payloadValue(job.Payload, "share_host_network"),
 	)
+	host := resolution.Host
 	gamePort := payloadValue(job.Payload, "game_port")
 	queryPort := payloadValue(job.Payload, "query_port")
 	port := queryPort
@@ -154,26 +158,88 @@ func normalizeQueryDialHost(host string) string {
 	return normalized
 }
 
-func resolveQueryDialHost(host, bindIP, nodeIP, localOnly string) string {
+type queryDialResolution struct {
+	Host         string
+	Source       string
+	NetworkMode  string
+	LoopbackUsed bool
+}
+
+func resolveQueryDialHost(host, bindIP, instanceIP, nodeIP, localOnly, networkMode, shareHostNetwork string) queryDialResolution {
+	mode := normalizeNetworkMode(networkMode, shareHostNetwork)
 	localOnlyNormalized := strings.EqualFold(strings.TrimSpace(localOnly), "1") || strings.EqualFold(strings.TrimSpace(localOnly), "true") || strings.EqualFold(strings.TrimSpace(localOnly), "yes")
+	if mode == "isolated" {
+		if normalized := normalizeQueryDialHost(bindIP); normalized != "" && !isLoopbackHost(normalized) {
+			return newQueryDialResolution(normalized, "bind_ip", mode)
+		}
+		if normalized := normalizeQueryDialHost(host); normalized != "" && !isLoopbackHost(normalized) {
+			return newQueryDialResolution(normalized, "instance_ip", mode)
+		}
+		if normalized := normalizeQueryDialHost(instanceIP); normalized != "" && !isLoopbackHost(normalized) {
+			return newQueryDialResolution(normalized, "instance_ip", mode)
+		}
+		if normalized := normalizeQueryDialHost(nodeIP); normalized != "" && !isLoopbackHost(normalized) {
+			return newQueryDialResolution(normalized, "node_ip", mode)
+		}
+		return newQueryDialResolution("", "", mode)
+	}
+
 	if normalized := normalizeQueryDialHost(bindIP); normalized != "" && normalized != "127.0.0.1" {
-		return normalized
+		return newQueryDialResolution(normalized, "bind_ip", mode)
 	}
 	if normalized := normalizeQueryDialHost(host); normalized != "" && normalized != "127.0.0.1" {
-		return normalized
+		return newQueryDialResolution(normalized, "instance_ip", mode)
+	}
+	if normalized := normalizeQueryDialHost(instanceIP); normalized != "" && normalized != "127.0.0.1" {
+		return newQueryDialResolution(normalized, "instance_ip", mode)
 	}
 	if !localOnlyNormalized {
 		if normalized := normalizeQueryDialHost(nodeIP); normalized != "" {
-			return normalized
+			return newQueryDialResolution(normalized, "node_ip", mode)
 		}
 	}
 	if normalized := normalizeQueryDialHost(bindIP); normalized != "" {
-		return normalized
+		return newQueryDialResolution(normalized, "bind_ip", mode)
 	}
 	if normalized := normalizeQueryDialHost(host); normalized != "" {
+		return newQueryDialResolution(normalized, "instance_ip", mode)
+	}
+	if normalized := normalizeQueryDialHost(instanceIP); normalized != "" {
+		return newQueryDialResolution(normalized, "instance_ip", mode)
+	}
+	return newQueryDialResolution("127.0.0.1", "loopback", mode)
+}
+
+func normalizeNetworkMode(networkMode, shareHostNetwork string) string {
+	normalized := strings.ToLower(strings.TrimSpace(networkMode))
+	switch normalized {
+	case "host", "isolated":
 		return normalized
 	}
-	return "127.0.0.1"
+
+	if strings.EqualFold(strings.TrimSpace(shareHostNetwork), "1") || strings.EqualFold(strings.TrimSpace(shareHostNetwork), "true") || strings.EqualFold(strings.TrimSpace(shareHostNetwork), "yes") {
+		return "host"
+	}
+
+	return "isolated"
+}
+
+func isLoopbackHost(host string) bool {
+	if host == "127.0.0.1" || host == "::1" || strings.EqualFold(host, "localhost") {
+		return true
+	}
+	parsed := net.ParseIP(host)
+	return parsed != nil && parsed.IsLoopback()
+}
+
+func newQueryDialResolution(host, source, mode string) queryDialResolution {
+	if source == "" && host != "" {
+		source = "instance_ip"
+	}
+	if source == "" {
+		source = "loopback"
+	}
+	return queryDialResolution{Host: host, Source: source, NetworkMode: mode, LoopbackUsed: isLoopbackHost(host)}
 }
 
 func isLocalIP(target net.IP) bool {

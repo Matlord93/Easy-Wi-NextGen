@@ -22,6 +22,9 @@ type queryHTTPResponse struct {
 
 type queryHTTPDebug struct {
 	ResolvedHost          string `json:"resolved_host"`
+	NetworkMode           string `json:"network_mode,omitempty"`
+	ChosenDialHostSource  string `json:"chosen_dial_host_source,omitempty"`
+	LoopbackUsed          bool   `json:"loopback_used"`
 	ResolvedPort          int    `json:"resolved_port"`
 	ResolvedProtocol      string `json:"resolved_protocol"`
 	TimeoutMS             int    `json:"timeout_ms"`
@@ -59,20 +62,27 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 
 	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
 	protocol := normalizeProtocol(r.URL.Query().Get("query_protocol"))
-	host := resolveQueryDialHost(
+	resolution := resolveQueryDialHost(
 		strings.TrimSpace(r.URL.Query().Get("host")),
 		strings.TrimSpace(r.URL.Query().Get("bind_ip")),
+		strings.TrimSpace(r.URL.Query().Get("instance_ip")),
 		strings.TrimSpace(r.URL.Query().Get("node_ip")),
 		strings.TrimSpace(r.URL.Query().Get("local_only")),
+		strings.TrimSpace(r.URL.Query().Get("network_mode")),
+		strings.TrimSpace(r.URL.Query().Get("share_host_network")),
 	)
+	host := resolution.Host
 	port, err := resolveQueryPort(r)
 	if err != nil {
-		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_PORT", Message: err.Error(), RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, ResolvedProtocol: protocol, LastErrorCode: "INVALID_PORT", LastErrorMessage: err.Error(), RequestID: requestID}})
+		writeQueryEnvelope(w, http.StatusOK, queryHTTPResponse{OK: false, ErrorCode: "INVALID_PORT", Message: err.Error(), RequestID: requestID, Debug: &queryHTTPDebug{ResolvedHost: host, NetworkMode: resolution.NetworkMode, ChosenDialHostSource: resolution.Source, LoopbackUsed: resolution.LoopbackUsed, ResolvedProtocol: protocol, LastErrorCode: "INVALID_PORT", LastErrorMessage: err.Error(), RequestID: requestID}})
 		return
 	}
 
 	debug := &queryHTTPDebug{
 		ResolvedHost:          host,
+		NetworkMode:           resolution.NetworkMode,
+		ChosenDialHostSource:  resolution.Source,
+		LoopbackUsed:          resolution.LoopbackUsed,
 		ResolvedPort:          port,
 		ResolvedProtocol:      protocol,
 		InstanceGamePort:      parseIntOrDefault(r.URL.Query().Get("game_port"), 0),
