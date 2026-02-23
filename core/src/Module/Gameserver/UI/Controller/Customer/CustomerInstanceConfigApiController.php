@@ -270,27 +270,58 @@ final class CustomerInstanceConfigApiController
     private function renderSourceCfg(string $existing, array $values): string
     {
         $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
+        $out = [];
+        $seen = [];
 
+        foreach ($lines as $line) {
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $matches) === 1) {
                 $key = $matches[1];
+                if (array_key_exists($key, $values)) {
                     $line = $this->buildSourceCfgLine($key, (string) $values[$key]);
+                    $seen[$key] = true;
+                }
+            }
+            $out[] = $line;
+        }
 
-
+        foreach ($values as $key => $value) {
+            if (!isset($seen[$key])) {
                 $out[] = $this->buildSourceCfgLine((string) $key, (string) $value);
+            }
+        }
+
         return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
-        return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
+    }
+
     /**
      * @param array<string, mixed> $values
+     */
+    private function renderProperties(string $existing, array $values): string
     {
         $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
+        $out = [];
+        $seen = [];
 
+        foreach ($lines as $line) {
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $matches) === 1) {
                 $key = $matches[1];
+                if (array_key_exists($key, $values)) {
                     $line = $this->buildPropertyLine($key, (string) $values[$key]);
+                    $seen[$key] = true;
+                }
+            }
+            $out[] = $line;
+        }
 
-
+        foreach ($values as $key => $value) {
+            if (!isset($seen[$key])) {
                 $out[] = $this->buildPropertyLine((string) $key, (string) $value);
+            }
+        }
+
         return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
+    }
+
     private function buildSourceCfgLine(string $key, string $value): string
     {
         return sprintf('%s "%s"', $key, str_replace('"', '\\"', $value));
@@ -301,40 +332,9 @@ final class CustomerInstanceConfigApiController
         return $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', $value);
     }
 
-        for ($i = 0; $i < $length; ++$i) {
-            $ord = ord($content[$i]);
-            if ($ord < 32 && $ord !== 9 && $ord !== 10 && $ord !== 13) {
-                return true;
-            }
-        }
-
-        return false;
-     */
-    private function renderProperties(string $existing, array $values): string
+    private function containsDisallowedControlBytes(string $content): bool
     {
-        $lines = preg_split('/
-|
-|/', $existing) ?: [];
-        $out = [];
-        $seen = [];
-        foreach ($lines as $line) {
-            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $m) === 1) {
-                $key = $m[1];
-                if (array_key_exists($key, $values)) {
-                    $line = $key . '=' . str_replace(["", "
-"], '', (string) $values[$key]);
-                    $seen[$key] = true;
-                }
-            }
-            $out[] = $line;
-        }
-        foreach ($values as $key => $value) {
-            if (!isset($seen[$key])) {
-                $out[] = (string) $key . '=' . str_replace(["", "
-"], '', (string) $value);
-            }
-        }
-
+        return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
         return trim(implode("
 ", $out)) . "
 ";
