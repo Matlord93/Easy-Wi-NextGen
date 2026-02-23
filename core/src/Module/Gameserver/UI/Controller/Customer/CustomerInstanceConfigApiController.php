@@ -14,17 +14,17 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
-use App\Module\Gameserver\Application\ConfigTemplateRegistry;
+use App\Module\Gameserver\Application\InstanceSlotService;
+use App\Repository\TemplateRepository;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Application\InstanceAddonResolver;
 use App\Module\Gameserver\Application\InstanceConfigPathResolver;
-use App\Module\Gameserver\Application\InstanceSlotService;
-use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Application\ConfigTemplateRegistry;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Repository\ConfigSchemaRepository;
 use App\Repository\GameDefinitionRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
-use App\Repository\TemplateRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -185,63 +185,63 @@ final class CustomerInstanceConfigApiController
                 return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
             }
             if ($this->containsDisallowedControlBytes($content)) {
--]/', $content) === 1) {
+                return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
+            }
+            $agentResult = $this->agentGameServerClient->applyInstanceConfig($instance, [
+                'instance_root' => $resolved['root'],
+                'path' => $resolved['absolute'],
+                'content' => $content,
+                'mode' => $target['apply_mode'] ?? 'render_text',
+                'backup' => true,
+            ]);
+
+            if (($agentResult['ok'] ?? false) !== true) {
+                return $this->envelopeError(
+                    $request,
+                    (string) ($agentResult['error_code'] ?? 'INTERNAL_ERROR'),
+                    (string) ($agentResult['message'] ?? 'Config apply failed.'),
+                    JsonResponse::HTTP_OK,
+                    ['agent' => $agentResult]
+                );
+            return $this->envelopeOk($request, [
+                'target_id' => $target['id'],
+                'written' => true,
+                'agent' => $agentResult['data'] ?? [],
+            ]);
+        } catch (\RuntimeException $e) {
+            return $this->envelopeError($request, $e->getMessage(), 'Config apply failed.', JsonResponse::HTTP_BAD_REQUEST);
+        } catch (\Throwable $e) {
+            return $this->envelopeError($request, 'INTERNAL_ERROR', $e->getMessage(), JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function findConfigTarget(Instance $instance, string $targetId): array
+    {
+        foreach ($this->configTemplateRegistry->listTargetsForInstance($instance) as $target) {
+            if ((string) ($target['id'] ?? '') === $targetId) {
+                return $target;
+            }
+        throw new \RuntimeException('INVALID_INPUT');
+    }
+
+    /**
             if (is_string($v) && str_contains($v, "\n")) {
         $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
-
-            if (preg_match('/^\\s*([a-zA-Z0-9_.-]+)\\s+(.+)$/', $line, $m) === 1) {
                     $line = $key . ' "' . str_replace('"', '\\"', $val) . '"';
-            }
-
                 $out[] = (string) $key . ' "' . str_replace('"', '\\"', (string) $value) . '"';
         return trim(implode("\n", $out)) . "\n";
         $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
-
-            if (preg_match('/^\\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $m) === 1) {
                     $line = $key . '=' . str_replace(["\r", "\n"], '', (string) $values[$key]);
-        }
-
                 $out[] = (string) $key . '=' . str_replace(["\r", "\n"], '', (string) $value);
         return trim(implode("\n", $out)) . "\n";
-            if (is_string($v) && str_contains($v, '
-')) {
-        return trim(implode('
-', $out)) . '
-';
-                    $line = $key . '=' . str_replace(['
-', '
-'], '', (string) $values[$key]);
-                $out[] = (string) $key . '=' . str_replace(['
-', '
-'], '', (string) $value);
-        return trim(implode('
-', $out)) . '
-';
-     * @param array<string, mixed> $target
-     * @param array<string, mixed> $payload
-     */
-    private function renderTemplateContent(array $target, array $payload, string $existing): string
+    }
+
+    private function containsDisallowedControlBytes(string $content): bool
     {
-        $mode = (string) ($target['apply_mode'] ?? 'render_text');
-        $values = $payload['values'] ?? [];
-        $raw = (string) ($payload['raw_text'] ?? '');
-
-        if (!is_array($values)) {
-            throw new \RuntimeException('INVALID_INPUT');
-        }
-
-        foreach ($values as $v) {
-            if (is_string($v) && str_contains($v, "
-")) {
-                throw new \RuntimeException('INVALID_INPUT');
-            }
-        }
-
-        return match ($mode) {
-            'merge_kv' => $this->renderSourceCfg($existing, $values),
-            'properties' => $this->renderProperties($existing, $values),
-            default => $raw !== '' ? $raw : $existing,
-        };
+        return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
     }
 
     /**
