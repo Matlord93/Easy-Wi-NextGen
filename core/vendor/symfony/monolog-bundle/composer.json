@@ -1,0 +1,39 @@
+{
+    "name": "symfony/monolog-bundle",
+    "type": "symfony-bundle",
+    "description": "Symfony MonologBundle",
+    "keywords": ["log", "logging"],
+    "homepage": "https://symfony.com",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Fabien Potencier",
+            "email": "fabien@symfony.com"
+        },
+        {
+            "name": "Symfony Community",
+            "homepage": "https://symfony.com/contributors"
+        }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "composer-runtime-api": "^2.0",
+        "monolog/monolog": "^3.5",
+        "symfony/config": "^7.3 || ^8.0",
+        "symfony/dependency-injection": "^7.3 || ^8.0",
+        "symfony/http-kernel": "^7.3 || ^8.0",
+        "symfony/monolog-bridge": "^7.3 || ^8.0",
+        "symfony/polyfill-php84": "^1.30"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5.41 || ^12.3",
+        "symfony/console": "^7.3 || ^8.0",
+        "symfony/yaml": "^7.3 || ^8.0"
+    },
+    "autoload": {
+        "psr-4": { "Symfony\\Bundle\\MonologBundle\\": "src" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Symfony\\Bundle\\MonologBundle\\Tests\\": "tests" }
+    }
+}

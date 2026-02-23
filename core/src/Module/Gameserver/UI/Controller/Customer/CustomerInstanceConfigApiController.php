@@ -273,10 +273,10 @@ final class CustomerInstanceConfigApiController
 
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $matches) === 1) {
                 $key = $matches[1];
-                    $line = $this->formatSourceCfgLine($key, (string) $values[$key]);
+                    $line = $this->buildSourceCfgLine($key, (string) $values[$key]);
 
 
-                $out[] = $this->formatSourceCfgLine((string) $key, (string) $value);
+                $out[] = $this->buildSourceCfgLine((string) $key, (string) $value);
         return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
         return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
     /**
@@ -286,17 +286,17 @@ final class CustomerInstanceConfigApiController
 
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $matches) === 1) {
                 $key = $matches[1];
-                    $line = $this->formatPropertyLine($key, (string) $values[$key]);
+                    $line = $this->buildPropertyLine($key, (string) $values[$key]);
 
 
-                $out[] = $this->formatPropertyLine((string) $key, (string) $value);
+                $out[] = $this->buildPropertyLine((string) $key, (string) $value);
         return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
-    private function formatSourceCfgLine(string $key, string $value): string
+    private function buildSourceCfgLine(string $key, string $value): string
     {
-        return $key . ' "' . str_replace('"', '\\"', $value) . '"';
+        return sprintf('%s "%s"', $key, str_replace('"', '\\"', $value));
     }
 
-    private function formatPropertyLine(string $key, string $value): string
+    private function buildPropertyLine(string $key, string $value): string
     {
         return $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', $value);
     }
@@ -314,16 +314,14 @@ final class CustomerInstanceConfigApiController
     {
         $lines = preg_split('/
 |
-|
-/', $existing) ?: [];
+|/', $existing) ?: [];
         $out = [];
         $seen = [];
         foreach ($lines as $line) {
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $m) === 1) {
                 $key = $m[1];
                 if (array_key_exists($key, $values)) {
-                    $line = $key . '=' . str_replace(["
-", "
+                    $line = $key . '=' . str_replace(["", "
 "], '', (string) $values[$key]);
                     $seen[$key] = true;
                 }
@@ -332,8 +330,7 @@ final class CustomerInstanceConfigApiController
         }
         foreach ($values as $key => $value) {
             if (!isset($seen[$key])) {
-                $out[] = (string) $key . '=' . str_replace(["
-", "
+                $out[] = (string) $key . '=' . str_replace(["", "
 "], '', (string) $value);
             }
         }
