@@ -29,6 +29,7 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 
 	username := payloadValue(job.Payload, "username", "sftp_username", "user")
 	password := strings.TrimSpace(payloadValue(job.Payload, "password", "sftp_password"))
+	preferredBackend := strings.ToUpper(strings.TrimSpace(payloadValue(job.Payload, "preferred_backend", "backend")))
 	if password == "" {
 		password = generateSftpPassword()
 	}
@@ -37,6 +38,7 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 	shell := payloadValue(job.Payload, "shell", "sftp_shell")
 	sftpBaseDir := payloadValue(job.Payload, "sftp_base_dir", "sftp_root")
 	instanceDir, instanceErr := resolveInstanceDir(job.Payload)
+	rootPath := strings.TrimSpace(payloadValue(job.Payload, "root_path", "instance_root", "install_path"))
 	instanceUser := ""
 	if instanceErr == nil {
 		instanceUser = buildInstanceUsername(payloadValue(job.Payload, "customer_id"), payloadValue(job.Payload, "instance_id"))
@@ -61,22 +63,26 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 
 	missing := missingValues([]requiredValue{
 		{key: "username", value: username},
-			})
+	})
 	if len(missing) > 0 {
 		return jobs.Result{
 			JobID:  job.ID,
 			Status: "failed",
 			Output: map[string]string{
 				"message":    "missing required values: " + strings.Join(missing, ", "),
-				"error_code": "sftp_invalid_payload",
+				"error_code": "INVALID_INPUT",
 				"request_id": requestID,
 			},
 			Completed: time.Now().UTC(),
 		}, nil
 	}
 
+	if preferredBackend != "" && preferredBackend != "PROFTPD_SFTP" && preferredBackend != "FTP_ONLY" {
+		return failureResultWithCode(job.ID, "BACKEND_UNSUPPORTED", fmt.Errorf("unsupported backend %s on linux", preferredBackend), requestID, "")
+	}
+
 	if err := ensureGroup(group); err != nil {
-		return failureResultWithCode(job.ID, "sftp_group_failed", err, requestID, "")
+		return failureResultWithCode(job.ID, "PERMISSION_DENIED", err, requestID, "")
 	}
 
 	useInstanceDir := instanceErr == nil
@@ -99,6 +105,13 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 		if err := ensureInstanceDir(homePath); err != nil {
 			return failureResultWithCode(job.ID, "sftp_chroot_failed", err, requestID, "")
 		}
+	}
+
+	if rootPath != "" {
+		homePath = rootPath
+	}
+	if !filepath.IsAbs(homePath) || strings.Contains(homePath, "..") {
+		return failureResultWithCode(job.ID, "ROOT_INVALID", fmt.Errorf("invalid root path: %s", homePath), requestID, "")
 	}
 
 	if userExists(username) {
@@ -144,11 +157,14 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 		Status: "success",
 		Output: map[string]string{
 			"username":    username,
+			"backend":     "PROFTPD_SFTP",
+			"host":        payloadValue(job.Payload, "host", "node_ip", "bind_ip"),
+			"port":        "2222",
+			"root_path":   homePath,
 			"chroot_path": chrootPath,
 			"home_path":   homePath,
 			"group":       group,
 			"request_id":  requestID,
-			"password":    password,
 		},
 		Completed: time.Now().UTC(),
 	}, nil
@@ -177,12 +193,12 @@ func handleInstanceSftpCredentialsResetWindows(job jobs.Job) (jobs.Result, func(
 
 	missing := missingValues([]requiredValue{
 		{key: "username", value: username},
-			})
+	})
 	if len(missing) > 0 {
 		return jobs.Result{
 			JobID:     job.ID,
 			Status:    "failed",
-			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", "), "error_code": "INVALID_INPUT"},
 			Completed: time.Now().UTC(),
 		}, nil
 	}
@@ -237,11 +253,13 @@ func handleInstanceSftpCredentialsResetWindows(job jobs.Job) (jobs.Result, func(
 		Status: "success",
 		Output: map[string]string{
 			"username":    username,
+			"backend":     "WINDOWS_OPENSSH_SFTP",
+			"port":        "2222",
+			"root_path":   homePath,
 			"chroot_path": chrootPath,
 			"home_path":   homePath,
 			"group":       group,
 			"details":     output.String(),
-			"password":    password,
 		},
 		Completed: time.Now().UTC(),
 	}, nil

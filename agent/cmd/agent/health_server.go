@@ -83,6 +83,12 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 	mux.Handle("/instance/start", gameServer.Handler())
 	mux.Handle("/instance/stop", gameServer.Handler())
 	mux.Handle("/instance/status", gameServer.Handler())
+	mux.HandleFunc("/v1/access/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		if handled := handleAccessCapabilitiesHTTP(w, r); handled {
+			return
+		}
+		writeJSONError(w, http.StatusNotFound, "NOT_FOUND", "not found")
+	})
 	mux.HandleFunc("/v1/instances/", handleInstanceQueryHTTP)
 	mux.Handle("/internal/sinusbot/instances", sinusbotServer.Handler())
 	mux.Handle("/internal/sinusbot/instances/", sinusbotServer.Handler())

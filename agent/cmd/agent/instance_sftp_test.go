@@ -16,7 +16,7 @@ func TestHandleInstanceSftpCredentialsResetMissingValues(t *testing.T) {
 	if result.Status != "failed" {
 		t.Fatalf("expected failed status, got %s", result.Status)
 	}
-	if result.Output["error_code"] != "sftp_invalid_payload" {
-		t.Fatalf("expected error_code sftp_invalid_payload, got %v", result.Output["error_code"])
+	if result.Output["error_code"] != "INVALID_INPUT" {
+		t.Fatalf("expected error_code INVALID_INPUT, got %v", result.Output["error_code"])
 	}
 }

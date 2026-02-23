@@ -50,16 +50,37 @@ type queryHTTPData struct {
 }
 
 func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeJSONError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method not allowed")
-		return
-	}
-
 	instanceID := strings.TrimPrefix(r.URL.Path, "/v1/instances/")
 	instanceID = strings.TrimSuffix(instanceID, "/query")
+	if idx := strings.Index(instanceID, "/access/"); idx > 0 {
+		instanceID = instanceID[:idx]
+	}
 	instanceID = strings.Trim(instanceID, "/ ")
 	if instanceID == "" {
 		writeJSONError(w, http.StatusBadRequest, "INVALID_INSTANCE_ID", "instance id is required")
+		return
+	}
+
+	if strings.Contains(r.URL.Path, "/configs/") {
+		if handled := handleInstanceConfigApplyHTTP(w, r, instanceID); handled {
+			return
+		}
+	}
+
+	if strings.Contains(r.URL.Path, "/access/") {
+		if handled := handleInstanceAccessHTTP(w, r, instanceID); handled {
+			return
+		}
+	}
+
+	if strings.Contains(r.URL.Path, "/console/") {
+		if handled := handleInstanceConsoleHTTP(w, r, instanceID); handled {
+			return
+		}
+	}
+
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method not allowed")
 		return
 	}
 
