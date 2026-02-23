@@ -179,18 +179,15 @@ final class CustomerInstanceConfigApiController
 
             $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
             $absolutePath = (string) $resolved['absolute'];
-
             if (!$create && !is_file($absolutePath)) {
                 return $this->envelopeError($request, 'INVALID_INPUT', 'Config file does not exist. Use create first.', JsonResponse::HTTP_CONFLICT);
             }
 
-            $existing = is_file($absolutePath) ? (string) @file_get_contents($absolutePath) : '';
-            $content = $this->renderTemplateContent($target, $payload, $existing);
-
+            $existingContent = is_file($absolutePath) ? (string) @file_get_contents($absolutePath) : '';
+            $content = $this->renderTemplateContent($target, $payload, $existingContent);
             if (strlen($content) > 256 * 1024) {
                 return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
             }
-
             if ($this->containsDisallowedControlBytes($content)) {
                 return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
             }
@@ -266,8 +263,8 @@ final class CustomerInstanceConfigApiController
      */
     private function renderSourceCfg(string $existing, array $values): string
     {
-        $lines = preg_split('/
-|
+                    $line = $key . ' "' . str_replace('"', '\"', $value) . '"';
+                $out[] = (string) $key . ' "' . str_replace('"', '\"', (string) $value) . '"';
 |
 /', $existing) ?: [];
         $out = [];
