@@ -14,6 +14,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\PanelCustomer\UI\Controller\Api\InstanceSftpCredentialApiController;
 use App\Repository\InstanceRepository;
 use App\Repository\InstanceSftpCredentialRepository;
@@ -33,6 +34,7 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
             $this->createMock(JobRepository::class),
             $this->createMock(EntityManagerInterface::class),
             $this->createMock(EncryptionService::class),
+            $this->createMock(AgentGameServerClient::class),
             $this->createMock(AppSettingsService::class),
             $this->createMock(AuditLogger::class),
             new NullLogger(),
@@ -102,12 +104,24 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $auditLogger = $this->createMock(AuditLogger::class);
         $auditLogger->expects($this->once())->method('log');
 
+        $agentClient = $this->createMock(AgentGameServerClient::class);
+        $agentClient->method('resetInstanceAccess')->willReturn([
+            'ok' => true,
+            'data' => [
+                'backend' => 'SFTPGO',
+                'host' => 'sftp.example.test',
+                'port' => 22,
+                'root_path' => '/srv/instances/42',
+            ],
+        ]);
+
         $controller = new InstanceSftpCredentialApiController(
             $instanceRepository,
             $credentialRepository,
             $jobRepository,
             $entityManager,
             $encryption,
+            $agentClient,
             $settings,
             $auditLogger,
             new NullLogger(),

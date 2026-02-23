@@ -12,9 +12,9 @@ final class CustomerInstancesListContractTest extends TestCase
     {
         $controller = file_get_contents(__DIR__ . '/../../src/Module/Gameserver/UI/Controller/Customer/CustomerInstanceController.php');
         self::assertIsString($controller);
-        self::assertStringContainsString("'query' => $querySnapshot", $controller);
+        self::assertStringContainsString("'query' => \$querySnapshot", $controller);
         self::assertStringContainsString("'query_checked_at'", $controller);
-        self::assertStringContainsString("'power' => $powerState", $controller);
+        self::assertStringContainsString("'power' => \$powerState", $controller);
         self::assertStringContainsString("'display_status'", $controller);
     }
 
