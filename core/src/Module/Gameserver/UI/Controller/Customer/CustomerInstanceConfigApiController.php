@@ -335,9 +335,10 @@ final class CustomerInstanceConfigApiController
     private function containsDisallowedControlBytes(string $content): bool
     {
         return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
-        return trim(implode("
-", $out)) . "
-";
+        return trim(implode('
+', $out)) . '
+';
+
     }
 
     /**
