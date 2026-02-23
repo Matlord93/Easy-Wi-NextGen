@@ -156,7 +156,10 @@ func normalizeQueryDialHost(host string) string {
 	}
 
 	if ip.IsLoopback() {
-		return normalized
+		if ip.To4() != nil {
+			return "127.0.0.1"
+		}
+		return "::1"
 	}
 
 	if isLocalIP(ip) {
