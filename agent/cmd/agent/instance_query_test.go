@@ -112,6 +112,14 @@ func TestNormalizeQueryDialHost(t *testing.T) {
 		t.Fatalf("normalizeQueryDialHost(::)=%q, want 127.0.0.1", got)
 	}
 
+	if got := normalizeQueryDialHost("127.0.1.1"); got != "127.0.0.1" {
+		t.Fatalf("normalizeQueryDialHost(127.0.1.1)=%q, want 127.0.0.1", got)
+	}
+
+	if got := normalizeQueryDialHost("::1"); got != "::1" {
+		t.Fatalf("normalizeQueryDialHost(::1)=%q, want ::1", got)
+	}
+
 	if got := normalizeQueryDialHost("  example.com  "); got != "example.com" {
 		t.Fatalf("normalizeQueryDialHost(example.com)=%q, want example.com", got)
 	}
