@@ -270,24 +270,37 @@ final class CustomerInstanceConfigApiController
     private function renderSourceCfg(string $existing, array $values): string
     {
         $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
+
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $matches) === 1) {
                 $key = $matches[1];
-                    $value = (string) $values[$key];
-                    $line = $key . ' "' . str_replace('"', '\\"', $value) . '"';
+                    $line = $this->formatSourceCfgLine($key, (string) $values[$key]);
 
-                $out[] = (string) $key . ' "' . str_replace('"', '\\"', (string) $value) . '"';
+
+                $out[] = $this->formatSourceCfgLine((string) $key, (string) $value);
         return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
         return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
     /**
      * @param array<string, mixed> $values
     {
         $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
+
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $matches) === 1) {
                 $key = $matches[1];
-                    $line = $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', (string) $values[$key]);
+                    $line = $this->formatPropertyLine($key, (string) $values[$key]);
 
-                $out[] = (string) $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', (string) $value);
+
+                $out[] = $this->formatPropertyLine((string) $key, (string) $value);
         return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
+    private function formatSourceCfgLine(string $key, string $value): string
+    {
+        return $key . ' "' . str_replace('"', '\\"', $value) . '"';
+    }
+
+    private function formatPropertyLine(string $key, string $value): string
+    {
+        return $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', $value);
+    }
+
         for ($i = 0; $i < $length; ++$i) {
             $ord = ord($content[$i]);
             if ($ord < 32 && $ord !== 9 && $ord !== 10 && $ord !== 13) {
