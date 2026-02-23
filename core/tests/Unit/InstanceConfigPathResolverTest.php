@@ -6,8 +6,8 @@ namespace App\Tests\Unit;
 
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\InstanceFilesystemResolver;
-use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Gameserver\Application\InstanceConfigPathResolver;
 use PHPUnit\Framework\TestCase;
 

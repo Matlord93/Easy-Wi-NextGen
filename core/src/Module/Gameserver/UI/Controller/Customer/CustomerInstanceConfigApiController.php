@@ -14,17 +14,17 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
-use App\Module\Gameserver\Application\InstanceSlotService;
-use App\Repository\TemplateRepository;
-use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Application\ConfigTemplateRegistry;
 use App\Module\Gameserver\Application\InstanceAddonResolver;
 use App\Module\Gameserver\Application\InstanceConfigPathResolver;
-use App\Module\Gameserver\Application\ConfigTemplateRegistry;
+use App\Module\Gameserver\Application\InstanceSlotService;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Repository\ConfigSchemaRepository;
 use App\Repository\GameDefinitionRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
+use App\Repository\TemplateRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -221,18 +221,18 @@ final class CustomerInstanceConfigApiController
     /**
      * @return array<string, mixed>
      */
-    private function findConfigTarget(Instance $instance, string $targetId): array
-    {
-        foreach ($this->configTemplateRegistry->listTargetsForInstance($instance) as $target) {
-            if ((string) ($target['id'] ?? '') === $targetId) {
-                return $target;
-            }
-        }
-
-        throw new \RuntimeException('INVALID_INPUT');
-    }
-
-    /**
+            if (is_string($v) && str_contains($v, '
+')) {
+        return trim(implode('
+', $out)) . '
+';
+                    $line = $key . '=' . str_replace(['', '
+'], '', (string) $values[$key]);
+                $out[] = (string) $key . '=' . str_replace(['', '
+'], '', (string) $value);
+        return trim(implode('
+', $out)) . '
+';
      * @param array<string, mixed> $target
      * @param array<string, mixed> $payload
      */

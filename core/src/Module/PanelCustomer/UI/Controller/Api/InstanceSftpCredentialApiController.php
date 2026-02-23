@@ -503,9 +503,6 @@ final class InstanceSftpCredentialApiController
         ];
     }
 
-    /**
-     * @param array<string, mixed> $details
-     */
     private function okResponse(Request $request, array $data, int $statusCode = JsonResponse::HTTP_OK): JsonResponse
     {
         return new JsonResponse([
