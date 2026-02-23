@@ -291,7 +291,15 @@ final class CustomerInstanceConfigApiController
         return false;
     }
 
-     * @param array<string, mixed> $values
+        $length = strlen($content);
+        for ($i = 0; $i < $length; ++$i) {
+            $ord = ord($content[$i]);
+            if ($ord < 32 && $ord !== 9 && $ord !== 10 && $ord !== 13) {
+                return true;
+            }
+        }
+
+        return false;
      */
     private function renderProperties(string $existing, array $values): string
     {
