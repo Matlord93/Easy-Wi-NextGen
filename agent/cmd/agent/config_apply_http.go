@@ -146,17 +146,25 @@ func writeConfigAtomically(path string, content []byte, backup bool) (configWrit
 	return configWriteStats{Bytes: len(content), BackupPath: backupPath, Checksum: hex.EncodeToString(sum[:])}, nil
 }
 
-func copyConfigFile(src, dst string) error {
+func copyConfigFile(src, dst string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() {
+		if closeErr := in.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o640)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if closeErr := out.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 	if _, err := io.Copy(out, in); err != nil {
 		return err
 	}

@@ -274,7 +274,7 @@ func detectLinuxDistribution() (string, string) {
 	if err != nil {
 		return "", ""
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	id, like := "", ""
 	s := bufio.NewScanner(f)
 	for s.Scan() {

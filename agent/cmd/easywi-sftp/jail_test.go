@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -19,7 +20,7 @@ func TestResolveUserPath(t *testing.T) {
 		t.Fatalf("expected traversal to be rejected")
 	}
 	if _, err := resolveUserPath(root, "/windows/system32"); err != nil {
-		// should be jailed under root, not rejected by pattern
+		t.Fatalf("expected absolute windows-style path to be jailed, got %v", err)
 	}
 	resolved, err := resolveUserPath(root, "valid/file.txt")
 	if err != nil {
@@ -68,9 +69,17 @@ func TestEmbeddedSFTPIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	t.Cleanup(func() {
+		if closeErr := ln.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+			t.Errorf("close listener: %v", closeErr)
+		}
+	})
 	go func() { _ = srv.Serve(ln) }()
-	defer srv.Close()
+	t.Cleanup(func() {
+		if closeErr := srv.Close(); closeErr != nil {
+			t.Errorf("close server: %v", closeErr)
+		}
+	})
 
 	cfg := &cryptossh.ClientConfig{
 		User:            "gs_1",
@@ -81,13 +90,21 @@ func TestEmbeddedSFTPIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	t.Cleanup(func() {
+		if closeErr := client.Close(); closeErr != nil {
+			t.Errorf("close ssh client: %v", closeErr)
+		}
+	})
 
 	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sftpClient.Close()
+	t.Cleanup(func() {
+		if closeErr := sftpClient.Close(); closeErr != nil {
+			t.Errorf("close sftp client: %v", closeErr)
+		}
+	})
 
 	f, err := sftpClient.Create("/hello.txt")
 	if err != nil {

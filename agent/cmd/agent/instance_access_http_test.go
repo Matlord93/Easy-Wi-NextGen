@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -92,7 +93,11 @@ func TestHealthReachabilityCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	t.Cleanup(func() {
+		if closeErr := ln.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+			t.Errorf("close listener: %v", closeErr)
+		}
+	})
 	port := ln.Addr().(*net.TCPAddr).Port
 	if err := checkTCPListening(port); err != nil {
 		t.Fatalf("expected reachable listener: %v", err)
