@@ -46,6 +46,7 @@ final class PortPoolApiController
                 'start_port' => $pool->getStartPort(),
                 'end_port' => $pool->getEndPort(),
                 'enabled' => $pool->isEnabled(),
+                'allocation_step' => $pool->getAllocationStep(),
                 'created_at' => $pool->getCreatedAt()->format(DATE_RFC3339),
             ];
         }
@@ -71,6 +72,8 @@ final class PortPoolApiController
         $startValue = $payload['start_port'] ?? null;
         $endValue = $payload['end_port'] ?? null;
         $enabled = (bool) ($payload['enabled'] ?? true);
+        $allocationStep = is_numeric($payload['allocation_step'] ?? null) ? (int) $payload['allocation_step'] : 1;
+        $allocationStep = in_array($allocationStep, [1, 10], true) ? $allocationStep : 1;
 
         if ($nodeId === '' || $name === '' || $tag === '' || !is_numeric($startValue) || !is_numeric($endValue)) {
             return new JsonResponse(['error' => 'Node, name, tag, start_port, and end_port are required.'], JsonResponse::HTTP_BAD_REQUEST);
@@ -87,7 +90,7 @@ final class PortPoolApiController
             return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
         }
 
-        $pool = new PortPool($node, $name, $tag, $startPort, $endPort, $enabled);
+        $pool = new PortPool($node, $name, $tag, $startPort, $endPort, $enabled, $allocationStep);
         $this->entityManager->persist($pool);
 
         $this->auditLogger->log($actor, 'port_pool.created', [
@@ -110,6 +113,7 @@ final class PortPoolApiController
             'start_port' => $pool->getStartPort(),
             'end_port' => $pool->getEndPort(),
             'enabled' => $pool->isEnabled(),
+            'allocation_step' => $pool->getAllocationStep(),
         ], JsonResponse::HTTP_CREATED);
     }
 

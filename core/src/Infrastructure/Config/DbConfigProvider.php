@@ -173,11 +173,15 @@ final class DbConfigProvider
             return $envPath;
         }
 
-        if (!$this->isPathWritable(self::DEFAULT_DB_CONFIG_PATH) && $projectDir !== null) {
+        $projectDefaultPath = $projectDir !== null
+            ? rtrim($projectDir, '/') . '/' . self::DEFAULT_DB_CONFIG_PATH
+            : self::DEFAULT_DB_CONFIG_PATH;
+
+        if (!$this->isPathWritable($projectDefaultPath) && $projectDir !== null) {
             return rtrim($projectDir, '/') . '/' . self::FALLBACK_DB_CONFIG_DIR . '/db.json';
         }
 
-        return self::DEFAULT_DB_CONFIG_PATH;
+        return $projectDefaultPath;
     }
 
     private function isPathWritable(string $path): bool

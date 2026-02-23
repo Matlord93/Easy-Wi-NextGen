@@ -42,8 +42,7 @@
 
 {% set systemModuleItems = [
     { key: 'firewall', label: t('admin_nav_firewall', page_locale()), href: path('admin_security') },
-    { key: 'port-pools', label: t('admin_nav_port_pools', page_locale()), href: path('admin_port_pools') },
-    { key: 'port-blocks', label: t('admin_nav_port_blocks', page_locale()), href: path('admin_port_blocks') },
+    { key: 'port-pools', label: t('admin_nav_server_ports', page_locale()), href: path('admin_port_pools') },
     { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') },
     { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: path('admin_nodes') },
     { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()), href: path('admin_agent_bootstrap_tokens') },

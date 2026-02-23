@@ -1,46 +1,329 @@
 {% extends 'admin/base.html.twig' %}
-{% block title %}Backup Settings{% endblock %}
-{% block body %}
-<div class="space-y-4" data-settings-url="{{ path('admin_settings_backups_update') }}">
-    <div class="flex items-center justify-between">
-        <h1 class="text-lg font-semibold">Backup Settings</h1>
-        <a class="rounded bg-slate-800 px-3 py-2 text-xs text-white" href="{{ path('admin_backups_overview') }}">Overview</a>
+
+{% block content %}
+<div class="flex flex-col gap-6" data-backup-module data-settings-url="{{ path('admin_settings_backups_update') }}" data-target-upsert-url="{{ path('admin_backups_targets_upsert') }}">
+    <div>
+        <h1 class="text-2xl font-semibold text-slate-900">{{ t('admin_backup_module_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-600">{{ t('admin_backup_module_description', page_locale()) }}</p>
     </div>
-    <p id="settings-feedback" class="text-xs text-slate-600"></p>
-    <form id="settings-form" class="grid gap-2 sm:grid-cols-2 rounded border border-slate-200 bg-white p-4">
-        <label class="text-xs">Default target
-            <select class="w-full rounded border p-2" name="default_target_id">
-                <option value="">none</option>
-                {% for target in targets %}
-                    <option value="{{ target.id }}" {{ settings.backup_default_target_id == target.id ? 'selected' }}>{{ target.name }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label class="text-xs">Retention count <input class="w-full rounded border p-2" type="number" name="retention_count" value="{{ settings.backup_default_retention_count }}"></label>
-        <label class="text-xs">Retention age days <input class="w-full rounded border p-2" type="number" name="retention_age_days" value="{{ settings.backup_default_retention_age_days }}"></label>
-        <label class="text-xs">Compression
-            <select class="w-full rounded border p-2" name="compression">
-                <option value="gzip" {{ settings.backup_default_compression == 'gzip' ? 'selected' }}>gzip</option>
-                <option value="zstd" {{ settings.backup_default_compression == 'zstd' ? 'selected' }}>zstd</option>
-            </select>
-        </label>
-        <label class="text-xs">Stop before backup <input type="checkbox" name="stop_before_backup" {{ settings.backup_stop_before ? 'checked' }}></label>
-        <label class="text-xs">WebDAV verify TLS default <input type="checkbox" name="webdav_verify_tls" {{ settings.backup_webdav_verify_tls ? 'checked' }}></label>
-        <label class="text-xs">Max backup size bytes <input class="w-full rounded border p-2" type="number" name="max_backup_size_bytes" value="{{ settings.backup_max_size_bytes ?: '' }}"></label>
-        <div class="sm:col-span-2"><button class="rounded bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" type="submit">Save settings</button></div>
-    </form>
+
+    <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-5">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-indigo-900">{{ t('admin_backup_module_quickstart_title', page_locale()) }}</h2>
+        <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm text-indigo-900">
+            <li>{{ t('admin_backup_module_quickstart_step_target', page_locale()) }}</li>
+            <li>{{ t('admin_backup_module_quickstart_step_test', page_locale()) }}</li>
+            <li>{{ t('admin_backup_module_quickstart_step_default', page_locale()) }}</li>
+            <li>{{ t('admin_backup_module_quickstart_step_verify', page_locale()) }}</li>
+        </ol>
+    </div>
+
+    <div class="grid gap-6 xl:grid-cols-3">
+        <section class="xl:col-span-2 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between">
+                <h2 class="text-base font-semibold text-slate-900">{{ t('admin_backup_module_global_settings', page_locale()) }}</h2>
+                <p id="settings-feedback" class="text-xs text-slate-500"></p>
+            </div>
+
+            <form id="settings-form" class="mt-4 grid gap-4 md:grid-cols-2">
+                <label class="block text-xs font-semibold uppercase text-slate-700">
+                    {{ t('admin_backup_module_default_target', page_locale()) }}
+                    <select class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="default_target_id">
+                        <option value="">{{ t('admin_backup_module_default_target_none', page_locale()) }}</option>
+                        {% for target in targets %}
+                            <option value="{{ target.id }}" {{ settings.backup_default_target_id == target.id ? 'selected' : '' }}>{{ target.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="mt-1 block text-xs font-normal normal-case text-slate-500">{{ t('admin_backup_module_default_target_hint', page_locale()) }}</span>
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700">
+                    {{ t('admin_backup_module_compression', page_locale()) }}
+                    <select class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="compression">
+                        <option value="gzip" {{ settings.backup_default_compression == 'gzip' ? 'selected' : '' }}>gzip</option>
+                        <option value="zstd" {{ settings.backup_default_compression == 'zstd' ? 'selected' : '' }}>zstd</option>
+                    </select>
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700">
+                    {{ t('admin_backup_module_retention_count', page_locale()) }}
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="number" min="0" name="retention_count" value="{{ settings.backup_default_retention_count }}">
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700">
+                    {{ t('admin_backup_module_retention_age_days', page_locale()) }}
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="number" min="0" name="retention_age_days" value="{{ settings.backup_default_retention_age_days }}">
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700">
+                    {{ t('admin_backup_module_max_size', page_locale()) }}
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="number" min="0" name="max_backup_size_bytes" value="{{ settings.backup_max_size_bytes ?: '' }}" placeholder="5368709120">
+                    <span class="mt-1 block text-xs font-normal normal-case text-slate-500">{{ t('admin_backup_module_max_size_hint', page_locale()) }}</span>
+                </label>
+
+                <div class="flex flex-col justify-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    <label class="inline-flex items-center gap-2">
+                        <input type="checkbox" class="rounded border-slate-300" name="stop_before_backup" {{ settings.backup_stop_before ? 'checked' : '' }}>
+                        {{ t('admin_backup_module_stop_before', page_locale()) }}
+                    </label>
+                    <label class="inline-flex items-center gap-2">
+                        <input type="checkbox" class="rounded border-slate-300" name="webdav_verify_tls" {{ settings.backup_webdav_verify_tls ? 'checked' : '' }}>
+                        {{ t('admin_backup_module_verify_tls_default', page_locale()) }}
+                    </label>
+                </div>
+
+                <div class="md:col-span-2">
+                    <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500" type="submit">{{ t('save', page_locale()) }}</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-base font-semibold text-slate-900">{{ t('admin_backup_module_help_title', page_locale()) }}</h2>
+            <ul class="mt-3 space-y-3 text-sm text-slate-600">
+                <li>• {{ t('admin_backup_module_help_local', page_locale()) }}</li>
+                <li>• {{ t('admin_backup_module_help_webdav', page_locale()) }}</li>
+                <li>• {{ t('admin_backup_module_help_nextcloud', page_locale()) }}</li>
+                <li>• {{ t('admin_backup_module_help_security', page_locale()) }}</li>
+            </ul>
+        </section>
+    </div>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-base font-semibold text-slate-900">{{ t('admin_backup_module_targets_title', page_locale()) }}</h2>
+            <p id="targets-feedback" class="text-xs text-slate-500"></p>
+        </div>
+
+        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+            {% for target in targets %}
+                <article class="rounded-lg border border-slate-200 p-4" data-target-card data-target-id="{{ target.id }}" data-target="{{ target|json_encode|e('html_attr') }}" data-target-test-url="{{ path('admin_backups_target_test', {id: target.id}) }}">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-900">{{ target.name }}</p>
+                            <p class="text-xs text-slate-500">{{ target.type|upper }} · {{ target.enabled ? t('admin_backup_module_enabled', page_locale()) : t('admin_backup_module_disabled', page_locale()) }}</p>
+                            <p class="mt-1 text-xs text-slate-500">{{ t('admin_backup_module_secret_state', page_locale()) }}: {{ target.secret_set ? t('admin_backup_module_secret_set', page_locale()) : t('admin_backup_module_secret_not_set', page_locale()) }}</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" class="target-edit-button rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700">{{ t('edit', page_locale()) }}</button>
+                            <button type="button" class="target-test-button rounded bg-slate-800 px-2 py-1 text-xs font-semibold text-white">{{ t('admin_backup_module_test', page_locale()) }}</button>
+                        </div>
+                    </div>
+                    <p class="target-test-result mt-2 text-xs text-slate-500"></p>
+                </article>
+            {% else %}
+                <p class="text-sm text-slate-500">{{ t('admin_backup_module_targets_empty', page_locale()) }}</p>
+            {% endfor %}
+        </div>
+
+        <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h3 class="text-sm font-semibold text-slate-900">{{ t('admin_backup_module_target_form_title', page_locale()) }}</h3>
+            <p class="mt-1 text-xs text-slate-600">{{ t('admin_backup_module_target_form_description', page_locale()) }}</p>
+
+            <form id="target-form" class="mt-4 grid gap-4 md:grid-cols-2">
+                <input type="hidden" name="target_id">
+
+                <label class="block text-xs font-semibold uppercase text-slate-700">
+                    {{ t('name', page_locale()) }}
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="name" required>
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700">
+                    {{ t('type', page_locale()) }}
+                    <select class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="type">
+                        <option value="local">Local</option>
+                        <option value="webdav">WebDAV</option>
+                        <option value="nextcloud">Nextcloud</option>
+                    </select>
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700" data-field-local>
+                    Base Path
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="base_path" placeholder="/var/backups/easywi">
+                    <span class="mt-1 block text-xs font-normal normal-case text-slate-500">{{ t('admin_backup_module_local_path_hint', page_locale()) }}</span>
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700" data-field-remote>
+                    URL
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="url" placeholder="https://cloud.example/remote.php/dav/files/user">
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700" data-field-remote>
+                    Remote Path
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="remote_path" placeholder="/easywi/backups">
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700" data-field-remote>
+                    Username
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" name="username">
+                </label>
+
+                <label class="block text-xs font-semibold uppercase text-slate-700" data-field-remote>
+                    Password / App-Token
+                    <input class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" type="password" name="password" placeholder="{{ t('admin_backup_module_password_placeholder', page_locale()) }}">
+                </label>
+
+                <div class="flex items-center gap-6 text-sm text-slate-700 md:col-span-2">
+                    <label class="inline-flex items-center gap-2">
+                        <input type="checkbox" class="rounded border-slate-300" name="enabled" checked>
+                        {{ t('admin_backup_module_enabled', page_locale()) }}
+                    </label>
+                    <label class="inline-flex items-center gap-2" data-field-remote>
+                        <input type="checkbox" class="rounded border-slate-300" name="verify_tls" checked>
+                        {{ t('admin_backup_module_verify_tls', page_locale()) }}
+                    </label>
+                </div>
+
+                <div class="flex gap-2 md:col-span-2">
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">{{ t('save', page_locale()) }}</button>
+                    <button type="button" id="target-form-reset" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">{{ t('reset', page_locale()) }}</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">{{ t('admin_backup_module_recent_backups', page_locale()) }}</h2>
+        <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="px-3 py-2 text-left">ID</th>
+                        <th class="px-3 py-2 text-left">Instance</th>
+                        <th class="px-3 py-2 text-left">Customer</th>
+                        <th class="px-3 py-2 text-left">Target</th>
+                        <th class="px-3 py-2 text-left">Status</th>
+                        <th class="px-3 py-2 text-left">{{ t('date', page_locale()) }}</th>
+                        <th class="px-3 py-2 text-left">Error</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    {% for backup in recentBackups %}
+                        <tr>
+                            <td class="px-3 py-2 text-slate-700">{{ backup.id }}</td>
+                            <td class="px-3 py-2 text-slate-700">#{{ backup.instance_id }}</td>
+                            <td class="px-3 py-2 text-slate-700">#{{ backup.customer_id }}</td>
+                            <td class="px-3 py-2 text-slate-700">{{ backup.target ?: 'default' }}</td>
+                            <td class="px-3 py-2 text-slate-700">{{ backup.status }}</td>
+                            <td class="px-3 py-2 text-slate-700">{{ backup.created_at ? backup.created_at|date('Y-m-d H:i') : '—' }}</td>
+                            <td class="px-3 py-2 text-xs text-rose-600">{{ backup.error ?: '—' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="px-3 py-4 text-center text-slate-500">{{ t('admin_backup_module_recent_backups_empty', page_locale()) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
+
 <script>
 (() => {
-  const root=document.querySelector('[data-settings-url]'); if(!root) return;
-  const form=document.getElementById('settings-form'); const feedback=document.getElementById('settings-feedback');
-  form.addEventListener('submit', async (e)=>{e.preventDefault(); const fd=new FormData(form); const payload=Object.fromEntries(fd.entries());
-    payload.stop_before_backup=form.querySelector('[name="stop_before_backup"]').checked;
-    payload.webdav_verify_tls=form.querySelector('[name="webdav_verify_tls"]').checked;
-    const res=await fetch(root.dataset.settingsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const data=await res.json().catch(()=>({})); feedback.textContent=res.ok?'Saved.':(data.message||data.error||'Failed.');
-    feedback.className=`text-xs ${res.ok?'text-emerald-600':'text-rose-600'}`;
-  });
+    const root = document.querySelector('[data-backup-module]');
+    if (!root) return;
+
+    const settingsForm = document.getElementById('settings-form');
+    const settingsFeedback = document.getElementById('settings-feedback');
+
+    settingsForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(settingsForm);
+        const payload = Object.fromEntries(formData.entries());
+        payload.stop_before_backup = settingsForm.querySelector('[name="stop_before_backup"]').checked;
+        payload.webdav_verify_tls = settingsForm.querySelector('[name="webdav_verify_tls"]').checked;
+
+        const response = await fetch(root.dataset.settingsUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(() => ({}));
+        settingsFeedback.textContent = response.ok ? 'Saved.' : (data.message || data.error || 'Failed.');
+        settingsFeedback.className = `text-xs ${response.ok ? 'text-emerald-600' : 'text-rose-600'}`;
+    });
+
+    const targetForm = document.getElementById('target-form');
+    const targetFeedback = document.getElementById('targets-feedback');
+    const resetButton = document.getElementById('target-form-reset');
+
+    const toggleTargetFields = () => {
+        const type = targetForm.querySelector('[name="type"]').value;
+        const isLocal = type === 'local';
+        document.querySelectorAll('[data-field-local]').forEach((field) => field.classList.toggle('hidden', !isLocal));
+        document.querySelectorAll('[data-field-remote]').forEach((field) => field.classList.toggle('hidden', isLocal));
+    };
+
+    const resetTargetForm = () => {
+        targetForm.reset();
+        targetForm.querySelector('[name="target_id"]').value = '';
+        targetForm.querySelector('[name="enabled"]').checked = true;
+        targetForm.querySelector('[name="verify_tls"]').checked = true;
+        targetForm.querySelector('[name="type"]').value = 'local';
+        toggleTargetFields();
+    };
+
+    targetForm?.querySelector('[name="type"]')?.addEventListener('change', toggleTargetFields);
+    resetButton?.addEventListener('click', resetTargetForm);
+    resetTargetForm();
+
+    document.querySelectorAll('[data-target-card]').forEach((card) => {
+        const editButton = card.querySelector('.target-edit-button');
+        const testButton = card.querySelector('.target-test-button');
+        const resultNode = card.querySelector('.target-test-result');
+
+        editButton?.addEventListener('click', () => {
+            const target = JSON.parse(card.dataset.target || '{}');
+            const config = target.config || {};
+
+            targetForm.querySelector('[name="target_id"]').value = target.id || '';
+            targetForm.querySelector('[name="name"]').value = target.name || '';
+            targetForm.querySelector('[name="type"]').value = target.type || 'local';
+            targetForm.querySelector('[name="base_path"]').value = config.base_path || '';
+            targetForm.querySelector('[name="url"]').value = config.url || '';
+            targetForm.querySelector('[name="remote_path"]').value = config.remote_path || '';
+            targetForm.querySelector('[name="username"]').value = config.username || '';
+            targetForm.querySelector('[name="password"]').value = '';
+            targetForm.querySelector('[name="enabled"]').checked = !!target.enabled;
+            targetForm.querySelector('[name="verify_tls"]').checked = config.verify_tls !== false;
+            toggleTargetFields();
+            window.scrollTo({ top: targetForm.getBoundingClientRect().top + window.scrollY - 120, behavior: 'smooth' });
+        });
+
+        testButton?.addEventListener('click', async () => {
+            testButton.disabled = true;
+            const response = await fetch(card.dataset.targetTestUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const data = await response.json().catch(() => ({}));
+            const details = data.details || {};
+            const status = details.http_status ? ` (${details.http_status})` : '';
+            resultNode.textContent = response.ok
+                ? `${data.message || 'Connection ok.'}${status}`
+                : `${data.message || data.error || 'Connection failed.'}${status}`;
+            resultNode.className = `target-test-result mt-2 text-xs ${response.ok ? 'text-emerald-600' : 'text-rose-600'}`;
+            testButton.disabled = false;
+        });
+    });
+
+    targetForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const formData = new FormData(targetForm);
+        const payload = Object.fromEntries(formData.entries());
+        payload.enabled = targetForm.querySelector('[name="enabled"]').checked;
+        payload.verify_tls = targetForm.querySelector('[name="verify_tls"]').checked;
+
+        const response = await fetch(root.dataset.targetUpsertUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(() => ({}));
+        targetFeedback.textContent = response.ok ? 'Saved. Reload to see changes.' : (data.message || data.error || 'Failed.');
+        targetFeedback.className = `text-xs ${response.ok ? 'text-emerald-600' : 'text-rose-600'}`;
+    });
 })();
 </script>
 {% endblock %}

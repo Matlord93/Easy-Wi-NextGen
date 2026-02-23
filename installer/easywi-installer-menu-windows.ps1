@@ -15,15 +15,19 @@ function Write-Log {
     Write-Host "[easywi-installer-menu] $Message"
 }
 
+function Assert-Admin {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        throw 'Bitte die PowerShell als Administrator starten.'
+    }
+}
+
 function Read-Optional {
     param([string]$Prompt, [string]$Default = '')
-    if ($NonInteractive) {
-        return $Default
-    }
+    if ($NonInteractive) { return $Default }
     if (-not [Console]::IsInputRedirected) {
-        if (-not [string]::IsNullOrWhiteSpace($Default)) {
-            $Prompt = "$Prompt [$Default]"
-        }
+        if (-not [string]::IsNullOrWhiteSpace($Default)) { $Prompt = "$Prompt [$Default]" }
         $value = Read-Host $Prompt
         if ([string]::IsNullOrWhiteSpace($value)) { return $Default }
         return $value
@@ -36,6 +40,12 @@ function Ensure-Directory {
     if (-not (Test-Path -Path $Path)) {
         New-Item -ItemType Directory -Path $Path -Force | Out-Null
     }
+}
+
+function Normalize-Url {
+    param([string]$Url)
+    if ([string]::IsNullOrWhiteSpace($Url)) { return $Url }
+    return $Url.Trim().TrimEnd('/')
 }
 
 function Get-Sha256Hex {
@@ -69,19 +79,20 @@ function New-Nonce {
     return ([System.BitConverter]::ToString($bytes) -replace '-', '').ToLower()
 }
 
-function Download-AgentBinary {
+function Download-ReleaseAsset {
     param(
         [string]$Version,
+        [string]$AssetName,
         [string]$TargetPath
     )
+
     Ensure-Directory -Path (Split-Path -Parent $TargetPath)
-    $assetName = 'easywi-agent-windows-amd64.exe'
     if ($Version -eq 'latest') {
-        $url = "https://github.com/$RepoOwner/$RepoName/releases/latest/download/$assetName"
+        $url = "https://github.com/$RepoOwner/$RepoName/releases/latest/download/$AssetName"
     } else {
-        $url = "https://github.com/$RepoOwner/$RepoName/releases/download/$Version/$assetName"
+        $url = "https://github.com/$RepoOwner/$RepoName/releases/download/$Version/$AssetName"
     }
-    Write-Log "Lade Agent-Binary von $url"
+    Write-Log "Lade $AssetName von $url"
     Invoke-WebRequest -Uri $url -OutFile $TargetPath
 }
 
@@ -90,9 +101,11 @@ function Register-Agent {
         [string]$CoreUrl,
         [string]$BootstrapToken,
         [string]$AgentVersion,
-        [string]$ConfigPath
+        [string]$ConfigPath,
+        [string]$FileBaseDirs
     )
 
+    $CoreUrl = Normalize-Url -Url $CoreUrl
     $hostname = $env:COMPUTERNAME
     $osName = 'windows'
     $payload = @{ bootstrap_token = $BootstrapToken; hostname = $hostname; os = $osName; agent_version = $AgentVersion } | ConvertTo-Json
@@ -100,22 +113,14 @@ function Register-Agent {
     Write-Log "Bootstrapping Agent via $CoreUrl/api/v1/agent/bootstrap"
     $bootstrapResponse = Invoke-RestMethod -Method Post -Uri "$CoreUrl/api/v1/agent/bootstrap" -ContentType 'application/json' -Body $payload
 
-    if (-not $bootstrapResponse.register_token) {
-        throw "Bootstrap response missing register_token."
-    }
-    if (-not $bootstrapResponse.agent_id) {
-        throw "Bootstrap response missing agent_id."
-    }
+    if (-not $bootstrapResponse.register_token) { throw 'Bootstrap response missing register_token.' }
+    if (-not $bootstrapResponse.agent_id) { throw 'Bootstrap response missing agent_id.' }
 
     $registerUrl = $bootstrapResponse.register_url
-    if ([string]::IsNullOrWhiteSpace($registerUrl)) {
-        $registerUrl = "$CoreUrl/api/v1/agent/register"
-    }
+    if ([string]::IsNullOrWhiteSpace($registerUrl)) { $registerUrl = "$CoreUrl/api/v1/agent/register" }
 
     $corePublicUrl = $bootstrapResponse.core_public_url
-    if (-not [string]::IsNullOrWhiteSpace($corePublicUrl)) {
-        $CoreUrl = $corePublicUrl
-    }
+    if (-not [string]::IsNullOrWhiteSpace($corePublicUrl)) { $CoreUrl = Normalize-Url -Url $corePublicUrl }
 
     $pollInterval = $bootstrapResponse.polling_interval
     if ([string]::IsNullOrWhiteSpace($pollInterval)) { $pollInterval = '30s' }
@@ -135,9 +140,7 @@ function Register-Agent {
         'X-Signature' = $signature
     }
 
-    if (-not $registerResponse.secret) {
-        throw "Register response missing secret."
-    }
+    if (-not $registerResponse.secret) { throw 'Register response missing secret.' }
 
     Ensure-Directory -Path (Split-Path -Parent $ConfigPath)
     @(
@@ -145,13 +148,15 @@ function Register-Agent {
         "secret=$($registerResponse.secret)",
         "api_url=$CoreUrl",
         "poll_interval=$pollInterval",
-        "version=$AgentVersion"
+        "version=$AgentVersion",
+        "file_base_dir=$($FileBaseDirs.Split(',')[0].Trim())",
+        "file_base_dirs=$FileBaseDirs"
     ) | Set-Content -Path $ConfigPath -Encoding UTF8
 }
 
 function Run-PanelInstall {
-    Write-Host "" 
-    Write-Host "Panel-Setup: Wir laden das Webinterface, schreiben die .env.local und richten Abhängigkeiten ein." 
+    Write-Host ''
+    Write-Host 'Panel-Setup: Wir laden das Webinterface, schreiben die .env.local und richten Abhängigkeiten ein.'
     $mode = 'Standalone'
     $installDir = Read-Optional -Prompt 'Installationsverzeichnis' -Default 'C:\easywi'
     $repoUrl = Read-Optional -Prompt 'Git-Repository URL' -Default "https://github.com/$RepoOwner/$RepoName"
@@ -182,35 +187,52 @@ function Run-PanelInstall {
 }
 
 function Run-AgentInstall {
-    Write-Host ""
-    Write-Host "Agent-Setup: Wir laden die Agent-Binary, registrieren sie am Core und installieren den Windows-Service." 
+    Write-Host ''
+    Write-Host 'Agent-Setup: Wir laden Agent/SFTP-Binaries, registrieren den Agenten und installieren Windows-Services.'
     $coreUrl = Read-Optional -Prompt 'Core API URL' -Default $env:EASYWI_CORE_URL
     if ([string]::IsNullOrWhiteSpace($coreUrl)) { $coreUrl = 'https://api.easywi.example' }
     $bootstrapToken = Read-Optional -Prompt 'Bootstrap Token' -Default $env:EASYWI_BOOTSTRAP_TOKEN
     $agentVersion = Read-Optional -Prompt 'Agent Version (latest oder Tag)' -Default 'latest'
     $installDir = Read-Optional -Prompt 'Agent Installationsverzeichnis' -Default 'C:\easywi\agent'
     $configPath = Read-Optional -Prompt 'Agent Config Pfad' -Default 'C:\ProgramData\easywi\agent.conf'
-    $serviceName = Read-Optional -Prompt 'Service-Name' -Default 'easywi-agent'
+    $serviceName = Read-Optional -Prompt 'Service-Name (Agent)' -Default 'easywi-agent'
+    $sftpServiceName = Read-Optional -Prompt 'Service-Name (SFTP)' -Default 'EasyWI-SFTP'
+    $fileBaseDirs = Read-Optional -Prompt 'File Base Directories (comma separated)' -Default 'C:\home,C:\inetpub\wwwroot'
+    $instanceBaseDir = Read-Optional -Prompt 'Instance Base Directory' -Default 'C:\home'
+    $sftpBaseDir = Read-Optional -Prompt 'SFTP Base Directory' -Default 'C:\ProgramData\EasyWI\sftp'
 
     if ([string]::IsNullOrWhiteSpace($coreUrl) -or [string]::IsNullOrWhiteSpace($bootstrapToken)) {
         throw 'Core API URL und Bootstrap Token sind erforderlich.'
     }
 
     $agentPath = Join-Path $installDir 'easywi-agent.exe'
-    Download-AgentBinary -Version $agentVersion -TargetPath $agentPath
-    Register-Agent -CoreUrl $coreUrl -BootstrapToken $bootstrapToken -AgentVersion $agentVersion -ConfigPath $configPath
+    $sftpPath = Join-Path $installDir 'easywi-sftp.exe'
+    $sftpConfigPath = Join-Path $sftpBaseDir 'config.json'
 
-    & "$ScriptDir\windows-agent\install-service.ps1" -ServiceName $serviceName -AgentPath $agentPath -ConfigPath $configPath
+    Download-ReleaseAsset -Version $agentVersion -AssetName 'easywi-agent-windows-amd64.exe' -TargetPath $agentPath
+    Download-ReleaseAsset -Version $agentVersion -AssetName 'easywi-sftp-windows-amd64.exe' -TargetPath $sftpPath
+    Register-Agent -CoreUrl $coreUrl -BootstrapToken $bootstrapToken -AgentVersion $agentVersion -ConfigPath $configPath -FileBaseDirs $fileBaseDirs
+
+    & "$ScriptDir\windows-agent\install-service.ps1" `
+        -ServiceName $serviceName `
+        -AgentPath $agentPath `
+        -ConfigPath $configPath `
+        -SftpServiceName $sftpServiceName `
+        -SftpPath $sftpPath `
+        -SftpConfigPath $sftpConfigPath `
+        -InstanceBaseDir $instanceBaseDir `
+        -SftpBaseDir $sftpBaseDir
 }
 
 function Main-Menu {
-    Write-Host "EasyWI Installer Menü (Windows)"
-    Write-Host "Dieses Skript erklärt jeden Schritt und führt die Installation automatisiert aus."
-    Write-Host ""
-    Write-Host "1) Webinterface (Panel)"
-    Write-Host "2) Agent"
-    Write-Host "3) Panel + Agent"
-    Write-Host "4) Beenden"
+    Assert-Admin
+    Write-Host 'EasyWI Installer Menü (Windows)'
+    Write-Host 'Dieses Skript erklärt jeden Schritt und führt die Installation automatisiert aus.'
+    Write-Host ''
+    Write-Host '1) Webinterface (Panel)'
+    Write-Host '2) Agent'
+    Write-Host '3) Panel + Agent'
+    Write-Host '4) Beenden'
 
     $choice = Read-Optional -Prompt 'Bitte wählen Sie [1-4]' -Default '4'
     switch ($choice) {

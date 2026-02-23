@@ -73,6 +73,7 @@ errors:
   requirements_not_met: "Bitte beheben Sie die fehlenden Anforderungen, bevor Sie fortfahren."
   missing_extension: "Die erforderliche PHP-Erweiterung %extension% ist nicht verfügbar."
   db_missing_fields: "Bitte Host, Datenbankname und Benutzername ausfüllen."
+  db_root_user_not_allowed: "Bitte keinen root-Benutzer verwenden. Legen Sie einen dedizierten Datenbank-Benutzer für Easy-WI an."
   db_connection_failed: "Datenbankverbindung fehlgeschlagen. Bitte Zugangsdaten und Host prüfen."
   db_privileges_failed: "Datenbankrechteprüfung fehlgeschlagen. Stellen Sie CREATE-, ALTER- und INDEX-Rechte sicher."
   db_migrations_failed: "Datenbank-Migrationen fehlgeschlagen. Prüfen Sie die Logs und versuchen Sie es erneut."

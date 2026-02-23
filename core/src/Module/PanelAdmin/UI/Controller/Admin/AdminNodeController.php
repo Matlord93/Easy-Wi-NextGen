@@ -17,6 +17,7 @@ use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Ports\Domain\Entity\PortAllocation;
+use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
 use App\Module\Ports\Domain\Entity\PortRange;
 use App\Repository\AgentJobRepository;
@@ -1153,6 +1154,15 @@ final class AdminNodeController
         $this->entityManager->createQueryBuilder()
             ->delete(PortRange::class, 'range')
             ->where('range.node = :agent')
+            ->setParameter('agent', $node)
+            ->getQuery()
+            ->execute();
+
+        $this->entityManager->createQueryBuilder()
+            ->delete(PortBlock::class, 'block')
+            ->where('block.pool IN (
+                SELECT nodePool FROM ' . PortPool::class . ' nodePool WHERE nodePool.node = :agent
+            )')
             ->setParameter('agent', $node)
             ->getQuery()
             ->execute();

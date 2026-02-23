@@ -40,13 +40,16 @@ class PortPool implements ResourceEventSource
     #[ORM\Column]
     private bool $enabled = true;
 
+    #[ORM\Column(options: ['default' => 1])]
+    private int $allocationStep = 1;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
-    public function __construct(Agent $node, string $name, string $tag, int $startPort, int $endPort, bool $enabled = true)
+    public function __construct(Agent $node, string $name, string $tag, int $startPort, int $endPort, bool $enabled = true, int $allocationStep = 1)
     {
         $this->node = $node;
         $this->name = $name;
@@ -54,6 +57,7 @@ class PortPool implements ResourceEventSource
         $this->startPort = $startPort;
         $this->endPort = $endPort;
         $this->enabled = $enabled;
+        $this->allocationStep = max(1, $allocationStep);
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -121,6 +125,18 @@ class PortPool implements ResourceEventSource
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+
+    public function getAllocationStep(): int
+    {
+        return $this->allocationStep;
+    }
+
+    public function setAllocationStep(int $allocationStep): void
+    {
+        $this->allocationStep = max(1, $allocationStep);
+        $this->touch();
     }
 
     public function getUpdatedAt(): \DateTimeImmutable

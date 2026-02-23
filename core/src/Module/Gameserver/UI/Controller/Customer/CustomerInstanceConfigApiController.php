@@ -15,6 +15,11 @@ use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\Application\InstanceSlotService;
+use App\Repository\TemplateRepository;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
+use App\Module\Gameserver\Application\InstanceAddonResolver;
+use App\Module\Gameserver\Application\InstanceConfigPathResolver;
+use App\Module\Gameserver\Application\ConfigTemplateRegistry;
 use App\Module\Gameserver\Infrastructure\Repository\GameProfileRepository;
 use App\Repository\ConfigSchemaRepository;
 use App\Repository\GameDefinitionRepository;
@@ -39,9 +44,316 @@ final class CustomerInstanceConfigApiController
         private readonly JobRepository $jobRepository,
         private readonly AuditLogger $auditLogger,
         private readonly InstanceSlotService $instanceSlotService,
+        private readonly InstanceAddonResolver $instanceAddonResolver,
+        private readonly ConfigTemplateRegistry $configTemplateRegistry,
+        private readonly InstanceConfigPathResolver $instanceConfigPathResolver,
+        private readonly AgentGameServerClient $agentGameServerClient,
+        private readonly TemplateRepository $templateRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
     ) {
+    }
+
+    #[Route(path: '/api/instances/{id}/configs/templates', name: 'customer_instance_config_templates_list', methods: ['GET'])]
+    public function listTemplates(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (\Throwable $e) {
+            return $this->envelopeError($request, 'FORBIDDEN', $e->getMessage() !== '' ? $e->getMessage() : 'Forbidden', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $targets = [];
+        foreach ($this->configTemplateRegistry->listTargetsForInstance($instance) as $target) {
+            $resolved = null;
+            $exists = false;
+            $size = null;
+            if (($target['relative_path'] ?? '') !== '') {
+                try {
+                    $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
+                    $exists = is_file($resolved['absolute']);
+                    $size = $exists ? filesize($resolved['absolute']) : null;
+                } catch (\Throwable) {
+                    $resolved = null;
+                }
+            }
+
+            $targets[] = [
+                'id' => $target['id'],
+                'display_name' => $target['display_name'],
+                'description' => $target['description'],
+                'engine_family' => $target['engine_family'],
+                'platform' => $target['platform'],
+                'relative_path' => $target['relative_path'],
+                'apply_mode' => $target['apply_mode'],
+                'restart_hint' => $target['restart_hint'],
+                'capabilities' => $target['capabilities'],
+                'unsupported_reason' => $target['unsupported_reason'],
+                'resolved' => $resolved,
+                'exists' => $exists,
+                'size' => $size,
+            ];
+        }
+
+        return $this->envelopeOk($request, [
+            'targets' => $targets,
+            'addons' => $this->instanceAddonResolver->resolve($instance),
+        ]);
+    }
+
+    #[Route(path: '/api/instances/{id}/configs/templates/{targetId}', name: 'customer_instance_config_templates_show', methods: ['GET'])]
+    public function showTemplate(Request $request, int $id, string $targetId): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+            $target = $this->findConfigTarget($instance, $targetId);
+            if (($target['unsupported_reason'] ?? null) !== null) {
+                return $this->envelopeError($request, 'UNSUPPORTED_CONFIG_TARGET', (string) $target['unsupported_reason'], JsonResponse::HTTP_CONFLICT);
+            }
+
+            $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
+            $content = '';
+            if (is_file($resolved['absolute'])) {
+                $raw = @file_get_contents($resolved['absolute']);
+                $content = is_string($raw) ? $raw : '';
+            }
+
+            return $this->envelopeOk($request, [
+                'target' => $target,
+                'resolved' => $resolved,
+                'content' => $content,
+            ]);
+        } catch (\RuntimeException $e) {
+            return $this->envelopeError($request, $e->getMessage(), 'Cannot resolve config target.', JsonResponse::HTTP_BAD_REQUEST);
+        } catch (\Throwable $e) {
+            return $this->envelopeError($request, 'INTERNAL_ERROR', $e->getMessage(), JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    #[Route(path: '/api/instances/{id}/configs/templates/{targetId}/create', name: 'customer_instance_config_templates_create', methods: ['POST'])]
+    public function createTemplate(Request $request, int $id, string $targetId): JsonResponse
+    {
+        $payload = $this->parsePayload($request);
+
+        return $this->applyTemplateInternal($request, $id, $targetId, $payload, true);
+    }
+
+    #[Route(path: '/api/instances/{id}/configs/templates/{targetId}', name: 'customer_instance_config_templates_save', methods: ['PUT'])]
+    public function saveTemplate(Request $request, int $id, string $targetId): JsonResponse
+    {
+        $payload = $this->parsePayload($request);
+
+        return $this->applyTemplateInternal($request, $id, $targetId, $payload, false);
+    }
+
+    #[Route(path: '/api/instances/{id}/configs/health', name: 'customer_instance_config_templates_health', methods: ['GET'])]
+    public function configHealth(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+            $root = $this->instanceConfigPathResolver->resolve($instance, 'config-health-check.txt')['root'];
+        } catch (\Throwable $e) {
+            return $this->envelopeError($request, 'ROOT_INVALID', $e->getMessage(), JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        return $this->envelopeOk($request, [
+            'agent_reachable' => true,
+            'resolved_root' => $root,
+            'supported_apply_modes' => ['merge_kv', 'properties', 'render_text'],
+        ]);
+    }
+
+    private function applyTemplateInternal(Request $request, int $id, string $targetId, array $payload, bool $create): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+            $target = $this->findConfigTarget($instance, $targetId);
+            if (($target['unsupported_reason'] ?? null) !== null) {
+                return $this->envelopeError($request, 'UNSUPPORTED_CONFIG_TARGET', (string) $target['unsupported_reason'], JsonResponse::HTTP_CONFLICT);
+            }
+            $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
+            if (!$create && !is_file($resolved['absolute'])) {
+                return $this->envelopeError($request, 'INVALID_INPUT', 'Config file does not exist. Use create first.', JsonResponse::HTTP_CONFLICT);
+            }
+
+            $content = $this->renderTemplateContent($target, $payload, is_file($resolved['absolute']) ? (string) @file_get_contents($resolved['absolute']) : '');
+            if (strlen($content) > 256 * 1024) {
+                return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
+            }
+            if (preg_match('/[ --]/', $content) === 1) {
+                return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
+            }
+
+            $agentResult = $this->agentGameServerClient->applyInstanceConfig($instance, [
+                'instance_root' => $resolved['root'],
+                'path' => $resolved['absolute'],
+                'content' => $content,
+                'mode' => $target['apply_mode'] ?? 'render_text',
+                'backup' => true,
+            ]);
+
+            if (($agentResult['ok'] ?? false) !== true) {
+                return $this->envelopeError(
+                    $request,
+                    (string) ($agentResult['error_code'] ?? 'INTERNAL_ERROR'),
+                    (string) ($agentResult['message'] ?? 'Config apply failed.'),
+                    JsonResponse::HTTP_OK,
+                    ['agent' => $agentResult]
+                );
+            }
+
+            return $this->envelopeOk($request, [
+                'target_id' => $target['id'],
+                'written' => true,
+                'agent' => $agentResult['data'] ?? [],
+            ]);
+        } catch (\RuntimeException $e) {
+            return $this->envelopeError($request, $e->getMessage(), 'Config apply failed.', JsonResponse::HTTP_BAD_REQUEST);
+        } catch (\Throwable $e) {
+            return $this->envelopeError($request, 'INTERNAL_ERROR', $e->getMessage(), JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function findConfigTarget(Instance $instance, string $targetId): array
+    {
+        foreach ($this->configTemplateRegistry->listTargetsForInstance($instance) as $target) {
+            if ((string) ($target['id'] ?? '') === $targetId) {
+                return $target;
+            }
+        }
+
+        throw new \RuntimeException('INVALID_INPUT');
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @param array<string, mixed> $payload
+     */
+    private function renderTemplateContent(array $target, array $payload, string $existing): string
+    {
+        $mode = (string) ($target['apply_mode'] ?? 'render_text');
+        $values = $payload['values'] ?? [];
+        $raw = (string) ($payload['raw_text'] ?? '');
+
+        if (!is_array($values)) {
+            throw new \RuntimeException('INVALID_INPUT');
+        }
+
+        foreach ($values as $v) {
+            if (is_string($v) && str_contains($v, "
+")) {
+                throw new \RuntimeException('INVALID_INPUT');
+            }
+        }
+
+        return match ($mode) {
+            'merge_kv' => $this->renderSourceCfg($existing, $values),
+            'properties' => $this->renderProperties($existing, $values),
+            default => $raw !== '' ? $raw : $existing,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     */
+    private function renderSourceCfg(string $existing, array $values): string
+    {
+        $lines = preg_split('/
+|
+|/', $existing) ?: [];
+        $out = [];
+        $seen = [];
+        foreach ($lines as $line) {
+            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $m) === 1) {
+                $key = $m[1];
+                if (array_key_exists($key, $values)) {
+                    $val = (string) $values[$key];
+                    $line = $key . ' "' . str_replace('"', '\"', $val) . '"';
+                    $seen[$key] = true;
+                }
+            }
+            $out[] = $line;
+        }
+        foreach ($values as $key => $value) {
+            if (!isset($seen[$key])) {
+                $out[] = (string) $key . ' "' . str_replace('"', '\"', (string) $value) . '"';
+            }
+        }
+
+        return trim(implode("
+", $out)) . "
+";
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     */
+    private function renderProperties(string $existing, array $values): string
+    {
+        $lines = preg_split('/
+|
+|/', $existing) ?: [];
+        $out = [];
+        $seen = [];
+        foreach ($lines as $line) {
+            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $m) === 1) {
+                $key = $m[1];
+                if (array_key_exists($key, $values)) {
+                    $line = $key . '=' . str_replace(["", "
+"], '', (string) $values[$key]);
+                    $seen[$key] = true;
+                }
+            }
+            $out[] = $line;
+        }
+        foreach ($values as $key => $value) {
+            if (!isset($seen[$key])) {
+                $out[] = (string) $key . '=' . str_replace(["", "
+"], '', (string) $value);
+            }
+        }
+
+        return trim(implode("
+", $out)) . "
+";
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function envelopeOk(Request $request, array $data, int $status = JsonResponse::HTTP_OK): JsonResponse
+    {
+        return new JsonResponse([
+            'ok' => true,
+            'data' => $data,
+            'request_id' => $this->resolveRequestId($request),
+        ], $status);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function envelopeError(Request $request, string $code, string $message, int $status, array $context = []): JsonResponse
+    {
+        return new JsonResponse([
+            'ok' => false,
+            'error_code' => $code,
+            'message' => $message,
+            'request_id' => $this->resolveRequestId($request),
+            'context' => $context,
+        ], $status);
+    }
+
+    private function resolveRequestId(Request $request): string
+    {
+        return trim((string) ($request->headers->get('X-Request-ID') ?: $request->attributes->get('request_id') ?: ''));
     }
 
     #[Route(path: '/api/customer/instances/{id}/configs', name: 'customer_instance_configs_api_list', methods: ['GET'])]

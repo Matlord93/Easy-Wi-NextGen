@@ -14,6 +14,8 @@ const fs = require('fs');
     assert.ok(source.includes('gs-auto-restart-time'), 'settings app should control auto-restart time input');
     assert.ok(source.includes('gs-auto-update-time'), 'settings app should control auto-update time input');
     assert.ok(source.includes('time: autoBackupTime?.value'), 'settings app should submit automation times');
+    assert.ok(source.includes('urlAccessHealth'), 'settings app should require access health endpoint');
+    assert.ok(source.includes('gs-access-reveal'), 'settings app should support one-time password reveal');
 })();
 
 console.log('gameserver-settings-app smoke test passed');

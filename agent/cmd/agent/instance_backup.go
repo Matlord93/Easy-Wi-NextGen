@@ -51,9 +51,11 @@ func handleInstanceBackupCreate(job jobs.Job) (jobs.Result, func() error) {
 	backupTargetType := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "backup_target_type")))
 	backupRoot := backupRootDir()
 	if backupTargetType == "local" {
-		if config := payloadNestedValue(job.Payload, "backup_target_config", "base_path"); config != "" {
-			backupRoot = config
+		resolvedRoot, resolveErr := resolveLocalBackupRoot(job.Payload, backupRoot)
+		if resolveErr != nil {
+			return failureResult(job.ID, resolveErr)
 		}
+		backupRoot = resolvedRoot
 	}
 	targetDir := filepath.Join(backupRoot, sanitizeIdentifier(instanceID))
 	if err := os.MkdirAll(targetDir, 0o750); err != nil {
@@ -179,6 +181,34 @@ func backupRootDir() string {
 		return custom
 	}
 	return defaultInstanceBackupBaseDir
+}
+
+func resolveLocalBackupRoot(payload map[string]any, fallback string) (string, error) {
+	configured := firstNonEmpty(
+		payloadNestedValue(payload, "backup_target_config", "base_path"),
+		payloadNestedValue(payload, "backup_target_config", "basePath"),
+		payloadNestedValue(payload, "backup_target_config", "path"),
+		payloadNestedValue(payload, "backup_target_config", "directory"),
+		payloadNestedValue(payload, "backup_target_config", "root_path"),
+		payloadNestedValue(payload, "backup_target_config", "backup_path"),
+		payloadValue(payload, "backup_base_path", "backup_root", "backup_path"),
+	)
+	if strings.TrimSpace(configured) == "" {
+		return fallback, nil
+	}
+	if !filepath.IsAbs(configured) {
+		return "", fmt.Errorf("local backup base path must be absolute: %s", configured)
+	}
+	return filepath.Clean(configured), nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func payloadNestedValue(payload map[string]any, objectKey string, key string) string {

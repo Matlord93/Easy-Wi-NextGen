@@ -38,6 +38,27 @@ class InstanceSftpCredential
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $expiresAt = null;
 
+    #[ORM\Column(length: 32, options: ['default' => 'NONE'])]
+    private string $backend = 'NONE';
+
+    #[ORM\Column(length: 190, nullable: true)]
+    private ?string $host = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $port = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $rootPath = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $revealedAt = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $lastErrorCode = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $lastErrorMessage = null;
+
     /**
      * @param array{key_id: string, nonce: string, ciphertext: string} $encryptedPassword
      */
@@ -113,6 +134,81 @@ class InstanceSftpCredential
     public function setExpiresAt(?\DateTimeImmutable $expiresAt): void
     {
         $this->expiresAt = $expiresAt;
+        $this->touch();
+    }
+
+    public function getBackend(): string
+    {
+        return $this->backend;
+    }
+
+    public function setBackend(string $backend): void
+    {
+        $value = strtoupper(trim($backend));
+        $this->backend = $value !== '' ? $value : 'NONE';
+        $this->touch();
+    }
+
+    public function getHost(): ?string
+    {
+        return $this->host;
+    }
+
+    public function setHost(?string $host): void
+    {
+        $normalized = $host !== null ? trim($host) : null;
+        $this->host = $normalized !== '' ? $normalized : null;
+        $this->touch();
+    }
+
+    public function getPort(): ?int
+    {
+        return $this->port;
+    }
+
+    public function setPort(?int $port): void
+    {
+        $this->port = $port;
+        $this->touch();
+    }
+
+    public function getRootPath(): ?string
+    {
+        return $this->rootPath;
+    }
+
+    public function setRootPath(?string $rootPath): void
+    {
+        $normalized = $rootPath !== null ? trim($rootPath) : null;
+        $this->rootPath = $normalized !== '' ? $normalized : null;
+        $this->touch();
+    }
+
+    public function getRevealedAt(): ?\DateTimeImmutable
+    {
+        return $this->revealedAt;
+    }
+
+    public function setRevealedAt(?\DateTimeImmutable $revealedAt): void
+    {
+        $this->revealedAt = $revealedAt;
+        $this->touch();
+    }
+
+    public function getLastErrorCode(): ?string
+    {
+        return $this->lastErrorCode;
+    }
+
+    public function getLastErrorMessage(): ?string
+    {
+        return $this->lastErrorMessage;
+    }
+
+    public function setLastError(?string $code, ?string $message): void
+    {
+        $this->lastErrorCode = $code !== null ? trim($code) : null;
+        $this->lastErrorMessage = $message !== null ? trim($message) : null;
         $this->touch();
     }
 

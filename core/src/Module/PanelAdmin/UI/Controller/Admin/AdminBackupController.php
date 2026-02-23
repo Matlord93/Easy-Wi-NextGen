@@ -102,10 +102,24 @@ final class AdminBackupController
         $this->requireAdmin($request);
         $settings = $this->settingsService->getSettings();
 
+        $targets = $this->backupTargetRepository->findBy([], ['label' => 'ASC']);
+        $recentBackups = $this->backupRepository->findBy([], ['createdAt' => 'DESC'], 20);
+
         return new Response($this->twig->render('admin/backups/settings.html.twig', [
             'activeNav' => 'backup-system',
             'settings' => $settings,
-            'targets' => array_map(fn (BackupTarget $target): array => $this->normalizeTarget($target), $this->backupTargetRepository->findBy([], ['label' => 'ASC'])),
+            'targets' => array_map(fn (BackupTarget $target): array => $this->normalizeTarget($target), $targets),
+            'recentBackups' => array_map(fn (Backup $backup): array => [
+                'id' => $backup->getId(),
+                'instance_id' => $backup->getDefinition()->getTargetId(),
+                'customer_id' => $backup->getDefinition()->getCustomer()->getId(),
+                'target' => $backup->getDefinition()->getBackupTarget()?->getLabel(),
+                'status' => $backup->getStatus()->value,
+                'size_bytes' => $backup->getSizeBytes(),
+                'created_at' => $backup->getCreatedAt(),
+                'completed_at' => $backup->getCompletedAt(),
+                'error' => $backup->getErrorMessage(),
+            ], $recentBackups),
         ]));
     }
 

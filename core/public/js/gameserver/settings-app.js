@@ -19,6 +19,9 @@
         'urlSlots',
         'urlHealth',
         'urlAutomation',
+        'urlAccessHealth',
+        'urlAccessReveal',
+        'urlAccessReset',
     ]);
 
     const errorPanel = document.getElementById('gs-settings-error');
@@ -54,6 +57,9 @@
     const versionLockEnabled = document.getElementById('gs-version-lock-enabled');
     const versionLockVersion = document.getElementById('gs-version-lock-version');
     const automationSaveBtn = document.getElementById('gs-automation-save');
+    const accessMeta = document.getElementById('gs-access-meta');
+    const accessRevealBtn = document.getElementById('gs-access-reveal');
+    const accessResetBtn = document.getElementById('gs-access-reset');
 
     const state = {
         activeConfigId: '',
@@ -268,6 +274,34 @@
         }
     };
 
+    const renderAccess = (credential = {}) => {
+        if (!accessMeta) {
+            return;
+        }
+        accessMeta.innerHTML = `
+            <div>Backend: <span class="font-semibold">${credential.backend || 'NONE'}</span></div>
+            <div>Host: <span class="font-semibold">${credential.host || '—'}</span></div>
+            <div>Port: <span class="font-semibold">${credential.port || '—'}</span></div>
+            <div>Username: <span class="font-semibold">${credential.username || '—'}</span></div>
+            <div>Root: <span class="font-semibold">${credential.root_path || '—'}</span></div>
+            <div>Status: <span class="font-semibold">${credential.last_error_code ? 'Needs attention' : 'OK'}</span></div>
+            ${credential.last_error_code ? `<div class="text-rose-300">${credential.last_error_code}: ${credential.last_error_message || ''}</div>` : ''}
+            <div class="text-slate-400">${credential.password_revealed ? 'Password shown once – reset to regenerate.' : 'Password ready for one-time reveal.'}</div>
+        `;
+        if (accessRevealBtn) {
+            accessRevealBtn.disabled = Boolean(credential.password_revealed);
+        }
+    };
+
+    const loadAccess = async () => {
+        try {
+            const payload = await apiClient.request(mount.dataset.urlAccessHealth);
+            renderAccess(payload.data?.credential || {});
+        } catch (error) {
+            errors.showAll(errorPanel, error);
+        }
+    };
+
     const createConfig = async () => {
         const name = window.prompt('Config name');
         if (!name) {
@@ -373,6 +407,37 @@
             } finally {
                 setBusy(slotBtn, false, 'Saving…', 'Update slots');
             }
+            return;
+        }
+
+        if (event.target.id === 'gs-access-reveal') {
+            setBusy(accessRevealBtn, true, 'Revealing…', 'Reveal password');
+            try {
+                const payload = await apiClient.request(mount.dataset.urlAccessReveal, { method: 'POST' });
+                const data = payload.data || {};
+                errors.clearInline(errorPanel);
+                errors.showToast({ message: `Password: ${data.password}`, error_code: 'OK', request_id: payload.request_id || '' }, 10000);
+                await loadAccess();
+            } catch (error) {
+                errors.showAll(errorPanel, error);
+            } finally {
+                setBusy(accessRevealBtn, false, 'Revealing…', 'Reveal password');
+            }
+            return;
+        }
+
+        if (event.target.id === 'gs-access-reset') {
+            setBusy(accessResetBtn, true, 'Resetting…', 'Reset password');
+            try {
+                const payload = await apiClient.request(mount.dataset.urlAccessReset, { method: 'POST' });
+                errors.clearInline(errorPanel);
+                errors.showToast({ message: 'Access password reset queued.', error_code: 'OK', request_id: payload.request_id || '' }, 2500);
+                await loadAccess();
+            } catch (error) {
+                errors.showAll(errorPanel, error);
+            } finally {
+                setBusy(accessResetBtn, false, 'Resetting…', 'Reset password');
+            }
         }
     });
 
@@ -391,6 +456,7 @@
             applyAutomationUi(summary.data?.automation || {});
             meta.textContent = `Settings healthy · request_id=${health.request_id || ''}`;
             await loadConfigs(summary.data || {});
+            await loadAccess();
         } catch (error) {
             errors.showAll(errorPanel, error);
         }

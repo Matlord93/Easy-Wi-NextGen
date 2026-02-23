@@ -29,23 +29,30 @@
     const pauseEl = document.getElementById('gs-console-pause');
     const autoScrollEl = document.getElementById('gs-console-autoscroll');
     const clearEl = document.getElementById('gs-console-clear');
+    const healthEl = document.getElementById('gs-console-health');
 
     let polling = true;
     let autoScroll = true;
-    let cursor = 0;
+    let cursor = '';
     let timer = null;
+    let reconnectShown = false;
 
-    const appendLine = (line) => {
+    const appendLine = (line, kind = 'journal') => {
         if (!line) return;
-        if (line.includes('--- journalctl ') || line.toLowerCase().includes('console restarted')) {
-            return;
-        }
         const shouldStick = autoScroll && (logEl.scrollTop + logEl.clientHeight + 32 >= logEl.scrollHeight);
-        logEl.textContent += (logEl.textContent ? '\n' : '') + line;
+        const prefix = kind === 'meta' ? '[meta] ' : '';
+        logEl.textContent += (logEl.textContent ? '\n' : '') + prefix + line;
         if (shouldStick) {
             logEl.scrollTop = logEl.scrollHeight;
         }
     };
+
+    logEl.addEventListener('scroll', () => {
+        if (logEl.scrollTop + logEl.clientHeight + 24 < logEl.scrollHeight && autoScroll) {
+            autoScroll = false;
+            autoScrollEl.textContent = 'Auto-scroll: Off';
+        }
+    });
 
     const setSendLoading = (loading) => {
         sendEl.disabled = loading;
@@ -58,16 +65,20 @@
     };
 
     const pollLogs = async () => {
-        if (!polling) {
-            return;
-        }
+        if (!polling) return;
         try {
             const payload = await apiClient.request(`${root.dataset.urlLogs}?cursor=${encodeURIComponent(cursor)}`);
             const data = payload.data || {};
             const lines = Array.isArray(data.lines) ? data.lines : [];
-            lines.forEach((entry) => appendLine(`${entry.created_at || ''} ${entry.message || ''}`.trim()));
-            if (typeof data.cursor === 'number') {
-                cursor = data.cursor;
+            lines.forEach((entry) => {
+                appendLine(entry.text || entry.message || '', entry.stream || 'journal');
+            });
+            if (typeof data.cursor === 'string' || typeof data.cursor === 'number') {
+                cursor = String(data.cursor);
+            }
+            if (data.meta && data.meta.restarted && !reconnectShown) {
+                reconnectShown = true;
+                appendLine('Reconnected', 'meta');
             }
             errors.clearInline(inlineError);
         } catch (error) {
@@ -76,38 +87,28 @@
     };
 
     const schedulePoll = () => {
-        if (timer) {
-            window.clearInterval(timer);
-        }
-        timer = window.setInterval(pollLogs, 2000);
+        if (timer) window.clearInterval(timer);
+        timer = window.setInterval(pollLogs, 1500);
     };
 
     sendEl.addEventListener('click', async () => {
         const command = (commandEl.value || '').trim();
         if (!command) {
-            errors.showAll(inlineError, {
-                message: 'Command is required.',
-                error_code: 'INVALID_INPUT',
-                request_id: '',
-            });
+            errors.showAll(inlineError, { message: 'Command is required.', error_code: 'INVALID_INPUT', request_id: '' });
             return;
         }
 
         setSendLoading(true);
         errors.clearInline(inlineError);
+        appendLine(`> ${command}`, 'meta');
         try {
-            const payload = await apiClient.request(root.dataset.urlCommand, {
+            await apiClient.request(root.dataset.urlCommand, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ command }),
             });
-            appendLine(`> ${command}`);
             commandEl.value = '';
-            errors.showToast({
-                message: payload.data?.message || 'Command queued.',
-                error_code: 'OK',
-                request_id: payload.request_id || '',
-            }, 2000);
+            errors.showToast({ message: 'Command sent.', error_code: 'OK', request_id: '' }, 1800);
         } catch (error) {
             errors.showAll(inlineError, error);
         } finally {
@@ -131,18 +132,14 @@
 
     apiClient.request(root.dataset.urlHealth)
         .then((payload) => {
-            const canSend = payload.data?.can_send_command;
-            if (canSend === false) {
-                errors.showAll(inlineError, {
-                    message: 'Instance is offline for console commands.',
-                    error_code: 'INSTANCE_OFFLINE',
-                    request_id: payload.request_id || '',
-                });
+            const data = payload.data || {};
+            if (healthEl) {
+                const state = data.unit_active_state || data.running_state || data.instance_status || 'unknown';
+                const unit = data.unit_name || 'n/a';
+                healthEl.textContent = `Unit: ${unit} · State: ${state}`;
             }
         })
-        .catch((error) => {
-            errors.showAll(inlineError, error);
-        });
+        .catch((error) => errors.showAll(inlineError, error));
 
     pollLogs();
     schedulePoll();

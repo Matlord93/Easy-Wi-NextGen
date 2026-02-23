@@ -1531,6 +1531,7 @@ final class AgentApiController
 
         if (in_array($job->getType(), ['instance.create', 'instance.start', 'instance.restart', 'instance.reinstall'], true)) {
             $this->queueDiskScanIfNeeded($instance, $completedAt);
+            $this->queueAutoAccessProvisionIfNeeded($instance, $job);
         }
 
         if (is_string($output['start_script_path'] ?? null)) {
@@ -1586,9 +1587,9 @@ final class AgentApiController
             return;
         }
 
-        $password = is_string($output['password'] ?? null) ? trim((string) $output['password']) : '';
+        $password = is_string($payload['password'] ?? null) ? trim((string) $payload['password']) : '';
         if ($password === '') {
-            return;
+            $password = bin2hex(random_bytes(18));
         }
 
         $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
@@ -1602,6 +1603,16 @@ final class AgentApiController
             $credential->setEncryptedPassword($this->encryptionService->encrypt($password));
         }
 
+        $backend = is_string($output['backend'] ?? null) ? (string) $output['backend'] : 'NONE';
+        $host = is_string($output['host'] ?? null) ? (string) $output['host'] : null;
+        $port = is_numeric($output['port'] ?? null) ? (int) $output['port'] : null;
+        $rootPath = is_string($output['root_path'] ?? null) ? (string) $output['root_path'] : null;
+        $credential->setBackend($backend);
+        $credential->setHost($host);
+        $credential->setPort($port);
+        $credential->setRootPath($rootPath);
+        $credential->setLastError(null, null);
+
         $expiresAt = null;
         $expiresRaw = is_string($payload['expires_at'] ?? null) ? (string) $payload['expires_at'] : null;
         if ($expiresRaw !== null && $expiresRaw !== '') {
@@ -1614,6 +1625,7 @@ final class AgentApiController
 
         $credential->setRotatedAt($completedAt);
         $credential->setExpiresAt($expiresAt);
+        $credential->setRevealedAt(null);
         $this->entityManager->persist($credential);
 
         $this->auditLogger->log(null, 'instance.sftp.credentials.rotated', [
@@ -1660,6 +1672,55 @@ final class AgentApiController
             'node_id' => $instance->getNode()->getId(),
             'job_id' => $job->getId(),
             'queued_at' => $completedAt->format(DATE_RFC3339),
+        ]);
+    }
+
+    private function queueAutoAccessProvisionIfNeeded(Instance $instance, Job $sourceJob): void
+    {
+        $existingCredential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
+        if ($existingCredential !== null) {
+            return;
+        }
+
+        $activeReset = $this->jobRepository->findLatestByTypeAndInstanceId('instance.sftp.credentials.reset', $instance->getId());
+        if ($activeReset !== null && in_array($activeReset->getStatus(), [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running], true)) {
+            return;
+        }
+
+        $password = bin2hex(random_bytes(18));
+        $expiresAt = (new DateTimeImmutable('+15 minutes'))->setTimezone(new \DateTimeZone('UTC'));
+        $credential = new \App\Module\Core\Domain\Entity\InstanceSftpCredential(
+            $instance,
+            sprintf('gs_%d_%d', $instance->getId(), $instance->getCustomer()->getId()),
+            $this->encryptionService->encrypt($password),
+        );
+        $credential->setExpiresAt($expiresAt);
+        $credential->setRevealedAt(null);
+        $credential->setBackend('NONE');
+        $credential->setRootPath($this->resolveInstanceDir($instance));
+        $this->entityManager->persist($credential);
+        $this->entityManager->flush();
+
+        $job = new Job('instance.sftp.credentials.reset', [
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $instance->getCustomer()->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+            'credential_id' => $credential->getId(),
+            'username' => $credential->getUsername(),
+            'password' => $password,
+            'root_path' => $this->resolveInstanceDir($instance),
+            'preferred_backend' => strtoupper(PHP_OS_FAMILY) === 'WINDOWS' ? 'WINDOWS_OPENSSH_SFTP' : 'PROFTPD_SFTP',
+            'rotate' => true,
+            'expires_at' => $expiresAt->format(DATE_RFC3339),
+        ]);
+        $this->entityManager->persist($job);
+
+        $this->auditLogger->log(null, 'instance.access.auto_provision_queued', [
+            'instance_id' => $instance->getId(),
+            'source_job_id' => $sourceJob->getId(),
+            'job_id' => $job->getId(),
+            'username' => $credential->getUsername(),
+            'backend' => $credential->getBackend(),
         ]);
     }
 

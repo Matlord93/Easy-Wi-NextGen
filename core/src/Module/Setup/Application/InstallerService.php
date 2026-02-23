@@ -15,11 +15,6 @@ use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use Doctrine\Common\EventManager;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
-use Doctrine\DBAL\Exception\TableExistsException;
-use Doctrine\Migrations\Configuration\EntityManager\ExistingEntityManager;
-use Doctrine\Migrations\Configuration\Migration\ConfigurationArray;
-use Doctrine\Migrations\DependencyFactory;
-use Doctrine\Migrations\MigratorConfiguration;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
@@ -40,6 +35,8 @@ final class InstallerService
         'sftp_private_key',
         'sftp_private_key_passphrase',
     ];
+    private const DB_HEALTHCHECK_ATTEMPTS = 8;
+    private const DB_HEALTHCHECK_INITIAL_DELAY_MS = 250;
 
     public function __construct(
         private readonly EntityManagerInterface $defaultEntityManager,
@@ -158,6 +155,10 @@ final class InstallerService
 
         if ($databaseState['host'] === '' || $databaseState['name'] === '' || $databaseState['user'] === '') {
             $errors[] = ['key' => 'errors.db_missing_fields'];
+        }
+
+        if (isset($databaseState['user']) && strtolower(trim((string) $databaseState['user'])) === 'root') {
+            $errors[] = ['key' => 'errors.db_root_user_not_allowed'];
         }
 
         return $errors;
@@ -392,43 +393,22 @@ final class InstallerService
 
     public function runMigrations(EntityManagerInterface $entityManager): void
     {
-        $config = new ConfigurationArray([
-            'migrations_paths' => [
-                'DoctrineMigrations' => $this->projectDir . '/migrations',
-            ],
-            'transactional' => false,
-            'all_or_nothing' => false,
-        ]);
+        $connectionParams = $entityManager->getConnection()->getParams();
+        $this->waitForDatabaseReady($connectionParams);
 
-        $dependencyFactory = DependencyFactory::fromEntityManager(
-            $config,
-            new ExistingEntityManager($entityManager),
+        $result = $this->runInstallerCommand(
+            'php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration',
         );
 
-        $migrationConfiguration = $dependencyFactory->getConfiguration();
-        if (method_exists($migrationConfiguration, 'setTransactional')) {
-            $migrationConfiguration->setTransactional(false);
-        }
-        if (method_exists($migrationConfiguration, 'setAllOrNothing')) {
-            $migrationConfiguration->setAllOrNothing(false);
+        if ($result['exitCode'] !== 0) {
+            $this->logger->error('Installer migration command failed.', [
+                'exit_code' => $result['exitCode'],
+                'output' => $result['output'],
+            ]);
+            throw new \RuntimeException('Installer migration command failed: ' . $result['output']);
         }
 
-        $dependencyFactory->getMetadataStorage()->ensureInitialized();
-        $planCalculator = $dependencyFactory->getMigrationPlanCalculator();
-        $targetVersion = $dependencyFactory->getVersionAliasResolver()
-            ->resolveVersionAlias('latest');
-        $plan = $planCalculator->getPlanUntilVersion($targetVersion);
-
-        $migratorConfiguration = new MigratorConfiguration();
-        $migratorConfiguration->setAllOrNothing(false);
-
-        try {
-            $dependencyFactory->getMigrator()->migrate($plan, $migratorConfiguration);
-            $this->ensureSchemaExists($entityManager);
-        } catch (TableExistsException $exception) {
-            $this->logException($exception, 'Installer migrations skipped because tables already exist.');
-            $this->ensureSchemaExists($entityManager);
-        }
+        $this->ensureSchemaExists($entityManager);
     }
 
     public function initializeDatabase(EntityManagerInterface $entityManager): void
@@ -451,6 +431,75 @@ final class InstallerService
 
         $schemaTool = new SchemaTool($entityManager);
         $schemaTool->updateSchema($metadata, true);
+    }
+
+    /**
+     * @param array<string, mixed> $connectionParams
+     */
+    private function waitForDatabaseReady(array $connectionParams): void
+    {
+        $delayMs = self::DB_HEALTHCHECK_INITIAL_DELAY_MS;
+
+        for ($attempt = 1; $attempt <= self::DB_HEALTHCHECK_ATTEMPTS; $attempt++) {
+            try {
+                $connection = DriverManager::getConnection($connectionParams);
+                $connection->executeQuery('SELECT 1');
+                $connection->close();
+
+                if ($attempt > 1) {
+                    $this->logger->info('Installer DB healthcheck succeeded after retry.', [
+                        'attempt' => $attempt,
+                    ]);
+                }
+
+                return;
+            } catch (\Throwable $exception) {
+                $this->logger->warning('Installer DB healthcheck failed.', [
+                    'attempt' => $attempt,
+                    'max_attempts' => self::DB_HEALTHCHECK_ATTEMPTS,
+                    'error' => $exception->getMessage(),
+                ]);
+
+                if ($attempt === self::DB_HEALTHCHECK_ATTEMPTS) {
+                    throw new \RuntimeException('Database is not ready for migrations.', 0, $exception);
+                }
+
+                usleep($delayMs * 1000);
+                $delayMs = min($delayMs * 2, 4000);
+            }
+        }
+    }
+
+    /**
+     * @return array{exitCode: int, output: string}
+     */
+    private function runInstallerCommand(string $command): array
+    {
+        $descriptor = [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = proc_open($command, $descriptor, $pipes, $this->projectDir);
+        if (!is_resource($process)) {
+            return ['exitCode' => 1, 'output' => 'Failed to start migration process.'];
+        }
+
+        $output = '';
+        foreach ([1, 2] as $index) {
+            $chunk = stream_get_contents($pipes[$index]);
+            if (is_string($chunk)) {
+                $output .= $chunk;
+            }
+            fclose($pipes[$index]);
+        }
+
+        $exitCode = proc_close($process);
+
+        return [
+            'exitCode' => is_int($exitCode) ? $exitCode : 1,
+            'output' => trim($output),
+        ];
     }
 
     /**

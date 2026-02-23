@@ -64,25 +64,29 @@ final class PortLeaseManager
         }
 
         $blocks = $this->portBlockRepository->findByPool($pool);
-        $start = $pool->getStartPort();
-        $end = $pool->getEndPort();
+        $rangeStart = $pool->getStartPort();
+        $rangeEnd = $pool->getEndPort();
+        $step = max(1, $pool->getAllocationStep());
 
-        foreach ($blocks as $block) {
-            $blockStart = $block->getStartPort();
-            $blockEnd = $block->getEndPort();
-            if ($start + $size - 1 < $blockStart) {
+        for ($candidateStart = $rangeStart; $candidateStart <= $rangeEnd; $candidateStart += $step) {
+            $candidateEnd = $candidateStart + $size - 1;
+            if ($candidateEnd > $rangeEnd) {
                 break;
             }
-            if ($start <= $blockEnd) {
-                $start = $blockEnd + 1;
+
+            $overlap = false;
+            foreach ($blocks as $block) {
+                if ($candidateStart <= $block->getEndPort() && $candidateEnd >= $block->getStartPort()) {
+                    $overlap = true;
+                    break;
+                }
+            }
+
+            if (!$overlap) {
+                return new PortBlock($pool, $customer, $candidateStart, $candidateEnd);
             }
         }
 
-        $blockEnd = $start + $size - 1;
-        if ($blockEnd > $end) {
-            throw new \RuntimeException('No free ports left in pool.');
-        }
-
-        return new PortBlock($pool, $customer, $start, $blockEnd);
+        throw new \RuntimeException('No free ports left in pool.');
     }
 }

@@ -71,6 +71,49 @@ final class AgentGameServerClient
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function getInstanceAccessHealth(Instance $instance): array
+    {
+        return $this->requestJson($instance, 'GET', sprintf('/v1/instances/%d/access/health', (int) $instance->getId()), []);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function provisionInstanceAccess(Instance $instance, array $payload): array
+    {
+        return $this->requestJson($instance, 'POST', sprintf('/v1/instances/%d/access/provision', (int) $instance->getId()), $payload);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function resetInstanceAccess(Instance $instance, array $payload): array
+    {
+        return $this->requestJson($instance, 'POST', sprintf('/v1/instances/%d/access/reset', (int) $instance->getId()), $payload);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getAccessCapabilities(Instance $instance): array
+    {
+        return $this->requestJson($instance, 'GET', '/v1/access/capabilities', []);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function applyInstanceConfig(Instance $instance, array $payload): array
+    {
+        return $this->requestJson($instance, 'POST', sprintf('/v1/instances/%d/configs/apply', (int) $instance->getId()), $payload);
+    }
+
+    /**
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
@@ -79,11 +122,15 @@ final class AgentGameServerClient
         $headers = $this->buildAuthHeaders($instance, $method, $endpoint);
         $headers['Accept'] = 'application/json';
 
-        $response = $this->httpClient->request($method, $this->resolveBaseUrl($instance->getNode()) . $endpoint, [
+        $options = [
             'headers' => $headers,
-            'json' => $payload,
             'timeout' => $this->timeoutSeconds,
-        ]);
+        ];
+        if ($method !== 'GET') {
+            $options['json'] = $payload;
+        }
+
+        $response = $this->httpClient->request($method, $this->resolveBaseUrl($instance->getNode()) . $endpoint, $options);
 
         $content = $response->getContent(false);
         if (trim($content) === '') {

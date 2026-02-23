@@ -46,11 +46,12 @@
 } %}
 {% set queryStatusKey = query.status|default('unknown') %}
 {% set queryStatusLabel = queryStatusLabels[queryStatusKey] ?? query.status ?? '—' %}
+{% set queryDebug = query.result.debug ?? {} %}
 {% set playersOnline = instance.query_players_online %}
 {% set playersMax = instance.query_players_max %}
 {% set playersKnown = playersOnline is not null and playersMax is not null and playersMax > 0 %}
 
-<div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+<div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" data-instance-card data-instance-id="{{ instance.id }}" data-query-url="{{ path('customer_instance_query_api', {id: instance.id}) }}" data-query-health-url="{{ path('customer_instance_query_health_api_v2', {id: instance.id}) }}" data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}" data-url-overview="{{ path('customer_instance_overview_page', {id: instance.id}) }}">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <div class="flex flex-wrap items-center gap-2">
@@ -63,10 +64,15 @@
             <p class="mt-2 text-sm text-slate-700">{{ t('customer_instance_node_label', page_locale()) }}: {{ instance.node.name }} ({{ instance.node.id }})</p>
         </div>
         <div class="flex flex-wrap gap-2">
+            <button type="button" data-power-action="start" class="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 disabled:opacity-50" {% if displayStatus == 'running' %}disabled title="Already running"{% endif %}>Start</button>
+            <button type="button" data-power-action="stop" class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-50" {% if displayStatus != 'running' %}disabled title="Instance is not running"{% endif %}>Stop</button>
+            <button type="button" data-power-action="restart" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50" {% if displayStatus != 'running' %}disabled title="Instance is not running"{% endif %}>Restart</button>
+            <a href="{{ path('customer_instance_console_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Console</a>
+            <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Files</a>
+            <a href="{{ path('customer_instance_backups_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Backups</a>
+            <a href="{{ path('customer_instance_tasks_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Tasks</a>
+            <a href="{{ path('customer_instance_settings_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Settings</a>
             <a href="{{ path('customer_instance_overview_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_details', page_locale()) }}</a>
-            {% if app_setting('customer_data_manager_enabled', true) %}
-                <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_instance_file_manager', page_locale()) }}</a>
-            {% endif %}
         </div>
     </div>
 
@@ -95,16 +101,38 @@
                 </div>
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <span class="font-semibold">{{ t('customer_instance_query_status', page_locale()) }}</span>
-                    <span class="text-slate-900">{{ queryStatusLabel }}</span>
+                    <span class="text-slate-900" data-query-status>{{ queryStatusLabel }}</span>
                 </div>
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <span class="font-semibold">{{ t('customer_instance_players_online', page_locale()) }}</span>
-                    <span class="text-slate-900">{% if playersKnown %}{{ playersOnline }} / {{ playersMax }}{% else %}{{ t('customer_instance_players_unknown', page_locale()) }}{% endif %}</span>
+                    <span class="text-slate-900" data-query-players>{% if playersKnown %}{{ playersOnline }} / {{ playersMax }}{% else %}{{ t('customer_instance_players_unknown', page_locale()) }}{% endif %}</span>
                 </div>
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <span class="font-semibold">{{ t('map', page_locale()) }}</span>
-                    <span class="text-slate-900">{{ query.map ?? '—' }}</span>
+                    <span class="text-slate-900" data-query-map>{{ query.map ?? '—' }}</span>
                 </div>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="font-semibold">Latency</span>
+                    <span class="text-slate-900" data-query-latency>{{ query.result.latency_ms is not null ? query.result.latency_ms ~ ' ms' : '—' }}</span>
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                    <span>Last query</span>
+                    <span data-query-checked>{{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}</span>
+                </div>
+                <div class="hidden rounded bg-amber-50 px-2 py-1 text-xs text-amber-700" data-query-error>Query error</div>
+                {% if not query.available %}
+                    <div class="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600" data-query-unsupported>Query unsupported</div>
+                {% endif %}
+                <details class="text-xs text-slate-600" data-query-details>
+                    <summary class="cursor-pointer font-semibold">Connection details</summary>
+                    <div class="mt-1 space-y-1">
+                        <div>Host: <span data-debug-host>{{ queryDebug.resolved_host ?? '—' }}</span></div>
+                        <div>Port: <span data-debug-port>{{ queryDebug.resolved_port ?? '—' }}</span></div>
+                        <div>Protocol: <span data-debug-protocol>{{ queryDebug.resolved_protocol ?? '—' }}</span></div>
+                        <div class="text-slate-500">debug: host source <span data-debug-host-source>{{ queryDebug.resolved_host_source ?? '—' }}</span>, port source <span data-debug-port-source>{{ queryDebug.port_source ?? '—' }}</span></div>
+                        <div class="text-slate-500">timeout: <span data-debug-timeout>{{ queryDebug.timeout_ms ?? '—' }}</span> ms, error: <span data-debug-error>{{ queryDebug.last_error_code ?? '—' }}</span></div>
+                    </div>
+                </details>
             </div>
         </div>
     </div>

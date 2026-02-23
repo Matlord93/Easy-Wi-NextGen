@@ -151,7 +151,7 @@ func handleNodeDiskStat(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func resolveInstanceDir(payload map[string]any) (string, error) {
-	instanceDir := payloadValue(payload, "instance_dir", "install_path")
+	instanceDir := payloadValue(payload, "instance_dir", "install_path", "root_path", "instance_root")
 	if instanceDir == "" {
 		instanceDir = buildLegacyInstanceDir(payload)
 	}

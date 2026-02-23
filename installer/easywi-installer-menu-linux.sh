@@ -494,6 +494,30 @@ WantedBy=multi-user.target
 SERVICE
 }
 
+create_agent_systemd_service() {
+  local instance_base_dir="$1"
+  local sftp_base_dir="$2"
+  local unit_path="/etc/systemd/system/easywi-agent.service"
+
+  cat <<SERVICE >"${unit_path}"
+[Unit]
+Description=EasyWI Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=EASYWI_INSTANCE_BASE_DIR=${instance_base_dir}
+Environment=EASYWI_SFTP_BASE_DIR=${sftp_base_dir}
+ExecStart=/usr/local/bin/easywi-agent --config /etc/easywi/agent.conf
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+}
+
 setup_database_mysql() {
   local db_name="$1"
   local db_user="$2"
@@ -560,7 +584,87 @@ download_release_asset() {
   step "Lade ${asset} herunter."
   log "Download-Quelle: ${base_url}/${asset}"
   curl -fsSL "${base_url}/${asset}" -o "${destination}"
-  chmod +x "${destination}"
+}
+
+download_optional_release_asset() {
+  local asset="$1"
+  local destination="$2"
+  local version="$3"
+  local base_url="https://github.com/Matlord93/Easy-Wi-NextGen/releases/latest/download"
+
+  if [[ -n "${version}" && "${version}" != "latest" ]]; then
+    base_url="https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/${version}"
+  fi
+
+  if curl -fsSL "${base_url}/${asset}" -o "${destination}"; then
+    log "Optionales Asset geladen: ${asset}"
+    return 0
+  fi
+
+  rm -f "${destination}"
+  log "Optionales Asset nicht verfügbar: ${asset}"
+  return 1
+}
+
+detect_release_arch() {
+  local os
+  local arch
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  arch="$(uname -m)"
+
+  if [[ "${os}" != "linux" ]]; then
+    fatal "Nur Linux wird vom Installer unterstützt (gefunden: ${os})."
+  fi
+
+  case "${arch}" in
+    x86_64|amd64)
+      echo "linux-amd64"
+      ;;
+    *)
+      fatal "Nicht unterstützte Architektur: ${arch} (erwartet: amd64)."
+      ;;
+  esac
+}
+
+install_agent_release_binaries() {
+  local agent_version="$1"
+  local release_arch="$2"
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+
+  step "Lade Agent/Wrapper-Releaseassets."
+  download_release_asset "easywi-agent-${release_arch}" "${tmp_dir}/easywi-agent-${release_arch}" "${agent_version}"
+  download_release_asset "easywi-wrapper-${release_arch}" "${tmp_dir}/easywi-wrapper-${release_arch}" "${agent_version}"
+  download_release_asset "checksums.txt" "${tmp_dir}/checksums.txt" "${agent_version}"
+  download_optional_release_asset "checksums.txt.asc" "${tmp_dir}/checksums.txt.asc" "${agent_version}" || true
+
+  step "Prüfe SHA256-Checksummen."
+  (
+    cd "${tmp_dir}"
+    sha256sum -c checksums.txt --ignore-missing
+  )
+
+  install -m 0755 "${tmp_dir}/easywi-agent-${release_arch}" /usr/local/bin/easywi-agent
+  install -m 0755 "${tmp_dir}/easywi-wrapper-${release_arch}" /usr/local/bin/easywi-wrapper
+  chmod +x /usr/local/bin/easywi-agent
+  chmod +x /usr/local/bin/easywi-wrapper
+
+  if ! command -v easywi-agent >/dev/null 2>&1; then
+    fatal "easywi-agent wurde nicht korrekt installiert."
+  fi
+  if ! command -v easywi-wrapper >/dev/null 2>&1; then
+    fatal "easywi-wrapper wurde nicht korrekt installiert."
+  fi
+
+  rm -rf "${tmp_dir}"
+}
+
+validate_systemd_unit() {
+  local service_name="$1"
+  local unit_path="/etc/systemd/system/${service_name}.service"
+  if [[ ! -f "${unit_path}" ]]; then
+    fatal "Systemd-Unit fehlt: ${unit_path}"
+  fi
 }
 
 install_panel() {
@@ -725,11 +829,18 @@ prepare_agent_runtime_layout() {
 
 install_agent_binaries_only() {
   local agent_version="$1"
+  local file_base_dir="$2"
+  local sftp_base_dir="$3"
 
   step "Installiere Agent-Binaries (ohne Registrierung)."
   log "Es werden nur die Binaries installiert, kein Token notwendig."
 
-  download_release_asset "easywi-agent-linux-amd64" "/usr/local/bin/easywi-agent" "${agent_version}"
+  local release_arch
+  release_arch="$(detect_release_arch)"
+  install_agent_release_binaries "${agent_version}" "${release_arch}"
+
+  mapfile -t base_dir_config < <(build_agent_base_dir_config "${file_base_dir}")
+  local primary_base_dir="${base_dir_config[0]}"
 
   prepare_agent_runtime_layout
   if [[ ! -f /etc/easywi/agent.conf ]]; then
@@ -748,7 +859,8 @@ CONF
     chmod 600 /etc/easywi/agent.conf
   fi
 
-  create_systemd_service "easywi-agent" "/usr/local/bin/easywi-agent --config /etc/easywi/agent.conf" "EasyWI Agent"
+  create_agent_systemd_service "${primary_base_dir}" "${sftp_base_dir}"
+  validate_systemd_unit "easywi-agent"
   systemctl daemon-reload
   systemctl enable easywi-agent.service
 
@@ -765,6 +877,7 @@ install_agent_services() {
   local secret="$2"
   local api_url="$3"
   local file_base_dir="$4"
+  local sftp_base_dir="$5"
 
   mapfile -t base_dir_config < <(build_agent_base_dir_config "${file_base_dir}")
   local primary_base_dir="${base_dir_config[0]}"
@@ -782,7 +895,8 @@ file_base_dirs=${all_base_dirs}
 CONF
   chmod 600 /etc/easywi/agent.conf
 
-  create_systemd_service "easywi-agent" "/usr/local/bin/easywi-agent --config /etc/easywi/agent.conf" "EasyWI Agent"
+  create_agent_systemd_service "${primary_base_dir}" "${sftp_base_dir}"
+  validate_systemd_unit "easywi-agent"
 
   systemctl daemon-reload
   systemctl enable --now easywi-agent.service
@@ -1136,6 +1250,7 @@ run_agent_install() {
   local bootstrap_token="${EASYWI_BOOTSTRAP_TOKEN:-}"
   local agent_version="${EASYWI_AGENT_VERSION:-latest}"
   local file_base_dir="${EASYWI_FILE_BASE_DIR:-/home,/var/www}"
+  local sftp_base_dir="${EASYWI_SFTP_BASE_DIR:-/var/lib/easywi/sftp}"
   local agent_name="${EASYWI_AGENT_NAME:-}"
   local agent_hostname="${EASYWI_AGENT_HOSTNAME:-}"
   local bootstrap_state_file="${EASYWI_BOOTSTRAP_STATE_FILE:-/etc/easywi/bootstrap-state.json}"
@@ -1151,6 +1266,7 @@ run_agent_install() {
   prompt_value bootstrap_token "Bootstrap Token" "${bootstrap_token}"
   prompt_value agent_version "Agent Version (latest oder Tag)" "${agent_version}"
   prompt_value file_base_dir "File Base Directory(s, comma separated)" "${file_base_dir}"
+  prompt_value sftp_base_dir "SFTP Base Directory" "${sftp_base_dir}"
   prompt_value agent_name "Agent Name (optional)" "${agent_name}"
   prompt_value agent_hostname "Agent Hostname (optional)" "${agent_hostname}"
 
@@ -1164,12 +1280,12 @@ run_agent_install() {
 
   if [[ -z "${core_url}" ]]; then
     log "Kein Core-URL angegeben -> Installiere nur die Binaries."
-    install_agent_binaries_only "${agent_version}"
+    install_agent_binaries_only "${agent_version}" "${file_base_dir}" "${sftp_base_dir}"
     return
   fi
 
   step "Installiere Agent-Binaries."
-  install_agent_binaries_only "${agent_version}"
+  install_agent_binaries_only "${agent_version}" "${file_base_dir}" "${sftp_base_dir}"
 
   if [[ -z "${agent_name}" ]]; then
     agent_name="$(hostname -f 2>/dev/null || hostname)"
@@ -1205,7 +1321,7 @@ run_agent_install() {
   else
     if [[ -z "${bootstrap_token}" ]]; then
       log "Kein Bootstrap-Token angegeben -> Installiere nur die Binaries."
-      install_agent_binaries_only "${agent_version}"
+      install_agent_binaries_only "${agent_version}" "${file_base_dir}" "${sftp_base_dir}"
       return
     fi
   fi
@@ -1213,7 +1329,7 @@ run_agent_install() {
   if [[ -z "${agent_secret}" ]]; then
     if [[ -z "${bootstrap_token}" ]]; then
       log "Kein Bootstrap-Token verfügbar -> Installiere nur die Binaries."
-      install_agent_binaries_only "${agent_version}"
+      install_agent_binaries_only "${agent_version}" "${file_base_dir}" "${sftp_base_dir}"
       return
     fi
     local agent_identity
@@ -1222,7 +1338,7 @@ run_agent_install() {
     agent_secret="${agent_identity#*|}"
   fi
 
-  install_agent_services "${agent_id}" "${agent_secret}" "${core_url}" "${file_base_dir}"
+  install_agent_services "${agent_id}" "${agent_secret}" "${core_url}" "${file_base_dir}" "${sftp_base_dir}"
   delete_bootstrap_state "${bootstrap_state_file}"
 }
 

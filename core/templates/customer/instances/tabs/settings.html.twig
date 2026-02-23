@@ -10,6 +10,9 @@
     data-url-slots="{{ path('customer_instance_slots_update', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_settings_api_health', {id: instance.id}) }}"
     data-url-automation="{{ path('customer_instance_settings_api_automation_update', {id: instance.id}) }}"
+    data-url-access-health="{{ path('instances_access_health', {id: instance.id}) }}"
+    data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
+    data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
 >
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
         <div class="flex items-center justify-between gap-2">
@@ -98,6 +101,18 @@
         </div>
         <div class="mt-3">
             <button id="gs-automation-save" type="button" class="ui-button ui-button--primary">Automation speichern</button>
+        </div>
+    </div>
+
+    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
+        <h4 class="text-xs font-semibold uppercase text-slate-300">Access (SFTP/FTP)</h4>
+        <p class="mt-1 text-xs text-slate-400">Password is shown only once. Save it securely.</p>
+        <div id="gs-access-meta" class="mt-3 space-y-1 text-xs text-slate-200">
+            <div>Loading access metadata…</div>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+            <button type="button" id="gs-access-reveal" class="ui-button ui-button--ghost">Reveal password</button>
+            <button type="button" id="gs-access-reset" class="ui-button ui-button--primary">Reset password</button>
         </div>
     </div>
 </div>

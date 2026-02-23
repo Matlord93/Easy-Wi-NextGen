@@ -73,6 +73,7 @@ errors:
   requirements_not_met: "Please fix the missing requirements before continuing."
   missing_extension: "The required PHP extension %extension% is not available."
   db_missing_fields: "Please fill in host, database name, and username."
+  db_root_user_not_allowed: "Please do not use the root user. Create a dedicated database user for Easy-WI."
   db_connection_failed: "Database connection failed. Please verify the credentials and host."
   db_privileges_failed: "Database privilege test failed. Ensure CREATE, ALTER, and INDEX rights."
   db_migrations_failed: "Database migrations failed. Check logs for details and try again."
