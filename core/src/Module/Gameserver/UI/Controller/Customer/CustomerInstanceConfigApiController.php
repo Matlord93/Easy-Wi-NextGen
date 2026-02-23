@@ -184,51 +184,34 @@ final class CustomerInstanceConfigApiController
             if (strlen($content) > 256 * 1024) {
                 return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
             }
-            if (preg_match('/[ --]/', $content) === 1) {
-                return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
+            if (preg_match('/[\0--]/', $content) === 1) {
+            if (is_string($v) && str_contains($v, "\n")) {
+        $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
+
+            if (preg_match('/^\\s*([a-zA-Z0-9_.-]+)\\s+(.+)$/', $line, $m) === 1) {
+                    $line = $key . ' "' . str_replace('"', '\\"', $val) . '"';
             }
 
-            $agentResult = $this->agentGameServerClient->applyInstanceConfig($instance, [
-                'instance_root' => $resolved['root'],
-                'path' => $resolved['absolute'],
-                'content' => $content,
-                'mode' => $target['apply_mode'] ?? 'render_text',
-                'backup' => true,
-            ]);
+                $out[] = (string) $key . ' "' . str_replace('"', '\\"', (string) $value) . '"';
+        return trim(implode("\n", $out)) . "\n";
+        $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
 
-            if (($agentResult['ok'] ?? false) !== true) {
-                return $this->envelopeError(
-                    $request,
-                    (string) ($agentResult['error_code'] ?? 'INTERNAL_ERROR'),
-                    (string) ($agentResult['message'] ?? 'Config apply failed.'),
-                    JsonResponse::HTTP_OK,
-                    ['agent' => $agentResult]
-                );
-            }
-
-            return $this->envelopeOk($request, [
-                'target_id' => $target['id'],
-                'written' => true,
-                'agent' => $agentResult['data'] ?? [],
-            ]);
-        } catch (\RuntimeException $e) {
-            return $this->envelopeError($request, $e->getMessage(), 'Config apply failed.', JsonResponse::HTTP_BAD_REQUEST);
-        } catch (\Throwable $e) {
-            return $this->envelopeError($request, 'INTERNAL_ERROR', $e->getMessage(), JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+            if (preg_match('/^\\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $m) === 1) {
+                    $line = $key . '=' . str_replace(["\r", "\n"], '', (string) $values[$key]);
         }
-    }
 
-    /**
-     * @return array<string, mixed>
-     */
+                $out[] = (string) $key . '=' . str_replace(["\r", "\n"], '', (string) $value);
+        return trim(implode("\n", $out)) . "\n";
             if (is_string($v) && str_contains($v, '
 ')) {
         return trim(implode('
 ', $out)) . '
 ';
-                    $line = $key . '=' . str_replace(['', '
+                    $line = $key . '=' . str_replace(['
+', '
 '], '', (string) $values[$key]);
-                $out[] = (string) $key . '=' . str_replace(['', '
+                $out[] = (string) $key . '=' . str_replace(['
+', '
 '], '', (string) $value);
         return trim(implode('
 ', $out)) . '
@@ -267,7 +250,8 @@ final class CustomerInstanceConfigApiController
     {
         $lines = preg_split('/
 |
-|/', $existing) ?: [];
+|
+/', $existing) ?: [];
         $out = [];
         $seen = [];
         foreach ($lines as $line) {
@@ -299,14 +283,16 @@ final class CustomerInstanceConfigApiController
     {
         $lines = preg_split('/
 |
-|/', $existing) ?: [];
+|
+/', $existing) ?: [];
         $out = [];
         $seen = [];
         foreach ($lines as $line) {
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $m) === 1) {
                 $key = $m[1];
                 if (array_key_exists($key, $values)) {
-                    $line = $key . '=' . str_replace(["", "
+                    $line = $key . '=' . str_replace(["
+", "
 "], '', (string) $values[$key]);
                     $seen[$key] = true;
                 }
@@ -315,7 +301,8 @@ final class CustomerInstanceConfigApiController
         }
         foreach ($values as $key => $value) {
             if (!isset($seen[$key])) {
-                $out[] = (string) $key . '=' . str_replace(["", "
+                $out[] = (string) $key . '=' . str_replace(["
+", "
 "], '', (string) $value);
             }
         }
