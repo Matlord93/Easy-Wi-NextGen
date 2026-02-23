@@ -35,6 +35,9 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class CustomerInstanceConfigApiController
 {
+    private const LINE_FEED = "\n";
+    private const CARRIAGE_RETURN = "\r";
+
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
         private readonly GameDefinitionRepository $gameDefinitionRepository,
@@ -233,7 +236,7 @@ final class CustomerInstanceConfigApiController
 
     /**
         foreach ($values as $value) {
-            if (is_string($value) && str_contains($value, "\n")) {
+            if (is_string($value) && str_contains($value, self::LINE_FEED)) {
         if ($mode === 'merge_kv') {
             return $this->renderSourceCfg($existing, $values);
         }
@@ -247,12 +250,12 @@ final class CustomerInstanceConfigApiController
             if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $matches) === 1) {
                 $key = $matches[1];
                     $value = (string) $values[$key];
-                    $line = $key . ' "' . str_replace('"', '\\"', $value) . '"';
+        return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
 
 
-
-            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $matches) === 1) {
-                $key = $matches[1];
+                    $line = $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', (string) $values[$key]);
+                $out[] = (string) $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', (string) $value);
+        return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
 
 
         return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
