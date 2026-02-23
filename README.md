@@ -18,6 +18,7 @@ Infrastruktur zentral zu steuern.
 ## Dokumentation & Wiki
 Alle Details zur Installation, Systemvoraussetzungen, Einrichtung und Betrieb sind im Wiki zu finden:
 - **Startseite:** [wiki/Home.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki)
+- **Changelog:** [wiki/Changelog-Beta-V1.0-Pre.md]([https://github.com/Matlord93/Easy-Wi-NextGen/wiki](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Changelog-Beta-V1.0-Pre.md))
 - **Installation:** [wiki/Installation.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Installation.md)
 - **Erste Schritte:** [wiki/Erste-Schritte.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Erste-Schritte.md)
 - **Betrieb & Updates:** [wiki/Betrieb-Wartung.md](https://github.com/Matlord93/Easy-Wi-NextGen/wiki/Betrieb-Wartung.md)
