@@ -169,62 +169,57 @@ final class CustomerInstanceConfigApiController
     private function applyTemplateInternal(Request $request, int $id, string $targetId, array $payload, bool $create): JsonResponse
     {
         try {
-            return $this->doApplyTemplateInternal($request, $id, $targetId, $payload, $create);
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+            $target = $this->findConfigTarget($instance, $targetId);
+
+            if (($target['unsupported_reason'] ?? null) !== null) {
+                return $this->envelopeError($request, 'UNSUPPORTED_CONFIG_TARGET', (string) $target['unsupported_reason'], JsonResponse::HTTP_CONFLICT);
+            }
+
+            $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
+            $absolutePath = (string) $resolved['absolute'];
+
+            if (!$create && !is_file($absolutePath)) {
+                return $this->envelopeError($request, 'INVALID_INPUT', 'Config file does not exist. Use create first.', JsonResponse::HTTP_CONFLICT);
+            }
+
+            $existing = is_file($absolutePath) ? (string) @file_get_contents($absolutePath) : '';
+            $content = $this->renderTemplateContent($target, $payload, $existing);
+
+            if (strlen($content) > 256 * 1024) {
+                return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
+            }
+
+            if ($this->containsDisallowedControlBytes($content)) {
+                return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
+            }
+            $agentResult = $this->agentGameServerClient->applyInstanceConfig($instance, [
+                'instance_root' => $resolved['root'],
+                'path' => $absolutePath,
+                'content' => $content,
+                'mode' => $target['apply_mode'] ?? 'render_text',
+                'backup' => true,
+            ]);
+
+            if (($agentResult['ok'] ?? false) !== true) {
+                return $this->envelopeError(
+                    $request,
+                    (string) ($agentResult['error_code'] ?? 'INTERNAL_ERROR'),
+                    (string) ($agentResult['message'] ?? 'Config apply failed.'),
+                    JsonResponse::HTTP_OK,
+                    ['agent' => $agentResult]
+                );
+            }
+            return $this->envelopeOk($request, [
+                'target_id' => $target['id'],
+                'written' => true,
+                'agent' => $agentResult['data'] ?? [],
+            ]);
         } catch (\RuntimeException $e) {
             return $this->envelopeError($request, $e->getMessage(), 'Config apply failed.', JsonResponse::HTTP_BAD_REQUEST);
         } catch (\Throwable $e) {
             return $this->envelopeError($request, 'INTERNAL_ERROR', $e->getMessage(), JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    private function doApplyTemplateInternal(Request $request, int $id, string $targetId, array $payload, bool $create): JsonResponse
-    {
-        $customer = $this->requireCustomer($request);
-        $instance = $this->findCustomerInstance($customer, $id);
-        $target = $this->findConfigTarget($instance, $targetId);
-
-        if (($target['unsupported_reason'] ?? null) !== null) {
-            return $this->envelopeError($request, 'UNSUPPORTED_CONFIG_TARGET', (string) $target['unsupported_reason'], JsonResponse::HTTP_CONFLICT);
-        }
-
-        $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
-        $absolutePath = (string) $resolved['absolute'];
-
-        if (!$create && !is_file($absolutePath)) {
-            return $this->envelopeError($request, 'INVALID_INPUT', 'Config file does not exist. Use create first.', JsonResponse::HTTP_CONFLICT);
-        }
-
-        $existingContent = is_file($absolutePath) ? (string) @file_get_contents($absolutePath) : '';
-        $content = $this->renderTemplateContent($target, $payload, $existingContent);
-
-        if (strlen($content) > 256 * 1024) {
-            return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
-        }
-        if ($this->containsDisallowedControlBytes($content)) {
-            return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
-        }
-
-        $agentResult = $this->agentGameServerClient->applyInstanceConfig($instance, [
-            'instance_root' => $resolved['root'],
-            'path' => $absolutePath,
-            'content' => $content,
-            'mode' => $target['apply_mode'] ?? 'render_text',
-            'backup' => true,
-        ]);
-        if (($agentResult['ok'] ?? false) !== true) {
-            return $this->envelopeError(
-                $request,
-                (string) ($agentResult['error_code'] ?? 'INTERNAL_ERROR'),
-                (string) ($agentResult['message'] ?? 'Config apply failed.'),
-                JsonResponse::HTTP_OK,
-                ['agent' => $agentResult]
-            );
-
-        return $this->envelopeOk($request, [
-            'target_id' => $target['id'],
-            'written' => true,
-            'agent' => $agentResult['data'] ?? [],
-        ]);
     }
 
     /**
@@ -240,19 +235,29 @@ final class CustomerInstanceConfigApiController
     }
 
     /**
-            if (is_string($v) && str_contains($v, "\n")) {
-        $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
-                    $line = $key . ' "' . str_replace('"', '\\"', $val) . '"';
-                $out[] = (string) $key . ' "' . str_replace('"', '\\"', (string) $value) . '"';
-        return trim(implode("\n", $out)) . "\n";
-        $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
-                    $line = $key . '=' . str_replace(["\r", "\n"], '', (string) $values[$key]);
-                $out[] = (string) $key . '=' . str_replace(["\r", "\n"], '', (string) $value);
-        return trim(implode("\n", $out)) . "\n";
-    }
+        foreach ($values as $value) {
+            if (is_string($value) && str_contains($value, "\n")) {
+        if ($mode === 'merge_kv') {
+            return $this->renderSourceCfg($existing, $values);
+        }
 
-    private function containsDisallowedControlBytes(string $content): bool
-    {
+        if ($mode === 'properties') {
+            return $this->renderProperties($existing, $values);
+        }
+
+        return $raw !== '' ? $raw : $existing;
+
+            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $matches) === 1) {
+                $key = $matches[1];
+                    $value = (string) $values[$key];
+                    $line = $key . ' "' . str_replace('"', '\\"', $value) . '"';
+
+
+
+            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $matches) === 1) {
+                $key = $matches[1];
+
+
         return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
     }
 
