@@ -235,3 +235,5 @@ services:
 
   App\Module\Voice\Application\Provider\Ts3ServerLookupInterface: '@App\Module\Voice\Application\Provider\DoctrineTs3ServerLookup'
   App\Module\Voice\Application\Provider\Ts6ServerLookupInterface: '@App\Module\Voice\Application\Provider\DoctrineTs6ServerLookup'
+
+  App\Module\Gameserver\Application\Query\QuerySmokeRunnerInterface: '@App\Module\Gameserver\Application\Query\QuerySmokeService'

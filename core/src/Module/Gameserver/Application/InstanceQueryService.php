@@ -112,7 +112,7 @@ final class InstanceQueryService
     private function runHttpQuery(Instance $instance, ?PortBlock $portBlock, array $config): array
     {
         $spec = $this->resolveQuerySpec($instance, $portBlock);
-        $context = $this->buildContext($spec, $config['config']);
+        $context = $this->buildContext($instance, $portBlock, $spec, $config['config']);
         $adapter = $this->resolveAdapter($config['type']);
         $result = $adapter->query($instance, $context);
         $this->persistResult($instance, $result, 'backend');
@@ -157,16 +157,25 @@ final class InstanceQueryService
     private function queueQueryJob(Instance $instance, ?PortBlock $portBlock, array $config): void
     {
         $spec = $this->resolveQuerySpec($instance, $portBlock);
-        $context = $this->buildContext($spec, $config['config']);
+        $context = $this->buildContext($instance, $portBlock, $spec, $config['config']);
+        $fallbackPorts = $this->resolveFallbackQueryPorts($instance, $portBlock, $context->getQueryPort(), $context->getGamePort());
+
         $payload = [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'agent_id' => $instance->getNode()->getId(),
             'query_type' => $config['type'],
+            'protocol' => $config['type'],
             'host' => $context->getHost(),
+            'ip' => $context->getHost(),
+            'timeout_ms' => (int) ($config['config']['timeout_ms'] ?? 4000),
+            'network_mode' => (string) ($spec->getExtra()['network_mode'] ?? 'isolated'),
+            'resolved_host_source' => (string) ($spec->getExtra()['resolved_host_source'] ?? 'instance_ip'),
+            'port' => $context->getGamePort() !== null ? (string) $context->getGamePort() : null,
             'game_port' => $context->getGamePort() !== null ? (string) $context->getGamePort() : null,
             'query_port' => $context->getQueryPort() !== null ? (string) $context->getQueryPort() : null,
             'rcon_port' => $context->getRconPort() !== null ? (string) $context->getRconPort() : null,
+            'fallback_query_ports' => $fallbackPorts,
             'config' => $config['config'],
         ];
 
@@ -188,14 +197,104 @@ final class InstanceQueryService
         $this->entityManager->flush();
     }
 
-    private function buildContext(InstanceQuerySpec $spec, array $config): QueryContext
+    private function buildContext(Instance $instance, ?PortBlock $portBlock, InstanceQuerySpec $spec, array $config): QueryContext
     {
         $host = $spec->getHost();
         $queryPort = $spec->getPort();
-        $gamePort = $queryPort;
+        $gamePort = $this->resolveGamePort($instance, $portBlock, $queryPort);
         $rconPort = null;
 
         return new QueryContext($host, $gamePort, $queryPort, $rconPort, $config + ['query_type' => $spec->getType()]);
+    }
+
+    private function resolveGamePort(Instance $instance, ?PortBlock $portBlock, ?int $fallback): ?int
+    {
+        $setupVars = $instance->getSetupVars();
+        if (is_numeric($setupVars['GAME_PORT'] ?? null)) {
+            return (int) $setupVars['GAME_PORT'];
+        }
+
+        $requiredPorts = $instance->getTemplate()->getRequiredPorts();
+        if ($portBlock !== null) {
+            $ports = $portBlock->getPorts();
+            foreach ($requiredPorts as $index => $definition) {
+                if (!isset($ports[$index])) {
+                    continue;
+                }
+
+                $name = strtolower((string) ($definition['name'] ?? ''));
+                if ($name === 'game' || str_contains($name, 'game')) {
+                    return (int) $ports[$index];
+                }
+            }
+        }
+
+        foreach (['PORT', 'SERVER_PORT'] as $setupPortKey) {
+            if (is_numeric($setupVars[$setupPortKey] ?? null)) {
+                return (int) $setupVars[$setupPortKey];
+            }
+        }
+
+        if ($instance->getAssignedPort() !== null) {
+            return $instance->getAssignedPort();
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function resolveFallbackQueryPorts(Instance $instance, ?PortBlock $portBlock, ?int $queryPort, ?int $gamePort): array
+    {
+        $setupVars = $instance->getSetupVars();
+        $requiredPorts = $instance->getTemplate()->getRequiredPorts();
+        $portCandidates = [];
+
+        if ($gamePort !== null) {
+            $portCandidates[] = $gamePort;
+        }
+
+        foreach (['GAME_PORT', 'PORT', 'SERVER_PORT', 'QUERY_PORT', 'STEAM_QUERY_PORT', 'SV_QUERYPORT'] as $setupPortKey) {
+            if (is_numeric($setupVars[$setupPortKey] ?? null)) {
+                $portCandidates[] = (int) $setupVars[$setupPortKey];
+            }
+        }
+
+        if ($portBlock !== null) {
+            $ports = $portBlock->getPorts();
+            foreach ($requiredPorts as $index => $definition) {
+                if (!isset($ports[$index])) {
+                    continue;
+                }
+
+                $name = strtolower((string) ($definition['name'] ?? ''));
+                if ($name === 'game' || str_contains($name, 'game') || $name === 'query' || str_contains($name, 'query')) {
+                    $portCandidates[] = (int) $ports[$index];
+                }
+            }
+        }
+
+        if ($instance->getAssignedPort() !== null) {
+            $portCandidates[] = $instance->getAssignedPort();
+        }
+
+        $fallbackPorts = [];
+        foreach ($portCandidates as $port) {
+            if ($port < 1 || $port > 65535) {
+                continue;
+            }
+            if ($queryPort !== null && $port === $queryPort) {
+                continue;
+            }
+            if (in_array($port, $fallbackPorts, true)) {
+                continue;
+            }
+
+            $fallbackPorts[] = $port;
+        }
+
+        return $fallbackPorts;
     }
 
     /**

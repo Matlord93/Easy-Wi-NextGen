@@ -201,12 +201,41 @@ final class GameTemplateSeeder
         }
         $requiredSecrets = $this->normalizeSecretKeys($requirementSecrets, $gameKey);
 
-        return [
+        $requirements = [
             'required_vars' => $requiredVars,
             'required_secrets' => $requiredSecrets,
             'steam_install_mode' => $this->resolveSteamInstallMode($gameKey, $steamAppId),
             'customer_allowed_vars' => $envVarKeys,
             'customer_allowed_secrets' => $requiredSecrets,
+        ];
+
+        $queryDefaults = $this->resolveQueryDefaults($gameKey, $steamAppId);
+        if ($queryDefaults !== null) {
+            $requirements['query'] = $queryDefaults;
+        }
+
+        return $requirements;
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function resolveQueryDefaults(string $gameKey, ?int $steamAppId): ?array
+    {
+        if ($steamAppId === null) {
+            return null;
+        }
+
+        if ($this->isSource2Template($gameKey)) {
+            return [
+                'type' => 'steam_a2s',
+                'query_port_behavior' => 'explicit',
+            ];
+        }
+
+        return [
+            'type' => 'steam_a2s',
+            'query_port_behavior' => 'same_as_game_port',
         ];
     }
 
@@ -272,6 +301,13 @@ final class GameTemplateSeeder
         }
 
         return array_values(array_unique($keys));
+    }
+
+    private function isSource2Template(string $gameKey): bool
+    {
+        $normalized = strtolower(trim($gameKey));
+
+        return $normalized === 'cs2' || str_starts_with($normalized, 'cs2_') || str_contains($normalized, '_cs2') || str_contains($normalized, 'source2');
     }
 
     private function resolveSteamInstallMode(string $gameKey, ?int $steamAppId): string

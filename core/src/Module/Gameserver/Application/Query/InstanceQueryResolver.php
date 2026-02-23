@@ -10,6 +10,14 @@ use App\Module\Ports\Domain\Entity\PortBlock;
 final class InstanceQueryResolver
 {
     private const DEFAULT_TIMEOUT_MS = 4000;
+    private const QUERY_PORT_BEHAVIOR_SAME_AS_GAME_PORT = 'same_as_game_port';
+    private const QUERY_PORT_BEHAVIOR_EXPLICIT = 'explicit';
+    private const QUERY_PORT_BEHAVIOR_PLUS_ONE = 'plus_one';
+
+    public function __construct(
+        private readonly InstanceQueryHostResolver $hostResolver = new InstanceQueryHostResolver(),
+    ) {
+    }
 
     /**
      * @throws InvalidInstanceQueryConfiguration
@@ -26,12 +34,16 @@ final class InstanceQueryResolver
             return InstanceQuerySpec::unsupported();
         }
 
-        $host = trim((string) $instance->getNode()->getLastHeartbeatIp());
+        $hostResolution = $this->hostResolver->resolve($instance);
+        $host = trim((string) ($hostResolution['host'] ?? ''));
         if ($host === '') {
-            throw new InvalidInstanceQueryConfiguration('Query host is missing.');
+            $instanceId = $instance->getId();
+            $missingFields = implode(', ', $hostResolution['missing_fields']);
+            throw new InvalidInstanceQueryConfiguration(sprintf('Query host is missing for instance %s (missing fields: %s).', $instanceId !== null ? (string) $instanceId : 'unknown', $missingFields));
         }
 
-        $port = $this->resolveQueryPort($instance, $portBlock, $type, $queryConfig);
+        $portResolution = $this->resolveQueryPort($instance, $portBlock, $type, $queryConfig);
+        $port = $portResolution['port'];
         if ($port === null || $port < 1 || $port > 65535) {
             throw new InvalidInstanceQueryConfiguration('Query port is invalid.');
         }
@@ -49,6 +61,9 @@ final class InstanceQueryResolver
             $timeoutMs,
             [
                 'via' => strtolower(trim((string) ($queryConfig['via'] ?? $queryConfig['mode'] ?? 'agent'))),
+                'resolved_host_source' => $hostResolution['source'],
+                'resolved_port_source' => $portResolution['source'],
+                'network_mode' => $hostResolution['network_mode'],
             ],
         );
     }
@@ -99,7 +114,7 @@ final class InstanceQueryResolver
         $declaredType = strtolower(trim($rawType));
 
         return match ($declaredType) {
-            'source', 'source_engine', 'source-engine', 'steam' => 'steam_a2s',
+            'source', 'source_engine', 'source-engine', 'source1', 'source_1', 'source-1', 'goldsrc', 'steam', 'valve' => 'steam_a2s',
             'a2s', 'steam_a2s' => 'steam_a2s',
             'minecraft', 'minecraft_java', 'java' => 'minecraft_java',
             'minecraft_bedrock', 'bedrock', 'mcpe' => 'minecraft_bedrock',
@@ -110,10 +125,10 @@ final class InstanceQueryResolver
     /**
      * @param array<string, mixed> $queryConfig
      */
-    private function resolveQueryPort(Instance $instance, ?PortBlock $portBlock, string $queryType, array $queryConfig): ?int
+    private function resolveQueryPort(Instance $instance, ?PortBlock $portBlock, string $queryType, array $queryConfig): array
     {
         if (is_numeric($queryConfig['port'] ?? null)) {
-            return (int) $queryConfig['port'];
+            return ['port' => (int) $queryConfig['port'], 'source' => 'template_query_port'];
         }
 
         $setupVars = $instance->getSetupVars();
@@ -128,35 +143,102 @@ final class InstanceQueryResolver
             }
         }
 
+        $queryPortBehavior = $this->resolveQueryPortBehavior($queryConfig);
+
         if ($queryType === 'steam_a2s') {
-            $setupPortKeys = $hasDedicatedQueryPort
-                ? ['QUERY_PORT', 'STEAM_QUERY_PORT', 'GAME_PORT']
-                : ['GAME_PORT', 'QUERY_PORT', 'STEAM_QUERY_PORT'];
+            if (is_numeric($setupVars['SV_QUERYPORT'] ?? null)) {
+                return ['port' => (int) $setupVars['SV_QUERYPORT'], 'source' => 'setup_var_sv_queryport'];
+            }
+
+            $isSource2 = $this->isCs2Template($instance);
+            if ($isSource2 || $queryPortBehavior === self::QUERY_PORT_BEHAVIOR_EXPLICIT) {
+                $setupPortKeys = ['QUERY_PORT', 'STEAM_QUERY_PORT', 'GAME_PORT'];
+            } elseif ($queryPortBehavior === self::QUERY_PORT_BEHAVIOR_PLUS_ONE) {
+                $basePort = $this->resolveGamePortFromSetupVars($setupVars);
+                if ($basePort !== null) {
+                    return ['port' => $basePort + 1, 'source' => 'game_port_plus_one'];
+                }
+                $setupPortKeys = ['GAME_PORT', 'PORT', 'SERVER_PORT'];
+            } else {
+                $setupPortKeys = ['GAME_PORT', 'PORT', 'SERVER_PORT', 'QUERY_PORT', 'STEAM_QUERY_PORT'];
+            }
         } else {
             $setupPortKeys = ['QUERY_PORT', 'GAME_PORT'];
         }
 
         foreach ($setupPortKeys as $key) {
             if (is_numeric($setupVars[$key] ?? null)) {
-                return (int) $setupVars[$key];
+                return ['port' => (int) $setupVars[$key], 'source' => sprintf('setup_var_%s', strtolower($key))];
+            }
+        }
+
+        foreach (['PORT', 'SERVER_PORT'] as $key) {
+            if (is_numeric($setupVars[$key] ?? null)) {
+                return ['port' => (int) $setupVars[$key], 'source' => sprintf('setup_var_%s', strtolower($key))];
             }
         }
 
         $queryPort = $this->resolvePort($portBlock, $requiredPorts, 'query');
         if ($queryPort !== null) {
-            return $queryPort;
+            if ($queryType !== 'steam_a2s') {
+                return ['port' => $queryPort, 'source' => 'required_query_port'];
+            }
+
+            if ($this->isCs2Template($instance) || $queryPortBehavior === self::QUERY_PORT_BEHAVIOR_EXPLICIT) {
+                return ['port' => $queryPort, 'source' => 'required_query_port'];
+            }
         }
 
         $gamePort = $this->resolvePort($portBlock, $requiredPorts, 'game');
         if ($gamePort !== null) {
-            return $gamePort;
+            if ($queryType === 'steam_a2s' && $queryPortBehavior === self::QUERY_PORT_BEHAVIOR_PLUS_ONE && !$hasDedicatedQueryPort && !$this->isCs2Template($instance)) {
+                return ['port' => $gamePort + 1, 'source' => 'required_game_port_plus_one'];
+            }
+
+            return ['port' => $gamePort, 'source' => 'required_game_port'];
         }
 
         if ($instance->getAssignedPort() !== null) {
-            return $instance->getAssignedPort();
+            return ['port' => $instance->getAssignedPort(), 'source' => 'instance_assigned_port'];
+        }
+
+        return ['port' => null, 'source' => ''];
+    }
+
+    /**
+     * @param array<string, mixed> $queryConfig
+     */
+    private function resolveQueryPortBehavior(array $queryConfig): string
+    {
+        $rawBehavior = strtolower(trim((string) ($queryConfig['query_port_behavior'] ?? $queryConfig['port_behavior'] ?? '')));
+
+        return match ($rawBehavior) {
+            'explicit', 'query_port', 'configured', 'fixed' => self::QUERY_PORT_BEHAVIOR_EXPLICIT,
+            'plus_one', 'port_plus_one', '+1' => self::QUERY_PORT_BEHAVIOR_PLUS_ONE,
+            default => self::QUERY_PORT_BEHAVIOR_SAME_AS_GAME_PORT,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $setupVars
+     */
+    private function resolveGamePortFromSetupVars(array $setupVars): ?int
+    {
+        foreach (['GAME_PORT', 'PORT', 'SERVER_PORT'] as $key) {
+            if (is_numeric($setupVars[$key] ?? null)) {
+                return (int) $setupVars[$key];
+            }
         }
 
         return null;
+    }
+
+
+    private function isCs2Template(Instance $instance): bool
+    {
+        $gameKey = strtolower(trim($instance->getTemplate()->getGameKey()));
+
+        return $gameKey === 'cs2' || str_starts_with($gameKey, 'cs2_') || str_contains($gameKey, '_cs2');
     }
 
     /**

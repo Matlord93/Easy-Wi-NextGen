@@ -15,7 +15,9 @@ use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\DdosPolicy;
 use App\Module\Core\Domain\Entity\DdosStatus;
+use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceMetricSample;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\JobResult;
 use App\Module\Core\Domain\Entity\MetricSample;
 use App\Module\Core\Domain\Entity\SecurityEvent;
@@ -121,7 +123,7 @@ final class AgentApiController
         $roles = is_array($payload['roles'] ?? null) ? $payload['roles'] : [];
         $metadata = is_array($payload['metadata'] ?? null) ? $payload['metadata'] : null;
         $status = isset($payload['status']) ? (string) $payload['status'] : null;
-        $ip = $request->getClientIp();
+        $ip = $this->resolveAgentIpFromRequest($request);
 
         if ($this->isWindowsStats($stats) && !$this->windowsNodesEnabled) {
             throw new ServiceUnavailableHttpException(null, 'Windows nodes are currently disabled.');
@@ -149,6 +151,28 @@ final class AgentApiController
 
         return new JsonResponse(['status' => 'ok']);
     }
+
+    private function resolveAgentIpFromRequest(Request $request): ?string
+    {
+        $forwardedFor = trim((string) $request->headers->get('X-Forwarded-For'));
+        if ($forwardedFor !== '') {
+            foreach (explode(',', $forwardedFor) as $candidate) {
+                $candidate = trim($candidate);
+                if ($candidate !== '') {
+                    return $candidate;
+                }
+            }
+        }
+
+        $realIp = trim((string) $request->headers->get('X-Real-IP'));
+        if ($realIp !== '') {
+            return $realIp;
+        }
+
+        $ip = trim((string) $request->getClientIp());
+        return $ip !== '' ? $ip : null;
+    }
+
 
     #[Route(path: '/agent/jobs', name: 'agent_jobs', methods: ['GET'])]
     #[Route(path: '/api/v1/agent/jobs', name: 'agent_jobs_v1', methods: ['GET'])]
@@ -288,6 +312,14 @@ final class AgentApiController
 
         if ($job === null) {
             throw new NotFoundHttpException('Job not found.');
+        }
+
+        if ($job->getStatus()->isTerminal()) {
+            if ($job->getClaimedBy() !== $agent->getId()) {
+                throw new ConflictHttpException('Job is already completed by another agent.');
+            }
+
+            return new JsonResponse(['status' => 'ok']);
         }
 
         if (!in_array($job->getStatus(), [JobStatus::Claimed, JobStatus::Running], true)) {
@@ -1841,6 +1873,11 @@ final class AgentApiController
             JobResultStatus::Cancelled => 'unknown',
         };
 
+        if ($this->shouldQueueA2sFallbackAttempt($resultStatus, $payload, $output)) {
+            $this->queueA2sFallbackAttempt($instance, $payload, $completedAt);
+            return;
+        }
+
         $cache = $instance->getQueryStatusCache();
         $cache['status'] = $status;
         $cache['players'] = $resultStatus === JobResultStatus::Succeeded && is_numeric($output['players'] ?? null)
@@ -1873,6 +1910,121 @@ final class AgentApiController
             'job_id' => $job->getId(),
             'agent_id' => $agentId,
             'status' => $status,
+        ]);
+    }
+
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $output
+     */
+    private function shouldQueueA2sFallbackAttempt(JobResultStatus $resultStatus, array $payload, array $output): bool
+    {
+        $queryType = strtolower((string) ($payload['query_type'] ?? ''));
+        if (!in_array($queryType, ['steam_a2s', 'a2s'], true)) {
+            return false;
+        }
+
+        if (($payload['fallback_attempted'] ?? false) === true) {
+            return false;
+        }
+
+        $queryPort = is_numeric($payload['query_port'] ?? null) ? (int) $payload['query_port'] : null;
+        $gamePort = is_numeric($payload['game_port'] ?? null) ? (int) $payload['game_port'] : null;
+        if ($queryPort === null || $gamePort === null || $queryPort === $gamePort) {
+            return false;
+        }
+
+        if (!$this->outputContainsUnreachableError($output)) {
+            return false;
+        }
+
+        return in_array($resultStatus, [JobResultStatus::Failed, JobResultStatus::Succeeded, JobResultStatus::Cancelled], true);
+    }
+
+    /**
+     * @param array<string, mixed> $output
+     */
+    private function outputContainsUnreachableError(array $output): bool
+    {
+        $errorCode = strtolower((string) ($output['error_code'] ?? ''));
+        if (in_array($errorCode, ['query_unreachable', 'query_timeout'], true)) {
+            return true;
+        }
+
+        $encoded = strtolower(json_encode($output, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '');
+
+        return str_contains($encoded, 'query_unreachable')
+            || str_contains($encoded, 'query_timeout')
+            || str_contains($encoded, 'connection refused')
+            || str_contains($encoded, 'i/o timeout')
+            || str_contains($encoded, 'timed out')
+            || str_contains($encoded, 'unreachable');
+    }
+
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function resolveFallbackQueryPort(array $payload, ?int $primaryQueryPort): ?int
+    {
+        $fallbackPorts = $payload['fallback_query_ports'] ?? null;
+        if (is_array($fallbackPorts)) {
+            foreach ($fallbackPorts as $candidate) {
+                if (!is_numeric($candidate)) {
+                    continue;
+                }
+                $port = (int) $candidate;
+                if ($port < 1 || $port > 65535) {
+                    continue;
+                }
+                if ($primaryQueryPort !== null && $port === $primaryQueryPort) {
+                    continue;
+                }
+
+                return $port;
+            }
+        }
+
+        return is_numeric($payload['game_port'] ?? null) ? (int) $payload['game_port'] : null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function queueA2sFallbackAttempt(Instance $instance, array $payload, DateTimeImmutable $completedAt): void
+    {
+        $fallbackPayload = $payload;
+        $primaryQueryPort = is_numeric($payload['query_port'] ?? null) ? (int) $payload['query_port'] : null;
+        $fallbackQueryPort = $this->resolveFallbackQueryPort($payload, $primaryQueryPort);
+
+        if ($primaryQueryPort === null || $fallbackQueryPort === null || $primaryQueryPort === $fallbackQueryPort) {
+            return;
+        }
+
+        $fallbackPayload['query_port'] = (string) $fallbackQueryPort;
+        $fallbackPayload['fallback_attempted'] = true;
+        $fallbackPayload['fallback_from_query_port'] = (string) $primaryQueryPort;
+
+        if (!is_array($fallbackPayload['config'] ?? null)) {
+            $fallbackPayload['config'] = [];
+        }
+        $fallbackPayload['config']['fallback_attempted'] = true;
+
+        $this->entityManager->persist(new Job('instance.query.check', $fallbackPayload));
+
+        $cache = $instance->getQueryStatusCache();
+        $cache['status'] = 'queued';
+        $cache['queued_at'] = $completedAt->format(DATE_ATOM);
+        $cache['message'] = 'Primary query port unreachable, retrying with fallback port.';
+        $instance->setQueryStatusCache($cache);
+        $this->entityManager->persist($instance);
+
+        $this->auditLogger->log(null, 'instance.query.retry_queued', [
+            'instance_id' => $instance->getId(),
+            'query_type' => $payload['query_type'] ?? null,
+            'from_port' => $primaryQueryPort,
+            'to_port' => $fallbackQueryPort,
         ]);
     }
 

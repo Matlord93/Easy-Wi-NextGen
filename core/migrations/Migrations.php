@@ -44,7 +44,7 @@ final class Version20250215120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-$this->addSql('
+        $this->addSql('
     CREATE TABLE public_servers (
         id INT AUTO_INCREMENT NOT NULL,
         created_by_id INT NOT NULL,
@@ -133,7 +133,7 @@ final class Version20260701100000 extends AbstractMigration
             return;
         }
 
-        $this->addSql("ALTER TABLE instances ADD config_overrides JSON NOT NULL");
+        $this->addSql('ALTER TABLE instances ADD config_overrides JSON NOT NULL');
     }
 
     public function down(Schema $schema): void
@@ -147,7 +147,7 @@ final class Version20260701100000 extends AbstractMigration
             return;
         }
 
-        $this->addSql("ALTER TABLE instances DROP config_overrides");
+        $this->addSql('ALTER TABLE instances DROP config_overrides');
     }
 }
 
@@ -796,7 +796,7 @@ final class Version20250221100000 extends AbstractMigration
         }
 
         $this->addSql(sprintf(
-            "UPDATE game_templates SET game_key = %s WHERE game_key IS NULL",
+            'UPDATE game_templates SET game_key = %s WHERE game_key IS NULL',
             $this->isSqlite() ? "'legacy-' || id" : "CONCAT('legacy-', id)"
         ));
         $this->addSql("UPDATE game_templates SET env_vars = '[]' WHERE env_vars IS NULL");
@@ -3184,12 +3184,12 @@ final class Version20250322120000 extends AbstractMigration
     public function up(Schema $schema): void
     {
         if (!$schema->hasTable('agent_bootstrap_tokens')) {
-	    $this->addSql('CREATE TABLE agent_bootstrap_tokens ( id INT AUTO_INCREMENT NOT NULL,  created_by_id INT DEFAULT NULL,  name VARCHAR(190) NOT NULL,  token_prefix VARCHAR(16) NOT NULL,  token_hash VARCHAR(64) NOT NULL,  encrypted_token JSON NOT NULL,  bound_cidr VARCHAR(64) DEFAULT NULL,  bound_node_name VARCHAR(190) DEFAULT NULL,  created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  expires_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  used_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\',  revoked_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\',  INDEX IDX_BOOTSTRAP_TOKENS_HASH (token_hash),  INDEX IDX_BOOTSTRAP_TOKENS_CREATED_BY (created_by_id),  PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $this->addSql('CREATE TABLE agent_bootstrap_tokens ( id INT AUTO_INCREMENT NOT NULL,  created_by_id INT DEFAULT NULL,  name VARCHAR(190) NOT NULL,  token_prefix VARCHAR(16) NOT NULL,  token_hash VARCHAR(64) NOT NULL,  encrypted_token JSON NOT NULL,  bound_cidr VARCHAR(64) DEFAULT NULL,  bound_node_name VARCHAR(190) DEFAULT NULL,  created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  expires_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  used_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\',  revoked_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\',  INDEX IDX_BOOTSTRAP_TOKENS_HASH (token_hash),  INDEX IDX_BOOTSTRAP_TOKENS_CREATED_BY (created_by_id),  PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
             $this->addSql('ALTER TABLE agent_bootstrap_tokens ADD CONSTRAINT FK_BOOTSTRAP_TOKENS_CREATED_BY FOREIGN KEY (created_by_id) REFERENCES users (id) ON DELETE SET NULL');
         }
 
         if (!$schema->hasTable('agent_registration_tokens')) {
-	    $this->addSql('CREATE TABLE agent_registration_tokens ( id INT AUTO_INCREMENT NOT NULL,  bootstrap_token_id INT DEFAULT NULL,  agent_id VARCHAR(64) NOT NULL,  token_prefix VARCHAR(16) NOT NULL,  token_hash VARCHAR(64) NOT NULL,  encrypted_token JSON NOT NULL,  created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  expires_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  used_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\',  INDEX IDX_REGISTRATION_TOKENS_HASH (token_hash),  INDEX IDX_REGISTRATION_TOKENS_BOOTSTRAP (bootstrap_token_id),  INDEX IDX_REGISTRATION_TOKENS_AGENT (agent_id),  PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $this->addSql('CREATE TABLE agent_registration_tokens ( id INT AUTO_INCREMENT NOT NULL,  bootstrap_token_id INT DEFAULT NULL,  agent_id VARCHAR(64) NOT NULL,  token_prefix VARCHAR(16) NOT NULL,  token_hash VARCHAR(64) NOT NULL,  encrypted_token JSON NOT NULL,  created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  expires_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\',  used_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\',  INDEX IDX_REGISTRATION_TOKENS_HASH (token_hash),  INDEX IDX_REGISTRATION_TOKENS_BOOTSTRAP (bootstrap_token_id),  INDEX IDX_REGISTRATION_TOKENS_AGENT (agent_id),  PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
             $this->addSql('ALTER TABLE agent_registration_tokens ADD CONSTRAINT FK_REGISTRATION_TOKENS_BOOTSTRAP FOREIGN KEY (bootstrap_token_id) REFERENCES agent_bootstrap_tokens (id) ON DELETE SET NULL');
         }
     }
@@ -3358,17 +3358,17 @@ final class Version20250326120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql("ALTER TABLE game_templates ADD requirement_vars JSON DEFAULT NULL, ADD requirement_secrets JSON DEFAULT NULL");
+        $this->addSql('ALTER TABLE game_templates ADD requirement_vars JSON DEFAULT NULL, ADD requirement_secrets JSON DEFAULT NULL');
         $this->addSql("UPDATE game_templates SET requirement_vars = '[]' WHERE requirement_vars IS NULL");
         $this->addSql("UPDATE game_templates SET requirement_secrets = '[]' WHERE requirement_secrets IS NULL");
-        $this->addSql("ALTER TABLE game_templates MODIFY requirement_vars JSON NOT NULL");
-        $this->addSql("ALTER TABLE game_templates MODIFY requirement_secrets JSON NOT NULL");
+        $this->addSql('ALTER TABLE game_templates MODIFY requirement_vars JSON NOT NULL');
+        $this->addSql('ALTER TABLE game_templates MODIFY requirement_secrets JSON NOT NULL');
 
-        $this->addSql("ALTER TABLE instances ADD setup_vars JSON DEFAULT NULL, ADD setup_secrets JSON DEFAULT NULL");
+        $this->addSql('ALTER TABLE instances ADD setup_vars JSON DEFAULT NULL, ADD setup_secrets JSON DEFAULT NULL');
         $this->addSql("UPDATE instances SET setup_vars = '[]' WHERE setup_vars IS NULL");
         $this->addSql("UPDATE instances SET setup_secrets = '[]' WHERE setup_secrets IS NULL");
-        $this->addSql("ALTER TABLE instances MODIFY setup_vars JSON NOT NULL");
-        $this->addSql("ALTER TABLE instances MODIFY setup_secrets JSON NOT NULL");
+        $this->addSql('ALTER TABLE instances MODIFY setup_vars JSON NOT NULL');
+        $this->addSql('ALTER TABLE instances MODIFY setup_secrets JSON NOT NULL');
     }
 
     public function down(Schema $schema): void
@@ -6226,7 +6226,7 @@ final class Version20260910120000 extends AbstractMigration
         }
 
         if ($schema->hasTable('cms_posts') && $schema->hasTable('blog_tags') && !$schema->hasTable('blog_post_tags')) {
-            $this->addSql("CREATE TABLE blog_post_tags (post_id INT NOT NULL, tag_id INT NOT NULL, INDEX idx_blog_post_tags_post_id (post_id), INDEX idx_blog_post_tags_tag_id (tag_id), PRIMARY KEY(post_id, tag_id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB");
+            $this->addSql('CREATE TABLE blog_post_tags (post_id INT NOT NULL, tag_id INT NOT NULL, INDEX idx_blog_post_tags_post_id (post_id), INDEX idx_blog_post_tags_tag_id (tag_id), PRIMARY KEY(post_id, tag_id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
             $this->addSql('ALTER TABLE blog_post_tags ADD CONSTRAINT FK_BLOG_POST_TAGS_POST FOREIGN KEY (post_id) REFERENCES cms_posts (id) ON DELETE CASCADE');
             $this->addSql('ALTER TABLE blog_post_tags ADD CONSTRAINT FK_BLOG_POST_TAGS_TAG FOREIGN KEY (tag_id) REFERENCES blog_tags (id) ON DELETE CASCADE');
         }
@@ -6714,5 +6714,154 @@ final class Version20260910120000 extends AbstractMigration
         }
 
         return false;
+    }
+}
+
+final class Version20261025110000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Normalize Source1 template query defaults to same_as_game_port.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('game_templates')) {
+            return;
+        }
+
+        $table = $schema->getTable('game_templates');
+        if (!$table->hasColumn('requirements')) {
+            return;
+        }
+
+        $templates = $this->connection->fetchAllAssociative('SELECT id, game_key, requirements FROM game_templates');
+
+        $updated = 0;
+        $updatedKeys = [];
+        foreach ($templates as $template) {
+            $requirements = $this->decodeJsonObject((string) ($template['requirements'] ?? '{}'));
+            if ($requirements === []) {
+                continue;
+            }
+
+            if (!$this->isSource1QueryTemplate((string) ($template['game_key'] ?? ''), $requirements)) {
+                continue;
+            }
+
+            $queryRaw = $requirements['query'] ?? [];
+            $query = is_array($queryRaw) ? $queryRaw : [];
+            $changed = false;
+
+            $existingBehavior = strtolower(trim((string) ($query['query_port_behavior'] ?? $query['port_behavior'] ?? '')));
+            if ($existingBehavior !== 'same_as_game_port') {
+                $query['query_port_behavior'] = 'same_as_game_port';
+                unset($query['port_behavior']);
+                $changed = true;
+            }
+
+            if (array_key_exists('port', $query)) {
+                unset($query['port']);
+                $changed = true;
+            }
+            if (array_key_exists('query_port', $query)) {
+                unset($query['query_port']);
+                $changed = true;
+            }
+
+            if (!$changed) {
+                continue;
+            }
+
+            if (!isset($query['type']) || trim((string) $query['type']) === '') {
+                $query['type'] = 'steam_a2s';
+            }
+
+            $requirements['query'] = $query;
+            $this->addSql(
+                sprintf('UPDATE game_templates SET requirements = %s WHERE id = %d', $this->quoteJson($requirements), (int) $template['id'])
+            );
+            $updated++;
+            $updatedKeys[] = (string) ($template['game_key'] ?? ('id:' . (string) $template['id']));
+        }
+
+        $this->write(sprintf('Source1 query defaults normalized: %d template(s).', $updated));
+        if ($updated > 0) {
+            $this->write('Templates: ' . implode(', ', $updatedKeys));
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        // Irreversible data normalization.
+    }
+
+    /**
+     * @param array<string, mixed> $requirements
+     */
+    private function isSource1QueryTemplate(string $gameKey, array $requirements): bool
+    {
+        if ($this->isSource2Template($gameKey, $requirements)) {
+            return false;
+        }
+
+        $queryRaw = $requirements['query'] ?? null;
+        $query = is_array($queryRaw) ? $queryRaw : [];
+        $rawProtocol = $query['type']
+            ?? $query['protocol']
+            ?? $query['query_protocol']
+            ?? $requirements['query_type']
+            ?? $queryRaw;
+
+        $protocol = strtolower(trim((string) $rawProtocol));
+
+        return in_array($protocol, ['steam_a2s', 'source', 'valve', 'a2s', 'source1', 'source_1', 'source-1'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $requirements
+     */
+    private function isSource2Template(string $gameKey, array $requirements): bool
+    {
+        $normalizedKey = strtolower(trim($gameKey));
+        if ($normalizedKey === 'cs2' || str_starts_with($normalizedKey, 'cs2_') || str_contains($normalizedKey, '_cs2') || str_contains($normalizedKey, 'source2')) {
+            return true;
+        }
+
+        $queryRaw = $requirements['query'] ?? null;
+        $query = is_array($queryRaw) ? $queryRaw : [];
+        foreach (['engine', 'source_engine', 'family'] as $key) {
+            $value = strtolower(trim((string) ($query[$key] ?? '')));
+            if ($value === 'source2' || $value === 'source_2' || $value === 'source-2') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeJsonObject(string $json): array
+    {
+        try {
+            $decoded = json_decode($json, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [];
+        }
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function quoteJson(array $value): string
+    {
+        try {
+            $json = json_encode($value, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException('Failed to encode JSON payload.', 0, $exception);
+        }
+
+        return $this->connection->quote($json);
     }
 }
