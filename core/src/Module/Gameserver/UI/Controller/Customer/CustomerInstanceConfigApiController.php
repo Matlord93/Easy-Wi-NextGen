@@ -169,57 +169,62 @@ final class CustomerInstanceConfigApiController
     private function applyTemplateInternal(Request $request, int $id, string $targetId, array $payload, bool $create): JsonResponse
     {
         try {
-            $customer = $this->requireCustomer($request);
-            $instance = $this->findCustomerInstance($customer, $id);
-            $target = $this->findConfigTarget($instance, $targetId);
-
-            if (($target['unsupported_reason'] ?? null) !== null) {
-                return $this->envelopeError($request, 'UNSUPPORTED_CONFIG_TARGET', (string) $target['unsupported_reason'], JsonResponse::HTTP_CONFLICT);
-            }
-
-            $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
-            $absolutePath = (string) $resolved['absolute'];
-
-            if (!$create && !is_file($absolutePath)) {
-                return $this->envelopeError($request, 'INVALID_INPUT', 'Config file does not exist. Use create first.', JsonResponse::HTTP_CONFLICT);
-            }
-
-            $existingContent = is_file($absolutePath) ? (string) @file_get_contents($absolutePath) : '';
-            $content = $this->renderTemplateContent($target, $payload, $existingContent);
-
-            if (strlen($content) > 256 * 1024) {
-                return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
-            }
-
-            if ($this->containsDisallowedControlBytes($content)) {
-                return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
-            }
-            $agentResult = $this->agentGameServerClient->applyInstanceConfig($instance, [
-                'instance_root' => $resolved['root'],
-                'path' => $absolutePath,
-                'content' => $content,
-                'mode' => $target['apply_mode'] ?? 'render_text',
-                'backup' => true,
-            ]);
-
-            if (($agentResult['ok'] ?? false) !== true) {
-                return $this->envelopeError(
-                    $request,
-                    (string) ($agentResult['error_code'] ?? 'INTERNAL_ERROR'),
-                    (string) ($agentResult['message'] ?? 'Config apply failed.'),
-                    JsonResponse::HTTP_OK,
-                    ['agent' => $agentResult]
-                );
-            return $this->envelopeOk($request, [
-                'target_id' => $target['id'],
-                'written' => true,
-                'agent' => $agentResult['data'] ?? [],
-            ]);
+            return $this->doApplyTemplateInternal($request, $id, $targetId, $payload, $create);
         } catch (\RuntimeException $e) {
             return $this->envelopeError($request, $e->getMessage(), 'Config apply failed.', JsonResponse::HTTP_BAD_REQUEST);
         } catch (\Throwable $e) {
             return $this->envelopeError($request, 'INTERNAL_ERROR', $e->getMessage(), JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private function doApplyTemplateInternal(Request $request, int $id, string $targetId, array $payload, bool $create): JsonResponse
+    {
+        $customer = $this->requireCustomer($request);
+        $instance = $this->findCustomerInstance($customer, $id);
+        $target = $this->findConfigTarget($instance, $targetId);
+
+        if (($target['unsupported_reason'] ?? null) !== null) {
+            return $this->envelopeError($request, 'UNSUPPORTED_CONFIG_TARGET', (string) $target['unsupported_reason'], JsonResponse::HTTP_CONFLICT);
+        }
+
+        $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
+        $absolutePath = (string) $resolved['absolute'];
+
+        if (!$create && !is_file($absolutePath)) {
+            return $this->envelopeError($request, 'INVALID_INPUT', 'Config file does not exist. Use create first.', JsonResponse::HTTP_CONFLICT);
+        }
+
+        $existingContent = is_file($absolutePath) ? (string) @file_get_contents($absolutePath) : '';
+        $content = $this->renderTemplateContent($target, $payload, $existingContent);
+
+        if (strlen($content) > 256 * 1024) {
+            return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
+        }
+        if ($this->containsDisallowedControlBytes($content)) {
+            return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $agentResult = $this->agentGameServerClient->applyInstanceConfig($instance, [
+            'instance_root' => $resolved['root'],
+            'path' => $absolutePath,
+            'content' => $content,
+            'mode' => $target['apply_mode'] ?? 'render_text',
+            'backup' => true,
+        ]);
+        if (($agentResult['ok'] ?? false) !== true) {
+            return $this->envelopeError(
+                $request,
+                (string) ($agentResult['error_code'] ?? 'INTERNAL_ERROR'),
+                (string) ($agentResult['message'] ?? 'Config apply failed.'),
+                JsonResponse::HTTP_OK,
+                ['agent' => $agentResult]
+            );
+
+        return $this->envelopeOk($request, [
+            'target_id' => $target['id'],
+            'written' => true,
+            'agent' => $agentResult['data'] ?? [],
+        ]);
     }
 
     /**
