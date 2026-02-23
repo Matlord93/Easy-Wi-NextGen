@@ -172,24 +172,31 @@ final class CustomerInstanceConfigApiController
             $customer = $this->requireCustomer($request);
             $instance = $this->findCustomerInstance($customer, $id);
             $target = $this->findConfigTarget($instance, $targetId);
+
             if (($target['unsupported_reason'] ?? null) !== null) {
                 return $this->envelopeError($request, 'UNSUPPORTED_CONFIG_TARGET', (string) $target['unsupported_reason'], JsonResponse::HTTP_CONFLICT);
             }
+
             $resolved = $this->instanceConfigPathResolver->resolve($instance, (string) $target['relative_path']);
-            if (!$create && !is_file($resolved['absolute'])) {
+            $absolutePath = (string) $resolved['absolute'];
+
+            if (!$create && !is_file($absolutePath)) {
                 return $this->envelopeError($request, 'INVALID_INPUT', 'Config file does not exist. Use create first.', JsonResponse::HTTP_CONFLICT);
             }
 
-            $content = $this->renderTemplateContent($target, $payload, is_file($resolved['absolute']) ? (string) @file_get_contents($resolved['absolute']) : '');
+            $existingContent = is_file($absolutePath) ? (string) @file_get_contents($absolutePath) : '';
+            $content = $this->renderTemplateContent($target, $payload, $existingContent);
+
             if (strlen($content) > 256 * 1024) {
                 return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
             }
+
             if ($this->containsDisallowedControlBytes($content)) {
                 return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
             }
             $agentResult = $this->agentGameServerClient->applyInstanceConfig($instance, [
                 'instance_root' => $resolved['root'],
-                'path' => $resolved['absolute'],
+                'path' => $absolutePath,
                 'content' => $content,
                 'mode' => $target['apply_mode'] ?? 'render_text',
                 'backup' => true,
