@@ -338,7 +338,6 @@ final class CustomerInstanceConfigApiController
         return trim(implode('
 ', $out)) . '
 ';
-
     }
 
     /**
