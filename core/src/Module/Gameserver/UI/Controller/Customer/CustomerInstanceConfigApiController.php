@@ -184,7 +184,7 @@ final class CustomerInstanceConfigApiController
             if (strlen($content) > 256 * 1024) {
                 return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
             }
-            if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1) {
+            if ($this->containsDisallowedControlBytes($content)) {
 -]/', $content) === 1) {
             if (is_string($v) && str_contains($v, "\n")) {
         $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
@@ -278,6 +278,19 @@ final class CustomerInstanceConfigApiController
     }
 
     /**
+    private function containsDisallowedControlBytes(string $content): bool
+    {
+        $length = strlen($content);
+        for ($i = 0; $i < $length; ++$i) {
+            $ord = ord($content[$i]);
+            if ($ord < 32 && $ord !== 9 && $ord !== 10 && $ord !== 13) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
      * @param array<string, mixed> $values
      */
     private function renderProperties(string $existing, array $values): string
