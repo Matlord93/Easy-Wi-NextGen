@@ -220,6 +220,7 @@ final class CustomerInstanceConfigApiController
             return $this->envelopeError($request, $e->getMessage(), 'Config apply failed.', JsonResponse::HTTP_BAD_REQUEST);
         } catch (\Throwable $e) {
             return $this->envelopeError($request, 'INTERNAL_ERROR', $e->getMessage(), JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 
     /**
@@ -231,12 +232,27 @@ final class CustomerInstanceConfigApiController
             if ((string) ($target['id'] ?? '') === $targetId) {
                 return $target;
             }
+        }
+
         throw new \RuntimeException('INVALID_INPUT');
     }
 
     /**
+     * @param array<string, mixed> $target
+     * @param array<string, mixed> $payload
+     */
+    private function renderTemplateContent(array $target, array $payload, string $existing): string
+    {
+        $mode = (string) ($target['apply_mode'] ?? 'render_text');
+        $raw = trim((string) ($payload['content'] ?? ''));
+        $values = is_array($payload['values'] ?? null) ? $payload['values'] : [];
+
         foreach ($values as $value) {
             if (is_string($value) && str_contains($value, self::LINE_FEED)) {
+                throw new \RuntimeException('INVALID_INPUT');
+            }
+        }
+
         if ($mode === 'merge_kv') {
             return $this->renderSourceCfg($existing, $values);
         }
@@ -246,19 +262,6 @@ final class CustomerInstanceConfigApiController
         }
 
         return $raw !== '' ? $raw : $existing;
-
-            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $matches) === 1) {
-                $key = $matches[1];
-                    $value = (string) $values[$key];
-        return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
-
-
-                    $line = $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', (string) $values[$key]);
-                $out[] = (string) $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', (string) $value);
-        return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
-
-
-        return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
     }
 
     /**
@@ -266,49 +269,25 @@ final class CustomerInstanceConfigApiController
      */
     private function renderSourceCfg(string $existing, array $values): string
     {
-                    $line = $key . ' "' . str_replace('"', '\"', $value) . '"';
-                $out[] = (string) $key . ' "' . str_replace('"', '\"', (string) $value) . '"';
-|
-/', $existing) ?: [];
-        $out = [];
-        $seen = [];
-        foreach ($lines as $line) {
-            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $m) === 1) {
-                $key = $m[1];
-                if (array_key_exists($key, $values)) {
-                    $val = (string) $values[$key];
-                    $line = $key . ' "' . str_replace('"', '\"', $val) . '"';
-                    $seen[$key] = true;
-                }
-            }
-            $out[] = $line;
-        }
-        foreach ($values as $key => $value) {
-            if (!isset($seen[$key])) {
-                $out[] = (string) $key . ' "' . str_replace('"', '\"', (string) $value) . '"';
-            }
-        }
+        $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
+            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)\s+(.+)$/', $line, $matches) === 1) {
+                $key = $matches[1];
+                    $value = (string) $values[$key];
+                    $line = $key . ' "' . str_replace('"', '\\"', $value) . '"';
 
-        return trim(implode("
-", $out)) . "
-";
-    }
-
+                $out[] = (string) $key . ' "' . str_replace('"', '\\"', (string) $value) . '"';
+        return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
+        return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
     /**
-    private function containsDisallowedControlBytes(string $content): bool
+     * @param array<string, mixed> $values
     {
-        $length = strlen($content);
-        for ($i = 0; $i < $length; ++$i) {
-            $ord = ord($content[$i]);
-            if ($ord < 32 && $ord !== 9 && $ord !== 10 && $ord !== 13) {
-                return true;
-            }
-        }
+        $lines = preg_split('/\r\n|\n|\r/', $existing) ?: [];
+            if (preg_match('/^\s*([a-zA-Z0-9_.-]+)=(.*)$/', $line, $matches) === 1) {
+                $key = $matches[1];
+                    $line = $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', (string) $values[$key]);
 
-        return false;
-    }
-
-        $length = strlen($content);
+                $out[] = (string) $key . '=' . str_replace([self::CARRIAGE_RETURN, self::LINE_FEED], '', (string) $value);
+        return trim(implode(self::LINE_FEED, $out)) . self::LINE_FEED;
         for ($i = 0; $i < $length; ++$i) {
             $ord = ord($content[$i]);
             if ($ord < 32 && $ord !== 9 && $ord !== 10 && $ord !== 13) {
