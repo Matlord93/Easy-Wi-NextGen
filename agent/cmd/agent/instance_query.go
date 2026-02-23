@@ -61,7 +61,17 @@ func handleInstanceQueryCheck(job jobs.Job) (jobs.Result, func() error) {
 		{key: "protocol", value: queryType},
 	})
 	if len(missing) > 0 {
-		return failedResultWithErrorCode(job.ID, "INVALID_INPUT", "missing required values: "+strings.Join(missing, ", "))
+		message := fmt.Sprintf(
+			"missing required values: %s (resolved_host_source=%s network_mode=%s host=%q bind_ip=%q instance_ip=%q node_ip=%q)",
+			strings.Join(missing, ", "),
+			resolution.Source,
+			resolution.NetworkMode,
+			payloadValue(job.Payload, "host", "ip"),
+			payloadValue(job.Payload, "bind_ip", "query_bind_ip"),
+			payloadValue(job.Payload, "instance_ip"),
+			payloadValue(job.Payload, "node_ip", "public_ip"),
+		)
+		return failedResultWithErrorCode(job.ID, "INVALID_INPUT", message)
 	}
 
 	switch queryType {

@@ -466,6 +466,13 @@ func TestHandleInstanceQueryCheckMissingHostReturnsInvalidInput(t *testing.T) {
 	if code := result.Output["error_code"]; code != "INVALID_INPUT" {
 		t.Fatalf("error_code=%v", code)
 	}
+	message := result.Output["message"]
+	if !strings.Contains(message, "resolved_host_source=loopback") {
+		t.Fatalf("message=%q", message)
+	}
+	if !strings.Contains(message, "network_mode=isolated") {
+		t.Fatalf("message=%q", message)
+	}
 }
 
 func TestQueryMinecraftJavaParsesStatusResponse(t *testing.T) {
