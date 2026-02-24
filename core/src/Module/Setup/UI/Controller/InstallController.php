@@ -37,7 +37,7 @@ final class InstallController
 
         $state = $this->installerService->readState();
         $stepParam = $request->query->get('step');
-        $step = max(1, min(4, (int) ($stepParam ?? 1)));
+        $step = max(1, min(5, (int) ($stepParam ?? 1)));
         $errors = [];
         if (!($bootstrapStatus['ok'] ?? false)) {
             $errors[] = [
@@ -68,7 +68,7 @@ final class InstallController
             'cms_homepage_slug' => 'startseite',
         ];
         $settingsDefaults = [
-            'instance_base_dir' => '/home',
+            'instance_base_dir' => 'var/easywi',
             'sftp_host' => '',
             'sftp_port' => '22',
             'sftp_username' => '',
@@ -81,6 +81,12 @@ final class InstallController
         $databaseState = array_merge($databaseDefaults, $state['database'] ?? []);
         $applicationState = array_merge($applicationDefaults, $state['application'] ?? []);
         $settingsState = array_merge($settingsDefaults, $state['settings'] ?? []);
+        if (($databaseState['saved'] ?? false) !== true) {
+            $databaseState['initialized'] = false;
+        }
+
+        $this->installerService->ensureProjectDirectory('var/easywi');
+
         $storedPassword = $databaseState['password'] ?? '';
         $databaseState['password'] = '';
 
@@ -88,7 +94,11 @@ final class InstallController
             $payload = $request->request->all();
             $action = (string) ($payload['action'] ?? '');
             $postedStep = (int) ($payload['step'] ?? $step);
-            $step = max(1, min(4, $postedStep));
+            $step = max(1, min(5, $postedStep));
+
+            if (($databaseState['password'] ?? '') === '' && $storedPassword !== '') {
+                $databaseState['password'] = $storedPassword;
+            }
 
             if ($step === 1 && $action === 'continue') {
                 $step = 2;
@@ -179,24 +189,15 @@ final class InstallController
                             try {
                                 $persistentConfig = $this->installerService->buildPersistentDatabaseConfig($databaseState);
                                 $this->installerService->storeDatabaseConfig($persistentConfig);
-                                $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
-                                $this->installerService->initializeDatabase($entityManager);
-                                $entityManager->clear();
-                                $entityManager->getConnection()->close();
-                                $databaseState['initialized'] = true;
+                                $databaseState['saved'] = true;
+                                $databaseState['initialized'] = false;
                                 $step = 4;
-                            } catch (DbalException $exception) {
-                                $this->installerService->logException($exception, 'Database migrations failed during installer.');
-                                $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
                             } catch (\RuntimeException $exception) {
                                 $this->installerService->logException($exception, 'Database config persistence failed during installer.');
                                 $errors[] = [
                                     'key' => 'errors.db_config_write_failed',
                                     'params' => ['%path%' => $this->installerService->getDatabaseConfigPath()],
                                 ];
-                            } catch (\Throwable $exception) {
-                                $this->installerService->logException($exception, 'Database migrations failed during installer.');
-                                $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
                             }
                         }
                     }
@@ -206,6 +207,34 @@ final class InstallController
                     $step = 2;
                 }
             } elseif ($step === 4) {
+                if ($action === 'back') {
+                    $step = 3;
+                }
+
+                if ($action === 'run_migrations') {
+                    if (($databaseState['saved'] ?? false) !== true) {
+                        $errors[] = ['key' => 'errors.db_config_save_required'];
+                        $step = 3;
+                    } else {
+                        try {
+                            $dbConfig = $this->installerService->buildDatabaseConfig($databaseState);
+                            $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
+                            $this->installerService->initializeDatabase($entityManager);
+                            $entityManager->clear();
+                            $entityManager->getConnection()->close();
+                            $databaseState['initialized'] = true;
+                            $success[] = ['key' => 'messages.db_migrations_success'];
+                            $step = 5;
+                        } catch (DbalException $exception) {
+                            $this->installerService->logException($exception, 'Database migrations failed during installer.');
+                            $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
+                        } catch (\Throwable $exception) {
+                            $this->installerService->logException($exception, 'Database migrations failed during installer.');
+                            $errors[] = $this->resolveDatabaseMigrationError($databaseState, $exception);
+                        }
+                    }
+                }
+            } elseif ($step === 5) {
                 $applicationState = array_merge($applicationState, [
                     'site_name' => trim((string) ($payload['site_name'] ?? $applicationState['site_name'])),
                     'site_host' => trim((string) ($payload['site_host'] ?? $applicationState['site_host'])),
@@ -215,16 +244,8 @@ final class InstallController
                     'cms_template' => trim((string) ($payload['cms_template'] ?? $applicationState['cms_template'])),
                     'cms_homepage_slug' => trim((string) ($payload['cms_homepage_slug'] ?? $applicationState['cms_homepage_slug'])),
                 ]);
-                $settingsState = array_merge($settingsState, [
-                    'instance_base_dir' => trim((string) ($payload['instance_base_dir'] ?? $settingsState['instance_base_dir'])),
-                    'sftp_host' => trim((string) ($payload['sftp_host'] ?? $settingsState['sftp_host'])),
-                    'sftp_port' => trim((string) ($payload['sftp_port'] ?? $settingsState['sftp_port'])),
-                    'sftp_username' => trim((string) ($payload['sftp_username'] ?? $settingsState['sftp_username'])),
-                    'sftp_password' => (string) ($payload['sftp_password'] ?? $settingsState['sftp_password']),
-                    'sftp_private_key' => (string) ($payload['sftp_private_key'] ?? $settingsState['sftp_private_key']),
-                    'sftp_private_key_path' => trim((string) ($payload['sftp_private_key_path'] ?? $settingsState['sftp_private_key_path'])),
-                    'sftp_private_key_passphrase' => (string) ($payload['sftp_private_key_passphrase'] ?? $settingsState['sftp_private_key_passphrase']),
-                ]);
+                // Step 5 intentionally only captures site/CMS/admin data.
+                // Core and SFTP settings can be configured later in admin settings.
 
                 if ($databaseState['password'] === '' && $storedPassword !== '') {
                     $databaseState['password'] = $storedPassword;
@@ -270,7 +291,7 @@ final class InstallController
                 }
 
                 if ($action === 'back') {
-                    $step = 3;
+                    $step = 4;
                 }
 
                 if ($errors === [] && $action === 'install') {
@@ -296,12 +317,12 @@ final class InstallController
                                 $this->installerService->storeDatabaseConfig($persistentConfig);
 
                                 if (($databaseState['initialized'] ?? false) !== true) {
-                                    $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
-                                    $this->installerService->initializeDatabase($entityManager);
-                                    $entityManager->clear();
-                                    $entityManager->getConnection()->close();
-                                    $databaseState['initialized'] = true;
+                                    $errors[] = ['key' => 'errors.db_migrations_not_run'];
+                                    $step = 4;
+                                    throw new \RuntimeException('Database migrations were not executed before final installation.');
                                 }
+
+                                $this->installerService->ensureDirectory((string) ($settingsState['instance_base_dir'] ?? ''));
 
                                 $entityManager = $this->installerService->createInstallEntityManager($dbConfig['connection']);
                                 $this->installerService->createSiteAndAdmin($entityManager, $applicationState, $adminPassword);
@@ -315,7 +336,7 @@ final class InstallController
 
                                 return new Response($this->twig->render('install/success.html.twig', [
                                     'loginUrl' => $loginUrl,
-                                    'step' => 4,
+                                    'step' => 5,
                                 ]));
                             } catch (InstallerSshKeyException) {
                                 $errors[] = ['key' => 'errors.admin_ssh_key_store_failed'];
@@ -323,11 +344,15 @@ final class InstallController
                                 $this->installerService->logException($exception, 'Database connection failed during installation.');
                                 $errors[] = $this->resolveDatabaseConnectionError($databaseState, $exception);
                             } catch (\RuntimeException $exception) {
+                                if ($step === 4 && $errors !== []) {
+                                    // validation error already surfaced for missing migration step
+                                } else {
                                 $this->installerService->logException($exception, 'Database config persistence failed during installation.');
                                 $errors[] = [
                                     'key' => 'errors.db_config_write_failed',
                                     'params' => ['%path%' => $this->installerService->getDatabaseConfigPath()],
                                 ];
+                                }
                             } catch (\Throwable $exception) {
                                 $this->installerService->logException($exception, 'Installer failed during install step.');
                                 $errors[] = ['key' => 'errors.cms_homepage_slug_invalid'];
@@ -364,7 +389,8 @@ final class InstallController
             1 => 'install/step1.html.twig',
             2 => 'install/step2_requirements.html.twig',
             3 => 'install/step3_database.html.twig',
-            default => 'install/step4_app.html.twig',
+            4 => 'install/step4_migrations.html.twig',
+            default => 'install/step5_app.html.twig',
         };
 
         return new Response($this->twig->render($template, [

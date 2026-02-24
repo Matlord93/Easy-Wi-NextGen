@@ -10,6 +10,7 @@ language:
 step1:
   title: "Welcome"
   lead: "This installer will configure your application and prepare the database."
+  panel_not_installed: "The panel is not installed yet. Please complete all installation steps below."
   points:
     write_config: "Stores database configuration in /etc/easywi/db.json (encrypted)."
     run_migrations: "Runs Doctrine migrations to set up the database schema."
@@ -68,6 +69,7 @@ messages:
   db_connection_success: "Database connection successful."
   db_privileges_success: "Database privileges look good."
   db_version: "Detected database version: %version%"
+  db_migrations_success: "Database migrations completed successfully."
 
 errors:
   requirements_not_met: "Please fix the missing requirements before continuing."
@@ -77,6 +79,8 @@ errors:
   db_connection_failed: "Database connection failed. Please verify the credentials and host."
   db_privileges_failed: "Database privilege test failed. Ensure CREATE, ALTER, and INDEX rights."
   db_migrations_failed: "Database migrations failed. Check logs for details and try again."
+  db_migrations_not_run: "Please run database migrations in the previous step first."
+  db_config_save_required: "Please save your database configuration in the previous step first."
   db_config_write_failed: "Database configuration could not be saved. Check file permissions for %path%."
   site_required: "Site name and host are required."
   email_invalid: "Enter a valid superadmin email address."
@@ -91,6 +95,11 @@ errors:
   env_bootstrap_failed: "Unable to write bootstrap secrets to %path%. Fix permissions (example: chmod 600 %path% && chown www-data:www-data %path%), then reload /install or run php bin/console app:setup:env-bootstrap."
 
 step4:
+  title: "Database Migration"
+  lead: "Database credentials are saved. Start migrations now."
+  summary: "Database configuration has been stored at %path%."
+
+step5:
   title: "Application Setup"
   lead: "Create the initial site settings and superadmin user."
 
@@ -121,7 +130,7 @@ app:
   password_confirm_placeholder: "Repeat the password"
   system_section: "Core settings"
   instance_base_dir: "Instance base directory"
-  instance_base_dir_placeholder: "/home"
+  instance_base_dir_placeholder: "var/easywi"
   instance_base_dir_hint: "Default root path for instance folders."
   sftp_section: "SFTP settings"
   sftp_host: "SFTP host"
@@ -145,6 +154,7 @@ actions:
   back: "Back"
   test_connection: "Test connection"
   test_privileges: "Test privileges"
+  run_migrations: "Run migrations"
   install: "Install"
   download_debug: "Download debug report"
 

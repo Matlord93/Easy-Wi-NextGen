@@ -107,10 +107,39 @@ final class EncryptionKeyLoader
             return $envPath;
         }
 
-        if (!is_readable(self::DEFAULT_KEY_PATH) && $projectDir !== null) {
-            return rtrim($projectDir, '/') . '/' . self::FALLBACK_KEY_DIR . '/secret.key';
+        $candidates = [
+            self::DEFAULT_KEY_PATH,
+            ...$this->resolveFallbackKeyPaths($projectDir),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_readable($candidate)) {
+                return $candidate;
+            }
         }
 
-        return self::DEFAULT_KEY_PATH;
+        return $candidates[0] ?? self::DEFAULT_KEY_PATH;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveFallbackKeyPaths(?string $projectDir): array
+    {
+        if ($projectDir === null || trim($projectDir) === '') {
+            return [];
+        }
+
+        $normalized = rtrim($projectDir, '/');
+        $paths = [
+            $normalized . '/' . self::FALLBACK_KEY_DIR . '/secret.key',
+        ];
+
+        $parentDir = dirname($normalized);
+        if ($parentDir !== '' && $parentDir !== $normalized) {
+            $paths[] = $parentDir . '/' . self::FALLBACK_KEY_DIR . '/secret.key';
+        }
+
+        return array_values(array_unique($paths));
     }
 }

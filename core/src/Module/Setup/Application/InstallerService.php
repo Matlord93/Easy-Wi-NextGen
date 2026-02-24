@@ -326,6 +326,30 @@ final class InstallerService
         return $this->ensureEnvSecretsPresent();
     }
 
+    public function ensureDirectory(string $path): bool
+    {
+        $normalized = trim($path);
+        if ($normalized === '') {
+            return false;
+        }
+
+        if (is_dir($normalized)) {
+            return true;
+        }
+
+        return @mkdir($normalized, 0775, true) || is_dir($normalized);
+    }
+
+    public function ensureProjectDirectory(string $relativePath): bool
+    {
+        $normalized = trim($relativePath, " \t\n\r\0\x0B/");
+        if ($normalized === '') {
+            return false;
+        }
+
+        return $this->ensureDirectory($this->projectDir . '/' . $normalized);
+    }
+
     public function storeDatabaseConfig(array $payload): void
     {
         $this->ensureSecretKeyExists();
@@ -513,6 +537,7 @@ final class InstallerService
             $site = new Site((string) $data['site_name'], (string) $data['site_host']);
             $entityManager->persist($site);
         }
+        $site->setCmsTemplateKey((string) ($data['cms_template'] ?? 'minimal'));
 
         $userRepository = $entityManager->getRepository(User::class);
         $admin = $userRepository->findOneBy(['type' => UserType::Superadmin->value]);
@@ -547,17 +572,17 @@ final class InstallerService
         $settings = $settingsRepository->findOneBy(['site' => $site]);
         if (!$settings instanceof CmsSiteSettings) {
             $settings = new CmsSiteSettings($site);
-            $settings->setActiveTheme((string) ($data['cms_template'] ?? 'minimal'));
-            $settings->setModuleTogglesJson([
-                'blog' => true,
-                'events' => true,
-                'team' => true,
-                'forum' => true,
-                'media' => true,
-                'gameserver' => true,
-            ]);
             $entityManager->persist($settings);
         }
+        $settings->setActiveTheme((string) ($data['cms_template'] ?? 'minimal'));
+        $settings->setModuleTogglesJson([
+            'blog' => true,
+            'events' => true,
+            'team' => true,
+            'forum' => true,
+            'media' => true,
+            'gameserver' => true,
+        ]);
 
         $entityManager->flush();
     }

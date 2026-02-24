@@ -97,9 +97,6 @@ final class AgentReleaseChecker
             }
 
             $signatureUrl = $this->findAssetDownloadUrl($assets, 'checksums-agent.txt.asc');
-            if ($signatureUrl === null) {
-                continue;
-            }
 
             $tag = $release['tag_name'] ?? $release['name'] ?? null;
             if (!is_string($tag) || $tag === '') {

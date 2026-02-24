@@ -1,0 +1,41 @@
+{% extends 'install/base.html.twig' %}
+{% trans_default_domain 'installer' %}
+
+{% block title %}{{ 'step4.title'|trans }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl space-y-6">
+    {% include 'install/_language_switcher.html.twig' with { step: step } %}
+    {% include 'install/_messages.html.twig' with { errors: errors, success: success } %}
+
+    <div class="rounded-xl border border-slate-200 bg-white px-6 py-5">
+        <h2 class="text-lg font-semibold text-slate-900">{{ 'step4.title'|trans }}</h2>
+        <p class="mt-2 text-sm text-slate-600">{{ 'step4.lead'|trans }}</p>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white px-6 py-5 text-sm text-slate-700">
+        <p>{{ 'step4.summary'|trans({'%path%': '/etc/easywi/db.json'}) }}</p>
+        {% if database.initialized %}
+            <p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-emerald-700">{{ 'messages.db_migrations_success'|trans }}</p>
+        {% endif %}
+    </div>
+
+    <form method="post" action="{{ path('public_install', {'step': step}) }}" class="flex flex-wrap gap-3">
+        <input type="hidden" name="step" value="{{ step }}">
+
+        <button type="submit" name="action" value="back" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
+            {{ 'actions.back'|trans }}
+        </button>
+
+        {% if not database.initialized %}
+            <button type="submit" name="action" value="run_migrations" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
+                {{ 'actions.run_migrations'|trans }}
+            </button>
+        {% else %}
+            <a href="{{ path('public_install', {'step': 5}) }}" class="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500">
+                {{ 'actions.continue'|trans }}
+            </a>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}

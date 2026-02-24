@@ -146,6 +146,8 @@ services:
       $lockFile: '%app.core_update_lock_file%'
       $excludes: '%app.core_update_excludes%'
       $fallbackVersion: '%app.core_version%'
+      $releaseRepository: '%app.core_release_repository%'
+      $releaseChannel: '%app.core_release_channel%'
       $kernelEnvironment: '%kernel.environment%'
       $kernelDebug: '%kernel.debug%'
 

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\EventSubscriber;
 
 use App\Infrastructure\Config\DbConfigProvider;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 
@@ -42,10 +42,6 @@ final class DatabaseConfigSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $event->setResponse(new Response(
-            'DB nicht konfiguriert. Bitte Installer ausführen.',
-            Response::HTTP_SERVICE_UNAVAILABLE,
-            ['Content-Type' => 'text/plain; charset=UTF-8'],
-        ));
+        $event->setResponse(new RedirectResponse('/install'));
     }
 }

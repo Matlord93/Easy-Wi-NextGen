@@ -10,6 +10,7 @@ language:
 step1:
   title: "Willkommen"
   lead: "Dieser Installer richtet die Anwendung ein und bereitet die Datenbank vor."
+  panel_not_installed: "Panel ist noch nicht installiert. Bitte führen Sie die folgenden Schritte vollständig aus."
   points:
     write_config: "Speichert die Datenbankkonfiguration in /etc/easywi/db.json (verschlüsselt)."
     run_migrations: "Führt Doctrine-Migrationen aus, um das Datenbankschema anzulegen."
@@ -68,6 +69,7 @@ messages:
   db_connection_success: "Datenbankverbindung erfolgreich."
   db_privileges_success: "Datenbankrechte sind ausreichend."
   db_version: "Erkannte Datenbankversion: %version%"
+  db_migrations_success: "Datenbankmigrationen wurden erfolgreich ausgeführt."
 
 errors:
   requirements_not_met: "Bitte beheben Sie die fehlenden Anforderungen, bevor Sie fortfahren."
@@ -77,6 +79,8 @@ errors:
   db_connection_failed: "Datenbankverbindung fehlgeschlagen. Bitte Zugangsdaten und Host prüfen."
   db_privileges_failed: "Datenbankrechteprüfung fehlgeschlagen. Stellen Sie CREATE-, ALTER- und INDEX-Rechte sicher."
   db_migrations_failed: "Datenbank-Migrationen fehlgeschlagen. Prüfen Sie die Logs und versuchen Sie es erneut."
+  db_migrations_not_run: "Bitte führen Sie zuerst die Datenbank-Migrationen im vorherigen Schritt aus."
+  db_config_save_required: "Bitte speichern Sie zuerst die Datenbank-Konfiguration im vorherigen Schritt."
   db_config_write_failed: "Die Datenbankkonfiguration konnte nicht gespeichert werden. Prüfen Sie die Rechte für %path%."
   site_required: "Site-Name und Host sind erforderlich."
   email_invalid: "Bitte eine gültige Superadmin-E-Mail-Adresse angeben."
@@ -91,6 +95,11 @@ errors:
   env_bootstrap_failed: "Bootstrap-Secrets konnten nicht nach %path% geschrieben werden. Rechte korrigieren (Beispiel: chmod 600 %path% && chown www-data:www-data %path%), dann /install neu laden oder php bin/console app:setup:env-bootstrap ausführen."
 
 step4:
+  title: "Datenbankmigration"
+  lead: "Die Datenbankdaten sind gespeichert. Starten Sie jetzt die Migrationen."
+  summary: "Die Datenbank-Konfiguration wurde in %path% gespeichert."
+
+step5:
   title: "Anwendungseinrichtung"
   lead: "Legen Sie die Site-Einstellungen und den Superadmin-Benutzer an."
 
@@ -121,7 +130,7 @@ app:
   password_confirm_placeholder: "Passwort wiederholen"
   system_section: "Core-Einstellungen"
   instance_base_dir: "Basisverzeichnis für Instanzen"
-  instance_base_dir_placeholder: "/home"
+  instance_base_dir_placeholder: "var/easywi"
   instance_base_dir_hint: "Standard-Pfad für Instanz-Verzeichnisse."
   sftp_section: "SFTP-Einstellungen"
   sftp_host: "SFTP-Host"
@@ -145,6 +154,7 @@ actions:
   back: "Zurück"
   test_connection: "Verbindung testen"
   test_privileges: "Rechte testen"
+  run_migrations: "Migrationen starten"
   install: "Installieren"
   download_debug: "Debug-Report herunterladen"
 

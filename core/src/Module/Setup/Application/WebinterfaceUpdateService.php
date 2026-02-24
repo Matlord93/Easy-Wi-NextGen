@@ -29,6 +29,8 @@ final class WebinterfaceUpdateService
         private readonly string $lockFile,
         private readonly string $excludes,
         private readonly string $fallbackVersion,
+        private readonly string $releaseRepository,
+        private readonly string $releaseChannel,
         private readonly string $kernelEnvironment,
         private readonly bool $kernelDebug,
     ) {
@@ -302,24 +304,123 @@ final class WebinterfaceUpdateService
 
     private function fetchManifest(): array
     {
-        if (trim($this->manifestUrl) === '') {
-            return ['manifest' => null, 'error' => 'Update-Manifest ist nicht konfiguriert.'];
+        if (trim($this->manifestUrl) !== '') {
+            $manifest = $this->fetchManifestFromUrl($this->manifestUrl);
+            if ($manifest !== null) {
+                return ['manifest' => $manifest, 'error' => null];
+            }
         }
+
+        $manifest = $this->fetchManifestFromGithubRelease();
+        if ($manifest !== null) {
+            return ['manifest' => $manifest, 'error' => null];
+        }
+
+        return ['manifest' => null, 'error' => 'Manifest konnte nicht geladen werden.'];
+    }
+
+    private function fetchManifestFromUrl(string $url): ?UpdateManifest
+    {
+        try {
+            $response = $this->httpClient->request('GET', $url, ['timeout' => 10]);
+            if ($response->getStatusCode() !== 200) {
+                return null;
+            }
+
+            $payload = json_decode($response->getContent(false), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $this->createManifestFromPayload($payload);
+    }
+
+    private function fetchManifestFromGithubRelease(): ?UpdateManifest
+    {
+        $repository = trim($this->releaseRepository);
+        if ($repository === '') {
+            return null;
+        }
+
+        $channel = strtolower(trim($this->releaseChannel));
+        $allowPrerelease = $channel === 'beta';
+        $endpoint = sprintf('https://api.github.com/repos/%s/releases?per_page=20', $repository);
 
         try {
-            $response = $this->httpClient->request('GET', $this->manifestUrl, [
-                'timeout' => 6,
+            $response = $this->httpClient->request('GET', $endpoint, [
+                'timeout' => 10,
+                'headers' => [
+                    'Accept' => 'application/vnd.github+json',
+                    'User-Agent' => 'Easy-Wi-NextGen',
+                ],
             ]);
             if ($response->getStatusCode() !== 200) {
-                return ['manifest' => null, 'error' => 'Manifest nicht erreichbar.'];
+                return null;
             }
-            $payload = json_decode($response->getContent(false), true, 512, JSON_THROW_ON_ERROR);
-        } catch (\Throwable $exception) {
-            return ['manifest' => null, 'error' => 'Manifest konnte nicht gelesen werden.'];
+            $releases = json_decode($response->getContent(false), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return null;
         }
 
+        if (!is_array($releases)) {
+            return null;
+        }
+
+        foreach ($releases as $release) {
+            if (!is_array($release)) {
+                continue;
+            }
+
+            if (($release['draft'] ?? false) === true) {
+                continue;
+            }
+
+            $isPrerelease = ($release['prerelease'] ?? false) === true;
+            if (!$allowPrerelease && $isPrerelease) {
+                continue;
+            }
+
+            $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];
+            $manifestAssetUrl = $this->findAssetUrlByName($assets, 'manifest.json');
+            if ($manifestAssetUrl !== null) {
+                $manifest = $this->fetchManifestFromUrl($manifestAssetUrl);
+                if ($manifest !== null) {
+                    return $manifest;
+                }
+            }
+
+            $tag = is_string($release['tag_name'] ?? null) ? trim($release['tag_name']) : '';
+            $version = $this->normalizeVersion($tag);
+            if ($version === null) {
+                continue;
+            }
+
+            $assetUrl = $this->findWebinterfaceArchiveAssetUrl($assets, $version);
+            if ($assetUrl === null) {
+                continue;
+            }
+
+            $notes = is_string($release['body'] ?? null) ? trim((string) $release['body']) : null;
+
+            return new UpdateManifest(
+                $version,
+                $assetUrl,
+                null,
+                $notes !== '' ? $notes : null,
+                null,
+                null,
+                null,
+                [],
+            );
+        }
+
+        return null;
+    }
+
+    private function createManifestFromPayload(mixed $payload): ?UpdateManifest
+    {
         if (!is_array($payload)) {
-            return ['manifest' => null, 'error' => 'Manifest ist ungültig.'];
+            return null;
         }
 
         $latest = is_string($payload['latest'] ?? null) ? trim($payload['latest']) : '';
@@ -338,22 +439,67 @@ final class WebinterfaceUpdateService
         }
 
         if ($latest === '' || $assetUrl === '') {
-            return ['manifest' => null, 'error' => 'Manifest ist unvollständig.'];
+            return null;
         }
 
-        return [
-            'manifest' => new UpdateManifest(
-                $latest,
-                $assetUrl,
-                $sha256 !== '' ? $sha256 : null,
-                $notes !== '' ? $notes : null,
-                $deltaFrom !== '' ? $deltaFrom : null,
-                $deltaAssetUrl !== '' ? $deltaAssetUrl : null,
-                $deltaSha256 !== '' ? $deltaSha256 : null,
-                $deltaDeletes,
-            ),
-            'error' => null,
-        ];
+        return new UpdateManifest(
+            $latest,
+            $assetUrl,
+            $sha256 !== '' ? $sha256 : null,
+            $notes !== '' ? $notes : null,
+            $deltaFrom !== '' ? $deltaFrom : null,
+            $deltaAssetUrl !== '' ? $deltaAssetUrl : null,
+            $deltaSha256 !== '' ? $deltaSha256 : null,
+            $deltaDeletes,
+        );
+    }
+
+    private function findAssetUrlByName(array $assets, string $assetName): ?string
+    {
+        foreach ($assets as $asset) {
+            if (!is_array($asset)) {
+                continue;
+            }
+
+            $name = is_string($asset['name'] ?? null) ? $asset['name'] : null;
+            if ($name !== $assetName) {
+                continue;
+            }
+
+            $url = is_string($asset['browser_download_url'] ?? null) ? trim($asset['browser_download_url']) : '';
+            if ($url !== '') {
+                return $url;
+            }
+        }
+
+        return null;
+    }
+
+    private function findWebinterfaceArchiveAssetUrl(array $assets, string $version): ?string
+    {
+        $expected = 'easywi-webinterface-' . ltrim($version, 'vV') . '.zip';
+
+        foreach ($assets as $asset) {
+            if (!is_array($asset)) {
+                continue;
+            }
+
+            $name = is_string($asset['name'] ?? null) ? trim($asset['name']) : '';
+            if ($name === '') {
+                continue;
+            }
+
+            if ($name !== $expected && !preg_match('/^easywi-webinterface-[^\/]+\.zip$/i', $name)) {
+                continue;
+            }
+
+            $url = is_string($asset['browser_download_url'] ?? null) ? trim($asset['browser_download_url']) : '';
+            if ($url !== '') {
+                return $url;
+            }
+        }
+
+        return null;
     }
 
     private function isUpdateAvailable(?string $installedVersion, ?string $latestVersion): ?bool

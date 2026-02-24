@@ -10,6 +10,7 @@ use App\Infrastructure\Security\SecretKeyLoader;
 final class DbConfigProvider
 {
     private const DEFAULT_DB_CONFIG_PATH = 'var/easywi/db.json';
+    private const SYSTEM_DB_CONFIG_PATH = '/etc/easywi/db.json';
     private const FALLBACK_DB_CONFIG_DIR = 'var/easywi';
     private const INSTALLER_FALLBACK_DB_CONFIG_DIR = 'srv/setup/state';
 
@@ -182,25 +183,25 @@ final class DbConfigProvider
             return $envPath;
         }
 
-        if (is_file(self::DEFAULT_DB_CONFIG_PATH) && is_readable(self::DEFAULT_DB_CONFIG_PATH)) {
-            return self::DEFAULT_DB_CONFIG_PATH;
-        }
+        $candidates = [
+            self::SYSTEM_DB_CONFIG_PATH,
+            ...$this->resolveFallbackProjectPaths($projectDir),
+            self::DEFAULT_DB_CONFIG_PATH,
+        ];
 
-        if ($this->isPathWritable(self::DEFAULT_DB_CONFIG_PATH)) {
-            return self::DEFAULT_DB_CONFIG_PATH;
-        }
-
-        foreach ($this->resolveFallbackProjectPaths($projectDir) as $fallbackPath) {
-            if ($this->isPathWritable($fallbackPath) || is_readable($fallbackPath)) {
-                return $fallbackPath;
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate) && is_readable($candidate)) {
+                return $candidate;
             }
         }
 
-        foreach ($this->resolveFallbackProjectPaths($projectDir) as $fallbackPath) {
-            return $fallbackPath;
+        foreach ($candidates as $candidate) {
+            if ($this->isPathWritable($candidate)) {
+                return $candidate;
+            }
         }
 
-        return self::DEFAULT_DB_CONFIG_PATH;
+        return $candidates[0] ?? self::DEFAULT_DB_CONFIG_PATH;
     }
 
     /**
@@ -215,10 +216,18 @@ final class DbConfigProvider
 
         $normalized = rtrim($projectDir, '/');
 
-        return [
+        $paths = [
             $normalized . '/' . self::FALLBACK_DB_CONFIG_DIR . '/db.json',
             $normalized . '/' . self::INSTALLER_FALLBACK_DB_CONFIG_DIR . '/db.json',
         ];
+
+        $parentDir = dirname($normalized);
+        if ($parentDir !== '' && $parentDir !== $normalized) {
+            $paths[] = $parentDir . '/' . self::FALLBACK_DB_CONFIG_DIR . '/db.json';
+            $paths[] = $parentDir . '/' . self::INSTALLER_FALLBACK_DB_CONFIG_DIR . '/db.json';
+        }
+
+        return array_values(array_unique($paths));
     }
 
     private function writeConfigFile(string $path, string $contents): void
@@ -238,7 +247,7 @@ final class DbConfigProvider
             throw new \RuntimeException('Unable to persist database configuration file.');
         }
 
-        @chmod($path, 0775);
+        @chmod($path, 0755);
     }
 
     private function isPathWritable(string $path): bool
