@@ -11,7 +11,32 @@ use PHPUnit\Framework\TestCase;
 
 final class DbConfigProviderPathResolutionTest extends TestCase
 {
-    public function testPrefersReadableSystemPathWhenPresent(): void
+    public function testPrefersProjectFallbackPathOverSystemPathWhenBothExist(): void
+    {
+        if (!is_file('/etc/easywi/db.json') || !is_readable('/etc/easywi/db.json')) {
+            $this->markTestSkipped('/etc/easywi/db.json is not present in this environment.');
+        }
+
+        $baseDir = sys_get_temp_dir() . '/easywi-db-provider-' . bin2hex(random_bytes(5));
+        $projectDir = $baseDir . '/core';
+        $projectFallbackPath = $projectDir . '/var/easywi/db.json';
+
+        mkdir(dirname($projectFallbackPath), 0777, true);
+        file_put_contents($projectFallbackPath, '{}');
+
+        try {
+            $provider = $this->createProvider(null, $projectDir);
+            self::assertSame($projectFallbackPath, $provider->getConfigPath());
+        } finally {
+            @unlink($projectFallbackPath);
+            @rmdir(dirname($projectFallbackPath));
+            @rmdir($projectDir . '/var');
+            @rmdir($projectDir);
+            @rmdir($baseDir);
+        }
+    }
+
+    public function testFallsBackToSystemPathWhenNoProjectConfigExists(): void
     {
         $provider = $this->createProvider(null, '/tmp');
 

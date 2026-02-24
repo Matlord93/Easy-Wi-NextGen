@@ -184,8 +184,8 @@ final class DbConfigProvider
         }
 
         $candidates = [
-            self::SYSTEM_DB_CONFIG_PATH,
             ...$this->resolveFallbackProjectPaths($projectDir),
+            self::SYSTEM_DB_CONFIG_PATH,
             self::DEFAULT_DB_CONFIG_PATH,
         ];
 
