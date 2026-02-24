@@ -464,10 +464,6 @@ final class InstallerService
         $schemaTool->updateSchema($metadata, true);
     }
 
-    /**
-     * @param array<string, mixed> $connectionParams
-     */
-
     private function resolvePhpExecutableForMigrations(): string
     {
         $candidates = [];
