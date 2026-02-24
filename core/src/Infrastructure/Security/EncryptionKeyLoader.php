@@ -108,12 +108,18 @@ final class EncryptionKeyLoader
         }
 
         $candidates = [
-            self::DEFAULT_KEY_PATH,
             ...$this->resolveFallbackKeyPaths($projectDir),
+            self::DEFAULT_KEY_PATH,
         ];
 
         foreach ($candidates as $candidate) {
             if (is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            if ($this->isPathWritable($candidate)) {
                 return $candidate;
             }
         }
@@ -135,11 +141,22 @@ final class EncryptionKeyLoader
             $normalized . '/' . self::FALLBACK_KEY_DIR . '/secret.key',
         ];
 
-        $parentDir = dirname($normalized);
-        if ($parentDir !== '' && $parentDir !== $normalized) {
-            $paths[] = $parentDir . '/' . self::FALLBACK_KEY_DIR . '/secret.key';
+        return $paths;
+    }
+
+    private function isPathWritable(string $path): bool
+    {
+        if (is_file($path)) {
+            return is_writable($path);
         }
 
-        return array_values(array_unique($paths));
+        $directory = dirname($path);
+        if (is_dir($directory)) {
+            return is_writable($directory);
+        }
+
+        $parentDirectory = dirname($directory);
+
+        return is_dir($parentDirectory) && is_writable($parentDirectory);
     }
 }
