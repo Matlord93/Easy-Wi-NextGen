@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Module\Core\EventSubscriber;
 
 use App\Infrastructure\Config\DbConfigProvider;
-use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 

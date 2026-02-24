@@ -347,11 +347,11 @@ final class InstallController
                                 if ($step === 4 && $errors !== []) {
                                     // validation error already surfaced for missing migration step
                                 } else {
-                                $this->installerService->logException($exception, 'Database config persistence failed during installation.');
-                                $errors[] = [
-                                    'key' => 'errors.db_config_write_failed',
-                                    'params' => ['%path%' => $this->installerService->getDatabaseConfigPath()],
-                                ];
+                                    $this->installerService->logException($exception, 'Database config persistence failed during installation.');
+                                    $errors[] = [
+                                        'key' => 'errors.db_config_write_failed',
+                                        'params' => ['%path%' => $this->installerService->getDatabaseConfigPath()],
+                                    ];
                                 }
                             } catch (\Throwable $exception) {
                                 $this->installerService->logException($exception, 'Installer failed during install step.');
