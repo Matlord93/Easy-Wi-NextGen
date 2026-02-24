@@ -37,7 +37,7 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-agent-linux-amd64 ./cmd/agent
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o dist/easywi-sftp-linux-amd64 ./cmd/easywi-sftp
+            -o ../dist/easywi-sftp-linux-amd64 ./cmd/easywi-sftp
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-wrapper-linux-amd64 ./cmd/easywi-wrapper
 
@@ -46,18 +46,34 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-agent-windows-amd64.exe ./cmd/agent
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o dist/easywi-sftp-windows-amd64.exe ./cmd/easywi-sftp
+            -o ../dist/easywi-sftp-windows-amd64.exe ./cmd/easywi-sftp
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-wrapper-windows-amd64.exe ./cmd/easywi-wrapper
 
       - name: Validate expected binaries exist
         run: |
-          test -f ../dist/easywi-agent-linux-amd64
-          test -f ../dist/easywi-agent-windows-amd64.exe
-          test -f ../dist/easywi-sftp-linux-amd64
-          test -f ../dist/easywi-sftp-windows-amd64.exe
-          test -f ../dist/easywi-wrapper-linux-amd64
-          test -f ../dist/easywi-wrapper-windows-amd64.exe
+          required=(
+            ../dist/easywi-agent-linux-amd64
+            ../dist/easywi-agent-windows-amd64.exe
+            ../dist/easywi-sftp-linux-amd64
+            ../dist/easywi-sftp-windows-amd64.exe
+            ../dist/easywi-wrapper-linux-amd64
+            ../dist/easywi-wrapper-windows-amd64.exe
+          )
+
+          missing=0
+          for file in "${required[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "Missing expected artifact: $file" >&2
+              missing=1
+            fi
+          done
+
+          if [[ $missing -ne 0 ]]; then
+            echo "Built artifacts in ../dist:" >&2
+            ls -la ../dist >&2 || true
+            exit 1
+          fi
 
       - name: Generate checksums
         run: |
