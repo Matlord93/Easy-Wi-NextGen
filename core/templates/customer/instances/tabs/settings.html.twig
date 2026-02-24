@@ -9,7 +9,14 @@
     data-url-config-create="{{ path('customer_instance_configs_envelope_create', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_settings_api_health', {id: instance.id}) }}"
     data-url-automation="{{ path('customer_instance_settings_api_automation_update', {id: instance.id}) }}"
+    data-url-slots="{{ path('customer_instance_files_api_list', {id: instance.id}) }}"
+    data-url-access-health="{{ path('instances_access_health', {id: instance.id}) }}"
+    data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
+    data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
 >
+
+    <input type="hidden" id="slotInput" value="{{ instance.current_slots }}">
+
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
         <div class="flex items-center justify-between gap-2">
             <h3 class="text-sm font-semibold text-slate-100">{{ t('customer_instance_tab_settings', page_locale()) }}</h3>
