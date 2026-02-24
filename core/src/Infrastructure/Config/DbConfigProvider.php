@@ -11,8 +11,10 @@ final class DbConfigProvider
 {
     private const DEFAULT_DB_CONFIG_PATH = 'var/easywi/db.json';
     private const FALLBACK_DB_CONFIG_DIR = 'var/easywi';
+    private const INSTALLER_FALLBACK_DB_CONFIG_DIR = 'srv/setup/state';
 
     private string $configPath;
+    private ?string $projectDir;
 
     public function __construct(
         private readonly CryptoService $crypto,
@@ -22,6 +24,7 @@ final class DbConfigProvider
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%kernel.project_dir%')]
         ?string $projectDir = null,
     ) {
+        $this->projectDir = $projectDir;
         $this->configPath = $this->resolveConfigPath($envPath, $projectDir);
     }
 
@@ -105,28 +108,34 @@ final class DbConfigProvider
      */
     public function store(array $payload): void
     {
-        $directory = dirname($this->configPath);
-        if (!is_dir($directory) && !@mkdir($directory, 0750, true) && !is_dir($directory)) {
-            throw new \RuntimeException('Unable to create database config directory.');
-        }
-
         $encrypted = $this->crypto->encrypt($this->encodePayload($payload));
         $contents = json_encode($encrypted, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         if ($contents === false) {
             throw new \RuntimeException('Unable to encode database configuration.');
         }
 
-        $tempPath = $this->configPath . '.' . bin2hex(random_bytes(6)) . '.tmp';
-        if (file_put_contents($tempPath, $contents . "\n") === false) {
-            throw new \RuntimeException('Unable to write database configuration file.');
+        try {
+            $this->writeConfigFile($this->configPath, $contents);
+            return;
+        } catch (\RuntimeException $exception) {
+            $lastException = $exception;
         }
 
-        if (!@rename($tempPath, $this->configPath)) {
-            @unlink($tempPath);
-            throw new \RuntimeException('Unable to persist database configuration file.');
+        foreach ($this->resolveFallbackProjectPaths() as $fallbackPath) {
+            if ($fallbackPath === $this->configPath) {
+                continue;
+            }
+
+            try {
+                $this->writeConfigFile($fallbackPath, $contents);
+                $this->configPath = $fallbackPath;
+                return;
+            } catch (\RuntimeException $fallbackException) {
+                $lastException = $fallbackException;
+            }
         }
 
-        @chmod($this->configPath, 0640);
+        throw $lastException;
     }
 
     /**
@@ -173,15 +182,63 @@ final class DbConfigProvider
             return $envPath;
         }
 
-        $projectDefaultPath = $projectDir !== null
-            ? rtrim($projectDir, '/') . '/' . self::DEFAULT_DB_CONFIG_PATH
-            : self::DEFAULT_DB_CONFIG_PATH;
-
-        if (!$this->isPathWritable($projectDefaultPath) && $projectDir !== null) {
-            return rtrim($projectDir, '/') . '/' . self::FALLBACK_DB_CONFIG_DIR . '/db.json';
+        if (is_file(self::DEFAULT_DB_CONFIG_PATH) && is_readable(self::DEFAULT_DB_CONFIG_PATH)) {
+            return self::DEFAULT_DB_CONFIG_PATH;
         }
 
-        return $projectDefaultPath;
+        if ($this->isPathWritable(self::DEFAULT_DB_CONFIG_PATH)) {
+            return self::DEFAULT_DB_CONFIG_PATH;
+        }
+
+        foreach ($this->resolveFallbackProjectPaths($projectDir) as $fallbackPath) {
+            if ($this->isPathWritable($fallbackPath) || is_readable($fallbackPath)) {
+                return $fallbackPath;
+            }
+        }
+
+        foreach ($this->resolveFallbackProjectPaths($projectDir) as $fallbackPath) {
+            return $fallbackPath;
+        }
+
+        return self::DEFAULT_DB_CONFIG_PATH;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveFallbackProjectPaths(?string $projectDir = null): array
+    {
+        $projectDir = $projectDir ?? $this->projectDir;
+        if ($projectDir === null || trim($projectDir) === '') {
+            return [];
+        }
+
+        $normalized = rtrim($projectDir, '/');
+
+        return [
+            $normalized . '/' . self::FALLBACK_DB_CONFIG_DIR . '/db.json',
+            $normalized . '/' . self::INSTALLER_FALLBACK_DB_CONFIG_DIR . '/db.json',
+        ];
+    }
+
+    private function writeConfigFile(string $path, string $contents): void
+    {
+        $directory = dirname($path);
+        if (!is_dir($directory) && !@mkdir($directory, 0750, true) && !is_dir($directory)) {
+            throw new \RuntimeException('Unable to create database config directory.');
+        }
+
+        $tempPath = $path . '.' . bin2hex(random_bytes(6)) . '.tmp';
+        if (file_put_contents($tempPath, $contents . "\n") === false) {
+            throw new \RuntimeException('Unable to write database configuration file.');
+        }
+
+        if (!@rename($tempPath, $path)) {
+            @unlink($tempPath);
+            throw new \RuntimeException('Unable to persist database configuration file.');
+        }
+
+        @chmod($path, 0775);
     }
 
     private function isPathWritable(string $path): bool
