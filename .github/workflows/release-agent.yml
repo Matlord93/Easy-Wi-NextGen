@@ -37,6 +37,8 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-agent-linux-amd64 ./cmd/agent
           GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
+            -o dist/easywi-sftp-linux-amd64 ./cmd/easywi-sftp
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-wrapper-linux-amd64 ./cmd/easywi-wrapper
 
       - name: Build windows-amd64 binaries
@@ -44,12 +46,16 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-agent-windows-amd64.exe ./cmd/agent
           GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
+            -o dist/easywi-sftp-windows-amd64.exe ./cmd/easywi-sftp
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
             -o ../dist/easywi-wrapper-windows-amd64.exe ./cmd/easywi-wrapper
 
       - name: Validate expected binaries exist
         run: |
           test -f ../dist/easywi-agent-linux-amd64
           test -f ../dist/easywi-agent-windows-amd64.exe
+          test -f ../dist/easywi-sftp-linux-amd64
+          test -f ../dist/easywi-sftp-windows-amd64.exe
           test -f ../dist/easywi-wrapper-linux-amd64
           test -f ../dist/easywi-wrapper-windows-amd64.exe
 
