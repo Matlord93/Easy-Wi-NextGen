@@ -2,20 +2,43 @@
 
 {% block content %}
     <div class="space-y-6">
-        <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section class="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-6 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 class="text-xl font-semibold text-slate-900">Dateimanager</h1>
-                    <p class="text-sm text-slate-600">Agent-basierter Zugriff auf das konfigurierte Root-Verzeichnis.</p>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-200">Webspace Files</p>
+                    <h1 class="text-2xl font-semibold text-white">Dateimanager</h1>
+                    <p class="text-sm text-slate-200">Moderner Zugriff auf Dateien inkl. FTP/SFTP Anmeldedaten.</p>
                 </div>
                 <form method="post" action="{{ path('customer_files_test_connection') }}" class="flex items-center gap-2">
                     <input type="hidden" name="webspace" value="{{ selectedWebspace.id }}">
                     <input type="hidden" name="path" value="{{ currentPath }}">
-                    <button type="submit" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">
+                    <button type="submit" class="rounded-lg border border-indigo-300/40 bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20">
                         Agent prüfen
                     </button>
                 </form>
             </div>
+
+            {% if selectedWebspace %}
+                <div class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div class="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-slate-200">
+                        <p class="text-xs uppercase tracking-wide text-slate-300">Host</p>
+                        <p class="mt-1 font-mono text-white">{{ selectedWebspace.ftp_host }}</p>
+                    </div>
+                    <div class="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-slate-200">
+                        <p class="text-xs uppercase tracking-wide text-slate-300">Benutzername</p>
+                        <p class="mt-1 font-mono text-white">{{ selectedWebspace.system_username }}</p>
+                    </div>
+                    <div class="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-slate-200">
+                        <p class="text-xs uppercase tracking-wide text-slate-300">SFTP</p>
+                        <p class="mt-1 text-white">{{ selectedWebspace.sftp_enabled ? 'Aktiv (Port ' ~ selectedWebspace.sftp_port ~ ')' : 'Nicht aktiv' }}</p>
+                    </div>
+                    <div class="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-slate-200">
+                        <p class="text-xs uppercase tracking-wide text-slate-300">FTP</p>
+                        <p class="mt-1 text-white">{{ selectedWebspace.ftp_enabled ? 'Aktiv (Port ' ~ selectedWebspace.ftp_port ~ ')' : 'Nicht aktiv' }}</p>
+                    </div>
+                </div>
+                <p class="mt-3 text-xs text-slate-300">Root: <span class="font-mono">{{ selectedWebspace.root_path }}</span> · Docroot: <span class="font-mono">{{ selectedWebspace.docroot }}</span></p>
+            {% endif %}
 
             <div class="mt-4 space-y-2">
                 {% for message in app.flashes('success') %}

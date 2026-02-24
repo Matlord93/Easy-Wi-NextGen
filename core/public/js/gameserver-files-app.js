@@ -9,8 +9,7 @@
         return;
     }
 
-    const required = domMount.requiredDataset(app, [
-        'filesListUrl',
+    const filesDataset = domMount.requiredDataset(app, [
         'filesHealthUrl',
         'filesUploadUrl',
         'filesDownloadUrl',
@@ -19,15 +18,22 @@
         'filesDeleteUrl',
         'filesContentUrl',
     ]);
+    const listUrl = app.dataset.filesListUrl || app.dataset.urlSlots;
+    const missing = filesDataset.missing.slice();
+    if (!listUrl) {
+        missing.push('filesListUrl|urlSlots');
+    }
 
     const inlineErrorEl = document.getElementById('gameserver-files-inline-error');
-    if (!required.ok) {
+    if (missing.length) {
         errors.showAll(inlineErrorEl, {
             error_code: 'MOUNT_CONFIG_MISSING',
-            message: `Missing mount data: ${required.missing.join(', ')}`,
+            message: `Missing mount data: ${missing.join(', ')}`,
         });
         return;
     }
+
+    const hasAccessEndpoints = Boolean(app.dataset.urlAccessHealth && app.dataset.urlAccessReveal && app.dataset.urlAccessReset);
 
     const EDITABLE_EXTENSIONS = new Set(['cfg', 'ini', 'json', 'yaml', 'yml', 'txt', 'log', 'properties', 'conf', 'env', 'xml']);
 
@@ -50,6 +56,21 @@
     const editorErrorEl = document.getElementById('gf-editor-error');
     const editorContentEl = document.getElementById('gf-editor-content');
     const editorSaveEl = document.getElementById('gf-editor-save');
+    const accessMetaEl = document.getElementById('gf-access-meta');
+    const accessRevealEl = document.getElementById('gf-access-reveal');
+    const accessResetEl = document.getElementById('gf-access-reset');
+
+    const setAccessUnavailable = () => {
+        if (accessMetaEl) {
+            accessMetaEl.innerHTML = '<div class="text-slate-400">Access credentials are unavailable for this instance.</div>';
+        }
+        if (accessRevealEl) {
+            accessRevealEl.disabled = true;
+        }
+        if (accessResetEl) {
+            accessResetEl.disabled = true;
+        }
+    };
 
     const normalizeListing = (payload) => {
         const body = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
@@ -186,9 +207,58 @@
         }).join('');
     };
 
+
+    const setButtonBusy = (button, busy, busyLabel, idleLabel) => {
+        if (!button) {
+            return;
+        }
+        button.disabled = busy;
+        button.textContent = busy ? busyLabel : idleLabel;
+    };
+
+    const renderAccess = (credential = {}) => {
+        if (!accessMetaEl) {
+            return;
+        }
+        accessMetaEl.innerHTML = `
+            <div>Host: <span class="font-semibold">${credential.host || '—'}</span></div>
+            <div>Port: <span class="font-semibold">${credential.port || '—'}</span></div>
+            <div>User: <span class="font-semibold">${credential.username || '—'}</span></div>
+            <div>Root: <span class="font-semibold">${credential.root_path || '—'}</span></div>
+            <div>Status: <span class="font-semibold">${credential.last_error_code ? 'Needs attention' : 'Ready'}</span></div>
+            ${credential.last_error_code ? `<div class="text-rose-300">${credential.last_error_code}: ${credential.last_error_message || ''}</div>` : ''}
+        `;
+
+        if (accessRevealEl) {
+            accessRevealEl.disabled = Boolean(credential.password_revealed);
+        }
+    };
+
+    const loadAccess = async () => {
+        if (!hasAccessEndpoints) {
+            setAccessUnavailable();
+            return;
+        }
+
+        try {
+            const payload = await apiClient.request(app.dataset.urlAccessHealth);
+            const credential = payload?.data?.credential || payload?.credential || {};
+            renderAccess(credential);
+
+            if (payload?.error_code === 'sftp_provisioning_pending' && accessMetaEl) {
+                accessMetaEl.insertAdjacentHTML('beforeend', '<div class="text-amber-300">Provisioning in progress…</div>');
+            }
+        } catch (error) {
+            if (accessMetaEl) {
+                accessMetaEl.innerHTML = '<div class="text-rose-300">Access data could not be loaded.</div>';
+            }
+            errors.showAll(inlineErrorEl, error);
+        }
+    };
+
     const loadList = async (path) => {
         try {
-            const payload = await apiClient.request(`${app.dataset.filesListUrl}?path=${encodeURIComponent(path || '')}`);
+            const payload = await apiClient.request(`${listUrl}?path=${encodeURIComponent(path || '')}`);
             errors.clearInline(inlineErrorEl);
             const normalized = normalizeListing(payload);
             state.cwd = normalized.cwd;
@@ -307,6 +377,38 @@
         }
     });
 
+
+    accessRevealEl?.addEventListener('click', async () => {
+        if (!hasAccessEndpoints) {
+            return;
+        }
+        setButtonBusy(accessRevealEl, true, 'Revealing…', 'Reveal password');
+        try {
+            const payload = await apiClient.request(app.dataset.urlAccessReveal, { method: 'POST' });
+            errors.showToast({ message: `Password: ${payload.data?.password || ''}`, error_code: 'OK', request_id: payload.request_id || '' }, 10000);
+            await loadAccess();
+        } catch (error) {
+            errors.showAll(inlineErrorEl, error);
+        } finally {
+            setButtonBusy(accessRevealEl, false, 'Revealing…', 'Reveal password');
+        }
+    });
+
+    accessResetEl?.addEventListener('click', async () => {
+        if (!hasAccessEndpoints) {
+            return;
+        }
+        setButtonBusy(accessResetEl, true, 'Resetting…', 'Reset password');
+        try {
+            await apiClient.request(app.dataset.urlAccessReset, { method: 'POST' });
+            await loadAccess();
+        } catch (error) {
+            errors.showAll(inlineErrorEl, error);
+        } finally {
+            setButtonBusy(accessResetEl, false, 'Resetting…', 'Reset password');
+        }
+    });
+
     document.getElementById('gf-editor-close')?.addEventListener('click', closeEditor);
     document.getElementById('gf-editor-cancel')?.addEventListener('click', closeEditor);
     editorSaveEl?.addEventListener('click', saveEditor);
@@ -320,6 +422,7 @@
             }
             errors.clearInline(inlineErrorEl);
             await loadList('');
+            await loadAccess();
         } catch (error) {
             errors.showAll(inlineErrorEl, error);
         }

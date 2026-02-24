@@ -18,8 +18,19 @@
         return toast;
     };
 
+    const enhanceHint = (message, code) => {
+        const normalizedCode = String(code || '').toUpperCase();
+        const normalizedMessage = String(message || '').toLowerCase();
+
+        if (normalizedCode === 'CONFIG_INVALID' && normalizedMessage.includes('managed config missing')) {
+            return `${message} Hint: Add this config key/path in the Agent managed-config registry and then retry the action.`;
+        }
+
+        return message;
+    };
+
     const formatError = (error) => {
-        const message = error?.message || 'Request failed.';
+        const message = enhanceHint(error?.message || 'Request failed.', error?.error_code || 'UNKNOWN_ERROR');
         const code = error?.error_code || 'UNKNOWN_ERROR';
         const requestId = error?.request_id || '';
         const requestSuffix = requestId ? ` · request_id=${requestId}` : '';

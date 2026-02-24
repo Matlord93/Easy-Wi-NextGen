@@ -2399,3 +2399,23 @@ html:not(.dark) {
         justify-content: center;
     }
 }
+
+.customer-section-gradient {
+    position: relative;
+}
+
+.customer-section-gradient::before {
+    content: "";
+    position: absolute;
+    inset: -12px -12px auto -12px;
+    height: 180px;
+    border-radius: 20px;
+    background: radial-gradient(circle at 20% 20%, rgba(99,102,241,0.2), transparent 55%), radial-gradient(circle at 80% 0, rgba(56,189,248,0.16), transparent 45%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.customer-section-gradient > * {
+    position: relative;
+    z-index: 1;
+}

@@ -79,6 +79,11 @@ final class CustomerGameserverFilesController
                 'href' => $this->urlGenerator->generate('customer_instance_backups_page', ['id' => $instanceId]),
             ],
             [
+                'key' => 'addons',
+                'label' => 'customer_instance_tab_addons',
+                'href' => $this->urlGenerator->generate('customer_instance_addons_page', ['id' => $instanceId]),
+            ],
+            [
                 'key' => 'tasks',
                 'label' => 'customer_instance_tab_tasks',
                 'href' => $this->urlGenerator->generate('customer_instance_tasks_page', ['id' => $instanceId]),
@@ -87,6 +92,11 @@ final class CustomerGameserverFilesController
                 'key' => 'settings',
                 'label' => 'customer_instance_tab_settings',
                 'href' => $this->urlGenerator->generate('customer_instance_settings_page', ['id' => $instanceId]),
+            ],
+            [
+                'key' => 'reinstall',
+                'label' => 'customer_instance_tab_reinstall',
+                'href' => $this->urlGenerator->generate('customer_instance_reinstall_page', ['id' => $instanceId]),
             ],
         ];
     }

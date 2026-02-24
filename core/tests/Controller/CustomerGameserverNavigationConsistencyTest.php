@@ -31,4 +31,19 @@ final class CustomerGameserverNavigationConsistencyTest extends TestCase
         self::assertStringContainsString('href="{{ tab.href }}"', $template);
         self::assertStringNotContainsString("path('customer_instance_detail', {id: instance.id, tab:", $template);
     }
+
+    public function testFilesDashboardNavigationContainsSamePrimaryTabs(): void
+    {
+        $controller = file_get_contents(__DIR__.'/../../src/Module/Gameserver/UI/Controller/Customer/CustomerGameserverFilesController.php');
+        self::assertIsString($controller);
+
+        self::assertStringContainsString("generate('customer_instance_overview_page'", $controller);
+        self::assertStringContainsString("generate('customer_instance_console_page'", $controller);
+        self::assertStringContainsString("generate('customer_instance_files'", $controller);
+        self::assertStringContainsString("generate('customer_instance_backups_page'", $controller);
+        self::assertStringContainsString("generate('customer_instance_addons_page'", $controller);
+        self::assertStringContainsString("generate('customer_instance_tasks_page'", $controller);
+        self::assertStringContainsString("generate('customer_instance_settings_page'", $controller);
+        self::assertStringContainsString("generate('customer_instance_reinstall_page'", $controller);
+    }
 }

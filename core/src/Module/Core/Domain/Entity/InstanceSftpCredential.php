@@ -87,6 +87,17 @@ class InstanceSftpCredential
         return $this->username;
     }
 
+    public function setUsername(string $username): void
+    {
+        $normalized = trim($username);
+        if ($normalized === '') {
+            return;
+        }
+
+        $this->username = $normalized;
+        $this->touch();
+    }
+
     /**
      * @return array{key_id: string, nonce: string, ciphertext: string}
      */

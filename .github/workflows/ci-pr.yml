@@ -72,14 +72,16 @@ jobs:
           cache: true
           cache-dependency-path: agent/go.sum
 
-      - name: Build linux-amd64
+      - name: Build linux-amd64 artifacts
         run: |
           mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w"             -o dist/easywi-agent-linux-amd64 ./cmd/agent
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/easywi-agent-linux-amd64 ./cmd/agent
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/easywi-sftp-linux-amd64 ./cmd/easywi-sftp
 
-      - name: Build windows-amd64
+      - name: Build windows-amd64 artifacts
         run: |
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w"             -o dist/easywi-agent-windows-amd64.exe ./cmd/agent
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/easywi-agent-windows-amd64.exe ./cmd/agent
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/easywi-sftp-windows-amd64.exe ./cmd/easywi-sftp
 
   installer:
     name: Installer - lint

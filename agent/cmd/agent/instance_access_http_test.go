@@ -48,6 +48,35 @@ func TestMapAccessErr(t *testing.T) {
 	}
 }
 
+func TestLinuxPackagesForDistro(t *testing.T) {
+	tests := []struct {
+		name string
+		osID string
+		like string
+		want []string
+	}{
+		{
+			name: "debian like distro uses crypto module",
+			osID: "ubuntu",
+			want: []string{"proftpd-basic", "proftpd-mod-crypto"},
+		},
+		{
+			name: "rhel like distro keeps mod_sftp package",
+			osID: "rocky",
+			want: []string{"proftpd", "proftpd-utils", "proftpd-mod_sftp"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := linuxPackagesForDistro(tc.osID, tc.like)
+			if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Fatalf("linuxPackagesForDistro(%q,%q)=%v, want %v", tc.osID, tc.like, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCapabilitiesEndpoint(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/v1/access/capabilities", nil)
 	w := httptest.NewRecorder()

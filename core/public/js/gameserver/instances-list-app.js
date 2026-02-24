@@ -17,6 +17,14 @@
     const baseInterval = Number(root.dataset.pollBaseMs || 12000);
     const backoffSteps = [baseInterval, 30000, 60000];
 
+    const labels = {
+        queryUnsupported: root.dataset.labelQueryUnsupported || 'Unsupported',
+        queryUnknown: root.dataset.labelQueryUnknown || 'Unknown',
+        queryPlayerUnknown: root.dataset.labelQueryPlayerUnknown || 'Unknown',
+        powerWorking: root.dataset.labelPowerWorking || 'Working…',
+        powerQueued: root.dataset.labelPowerQueued || 'Power action queued',
+    };
+
     const cards = Array.from(root.querySelectorAll('[data-instance-card]')).map((card) => ({
         el: card,
         id: card.dataset.instanceId,
@@ -76,7 +84,7 @@
     const applyQuery = (cardState, query = {}) => {
         const supported = query.supported !== false;
         if (!supported) {
-            setStatusBadge(cardState, 'Unsupported', statusClass('unsupported'));
+            setStatusBadge(cardState, labels.queryUnsupported, statusClass('unsupported'));
             const unsupported = cardState.el.querySelector('[data-query-unsupported]');
             if (unsupported) unsupported.classList.remove('hidden');
             cardState.failCount = 0;
@@ -90,7 +98,7 @@
         const lastQuery = query.last_query_at || query.checked_at || query.debug?.last_query_at;
 
         setStatusBadge(cardState, status, statusClass(status));
-        cardState.el.querySelector('[data-query-players]')?.replaceChildren(document.createTextNode(Number.isFinite(players) && Number.isFinite(maxPlayers) && maxPlayers > 0 ? `${players} / ${maxPlayers}` : 'Unknown'));
+        cardState.el.querySelector('[data-query-players]')?.replaceChildren(document.createTextNode(Number.isFinite(players) && Number.isFinite(maxPlayers) && maxPlayers > 0 ? `${players} / ${maxPlayers}` : labels.queryPlayerUnknown));
         cardState.el.querySelector('[data-query-map]')?.replaceChildren(document.createTextNode(query.map || '—'));
         cardState.el.querySelector('[data-query-latency]')?.replaceChildren(document.createTextNode(query.latency_ms != null ? `${query.latency_ms} ms` : '—'));
         cardState.el.querySelector('[data-query-checked]')?.replaceChildren(document.createTextNode(fmtDate(lastQuery)));
@@ -113,7 +121,7 @@
     const applyFailureBackoff = (cardState, error) => {
         cardState.failCount += 1;
         if (cardState.failCount >= 3) {
-            setStatusBadge(cardState, 'Unknown', statusClass('unknown'));
+            setStatusBadge(cardState, labels.queryUnknown, statusClass('unknown'));
             cardState.nextDelay = cardState.failCount >= 5 ? backoffSteps[2] : backoffSteps[1];
         }
         errors.showAll(inlineError, error);
@@ -148,14 +156,14 @@
     const sendPower = async (cardState, action, button) => {
         const oldLabel = button.textContent;
         button.disabled = true;
-        button.textContent = 'Working…';
+        button.textContent = labels.powerWorking;
         try {
             const payload = await apiClient.request(cardState.powerUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action }),
             });
-            errors.showToast({ message: `Power action queued: ${action}`, error_code: 'OK', request_id: payload.request_id || '' }, 2000);
+            errors.showToast({ message: `${labels.powerQueued}: ${action}`, error_code: 'OK', request_id: payload.request_id || '' }, 2000);
             cardState.failCount = 0;
             cardState.nextDelay = backoffSteps[0];
             window.clearTimeout(cardState.timer);

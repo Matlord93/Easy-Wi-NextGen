@@ -48,6 +48,87 @@ function Normalize-Url {
     return $Url.Trim().TrimEnd('/')
 }
 
+function Get-RandomHex {
+    param([int]$Length = 64)
+    $bytes = New-Object byte[] ([Math]::Ceiling($Length / 2))
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    (($bytes | ForEach-Object { $_.ToString('x2') }) -join '').Substring(0, $Length)
+}
+
+function Run-PanelSetup {
+    param(
+        [string]$Mode,
+        [string]$InstallDir,
+        [string]$RepoUrl,
+        [string]$RepoRef,
+        [string]$DbDriver,
+        [string]$DbHost,
+        [string]$DbPort,
+        [string]$DbName,
+        [string]$DbUser,
+        [string]$DbPassword,
+        [string]$AppSecret
+    )
+
+    Write-Log "Starte Windows Panel-Vorbereitung ($Mode)."
+    Ensure-Directory -Path $InstallDir
+
+    if (Test-Path (Join-Path $InstallDir '.git')) {
+        Write-Log 'Repository vorhanden, aktualisiere…'
+        git -C $InstallDir fetch --all --tags
+        git -C $InstallDir checkout $RepoRef
+        git -C $InstallDir pull --ff-only
+    } else {
+        if ((Get-ChildItem -Force -ErrorAction SilentlyContinue $InstallDir | Measure-Object).Count -gt 0) {
+            throw "Installationsverzeichnis ist nicht leer und kein Git-Repository: $InstallDir"
+        }
+        Write-Log "Clone $RepoUrl ($RepoRef)"
+        git clone $RepoUrl $InstallDir
+        git -C $InstallDir checkout $RepoRef
+    }
+
+    $coreDir = Join-Path $InstallDir 'core'
+    if (-not (Test-Path $coreDir)) {
+        throw "Core-Verzeichnis fehlt: $coreDir"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($AppSecret)) {
+        $AppSecret = Get-RandomHex -Length 64
+    }
+
+    $dbUri = if ([string]::IsNullOrWhiteSpace($DbPort)) {
+        "${DbDriver}://${DbUser}`:${DbPassword}@${DbHost}/${DbName}"
+    } else {
+        "${DbDriver}://${DbUser}`:${DbPassword}@${DbHost}`:${DbPort}/${DbName}"
+    }
+
+    $envLocalPath = Join-Path $coreDir '.env.local'
+    @(
+        'APP_ENV=prod',
+        "APP_SECRET=$AppSecret",
+        'TRUSTED_PROXIES=127.0.0.1',
+        "DATABASE_URL=$dbUri"
+    ) | Set-Content -Path $envLocalPath -Encoding UTF8
+
+    $infoPath = Join-Path $InstallDir 'INSTALLATION_INFO_WINDOWS.txt'
+    @(
+        'EasyWI Windows Panel Vorbereitung',
+        '=================================',
+        "InstallDir: $InstallDir",
+        "Repo: $RepoUrl@$RepoRef",
+        "DB: $DbDriver $DbHost $DbName",
+        '',
+        'Nächste Schritte:',
+        '1) PHP + Composer installieren',
+        '2) Im core-Verzeichnis `composer install` ausführen',
+        '3) `php bin/console doctrine:migrations:migrate --no-interaction` ausführen',
+        '4) Webserver (IIS/Nginx/Apache) auf core/public zeigen lassen'
+    ) | Set-Content -Path $infoPath -Encoding UTF8
+
+    Write-Log "Fertig. .env.local wurde erstellt: $envLocalPath"
+    Write-Log "Hinweise gespeichert: $infoPath"
+}
+
 function Get-Sha256Hex {
     param([string]$Input)
     $sha = [System.Security.Cryptography.SHA256]::Create()
@@ -94,6 +175,23 @@ function Download-ReleaseAsset {
     }
     Write-Log "Lade $AssetName von $url"
     Invoke-WebRequest -Uri $url -OutFile $TargetPath
+}
+
+
+function Try-DownloadReleaseAsset {
+    param(
+        [string]$Version,
+        [string]$AssetName,
+        [string]$TargetPath
+    )
+
+    try {
+        Download-ReleaseAsset -Version $Version -AssetName $AssetName -TargetPath $TargetPath
+        return $true
+    } catch {
+        Write-Log "Optionales Asset nicht verfügbar: $AssetName"
+        return $false
+    }
 }
 
 function Register-Agent {
@@ -169,26 +267,12 @@ function Run-PanelInstall {
     $dbPassword = Read-Optional -Prompt 'DB-Passwort' -Default ''
     $appSecret = Read-Optional -Prompt 'APP_SECRET (leer = automatisch)' -Default ''
 
-    $panelArgs = @(
-        '-Mode', $mode,
-        '-InstallDir', $installDir,
-        '-RepoUrl', $repoUrl,
-        '-RepoRef', $repoRef,
-        '-DbDriver', $dbDriver,
-        '-DbHost', $dbHost,
-        '-DbName', $dbName,
-        '-DbUser', $dbUser
-    )
-    if (-not [string]::IsNullOrWhiteSpace($dbPort)) { $panelArgs += @('-DbPort', $dbPort) }
-    if (-not [string]::IsNullOrWhiteSpace($dbPassword)) { $panelArgs += @('-DbPassword', $dbPassword) }
-    if (-not [string]::IsNullOrWhiteSpace($appSecret)) { $panelArgs += @('-AppSecret', $appSecret) }
-
-    & "$ScriptDir\easywi-installer-panel-windows.ps1" @panelArgs
+    Run-PanelSetup -Mode $mode -InstallDir $installDir -RepoUrl $repoUrl -RepoRef $repoRef -DbDriver $dbDriver -DbHost $dbHost -DbPort $dbPort -DbName $dbName -DbUser $dbUser -DbPassword $dbPassword -AppSecret $appSecret
 }
 
 function Run-AgentInstall {
     Write-Host ''
-    Write-Host 'Agent-Setup: Wir laden Agent/SFTP-Binaries, registrieren den Agenten und installieren Windows-Services.'
+    Write-Host 'Agent-Setup: Wir laden Agent (und optional easywi-sftp), registrieren den Agenten und installieren Windows-Services.'
     $coreUrl = Read-Optional -Prompt 'Core API URL' -Default $env:EASYWI_CORE_URL
     if ([string]::IsNullOrWhiteSpace($coreUrl)) { $coreUrl = 'https://api.easywi.example' }
     $bootstrapToken = Read-Optional -Prompt 'Bootstrap Token' -Default $env:EASYWI_BOOTSTRAP_TOKEN
@@ -196,9 +280,10 @@ function Run-AgentInstall {
     $installDir = Read-Optional -Prompt 'Agent Installationsverzeichnis' -Default 'C:\easywi\agent'
     $configPath = Read-Optional -Prompt 'Agent Config Pfad' -Default 'C:\ProgramData\easywi\agent.conf'
     $serviceName = Read-Optional -Prompt 'Service-Name (Agent)' -Default 'easywi-agent'
-    $sftpServiceName = Read-Optional -Prompt 'Service-Name (SFTP)' -Default 'EasyWI-SFTP'
     $fileBaseDirs = Read-Optional -Prompt 'File Base Directories (comma separated)' -Default 'C:\home,C:\inetpub\wwwroot'
     $instanceBaseDir = Read-Optional -Prompt 'Instance Base Directory' -Default 'C:\home'
+    $installEmbeddedSftp = Read-Optional -Prompt 'Embedded easywi-sftp zusätzlich installieren? (yes/no)' -Default 'yes'
+    $sftpServiceName = Read-Optional -Prompt 'Service-Name (SFTP)' -Default 'EasyWI-SFTP'
     $sftpBaseDir = Read-Optional -Prompt 'SFTP Base Directory' -Default 'C:\ProgramData\EasyWI\sftp'
 
     if ([string]::IsNullOrWhiteSpace($coreUrl) -or [string]::IsNullOrWhiteSpace($bootstrapToken)) {
@@ -210,7 +295,14 @@ function Run-AgentInstall {
     $sftpConfigPath = Join-Path $sftpBaseDir 'config.json'
 
     Download-ReleaseAsset -Version $agentVersion -AssetName 'easywi-agent-windows-amd64.exe' -TargetPath $agentPath
-    Download-ReleaseAsset -Version $agentVersion -AssetName 'easywi-sftp-windows-amd64.exe' -TargetPath $sftpPath
+    $enableSftpService = $installEmbeddedSftp -match '^(1|y|yes|true)$'
+    if ($enableSftpService) {
+        $downloadedSftp = Try-DownloadReleaseAsset -Version $agentVersion -AssetName 'easywi-sftp-windows-amd64.exe' -TargetPath $sftpPath
+        if (-not $downloadedSftp) {
+            Write-Log 'easywi-sftp konnte nicht heruntergeladen werden, Agent wird ohne separaten SFTP-Service installiert.'
+        }
+    }
+
     Register-Agent -CoreUrl $coreUrl -BootstrapToken $bootstrapToken -AgentVersion $agentVersion -ConfigPath $configPath -FileBaseDirs $fileBaseDirs
 
     & "$ScriptDir\windows-agent\install-service.ps1" `

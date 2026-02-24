@@ -535,7 +535,7 @@ final class CustomerFileManagerController extends AbstractController
     }
 
     /**
-     * @return array<int, array{id: int, domain: string, system_username: string}>
+     * @return array<int, array{id: int, domain: string, system_username: string, ftp_enabled: bool, sftp_enabled: bool, ftp_host: string, ftp_port: int, sftp_port: int, root_path: string, docroot: string}>
      */
     private function normalizeWebspaces(array $webspaces): array
     {
@@ -543,14 +543,23 @@ final class CustomerFileManagerController extends AbstractController
     }
 
     /**
-     * @return array{id: int, domain: string, system_username: string}
+     * @return array{id: int, domain: string, system_username: string, ftp_enabled: bool, sftp_enabled: bool, ftp_host: string, ftp_port: int, sftp_port: int, root_path: string, docroot: string}
      */
     private function normalizeWebspace(\App\Module\Core\Domain\Entity\Webspace $webspace): array
     {
+        $host = $webspace->getDomain() !== '' ? $webspace->getDomain() : ($webspace->getNode()->getName() ?? $webspace->getNode()->getId());
+
         return [
             'id' => $webspace->getId(),
             'domain' => $webspace->getDomain(),
             'system_username' => $webspace->getSystemUsername(),
+            'ftp_enabled' => $webspace->isFtpEnabled(),
+            'sftp_enabled' => $webspace->isSftpEnabled(),
+            'ftp_host' => $host,
+            'ftp_port' => 21,
+            'sftp_port' => 22,
+            'root_path' => $webspace->getPath(),
+            'docroot' => $webspace->getDocroot(),
         ];
     }
 

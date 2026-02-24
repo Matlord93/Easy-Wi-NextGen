@@ -292,7 +292,7 @@ func detectLinuxDistribution() (string, string) {
 func linuxPackagesForDistro(osID, like string) []string {
 	joined := osID + " " + like
 	if strings.Contains(joined, "debian") || strings.Contains(joined, "ubuntu") {
-		return []string{"proftpd-basic", "proftpd-mod-sftp"}
+		return []string{"proftpd-basic", "proftpd-mod-crypto"}
 	}
 	if strings.Contains(joined, "rhel") || strings.Contains(joined, "centos") || strings.Contains(joined, "fedora") || strings.Contains(joined, "rocky") || strings.Contains(joined, "almalinux") {
 		return []string{"proftpd", "proftpd-utils", "proftpd-mod_sftp"}
@@ -320,7 +320,10 @@ func installLinuxPackages(packages []string) error {
 		}
 		args := append([]string{"install", "-y"}, packages...)
 		if out, err := runCommandLogged("apt-get", args...); err != nil {
-			return fmt.Errorf("PACKAGE_INSTALL_FAILED: %s", strings.TrimSpace(out))
+			fallback := []string{"install", "-y", "proftpd-basic"}
+			if out2, err2 := runCommandLogged("apt-get", fallback...); err2 != nil {
+				return fmt.Errorf("PACKAGE_INSTALL_FAILED: %s | %s", strings.TrimSpace(out), strings.TrimSpace(out2))
+			}
 		}
 		return nil
 	}

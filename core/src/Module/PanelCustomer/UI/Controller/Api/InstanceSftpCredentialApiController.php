@@ -90,6 +90,7 @@ final class InstanceSftpCredentialApiController
                     );
                 } else {
                     $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+                    $credential->setUsername(is_string($data['username'] ?? null) ? (string) $data['username'] : $username);
                     $credential->setBackend(is_string($data['backend'] ?? null) ? (string) $data['backend'] : 'NONE');
                     $credential->setHost(is_string($data['host'] ?? null) ? (string) $data['host'] : null);
                     $credential->setPort(is_numeric($data['port'] ?? null) ? (int) $data['port'] : null);
@@ -208,6 +209,7 @@ final class InstanceSftpCredentialApiController
             $credential->setExpiresAt($expiresAt);
             $credential->setRevealedAt(null);
             $agentData = is_array($agentResponse['data'] ?? null) ? $agentResponse['data'] : [];
+            $credential->setUsername(is_string($agentData['username'] ?? null) ? (string) $agentData['username'] : $username);
             $credential->setBackend(is_string($agentData['backend'] ?? null) ? (string) $agentData['backend'] : $credential->getBackend());
             $credential->setHost(is_string($agentData['host'] ?? null) ? (string) $agentData['host'] : $credential->getHost());
             $credential->setPort(is_numeric($agentData['port'] ?? null) ? (int) $agentData['port'] : $credential->getPort());
@@ -421,6 +423,7 @@ final class InstanceSftpCredentialApiController
         }
 
         $data = is_array($health['data'] ?? null) ? $health['data'] : [];
+        $credential->setUsername(is_string($data['username'] ?? null) ? (string) $data['username'] : $credential->getUsername());
         $credential->setBackend(is_string($data['backend'] ?? null) ? (string) $data['backend'] : 'NONE');
         $credential->setHost(is_string($data['host'] ?? null) ? (string) $data['host'] : $credential->getHost());
         $credential->setPort(is_numeric($data['port'] ?? null) ? (int) $data['port'] : $credential->getPort());

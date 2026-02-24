@@ -7,12 +7,8 @@
     data-url-config-save="{{ path('customer_instance_configs_envelope_update', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
     data-url-config-apply="{{ path('customer_instance_configs_envelope_apply', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
     data-url-config-create="{{ path('customer_instance_configs_envelope_create', {id: instance.id}) }}"
-    data-url-slots="{{ path('customer_instance_slots_update', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_settings_api_health', {id: instance.id}) }}"
     data-url-automation="{{ path('customer_instance_settings_api_automation_update', {id: instance.id}) }}"
-    data-url-access-health="{{ path('instances_access_health', {id: instance.id}) }}"
-    data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
-    data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
 >
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
         <div class="flex items-center justify-between gap-2">
@@ -48,14 +44,6 @@
                 <button type="button" id="gs-settings-save" class="ui-button ui-button--primary">Save</button>
                 <button type="button" id="gs-settings-apply" class="ui-button ui-button--ghost">Apply</button>
             </div>
-        </div>
-    </div>
-
-    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
-        <h4 class="text-xs font-semibold uppercase text-slate-300">Slots</h4>
-        <div class="mt-3 flex items-center gap-2">
-            <input id="gs-settings-slots" type="number" min="1" class="w-40 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100" placeholder="Slots">
-            <button id="gs-settings-slots-save" type="button" class="ui-button ui-button--primary">Update slots</button>
         </div>
     </div>
 
@@ -104,17 +92,6 @@
         </div>
     </div>
 
-    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
-        <h4 class="text-xs font-semibold uppercase text-slate-300">Access (SFTP/FTP)</h4>
-        <p class="mt-1 text-xs text-slate-400">Password is shown only once. Save it securely.</p>
-        <div id="gs-access-meta" class="mt-3 space-y-1 text-xs text-slate-200">
-            <div>Loading access metadata…</div>
-        </div>
-        <div class="mt-3 flex flex-wrap gap-2">
-            <button type="button" id="gs-access-reveal" class="ui-button ui-button--ghost">Reveal password</button>
-            <button type="button" id="gs-access-reset" class="ui-button ui-button--primary">Reset password</button>
-        </div>
-    </div>
 </div>
 
 <script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>

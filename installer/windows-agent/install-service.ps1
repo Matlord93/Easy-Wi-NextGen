@@ -31,7 +31,6 @@ function Ensure-Directory {
     }
 }
 
-
 function Set-ServiceEnvironment {
     param(
         [string]$NssmExe,
@@ -98,4 +97,6 @@ if (Test-Path -Path $SftpPath) {
     }
     Start-Service -Name $SftpServiceName
     Write-Host "[easywi-agent] Service installed: $SftpServiceName"
+} else {
+    Write-Host "[easywi-agent] SFTP binary not found, skipping dedicated SFTP service installation."
 }

@@ -78,7 +78,23 @@ detect_package_manager() {
     echo "apt"
     return
   fi
-  fatal "Dieses Skript unterstützt derzeit nur apt-basierte Distributionen (Debian/Ubuntu)."
+  if command -v dnf >/dev/null 2>&1; then
+    echo "dnf"
+    return
+  fi
+  if command -v yum >/dev/null 2>&1; then
+    echo "yum"
+    return
+  fi
+  if command -v zypper >/dev/null 2>&1; then
+    echo "zypper"
+    return
+  fi
+  if command -v pacman >/dev/null 2>&1; then
+    echo "pacman"
+    return
+  fi
+  fatal "Kein unterstützter Paketmanager gefunden (apt, dnf, yum, zypper, pacman)."
 }
 
 apt_update_once() {
@@ -99,7 +115,7 @@ resolve_php_version() {
   local resolved=""
   local extracted=""
 
-  extracted="$(printf '%s' "${requested}" | tr -d '\r' | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1 || true)"
+  extracted="$(printf '%s' "${requested}" | tr -d '\\r' | grep -oE '[0-9]+(\\.[0-9]+)?' | head -n1 || true)"
   if [[ -z "${extracted}" ]]; then
     requested="${DEFAULT_PHP_VERSION}"
   else
@@ -130,6 +146,10 @@ resolve_php_version() {
         log "Verwende PHP ${resolved} statt ${requested}."
       fi
     fi
+  else
+    if [[ ! "${requested}" =~ ^8\.(4|3|2|1|0)$ ]]; then
+      log "Hinweis: Für ${manager} wird ein distributionsabhängiges PHP-Paket genutzt, Versionssuffix wird ignoriert."
+    fi
   fi
 
   echo "${resolved}"
@@ -148,20 +168,19 @@ install_packages() {
   case "${manager}" in
     apt)
       apt_update_once
-      local missing_packages=()
-      local package
-      for package in "${packages[@]}"; do
-        if [[ -z "${package}" ]]; then
-          continue
-        fi
-        if ! package_exists_apt "${package}"; then
-          missing_packages+=("${package}")
-        fi
-      done
-      if [[ "${#missing_packages[@]}" -gt 0 ]]; then
-        fatal "Folgende Pakete sind nicht verfügbar: ${missing_packages[*]}"
-      fi
       DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" 1>&2
+      ;;
+    dnf)
+      dnf install -y "${packages[@]}" 1>&2
+      ;;
+    yum)
+      yum install -y "${packages[@]}" 1>&2
+      ;;
+    zypper)
+      zypper --non-interactive install --no-confirm "${packages[@]}" 1>&2
+      ;;
+    pacman)
+      pacman -Sy --noconfirm --needed "${packages[@]}" 1>&2
       ;;
     *)
       fatal "Unbekannter Paketmanager: ${manager}"
@@ -229,6 +248,78 @@ ensure_service_enabled() {
   if systemctl list-unit-files "${service}" >/dev/null 2>&1; then
     systemctl enable --now "${service}"
   fi
+}
+
+resolve_panel_package_sets() {
+  local manager="$1"
+  local php_version="$2"
+  local db_system="$3"
+
+  PANEL_BASE_PACKAGES=()
+  PANEL_PHP_PACKAGES=()
+  PANEL_DB_PACKAGES=()
+  PANEL_PHP_DB_PACKAGES=()
+  PANEL_PHP_FPM_SERVICE=""
+  PANEL_DB_SERVICES=()
+
+  case "${manager}" in
+    apt)
+      PANEL_BASE_PACKAGES=(ca-certificates curl git unzip nginx openssl jq)
+      PANEL_PHP_PACKAGES=(
+        "php${php_version}" "php${php_version}-fpm" "php${php_version}-cli"
+        "php${php_version}-mbstring" "php${php_version}-xml" "php${php_version}-curl"
+        "php${php_version}-zip" "php${php_version}-gd" "php${php_version}-intl"
+        "php${php_version}-bcmath" "php${php_version}-opcache"
+      )
+      PANEL_PHP_FPM_SERVICE="php${php_version}-fpm.service"
+      ;;
+    dnf|yum)
+      PANEL_BASE_PACKAGES=(ca-certificates curl git unzip nginx openssl jq)
+      PANEL_PHP_PACKAGES=(php php-fpm php-cli php-mbstring php-xml php-curl php-zip php-gd php-intl php-bcmath php-opcache)
+      PANEL_PHP_FPM_SERVICE="php-fpm.service"
+      ;;
+    zypper)
+      PANEL_BASE_PACKAGES=(ca-certificates curl git unzip nginx openssl jq)
+      PANEL_PHP_PACKAGES=(php8 php8-fpm php8-cli php8-mbstring php8-xmlwriter php8-curl php8-zip php8-gd php8-intl php8-bcmath php8-opcache)
+      PANEL_PHP_FPM_SERVICE="php-fpm.service"
+      ;;
+    pacman)
+      PANEL_BASE_PACKAGES=(ca-certificates curl git unzip nginx openssl jq)
+      PANEL_PHP_PACKAGES=(php php-fpm)
+      PANEL_PHP_FPM_SERVICE="php-fpm.service"
+      ;;
+    *)
+      fatal "Keine Paketdefinitionen für Paketmanager ${manager} vorhanden."
+      ;;
+  esac
+
+  case "${db_system}" in
+    mariadb)
+      case "${manager}" in
+        apt) PANEL_DB_PACKAGES=(mariadb-server mariadb-client); PANEL_PHP_DB_PACKAGES=("php${php_version}-mysql");;
+        dnf|yum|zypper|pacman) PANEL_DB_PACKAGES=(mariadb); PANEL_PHP_DB_PACKAGES=(php-mysqlnd);;
+      esac
+      PANEL_DB_SERVICES=(mariadb.service mysql.service)
+      ;;
+    mysql)
+      case "${manager}" in
+        apt) PANEL_DB_PACKAGES=(mysql-server mysql-client); PANEL_PHP_DB_PACKAGES=("php${php_version}-mysql");;
+        dnf|yum) PANEL_DB_PACKAGES=(mysql-server); PANEL_PHP_DB_PACKAGES=(php-mysqlnd);;
+        zypper) PANEL_DB_PACKAGES=(mariadb); PANEL_PHP_DB_PACKAGES=(php8-mysql);;
+        pacman) PANEL_DB_PACKAGES=(mariadb); PANEL_PHP_DB_PACKAGES=(php-mysqlnd);;
+      esac
+      PANEL_DB_SERVICES=(mysql.service mariadb.service)
+      ;;
+    postgresql)
+      case "${manager}" in
+        apt) PANEL_DB_PACKAGES=(postgresql postgresql-contrib); PANEL_PHP_DB_PACKAGES=("php${php_version}-pgsql");;
+        dnf|yum) PANEL_DB_PACKAGES=(postgresql postgresql-server); PANEL_PHP_DB_PACKAGES=(php-pgsql);;
+        zypper) PANEL_DB_PACKAGES=(postgresql postgresql-server); PANEL_PHP_DB_PACKAGES=(php8-pgsql);;
+        pacman) PANEL_DB_PACKAGES=(postgresql); PANEL_PHP_DB_PACKAGES=(php-pgsql);;
+      esac
+      PANEL_DB_SERVICES=(postgresql.service)
+      ;;
+  esac
 }
 
 enable_universe_repo() {
@@ -698,48 +789,20 @@ install_panel() {
   enable_universe_repo "${pkg_manager}"
   php_version="$(resolve_php_version "${php_version}" "${pkg_manager}")"
 
-  local base_packages=(ca-certificates curl git unzip nginx openssl jq)
-  local php_packages=(
-    "php${php_version}" "php${php_version}-fpm" "php${php_version}-cli"
-    "php${php_version}-mbstring" "php${php_version}-xml" "php${php_version}-curl"
-    "php${php_version}-zip" "php${php_version}-gd" "php${php_version}-intl"
-    "php${php_version}-bcmath" "php${php_version}-opcache"
-  )
-  local db_packages=()
-  local php_db_packages=()
+  resolve_panel_package_sets "${pkg_manager}" "${php_version}" "${db_system}"
 
-  case "${db_system}" in
-    mariadb)
-      db_packages=(mariadb-server mariadb-client)
-      php_db_packages=("php${php_version}-mysql")
-      ;;
-    mysql)
-      db_packages=(mysql-server mysql-client)
-      php_db_packages=("php${php_version}-mysql")
-      ;;
-    postgresql)
-      db_packages=(postgresql postgresql-contrib)
-      php_db_packages=("php${php_version}-pgsql")
-      ;;
-  esac
-
-  install_packages "${pkg_manager}" "${base_packages[@]}" "${php_packages[@]}" "${php_db_packages[@]}" "${db_packages[@]}"
+  install_packages "${pkg_manager}" "${PANEL_BASE_PACKAGES[@]}" "${PANEL_PHP_PACKAGES[@]}" "${PANEL_PHP_DB_PACKAGES[@]}" "${PANEL_DB_PACKAGES[@]}"
 
   local php_bin
   php_bin="$(resolve_php_binary "${php_version}")"
   install_composer "${php_bin}"
 
-  ensure_service_enabled "php${php_version}-fpm.service"
+  ensure_service_enabled "${PANEL_PHP_FPM_SERVICE}"
   ensure_service_enabled nginx.service
-  case "${db_system}" in
-    mariadb|mysql)
-      ensure_service_enabled mariadb.service
-      ensure_service_enabled mysql.service
-      ;;
-    postgresql)
-      ensure_service_enabled postgresql.service
-      ;;
-  esac
+  local db_service
+  for db_service in "${PANEL_DB_SERVICES[@]}"; do
+    ensure_service_enabled "${db_service}"
+  done
 
   ensure_system_user "${system_user}" "${install_dir}"
 
