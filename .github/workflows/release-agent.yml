@@ -81,7 +81,7 @@ jobs:
       - name: Prepare release assets
         id: release_assets
         run: |
-          files="dist/easywi-agent-*"$'\n'"dist/easywi-wrapper-*"$'\n'"dist/checksums.txt"
+          files="dist/easywi-agent-*"$'\n'"dist/easywi-sftp-*"$'\n'"dist/easywi-wrapper-*"$'\n'"dist/checksums.txt"
           if [[ -f ../dist/checksums.txt.asc ]]; then
             files="$files"$'\n'"dist/checksums.txt.asc"
           fi
