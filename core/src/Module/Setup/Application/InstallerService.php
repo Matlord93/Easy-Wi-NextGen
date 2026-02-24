@@ -22,6 +22,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Component\Process\PhpExecutableFinder;
 
 final class InstallerService
 {
@@ -420,9 +421,15 @@ final class InstallerService
         $connectionParams = $entityManager->getConnection()->getParams();
         $this->waitForDatabaseReady($connectionParams);
 
-        $result = $this->runInstallerCommand(
-            'php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration',
-        );
+        $phpExecutable = $this->resolvePhpExecutableForMigrations();
+
+        $result = $this->runInstallerCommand([
+            $phpExecutable,
+            'bin/console',
+            'doctrine:migrations:migrate',
+            '--no-interaction',
+            '--allow-no-migration',
+        ]);
 
         if ($result['exitCode'] !== 0) {
             $this->logger->error('Installer migration command failed.', [
@@ -460,6 +467,59 @@ final class InstallerService
     /**
      * @param array<string, mixed> $connectionParams
      */
+
+    private function resolvePhpExecutableForMigrations(): string
+    {
+        $candidates = [];
+
+        foreach (['EASYWI_PHP_BIN', 'PHP_CLI_BIN'] as $envKey) {
+            $value = trim((string) getenv($envKey));
+            if ($value !== '') {
+                $candidates[] = $value;
+            }
+        }
+
+        if (PHP_SAPI === 'cli' && PHP_BINARY !== '') {
+            $candidates[] = PHP_BINARY;
+        }
+
+        $finder = new PhpExecutableFinder();
+        $found = $finder->find(false);
+        if (is_string($found) && $found !== '') {
+            $candidates[] = $found;
+        }
+
+        $candidates[] = 'php';
+
+        $checked = [];
+        foreach ($candidates as $candidate) {
+            if ($candidate === '' || isset($checked[$candidate])) {
+                continue;
+            }
+            $checked[$candidate] = true;
+
+            $versionCheck = $this->runInstallerCommand([$candidate, '-v']);
+            if ($versionCheck['exitCode'] !== 0) {
+                continue;
+            }
+
+            $moduleCheck = $this->runInstallerCommand([$candidate, '-m']);
+            if ($moduleCheck['exitCode'] !== 0) {
+                continue;
+            }
+
+            if (preg_match('/^pdo_mysql$/mi', $moduleCheck['output']) === 1) {
+                return $candidate;
+            }
+
+            $this->logger->warning('Skipping PHP binary for installer migrations because pdo_mysql is missing.', [
+                'php_binary' => $candidate,
+            ]);
+        }
+
+        throw new \RuntimeException('No compatible PHP CLI binary with pdo_mysql extension found for installer migrations.');
+    }
+
     private function waitForDatabaseReady(array $connectionParams): void
     {
         $delayMs = self::DB_HEALTHCHECK_INITIAL_DELAY_MS;
@@ -495,9 +555,11 @@ final class InstallerService
     }
 
     /**
+     * @param list<string> $command
+     *
      * @return array{exitCode: int, output: string}
      */
-    private function runInstallerCommand(string $command): array
+    private function runInstallerCommand(array $command): array
     {
         $descriptor = [
             1 => ['pipe', 'w'],
