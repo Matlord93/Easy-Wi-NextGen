@@ -237,7 +237,18 @@ final class AdminInstanceController
             $this->entityManager->persist($portBlock);
         }
         $this->entityManager->flush();
-        $this->installPathManager?->ensureInstallPath($instance);
+
+        $installPathDeferredReason = null;
+        try {
+            $this->installPathManager?->ensureInstallPath($instance);
+        } catch (\Throwable $exception) {
+            $installPathDeferredReason = 'INSTALL_PATH_SETUP_FAILED';
+            $this->auditLogger->log($actor, 'instance.install_path_setup_failed', [
+                'instance_id' => $instance->getId(),
+                'customer_id' => $formData['customer']->getId(),
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         if ($portBlock !== null) {
             $portBlock->assignInstance($instance);
@@ -265,9 +276,13 @@ final class AdminInstanceController
 
         $installJob = null;
         $installDeferredReason = null;
-        $installPreparation = $this->instanceInstallService->prepareInstall($instance);
+        if ($installPathDeferredReason === null) {
+            $installPreparation = $this->instanceInstallService->prepareInstall($instance);
+        } else {
+            $installPreparation = ['ok' => false, 'error_code' => $installPathDeferredReason];
+        }
         if (($installPreparation['ok'] ?? false) === true) {
-            $installPayload = array_merge([
+            $installPayload = [
                 'instance_id' => (string) ($instance->getId() ?? ''),
                 'customer_id' => (string) $formData['customer']->getId(),
                 'node_id' => $formData['node']->getId(),
@@ -276,7 +291,11 @@ final class AdminInstanceController
                 'ram_limit' => (string) $instance->getRamLimit(),
                 'disk_limit' => (string) $instance->getDiskLimit(),
                 'base_dir' => $instance->getInstanceBaseDir() ?? $this->appSettingsService->getInstanceBaseDir(),
-            ], is_array($installPreparation['payload'] ?? null) ? $installPreparation['payload'] : []);
+            ];
+            if ($instance->getInstallPath() !== null) {
+                $installPayload['install_path'] = $instance->getInstallPath();
+            }
+            $installPayload = array_merge($installPayload, is_array($installPreparation['payload'] ?? null) ? $installPreparation['payload'] : []);
 
             $installJob = new Job('sniper.install', $installPayload);
             $this->entityManager->persist($installJob);
@@ -664,6 +683,10 @@ final class AdminInstanceController
             $errors[] = 'Instance base dir must be an absolute path.';
         }
 
+        if ($template !== null && $node !== null && !$this->isTemplateSupportedOnNode($template->getSupportedOs(), $node)) {
+            $errors[] = 'Template does not support the selected node operating system.';
+        }
+
         $portBlock = null;
         if ($portBlockId !== null && $portBlockId !== '') {
             $portBlock = $this->portBlockRepository->find((string) $portBlockId);
@@ -784,6 +807,14 @@ final class AdminInstanceController
             $data = array_merge($data, $override);
         }
 
+        $selectedNodeId = is_string($data['node_id'] ?? null) ? trim((string) $data['node_id']) : '';
+        if ($selectedNodeId !== '' && trim((string) ($data['instance_base_dir'] ?? '')) === '') {
+            $selectedNode = $this->agentRepository->find($selectedNodeId);
+            if ($selectedNode instanceof Agent) {
+                $data['instance_base_dir'] = $this->resolveDefaultInstanceBaseDir($selectedNode);
+            }
+        }
+
         $data['current_slots'] = max($data['min_slots'], min($data['current_slots'], $data['max_slots_limit']));
         $data['max_slots'] = max($data['min_slots'], min($data['max_slots'], $data['max_slots_limit']));
 
@@ -847,19 +878,7 @@ final class AdminInstanceController
      */
     private function listDistinctTemplates(): array
     {
-        $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC', 'id' => 'ASC']);
-        $byGameKey = [];
-
-        foreach ($templates as $template) {
-            $gameKey = strtolower(trim($template->getGameKey()));
-            if ($gameKey === '' || isset($byGameKey[$gameKey])) {
-                continue;
-            }
-
-            $byGameKey[$gameKey] = $template;
-        }
-
-        return array_values($byGameKey);
+        return $this->templateRepository->findBy([], ['displayName' => 'ASC', 'id' => 'ASC']);
     }
 
     /**
@@ -918,12 +937,52 @@ final class AdminInstanceController
             return $dirs[0];
         }
 
+        $nodeOs = $this->resolveNodeOs($node);
+        if ($nodeOs === 'windows') {
+            return 'C:\\Gameserver';
+        }
+        if ($nodeOs === 'linux') {
+            return '/home';
+        }
+
         return $this->appSettingsService->getInstanceBaseDir();
     }
 
     private function isAbsolutePath(string $path): bool
     {
-        return str_starts_with($path, '/');
+        return str_starts_with($path, '/') || preg_match('/^[a-zA-Z]:\\\\/', $path) === 1;
+    }
+
+    private function resolveNodeOs(Agent $node): ?string
+    {
+        $metadata = $node->getMetadata();
+        $metadataOs = is_array($metadata) ? strtolower(trim((string) ($metadata['os'] ?? ''))) : '';
+        if ($metadataOs !== '') {
+            return $metadataOs;
+        }
+
+        $stats = $node->getLastHeartbeatStats();
+        $statsOs = is_array($stats) ? strtolower(trim((string) ($stats['os'] ?? ''))) : '';
+
+        return $statsOs !== '' ? $statsOs : null;
+    }
+
+    /**
+     * @param array<int, mixed> $supportedOs
+     */
+    private function isTemplateSupportedOnNode(array $supportedOs, Agent $node): bool
+    {
+        $normalizedOs = array_values(array_filter(array_map(static fn (mixed $value): string => strtolower(trim((string) $value)), $supportedOs)));
+        if ($normalizedOs === []) {
+            return true;
+        }
+
+        $nodeOs = $this->resolveNodeOs($node);
+        if ($nodeOs === null) {
+            return true;
+        }
+
+        return in_array($nodeOs, $normalizedOs, true);
     }
 
     private function parseCustomerPayload(Request $request): array

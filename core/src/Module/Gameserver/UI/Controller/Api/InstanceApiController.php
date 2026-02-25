@@ -123,10 +123,6 @@ final class InstanceApiController
             return new JsonResponse(['error' => 'Current slots must be within the allowed range.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        if ($instanceBaseDir !== '' && !str_starts_with($instanceBaseDir, '/')) {
-            return new JsonResponse(['error' => 'Instance base dir must be an absolute path.'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-
         $customer = $this->userRepository->find($customerId);
         if ($customer === null || $customer->getType() !== UserType::Customer) {
             return new JsonResponse(['error' => 'Customer not found.'], JsonResponse::HTTP_NOT_FOUND);
@@ -140,6 +136,16 @@ final class InstanceApiController
         $node = $this->agentRepository->find($nodeId);
         if ($node === null) {
             return new JsonResponse(['error' => 'Node not found.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        if ($instanceBaseDir === '') {
+            $instanceBaseDir = $this->resolveDefaultInstanceBaseDir($node);
+        }
+        if (!$this->isAbsolutePath($instanceBaseDir)) {
+            return new JsonResponse(['error' => 'Instance base dir must be an absolute path.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+        if (!$this->isTemplateSupportedOnNode($template->getSupportedOs(), $node)) {
+            return new JsonResponse(['error' => 'Template does not support the selected node operating system.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $blockMessage = $this->diskEnforcementService->guardNodeProvisioning($node, new \DateTimeImmutable());
@@ -186,7 +192,7 @@ final class InstanceApiController
             InstanceUpdatePolicy::Manual,
         );
 
-        $instance->setInstanceBaseDir($instanceBaseDir !== '' ? $instanceBaseDir : $this->appSettingsService->getInstanceBaseDir());
+        $instance->setInstanceBaseDir($instanceBaseDir);
         $instance->setSlots($currentSlots);
         $instance->setMaxSlots($maxSlots);
         $instance->setCurrentSlots($currentSlots);
@@ -268,6 +274,57 @@ final class InstanceApiController
         }
 
         return null;
+    }
+
+    private function resolveDefaultInstanceBaseDir(Agent $node): string
+    {
+        $nodeOs = $this->resolveNodeOs($node);
+        if ($nodeOs === 'windows') {
+            return 'C:\\Gameserver';
+        }
+
+        if ($nodeOs === 'linux') {
+            return '/home';
+        }
+
+        return $this->appSettingsService->getInstanceBaseDir();
+    }
+
+    private function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/') || preg_match('/^[a-zA-Z]:\\\\/', $path) === 1;
+    }
+
+    private function resolveNodeOs(Agent $node): ?string
+    {
+        $metadata = $node->getMetadata();
+        $metadataOs = is_array($metadata) ? strtolower(trim((string) ($metadata['os'] ?? ''))) : '';
+        if ($metadataOs !== '') {
+            return $metadataOs;
+        }
+
+        $stats = $node->getLastHeartbeatStats();
+        $statsOs = is_array($stats) ? strtolower(trim((string) ($stats['os'] ?? ''))) : '';
+
+        return $statsOs !== '' ? $statsOs : null;
+    }
+
+    /**
+     * @param array<int, mixed> $supportedOs
+     */
+    private function isTemplateSupportedOnNode(array $supportedOs, Agent $node): bool
+    {
+        $normalizedOs = array_values(array_filter(array_map(static fn (mixed $value): string => strtolower(trim((string) $value)), $supportedOs)));
+        if ($normalizedOs === []) {
+            return true;
+        }
+
+        $nodeOs = $this->resolveNodeOs($node);
+        if ($nodeOs === null) {
+            return true;
+        }
+
+        return in_array($nodeOs, $normalizedOs, true);
     }
 
     #[Route(path: '/api/admin/instances/{id}', name: 'admin_instances_delete', methods: ['DELETE'])]

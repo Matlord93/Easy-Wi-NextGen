@@ -24,7 +24,9 @@ final class InstanceFilesystemResolver
         $baseDir = $baseDir !== null && $baseDir !== '' ? $baseDir : ($instance->getInstanceBaseDir() ?? $this->getDefaultBaseDir());
         $username = $this->buildInstanceUsername((string) $instance->getCustomer()->getId(), (string) $instance->getId());
 
-        return rtrim($baseDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $username;
+        $separator = str_contains($baseDir, '\\') ? '\\' : '/';
+
+        return rtrim($baseDir, "\\/") . $separator . $username;
     }
 
     private function getDefaultBaseDir(): string

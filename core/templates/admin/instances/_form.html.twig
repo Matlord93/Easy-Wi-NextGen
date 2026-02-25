@@ -34,19 +34,23 @@
         </label>
         <label class="text-sm font-medium text-slate-700">
             {{ t('admin_instances_template_label', page_locale()) }}
-            <select name="template_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            <select name="template_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required data-template-select>
                 <option value="">{{ t('admin_instances_template_placeholder', page_locale()) }}</option>
                 {% for template in templates %}
-                    <option value="{{ template.id }}" {{ template.id == form.template_id ? 'selected' : '' }}>{{ template.displayName }} ({{ template.gameKey }})</option>
+                    {% set supportedOs = template.supportedOs ?? [] %}
+                    <option value="{{ template.id }}" data-game-key="{{ template.gameKey|lower }}" data-supported-os="{{ supportedOs|map(v => v|lower)|join(',') }}" {{ template.id == form.template_id ? 'selected' : '' }}>{{ template.displayName }} ({{ template.gameKey }})</option>
                 {% endfor %}
             </select>
         </label>
         <label class="text-sm font-medium text-slate-700">
             {{ t('admin_instances_node_label', page_locale()) }}
-            <select name="node_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            <select name="node_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required data-node-select>
                 <option value="">{{ t('admin_instances_node_placeholder', page_locale()) }}</option>
                 {% for node in nodes %}
-                    <option value="{{ node.id }}" {{ node.id == form.node_id ? 'selected' : '' }}>{{ node.name ?? node.id }}</option>
+                    {% set nodeMetadata = node.metadata ?? {} %}
+                    {% set nodeStats = node.lastHeartbeatStats ?? {} %}
+                    {% set nodeOs = (nodeMetadata.os ?? nodeStats.os ?? '')|lower %}
+                    <option value="{{ node.id }}" data-node-os="{{ nodeOs }}" {{ node.id == form.node_id ? 'selected' : '' }}>{{ node.name ?? node.id }}</option>
                 {% endfor %}
             </select>
         </label>
@@ -63,7 +67,7 @@
         <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_current_slots', page_locale()) }}<input name="current_slots" type="number" min="{{ form.min_slots }}" max="{{ form.max_slots_limit }}" value="{{ form.current_slots }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
         <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_max_slots', page_locale()) }}<input name="max_slots" type="number" min="{{ form.min_slots }}" max="{{ form.max_slots_limit }}" value="{{ form.max_slots }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
         <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_base_dir_label', page_locale()) }}
-            <input name="instance_base_dir" type="text" list="instance-base-dir-options" value="{{ form.instance_base_dir }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="/home">
+            <input name="instance_base_dir" type="text" list="instance-base-dir-options" value="{{ form.instance_base_dir }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="/home" data-instance-base-dir>
         </label>
     </div>
 
@@ -95,3 +99,88 @@
         {{ t(form.submit_label, page_locale()) }}
     </button>
 </form>
+
+<script>
+(() => {
+    const form = document.currentScript?.previousElementSibling;
+    if (!form) {
+        return;
+    }
+
+    const nodeSelect = form.querySelector('[data-node-select]');
+    const templateSelect = form.querySelector('[data-template-select]');
+    const baseDirInput = form.querySelector('[data-instance-base-dir]');
+    if (!(nodeSelect instanceof HTMLSelectElement) || !(templateSelect instanceof HTMLSelectElement) || !(baseDirInput instanceof HTMLInputElement)) {
+        return;
+    }
+
+    const deriveDefaultBaseDir = (nodeOs) => {
+        if (nodeOs === 'windows') {
+            return 'C:\\Gameserver';
+        }
+        if (nodeOs === 'linux') {
+            return '/home';
+        }
+        return '';
+    };
+
+    const updateTemplates = () => {
+        const selectedNode = nodeSelect.selectedOptions[0] ?? null;
+        const nodeOs = (selectedNode?.dataset.nodeOs || '').toLowerCase();
+        const currentValue = templateSelect.value;
+        let firstVisibleValue = '';
+
+        const seenByGameKey = new Set();
+        Array.from(templateSelect.options).forEach((option, index) => {
+            if (index === 0) {
+                option.hidden = false;
+                return;
+            }
+
+            const supportedOs = (option.dataset.supportedOs || '')
+                .split(',')
+                .map((value) => value.trim().toLowerCase())
+                .filter(Boolean);
+            const gameKey = (option.dataset.gameKey || '').trim().toLowerCase();
+            const osCompatible = nodeOs === '' || supportedOs.length === 0 || supportedOs.includes(nodeOs);
+
+            let duplicateForNode = false;
+            if (osCompatible && nodeOs !== '' && gameKey !== '') {
+                if (seenByGameKey.has(gameKey)) {
+                    duplicateForNode = true;
+                } else {
+                    seenByGameKey.add(gameKey);
+                }
+            }
+
+            option.hidden = !osCompatible || duplicateForNode;
+            if (!option.hidden && firstVisibleValue === '') {
+                firstVisibleValue = option.value;
+            }
+        });
+
+        const selectedOption = templateSelect.selectedOptions[0] ?? null;
+        if (selectedOption && selectedOption.hidden) {
+            templateSelect.value = firstVisibleValue;
+        } else {
+            templateSelect.value = currentValue;
+        }
+    };
+
+    const updateBaseDir = () => {
+        const selectedNode = nodeSelect.selectedOptions[0] ?? null;
+        const nodeOs = (selectedNode?.dataset.nodeOs || '').toLowerCase();
+        const defaultBaseDir = deriveDefaultBaseDir(nodeOs);
+        if (defaultBaseDir !== '') {
+            baseDirInput.value = defaultBaseDir;
+        }
+    };
+
+    nodeSelect.addEventListener('change', () => {
+        updateTemplates();
+        updateBaseDir();
+    });
+
+    updateTemplates();
+})();
+</script>

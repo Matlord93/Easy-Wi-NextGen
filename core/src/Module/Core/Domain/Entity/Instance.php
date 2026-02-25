@@ -475,12 +475,22 @@ class Instance implements ResourceEventSource
     public function setInstallPath(?string $installPath): void
     {
         $normalized = $installPath !== null ? trim($installPath) : null;
-        if ($normalized !== null && $normalized !== '' && !str_starts_with($normalized, '/')) {
+        if ($normalized !== null && $normalized !== '' && !$this->isAbsoluteInstallPath($normalized)) {
             throw new \InvalidArgumentException('install_path must be absolute.');
         }
 
         $this->installPath = $normalized !== '' ? $normalized : null;
         $this->touch();
+    }
+
+    private function isAbsoluteInstallPath(string $path): bool
+    {
+        if (str_starts_with($path, '/')) {
+            return true;
+        }
+
+        return preg_match('/^[a-zA-Z]:\\\\/', $path) === 1
+            || str_starts_with($path, '\\\\');
     }
 
     public function getSetupVars(): array

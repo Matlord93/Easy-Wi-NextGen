@@ -365,7 +365,7 @@ final class CustomerInstanceController
             return $this->renderInstanceCard($instance, null, $installError);
         }
 
-        $job = new Job('sniper.install', array_merge([
+        $installPayload = [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
@@ -374,7 +374,12 @@ final class CustomerInstanceController
             'ram_limit' => (string) $instance->getRamLimit(),
             'disk_limit' => (string) $instance->getDiskLimit(),
             'base_dir' => $instance->getInstanceBaseDir() ?? $this->appSettingsService->getInstanceBaseDir(),
-        ], $install['payload'] ?? []));
+        ];
+        if ($instance->getInstallPath() !== null) {
+            $installPayload['install_path'] = $instance->getInstallPath();
+        }
+
+        $job = new Job('sniper.install', array_merge($installPayload, $install['payload'] ?? []));
         $this->entityManager->persist($job);
 
         $instance->setStatus(InstanceStatus::Provisioning);

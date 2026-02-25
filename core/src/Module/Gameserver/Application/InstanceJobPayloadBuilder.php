@@ -81,6 +81,9 @@ final class InstanceJobPayloadBuilder
         if ($instance->getInstanceBaseDir() !== null) {
             $payload['base_dir'] = $instance->getInstanceBaseDir();
         }
+        if ($instance->getInstallPath() !== null) {
+            $payload['install_path'] = $instance->getInstallPath();
+        }
 
         $payload = array_merge($payload, $this->buildPortPayload($instance));
 
