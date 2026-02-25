@@ -268,13 +268,40 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         );
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
-            public function findVersionsByChannel(string $channel): array { return []; }
-            public function findBuildsGroupedByVersion(string $channel): array { return []; }
-            public function findLatestVersion(string $channel): ?string { return null; }
-            public function findLatestBuild(string $channel, string $version): ?string { return null; }
-            public function findEntry(string $channel, string $version, ?string $build): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog { return null; }
-            public function versionExists(string $channel, string $version): bool { return false; }
-            public function buildExists(string $channel, string $version, string $build): bool { return false; }
+            public function findVersionsByChannel(string $channel): array
+            {
+                return [];
+            }
+
+            public function findBuildsGroupedByVersion(string $channel): array
+            {
+                return [];
+            }
+
+            public function findLatestVersion(string $channel): ?string
+            {
+                return null;
+            }
+
+            public function findLatestBuild(string $channel, string $version): ?string
+            {
+                return null;
+            }
+
+            public function findEntry(string $channel, string $version, ?string $build): ?\App\Module\Core\Domain\Entity\MinecraftVersionCatalog
+            {
+                return null;
+            }
+
+            public function versionExists(string $channel, string $version): bool
+            {
+                return false;
+            }
+
+            public function buildExists(string $channel, string $version, string $build): bool
+            {
+                return false;
+            }
         };
         $resolver = new TemplateInstallResolver(new MinecraftCatalogService($catalogRepo));
         $portBlockRepository = new class () implements PortBlockFinderInterface {
@@ -295,6 +322,5 @@ final class InstanceJobPayloadBuilderTest extends TestCase
         self::assertArrayHasKey('RCON_PASSWORD', $envVars);
         self::assertSame('', $envVars['RCON_PASSWORD']);
     }
-
 
 }
