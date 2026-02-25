@@ -39,7 +39,7 @@ final class AgentApiControllerQueryFallbackContractTest extends TestCase
 
         self::assertStringContainsString('private function unauthorizedAgentResponse', $controller);
         self::assertStringContainsString('catch (UnauthorizedHttpException $exception)', $controller);
-        self::assertStringContainsString("JsonResponse::HTTP_UNAUTHORIZED", $controller);
+        self::assertStringContainsString('JsonResponse::HTTP_UNAUTHORIZED', $controller);
         self::assertStringContainsString('\'error\' => $reason', $controller);
     }
 
