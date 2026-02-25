@@ -506,6 +506,13 @@ textarea {
 .peer:checked ~ .peer-checked\:translate-x-0 { transform: translateX(0); }
 .group[open] .group-open\:rotate-180 { transform: rotate(180deg); }
 
+.gs-console-log-panel {
+    height: 420px;
+    min-height: 420px;
+    max-height: 420px;
+    white-space: pre-wrap;
+}
+
 /* Responsive breakpoints */
 @media (min-width: 640px) {
     .sm\:hidden { display: none; }

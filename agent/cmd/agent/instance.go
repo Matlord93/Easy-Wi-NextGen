@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +31,10 @@ const (
 var consoleCommandRateLimiter = newTokenBucketLimiter(5, time.Second)
 
 func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" {
+		return handleInstanceCreateWindows(job)
+	}
+
 	instanceID := payloadValue(job.Payload, "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")
 	startParams := payloadValue(job.Payload, "start_params")
@@ -182,6 +187,10 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func handleInstanceStart(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" {
+		return handleInstanceWindowsServiceAction(job, "start")
+	}
+
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")
 	if serviceName == "" && instanceID != "" {
@@ -229,6 +238,10 @@ func handleInstanceStart(job jobs.Job, logSender JobLogSender) (jobs.Result, fun
 }
 
 func handleInstanceStop(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" {
+		return handleInstanceWindowsServiceAction(job, "stop")
+	}
+
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")
 	if serviceName == "" && instanceID != "" {
@@ -265,6 +278,10 @@ func handleInstanceStop(job jobs.Job, logSender JobLogSender) (jobs.Result, func
 }
 
 func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" {
+		return handleInstanceWindowsServiceAction(job, "restart")
+	}
+
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")
 	if serviceName == "" && instanceID != "" {
@@ -312,6 +329,10 @@ func handleInstanceRestart(job jobs.Job, logSender JobLogSender) (jobs.Result, f
 }
 
 func handleInstanceDelete(job jobs.Job) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" {
+		return handleInstanceDeleteWindows(job)
+	}
+
 	instanceID := payloadValue(job.Payload, "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")
 	serviceName := payloadValue(job.Payload, "service_name")
@@ -375,6 +396,10 @@ func handleInstanceDelete(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func handleInstanceLogsTail(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" {
+		return failedResultWithErrorCode(job.ID, "unsupported_os", "instance logs tail unsupported on windows")
+	}
+
 	instanceID := payloadValue(job.Payload, "instance_id")
 	serviceName := payloadValue(job.Payload, "service_name")
 	if serviceName == "" && instanceID != "" {
@@ -420,6 +445,10 @@ func handleInstanceLogsTail(job jobs.Job, logSender JobLogSender) (jobs.Result, 
 }
 
 func handleInstanceConsoleCommand(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" {
+		return failedResultWithErrorCode(job.ID, "unsupported_os", "instance console command unsupported on windows")
+	}
+
 	instanceID := payloadValue(job.Payload, "instance_id")
 	command := strings.TrimSpace(payloadValue(job.Payload, "command"))
 
@@ -506,7 +535,138 @@ func failedResultWithErrorCode(jobID, code, message string) (jobs.Result, func()
 	}, nil
 }
 
+func handleInstanceCreateWindows(job jobs.Job) (jobs.Result, func() error) {
+	instanceID := payloadValue(job.Payload, "instance_id")
+	customerID := payloadValue(job.Payload, "customer_id")
+	startParams := payloadValue(job.Payload, "start_params")
+	baseDir := payloadValue(job.Payload, "base_dir")
+	serviceName := payloadValue(job.Payload, "service_name")
+	autostart := parsePayloadBool(payloadValue(job.Payload, "autostart", "auto_start"), true)
+
+	missing := missingValues([]requiredValue{
+		{key: "instance_id", value: instanceID},
+		{key: "customer_id", value: customerID},
+		{key: "start_params", value: startParams},
+	})
+	if len(missing) > 0 {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	if baseDir == "" {
+		baseDir = defaultInstanceBaseDir()
+	}
+	if serviceName == "" {
+		serviceName = fmt.Sprintf("gs-%s", instanceID)
+	}
+
+	osUsername := buildInstanceUsername(customerID, instanceID)
+	instanceDir := filepath.Join(baseDir, osUsername)
+	dataDir := filepath.Join(instanceDir, "data")
+	logsDir := filepath.Join(instanceDir, "logs")
+	configDir := filepath.Join(instanceDir, "config")
+
+	for _, dir := range []string{instanceDir, dataDir, logsDir, configDir} {
+		if err := ensureInstanceDir(dir); err != nil {
+			return failureResult(job.ID, err)
+		}
+	}
+
+	startScriptPath, err := writeStartScript(instanceDir, startParams)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+
+	binPath := fmt.Sprintf(`"%s" /C "%s"`, os.Getenv("ComSpec"), startScriptPath)
+	startMode := "demand"
+	if autostart {
+		startMode = "auto"
+	}
+
+	if _, err := runCommandOutput("sc", "query", serviceName); err != nil {
+		if _, createErr := runCommandOutput("sc", "create", serviceName, "binPath=", binPath, "start=", startMode); createErr != nil {
+			return failureResult(job.ID, fmt.Errorf("create windows service: %w", createErr))
+		}
+	}
+
+	if _, err := runCommandOutput("sc", "start", serviceName); err != nil {
+		return failureResult(job.ID, err)
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"os_username":       osUsername,
+			"instance_dir":      instanceDir,
+			"data_dir":          dataDir,
+			"logs_dir":          logsDir,
+			"config_dir":        configDir,
+			"service_name":      serviceName,
+			"start_script_path": startScriptPath,
+			"autostart":         strconv.FormatBool(autostart),
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
+func handleInstanceWindowsServiceAction(job jobs.Job, action string) (jobs.Result, func() error) {
+	serviceName := payloadValue(job.Payload, "service_name")
+	if serviceName == "" {
+		instanceID := payloadValue(job.Payload, "instance_id")
+		if instanceID != "" {
+			serviceName = fmt.Sprintf("gs-%s", instanceID)
+		}
+	}
+	if serviceName == "" {
+		return failureResult(job.ID, fmt.Errorf("missing service_name or instance_id"))
+	}
+
+	payload := map[string]any{"service_name": serviceName}
+	return handleWindowsServiceAction(jobs.Job{ID: job.ID, Payload: payload}, action)
+}
+
+func handleInstanceDeleteWindows(job jobs.Job) (jobs.Result, func() error) {
+	instanceID := payloadValue(job.Payload, "instance_id")
+	customerID := payloadValue(job.Payload, "customer_id")
+	serviceName := payloadValue(job.Payload, "service_name")
+	baseDir := payloadValue(job.Payload, "base_dir")
+	if serviceName == "" && instanceID != "" {
+		serviceName = fmt.Sprintf("gs-%s", instanceID)
+	}
+	if baseDir == "" {
+		baseDir = defaultInstanceBaseDir()
+	}
+
+	if serviceName != "" {
+		_, _ = runCommandOutput("sc", "stop", serviceName)
+		_, _ = runCommandOutput("sc", "delete", serviceName)
+	}
+
+	if customerID != "" && instanceID != "" {
+		instanceDir := filepath.Join(baseDir, buildInstanceUsername(customerID, instanceID))
+		if err := os.RemoveAll(instanceDir); err != nil {
+			return failureResult(job.ID, fmt.Errorf("remove instance dir: %w", err))
+		}
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{"service_name": serviceName},
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
 func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" {
+		return failedResultWithErrorCode(job.ID, "unsupported_os", "instance reinstall unsupported on windows")
+	}
+
 	instanceID := payloadValue(job.Payload, "instance_id")
 	customerID := payloadValue(job.Payload, "customer_id")
 	baseDir := payloadValue(job.Payload, "base_dir")

@@ -26,7 +26,7 @@ final class InstanceFilesystemResolver
 
         $separator = str_contains($baseDir, '\\') ? '\\' : '/';
 
-        return rtrim($baseDir, "\\/") . $separator . $username;
+        return rtrim($baseDir, '\\/') . $separator . $username;
     }
 
     private function getDefaultBaseDir(): string

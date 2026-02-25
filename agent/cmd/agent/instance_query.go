@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -305,17 +306,103 @@ func buildQueryOutput(status, engine, message string, startedAt time.Time, data 
 	return output
 }
 
+func queryDialCandidates(host, port string) []string {
+	trimmedHost := strings.TrimSpace(host)
+	if trimmedHost == "" {
+		return nil
+	}
+
+	if ip := net.ParseIP(trimmedHost); ip != nil {
+		return []string{net.JoinHostPort(trimmedHost, port)}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer cancel()
+
+	resolved, err := net.DefaultResolver.LookupIP(ctx, "ip", trimmedHost)
+	if err != nil || len(resolved) == 0 {
+		return []string{net.JoinHostPort(trimmedHost, port)}
+	}
+
+	ordered := orderQueryIPs(resolved)
+	candidates := make([]string, 0, len(ordered))
+	seen := map[string]struct{}{}
+	for _, ip := range ordered {
+		if ip == nil {
+			continue
+		}
+		addr := net.JoinHostPort(ip.String(), port)
+		if _, ok := seen[addr]; ok {
+			continue
+		}
+		seen[addr] = struct{}{}
+		candidates = append(candidates, addr)
+	}
+	if len(candidates) == 0 {
+		return []string{net.JoinHostPort(trimmedHost, port)}
+	}
+	return candidates
+}
+
+func orderQueryIPs(ips []net.IP) []net.IP {
+	ordered := make([]net.IP, 0, len(ips))
+	for _, ip := range ips {
+		if ip != nil && ip.To4() == nil {
+			ordered = append(ordered, ip)
+		}
+	}
+	for _, ip := range ips {
+		if ip != nil && ip.To4() != nil {
+			ordered = append(ordered, ip)
+		}
+	}
+	return ordered
+}
+
+func dialNetworkForAddress(baseNetwork, address string) string {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return baseNetwork
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return baseNetwork
+	}
+	if ip.To4() != nil {
+		return baseNetwork + "4"
+	}
+	return baseNetwork + "6"
+}
+
+func dialWithFallback(baseNetwork, host, port string, timeout time.Duration) (net.Conn, error) {
+	candidates := queryDialCandidates(host, port)
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("no dial candidates")
+	}
+
+	var errs []string
+	for _, address := range candidates {
+		network := dialNetworkForAddress(baseNetwork, address)
+		conn, err := net.DialTimeout(network, address, timeout)
+		if err == nil {
+			return conn, nil
+		}
+		errs = append(errs, fmt.Sprintf("%s %s: %v", network, address, err))
+	}
+
+	return nil, fmt.Errorf("dial %s failed after %d attempts (%s)", baseNetwork, len(candidates), strings.Join(errs, "; "))
+}
+
 func queryA2S(host, port string) (map[string]string, error) {
 	portNum, err := strconv.Atoi(port)
 	if err != nil || portNum <= 0 || portNum > 65535 {
 		return nil, fmt.Errorf("invalid port %q", port)
 	}
 
-	address := net.JoinHostPort(host, strconv.Itoa(portNum))
 	if queryA2SDebugEnabled {
 		log.Printf("a2s debug: dial_host=%s dial_port=%d", host, portNum)
 	}
-	conn, err := net.DialTimeout("udp", address, a2sQueryTimeout)
+	conn, err := dialWithFallback("udp", host, strconv.Itoa(portNum), a2sQueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("dial udp: %w", err)
 	}
@@ -569,8 +656,7 @@ func queryMinecraftJava(host, port string) (map[string]string, error) {
 		return nil, fmt.Errorf("invalid port %q", port)
 	}
 
-	address := net.JoinHostPort(host, strconv.Itoa(portNum))
-	conn, err := net.DialTimeout("tcp", address, minecraftQueryTimeout)
+	conn, err := dialWithFallback("tcp", host, strconv.Itoa(portNum), minecraftQueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("dial tcp: %w", err)
 	}
@@ -620,8 +706,7 @@ func queryMinecraftBedrock(host, port string) (map[string]string, error) {
 		return nil, fmt.Errorf("invalid port %q", port)
 	}
 
-	address := net.JoinHostPort(host, strconv.Itoa(portNum))
-	conn, err := net.DialTimeout("udp", address, minecraftQueryTimeout)
+	conn, err := dialWithFallback("udp", host, strconv.Itoa(portNum), minecraftQueryTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("dial udp: %w", err)
 	}

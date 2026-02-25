@@ -31,7 +31,7 @@
         </div>
     {% endif %}
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-6">
         <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_total', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p></div>
         <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_running', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.running }}</p></div>
         <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_pending_setup', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.pending_setup }}</p></div>

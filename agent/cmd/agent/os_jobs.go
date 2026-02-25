@@ -261,8 +261,12 @@ func countPackageLines(output string) int {
 }
 
 func detectOSProvider() string {
+	if runtime.GOOS == "windows" {
+		return "windows"
+	}
+
 	if runtime.GOOS != "linux" {
-		return "unknown"
+		return runtime.GOOS
 	}
 
 	if _, err := exec.LookPath("apt-get"); err == nil {

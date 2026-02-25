@@ -2405,7 +2405,6 @@ html:not(.dark) {
 }
 
 .customer-section-gradient::before {
-    content: "";
     position: absolute;
     inset: -12px -12px auto -12px;
     height: 180px;

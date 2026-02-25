@@ -125,6 +125,37 @@ func TestNormalizeQueryDialHost(t *testing.T) {
 	}
 }
 
+func TestOrderQueryIPsPrefersIPv6ThenIPv4(t *testing.T) {
+	ordered := orderQueryIPs([]net.IP{
+		net.ParseIP("192.0.2.10"),
+		net.ParseIP("2001:db8::10"),
+		net.ParseIP("198.51.100.25"),
+		net.ParseIP("2001:db8::20"),
+	})
+
+	if len(ordered) != 4 {
+		t.Fatalf("ordered len=%d", len(ordered))
+	}
+	if ordered[0].To4() != nil || ordered[1].To4() != nil {
+		t.Fatalf("expected first two addresses to be IPv6, got %v", ordered)
+	}
+	if ordered[2].To4() == nil || ordered[3].To4() == nil {
+		t.Fatalf("expected last two addresses to be IPv4, got %v", ordered)
+	}
+}
+
+func TestDialNetworkForAddressUsesIPFamily(t *testing.T) {
+	if got := dialNetworkForAddress("udp", "[2001:db8::42]:27015"); got != "udp6" {
+		t.Fatalf("udp ipv6 network=%q", got)
+	}
+	if got := dialNetworkForAddress("udp", "192.0.2.42:27015"); got != "udp4" {
+		t.Fatalf("udp ipv4 network=%q", got)
+	}
+	if got := dialNetworkForAddress("tcp", "example.org:25565"); got != "tcp" {
+		t.Fatalf("hostname network=%q", got)
+	}
+}
+
 func TestPerformProtocolQueryUnsupportedProtocol(t *testing.T) {
 	resp := performProtocolQuery(context.Background(), "weird", "127.0.0.1", 27015, "req-1", &queryHTTPDebug{})
 	if resp.OK {
@@ -161,7 +192,6 @@ func TestHandleInstanceQueryHTTPUsesJSONPayloadFallback(t *testing.T) {
 		t.Fatalf("request_id=%q", payload.RequestID)
 	}
 }
-
 
 func TestHandleInstanceQueryHTTPUsesIPAliasFromJSONPayload(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/v1/instances/inst-1/query", strings.NewReader(`{"ip":"127.0.0.1","query_port":27015,"query_transport":"custom","network_mode":"host"}`))

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +20,10 @@ const (
 )
 
 func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
+	if runtime.GOOS == "windows" {
+		return webspaceApplyFailure(job.ID, "webspace_unsupported_os", "webspace create unsupported on windows"), nil
+	}
+
 	webRoot := payloadValue(job.Payload, "web_root", "path")
 	docroot := payloadValue(job.Payload, "docroot", "document_root")
 	ownerUser := payloadValue(job.Payload, "owner_user", "user")

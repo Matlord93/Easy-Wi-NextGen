@@ -5,6 +5,8 @@ package metrics
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -12,6 +14,7 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	gonet "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
+	"github.com/shirou/gopsutil/v4/sensors"
 )
 
 func diskUsage(path string) (uint64, uint64, float64, error) {
@@ -81,5 +84,51 @@ func processCount() (int, error) {
 }
 
 func temperatureCelsius() (float64, error) {
-	return 0, fmt.Errorf("temperature not supported on windows")
+	if values, err := sensors.SensorsTemperatures(); err == nil {
+		for _, sensor := range values {
+			if sensor.Temperature > -50 && sensor.Temperature < 150 {
+				return sensor.Temperature, nil
+			}
+		}
+	}
+
+	for _, shell := range []string{"powershell", "pwsh"} {
+		path, err := exec.LookPath(shell)
+		if err != nil {
+			continue
+		}
+		cmd := exec.Command(path, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", `(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object -ExpandProperty CurrentTemperature)`)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			continue
+		}
+		if parsed, ok := parseWindowsWMITemperature(strings.TrimSpace(string(output))); ok {
+			return parsed, nil
+		}
+	}
+
+	return 0, fmt.Errorf("temperature unavailable on windows")
+}
+
+func parseWindowsWMITemperature(raw string) (float64, bool) {
+	if raw == "" {
+		return 0, false
+	}
+
+	for _, line := range strings.Split(raw, "\n") {
+		value := strings.TrimSpace(line)
+		if value == "" {
+			continue
+		}
+		tenthsKelvin, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			continue
+		}
+		celsius := (tenthsKelvin / 10) - 273.15
+		if celsius > -50 && celsius < 150 {
+			return celsius, true
+		}
+	}
+
+	return 0, false
 }
