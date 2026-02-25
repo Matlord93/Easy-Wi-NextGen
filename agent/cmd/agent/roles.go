@@ -138,6 +138,13 @@ func collectMetadata(cfg config.Config) map[string]any {
 	metadata := map[string]any{
 		"ts6_supported": detectTS6Support(),
 	}
+	bindIPs := normalizeBindIPs(cfg.BindIPAddresses)
+	if len(bindIPs) == 0 {
+		bindIPs = detectLocalIPs()
+	}
+	if len(bindIPs) > 0 {
+		metadata["bind_ip_addresses"] = bindIPs
+	}
 	if phpVersions := detectPhpVersions(); len(phpVersions) > 0 {
 		metadata["php_versions"] = phpVersions
 	}
@@ -156,14 +163,87 @@ func collectMetadata(cfg config.Config) map[string]any {
 		metadata["capabilities"] = []string{
 			"heartbeat",
 			"job_polling",
+			"agent.update",
 			"agent.self_update",
 			"agent.diagnostics",
+			"role.ensure_base",
+			"security.ensure_base",
+			"web.ensure_base",
+			"instance.config.apply",
+			"instance.sftp.credentials.reset",
+			"windows.service.start",
+			"windows.service.stop",
+			"windows.service.restart",
 		}
 	}
 	if len(metadata) == 0 {
 		return nil
 	}
 	return metadata
+}
+
+func normalizeBindIPs(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	unique := map[string]struct{}{}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if net.ParseIP(trimmed) == nil {
+			continue
+		}
+		if _, ok := unique[trimmed]; ok {
+			continue
+		}
+		unique[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+func detectLocalIPs() []string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	unique := map[string]struct{}{}
+	results := []string{}
+	for _, iface := range interfaces {
+		if (iface.Flags & net.FlagUp) == 0 {
+			continue
+		}
+		addrs, addrErr := iface.Addrs()
+		if addrErr != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch value := addr.(type) {
+			case *net.IPNet:
+				ip = value.IP
+			case *net.IPAddr:
+				ip = value.IP
+			}
+			if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+				continue
+			}
+			ip = ip.To4()
+			if ip == nil {
+				continue
+			}
+			ipText := ip.String()
+			if _, ok := unique[ipText]; ok {
+				continue
+			}
+			unique[ipText] = struct{}{}
+			results = append(results, ipText)
+		}
+	}
+	return results
 }
 
 func parseServiceListenPort(listen string) int {

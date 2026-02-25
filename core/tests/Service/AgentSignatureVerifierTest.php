@@ -136,6 +136,33 @@ final class AgentSignatureVerifierTest extends TestCase
         $verifier->verify($request, $agentId, $secret);
     }
 
+
+    public function testAcceptsSignatureWhenProxyAddsTrailingSlashToPathInfo(): void
+    {
+        $cache = new ArrayAdapter();
+        $verifier = new AgentSignatureVerifier($cache, new NullLogger(), 300, 600);
+
+        $agentId = 'agent-123';
+        $secret = 'supersecret';
+        $nonce = 'nonce-6';
+        $timestamp = (new DateTimeImmutable())->format(DateTimeImmutable::RFC3339);
+        $body = '{"name":"node"}';
+
+        $request = Request::create('/api/v1/agent/register/', 'POST', [], [], [], [
+            'REQUEST_URI' => '/api/v1/agent/register',
+        ], $body);
+        $signature = $this->sign($agentId, $secret, 'POST', '/api/v1/agent/register', $body, $timestamp, $nonce);
+
+        $request->headers->set('X-Agent-ID', $agentId);
+        $request->headers->set('X-Timestamp', $timestamp);
+        $request->headers->set('X-Nonce', $nonce);
+        $request->headers->set('X-Signature', $signature);
+
+        $verifier->verify($request, $agentId, $secret);
+
+        $this->assertTrue(true);
+    }
+
     private function sign(string $agentId, string $secret, string $method, string $path, string $body, string $timestamp, string $nonce): string
     {
         $payload = AgentSignatureVerifier::buildSignaturePayload($agentId, $method, $path, $timestamp, $nonce, $body);

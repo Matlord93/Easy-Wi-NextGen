@@ -31,6 +31,18 @@ final class AgentApiControllerQueryFallbackContractTest extends TestCase
         self::assertStringContainsString('Job is already completed by another agent.', $controller);
     }
 
+
+
+    public function testAgentAuthenticationFailuresReturnJsonUnauthorizedResponse(): void
+    {
+        $controller = (string) file_get_contents(__DIR__.'/../../src/Module/PanelCustomer/UI/Controller/Api/AgentApiController.php');
+
+        self::assertStringContainsString('private function unauthorizedAgentResponse', $controller);
+        self::assertStringContainsString('catch (UnauthorizedHttpException $exception)', $controller);
+        self::assertStringContainsString("JsonResponse::HTTP_UNAUTHORIZED", $controller);
+        self::assertStringContainsString('\'error\' => $reason', $controller);
+    }
+
     public function testHeartbeatPrefersForwardedIpOverLoopbackClientIp(): void
     {
         $controller = (string) file_get_contents(__DIR__.'/../../src/Module/PanelCustomer/UI/Controller/Api/AgentApiController.php');

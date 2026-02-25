@@ -1,0 +1,16 @@
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Bestimmt, ob der Authorization-Header an PHP weitergereicht wird
+    RewriteCond %{HTTP:Authorization} .+
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
+
+    # Wenn die angeforderte Datei/Ordner existiert, direkt ausliefern
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # Alle anderen Anfragen an die index.php weiterleiten
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>

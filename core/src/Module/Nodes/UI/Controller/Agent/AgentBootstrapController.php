@@ -16,7 +16,6 @@ use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
-use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
@@ -76,7 +75,9 @@ final class AgentBootstrapController
         }
 
         if (strcasecmp($os, 'windows') === 0 && !$this->windowsNodesEnabled) {
-            throw new ServiceUnavailableHttpException(null, 'Windows nodes are currently disabled.');
+            return new JsonResponse([
+                'error' => 'Windows nodes are currently disabled.',
+            ], JsonResponse::HTTP_SERVICE_UNAVAILABLE);
         }
 
         $tokenHash = hash('sha256', $bootstrapToken);

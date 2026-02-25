@@ -29,6 +29,7 @@ type Config struct {
 	HealthListen      string
 	FileBaseDir       string
 	FileBaseDirs      []string
+	BindIPAddresses   []string
 	FileCacheSize     int
 	FileMaxSkew       time.Duration
 	FileReadTimeout   time.Duration
@@ -87,6 +88,7 @@ func Load(path string) (cfg Config, err error) {
 			return Config{}, fmt.Errorf("invalid config line: %q", line)
 		}
 		key = strings.TrimSpace(key)
+		key = strings.TrimPrefix(key, "\uFEFF")
 		value = strings.TrimSpace(value)
 		switch strings.ToLower(key) {
 		case "agent_id":
@@ -146,6 +148,16 @@ func Load(path string) (cfg Config, err error) {
 				}
 			}
 			cfg.FileBaseDirs = dirs
+		case "bind_ip_addresses":
+			parts := strings.Split(value, ",")
+			ips := make([]string, 0, len(parts))
+			for _, part := range parts {
+				ip := strings.TrimSpace(part)
+				if ip != "" {
+					ips = append(ips, ip)
+				}
+			}
+			cfg.BindIPAddresses = ips
 		case "file_cache_size":
 			parsed, parseErr := strconv.Atoi(value)
 			if parseErr != nil {

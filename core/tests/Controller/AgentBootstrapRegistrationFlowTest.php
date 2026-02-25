@@ -30,6 +30,57 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 
 final class AgentBootstrapRegistrationFlowTest extends TestCase
 {
+    public function testBootstrapReturns503ForWindowsWhenDisabled(): void
+    {
+        $bootstrapRepo = $this->createMock(AgentBootstrapTokenRepository::class);
+        $bootstrapRepo->expects($this->never())->method('findActiveByHash');
+
+        $agentRepo = $this->createMock(AgentRepository::class);
+        $tokenGenerator = $this->createMock(TokenGenerator::class);
+        $auditLogger = $this->createMock(AuditLogger::class);
+
+        $limiter = $this->createMock(LimiterInterface::class);
+        $limiter->method('consume')->willReturn(new RateLimit(1, new DateTimeImmutable(), true, 1));
+
+        $limiterFactory = $this->createMock(RateLimiterFactory::class);
+        $limiterFactory->method('create')->willReturn($limiter);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+
+        $bootstrapController = new AgentBootstrapController(
+            $bootstrapRepo,
+            $agentRepo,
+            $entityManager,
+            $tokenGenerator,
+            $auditLogger,
+            $limiterFactory,
+            300,
+            false,
+        );
+
+        $bootstrapRequest = Request::create(
+            'http://example.com/api/v1/agent/bootstrap',
+            'POST',
+            [],
+            [],
+            [],
+            [],
+            json_encode([
+                'bootstrap_token' => 'bootstrap-token',
+                'hostname' => 'node-1',
+                'os' => 'windows',
+                'agent_version' => '1.0.0',
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        $bootstrapResponse = $bootstrapController->bootstrap($bootstrapRequest);
+        $this->assertSame(503, $bootstrapResponse->getStatusCode());
+        $this->assertSame(
+            ['error' => 'Windows nodes are currently disabled.'],
+            json_decode((string) $bootstrapResponse->getContent(), true, 512, JSON_THROW_ON_ERROR),
+        );
+    }
+
     public function testBootstrapThenRegisterHappyPath(): void
     {
         $bootstrapTokenValue = 'bootstrap-token';

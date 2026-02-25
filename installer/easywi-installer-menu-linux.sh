@@ -506,6 +506,13 @@ server {
     root ${web_root};
     index index.php;
 
+    # Security headers
+    add_header Content-Security-Policy "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
     location / {
         try_files \$uri /index.php\$is_args\$args;
     }
@@ -941,6 +948,7 @@ install_agent_services() {
   local api_url="$3"
   local file_base_dir="$4"
   local sftp_base_dir="$5"
+  local bind_ip_addresses="$6"
 
   mapfile -t base_dir_config < <(build_agent_base_dir_config "${file_base_dir}")
   local primary_base_dir="${base_dir_config[0]}"
@@ -954,6 +962,7 @@ api_url=${api_url}
 service_listen=0.0.0.0:7456
 file_base_dir=${primary_base_dir}
 file_base_dirs=${all_base_dirs}
+bind_ip_addresses=${bind_ip_addresses}
 # Der Agent stellt auch die internen Game-/Sinusbot-Endpunkte bereit.
 CONF
   chmod 600 /etc/easywi/agent.conf
@@ -1308,11 +1317,44 @@ build_agent_base_dir_config() {
   printf '%s\n%s\n' "${primary}" "${joined}"
 }
 
+detect_default_linux_file_base_dirs() {
+  local defaults=""
+  if command -v findmnt >/dev/null 2>&1; then
+    local mount
+    while IFS= read -r mount; do
+      mount="$(printf '%s' "${mount}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      [[ -z "${mount}" ]] && continue
+      case "${mount}" in
+        /|/boot|/boot/efi|/run|/run/*|/proc|/sys|/dev|/var/lib/docker|/snap) continue ;;
+      esac
+      if [[ -z "${defaults}" ]]; then
+        defaults="${mount}"
+      else
+        defaults+=",${mount}"
+      fi
+    done < <(findmnt -rn -o TARGET -t ext4,xfs,btrfs,zfs 2>/dev/null)
+  fi
+
+  if [[ -z "${defaults}" ]]; then
+    defaults="/home,/var/www"
+  fi
+
+  printf '%s\n' "${defaults}"
+}
+
+detect_local_ipv4_addresses() {
+  if command -v ip >/dev/null 2>&1; then
+    ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | paste -sd, -
+    return
+  fi
+  printf '\n'
+}
+
 run_agent_install() {
   local core_url="${EASYWI_CORE_URL:-${EASYWI_API_URL:-}}"
   local bootstrap_token="${EASYWI_BOOTSTRAP_TOKEN:-}"
   local agent_version="${EASYWI_AGENT_VERSION:-latest}"
-  local file_base_dir="${EASYWI_FILE_BASE_DIR:-/home,/var/www}"
+  local file_base_dir="${EASYWI_FILE_BASE_DIR:-}"
   local sftp_base_dir="${EASYWI_SFTP_BASE_DIR:-/var/lib/easywi/sftp}"
   local agent_name="${EASYWI_AGENT_NAME:-}"
   local agent_hostname="${EASYWI_AGENT_HOSTNAME:-}"
@@ -1320,6 +1362,7 @@ run_agent_install() {
   local register_token="${EASYWI_AGENT_REGISTER_TOKEN:-}"
   local agent_id="${EASYWI_AGENT_ID:-}"
   local register_url="${EASYWI_AGENT_REGISTER_URL:-}"
+  local bind_ip_addresses="${EASYWI_BIND_IP_ADDRESSES:-}"
 
   echo
   echo "Agent-Setup: Wir laden die Agent-Binaries."
@@ -1328,7 +1371,14 @@ run_agent_install() {
   prompt_value core_url "Core API URL" "${core_url}"
   prompt_value bootstrap_token "Bootstrap Token" "${bootstrap_token}"
   prompt_value agent_version "Agent Version (latest oder Tag)" "${agent_version}"
+  if [[ -z "${file_base_dir}" ]]; then
+    file_base_dir="$(detect_default_linux_file_base_dirs)"
+  fi
+  if [[ -z "${bind_ip_addresses}" ]]; then
+    bind_ip_addresses="$(detect_local_ipv4_addresses)"
+  fi
   prompt_value file_base_dir "File Base Directory(s, comma separated)" "${file_base_dir}"
+  prompt_value bind_ip_addresses "Bind IP Addresses (comma separated, optional)" "${bind_ip_addresses}"
   prompt_value sftp_base_dir "SFTP Base Directory" "${sftp_base_dir}"
   prompt_value agent_name "Agent Name (optional)" "${agent_name}"
   prompt_value agent_hostname "Agent Hostname (optional)" "${agent_hostname}"
@@ -1401,7 +1451,7 @@ run_agent_install() {
     agent_secret="${agent_identity#*|}"
   fi
 
-  install_agent_services "${agent_id}" "${agent_secret}" "${core_url}" "${file_base_dir}" "${sftp_base_dir}"
+  install_agent_services "${agent_id}" "${agent_secret}" "${core_url}" "${file_base_dir}" "${sftp_base_dir}" "${bind_ip_addresses}"
   delete_bootstrap_state "${bootstrap_state_file}"
 }
 

@@ -53,29 +53,51 @@ final class AgentSignatureVerifier
 
         $body = $request->getContent() ?? '';
         $method = strtoupper($request->getMethod());
-        $path = $request->getPathInfo();
-        $payload = self::buildSignaturePayload($agentId, $method, $path, $timestamp, $nonce, $body);
-        $expected = hash_hmac('sha256', $payload, $secret);
+        $paths = $this->buildCandidatePaths($request);
+        $path = $paths[0];
+
+        $expected = null;
+        foreach ($paths as $candidatePath) {
+            $payload = self::buildSignaturePayload($agentId, $method, $candidatePath, $timestamp, $nonce, $body);
+            $candidateExpected = hash_hmac('sha256', $payload, $secret);
+            if (hash_equals($candidateExpected, $signature)) {
+                $expected = $candidateExpected;
+                $path = $candidatePath;
+                break;
+            }
+
+            if ($expected === null) {
+                $expected = $candidateExpected;
+            }
+        }
+
+        if ($expected === null) {
+            throw new UnauthorizedHttpException('hmac', 'invalid_signature');
+        }
 
         if (!hash_equals($expected, $signature)) {
             $normalizedTimestamp = $parsedTimestamp
                 ->setTimezone(new DateTimeZone('UTC'))
                 ->format(DateTimeInterface::RFC3339);
+            $normalizedExpected = null;
             if ($normalizedTimestamp !== $timestamp) {
-                $normalizedPayload = self::buildSignaturePayload(
-                    $agentId,
-                    $method,
-                    $path,
-                    $normalizedTimestamp,
-                    $nonce,
-                    $body,
-                );
-                $normalizedExpected = hash_hmac('sha256', $normalizedPayload, $secret);
-                if (hash_equals($normalizedExpected, $signature)) {
-                    return;
+                foreach ($paths as $candidatePath) {
+                    $normalizedPayload = self::buildSignaturePayload(
+                        $agentId,
+                        $method,
+                        $candidatePath,
+                        $normalizedTimestamp,
+                        $nonce,
+                        $body,
+                    );
+                    $candidateNormalizedExpected = hash_hmac('sha256', $normalizedPayload, $secret);
+                    if (hash_equals($candidateNormalizedExpected, $signature)) {
+                        return;
+                    }
+                    if ($normalizedExpected === null) {
+                        $normalizedExpected = $candidateNormalizedExpected;
+                    }
                 }
-            } else {
-                $normalizedExpected = null;
             }
 
             $bodyHash = hash('sha256', $body);
@@ -84,6 +106,7 @@ final class AgentSignatureVerifier
                 'agent_id' => $agentId,
                 'method' => $method,
                 'path' => $path,
+                'path_candidates' => $paths,
                 'body_hash_prefix' => substr($bodyHash, 0, 12),
                 'timestamp' => $timestamp,
                 'nonce' => $nonce,
@@ -163,5 +186,47 @@ final class AgentSignatureVerifier
         }
 
         return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function buildCandidatePaths(Request $request): array
+    {
+        $candidates = [];
+
+        $pathInfo = $request->getPathInfo();
+        if ($pathInfo !== '') {
+            $candidates[] = $pathInfo;
+        }
+
+        $requestUriPath = parse_url((string) $request->server->get('REQUEST_URI', ''), PHP_URL_PATH);
+        if (is_string($requestUriPath) && $requestUriPath !== '') {
+            $candidates[] = $requestUriPath;
+        }
+
+        $normalized = [];
+        foreach ($candidates as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                continue;
+            }
+
+            if ($candidate[0] !== '/') {
+                $candidate = '/' . $candidate;
+            }
+
+            $normalized[$candidate] = true;
+            if ($candidate !== '/') {
+                $trimmed = rtrim($candidate, '/');
+                $normalized[$trimmed === '' ? '/' : $trimmed] = true;
+            }
+        }
+
+        if ($normalized === []) {
+            return ['/'];
+        }
+
+        return array_keys($normalized);
     }
 }

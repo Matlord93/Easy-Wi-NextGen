@@ -13,6 +13,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use Doctrine\Common\EventManager;
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\ORM\EntityManager;
@@ -257,6 +258,12 @@ final class InstallerService
         $requiredPrivileges = ['create', 'alter', 'index'];
 
         if (!$this->hasRequiredMySqlPrivileges($grants, $databaseName, $requiredPrivileges)) {
+            if ($this->canApplySchemaPrivilegeProbe($connection)) {
+                $this->logger->warning('Installer DB grants check failed, but direct schema privilege probe succeeded.');
+
+                return;
+            }
+
             throw new \RuntimeException('Missing required CREATE/ALTER/INDEX privileges for configured database.');
         }
     }
@@ -307,6 +314,32 @@ final class InstallerService
         }
 
         return false;
+    }
+
+
+    private function canApplySchemaPrivilegeProbe(Connection $connection): bool
+    {
+        $tableName = sprintf('__easywi_priv_check_%s', bin2hex(random_bytes(4)));
+
+        try {
+            $connection->executeStatement(sprintf('CREATE TABLE `%s` (`id` INT NOT NULL)', $tableName));
+            $connection->executeStatement(sprintf('ALTER TABLE `%s` ADD COLUMN `name` VARCHAR(32) NULL', $tableName));
+            $connection->executeStatement(sprintf('CREATE INDEX `idx_name` ON `%s` (`name`)', $tableName));
+
+            return true;
+        } catch (\Throwable $exception) {
+            $this->logger->warning('Installer schema privilege probe failed.', [
+                'error' => $exception->getMessage(),
+            ]);
+
+            return false;
+        } finally {
+            try {
+                $connection->executeStatement(sprintf('DROP TABLE IF EXISTS `%s`', $tableName));
+            } catch (\Throwable) {
+                // ignore cleanup failures
+            }
+        }
     }
 
 
@@ -432,11 +465,19 @@ final class InstallerService
         ]);
 
         if ($result['exitCode'] !== 0) {
+            $output = (string) ($result['output'] ?? '');
             $this->logger->error('Installer migration command failed.', [
                 'exit_code' => $result['exitCode'],
-                'output' => $result['output'],
+                'output' => $output,
             ]);
-            throw new \RuntimeException('Installer migration command failed: ' . $result['output']);
+
+            $canFallbackToSchemaSync = str_contains($output, 'Failed to start migration process.')
+                || str_contains(strtolower($output), 'proc_open');
+            if (!$canFallbackToSchemaSync) {
+                throw new \RuntimeException('Installer migration command failed: ' . $output);
+            }
+
+            $this->logger->warning('Falling back to schema sync because migration process could not be started in this runtime.');
         }
 
         $this->ensureSchemaExists($entityManager);
@@ -475,19 +516,26 @@ final class InstallerService
             }
         }
 
-        if (PHP_SAPI === 'cli' && PHP_BINARY !== '') {
+        $candidates = array_merge($candidates, $this->discoverPleskPhpCandidates());
+
+        if (PHP_BINARY !== '') {
             $candidates[] = PHP_BINARY;
         }
 
-        $finder = new PhpExecutableFinder();
-        $found = $finder->find(false);
-        if (is_string($found) && $found !== '') {
-            $candidates[] = $found;
+        if (class_exists(PhpExecutableFinder::class)) {
+            $finder = new PhpExecutableFinder();
+            $found = $finder->find(false);
+            if (is_string($found) && $found !== '') {
+                $candidates[] = $found;
+            }
+        } else {
+            $this->logger->warning('Symfony Process component is missing; skipping PhpExecutableFinder in installer migration resolution.');
         }
 
         $candidates[] = 'php';
 
         $checked = [];
+        $fallbackCandidate = null;
         foreach ($candidates as $candidate) {
             if ($candidate === '' || isset($checked[$candidate])) {
                 continue;
@@ -499,21 +547,71 @@ final class InstallerService
                 continue;
             }
 
-            $moduleCheck = $this->runInstallerCommand([$candidate, '-m']);
-            if ($moduleCheck['exitCode'] !== 0) {
-                continue;
+            if ($fallbackCandidate === null) {
+                $fallbackCandidate = $candidate;
             }
 
-            if (preg_match('/^pdo_mysql$/mi', $moduleCheck['output']) === 1) {
+            $moduleCheck = $this->runInstallerCommand([$candidate, '-m']);
+            if ($moduleCheck['exitCode'] === 0 && preg_match('/^pdo_mysql$/mi', $moduleCheck['output']) === 1) {
                 return $candidate;
             }
 
-            $this->logger->warning('Skipping PHP binary for installer migrations because pdo_mysql is missing.', [
+            $this->logger->warning('Using PHP binary fallback for installer migrations; pdo_mysql could not be verified via module probe.', [
                 'php_binary' => $candidate,
+                'module_probe_exit_code' => $moduleCheck['exitCode'] ?? null,
             ]);
         }
 
-        throw new \RuntimeException('No compatible PHP CLI binary with pdo_mysql extension found for installer migrations.');
+        if ($fallbackCandidate !== null) {
+            return $fallbackCandidate;
+        }
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                $this->logger->warning('Falling back to unverified PHP binary candidate for installer migrations.', [
+                    'php_binary' => $candidate,
+                ]);
+                return $candidate;
+            }
+        }
+
+        throw new \RuntimeException('No executable PHP CLI binary found for installer migrations.');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function discoverPleskPhpCandidates(): array
+    {
+        $baseDir = '/opt/plesk/php';
+        if (!is_dir($baseDir)) {
+            return [];
+        }
+
+        $currentVersion = sprintf('%d.%d', PHP_MAJOR_VERSION, PHP_MINOR_VERSION);
+        $preferred = [];
+        $others = [];
+
+        foreach (glob($baseDir . '/*/bin/php') ?: [] as $path) {
+            if (!is_string($path) || $path === '') {
+                continue;
+            }
+
+            $normalized = realpath($path) ?: $path;
+            if (preg_match('#/opt/plesk/php/([0-9]+\.[0-9]+)/bin/php$#', $normalized, $matches) === 1) {
+                if ($matches[1] === $currentVersion) {
+                    $preferred[] = $normalized;
+                    continue;
+                }
+            }
+
+            $others[] = $normalized;
+        }
+
+        sort($preferred, SORT_NATURAL);
+        sort($others, SORT_NATURAL);
+
+        return array_values(array_unique(array_merge($preferred, $others)));
     }
 
     private function waitForDatabaseReady(array $connectionParams): void

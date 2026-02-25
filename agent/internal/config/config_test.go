@@ -33,6 +33,7 @@ func TestLoadParsesConfigAndDefaults(t *testing.T) {
 		"poll_interval=45s",
 		"heartbeat_interval=90s",
 		"max_concurrency=5",
+		"bind_ip_addresses=10.0.0.10,192.168.1.10",
 	}, "\n")), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -58,6 +59,32 @@ func TestLoadParsesConfigAndDefaults(t *testing.T) {
 	}
 	if cfg.MaxConcurrency != 5 {
 		t.Fatalf("MaxConcurrency = %v, want %v", cfg.MaxConcurrency, 5)
+	}
+	if len(cfg.BindIPAddresses) != 2 || cfg.BindIPAddresses[0] != "10.0.0.10" || cfg.BindIPAddresses[1] != "192.168.1.10" {
+		t.Fatalf("BindIPAddresses = %#v", cfg.BindIPAddresses)
+	}
+}
+
+
+
+func TestLoadAcceptsUtf8BomOnFirstKey(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "agent.conf")
+	if err := os.WriteFile(configPath, []byte(strings.Join([]string{
+		"\ufeffagent_id=agent-123",
+		"secret=super-secret",
+		"api_url=https://api.example.test",
+		"poll_interval=30s",
+	}, "\n")), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.AgentID != "agent-123" {
+		t.Fatalf("AgentID = %q, want %q", cfg.AgentID, "agent-123")
 	}
 }
 

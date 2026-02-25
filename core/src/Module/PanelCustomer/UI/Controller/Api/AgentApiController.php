@@ -62,12 +62,6 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 final class AgentApiController
 {
-    private const WINDOWS_SAFE_JOB_TYPES = [
-        'agent.update',
-        'agent.self_update',
-        'agent.diagnostics',
-    ];
-
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
@@ -111,6 +105,9 @@ final class AgentApiController
     public function heartbeat(Request $request): JsonResponse
     {
         $agent = $this->requireAgent($request);
+        if ($agent instanceof JsonResponse) {
+            return $agent;
+        }
 
         try {
             $payload = $request->toArray();
@@ -179,6 +176,9 @@ final class AgentApiController
     public function jobs(Request $request): JsonResponse
     {
         $agent = $this->requireAgent($request);
+        if ($agent instanceof JsonResponse) {
+            return $agent;
+        }
         $now = new DateTimeImmutable();
         $this->expireStaleJobs($now);
 
@@ -252,11 +252,6 @@ final class AgentApiController
                 continue;
             }
 
-            if ($isWindowsAgent && !in_array($job->getType(), self::WINDOWS_SAFE_JOB_TYPES, true)) {
-                $rejections['windows_unsupported']++;
-                continue;
-            }
-
             $lockToken = bin2hex(random_bytes(16));
             $job->lock($agent->getId(), $lockToken, $now->modify('+10 minutes'));
             $job->claim($agent->getId(), $now);
@@ -308,6 +303,9 @@ final class AgentApiController
     public function jobStart(Request $request, string $id): JsonResponse
     {
         $agent = $this->requireAgent($request);
+        if ($agent instanceof JsonResponse) {
+            return $agent;
+        }
         $job = $this->jobRepository->find($id);
 
         if ($job === null) {
@@ -344,6 +342,9 @@ final class AgentApiController
     public function jobResult(Request $request, string $id): JsonResponse
     {
         $agent = $this->requireAgent($request);
+        if ($agent instanceof JsonResponse) {
+            return $agent;
+        }
         $job = $this->jobRepository->find($id);
 
         if ($job === null) {
@@ -453,6 +454,9 @@ final class AgentApiController
     public function jobLogs(Request $request, string $id): JsonResponse
     {
         $agent = $this->requireAgent($request);
+        if ($agent instanceof JsonResponse) {
+            return $agent;
+        }
         $job = $this->jobRepository->find($id);
 
         if ($job === null) {
@@ -604,12 +608,12 @@ final class AgentApiController
         return max(0, min(100, $value));
     }
 
-    private function requireAgent(Request $request): \App\Module\Core\Domain\Entity\Agent
+    private function requireAgent(Request $request): \App\Module\Core\Domain\Entity\Agent|JsonResponse
     {
         $rawAgentHeader = $request->headers->get('X-Agent-ID');
         $agentId = AgentSignatureVerifier::normalizeAgentIdHeaderValue($rawAgentHeader);
         if ($agentId === '') {
-            throw new UnauthorizedHttpException('hmac', 'Missing agent id.');
+            return $this->unauthorizedAgentResponse('missing_agent_id');
         }
 
         $agent = $this->agentRepository->find($agentId);
@@ -621,7 +625,8 @@ final class AgentApiController
                 'path' => $request->getPathInfo(),
                 'client_ip' => $request->getClientIp(),
             ]);
-            throw new UnauthorizedHttpException('hmac', 'Unknown agent.');
+
+            return $this->unauthorizedAgentResponse('unknown_agent');
         }
 
         try {
@@ -634,12 +639,24 @@ final class AgentApiController
                 'client_ip' => $request->getClientIp(),
                 'error' => $exception->getMessage(),
             ]);
-            throw new UnauthorizedHttpException('hmac', 'Invalid agent credentials.', $exception);
+
+            return $this->unauthorizedAgentResponse('invalid_agent_credentials');
         }
 
-        $this->signatureVerifier->verify($request, $agentId, $secret);
+        try {
+            $this->signatureVerifier->verify($request, $agentId, $secret);
+        } catch (UnauthorizedHttpException $exception) {
+            return $this->unauthorizedAgentResponse($exception->getMessage());
+        }
 
         return $agent;
+    }
+
+    private function unauthorizedAgentResponse(string $reason): JsonResponse
+    {
+        return new JsonResponse([
+            'error' => $reason,
+        ], JsonResponse::HTTP_UNAUTHORIZED);
     }
 
     private function expireStaleJobs(DateTimeImmutable $now): void

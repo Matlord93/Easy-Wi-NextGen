@@ -456,15 +456,6 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		log.Printf("[DEPRECATION] alias_hit legacy_job_type=%q canonical_job_type=%q", job.Type, jobType)
 	}
 
-	if runtime.GOOS == "windows" && !isWindowsSafeJob(jobType) {
-		return jobs.Result{
-			JobID:     job.ID,
-			Status:    "failed",
-			Output:    map[string]string{"message": "job type is not permitted on Windows agents"},
-			Completed: time.Now().UTC(),
-		}, nil
-	}
-
 	switch jobType {
 	case "agent.update":
 		return handleAgentUpdate(job)
@@ -718,29 +709,6 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 	}
 }
 
-func isWindowsSafeJob(jobType string) bool {
-	switch jobType {
-	case "agent.update",
-		"agent.self_update",
-		"agent.diagnostics",
-		"role.ensure_base",
-		"security.ensure_base",
-		"web.ensure_base",
-		"ddos.policy.apply",
-		"ddos.status.check",
-		"windows.service.start",
-		"windows.service.stop",
-		"windows.service.restart",
-		"server.reboot.check_required",
-		"server.reboot.run",
-		"server.status.check",
-		"instance.sftp.credentials.reset",
-		"instance.config.apply":
-		return true
-	default:
-		return false
-	}
-}
 
 func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 	downloadURL := payloadValue(job.Payload, "download_url", "artifact_url", "url")
