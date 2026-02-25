@@ -489,10 +489,7 @@ final class CustomerInstanceFileManagerController
      */
     private function normalizePlugins(Instance $instance): array
     {
-        $plugins = $this->gamePluginRepository->findBy(
-            ['template' => $instance->getTemplate()],
-            ['name' => 'ASC'],
-        );
+        $plugins = $this->gamePluginRepository->findByTemplateGameKey($instance->getTemplate());
 
         $installedVersions = [];
         $installedRaw = $instance->getConfigOverrides()['addons'] ?? [];

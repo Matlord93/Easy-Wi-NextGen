@@ -23,7 +23,7 @@ final class InstanceAddonResolver
      */
     public function resolve(Instance $instance): array
     {
-        $plugins = $this->gamePluginRepository->findBy(['template' => $instance->getTemplate()], ['name' => 'ASC']);
+        $plugins = $this->gamePluginRepository->findByTemplateGameKey($instance->getTemplate());
         $installedVersions = $this->resolveInstalledVersions($instance);
 
         return array_map(function (GamePlugin $plugin) use ($instance, $installedVersions): array {
@@ -71,7 +71,7 @@ final class InstanceAddonResolver
         if (!$plugin instanceof GamePlugin) {
             return null;
         }
-        if ($plugin->getTemplate()->getId() !== $instance->getTemplate()->getId()) {
+        if ($plugin->getTemplate()->getGameKey() !== $instance->getTemplate()->getGameKey()) {
             return null;
         }
 

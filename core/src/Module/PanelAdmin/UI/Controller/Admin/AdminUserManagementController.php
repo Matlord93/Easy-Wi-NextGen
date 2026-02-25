@@ -63,7 +63,7 @@ final class AdminUserManagementController
     #[Route(path: '', name: 'admin_users_create', methods: ['POST'])]
     public function create(Request $request): Response
     {
-        $actor = $this->requireAdmin($request);
+        $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
@@ -122,7 +122,7 @@ final class AdminUserManagementController
     #[Route(path: '/{id}/details', name: 'admin_users_update', methods: ['POST'])]
     public function update(Request $request, int $id): Response
     {
-        $actor = $this->requireAdmin($request);
+        $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
@@ -288,7 +288,7 @@ final class AdminUserManagementController
     #[Route(path: '/{id}/preferences', name: 'admin_user_preferences_update', methods: ['POST'])]
     public function updatePreferences(Request $request, int $id): Response
     {
-        $actor = $this->requireAdmin($request);
+        $actor = $this->requireSuperadmin($request);
         if ($actor === null) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
@@ -439,6 +439,7 @@ final class AdminUserManagementController
             'portalLanguages' => self::PORTAL_LANGUAGE_OPTIONS,
             'canImpersonate' => $this->canImpersonate($request),
             'canManageSshKeys' => $this->canManageSshKeys($request),
+            'canManageUsers' => $this->canManageUsers($request),
             'pendingSshKeys' => $this->collectPendingSshKeys($rows),
             'createForm' => [
                 'email' => '',
@@ -457,6 +458,12 @@ final class AdminUserManagementController
     }
 
     private function canManageSshKeys(Request $request): bool
+    {
+        $actor = $request->attributes->get('current_user');
+        return $actor instanceof User && $actor->getType() === UserType::Superadmin;
+    }
+
+    private function canManageUsers(Request $request): bool
     {
         $actor = $request->attributes->get('current_user');
         return $actor instanceof User && $actor->getType() === UserType::Superadmin;

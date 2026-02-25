@@ -99,6 +99,7 @@ final class AdminInstanceController
             'summary' => $this->buildSummary($normalizedInstances),
             'ops' => $this->buildOpsSummary($normalizedInstances),
             'activeNav' => 'game-instances',
+            'createNotice' => $this->buildCreateNotice($request),
         ]));
     }
 
@@ -111,6 +112,7 @@ final class AdminInstanceController
 
         return new Response($this->twig->render('admin/instances/new.html.twig', [
             'activeNav' => 'game-instances',
+            'createNotice' => $this->buildCreateNotice($request),
         ]));
     }
 
@@ -127,6 +129,7 @@ final class AdminInstanceController
             'templates' => $this->listDistinctTemplates(),
             'form' => $this->buildFormContext(),
             'activeNav' => 'game-instances',
+            'createNotice' => $this->buildCreateNotice($request),
         ]));
     }
 
@@ -167,13 +170,13 @@ final class AdminInstanceController
 
         $formData = $this->parsePayload($request);
         if ($formData['errors'] !== []) {
-            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+            return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
         }
 
         $blockMessage = $this->diskEnforcementService->guardNodeProvisioning($formData['node'], new \DateTimeImmutable());
         if ($blockMessage !== null) {
             $formData['errors'][] = $blockMessage;
-            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+            return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
         }
 
         $requiredPorts = $formData['template']->getRequiredPorts();
@@ -191,18 +194,18 @@ final class AdminInstanceController
                     );
                 } catch (\RuntimeException | \InvalidArgumentException $exception) {
                     $formData['errors'][] = $exception->getMessage();
-                    return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+                    return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
                 }
                 if ($portBlock === null) {
                     $formData['errors'][] = 'Requested port does not match any enabled port pool.';
-                    return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+                    return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
                 }
             } else {
                 $portBlock = $this->allocatePortBlock($formData['node'], $formData['customer'], $requiredCount);
             }
             if ($portBlock === null) {
                 $formData['errors'][] = 'No free port blocks available on the selected node.';
-                return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+                return $this->renderFormWithErrors($request, $formData, Response::HTTP_BAD_REQUEST);
             }
         }
 
@@ -260,6 +263,31 @@ final class AdminInstanceController
             }
         }
 
+        $installJob = null;
+        $installDeferredReason = null;
+        $installPreparation = $this->instanceInstallService->prepareInstall($instance);
+        if (($installPreparation['ok'] ?? false) === true) {
+            $installPayload = array_merge([
+                'instance_id' => (string) ($instance->getId() ?? ''),
+                'customer_id' => (string) $formData['customer']->getId(),
+                'node_id' => $formData['node']->getId(),
+                'agent_id' => $formData['node']->getId(),
+                'cpu_limit' => (string) $instance->getCpuLimit(),
+                'ram_limit' => (string) $instance->getRamLimit(),
+                'disk_limit' => (string) $instance->getDiskLimit(),
+                'base_dir' => $instance->getInstanceBaseDir() ?? $this->appSettingsService->getInstanceBaseDir(),
+            ], is_array($installPreparation['payload'] ?? null) ? $installPreparation['payload'] : []);
+
+            $installJob = new Job('sniper.install', $installPayload);
+            $this->entityManager->persist($installJob);
+            $instance->setStatus(InstanceStatus::Provisioning);
+            $this->entityManager->persist($instance);
+        } else {
+            $installDeferredReason = is_string($installPreparation['error_code'] ?? null)
+                ? (string) $installPreparation['error_code']
+                : 'INSTALL_PRECHECK_FAILED';
+        }
+
         $this->auditLogger->log($actor, 'instance.created', [
             'instance_id' => $instance->getId(),
             'customer_id' => $formData['customer']->getId(),
@@ -270,19 +298,28 @@ final class AdminInstanceController
             'disk_limit' => $formData['disk_limit'],
             'port_block_id' => $instance->getPortBlockId(),
             'firewall_job_id' => $firewallJob?->getId(),
+            'install_job_id' => $installJob?->getId(),
+            'install_deferred_reason' => $installDeferredReason,
         ]);
 
         $this->entityManager->flush();
 
+        $redirectUrl = sprintf(
+            '/admin/instances?created=%d&install=%s%s',
+            $instance->getId(),
+            $installJob !== null ? 'queued' : 'deferred',
+            $installDeferredReason !== null ? '&install_reason=' . rawurlencode($installDeferredReason) : '',
+        );
+
         if ($request->headers->get('HX-Request') === 'true') {
             $response = new Response('', Response::HTTP_NO_CONTENT);
             $response->headers->set('HX-Trigger', 'instances-changed');
-            $response->headers->set('HX-Redirect', '/admin/instances');
+            $response->headers->set('HX-Redirect', $redirectUrl);
 
             return $response;
         }
 
-        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/instances']);
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => $redirectUrl]);
     }
 
     #[Route(path: '/customers', name: 'admin_instances_customers_create', methods: ['POST'])]
@@ -770,8 +807,12 @@ final class AdminInstanceController
         return null;
     }
 
-    private function renderFormWithErrors(array $formData, int $status): Response
+    private function renderFormWithErrors(Request $request, array $formData, int $status): Response
     {
+        if ($request->headers->get('HX-Request') === 'true') {
+            $status = Response::HTTP_OK;
+        }
+
         return new Response($this->twig->render('admin/instances/_form.html.twig', [
             'customers' => $this->userRepository->findCustomers(),
             'nodes' => $this->agentRepository->findBy([], ['name' => 'ASC']),
@@ -1283,6 +1324,32 @@ final class AdminInstanceController
         }
 
         return $summary;
+    }
+
+
+    private function buildCreateNotice(Request $request): ?array
+    {
+        $created = $request->query->get('created');
+        if ($created === null) {
+            return null;
+        }
+
+        $installState = (string) $request->query->get('install', 'queued');
+        $installReason = (string) $request->query->get('install_reason', '');
+
+        if ($installState === 'queued') {
+            return [
+                'type' => 'success',
+                'message' => sprintf('Instanz #%s wurde erstellt. Installation wurde automatisch gestartet.', $created),
+            ];
+        }
+
+        $reasonHint = $installReason !== '' ? sprintf(' Grund: %s.', $installReason) : '';
+
+        return [
+            'type' => 'warning',
+            'message' => sprintf('Instanz #%s wurde erstellt, aber die automatische Installation wartet auf Eingaben.%s', $created, $reasonHint),
+        ];
     }
 
     private function buildOpsSummary(array $instances): array

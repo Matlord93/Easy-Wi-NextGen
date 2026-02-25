@@ -10,6 +10,7 @@ use App\Module\Core\Application\UpdateJobService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
@@ -315,8 +316,23 @@ final class AdminUpdateController
             }
 
             $existingJob = $existingJobs[$agent->getId()] ?? null;
-            if ($existingJob !== null && in_array($existingJob->getStatus()->value, ['queued', 'running'], true)) {
-                continue;
+            if ($existingJob !== null) {
+                if ($existingJob->getStatus() === JobStatus::Running) {
+                    continue;
+                }
+
+                if ($existingJob->getStatus() === JobStatus::Queued) {
+                    $existingPayload = $existingJob->getPayload();
+                    $existingVersion = is_string($existingPayload['version'] ?? null) ? (string) $existingPayload['version'] : null;
+                    $newVersion = is_string($payload['version'] ?? null) ? (string) $payload['version'] : null;
+
+                    if ($existingVersion !== null && $newVersion !== null
+                        && $this->releaseChecker->isUpdateAvailable($existingVersion, $newVersion) === true) {
+                        $existingJob->transitionTo(JobStatus::Cancelled);
+                    } else {
+                        continue;
+                    }
+                }
             }
 
             $job = new Job($this->resolveAgentUpdateJobType($agent), $payload);

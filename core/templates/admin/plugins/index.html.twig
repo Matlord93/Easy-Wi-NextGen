@@ -14,6 +14,12 @@
         <a class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700" href="/admin/plugins/import">
             {{ t('admin_plugins_import_button', page_locale()) }}
         </a>
+        <button
+            class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700"
+            hx-post="/admin/plugins/seed"
+            hx-target="#plugins-table"
+            hx-swap="none"
+        >Standard-Plugins hinzufügen</button>
         <a class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" href="/admin/plugins/new">
             {{ t('admin_plugins_create_button', page_locale()) }}
         </a>
@@ -33,7 +39,7 @@
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">
         <p class="text-xs uppercase text-slate-700">{{ t('admin_plugins_templates_covered', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.templates }}</p>
+        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.game_keys }}</p>
         <p class="mt-1 text-xs text-slate-600">{{ t('admin_plugins_unique_templates', page_locale()) }}</p>
     </div>
     <div class="rounded-xl bg-white border border-slate-200 p-4">

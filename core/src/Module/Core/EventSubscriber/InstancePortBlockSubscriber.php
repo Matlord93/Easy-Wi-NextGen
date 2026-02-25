@@ -47,8 +47,7 @@ final class InstancePortBlockSubscriber implements EventSubscriber
             return;
         }
 
-        $portBlock->releaseInstance();
-        $this->entityManager->persist($portBlock);
+        $this->entityManager->remove($portBlock);
 
         $this->auditLogger->log(null, 'port_block.released', [
             'port_block_id' => $portBlock->getId(),

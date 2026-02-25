@@ -3,7 +3,7 @@
         <thead class="text-xs uppercase text-slate-700 border-b border-slate-200">
             <tr>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('admin_plugins_table_plugin', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('admin_plugins_table_template', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold">Game key</th>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('admin_plugins_table_version', page_locale()) }}</th>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('admin_plugins_table_checksum', page_locale()) }}</th>
                 <th class="px-5 py-3 text-left font-semibold">{{ t('admin_plugins_table_updated', page_locale()) }}</th>
@@ -19,8 +19,9 @@
                     </td>
                     <td class="px-5 py-4 text-slate-600">
                         <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                            {{ plugin.template.name }}
+                            {{ plugin.template.game_key|upper }}
                         </span>
+                        <div class="mt-1 text-[11px] text-slate-500">Für alle Templates mit diesem game_key</div>
                     </td>
                     <td class="px-5 py-4 text-slate-600">{{ plugin.version }}</td>
                     <td class="px-5 py-4 text-slate-600 font-mono text-xs">{{ plugin.checksum }}</td>

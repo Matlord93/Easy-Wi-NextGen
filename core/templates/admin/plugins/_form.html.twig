@@ -22,11 +22,11 @@
         hx-swap="outerHTML"
     >
         <div>
-            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('admin_plugins_template_label', page_locale()) }}</label>
-            <select name="template_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
-                <option value="">{{ t('admin_plugins_template_select', page_locale()) }}</option>
+            <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Game / Engine</label>
+            <select name="game_key" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <option value="">Spiel auswählen</option>
                 {% for template in templates %}
-                    <option value="{{ template.id }}" {% if form.template_id == template.id %}selected{% endif %}>{{ template.name }}</option>
+                    <option value="{{ template.game_key }}" {% if form.game_key == template.game_key %}selected{% endif %}>{{ template.label }}</option>
                 {% endfor %}
             </select>
         </div>

@@ -1,94 +1,60 @@
 {% extends 'admin/base.html.twig' %}
 
-
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('admin_instances_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('admin_instances_intro', page_locale()) }}</p>
-    </div>
-    <div class="flex items-center gap-3">
-        <button
-            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-            hx-get="{{ path('admin_instances_table') }}"
-            hx-target="#instances-table"
-            hx-swap="outerHTML"
-        >{{ t('admin_instances_refresh', page_locale()) }}</button>
-        <a
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
-            href="{{ path('admin_instances_new') }}"
-        >{{ t('admin_instances_new', page_locale()) }}</a>
-    </div>
-</div>
-
-<div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_total', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_running', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.running }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_pending_setup', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.pending_setup }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_provisioning', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.provisioning }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_suspended', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.suspended }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_instances_needs_attention', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-rose-500">{{ summary.error }}</p>
-    </div>
-</div>
-
-<div class="rounded-xl border border-slate-200 bg-white p-4 mb-6">
-    <h2 class="text-sm font-semibold text-slate-900">Ops overview</h2>
-    <p class="text-xs text-slate-600 mt-1">Source of truth: node metrics = host-level, instance rows = per-instance runtime/disk state.</p>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-        <div class="rounded-lg bg-slate-50 border border-slate-200 p-3">
-            <p class="text-xs uppercase text-slate-600">Offline agents</p>
-            <p class="text-xl font-semibold text-rose-600">{{ ops.offline_agents }}</p>
-        </div>
-        <div class="rounded-lg bg-slate-50 border border-slate-200 p-3">
-            <p class="text-xs uppercase text-slate-600">Disk warnings</p>
-            <p class="text-xl font-semibold text-amber-600">{{ ops.disk_problem_instances }}</p>
-        </div>
-        <div class="rounded-lg bg-slate-50 border border-slate-200 p-3">
-            <p class="text-xs uppercase text-slate-600">Runtime unknown/error</p>
-            <p class="text-xl font-semibold text-indigo-600">{{ ops.runtime_unknown_instances }}</p>
-        </div>
-        <div class="rounded-lg bg-slate-50 border border-slate-200 p-3">
-            <p class="text-xs uppercase text-slate-600">Blocked schedules</p>
-            <p class="text-xl font-semibold text-rose-600">{{ ops.blocked_schedules }}</p>
+<div class="flex flex-col gap-6">
+    <div class="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 to-indigo-900 px-6 py-7 text-white shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-semibold">{{ t('admin_instances_title', page_locale()) }}</h1>
+                <p class="mt-2 max-w-3xl text-sm text-slate-100">
+                    Alles Wichtige auf einen Blick: Status, Ressourcen, Disk, SFTP und Setup-Stand.
+                    Neue Server werden automatisch erstellt und die Installation wird direkt gestartet.
+                </p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button
+                    class="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white"
+                    hx-get="{{ path('admin_instances_table') }}"
+                    hx-target="#instances-table"
+                    hx-swap="outerHTML"
+                >{{ t('admin_instances_refresh', page_locale()) }}</button>
+                <a class="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900" href="{{ path('admin_instances_provision') }}">
+                    {{ t('admin_instances_new', page_locale()) }}
+                </a>
+            </div>
         </div>
     </div>
 
-    <div class="mt-4">
-        <p class="text-xs font-semibold uppercase text-slate-600">Failed jobs by error_code</p>
-        <ul class="mt-2 space-y-1 text-xs text-slate-700">
-            {% for code, count in ops.failed_jobs_by_error %}
-                <li class="flex items-center justify-between rounded border border-slate-200 px-2 py-1 bg-slate-50">
-                    <span>{{ code }}</span>
-                    <span class="font-semibold">{{ count }}</span>
-                </li>
-            {% else %}
-                <li class="text-slate-500">No failed jobs in latest sample.</li>
-            {% endfor %}
-        </ul>
-    </div>
-</div>
+    {% if createNotice %}
+        <div class="rounded-xl px-6 py-4 text-sm {{ createNotice.type == 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-amber-200 bg-amber-50 text-amber-800' }}">
+            {{ createNotice.message }}
+        </div>
+    {% endif %}
 
-<div id="instances-table" class="rounded-xl bg-white border border-slate-200"
-     hx-get="{{ path('admin_instances_table') }}"
-     hx-trigger="instances-changed from:body"
-     hx-swap="outerHTML">
-    {% include 'admin/instances/_table.html.twig' with { instances: instances } %}
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_total', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_running', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.running }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_pending_setup', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.pending_setup }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_provisioning', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.provisioning }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_suspended', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.suspended }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_needs_attention', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-rose-600">{{ summary.error }}</p></div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 class="text-sm font-semibold text-slate-900">Ops Übersicht</h2>
+        <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4 text-xs">
+            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3"><span class="text-slate-600">Offline Agents</span><p class="mt-1 text-lg font-semibold text-rose-600">{{ ops.offline_agents }}</p></div>
+            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3"><span class="text-slate-600">Disk Warnungen</span><p class="mt-1 text-lg font-semibold text-amber-600">{{ ops.disk_problem_instances }}</p></div>
+            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3"><span class="text-slate-600">Runtime unbekannt</span><p class="mt-1 text-lg font-semibold text-indigo-600">{{ ops.runtime_unknown_instances }}</p></div>
+            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3"><span class="text-slate-600">Blockierte Schedules</span><p class="mt-1 text-lg font-semibold text-rose-600">{{ ops.blocked_schedules }}</p></div>
+        </div>
+    </div>
+
+    <div id="instances-table" class="rounded-xl border border-slate-200 bg-white shadow-sm"
+         hx-get="{{ path('admin_instances_table') }}"
+         hx-trigger="instances-changed from:body"
+         hx-swap="outerHTML">
+        {% include 'admin/instances/_table.html.twig' with { instances: instances } %}
+    </div>
 </div>
 {% endblock %}

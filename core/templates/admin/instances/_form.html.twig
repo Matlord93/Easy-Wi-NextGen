@@ -1,153 +1,97 @@
-<form class="p-6 space-y-4"
+<form class="space-y-6 p-6"
       hx-post="{{ form.action_url }}"
       hx-target="#instance-form"
       hx-swap="outerHTML">
+    <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+        Server wird nach dem Erstellen automatisch installiert. Falls wichtige Template-Daten fehlen, bleibt er als "Wartet auf Setup" markiert.
+    </div>
+
     {% if form.errors is not empty %}
         <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <ul class="list-disc pl-4 space-y-1">
+            <ul class="list-disc space-y-1 pl-4">
                 {% for error in form.errors %}
                     <li>{{ error }}</li>
                 {% endfor %}
             </ul>
         </div>
     {% endif %}
+
     {% if form.port_pool_notice %}
         <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {{ t('admin_instances_port_pool_notice', page_locale())|replace({'%start%': form.port_pool_notice.start, '%end%': form.port_pool_notice.end}) }}
         </div>
     {% endif %}
 
-    <div class="grid grid-cols-1 gap-4">
-        <label class="block text-sm font-medium text-slate-700">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <label class="text-sm font-medium text-slate-700">
             {{ t('admin_instances_customer_label', page_locale()) }}
-            <select name="customer_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            <select name="customer_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
                 <option value="">{{ t('admin_instances_customer_placeholder', page_locale()) }}</option>
                 {% for customer in customers %}
                     <option value="{{ customer.id }}" {{ customer.id == form.customer_id ? 'selected' : '' }}>{{ customer.email }}</option>
                 {% endfor %}
             </select>
         </label>
-        <label class="block text-sm font-medium text-slate-700">
+        <label class="text-sm font-medium text-slate-700">
             {{ t('admin_instances_template_label', page_locale()) }}
-            <select name="template_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            <select name="template_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
                 <option value="">{{ t('admin_instances_template_placeholder', page_locale()) }}</option>
                 {% for template in templates %}
-                    <option value="{{ template.id }}" {{ template.id == form.template_id ? 'selected' : '' }}>
-                        {{ template.displayName }} ({{ template.gameKey }})
-                    </option>
+                    <option value="{{ template.id }}" {{ template.id == form.template_id ? 'selected' : '' }}>{{ template.displayName }} ({{ template.gameKey }})</option>
                 {% endfor %}
             </select>
         </label>
-        <label class="block text-sm font-medium text-slate-700">
+        <label class="text-sm font-medium text-slate-700">
             {{ t('admin_instances_node_label', page_locale()) }}
-            <select name="node_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+            <select name="node_id" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
                 <option value="">{{ t('admin_instances_node_placeholder', page_locale()) }}</option>
                 {% for node in nodes %}
                     <option value="{{ node.id }}" {{ node.id == form.node_id ? 'selected' : '' }}>{{ node.name ?? node.id }}</option>
                 {% endfor %}
             </select>
         </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_base_dir_label', page_locale()) }}
-            <input
-                name="instance_base_dir"
-                type="text"
-                list="instance-base-dir-options"
-                value="{{ form.instance_base_dir }}"
-                class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                placeholder="/home"
-            >
-            <p class="mt-1 text-xs text-slate-500">{{ t('admin_instances_base_dir_hint', page_locale()) }}</p>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_cpu_limit', page_locale()) }}<input name="cpu_limit" type="number" min="1" value="{{ form.cpu_limit }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" required></label>
+        <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_ram_limit', page_locale()) }}<input name="ram_limit" type="number" min="256" value="{{ form.ram_limit }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" required></label>
+        <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_disk_limit', page_locale()) }}<input name="disk_limit" type="number" min="1024" value="{{ form.disk_limit }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" required></label>
+        <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_port_start_label', page_locale()) }}<input name="port_start" type="number" min="1" value="{{ form.port_start }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="{{ t('admin_instances_port_start_placeholder', page_locale()) }}"></label>
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_current_slots', page_locale()) }}<input name="current_slots" type="number" min="{{ form.min_slots }}" max="{{ form.max_slots_limit }}" value="{{ form.current_slots }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+        <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_max_slots', page_locale()) }}<input name="max_slots" type="number" min="{{ form.min_slots }}" max="{{ form.max_slots_limit }}" value="{{ form.max_slots }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+        <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_base_dir_label', page_locale()) }}
+            <input name="instance_base_dir" type="text" list="instance-base-dir-options" value="{{ form.instance_base_dir }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="/home">
         </label>
     </div>
 
     <datalist id="instance-base-dir-options">
-        {% for dir in form.instance_base_dirs %}
-            <option value="{{ dir }}"></option>
-        {% endfor %}
+        {% for dir in form.instance_base_dirs %}<option value="{{ dir }}"></option>{% endfor %}
     </datalist>
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_cpu_limit', page_locale()) }}
-            <input name="cpu_limit" type="number" min="1" value="{{ form.cpu_limit }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="2">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_ram_limit', page_locale()) }}
-            <input name="ram_limit" type="number" min="256" value="{{ form.ram_limit }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="4096">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_disk_limit', page_locale()) }}
-            <input name="disk_limit" type="number" min="1024" value="{{ form.disk_limit }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="20000">
-        </label>
-    </div>
-
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_current_slots', page_locale()) }}
-            <input name="current_slots" type="number" min="{{ form.min_slots }}" max="{{ form.max_slots_limit }}" value="{{ form.current_slots }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_max_slots', page_locale()) }}
-            <input name="max_slots" type="number" min="{{ form.min_slots }}" max="{{ form.max_slots_limit }}" value="{{ form.max_slots }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-        </label>
-    </div>
-
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_server_name', page_locale()) }}
-            <input name="server_name" type="text" value="{{ form.server_name }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_server_name_placeholder', page_locale()) }}">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_steam_gslt', page_locale()) }}
-            <input name="steam_gslt" type="text" value="{{ form.steam_gslt }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="0123456789ABCDEF">
-        </label>
-    </div>
-
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_server_password', page_locale()) }}
-            <input name="server_password" type="password" value="{{ form.server_password }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_server_password_placeholder', page_locale()) }}">
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_rcon_password', page_locale()) }}
-            <input name="rcon_password" type="password" value="{{ form.rcon_password }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_rcon_password_placeholder', page_locale()) }}">
-        </label>
-    </div>
-
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_steam_login_mode', page_locale()) }}
-            <select name="steam_login_mode" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                <option value="anonymous" {{ form.steam_login_mode == 'anonymous' ? 'selected' : '' }}>
-                    {{ t('admin_instances_steam_login_anonymous', page_locale()) }}
-                </option>
-                <option value="account" {{ form.steam_login_mode == 'account' ? 'selected' : '' }}>
-                    {{ t('admin_instances_steam_login_account', page_locale()) }}
-                </option>
-            </select>
-            <p class="mt-1 text-xs text-slate-500">{{ t('admin_instances_steam_login_hint', page_locale()) }}</p>
-        </label>
-        <label class="block text-sm font-medium text-slate-700">
-            {{ t('admin_instances_steam_account', page_locale()) }}
-            <input name="steam_account" type="text" value="{{ form.steam_account }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_steam_account_placeholder', page_locale()) }}">
-        </label>
-    </div>
-
-    <label class="block text-sm font-medium text-slate-700">
-        {{ t('admin_instances_steam_password', page_locale()) }}
-        <input name="steam_password" type="password" value="{{ form.steam_password }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_steam_password_placeholder', page_locale()) }}">
-    </label>
-
-    <label class="block text-sm font-medium text-slate-700">
-        {{ t('admin_instances_port_start_label', page_locale()) }}
-        <input name="port_start" type="number" min="1" value="{{ form.port_start }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_instances_port_start_placeholder', page_locale()) }}">
-        <p class="mt-1 text-xs text-slate-500">{{ t('admin_instances_port_start_hint', page_locale()) }}</p>
-    </label>
+    <details class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <summary class="cursor-pointer text-sm font-semibold text-slate-800">Erweiterte Werte (optional)</summary>
+        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_server_name', page_locale()) }}<input name="server_name" type="text" value="{{ form.server_name }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+            <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_steam_gslt', page_locale()) }}<input name="steam_gslt" type="text" value="{{ form.steam_gslt }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+            <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_server_password', page_locale()) }}<input name="server_password" type="password" value="{{ form.server_password }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+            <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_rcon_password', page_locale()) }}<input name="rcon_password" type="password" value="{{ form.rcon_password }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+            <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_steam_login_mode', page_locale()) }}
+                <select name="steam_login_mode" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    <option value="anonymous" {{ form.steam_login_mode == 'anonymous' ? 'selected' : '' }}>{{ t('admin_instances_steam_login_anonymous', page_locale()) }}</option>
+                    <option value="account" {{ form.steam_login_mode == 'account' ? 'selected' : '' }}>{{ t('admin_instances_steam_login_account', page_locale()) }}</option>
+                </select>
+            </label>
+            <label class="text-sm font-medium text-slate-700">{{ t('admin_instances_steam_account', page_locale()) }}<input name="steam_account" type="text" value="{{ form.steam_account }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+            <label class="text-sm font-medium text-slate-700 md:col-span-2">{{ t('admin_instances_steam_password', page_locale()) }}<input name="steam_password" type="password" value="{{ form.steam_password }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></label>
+        </div>
+    </details>
 
     <p class="text-xs text-slate-500">{{ t('admin_instances_ports_auto', page_locale()) }}</p>
 
-    <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
+    <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
         {{ t(form.submit_label, page_locale()) }}
     </button>
 </form>

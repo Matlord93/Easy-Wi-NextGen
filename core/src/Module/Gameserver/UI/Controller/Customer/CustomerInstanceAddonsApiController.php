@@ -162,7 +162,7 @@ final class CustomerInstanceAddonsApiController
             return $this->apiError($request, 'CONFLICT', $blockMessage, JsonResponse::HTTP_CONFLICT);
         }
 
-        $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), $customer->getId(), $instance->getId(), [
+        $payload = [
             'instance_id' => (string) ($instance->getId() ?? ''),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
@@ -172,7 +172,9 @@ final class CustomerInstanceAddonsApiController
             'plugin_version' => $addon->getVersion(),
             'plugin_checksum' => $addon->getChecksum(),
             'plugin_download_url' => $addon->getDownloadUrl(),
-        ]);
+        ] + $this->buildCs2MetamodGameInfoPatchPayload($instance, $addon, $action);
+
+        $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), $customer->getId(), $instance->getId(), $payload);
 
         $result = $this->dispatch($message);
         if (!is_array($result) || !is_string($result['job_id'] ?? null)) {
@@ -186,6 +188,30 @@ final class CustomerInstanceAddonsApiController
             'status' => 'queued',
             'requires_restart' => true,
         ], JsonResponse::HTTP_ACCEPTED);
+    }
+
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildCs2MetamodGameInfoPatchPayload(Instance $instance, \App\Module\Core\Domain\Entity\GamePlugin $addon, string $action): array
+    {
+        $gameKey = strtolower(trim($instance->getTemplate()->getGameKey()));
+        $pluginName = strtolower(trim($addon->getName()));
+        if ($gameKey !== 'cs2' || $action === 'remove' || !str_contains($pluginName, 'metamod')) {
+            return [];
+        }
+
+        return [
+            'post_install_file_patches' => [[
+                'path' => 'game/csgo/gameinfo.gi',
+                'mode' => 'ensure_line_between',
+                'line' => 'Game	csgo/addons/metamod',
+                'after' => 'Game_LowViolence	csgo_lv',
+                'before' => 'Game	csgo',
+                'reapply_on_update' => true,
+            ]],
+        ];
     }
 
     /** @return array<string, mixed>|null */

@@ -35,7 +35,6 @@ final class AdminPluginCatalogController
         }
 
         $plugins = $this->pluginRepository->findBy([], ['updatedAt' => 'DESC']);
-        $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC']);
 
         return new Response($this->twig->render('admin/plugins/index.html.twig', [
             'plugins' => $this->normalizePlugins($plugins),
@@ -154,9 +153,16 @@ final class AdminPluginCatalogController
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
         }
 
-        $template = $this->templateRepository->find($formData['template_id']);
+        $template = $this->resolveTemplateForGameKey($formData['game_key']);
         if ($template === null) {
-            return new Response('Template not found.', Response::HTTP_NOT_FOUND);
+            $formData['errors'][] = 'No template found for selected game key.';
+            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+        }
+
+        $duplicate = $this->pluginRepository->findDuplicateForGameKey($formData['game_key'], $formData['name'], $formData['version']);
+        if ($duplicate !== null) {
+            $formData['errors'][] = 'Plugin with same name/version already exists for this game key.';
+            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
         }
 
         $plugin = new GamePlugin(
@@ -208,13 +214,21 @@ final class AdminPluginCatalogController
             return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST, $plugin);
         }
 
-        $template = $this->templateRepository->find($formData['template_id']);
+        $template = $this->resolveTemplateForGameKey($formData['game_key']);
         if ($template === null) {
-            return new Response('Template not found.', Response::HTTP_NOT_FOUND);
+            $formData['errors'][] = 'No template found for selected game key.';
+            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST, $plugin);
+        }
+
+        $duplicate = $this->pluginRepository->findDuplicateForGameKey($formData['game_key'], $formData['name'], $formData['version'], $plugin->getId());
+        if ($duplicate !== null) {
+            $formData['errors'][] = 'Plugin with same name/version already exists for this game key.';
+            return $this->renderFormWithErrors($formData, Response::HTTP_BAD_REQUEST, $plugin);
         }
 
         $previous = [
             'template_id' => $plugin->getTemplate()->getId(),
+            'game_key' => $plugin->getTemplate()->getGameKey(),
             'name' => $plugin->getName(),
             'version' => $plugin->getVersion(),
             'checksum' => $plugin->getChecksum(),
@@ -280,6 +294,60 @@ final class AdminPluginCatalogController
         return $response;
     }
 
+
+    #[Route(path: '/seed', name: 'admin_plugins_seed', methods: ['POST'])]
+    public function seedCatalog(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $seedEntries = $this->buildRecommendedSeedEntries();
+        $imported = 0;
+        $updated = 0;
+
+        foreach ($seedEntries as $entry) {
+            $template = $this->resolveTemplateForGameKey($entry['game_key']);
+            if ($template === null) {
+                continue;
+            }
+
+            $existing = $this->pluginRepository->findDuplicateForGameKey($entry['game_key'], $entry['name'], $entry['version']);
+            if ($existing === null) {
+                $plugin = new GamePlugin(
+                    template: $template,
+                    name: $entry['name'],
+                    version: $entry['version'],
+                    checksum: $entry['checksum'],
+                    downloadUrl: $entry['download_url'],
+                    description: $entry['description'],
+                );
+                $this->entityManager->persist($plugin);
+                $imported++;
+            } else {
+                $existing->setTemplate($template);
+                $existing->setChecksum($entry['checksum']);
+                $existing->setDownloadUrl($entry['download_url']);
+                $existing->setDescription($entry['description']);
+                $updated++;
+            }
+        }
+
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($actor, 'plugin.seeded', [
+            'imported' => $imported,
+            'updated' => $updated,
+            'entries' => count($seedEntries),
+        ]);
+
+        $response = new Response('', Response::HTTP_NO_CONTENT);
+        $response->headers->set('HX-Trigger', 'plugins-changed');
+
+        return $response;
+    }
+
     #[Route(path: '/import', name: 'admin_plugins_import', methods: ['POST'])]
     public function import(Request $request): Response
     {
@@ -322,16 +390,28 @@ final class AdminPluginCatalogController
         }
 
         foreach ($parsedPlugins as $pluginData) {
-            $plugin = new GamePlugin(
-                template: $pluginData['template'],
-                name: $pluginData['name'],
-                version: $pluginData['version'],
-                checksum: $pluginData['checksum'],
-                downloadUrl: $pluginData['download_url'],
-                description: $pluginData['description'],
-            );
+            $plugin = $this->pluginRepository->findDuplicateForGameKey($pluginData['game_key'], $pluginData['name'], $pluginData['version']);
+            $source = 'import';
 
-            $this->entityManager->persist($plugin);
+            if ($plugin === null) {
+                $plugin = new GamePlugin(
+                    template: $pluginData['template'],
+                    name: $pluginData['name'],
+                    version: $pluginData['version'],
+                    checksum: $pluginData['checksum'],
+                    downloadUrl: $pluginData['download_url'],
+                    description: $pluginData['description'],
+                );
+                $this->entityManager->persist($plugin);
+                $source = 'import_create';
+            } else {
+                $plugin->setTemplate($pluginData['template']);
+                $plugin->setChecksum($pluginData['checksum']);
+                $plugin->setDownloadUrl($pluginData['download_url']);
+                $plugin->setDescription($pluginData['description']);
+                $source = 'import_update';
+            }
+
             $this->entityManager->flush();
 
             $this->auditLogger->log($actor, 'plugin.created', [
@@ -341,7 +421,7 @@ final class AdminPluginCatalogController
                 'version' => $plugin->getVersion(),
                 'checksum' => $plugin->getChecksum(),
                 'download_url' => $plugin->getDownloadUrl(),
-                'source' => 'import',
+                'source' => $source,
             ]);
             $this->entityManager->flush();
         }
@@ -361,15 +441,15 @@ final class AdminPluginCatalogController
     {
         $errors = [];
 
-        $templateId = (int) $request->request->get('template_id', 0);
+        $gameKey = strtolower(trim((string) $request->request->get('game_key', '')));
         $name = trim((string) $request->request->get('name', ''));
         $version = trim((string) $request->request->get('version', ''));
         $checksum = trim((string) $request->request->get('checksum', ''));
         $downloadUrl = trim((string) $request->request->get('download_url', ''));
         $description = trim((string) $request->request->get('description', ''));
 
-        if ($templateId <= 0) {
-            $errors[] = 'Template is required.';
+        if ($gameKey === '') {
+            $errors[] = 'Game key is required.';
         }
         if ($name === '') {
             $errors[] = 'Name is required.';
@@ -388,7 +468,7 @@ final class AdminPluginCatalogController
 
         return [
             'errors' => $errors,
-            'template_id' => $templateId,
+            'game_key' => $gameKey,
             'name' => $name,
             'version' => $version,
             'checksum' => $checksum,
@@ -401,7 +481,7 @@ final class AdminPluginCatalogController
     {
         $data = [
             'id' => $plugin?->getId(),
-            'template_id' => $plugin?->getTemplate()->getId(),
+            'game_key' => strtolower(trim($plugin?->getTemplate()->getGameKey() ?? '')),
             'name' => $plugin?->getName() ?? '',
             'version' => $plugin?->getVersion() ?? '',
             'checksum' => $plugin?->getChecksum() ?? '',
@@ -435,7 +515,7 @@ final class AdminPluginCatalogController
     private function renderFormWithErrors(array $formData, int $status, ?GamePlugin $plugin = null): Response
     {
         $formContext = $this->buildFormContext($plugin, [
-            'template_id' => $formData['template_id'],
+            'game_key' => $formData['game_key'],
             'name' => $formData['name'],
             'version' => $formData['version'],
             'checksum' => $formData['checksum'],
@@ -462,8 +542,7 @@ final class AdminPluginCatalogController
 
     private function parseImportEntry(array $entry, int $index, array &$errors): ?array
     {
-        $templateId = (int) ($entry['template_id'] ?? 0);
-        $templateGameKey = trim((string) ($entry['template_game_key'] ?? ''));
+        $gameKey = strtolower(trim((string) ($entry['game_key'] ?? ($entry['template_game_key'] ?? ''))));
         $name = trim((string) ($entry['name'] ?? ''));
         $version = trim((string) ($entry['version'] ?? ''));
         $checksum = trim((string) ($entry['checksum'] ?? ''));
@@ -472,18 +551,13 @@ final class AdminPluginCatalogController
 
         $entryErrors = [];
         $template = null;
-        if ($templateId > 0) {
-            $template = $this->templateRepository->find($templateId);
-            if ($template === null) {
-                $entryErrors[] = 'Template ID was not found.';
-            }
-        } elseif ($templateGameKey !== '') {
-            $template = $this->templateRepository->findOneBy(['gameKey' => $templateGameKey]);
+        if ($gameKey !== '') {
+            $template = $this->resolveTemplateForGameKey($gameKey);
             if ($template === null) {
                 $entryErrors[] = 'Template game_key was not found.';
             }
         } else {
-            $entryErrors[] = 'Template reference is required (template_id or template_game_key).';
+            $entryErrors[] = 'Template reference is required (game_key/template_game_key).';
         }
 
         if ($name === '') {
@@ -511,6 +585,7 @@ final class AdminPluginCatalogController
 
         return [
             'template' => $template,
+            'game_key' => $gameKey,
             'name' => $name,
             'version' => $version,
             'checksum' => $checksum,
@@ -531,18 +606,18 @@ final class AdminPluginCatalogController
     {
         $summary = [
             'total' => count($plugins),
-            'templates' => [],
+            'game_keys' => [],
         ];
 
         foreach ($plugins as $plugin) {
-            $templateId = $plugin->getTemplate()->getId();
-            if ($templateId === null) {
+            $gameKey = strtolower(trim($plugin->getTemplate()->getGameKey()));
+            if ($gameKey === '') {
                 continue;
             }
-            $summary['templates'][$templateId] = true;
+            $summary['game_keys'][$gameKey] = true;
         }
 
-        $summary['templates'] = count($summary['templates']);
+        $summary['game_keys'] = count($summary['game_keys']);
 
         return $summary;
     }
@@ -563,6 +638,7 @@ final class AdminPluginCatalogController
                 'template' => [
                     'id' => $plugin->getTemplate()->getId(),
                     'name' => $plugin->getTemplate()->getDisplayName(),
+                    'game_key' => strtolower(trim($plugin->getTemplate()->getGameKey())),
                 ],
                 'updated_at' => $plugin->getUpdatedAt(),
             ];
@@ -581,18 +657,113 @@ final class AdminPluginCatalogController
             'template' => [
                 'id' => $plugin->getTemplate()->getId(),
                 'name' => $plugin->getTemplate()->getDisplayName(),
+                'game_key' => strtolower(trim($plugin->getTemplate()->getGameKey())),
             ],
         ];
     }
 
     private function normalizeTemplates(array $templates): array
     {
-        return array_map(static function ($template): array {
-            return [
-                'id' => $template->getId(),
-                'name' => $template->getDisplayName(),
+        $distinct = [];
+        foreach ($templates as $template) {
+            $gameKey = strtolower(trim((string) $template->getGameKey()));
+            if ($gameKey === '' || isset($distinct[$gameKey])) {
+                continue;
+            }
+
+            $distinct[$gameKey] = [
+                'game_key' => $gameKey,
+                'label' => sprintf('%s (%s)', $template->getDisplayName(), $gameKey),
             ];
-        }, $templates);
+        }
+
+        ksort($distinct);
+
+        return array_values($distinct);
+    }
+
+    private function resolveTemplateForGameKey(string $gameKey): ?\App\Module\Core\Domain\Entity\Template
+    {
+        $normalized = strtolower(trim($gameKey));
+        if ($normalized === '') {
+            return null;
+        }
+
+        return $this->templateRepository->findOneBy(['gameKey' => $normalized]);
+    }
+
+
+    /**
+     * @return array<int, array{game_key:string,name:string,version:string,checksum:string,download_url:string,description:string}>
+     */
+    private function buildRecommendedSeedEntries(): array
+    {
+        return [
+            [
+                'game_key' => 'cs2',
+                'name' => 'Metamod:Source',
+                'version' => '2.0-stable',
+                'checksum' => 'manual-verification-required',
+                'download_url' => 'https://mms.alliedmods.net/mmsdrop/2.0/mmsource-latest-linux',
+                'description' => 'Core mod loader for CS2/Source2. Nach Installation muss game/csgo/gameinfo.gi den Eintrag "Game csgo/addons/metamod" enthalten (zwischen Game_LowViolence csgo_lv und Game csgo).',
+            ],
+            [
+                'game_key' => 'cs2',
+                'name' => 'CounterStrikeSharp',
+                'version' => 'latest',
+                'checksum' => 'manual-verification-required',
+                'download_url' => 'https://github.com/roflmuffin/CounterStrikeSharp/releases/latest/download/counterstrikesharp-with-runtime-build.zip',
+                'description' => 'CS2 plugin framework for C# plugins.',
+            ],
+            [
+                'game_key' => 'rust',
+                'name' => 'uMod/Oxide for Rust',
+                'version' => 'latest',
+                'checksum' => 'manual-verification-required',
+                'download_url' => 'https://github.com/OxideMod/Oxide.Rust/releases/latest/download/Oxide.Rust-linux.zip',
+                'description' => 'Most used Rust plugin framework (uMod/Oxide).',
+            ],
+            [
+                'game_key' => 'rust',
+                'name' => 'Carbon for Rust',
+                'version' => 'latest',
+                'checksum' => 'manual-verification-required',
+                'download_url' => 'https://github.com/CarbonCommunity/Carbon/releases/latest/download/Carbon.Linux.Release.tar.gz',
+                'description' => 'Alternative Rust mod framework with Oxide compatibility layer.',
+            ],
+            [
+                'game_key' => 'minecraft',
+                'name' => 'LuckPerms',
+                'version' => 'latest',
+                'checksum' => 'manual-verification-required',
+                'download_url' => 'https://download.luckperms.net/1565/bukkit/loader/LuckPerms-Bukkit-5.4.121.jar',
+                'description' => 'Popular permissions plugin for Spigot/Paper based servers.',
+            ],
+            [
+                'game_key' => 'minecraft',
+                'name' => 'EssentialsX',
+                'version' => 'latest',
+                'checksum' => 'manual-verification-required',
+                'download_url' => 'https://github.com/EssentialsX/Essentials/releases/latest/download/EssentialsX-2.21.0.jar',
+                'description' => 'Popular essentials command/admin plugin for Bukkit/Paper.',
+            ],
+            [
+                'game_key' => 'tf2',
+                'name' => 'SourceMod',
+                'version' => 'latest',
+                'checksum' => 'manual-verification-required',
+                'download_url' => 'https://sm.alliedmods.net/smdrop/1.12/sourcemod-latest-linux',
+                'description' => 'TF2 plugin framework (requires Metamod).',
+            ],
+            [
+                'game_key' => 'gmod',
+                'name' => 'ULX Admin Mod',
+                'version' => 'latest',
+                'checksum' => 'manual-verification-required',
+                'download_url' => 'https://github.com/TeamUlysses/ulx/archive/refs/heads/master.zip',
+                'description' => 'Popular admin mod for Garry\'s Mod (paired with ULib).',
+            ],
+        ];
     }
 
     private function isAdmin(Request $request): bool

@@ -304,8 +304,10 @@ final class InstanceInstallService
                 unset($vars[$passwordKey]);
             }
         }
-        if (!isset($vars['SERVER_PASSWORD'])) {
-            $vars['SERVER_PASSWORD'] = '';
+        foreach (['SERVER_PASSWORD', 'RCON_PASSWORD'] as $optionalPasswordKey) {
+            if (!isset($vars[$optionalPasswordKey])) {
+                $vars[$optionalPasswordKey] = '';
+            }
         }
 
         $normalized = [];

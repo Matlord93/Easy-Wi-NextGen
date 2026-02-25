@@ -461,7 +461,9 @@ final class CustomerInstanceController
         $targetBuildId = $instance->getLockedBuildId();
         $targetVersion = $instance->getLockedVersion();
 
-        $job = new Job('sniper.update', $this->instanceJobPayloadBuilder->buildSniperUpdatePayload($instance, $targetBuildId, $targetVersion));
+        $updatePayload = $this->instanceJobPayloadBuilder->buildSniperUpdatePayload($instance, $targetBuildId, $targetVersion)
+            + $this->buildCs2MetamodPatchForUpdate($instance);
+        $job = new Job('sniper.update', $updatePayload);
         $this->entityManager->persist($job);
         $instance->setLastUpdateQueuedAt(new \DateTimeImmutable());
         $instance->setStatus(InstanceStatus::Provisioning);
@@ -1241,6 +1243,50 @@ final class CustomerInstanceController
         return $normalized;
     }
 
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildCs2MetamodPatchForUpdate(Instance $instance): array
+    {
+        $gameKey = strtolower(trim($instance->getTemplate()->getGameKey()));
+        if ($gameKey !== 'cs2') {
+            return [];
+        }
+
+        $addons = $instance->getConfigOverrides()['addons'] ?? [];
+        if (!is_array($addons)) {
+            return [];
+        }
+
+        $hasMetamod = false;
+        foreach ($addons as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $name = strtolower(trim((string) ($entry['name'] ?? '')));
+            if (str_contains($name, 'metamod')) {
+                $hasMetamod = true;
+                break;
+            }
+        }
+
+        if (!$hasMetamod) {
+            return [];
+        }
+
+        return [
+            'post_install_file_patches' => [[
+                'path' => 'game/csgo/gameinfo.gi',
+                'mode' => 'ensure_line_between',
+                'line' => 'Game	csgo/addons/metamod',
+                'after' => 'Game_LowViolence	csgo_lv',
+                'before' => 'Game	csgo',
+                'reapply_on_update' => true,
+            ]],
+        ];
+    }
+
     private function normalizeFastdlSettings(array $settings): array
     {
         return [
@@ -1255,10 +1301,7 @@ final class CustomerInstanceController
      */
     private function normalizePlugins(Instance $instance): array
     {
-        $plugins = $this->gamePluginRepository->findBy(
-            ['template' => $instance->getTemplate()],
-            ['name' => 'ASC'],
-        );
+        $plugins = $this->gamePluginRepository->findByTemplateGameKey($instance->getTemplate());
 
         $installedVersions = [];
         $installedRaw = $instance->getConfigOverrides()['addons'] ?? [];

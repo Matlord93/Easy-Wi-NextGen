@@ -63,56 +63,18 @@ final class AgentReleaseChecker
             return null;
         }
 
-        foreach ($releases as $release) {
-            if (!is_array($release)) {
-                continue;
-            }
-
-            $isDraft = $release['draft'] ?? false;
-            if ($isDraft) {
-                continue;
-            }
-
-            $isPrerelease = $release['prerelease'] ?? false;
-            if ($channel === self::CHANNEL_STABLE && $isPrerelease) {
-                continue;
-            }
-            if ($channel === self::CHANNEL_BETA && !$isPrerelease) {
-                continue;
-            }
-
-            $assets = $release['assets'] ?? null;
-            if (!is_array($assets)) {
-                continue;
-            }
-
-            $downloadUrl = $this->findAssetDownloadUrl($assets, $assetName);
-            if ($downloadUrl === null) {
-                continue;
-            }
-
-            $checksumsUrl = $this->findAssetDownloadUrl($assets, 'checksums-agent.txt');
-            if ($checksumsUrl === null) {
-                continue;
-            }
-
-            $signatureUrl = $this->findAssetDownloadUrl($assets, 'checksums-agent.txt.asc');
-
-            $tag = $release['tag_name'] ?? $release['name'] ?? null;
-            if (!is_string($tag) || $tag === '') {
-                continue;
-            }
-
-            return [
-                'version' => $tag,
-                'download_url' => $downloadUrl,
-                'checksums_url' => $checksumsUrl,
-                'signature_url' => $signatureUrl,
-                'asset_name' => $assetName,
-            ];
+        $candidate = $this->selectLatestReleaseAsset($releases, $channel, $assetName);
+        if ($candidate === null) {
+            return null;
         }
 
-        return null;
+        return [
+            'version' => $candidate['tag'],
+            'download_url' => $candidate['download_url'],
+            'checksums_url' => $candidate['checksums_url'],
+            'signature_url' => $candidate['signature_url'],
+            'asset_name' => $assetName,
+        ];
     }
 
     public function isUpdateAvailable(?string $currentVersion, ?string $latestVersion = null): ?bool
@@ -139,33 +101,19 @@ final class AgentReleaseChecker
             return null;
         }
 
-        foreach ($releases as $release) {
-            if (!is_array($release)) {
+        $latestTag = null;
+        foreach ($this->filterReleasesByChannel($releases, $channel) as $release) {
+            $tag = $this->extractReleaseTag($release);
+            if ($tag === null) {
                 continue;
             }
 
-            $isDraft = $release['draft'] ?? false;
-            if ($isDraft) {
-                continue;
+            if ($latestTag === null || $this->compareReleaseTags($tag, $latestTag) > 0) {
+                $latestTag = $tag;
             }
-
-            $isPrerelease = $release['prerelease'] ?? false;
-            if ($channel === self::CHANNEL_STABLE && $isPrerelease) {
-                continue;
-            }
-            if ($channel === self::CHANNEL_BETA && !$isPrerelease) {
-                continue;
-            }
-
-            $tag = $release['tag_name'] ?? $release['name'] ?? null;
-            if (!is_string($tag) || $tag === '') {
-                continue;
-            }
-
-            return $tag;
         }
 
-        return null;
+        return $latestTag;
     }
 
     private function fetchReleases(): ?array
@@ -249,5 +197,105 @@ final class AgentReleaseChecker
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, mixed> $releases
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function filterReleasesByChannel(array $releases, string $channel): array
+    {
+        $filtered = [];
+
+        foreach ($releases as $release) {
+            if (!is_array($release)) {
+                continue;
+            }
+
+            if (($release['draft'] ?? false) === true) {
+                continue;
+            }
+
+            $isPrerelease = ($release['prerelease'] ?? false) === true;
+            if ($channel === self::CHANNEL_STABLE && $isPrerelease) {
+                continue;
+            }
+            if ($channel === self::CHANNEL_BETA && !$isPrerelease) {
+                continue;
+            }
+
+            $filtered[] = $release;
+        }
+
+        return $filtered;
+    }
+
+    private function extractReleaseTag(array $release): ?string
+    {
+        $tag = $release['tag_name'] ?? $release['name'] ?? null;
+        if (!is_string($tag)) {
+            return null;
+        }
+
+        $tag = trim($tag);
+        return $tag !== '' ? $tag : null;
+    }
+
+    private function compareReleaseTags(string $leftTag, string $rightTag): int
+    {
+        $leftNormalized = $this->normalizeVersion($leftTag);
+        $rightNormalized = $this->normalizeVersion($rightTag);
+
+        if ($leftNormalized !== null && $rightNormalized !== null) {
+            return version_compare($leftNormalized, $rightNormalized);
+        }
+
+        return strcmp($leftTag, $rightTag);
+    }
+
+    /**
+     * @param array<int, mixed> $releases
+     *
+     * @return array{tag:string,download_url:string,checksums_url:string,signature_url:?string}|null
+     */
+    private function selectLatestReleaseAsset(array $releases, string $channel, string $assetName): ?array
+    {
+        $selected = null;
+
+        foreach ($this->filterReleasesByChannel($releases, $channel) as $release) {
+            $assets = $release['assets'] ?? null;
+            if (!is_array($assets)) {
+                continue;
+            }
+
+            $downloadUrl = $this->findAssetDownloadUrl($assets, $assetName);
+            if ($downloadUrl === null) {
+                continue;
+            }
+
+            $checksumsUrl = $this->findAssetDownloadUrl($assets, 'checksums-agent.txt');
+            if ($checksumsUrl === null) {
+                continue;
+            }
+
+            $tag = $this->extractReleaseTag($release);
+            if ($tag === null) {
+                continue;
+            }
+
+            $candidate = [
+                'tag' => $tag,
+                'download_url' => $downloadUrl,
+                'checksums_url' => $checksumsUrl,
+                'signature_url' => $this->findAssetDownloadUrl($assets, 'checksums-agent.txt.asc'),
+            ];
+
+            if ($selected === null || $this->compareReleaseTags($candidate['tag'], $selected['tag']) > 0) {
+                $selected = $candidate;
+            }
+        }
+
+        return $selected;
     }
 }

@@ -1182,7 +1182,7 @@ final class CustomerInstanceActionApiController
         }
 
         $plugin = $this->gamePluginRepository->find((int) $pluginId);
-        if ($plugin === null || $plugin->getTemplate()->getId() !== $instance->getTemplate()->getId()) {
+        if ($plugin === null || $plugin->getTemplate()->getGameKey() !== $instance->getTemplate()->getGameKey()) {
             return $this->responseEnvelopeFactory->error(
                 $request,
                 'Plugin not found for this instance.',
@@ -1238,7 +1238,7 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), $customer->getId(), $instance->getId(), [
+        $payload = [
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $customer->getId(),
             'node_id' => $instance->getNode()->getId(),
@@ -1248,7 +1248,9 @@ final class CustomerInstanceActionApiController
             'plugin_version' => $plugin->getVersion(),
             'plugin_checksum' => $plugin->getChecksum(),
             'plugin_download_url' => $plugin->getDownloadUrl(),
-        ]);
+        ] + $this->buildCs2MetamodGameInfoPatchPayload($instance, $plugin, $action);
+
+        $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), $customer->getId(), $instance->getId(), $payload);
 
         $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
         $result = json_decode((string) $response->getContent(), true);
@@ -1268,6 +1270,30 @@ final class CustomerInstanceActionApiController
             JsonResponse::HTTP_ACCEPTED,
             ['action' => $action],
         );
+    }
+
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildCs2MetamodGameInfoPatchPayload(Instance $instance, \App\Module\Core\Domain\Entity\GamePlugin $plugin, string $action): array
+    {
+        $gameKey = strtolower(trim($instance->getTemplate()->getGameKey()));
+        $pluginName = strtolower(trim($plugin->getName()));
+        if ($gameKey !== 'cs2' || $action === 'remove' || !str_contains($pluginName, 'metamod')) {
+            return [];
+        }
+
+        return [
+            'post_install_file_patches' => [[
+                'path' => 'game/csgo/gameinfo.gi',
+                'mode' => 'ensure_line_between',
+                'line' => 'Game	csgo/addons/metamod',
+                'after' => 'Game_LowViolence	csgo_lv',
+                'before' => 'Game	csgo',
+                'reapply_on_update' => true,
+            ]],
+        ];
     }
 
     private function findActiveAddonJob(Instance $instance): ?Job
