@@ -68,17 +68,17 @@ final class AgentApiController
      * @var array<int, string>
      */
     private const WINDOWS_ALLOWED_JOB_TYPES = [
-        "agent.update",
-        "agent.self_update",
-        "agent.diagnostics",
-        "role.ensure_base",
-        "security.ensure_base",
-        "web.ensure_base",
-        "instance.config.apply",
-        "instance.sftp.credentials.reset",
-        "windows.service.start",
-        "windows.service.stop",
-        "windows.service.restart",
+        'agent.update',
+        'agent.self_update',
+        'agent.diagnostics',
+        'role.ensure_base',
+        'security.ensure_base',
+        'web.ensure_base',
+        'instance.config.apply',
+        'instance.sftp.credentials.reset',
+        'windows.service.start',
+        'windows.service.stop',
+        'windows.service.restart',
     ];
 
     public function __construct(
@@ -763,7 +763,7 @@ final class AgentApiController
     private function canDispatchJobToAgent(string $jobType, \App\Module\Core\Domain\Entity\Agent $agent): bool
     {
         $jobType = trim($jobType);
-        if ($jobType === "") {
+        if ($jobType === '') {
             return true;
         }
 
@@ -771,7 +771,7 @@ final class AgentApiController
             return in_array($jobType, self::WINDOWS_ALLOWED_JOB_TYPES, true);
         }
 
-        if (str_starts_with($jobType, "windows.service.")) {
+        if (str_starts_with($jobType, 'windows.service.')) {
             return false;
         }
 
