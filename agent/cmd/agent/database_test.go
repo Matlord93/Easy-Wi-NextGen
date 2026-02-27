@@ -35,6 +35,9 @@ func TestPostgresEnsureDatabaseAndUserAppliesRoleCreateAndGrant(t *testing.T) {
 		if err := db.Close(); err != nil {
 			t.Fatalf("db close: %v", err)
 		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("expectations: %v", err)
+		}
 	})
 
 	req := databaseRequest{Database: "custdb", Username: "custusr"}
@@ -43,11 +46,9 @@ func TestPostgresEnsureDatabaseAndUserAppliesRoleCreateAndGrant(t *testing.T) {
 	mock.ExpectQuery("SELECT 1 FROM pg_database").WithArgs("custdb").WillReturnRows(sqlmock.NewRows([]string{"?"}))
 	mock.ExpectExec("CREATE DATABASE").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("GRANT ALL PRIVILEGES ON DATABASE").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectClose()
 
 	if err := postgresEnsureDatabaseAndUser(db, req, "newSecret"); err != nil {
 		t.Fatalf("ensure failed: %v", err)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("expectations: %v", err)
 	}
 }
