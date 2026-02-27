@@ -341,6 +341,11 @@ func TestResolveQueryDialHost(t *testing.T) {
 		t.Fatalf("isolated mode should never select loopback")
 	}
 
+	resolution = resolveQueryDialHost("88.99.212.160", "", "", "", "false", "isolated", "")
+	if resolution.Host != "88.99.212.160" {
+		t.Fatalf("isolated mode should preserve explicit host ip, got %q", resolution.Host)
+	}
+
 	resolution = resolveQueryDialHost("", "", "", "", "false", "host", "")
 	if resolution.Host != "127.0.0.1" {
 		t.Fatalf("host=%q", resolution.Host)

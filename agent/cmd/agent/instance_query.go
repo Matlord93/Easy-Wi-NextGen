@@ -184,16 +184,16 @@ func resolveQueryDialHost(host, bindIP, instanceIP, nodeIP, localOnly, networkMo
 	mode := normalizeNetworkMode(networkMode, shareHostNetwork)
 	localOnlyNormalized := strings.EqualFold(strings.TrimSpace(localOnly), "1") || strings.EqualFold(strings.TrimSpace(localOnly), "true") || strings.EqualFold(strings.TrimSpace(localOnly), "yes")
 	if mode == "isolated" {
-		if normalized := normalizeQueryDialHost(bindIP); normalized != "" && !isLoopbackHost(normalized) {
+		if normalized := normalizeQueryDialHostIsolated(bindIP); normalized != "" {
 			return newQueryDialResolution(normalized, "bind_ip", mode)
 		}
-		if normalized := normalizeQueryDialHost(host); normalized != "" && !isLoopbackHost(normalized) {
+		if normalized := normalizeQueryDialHostIsolated(host); normalized != "" {
 			return newQueryDialResolution(normalized, "instance_ip", mode)
 		}
-		if normalized := normalizeQueryDialHost(instanceIP); normalized != "" && !isLoopbackHost(normalized) {
+		if normalized := normalizeQueryDialHostIsolated(instanceIP); normalized != "" {
 			return newQueryDialResolution(normalized, "instance_ip", mode)
 		}
-		if normalized := normalizeQueryDialHost(nodeIP); normalized != "" && !isLoopbackHost(normalized) {
+		if normalized := normalizeQueryDialHostIsolated(nodeIP); normalized != "" {
 			return newQueryDialResolution(normalized, "node_ip", mode)
 		}
 		return newQueryDialResolution("", "", mode)
@@ -226,6 +226,21 @@ func resolveQueryDialHost(host, bindIP, instanceIP, nodeIP, localOnly, networkMo
 		return newQueryDialResolution("127.0.0.1", "loopback", mode)
 	}
 	return newQueryDialResolution("", "", mode)
+}
+
+
+func normalizeQueryDialHostIsolated(host string) string {
+	normalized := strings.TrimSpace(host)
+	switch normalized {
+	case "", "0.0.0.0", "::", "*":
+		return ""
+	}
+
+	if isLoopbackHost(normalized) {
+		return ""
+	}
+
+	return normalized
 }
 
 func normalizeNetworkMode(networkMode, shareHostNetwork string) string {
