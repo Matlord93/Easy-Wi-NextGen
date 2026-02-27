@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -136,7 +137,9 @@ func canonicalRoleName(role string) string {
 
 func collectMetadata(cfg config.Config) map[string]any {
 	metadata := map[string]any{
-		"ts6_supported": detectTS6Support(),
+		"ts6_supported":   detectTS6Support(),
+		"platform_family": runtime.GOOS,
+		"os":              runtime.GOOS,
 	}
 	bindIPs := normalizeBindIPs(cfg.BindIPAddresses)
 	if len(bindIPs) == 0 {
@@ -160,26 +163,23 @@ func collectMetadata(cfg config.Config) map[string]any {
 		metadata["agent_service_scheme"] = "http"
 	}
 	if runtime.GOOS == "windows" {
-		metadata["capabilities"] = []string{
-			"heartbeat",
-			"job_polling",
-			"agent.update",
-			"agent.self_update",
-			"agent.diagnostics",
-			"role.ensure_base",
-			"security.ensure_base",
-			"web.ensure_base",
-			"instance.config.apply",
-			"instance.sftp.credentials.reset",
-			"windows.service.start",
-			"windows.service.stop",
-			"windows.service.restart",
-		}
+		metadata["capabilities"] = windowsCapabilities()
 	}
 	if len(metadata) == 0 {
 		return nil
 	}
 	return metadata
+}
+
+func windowsCapabilities() []string {
+	capabilities := []string{"heartbeat", "job_polling"}
+	jobTypes := make([]string, 0, len(windowsAllowedJobTypes))
+	for jobType := range windowsAllowedJobTypes {
+		jobTypes = append(jobTypes, jobType)
+	}
+	sort.Strings(jobTypes)
+	capabilities = append(capabilities, jobTypes...)
+	return capabilities
 }
 
 func normalizeBindIPs(values []string) []string {

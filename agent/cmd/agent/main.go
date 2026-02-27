@@ -455,6 +455,9 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 	if aliased {
 		log.Printf("[DEPRECATION] alias_hit legacy_job_type=%q canonical_job_type=%q", job.Type, jobType)
 	}
+	if err := ensureJobSupportedByPlatform(jobType); err != nil {
+		return failureResult(job.ID, err)
+	}
 
 	switch jobType {
 	case "agent.update":
@@ -708,7 +711,6 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		}, nil
 	}
 }
-
 
 func handleAgentUpdate(job jobs.Job) (jobs.Result, func() error) {
 	downloadURL := payloadValue(job.Payload, "download_url", "artifact_url", "url")

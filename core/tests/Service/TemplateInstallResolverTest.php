@@ -71,6 +71,31 @@ final class TemplateInstallResolverTest extends TestCase
         self::assertStringContainsString('https://example.com/paper-1.20.4-123.jar', $command);
     }
 
+    public function testAppendsSteamCacheCleanupForLinuxInstallCommands(): void
+    {
+        $resolver = $this->buildResolver(new InMemoryMinecraftCatalogRepository());
+        $instance = $this->buildInstance([], 'linux');
+        $instance->getTemplate()->setInstallCommand('steamcmd +app_update 740 validate +quit');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertStringContainsString('steamcmd +app_update 740 validate +quit', $command);
+        self::assertStringContainsString('__easywi_steam_cache_cleanup', $command);
+        self::assertStringContainsString('sync;', $command);
+        self::assertStringContainsString('echo 3 | sudo tee /proc/sys/vm/drop_caches', $command);
+    }
+
+    public function testDoesNotAppendSteamCacheCleanupForWindowsInstallCommands(): void
+    {
+        $resolver = $this->buildResolver(new InMemoryMinecraftCatalogRepository());
+        $instance = $this->buildInstance([], 'windows');
+        $instance->getTemplate()->setInstallCommand('steamcmd +app_update 740 validate +quit');
+
+        $command = $resolver->resolveInstallCommand($instance);
+
+        self::assertSame('steamcmd +app_update 740 validate +quit', $command);
+    }
+
     private function buildResolver(MinecraftVersionCatalogRepositoryInterface $repository): TemplateInstallResolver
     {
         $catalogService = new MinecraftCatalogService($repository);
@@ -97,8 +122,8 @@ final class TemplateInstallResolverTest extends TestCase
             [],
             [],
             [],
-            'install',
-            'update',
+            'install handled by catalog resolver',
+            'update handled by catalog resolver',
             $installResolver,
             [],
             [],

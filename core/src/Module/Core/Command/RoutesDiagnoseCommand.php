@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Command;
 
+use Symfony\Component\Config\Exception\LoaderLoadException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -26,7 +27,18 @@ final class RoutesDiagnoseCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $collection = $this->router->getRouteCollection();
+
+        try {
+            $collection = $this->router->getRouteCollection();
+        } catch (LoaderLoadException $exception) {
+            $io->error([
+                'Unable to build the route collection from attribute routes.',
+                $exception->getMessage(),
+                'Run "composer dump-autoload" and clear Symfony cache (var/cache/*) on the target host, then retry.',
+            ]);
+
+            return Command::FAILURE;
+        }
 
         $rows = [];
         foreach ($collection->all() as $name => $route) {

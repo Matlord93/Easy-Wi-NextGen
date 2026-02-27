@@ -507,10 +507,15 @@ textarea {
 .group[open] .group-open\:rotate-180 { transform: rotate(180deg); }
 
 .gs-console-log-panel {
-    height: 420px;
-    min-height: 420px;
-    max-height: 420px;
-    white-space: pre-wrap;
+    display: block;
+    height: 26rem !important;
+    min-height: 18rem;
+    max-height: 26rem !important;
+    overflow-y: auto;
+    overflow-x: auto;
+    white-space: pre;
+    overflow-wrap: normal;
+    word-break: normal;
 }
 
 /* Responsive breakpoints */

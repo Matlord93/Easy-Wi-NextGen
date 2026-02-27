@@ -62,6 +62,25 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 final class AgentApiController
 {
+    /**
+     * Jobs that are explicitly supported on Windows agents.
+     *
+     * @var array<int, string>
+     */
+    private const WINDOWS_ALLOWED_JOB_TYPES = [
+        "agent.update",
+        "agent.self_update",
+        "agent.diagnostics",
+        "role.ensure_base",
+        "security.ensure_base",
+        "web.ensure_base",
+        "instance.config.apply",
+        "instance.sftp.credentials.reset",
+        "windows.service.start",
+        "windows.service.stop",
+        "windows.service.restart",
+    ];
+
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly JobRepository $jobRepository,
@@ -249,6 +268,11 @@ final class AgentApiController
 
             if (in_array($job->getType(), $updateJobTypes, true) && $runningUpdateJobs >= $maxUpdateJobsPerAgent) {
                 $rejections['update_limit']++;
+                continue;
+            }
+
+            if (!$this->canDispatchJobToAgent($job->getType(), $agent)) {
+                $rejections['windows_unsupported']++;
                 continue;
             }
 
@@ -734,6 +758,40 @@ final class AgentApiController
             return false;
         }
         return $this->isWindowsStats($stats);
+    }
+
+    private function canDispatchJobToAgent(string $jobType, \App\Module\Core\Domain\Entity\Agent $agent): bool
+    {
+        $jobType = trim($jobType);
+        if ($jobType === "") {
+            return true;
+        }
+
+        if ($this->isWindowsAgent($agent)) {
+            return in_array($jobType, self::WINDOWS_ALLOWED_JOB_TYPES, true);
+        }
+
+        if (str_starts_with($jobType, "windows.service.")) {
+            return false;
+        }
+
+        $metadata = $agent->getMetadata();
+        if (!is_array($metadata)) {
+            return true;
+        }
+
+        $capabilities = $metadata['capabilities'] ?? null;
+        if (!is_array($capabilities) || $capabilities === []) {
+            return true;
+        }
+
+        $normalizedCapabilities = array_values(array_filter(array_map(static fn (mixed $value): string => trim((string) $value), $capabilities)));
+
+        if ($normalizedCapabilities === []) {
+            return true;
+        }
+
+        return in_array($jobType, $normalizedCapabilities, true);
     }
 
     private function parseCompletedAt(mixed $value): DateTimeImmutable

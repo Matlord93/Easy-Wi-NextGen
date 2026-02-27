@@ -51,4 +51,22 @@ final class AgentApiControllerQueryFallbackContractTest extends TestCase
         self::assertStringContainsString('X-Forwarded-For', $controller);
         self::assertStringContainsString('X-Real-IP', $controller);
     }
+    public function testJobsPollContainsPlatformDispatchGuard(): void
+    {
+        $controller = (string) file_get_contents(__DIR__.'/../../src/Module/PanelCustomer/UI/Controller/Api/AgentApiController.php');
+
+        self::assertStringContainsString('WINDOWS_ALLOWED_JOB_TYPES', $controller);
+        self::assertStringContainsString('canDispatchJobToAgent', $controller);
+        self::assertStringContainsString('str_starts_with($jobType, "windows.service.")', $controller);
+        self::assertStringContainsString('$rejections[\'windows_unsupported\']++', $controller);
+    }
+
+    public function testHeartbeatMetadataIncludesPlatformFamilyAndOs(): void
+    {
+        $roles = (string) file_get_contents(__DIR__.'/../../../agent/cmd/agent/roles.go');
+
+        self::assertStringContainsString('"platform_family": runtime.GOOS', $roles);
+        self::assertStringContainsString('"os":', $roles);
+    }
+
 }
