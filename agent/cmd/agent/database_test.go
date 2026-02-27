@@ -31,7 +31,11 @@ func TestPostgresEnsureDatabaseAndUserAppliesRoleCreateAndGrant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("db close: %v", err)
+		}
+	})
 
 	req := databaseRequest{Database: "custdb", Username: "custusr"}
 	mock.ExpectQuery("SELECT 1 FROM pg_roles").WithArgs("custusr").WillReturnRows(sqlmock.NewRows([]string{"?"}))

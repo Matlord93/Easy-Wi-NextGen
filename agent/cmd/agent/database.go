@@ -224,23 +224,26 @@ func pingedDB(db *sql.DB, cleanup func()) (*sql.DB, func(), error) {
 func postgresEnsureDatabaseAndUser(db *sql.DB, req databaseRequest, password string) error {
 	var exists int
 	err := db.QueryRow("SELECT 1 FROM pg_roles WHERE rolname = $1", req.Username).Scan(&exists)
-	if err == sql.ErrNoRows {
+	switch err {
+	case sql.ErrNoRows:
 		if err = execWithTimeout(db, 8*time.Second, "CREATE ROLE "+quotePGIdentifier(req.Username)+" LOGIN PASSWORD '"+escapeLiteral(password)+"'"); err != nil {
 			return err
 		}
-	} else if err == nil {
+	case nil:
 		if err = execWithTimeout(db, 8*time.Second, "ALTER ROLE "+quotePGIdentifier(req.Username)+" WITH LOGIN PASSWORD '"+escapeLiteral(password)+"'"); err != nil {
 			return err
 		}
-	} else {
+	default:
 		return err
 	}
 	err = db.QueryRow("SELECT 1 FROM pg_database WHERE datname = $1", req.Database).Scan(&exists)
-	if err == sql.ErrNoRows {
+	switch err {
+	case sql.ErrNoRows:
 		if err = execWithTimeout(db, 8*time.Second, "CREATE DATABASE "+quotePGIdentifier(req.Database)+" OWNER "+quotePGIdentifier(req.Username)); err != nil {
 			return err
 		}
-	} else if err != nil {
+	case nil:
+	default:
 		return err
 	}
 	if err = execWithTimeout(db, 8*time.Second, "GRANT ALL PRIVILEGES ON DATABASE "+quotePGIdentifier(req.Database)+" TO "+quotePGIdentifier(req.Username)); err != nil {
