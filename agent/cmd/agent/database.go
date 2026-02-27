@@ -29,6 +29,8 @@ const (
 
 var dbIdentifierRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]{2,62}$`)
 
+var openPostgresScopedConnectionFn = openPostgresScopedConnection
+
 func handleDatabaseCreate(job jobs.Job) (jobs.Result, func() error) {
 	req, err := parseDatabaseRequest(job)
 	if err != nil {
@@ -84,7 +86,7 @@ func handleDatabasePasswordRotate(job jobs.Job) (jobs.Result, func() error) {
 
 	password := generateStrongPassword(28)
 	if req.Engine == "postgresql" {
-		err = execWithTimeout(db, 8*time.Second, "ALTER ROLE "+quotePGIdentifier(req.Username)+" WITH LOGIN PASSWORD '"+escapeLiteral(password)+"'")
+		err = execWithTimeout(db, 8*time.Second, "ALTER ROLE "+quotePGIdentifier(req.Username)+" WITH LOGIN PASSWORD $1", password)
 		if err != nil {
 			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
 		}
@@ -194,11 +196,15 @@ func openDatabaseAdminConnection(req databaseRequest) (*sql.DB, func(), error) {
 }
 
 func openPostgresAdminConnection(req databaseRequest) (*sql.DB, func(), error) {
+	return openPostgresScopedConnection(req, "postgres")
+}
+
+func openPostgresScopedConnection(req databaseRequest, database string) (*sql.DB, func(), error) {
 	sslMode := map[string]string{"off": "disable", "required": "require", "verify_ca": "verify-ca", "verify_full": "verify-full"}[req.TLSMode]
 	if sslMode == "" {
 		return nil, func() {}, fmt.Errorf("invalid tls mode")
 	}
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres connect_timeout=5 sslmode=%s", req.Host, req.Port, req.AdminUser, req.AdminSecret, sslMode)
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s connect_timeout=5 sslmode=%s", req.Host, req.Port, req.AdminUser, req.AdminSecret, database, sslMode)
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, func() {}, err
@@ -226,11 +232,11 @@ func postgresEnsureDatabaseAndUser(db *sql.DB, req databaseRequest, password str
 	err := db.QueryRow("SELECT 1 FROM pg_roles WHERE rolname = $1", req.Username).Scan(&exists)
 	switch err {
 	case sql.ErrNoRows:
-		if err = execWithTimeout(db, 8*time.Second, "CREATE ROLE "+quotePGIdentifier(req.Username)+" LOGIN PASSWORD '"+escapeLiteral(password)+"'"); err != nil {
+		if err = execWithTimeout(db, 8*time.Second, "CREATE ROLE "+quotePGIdentifier(req.Username)+" LOGIN PASSWORD $1", password); err != nil {
 			return err
 		}
 	case nil:
-		if err = execWithTimeout(db, 8*time.Second, "ALTER ROLE "+quotePGIdentifier(req.Username)+" WITH LOGIN PASSWORD '"+escapeLiteral(password)+"'"); err != nil {
+		if err = execWithTimeout(db, 8*time.Second, "ALTER ROLE "+quotePGIdentifier(req.Username)+" WITH LOGIN PASSWORD $1", password); err != nil {
 			return err
 		}
 	default:
@@ -249,6 +255,23 @@ func postgresEnsureDatabaseAndUser(db *sql.DB, req databaseRequest, password str
 	if err = execWithTimeout(db, 8*time.Second, "GRANT ALL PRIVILEGES ON DATABASE "+quotePGIdentifier(req.Database)+" TO "+quotePGIdentifier(req.Username)); err != nil {
 		return err
 	}
+
+	dbScoped, cleanup, err := openPostgresScopedConnectionFn(req, req.Database)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	if err = execWithTimeout(dbScoped, 8*time.Second, "GRANT USAGE, CREATE ON SCHEMA public TO "+quotePGIdentifier(req.Username)); err != nil {
+		return err
+	}
+	if err = execWithTimeout(dbScoped, 8*time.Second, "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES TO "+quotePGIdentifier(req.Username)); err != nil {
+		return err
+	}
+	if err = execWithTimeout(dbScoped, 8*time.Second, "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO "+quotePGIdentifier(req.Username)); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -317,7 +340,6 @@ func quoteUser(username, host string) string {
 	return fmt.Sprintf("'%s'@'%s'", strings.ReplaceAll(username, "'", "''"), strings.ReplaceAll(host, "'", "''"))
 }
 func quotePGIdentifier(value string) string { return `"` + strings.ReplaceAll(value, `"`, `""`) + `"` }
-func escapeLiteral(value string) string     { return strings.ReplaceAll(value, "'", "''") }
 func generateStrongPassword(length int) string {
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}"
 	if length < 16 {

@@ -32,6 +32,12 @@ func TestParseWhitelistedDirectives(t *testing.T) {
 	if _, err := parseWhitelistedDirectives("return 301 /;"); err == nil {
 		t.Fatalf("expected forbidden directive error")
 	}
+	if _, err := parseWhitelistedDirectives("add_header X-Test test;\ninclude /etc/nginx/nginx.conf;"); err == nil {
+		t.Fatalf("expected include injection to be blocked")
+	}
+	if _, err := parseWhitelistedDirectives("add_header X-Test test;\ncharset utf-8; drop"); err == nil {
+		t.Fatalf("expected semicolon injection to be blocked")
+	}
 	if _, err := parseWhitelistedDirectives("add_header X-Frame-Options SAMEORIGIN;"); err != nil {
 		t.Fatalf("expected allowed directive: %v", err)
 	}

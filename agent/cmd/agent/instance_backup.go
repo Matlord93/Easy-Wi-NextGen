@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
@@ -113,6 +115,9 @@ func handleInstanceBackupRestore(job jobs.Job) (jobs.Result, func() error) {
 	}
 	backupTargetType := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "backup_target_type")))
 	if backupTargetType == "webdav" || backupTargetType == "nextcloud" {
+		if err := validateRemoteBackupURL(job.Payload, backupPath); err != nil {
+			return failureResult(job.ID, err)
+		}
 		tmpPath, err := downloadBackupFromWebdav(job.Payload, backupPath)
 		if err != nil {
 			return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"error": err.Error(), "error_code": "backup_target_connection_failed"}, Completed: time.Now().UTC()}, nil
@@ -129,6 +134,9 @@ func handleInstanceBackupRestore(job jobs.Job) (jobs.Result, func() error) {
 	}
 	if err := os.MkdirAll(instanceDir, 0o750); err != nil {
 		return failureResult(job.ID, fmt.Errorf("create instance dir: %w", err))
+	}
+	if err := validateBackupArchivePaths(backupPath, instanceDir); err != nil {
+		return failureResult(job.ID, err)
 	}
 
 	if parsePayloadBool(payloadValue(job.Payload, "pre_backup"), false) {
@@ -209,6 +217,71 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func validateRemoteBackupURL(payload map[string]any, remote string) error {
+	baseURL := strings.TrimSpace(payloadNestedValue(payload, "backup_target_config", "url"))
+	if baseURL == "" {
+		return fmt.Errorf("webdav base url missing")
+	}
+
+	baseParsed, err := url.Parse(baseURL)
+	if err != nil {
+		return fmt.Errorf("invalid webdav base url")
+	}
+	remoteParsed, err := url.Parse(strings.TrimSpace(remote))
+	if err != nil {
+		return fmt.Errorf("invalid backup remote url")
+	}
+	if remoteParsed.Scheme != "https" && remoteParsed.Scheme != "http" {
+		return fmt.Errorf("backup remote url must use http/https")
+	}
+	if !strings.EqualFold(baseParsed.Host, remoteParsed.Host) {
+		return fmt.Errorf("backup remote host mismatch")
+	}
+
+	return nil
+}
+
+func validateBackupArchivePaths(archivePath, destinationRoot string) error {
+	archive, err := os.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("open backup archive: %w", err)
+	}
+	defer archive.Close()
+
+	gzReader, err := gzip.NewReader(archive)
+	if err != nil {
+		return fmt.Errorf("open backup gzip: %w", err)
+	}
+	defer gzReader.Close()
+
+	tarReader := tar.NewReader(gzReader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("read backup archive: %w", err)
+		}
+
+		entry := strings.TrimSpace(header.Name)
+		if entry == "" {
+			continue
+		}
+		if filepath.IsAbs(entry) {
+			return fmt.Errorf("backup archive contains absolute path: %s", entry)
+		}
+
+		resolved := filepath.Clean(filepath.Join(destinationRoot, entry))
+		rel, relErr := filepath.Rel(destinationRoot, resolved)
+		if relErr != nil || strings.HasPrefix(rel, "..") {
+			return fmt.Errorf("backup archive contains unsafe path: %s", entry)
+		}
+	}
+
+	return nil
 }
 
 func payloadNestedValue(payload map[string]any, objectKey string, key string) string {

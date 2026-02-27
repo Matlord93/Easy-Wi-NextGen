@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"easywi/agent/internal/jobs"
@@ -59,6 +60,8 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	redirectHTTPS := payloadValue(job.Payload, "redirect_https") == "1" || strings.EqualFold(payloadValue(job.Payload, "redirect_https"), "true")
 	runtimeType := strings.ToLower(payloadValue(job.Payload, "runtime"))
 	action := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "action")))
+	rollbackApplied := false
+	rollback := func() error { return nil }
 	if runtimeType == "" {
 		runtimeType = "nginx"
 	}
@@ -72,6 +75,7 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	if action == "remove" {
 		vhost := strings.TrimSpace(payloadValue(job.Payload, "nginx_vhost_path", "vhost_path"))
 		if vhost != "" {
+			rollback = captureVhostRollback(vhost)
 			if err := os.Remove(vhost); err != nil && !os.IsNotExist(err) {
 				return webspaceApplyFailure(job.ID, "write_failed", err.Error()), nil
 			}
@@ -118,6 +122,7 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 		if vhost == "" {
 			vhost = filepath.Join("/etc/easywi/web/nginx/vhosts", domainName+".conf")
 		}
+		rollback = captureVhostRollback(vhost)
 		content := buildManagedNginxVhost(domainName, aliasValues, docroot, phpFpmListen, redirectHTTPS, directives)
 		changed, err := writeVhostAtomically(vhost, []byte(content))
 		if err != nil {
@@ -139,13 +144,52 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if err := validateWebserverConfig(runtimeType); err != nil {
+		if rollbackErr := rollback(); rollbackErr == nil {
+			rollbackApplied = true
+		}
 		return webspaceApplyFailure(job.ID, "configtest_failed", err.Error()), nil
 	}
 	if err := reloadWebserver(runtimeType); err != nil {
+		if rollbackErr := rollback(); rollbackErr == nil {
+			rollbackApplied = true
+			if validateErr := validateWebserverConfig(runtimeType); validateErr == nil {
+				_ = reloadWebserver(runtimeType)
+			}
+		}
 		return webspaceApplyFailure(job.ID, "reload_failed", err.Error()), nil
 	}
 
-	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"runtime": runtimeType, "apply_status": "succeeded", "changed": "1"}, Completed: time.Now().UTC()}, nil
+	output := map[string]string{"runtime": runtimeType, "apply_status": "succeeded", "changed": "1"}
+	if rollbackApplied {
+		output["rollback"] = "1"
+	}
+
+	return jobs.Result{JobID: job.ID, Status: "success", Output: output, Completed: time.Now().UTC()}, nil
+}
+
+func captureVhostRollback(path string) func() error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return func() error {
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("rollback remove vhost: %w", err)
+				}
+				return nil
+			}
+		}
+		return func() error { return nil }
+	}
+
+	return func() error {
+		if err := ensureDir(filepath.Dir(path)); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, content, 0o644); err != nil {
+			return fmt.Errorf("rollback restore vhost: %w", err)
+		}
+		return nil
+	}
 }
 
 func writeVhostAtomically(path string, content []byte) (bool, error) {
@@ -160,8 +204,25 @@ func writeVhostAtomically(path string, content []byte) (bool, error) {
 	}
 
 	staging := path + ".staging-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	if err := os.WriteFile(staging, content, 0o644); err != nil {
+	perm := os.FileMode(0o644)
+	uid := -1
+	gid := -1
+	if stat, err := os.Stat(path); err == nil {
+		perm = stat.Mode().Perm()
+		if statT, ok := stat.Sys().(*syscall.Stat_t); ok {
+			uid = int(statT.Uid)
+			gid = int(statT.Gid)
+		}
+	}
+
+	if err := os.WriteFile(staging, content, perm); err != nil {
 		return false, fmt.Errorf("write staging vhost: %w", err)
+	}
+	if uid >= 0 && gid >= 0 {
+		if err := os.Chown(staging, uid, gid); err != nil {
+			_ = os.Remove(staging)
+			return false, fmt.Errorf("set staging ownership: %w", err)
+		}
 	}
 
 	if err := os.Rename(staging, path); err != nil {

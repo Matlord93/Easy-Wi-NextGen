@@ -60,3 +60,33 @@ func TestCapability(t *testing.T) {
 		t.Fatalf("unexpected capability: %+v", cap)
 	}
 }
+
+func TestSendCommandAckDuplicate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty tests require unix")
+	}
+	mgr := NewManager("test")
+	s, err := mgr.Start(context.Background(), "i-2", StartSpec{Command: "/bin/sh", Args: []string{"-c", "while read line; do [ \"$line\" = \"quit\" ] && exit 0; done"}}, "start-2")
+	if err != nil {
+		if strings.Contains(err.Error(), "operation not permitted") {
+			t.Skipf("pty unavailable in test environment: %v", err)
+		}
+		t.Fatalf("start: %v", err)
+	}
+
+	first, err := s.SendCommandWithAck("status", "same")
+	if err != nil {
+		t.Fatalf("first send failed: %v", err)
+	}
+	second, err := s.SendCommandWithAck("status", "same")
+	if err != nil {
+		t.Fatalf("second send failed: %v", err)
+	}
+	if first.Ack != CommandAckAccepted || !first.Written {
+		t.Fatalf("unexpected first ack: %+v", first)
+	}
+	if second.Ack != CommandAckDuplicate || second.Written {
+		t.Fatalf("unexpected second ack: %+v", second)
+	}
+	_, _ = s.SendCommand("quit", "quit")
+}

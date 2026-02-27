@@ -48,3 +48,26 @@ func TestLockWebspaceApplyRejectsParallelLock(t *testing.T) {
 		t.Fatalf("expected parallel lock failure")
 	}
 }
+
+func TestCaptureVhostRollbackRestoresPreviousFile(t *testing.T) {
+	vhost := filepath.Join(t.TempDir(), "example.conf")
+	if err := os.WriteFile(vhost, []byte("before"), 0o644); err != nil {
+		t.Fatalf("seed vhost: %v", err)
+	}
+
+	rollback := captureVhostRollback(vhost)
+	if err := os.WriteFile(vhost, []byte("after"), 0o644); err != nil {
+		t.Fatalf("update vhost: %v", err)
+	}
+	if err := rollback(); err != nil {
+		t.Fatalf("rollback failed: %v", err)
+	}
+
+	content, err := os.ReadFile(vhost)
+	if err != nil {
+		t.Fatalf("read vhost: %v", err)
+	}
+	if string(content) != "before" {
+		t.Fatalf("unexpected rollback content %q", string(content))
+	}
+}

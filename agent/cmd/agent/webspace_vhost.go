@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	domainLabelPattern   = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
-	allowedDirectiveKeys = map[string]struct{}{
+	domainLabelPattern    = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
+	directiveValuePattern = regexp.MustCompile(`^[A-Za-z0-9._:/,+=\-\s"']+$`)
+	allowedDirectiveKeys  = map[string]struct{}{
 		"client_max_body_size": {},
 		"index":                {},
 		"add_header":           {},
@@ -53,17 +54,33 @@ func parseWhitelistedDirectives(raw string) ([]string, error) {
 		if strings.ContainsAny(trimmed, "{}") {
 			return nil, fmt.Errorf("forbidden_directive")
 		}
-		if strings.Contains(trimmed, "$") {
+		if strings.Contains(trimmed, "$") || strings.Contains(strings.ToLower(trimmed), "include") {
 			return nil, fmt.Errorf("forbidden_directive")
+		}
+		for _, r := range trimmed {
+			if r < 32 || r == 127 {
+				return nil, fmt.Errorf("forbidden_directive")
+			}
 		}
 		parts := strings.Fields(trimmed)
 		if len(parts) < 2 {
 			return nil, fmt.Errorf("forbidden_directive")
 		}
+
 		key := strings.TrimSuffix(strings.ToLower(parts[0]), ";")
 		if _, ok := allowedDirectiveKeys[key]; !ok {
 			return nil, fmt.Errorf("forbidden_directive")
 		}
+
+		value := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(strings.TrimPrefix(trimmed, parts[0])), ";"))
+		if value == "" || len(value) > 180 || strings.Contains(value, ";") {
+			return nil, fmt.Errorf("forbidden_directive")
+		}
+		if !directiveValuePattern.MatchString(value) {
+			return nil, fmt.Errorf("forbidden_directive")
+		}
+
+		trimmed = key + " " + value
 		if !strings.HasSuffix(trimmed, ";") {
 			trimmed += ";"
 		}

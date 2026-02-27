@@ -19,7 +19,33 @@ const (
 	maxChunkSize         = 4 * 1024
 	defaultSubscriberCap = 256
 	defaultTailBytes     = 128 * 1024
+	defaultDedupTTL      = 2 * time.Minute
+	maxSubscriberDrops   = 8
 )
+
+type CommandAck string
+
+const (
+	CommandAckAccepted  CommandAck = "accepted"
+	CommandAckDuplicate CommandAck = "duplicate"
+)
+
+type CommandResult struct {
+	Ack       CommandAck
+	Written   bool
+	Timestamp time.Time
+}
+
+type dedupEntry struct {
+	command   string
+	createdAt time.Time
+	result    CommandResult
+}
+
+type subscriber struct {
+	ch      chan Event
+	dropped int
+}
 
 type Capability struct {
 	SupportsPTY bool   `json:"supports_pty"`
@@ -63,12 +89,15 @@ type Session struct {
 	startedAt  time.Time
 	seq        atomic.Uint64
 	mu         sync.Mutex
-	subs       map[int]chan Event
+	subs       map[int]*subscriber
 	nextSubID  int
-	dedup      map[string]string
+	dedup      map[string]dedupEntry
+	dedupTTL   time.Duration
 	tail       []byte
 	done       chan struct{}
 	err        error
+	drops      atomic.Uint64
+	disconnect atomic.Uint64
 }
 
 type Manager struct {
@@ -124,8 +153,9 @@ func (m *Manager) Start(ctx context.Context, instanceID string, spec StartSpec, 
 		cmd:        cmd,
 		ptyFile:    f,
 		startedAt:  time.Now().UTC(),
-		subs:       map[int]chan Event{},
-		dedup:      map[string]string{},
+		subs:       map[int]*subscriber{},
+		dedup:      map[string]dedupEntry{},
+		dedupTTL:   defaultDedupTTL,
 		tail:       make([]byte, 0, defaultTailBytes),
 		done:       make(chan struct{}),
 	}
@@ -159,11 +189,11 @@ func (s *Session) Attach() (<-chan Event, func()) {
 	id := s.nextSubID
 	s.nextSubID++
 	ch := make(chan Event, defaultSubscriberCap)
-	s.subs[id] = ch
+	s.subs[id] = &subscriber{ch: ch}
 	return ch, func() {
 		s.mu.Lock()
 		if existing, ok := s.subs[id]; ok {
-			close(existing)
+			close(existing.ch)
 			delete(s.subs, id)
 		}
 		s.mu.Unlock()
@@ -171,25 +201,53 @@ func (s *Session) Attach() (<-chan Event, func()) {
 }
 
 func (s *Session) SendCommand(command, idempotencyKey string) (bool, error) {
+	result, err := s.SendCommandWithAck(command, idempotencyKey)
+	return result.Written, err
+}
+
+func (s *Session) SendCommandWithAck(command, idempotencyKey string) (CommandResult, error) {
+	now := time.Now().UTC()
+	s.cleanupDedup(now)
 	if idempotencyKey != "" {
 		s.mu.Lock()
-		if last, ok := s.dedup[idempotencyKey]; ok && last == command {
+		if entry, ok := s.dedup[idempotencyKey]; ok && entry.command == command {
 			s.mu.Unlock()
-			return false, nil
+			return CommandResult{Ack: CommandAckDuplicate, Written: false, Timestamp: entry.createdAt}, nil
 		}
-		s.dedup[idempotencyKey] = command
 		s.mu.Unlock()
 	}
 	if len(command) == 0 {
-		return false, errors.New("empty command")
+		return CommandResult{}, errors.New("empty command")
 	}
 	_, err := io.WriteString(s.ptyFile, command+"\n")
-	return err == nil, err
+	result := CommandResult{Ack: CommandAckAccepted, Written: err == nil, Timestamp: now}
+	if idempotencyKey != "" {
+		s.mu.Lock()
+		s.dedup[idempotencyKey] = dedupEntry{command: command, createdAt: now, result: result}
+		s.mu.Unlock()
+	}
+	return result, err
 }
 
 func (s *Session) GracefulStop(ctx context.Context) error {
+	softTimeout := s.spec.StopTimeout / 3
+	if softTimeout <= 0 {
+		softTimeout = 2 * time.Second
+	}
+	termTimeout := s.spec.StopTimeout - softTimeout
+	if termTimeout <= 0 {
+		termTimeout = 5 * time.Second
+	}
+
 	if s.spec.SoftStopCmd != "" {
 		_, _ = io.WriteString(s.ptyFile, s.spec.SoftStopCmd+"\n")
+		select {
+		case <-s.done:
+			return nil
+		case <-time.After(softTimeout):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	if s.cmd.Process == nil {
 		return nil
@@ -198,9 +256,28 @@ func (s *Session) GracefulStop(ctx context.Context) error {
 	select {
 	case <-s.done:
 		return nil
-	case <-time.After(s.spec.StopTimeout):
+	case <-time.After(termTimeout):
 		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
+		select {
+		case <-s.done:
+			return nil
+		case <-time.After(2 * time.Second):
+			return errors.New("session stop timeout exceeded")
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+func (s *Session) cleanupDedup(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for key, entry := range s.dedup {
+		if now.Sub(entry.createdAt) > s.dedupTTL {
+			delete(s.dedup, key)
+		}
 	}
 }
 
@@ -235,17 +312,17 @@ func (s *Session) appendTail(chunk []byte) {
 func (s *Session) broadcast(evt Event) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, ch := range s.subs {
+	for id, sub := range s.subs {
 		select {
-		case ch <- evt:
+		case sub.ch <- evt:
+			sub.dropped = 0
 		default:
-			select {
-			case <-ch:
-			default:
-			}
-			select {
-			case ch <- evt:
-			default:
+			sub.dropped++
+			s.drops.Add(1)
+			if sub.dropped >= maxSubscriberDrops {
+				close(sub.ch)
+				delete(s.subs, id)
+				s.disconnect.Add(1)
 			}
 		}
 	}
@@ -259,7 +336,7 @@ func (s *Session) close(err error) {
 	}
 	_ = s.ptyFile.Close()
 	for id, sub := range s.subs {
-		close(sub)
+		close(sub.ch)
 		delete(s.subs, id)
 	}
 	select {
