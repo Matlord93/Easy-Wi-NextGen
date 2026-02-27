@@ -45,6 +45,14 @@ func Collect() map[string]any {
 		snapshot["processes"] = processes
 	}
 
+	if load, err := loadAverage(); err == nil {
+		snapshot["load"] = load
+	}
+
+	if uptimeSeconds, err := uptimeSeconds(); err == nil {
+		snapshot["uptime"] = map[string]any{"seconds": uptimeSeconds}
+	}
+
 	if count, err := processCount(); err == nil {
 		snapshot["process_count"] = count
 	}
@@ -56,6 +64,11 @@ func Collect() map[string]any {
 	}
 
 	snapshot["instance_metrics"] = CollectInstanceMetrics()
+	snapshot["capabilities"] = map[string]any{
+		"temperature": snapshot["temperature"] != nil,
+		"load":        snapshot["load"] != nil,
+		"uptime":      snapshot["uptime"] != nil,
+	}
 
 	return snapshot
 }

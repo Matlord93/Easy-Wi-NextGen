@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -171,11 +172,14 @@ func processSample() ([]map[string]any, error) {
 		return nil, err
 	}
 
-	processes := make([]map[string]any, 0, processSampleLimit)
+	type procInfo struct {
+		pid  int
+		name string
+		rss  uint64
+		vms  uint64
+	}
+	all := make([]procInfo, 0, 128)
 	for _, entry := range entries {
-		if len(processes) >= processSampleLimit {
-			break
-		}
 		if !entry.IsDir() {
 			continue
 		}
@@ -187,15 +191,63 @@ func processSample() ([]map[string]any, error) {
 		name, _ := os.ReadFile(filepath.Join("/proc", entry.Name(), "comm"))
 		rss, vms, _ := readProcessMemory(entry.Name())
 
-		processes = append(processes, map[string]any{
-			"pid":  pid,
-			"name": strings.TrimSpace(string(name)),
-			"rss":  rss,
-			"vms":  vms,
-		})
+		all = append(all, procInfo{pid: pid, name: strings.TrimSpace(string(name)), rss: rss, vms: vms})
+	}
+
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].rss > all[j].rss
+	})
+
+	processes := make([]map[string]any, 0, processSampleLimit)
+	for i, proc := range all {
+		if i >= processSampleLimit {
+			break
+		}
+		processes = append(processes, map[string]any{"pid": proc.pid, "name": proc.name, "rss": proc.rss, "vms": proc.vms})
 	}
 
 	return processes, nil
+}
+
+func loadAverage() (map[string]float64, error) {
+	raw, err := os.ReadFile("/proc/loadavg")
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.Fields(string(raw))
+	if len(parts) < 3 {
+		return nil, fmt.Errorf("invalid loadavg")
+	}
+	one, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil {
+		return nil, err
+	}
+	five, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return nil, err
+	}
+	fifteen, err := strconv.ParseFloat(parts[2], 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]float64{"1m": one, "5m": five, "15m": fifteen}, nil
+}
+
+func uptimeSeconds() (int64, error) {
+	raw, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		return 0, err
+	}
+	parts := strings.Fields(string(raw))
+	if len(parts) == 0 {
+		return 0, fmt.Errorf("invalid uptime")
+	}
+	v, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil {
+		return 0, err
+	}
+	return int64(v), nil
 }
 
 func readProcessMemory(pid string) (uint64, uint64, error) {

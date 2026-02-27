@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -63,6 +64,25 @@ func (c *Client) SendHeartbeat(ctx context.Context, stats map[string]any, roles 
 	}
 
 	_, err := c.doSignedJSON(ctx, http.MethodPost, "/agent/heartbeat", payload, nil)
+	return err
+}
+
+// SendMetricsBatch posts compressed metric samples in one request.
+func (c *Client) SendMetricsBatch(ctx context.Context, samples []map[string]any) error {
+	payload := map[string]any{"samples": samples}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("encode metrics batch: %w", err)
+	}
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	if _, err := gz.Write(body); err != nil {
+		return fmt.Errorf("gzip metrics batch: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return fmt.Errorf("close gzip: %w", err)
+	}
+	_, err = c.doSignedRaw(ctx, http.MethodPost, "/agent/metrics-batch", buf.Bytes(), map[string]string{"Content-Type": "application/json", "Content-Encoding": "gzip"}, nil)
 	return err
 }
 
@@ -333,5 +353,53 @@ func (c *Client) doSignedJSONWithSecret(ctx context.Context, method, path string
 		}
 	}
 
+	return resp, nil
+}
+
+func (c *Client) doSignedRaw(ctx context.Context, method, path string, body []byte, extraHeaders map[string]string, out any) (resp *http.Response, err error) {
+	requestPath, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf("parse request path: %w", err)
+	}
+	requestURL := c.BaseURL.ResolveReference(requestPath)
+	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	nonce, err := agentcrypto.NewNonce()
+	if err != nil {
+		return nil, err
+	}
+	headers, err := agentcrypto.Sign(c.AgentID, c.Secret, method, requestPath.Path, body, time.Now(), nonce)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Agent-ID", headers.AgentID)
+	req.Header.Set("X-Timestamp", headers.Timestamp)
+	req.Header.Set("X-Nonce", headers.Nonce)
+	req.Header.Set("X-Signature", headers.Signature)
+	req.Header.Set("User-Agent", c.UserAgent)
+	for k, v := range extraHeaders {
+		req.Header.Set(k, v)
+	}
+	resp, err = c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close response body: %w", closeErr)
+		}
+	}()
+	if resp.StatusCode >= http.StatusBadRequest {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return resp, fmt.Errorf("api error %s: %s", resp.Status, string(bodyBytes))
+	}
+	if out != nil {
+		decoder := json.NewDecoder(resp.Body)
+		if err := decoder.Decode(out); err != nil {
+			return resp, fmt.Errorf("decode response: %w", err)
+		}
+	}
 	return resp, nil
 }

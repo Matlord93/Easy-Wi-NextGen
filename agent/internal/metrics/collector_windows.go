@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"
 	gonet "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
@@ -72,7 +74,35 @@ func memoryUsage() (uint64, uint64, float64, error) {
 }
 
 func processSample() ([]map[string]any, error) {
-	return nil, fmt.Errorf("process sample not supported on windows")
+	procs, err := process.Processes()
+	if err != nil {
+		return nil, err
+	}
+	type procInfo struct {
+		pid  int32
+		name string
+		rss  uint64
+		vms  uint64
+	}
+	all := make([]procInfo, 0, len(procs))
+	for _, proc := range procs {
+		name, _ := proc.Name()
+		mem, _ := proc.MemoryInfo()
+		if mem == nil {
+			continue
+		}
+		all = append(all, procInfo{pid: proc.Pid, name: name, rss: mem.RSS, vms: mem.VMS})
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].rss > all[j].rss })
+	limit := processSampleLimit
+	if len(all) < limit {
+		limit = len(all)
+	}
+	out := make([]map[string]any, 0, limit)
+	for _, proc := range all[:limit] {
+		out = append(out, map[string]any{"pid": proc.pid, "name": proc.name, "rss": proc.rss, "vms": proc.vms})
+	}
+	return out, nil
 }
 
 func processCount() (int, error) {
@@ -131,4 +161,16 @@ func parseWindowsWMITemperature(raw string) (float64, bool) {
 	}
 
 	return 0, false
+}
+
+func loadAverage() (map[string]float64, error) {
+	return nil, fmt.Errorf("load average unavailable on windows")
+}
+
+func uptimeSeconds() (int64, error) {
+	seconds, err := host.Uptime()
+	if err != nil {
+		return 0, err
+	}
+	return int64(seconds), nil
 }

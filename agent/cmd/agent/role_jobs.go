@@ -196,7 +196,67 @@ func installWindowsFeatures(features []string, output *strings.Builder) error {
 	}
 
 	featureArray := powershellArrayLiteral(features)
-	script := fmt.Sprintf(`$features=%s; if (Get-Command Install-WindowsFeature -ErrorAction SilentlyContinue) { Install-WindowsFeature -Name $features -IncludeManagementTools } elseif (Get-Command Add-WindowsFeature -ErrorAction SilentlyContinue) { Add-WindowsFeature -Name $features } elseif (Get-Command Enable-WindowsOptionalFeature -ErrorAction SilentlyContinue) { foreach ($f in $features) { Enable-WindowsOptionalFeature -Online -FeatureName $f -All -NoRestart } } else { throw "no supported feature installer found" }`, featureArray)
+	script := fmt.Sprintf(`
+$features=%s
+
+function Split-FeatureAvailability {
+	param(
+		[string[]]$Requested,
+		[string[]]$Available
+	)
+	$availableSet = @{}
+	foreach ($entry in $Available) {
+		if ($entry) { $availableSet[$entry] = $true }
+	}
+	$installable = @()
+	$missing = @()
+	foreach ($name in $Requested) {
+		if ($availableSet.ContainsKey($name)) {
+			$installable += $name
+		} else {
+			$missing += $name
+		}
+	}
+	return @{ Installable = $installable; Missing = $missing }
+}
+
+if (Get-Command Install-WindowsFeature -ErrorAction SilentlyContinue) {
+	$available = @(Get-WindowsFeature | Where-Object { $_.Name } | ForEach-Object { $_.Name })
+	$split = Split-FeatureAvailability -Requested $features -Available $available
+	if ($split.Missing.Count -gt 0) {
+		Write-Output ("windows_features_skipped=" + ($split.Missing -join ","))
+	}
+	if ($split.Installable.Count -gt 0) {
+		Install-WindowsFeature -Name $split.Installable -IncludeManagementTools
+	} else {
+		Write-Output "windows_features_nothing_to_install"
+	}
+} elseif (Get-Command Add-WindowsFeature -ErrorAction SilentlyContinue) {
+	$available = @(Get-WindowsFeature | Where-Object { $_.Name } | ForEach-Object { $_.Name })
+	$split = Split-FeatureAvailability -Requested $features -Available $available
+	if ($split.Missing.Count -gt 0) {
+		Write-Output ("windows_features_skipped=" + ($split.Missing -join ","))
+	}
+	if ($split.Installable.Count -gt 0) {
+		Add-WindowsFeature -Name $split.Installable
+	} else {
+		Write-Output "windows_features_nothing_to_install"
+	}
+} elseif (Get-Command Enable-WindowsOptionalFeature -ErrorAction SilentlyContinue) {
+	$available = @(Get-WindowsOptionalFeature -Online | Where-Object { $_.FeatureName } | ForEach-Object { $_.FeatureName })
+	$split = Split-FeatureAvailability -Requested $features -Available $available
+	if ($split.Missing.Count -gt 0) {
+		Write-Output ("windows_features_skipped=" + ($split.Missing -join ","))
+	}
+	foreach ($f in $split.Installable) {
+		Enable-WindowsOptionalFeature -Online -FeatureName $f -All -NoRestart
+	}
+	if ($split.Installable.Count -eq 0) {
+		Write-Output "windows_features_nothing_to_install"
+	}
+} else {
+	throw "no supported feature installer found"
+}`, featureArray)
 	return runCommandWithOutput(shell, []string{"-NoProfile", "-NonInteractive", "-Command", script}, output)
 }
 

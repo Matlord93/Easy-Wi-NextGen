@@ -65,14 +65,23 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 	credentialRefreshCooldown := 2 * time.Minute
 
 	startServiceServer(ctx, cfg)
+	metricsQueue := make([]map[string]any, 0, 120)
 
-	if err := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); err != nil {
+	stats := collectStats(cfg.Version, roles)
+	if metricSnapshot, ok := stats["metrics"].(map[string]any); ok {
+		metricsQueue = append(metricsQueue, metricSnapshot)
+	}
+	if err := client.SendHeartbeat(ctx, stats, roles, metadata, "online"); err != nil {
 		log.Printf("heartbeat failed: %v", err)
 		if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
 			log.Printf("agent credentials refreshed; retrying heartbeat")
-			if retryErr := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); retryErr != nil {
+			if retryErr := client.SendHeartbeat(ctx, stats, roles, metadata, "online"); retryErr != nil {
 				log.Printf("heartbeat retry failed: %v", retryErr)
 			}
+		}
+	} else if len(metricsQueue) > 0 {
+		if err := client.SendMetricsBatch(ctx, metricsQueue); err == nil {
+			metricsQueue = metricsQueue[:0]
 		}
 	}
 
@@ -83,10 +92,25 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 		case <-heartbeatTicker.C:
 			roles = collectRoles()
 			metadata = collectMetadata(cfg)
-			if err := client.SendHeartbeat(ctx, collectStats(cfg.Version, roles), roles, metadata, "online"); err != nil {
+			stats := collectStats(cfg.Version, roles)
+			if metricSnapshot, ok := stats["metrics"].(map[string]any); ok {
+				metricsQueue = append(metricsQueue, metricSnapshot)
+				if len(metricsQueue) > 120 {
+					metricsQueue = metricsQueue[len(metricsQueue)-120:]
+				}
+			}
+			if err := client.SendHeartbeat(ctx, stats, roles, metadata, "online"); err != nil {
 				log.Printf("heartbeat failed: %v", err)
 				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
 					log.Printf("agent credentials refreshed; heartbeat will use the new secret")
+				}
+			} else if len(metricsQueue) > 0 {
+				batch := metricsQueue
+				if len(batch) > 50 {
+					batch = batch[:50]
+				}
+				if err := client.SendMetricsBatch(ctx, batch); err == nil {
+					metricsQueue = metricsQueue[len(batch):]
 				}
 			}
 		case <-pollTicker.C:
@@ -674,6 +698,12 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleDdosPolicyApply(job)
 	case "ddos.status.check":
 		return handleDdosStatusCheck(job)
+	case "security.ruleset.apply":
+		return handleSecurityRuleSetApply(job)
+	case "security.ruleset.rollback":
+		return handleSecurityRuleSetRollback(job)
+	case "security.events.collect":
+		return handleSecurityEventsCollect(job)
 	case "ts3.create":
 		return handleTs3Create(job, logSender)
 	case "ts3.start":

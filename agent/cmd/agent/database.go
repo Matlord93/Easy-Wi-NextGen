@@ -16,6 +16,7 @@ import (
 	"easywi/agent/internal/jobs"
 
 	mysql "github.com/go-sql-driver/mysql"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const (
@@ -41,21 +42,26 @@ func handleDatabaseCreate(job jobs.Job) (jobs.Result, func() error) {
 	defer cleanup()
 
 	password := generateStrongPassword(28)
-	quotedDB := quoteIdentifier(req.Database)
-	quotedUser := quoteUser(req.Username, req.AllowedHost)
-
-	if err = execWithTimeout(db, 8*time.Second, "CREATE DATABASE IF NOT EXISTS "+quotedDB); err != nil {
-		return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
-	}
-	if err = execWithTimeout(db, 8*time.Second, "CREATE USER IF NOT EXISTS "+quotedUser+" IDENTIFIED BY ?", password); err != nil {
-		return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
-	}
-	grantSQL := fmt.Sprintf("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP ON %s.* TO %s", quotedDB, quotedUser)
-	if err = execWithTimeout(db, 8*time.Second, grantSQL); err != nil {
-		return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
-	}
-	if err = execWithTimeout(db, 8*time.Second, "FLUSH PRIVILEGES"); err != nil {
-		return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+	if req.Engine == "postgresql" {
+		if err = postgresEnsureDatabaseAndUser(db, req, password); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
+	} else {
+		quotedDB := quoteIdentifier(req.Database)
+		quotedUser := quoteUser(req.Username, req.AllowedHost)
+		if err = execWithTimeout(db, 8*time.Second, "CREATE DATABASE IF NOT EXISTS "+quotedDB); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
+		if err = execWithTimeout(db, 8*time.Second, "CREATE USER IF NOT EXISTS "+quotedUser+" IDENTIFIED BY ?", password); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
+		grantSQL := fmt.Sprintf("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP ON %s.* TO %s", quotedDB, quotedUser)
+		if err = execWithTimeout(db, 8*time.Second, grantSQL); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
+		if err = execWithTimeout(db, 8*time.Second, "FLUSH PRIVILEGES"); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
 	}
 
 	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"database": req.Database, "username": req.Username, "allowed_host": req.AllowedHost, "one_time_credential": password}, Completed: time.Now().UTC()}, nil
@@ -70,7 +76,6 @@ func handleDatabasePasswordRotate(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return dbFailure(job.ID, dbErrNameInvalid, err.Error()), nil
 	}
-
 	db, cleanup, err := openDatabaseAdminConnection(req)
 	if err != nil {
 		return dbFailure(job.ID, mapDatabaseOpenError(err), sanitizeDBError(err)), nil
@@ -78,26 +83,30 @@ func handleDatabasePasswordRotate(job jobs.Job) (jobs.Result, func() error) {
 	defer cleanup()
 
 	password := generateStrongPassword(28)
-	quotedUser := quoteUser(req.Username, req.AllowedHost)
-
-	err = execWithTimeout(db, 8*time.Second, "ALTER USER "+quotedUser+" IDENTIFIED BY ?", password)
-	if err != nil {
-		err = execWithTimeout(db, 8*time.Second, "SET PASSWORD FOR "+quotedUser+" = PASSWORD(?)", password)
+	if req.Engine == "postgresql" {
+		err = execWithTimeout(db, 8*time.Second, "ALTER ROLE "+quotePGIdentifier(req.Username)+" WITH LOGIN PASSWORD '"+escapeLiteral(password)+"'")
 		if err != nil {
 			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
 		}
+	} else {
+		quotedUser := quoteUser(req.Username, req.AllowedHost)
+		err = execWithTimeout(db, 8*time.Second, "ALTER USER "+quotedUser+" IDENTIFIED BY ?", password)
+		if err != nil {
+			err = execWithTimeout(db, 8*time.Second, "SET PASSWORD FOR "+quotedUser+" = PASSWORD(?)", password)
+			if err != nil {
+				return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+			}
+		}
+		if err = execWithTimeout(db, 8*time.Second, "FLUSH PRIVILEGES"); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
 	}
-	if err = execWithTimeout(db, 8*time.Second, "FLUSH PRIVILEGES"); err != nil {
-		return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
-	}
-
 	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"username": req.Username, "allowed_host": req.AllowedHost, "one_time_credential": password}, Completed: time.Now().UTC()}, nil
 }
 
 func handleDatabaseUserCreate(job jobs.Job) (jobs.Result, func() error) {
 	return dbFailure(job.ID, dbErrActionFailed, "unsupported job"), nil
 }
-
 func handleDatabaseGrantApply(job jobs.Job) (jobs.Result, func() error) {
 	return dbFailure(job.ID, dbErrActionFailed, "unsupported job"), nil
 }
@@ -107,20 +116,27 @@ func handleDatabaseDelete(job jobs.Job) (jobs.Result, func() error) {
 	if err != nil {
 		return dbFailure(job.ID, dbErrNameInvalid, err.Error()), nil
 	}
-
 	db, cleanup, err := openDatabaseAdminConnection(req)
 	if err != nil {
 		return dbFailure(job.ID, mapDatabaseOpenError(err), sanitizeDBError(err)), nil
 	}
 	defer cleanup()
-
-	if err = execWithTimeout(db, 8*time.Second, "DROP DATABASE IF EXISTS "+quoteIdentifier(req.Database)); err != nil {
-		return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+	if req.Engine == "postgresql" {
+		_ = execWithTimeout(db, 8*time.Second, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1", req.Database)
+		if err = execWithTimeout(db, 8*time.Second, "DROP DATABASE IF EXISTS "+quotePGIdentifier(req.Database)); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
+		if err = execWithTimeout(db, 8*time.Second, "DROP ROLE IF EXISTS "+quotePGIdentifier(req.Username)); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
+	} else {
+		if err = execWithTimeout(db, 8*time.Second, "DROP DATABASE IF EXISTS "+quoteIdentifier(req.Database)); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
+		if err = execWithTimeout(db, 8*time.Second, "DROP USER IF EXISTS "+quoteUser(req.Username, req.AllowedHost)); err != nil {
+			return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
+		}
 	}
-	if err = execWithTimeout(db, 8*time.Second, "DROP USER IF EXISTS "+quoteUser(req.Username, req.AllowedHost)); err != nil {
-		return dbFailure(job.ID, dbErrActionFailed, sanitizeDBError(err)), nil
-	}
-
 	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"database": req.Database, "username": req.Username, "status": "deleted"}, Completed: time.Now().UTC()}, nil
 }
 
@@ -129,18 +145,7 @@ type databaseRequest struct {
 }
 
 func parseDatabaseRequest(job jobs.Job) (databaseRequest, error) {
-	req := databaseRequest{
-		Engine:      strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "engine"))),
-		Host:        strings.TrimSpace(payloadValue(job.Payload, "host")),
-		Port:        strings.TrimSpace(payloadValue(job.Payload, "port")),
-		Database:    strings.TrimSpace(payloadValue(job.Payload, "database", "name")),
-		Username:    strings.TrimSpace(payloadValue(job.Payload, "username", "user")),
-		AllowedHost: strings.TrimSpace(payloadValue(job.Payload, "allowed_hosts", "allowed_host")),
-		AdminUser:   strings.TrimSpace(payloadValue(job.Payload, "admin_user")),
-		AdminSecret: payloadValue(job.Payload, "admin_secret"),
-		TLSMode:     strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "tls_mode"))),
-		CACert:      payloadValue(job.Payload, "ca_cert"),
-	}
+	req := databaseRequest{Engine: strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "engine"))), Host: strings.TrimSpace(payloadValue(job.Payload, "host")), Port: strings.TrimSpace(payloadValue(job.Payload, "port")), Database: strings.TrimSpace(payloadValue(job.Payload, "database", "name")), Username: strings.TrimSpace(payloadValue(job.Payload, "username", "user")), AllowedHost: strings.TrimSpace(payloadValue(job.Payload, "allowed_hosts", "allowed_host")), AdminUser: strings.TrimSpace(payloadValue(job.Payload, "admin_user")), AdminSecret: payloadValue(job.Payload, "admin_secret"), TLSMode: strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "tls_mode"))), CACert: payloadValue(job.Payload, "ca_cert")}
 	if req.AllowedHost == "" {
 		req.AllowedHost = "%"
 	}
@@ -153,7 +158,10 @@ func parseDatabaseRequest(job jobs.Job) (databaseRequest, error) {
 	if req.TLSMode == "" {
 		req.TLSMode = "off"
 	}
-	if req.Engine != "mysql" && req.Engine != "mariadb" {
+	if req.Engine == "postgres" {
+		req.Engine = "postgresql"
+	}
+	if req.Engine != "mysql" && req.Engine != "mariadb" && req.Engine != "postgresql" {
 		return req, fmt.Errorf("unsupported engine")
 	}
 	if req.Host == "" || req.Port == "" || req.AdminUser == "" || req.AdminSecret == "" {
@@ -166,6 +174,9 @@ func parseDatabaseRequest(job jobs.Job) (databaseRequest, error) {
 }
 
 func openDatabaseAdminConnection(req databaseRequest) (*sql.DB, func(), error) {
+	if req.Engine == "postgresql" {
+		return openPostgresAdminConnection(req)
+	}
 	tlsName, cleanup, err := registerTLSConfig(req)
 	if err != nil {
 		return nil, func() {}, err
@@ -179,11 +190,28 @@ func openDatabaseAdminConnection(req databaseRequest) (*sql.DB, func(), error) {
 		cleanup()
 		return nil, func() {}, err
 	}
+	return pingedDB(db, cleanup)
+}
+
+func openPostgresAdminConnection(req databaseRequest) (*sql.DB, func(), error) {
+	sslMode := map[string]string{"off": "disable", "required": "require", "verify_ca": "verify-ca", "verify_full": "verify-full"}[req.TLSMode]
+	if sslMode == "" {
+		return nil, func() {}, fmt.Errorf("invalid tls mode")
+	}
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres connect_timeout=5 sslmode=%s", req.Host, req.Port, req.AdminUser, req.AdminSecret, sslMode)
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	return pingedDB(db, func() {})
+}
+
+func pingedDB(db *sql.DB, cleanup func()) (*sql.DB, func(), error) {
 	db.SetConnMaxLifetime(30 * time.Second)
 	db.SetMaxOpenConns(2)
 	db.SetMaxIdleConns(1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err = db.PingContext(ctx)
+	err := db.PingContext(ctx)
 	cancel()
 	if err != nil {
 		_ = db.Close()
@@ -191,6 +219,34 @@ func openDatabaseAdminConnection(req databaseRequest) (*sql.DB, func(), error) {
 		return nil, func() {}, err
 	}
 	return db, func() { _ = db.Close(); cleanup() }, nil
+}
+
+func postgresEnsureDatabaseAndUser(db *sql.DB, req databaseRequest, password string) error {
+	var exists int
+	err := db.QueryRow("SELECT 1 FROM pg_roles WHERE rolname = $1", req.Username).Scan(&exists)
+	if err == sql.ErrNoRows {
+		if err = execWithTimeout(db, 8*time.Second, "CREATE ROLE "+quotePGIdentifier(req.Username)+" LOGIN PASSWORD '"+escapeLiteral(password)+"'"); err != nil {
+			return err
+		}
+	} else if err == nil {
+		if err = execWithTimeout(db, 8*time.Second, "ALTER ROLE "+quotePGIdentifier(req.Username)+" WITH LOGIN PASSWORD '"+escapeLiteral(password)+"'"); err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
+	err = db.QueryRow("SELECT 1 FROM pg_database WHERE datname = $1", req.Database).Scan(&exists)
+	if err == sql.ErrNoRows {
+		if err = execWithTimeout(db, 8*time.Second, "CREATE DATABASE "+quotePGIdentifier(req.Database)+" OWNER "+quotePGIdentifier(req.Username)); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+	if err = execWithTimeout(db, 8*time.Second, "GRANT ALL PRIVILEGES ON DATABASE "+quotePGIdentifier(req.Database)+" TO "+quotePGIdentifier(req.Username)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func registerTLSConfig(req databaseRequest) (string, func(), error) {
@@ -225,7 +281,7 @@ func registerTLSConfig(req databaseRequest) (string, func(), error) {
 
 func mapDatabaseOpenError(err error) string {
 	message := strings.ToLower(err.Error())
-	if strings.Contains(message, "access denied") || strings.Contains(message, "authentication") {
+	if strings.Contains(message, "access denied") || strings.Contains(message, "authentication") || strings.Contains(message, "password authentication failed") {
 		return dbErrAuthFailed
 	}
 	if strings.Contains(message, "tls") || strings.Contains(message, "ssl") || strings.Contains(message, "certificate") || strings.Contains(message, "x509") {
@@ -236,7 +292,6 @@ func mapDatabaseOpenError(err error) string {
 	}
 	return dbErrActionFailed
 }
-
 func isNetErr(err error) bool {
 	if err == nil {
 		return false
@@ -247,7 +302,6 @@ func isNetErr(err error) bool {
 	message := strings.ToLower(err.Error())
 	return strings.Contains(message, "timeout") || strings.Contains(message, "connection refused") || strings.Contains(message, "no such host")
 }
-
 func sanitizeDBError(err error) string {
 	msg := strings.ReplaceAll(strings.TrimSpace(err.Error()), "\n", " ")
 	if len(msg) > 240 {
@@ -255,11 +309,12 @@ func sanitizeDBError(err error) string {
 	}
 	return msg
 }
-
 func quoteIdentifier(value string) string { return "`" + strings.ReplaceAll(value, "`", "``") + "`" }
 func quoteUser(username, host string) string {
 	return fmt.Sprintf("'%s'@'%s'", strings.ReplaceAll(username, "'", "''"), strings.ReplaceAll(host, "'", "''"))
 }
+func quotePGIdentifier(value string) string { return `"` + strings.ReplaceAll(value, `"`, `""`) + `"` }
+func escapeLiteral(value string) string     { return strings.ReplaceAll(value, "'", "''") }
 func generateStrongPassword(length int) string {
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}"
 	if length < 16 {
