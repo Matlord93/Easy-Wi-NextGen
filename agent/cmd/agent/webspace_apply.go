@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"easywi/agent/internal/jobs"
@@ -60,7 +59,6 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	redirectHTTPS := payloadValue(job.Payload, "redirect_https") == "1" || strings.EqualFold(payloadValue(job.Payload, "redirect_https"), "true")
 	runtimeType := strings.ToLower(payloadValue(job.Payload, "runtime"))
 	action := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "action")))
-	rollbackApplied := false
 	rollback := func() error { return nil }
 	if runtimeType == "" {
 		runtimeType = "nginx"
@@ -144,14 +142,11 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if err := validateWebserverConfig(runtimeType); err != nil {
-		if rollbackErr := rollback(); rollbackErr == nil {
-			rollbackApplied = true
-		}
+		_ = rollback()
 		return webspaceApplyFailure(job.ID, "configtest_failed", err.Error()), nil
 	}
 	if err := reloadWebserver(runtimeType); err != nil {
 		if rollbackErr := rollback(); rollbackErr == nil {
-			rollbackApplied = true
 			if validateErr := validateWebserverConfig(runtimeType); validateErr == nil {
 				_ = reloadWebserver(runtimeType)
 			}
@@ -159,12 +154,7 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 		return webspaceApplyFailure(job.ID, "reload_failed", err.Error()), nil
 	}
 
-	output := map[string]string{"runtime": runtimeType, "apply_status": "succeeded", "changed": "1"}
-	if rollbackApplied {
-		output["rollback"] = "1"
-	}
-
-	return jobs.Result{JobID: job.ID, Status: "success", Output: output, Completed: time.Now().UTC()}, nil
+	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"runtime": runtimeType, "apply_status": "succeeded", "changed": "1"}, Completed: time.Now().UTC()}, nil
 }
 
 func captureVhostRollback(path string) func() error {
@@ -209,10 +199,7 @@ func writeVhostAtomically(path string, content []byte) (bool, error) {
 	gid := -1
 	if stat, err := os.Stat(path); err == nil {
 		perm = stat.Mode().Perm()
-		if statT, ok := stat.Sys().(*syscall.Stat_t); ok {
-			uid = int(statT.Uid)
-			gid = int(statT.Gid)
-		}
+		uid, gid = fileOwnerIDs(stat)
 	}
 
 	if err := os.WriteFile(staging, content, perm); err != nil {

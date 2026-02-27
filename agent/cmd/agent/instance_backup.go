@@ -243,18 +243,26 @@ func validateRemoteBackupURL(payload map[string]any, remote string) error {
 	return nil
 }
 
-func validateBackupArchivePaths(archivePath, destinationRoot string) error {
+func validateBackupArchivePaths(archivePath, destinationRoot string) (err error) {
 	archive, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("open backup archive: %w", err)
 	}
-	defer archive.Close()
+	defer func() {
+		if closeErr := archive.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("close backup archive: %w", closeErr)
+		}
+	}()
 
 	gzReader, err := gzip.NewReader(archive)
 	if err != nil {
 		return fmt.Errorf("open backup gzip: %w", err)
 	}
-	defer gzReader.Close()
+	defer func() {
+		if closeErr := gzReader.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("close backup gzip: %w", closeErr)
+		}
+	}()
 
 	tarReader := tar.NewReader(gzReader)
 	for {

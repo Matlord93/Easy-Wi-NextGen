@@ -534,6 +534,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleWebspaceComposerInstall(job)
 	case "webspace.domain.apply":
 		return handleWebspaceDomainApply(job)
+	case "domain.add":
+		return handleDomainAdd(job)
 	case "domain.ssl.issue":
 		return handleDomainSSLIssue(job)
 	case "roundcube.install":
