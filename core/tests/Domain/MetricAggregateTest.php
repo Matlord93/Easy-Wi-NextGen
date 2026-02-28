@@ -20,9 +20,12 @@ final class MetricAggregateTest extends TestCase
 
         self::assertSame(2, $aggregate->getSampleCount());
         $ref = new \ReflectionClass($aggregate);
-        $cpuMin = $ref->getProperty('cpuMin'); $cpuMin->setAccessible(true);
-        $cpuAvg = $ref->getProperty('cpuAvg'); $cpuAvg->setAccessible(true);
-        $cpuMax = $ref->getProperty('cpuMax'); $cpuMax->setAccessible(true);
+        $cpuMin = $ref->getProperty('cpuMin');
+        $cpuMin->setAccessible(true);
+        $cpuAvg = $ref->getProperty('cpuAvg');
+        $cpuAvg->setAccessible(true);
+        $cpuMax = $ref->getProperty('cpuMax');
+        $cpuMax->setAccessible(true);
 
         self::assertSame(10.0, $cpuMin->getValue($aggregate));
         self::assertSame(30.0, $cpuAvg->getValue($aggregate));

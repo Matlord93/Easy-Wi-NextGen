@@ -38,4 +38,3 @@ final class DatabaseNamingPolicyTest extends TestCase
         self::assertNotSame([], $policy->validateDatabaseName(' [Select] '));
     }
 }
-

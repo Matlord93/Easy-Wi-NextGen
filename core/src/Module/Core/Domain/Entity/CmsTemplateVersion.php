@@ -51,12 +51,39 @@ class CmsTemplateVersion
         $this->createdAt = new \DateTimeImmutable();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function setTemplate(CmsTemplate $template): void { $this->template = $template; }
-    public function getTemplate(): CmsTemplate { return $this->template; }
-    public function getVersionNumber(): int { return $this->versionNumber; }
-    public function getStoragePath(): string { return $this->storagePath; }
-    public function getManifest(): array { return $this->manifest; }
-    public function isActive(): bool { return $this->active; }
-    public function markActive(bool $active): void { $this->active = $active; if ($active) { $this->deployedAt = new \DateTimeImmutable(); } }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function setTemplate(CmsTemplate $template): void
+    {
+        $this->template = $template;
+    }
+    public function getTemplate(): CmsTemplate
+    {
+        return $this->template;
+    }
+    public function getVersionNumber(): int
+    {
+        return $this->versionNumber;
+    }
+    public function getStoragePath(): string
+    {
+        return $this->storagePath;
+    }
+    public function getManifest(): array
+    {
+        return $this->manifest;
+    }
+    public function isActive(): bool
+    {
+        return $this->active;
+    }
+    public function markActive(bool $active): void
+    {
+        $this->active = $active;
+        if ($active) {
+            $this->deployedAt = new \DateTimeImmutable();
+        }
+    }
 }

@@ -13,7 +13,16 @@ final class RestoreReport
     ) {
     }
 
-    public function dryRun(): bool { return $this->dryRun; }
-    public function success(): bool { return $this->success; }
-    public function message(): string { return $this->message; }
+    public function dryRun(): bool
+    {
+        return $this->dryRun;
+    }
+    public function success(): bool
+    {
+        return $this->success;
+    }
+    public function message(): string
+    {
+        return $this->message;
+    }
 }

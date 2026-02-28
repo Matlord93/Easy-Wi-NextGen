@@ -15,4 +15,3 @@ final class QuotaPolicyRepository extends ServiceEntityRepository
         parent::__construct($registry, QuotaPolicy::class);
     }
 }
-

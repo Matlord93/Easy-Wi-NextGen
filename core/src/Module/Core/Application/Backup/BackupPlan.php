@@ -21,13 +21,34 @@ final class BackupPlan
     ) {
     }
 
-    public function id(): string { return $this->id; }
-    public function module(): string { return $this->module; }
-    public function resourceId(): string { return $this->resourceId; }
-    public function target(): BackupStorageTarget { return $this->target; }
-    public function retentionPolicy(): RetentionPolicy { return $this->retentionPolicy; }
-    public function cronExpression(): ?string { return $this->cronExpression; }
-    public function timeZone(): string { return $this->timeZone; }
+    public function id(): string
+    {
+        return $this->id;
+    }
+    public function module(): string
+    {
+        return $this->module;
+    }
+    public function resourceId(): string
+    {
+        return $this->resourceId;
+    }
+    public function target(): BackupStorageTarget
+    {
+        return $this->target;
+    }
+    public function retentionPolicy(): RetentionPolicy
+    {
+        return $this->retentionPolicy;
+    }
+    public function cronExpression(): ?string
+    {
+        return $this->cronExpression;
+    }
+    public function timeZone(): string
+    {
+        return $this->timeZone;
+    }
 
     /** @return array<string, scalar|array|null> */
     public function options(): array

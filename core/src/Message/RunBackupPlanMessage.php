@@ -13,7 +13,16 @@ final class RunBackupPlanMessage
     ) {
     }
 
-    public function planId(): string { return $this->planId; }
-    public function manual(): bool { return $this->manual; }
-    public function idempotencyKey(): ?string { return $this->idempotencyKey; }
+    public function planId(): string
+    {
+        return $this->planId;
+    }
+    public function manual(): bool
+    {
+        return $this->manual;
+    }
+    public function idempotencyKey(): ?string
+    {
+        return $this->idempotencyKey;
+    }
 }

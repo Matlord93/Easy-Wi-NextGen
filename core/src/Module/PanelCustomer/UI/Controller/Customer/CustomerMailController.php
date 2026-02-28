@@ -6,15 +6,15 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
-use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Application\MailLimitEnforcer;
+use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DomainRepository;
-use App\Repository\MailDomainRepository;
 use App\Repository\MailboxRepository;
+use App\Repository\MailDomainRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;

@@ -16,4 +16,3 @@ final class MailForwardRepository extends ServiceEntityRepository
         parent::__construct($registry, MailForward::class);
     }
 }
-

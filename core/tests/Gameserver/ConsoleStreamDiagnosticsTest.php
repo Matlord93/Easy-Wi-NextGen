@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Gameserver;
 
+use App\Module\Gameserver\Application\Console\AgentEndpointProbeInterface;
 use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
 use App\Module\Gameserver\Infrastructure\Mercure\NullConsoleAgentGrpcClient;
-use App\Module\Gameserver\Application\Console\AgentEndpointProbeInterface;
 use PHPUnit\Framework\TestCase;
 
 final class ConsoleStreamDiagnosticsTest extends TestCase

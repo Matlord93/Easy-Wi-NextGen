@@ -44,12 +44,32 @@ class MailNode
         $this->roundcubeUrl = $roundcubeUrl;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getName(): string { return $this->name; }
-    public function getImapHost(): string { return $this->imapHost; }
-    public function getImapPort(): int { return $this->imapPort; }
-    public function getSmtpHost(): string { return $this->smtpHost; }
-    public function getSmtpPort(): int { return $this->smtpPort; }
-    public function getRoundcubeUrl(): string { return $this->roundcubeUrl; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getName(): string
+    {
+        return $this->name;
+    }
+    public function getImapHost(): string
+    {
+        return $this->imapHost;
+    }
+    public function getImapPort(): int
+    {
+        return $this->imapPort;
+    }
+    public function getSmtpHost(): string
+    {
+        return $this->smtpHost;
+    }
+    public function getSmtpPort(): int
+    {
+        return $this->smtpPort;
+    }
+    public function getRoundcubeUrl(): string
+    {
+        return $this->roundcubeUrl;
+    }
 }
-

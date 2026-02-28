@@ -8,14 +8,12 @@ use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\MailDomain;
 use Doctrine\ORM\EntityManagerInterface;
 
-
 final class MailLimitEnforcer
 {
     public function __construct(
         private readonly MailboxStatsProviderInterface $mailboxRepository,
         private readonly EntityManagerInterface $entityManager,
-    )
-    {
+    ) {
     }
 
     public function lockDomainForMailboxCreate(Domain $domain): void

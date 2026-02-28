@@ -36,10 +36,24 @@ class QuotaPolicy
         $this->maxMailboxQuotaMb = $maxMailboxQuotaMb;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getName(): string { return $this->name; }
-    public function getMaxAccounts(): int { return $this->maxAccounts; }
-    public function getMaxDomainQuotaMb(): int { return $this->maxDomainQuotaMb; }
-    public function getMaxMailboxQuotaMb(): int { return $this->maxMailboxQuotaMb; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getName(): string
+    {
+        return $this->name;
+    }
+    public function getMaxAccounts(): int
+    {
+        return $this->maxAccounts;
+    }
+    public function getMaxDomainQuotaMb(): int
+    {
+        return $this->maxDomainQuotaMb;
+    }
+    public function getMaxMailboxQuotaMb(): int
+    {
+        return $this->maxMailboxQuotaMb;
+    }
 }
-

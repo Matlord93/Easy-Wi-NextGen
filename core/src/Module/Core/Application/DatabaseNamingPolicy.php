@@ -63,7 +63,7 @@ final class DatabaseNamingPolicy
     private function normalizeIdentifier(string $identifier): string
     {
         $normalized = trim($identifier);
-        $normalized = trim($normalized, "`\"[] ");
+        $normalized = trim($normalized, '`"[] ');
 
         return strtolower($normalized);
     }

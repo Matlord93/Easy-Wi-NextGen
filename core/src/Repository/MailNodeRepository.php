@@ -15,4 +15,3 @@ final class MailNodeRepository extends ServiceEntityRepository
         parent::__construct($registry, MailNode::class);
     }
 }
-

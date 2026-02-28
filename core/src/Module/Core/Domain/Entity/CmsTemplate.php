@@ -51,16 +51,42 @@ class CmsTemplate
         $this->versions = new ArrayCollection();
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getTemplateKey(): string { return $this->templateKey; }
-    public function getName(): string { return $this->name; }
-    public function isActive(): bool { return $this->active; }
-    public function setActive(bool $active): void { $this->active = $active; $this->touch(); }
-    public function getPreviewPath(): ?string { return $this->previewPath; }
-    public function setPreviewPath(?string $previewPath): void { $this->previewPath = $previewPath; $this->touch(); }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getTemplateKey(): string
+    {
+        return $this->templateKey;
+    }
+    public function getName(): string
+    {
+        return $this->name;
+    }
+    public function isActive(): bool
+    {
+        return $this->active;
+    }
+    public function setActive(bool $active): void
+    {
+        $this->active = $active;
+        $this->touch();
+    }
+    public function getPreviewPath(): ?string
+    {
+        return $this->previewPath;
+    }
+    public function setPreviewPath(?string $previewPath): void
+    {
+        $this->previewPath = $previewPath;
+        $this->touch();
+    }
 
     /** @return Collection<int, CmsTemplateVersion> */
-    public function getVersions(): Collection { return $this->versions; }
+    public function getVersions(): Collection
+    {
+        return $this->versions;
+    }
 
     public function addVersion(CmsTemplateVersion $version): void
     {
@@ -72,5 +98,8 @@ class CmsTemplate
         $this->touch();
     }
 
-    private function touch(): void { $this->updatedAt = new \DateTimeImmutable(); }
+    private function touch(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
 }

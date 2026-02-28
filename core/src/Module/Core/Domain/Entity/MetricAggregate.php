@@ -64,10 +64,22 @@ class MetricAggregate
         $this->bucketStart = $bucketStart;
     }
 
-    public function getAgent(): Agent { return $this->agent; }
-    public function getBucket(): string { return $this->bucket; }
-    public function getBucketStart(): \DateTimeImmutable { return $this->bucketStart; }
-    public function getSampleCount(): int { return $this->sampleCount; }
+    public function getAgent(): Agent
+    {
+        return $this->agent;
+    }
+    public function getBucket(): string
+    {
+        return $this->bucket;
+    }
+    public function getBucketStart(): \DateTimeImmutable
+    {
+        return $this->bucketStart;
+    }
+    public function getSampleCount(): int
+    {
+        return $this->sampleCount;
+    }
 
     public function ingest(?float $cpu, ?float $memory, ?float $disk): void
     {

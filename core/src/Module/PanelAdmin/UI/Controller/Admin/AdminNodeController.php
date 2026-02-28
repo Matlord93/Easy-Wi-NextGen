@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskUsageFormatter;
@@ -17,7 +18,6 @@ use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
-use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Ports\Domain\Entity\PortAllocation;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
@@ -1620,7 +1620,7 @@ final class AdminNodeController
             return null;
         }
 
-        $targetVersion = $rollbackVersion !== null && $rollbackVersion !== "" ? $rollbackVersion : $latestVersion;
+        $targetVersion = $rollbackVersion !== null && $rollbackVersion !== '' ? $rollbackVersion : $latestVersion;
         $releaseInfo = $this->releaseChecker->getReleaseAssetUrls($assetName, $targetVersion);
         if ($releaseInfo === null) {
             return null;

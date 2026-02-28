@@ -6,8 +6,8 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\WebspacePathSanitizer;
-use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Certificate;
+use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;

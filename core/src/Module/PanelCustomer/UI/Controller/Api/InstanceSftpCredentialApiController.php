@@ -19,8 +19,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 final class InstanceSftpCredentialApiController
 {

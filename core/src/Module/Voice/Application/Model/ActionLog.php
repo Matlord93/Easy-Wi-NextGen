@@ -18,11 +18,26 @@ final readonly class ActionLog
     ) {
     }
 
-    public function serverId(): string { return $this->serverId; }
-    public function action(): string { return $this->action; }
-    public function actor(): string { return $this->actor; }
-    public function at(): \DateTimeImmutable { return $this->at; }
+    public function serverId(): string
+    {
+        return $this->serverId;
+    }
+    public function action(): string
+    {
+        return $this->action;
+    }
+    public function actor(): string
+    {
+        return $this->actor;
+    }
+    public function at(): \DateTimeImmutable
+    {
+        return $this->at;
+    }
 
     /** @return array<string, scalar|null> */
-    public function metadata(): array { return $this->metadata; }
+    public function metadata(): array
+    {
+        return $this->metadata;
+    }
 }

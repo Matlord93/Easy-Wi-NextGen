@@ -50,17 +50,44 @@ class MailDomain
         $this->quotaPolicy = $quotaPolicy;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getDomain(): Domain { return $this->domain; }
-    public function getNode(): MailNode { return $this->node; }
-    public function getQuotaPolicy(): ?QuotaPolicy { return $this->quotaPolicy; }
-    public function getDkimSelector(): string { return $this->dkimSelector; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getDomain(): Domain
+    {
+        return $this->domain;
+    }
+    public function getNode(): MailNode
+    {
+        return $this->node;
+    }
+    public function getQuotaPolicy(): ?QuotaPolicy
+    {
+        return $this->quotaPolicy;
+    }
+    public function getDkimSelector(): string
+    {
+        return $this->dkimSelector;
+    }
     /** @return array{key_id: string, nonce: string, ciphertext: string}|null */
-    public function getDkimPrivateKeyPayload(): ?array { return $this->dkimPrivateKeyPayload; }
+    public function getDkimPrivateKeyPayload(): ?array
+    {
+        return $this->dkimPrivateKeyPayload;
+    }
     /** @return array{key_id: string, nonce: string, ciphertext: string}|null */
-    public function getDkimPreviousPrivateKeyPayload(): ?array { return $this->dkimPreviousPrivateKeyPayload; }
-    public function getDkimRotatedAt(): ?\DateTimeImmutable { return $this->dkimRotatedAt; }
-    public function getDmarcPolicy(): string { return $this->dmarcPolicy; }
+    public function getDkimPreviousPrivateKeyPayload(): ?array
+    {
+        return $this->dkimPreviousPrivateKeyPayload;
+    }
+    public function getDkimRotatedAt(): ?\DateTimeImmutable
+    {
+        return $this->dkimRotatedAt;
+    }
+    public function getDmarcPolicy(): string
+    {
+        return $this->dmarcPolicy;
+    }
 
     public function setNode(MailNode $node): void
     {

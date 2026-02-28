@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Service;
 
 use App\Module\Cms\Application\CmsMaintenanceService;
+use App\Module\Cms\Application\CmsMaintenanceWindowProviderInterface;
 use App\Module\Cms\Application\CmsRenderingFlowResolver;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Domain\Entity\MaintenanceWindow;
 use App\Module\Core\Domain\Entity\Site;
-use App\Module\Cms\Application\CmsMaintenanceWindowProviderInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 

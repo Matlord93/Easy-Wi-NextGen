@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
-use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AgentMetricsIngestionService;
+use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\FirewallStateManager;
@@ -14,10 +14,10 @@ use App\Module\Core\Application\InstanceFilesystemResolver;
 use App\Module\Core\Application\JobLogger;
 use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Application\NotificationService;
+use App\Module\Core\Domain\Entity\Agent;
+use App\Module\Core\Domain\Entity\Certificate;
 use App\Module\Core\Domain\Entity\DdosPolicy;
 use App\Module\Core\Domain\Entity\DdosStatus;
-use App\Module\Core\Domain\Entity\Certificate;
-use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceMetricSample;
 use App\Module\Core\Domain\Entity\Job;

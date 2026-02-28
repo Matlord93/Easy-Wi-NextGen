@@ -59,7 +59,9 @@ final class VoiceQueryEngineTest extends TestCase
             maxRetries: 3,
             circuitBreakerFailures: 1,
             circuitBreakerTtlMs: 500,
-            clockMs: function () use (&$now): int { return $now; },
+            clockMs: function () use (&$now): int {
+                return $now;
+            },
             sleep: static fn () => null,
         );
         $server = new VoiceServer('srv-non-transient', 'ts3', '127.0.0.1', 10011, 9987);
@@ -96,7 +98,9 @@ final class VoiceQueryEngineTest extends TestCase
             maxRetries: 0,
             circuitBreakerFailures: 2,
             circuitBreakerTtlMs: 500,
-            clockMs: function () use (&$now): int { return $now; },
+            clockMs: function () use (&$now): int {
+                return $now;
+            },
             sleep: static fn () => null,
         );
         $server = new VoiceServer('srv-3', 'ts3', '127.0.0.1', 10011, 9987);
@@ -142,7 +146,9 @@ final class VoiceQueryEngineTest extends TestCase
             maxRetries: 0,
             circuitBreakerFailures: 1,
             circuitBreakerTtlMs: 500,
-            clockMs: function () use (&$now): int { return $now; },
+            clockMs: function () use (&$now): int {
+                return $now;
+            },
             sleep: static fn () => null,
         );
         $server = new VoiceServer('srv-4', 'ts6', '127.0.0.1', 10022, 9987);

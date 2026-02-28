@@ -7,10 +7,10 @@ namespace App\Tests\Gameserver;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Gameserver\Application\Console\AgentEndpointProbeInterface;
 use App\Module\Gameserver\Application\Console\ConsoleEventBusInterface;
 use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
 use App\Module\Gameserver\Infrastructure\Mercure\NullConsoleAgentGrpcClient;
-use App\Module\Gameserver\Application\Console\AgentEndpointProbeInterface;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceConsoleStreamController;
 use App\Repository\InstanceRepository;
 use PHPUnit\Framework\TestCase;
@@ -21,15 +21,34 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
 {
     public function testUnauthorizedThrows403(): void
     {
-        $controller = $this->controllerWith(new class implements ConsoleEventBusInterface {
-            public function publishConsoleEvent(int $instanceId, array $payload): void {}
-            public function replayConsoleEvents(int $instanceId, int $lastSeq): array { return []; }
-            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void {}
-            public function incrementSubscriber(int $instanceId): void {}
-            public function refreshSubscriberTtl(int $instanceId): void {}
-            public function decrementSubscriber(int $instanceId): void {}
-            public function getSubscriberCount(int $instanceId): int { return 0; }
-            public function getInstancesWithSubscribers(): array { return []; }
+        $controller = $this->controllerWith(new class () implements ConsoleEventBusInterface {
+            public function publishConsoleEvent(int $instanceId, array $payload): void
+            {
+            }
+            public function replayConsoleEvents(int $instanceId, int $lastSeq): array
+            {
+                return [];
+            }
+            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
+            {
+            }
+            public function incrementSubscriber(int $instanceId): void
+            {
+            }
+            public function refreshSubscriberTtl(int $instanceId): void
+            {
+            }
+            public function decrementSubscriber(int $instanceId): void
+            {
+            }
+            public function getSubscriberCount(int $instanceId): int
+            {
+                return 0;
+            }
+            public function getInstancesWithSubscribers(): array
+            {
+                return [];
+            }
         }, false);
 
         $request = Request::create('/instances/1/console/stream', 'GET');
@@ -39,9 +58,11 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
 
     public function testHeadersAndReplayWithLastEventId(): void
     {
-        $eventBus = new class implements ConsoleEventBusInterface {
+        $eventBus = new class () implements ConsoleEventBusInterface {
             public int $lastReplaySeq = -1;
-            public function publishConsoleEvent(int $instanceId, array $payload): void {}
+            public function publishConsoleEvent(int $instanceId, array $payload): void
+            {
+            }
             public function replayConsoleEvents(int $instanceId, int $lastSeq): array
             {
                 $this->lastReplaySeq = $lastSeq;
@@ -49,12 +70,26 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
                     ['type' => 'chunk', 'seq' => $lastSeq + 1, 'chunk_base64' => base64_encode('line'), 'instance_id' => $instanceId, 'ts' => '2026-01-01T00:00:00Z'],
                 ];
             }
-            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void {}
-            public function incrementSubscriber(int $instanceId): void {}
-            public function refreshSubscriberTtl(int $instanceId): void {}
-            public function decrementSubscriber(int $instanceId): void {}
-            public function getSubscriberCount(int $instanceId): int { return 0; }
-            public function getInstancesWithSubscribers(): array { return []; }
+            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
+            {
+            }
+            public function incrementSubscriber(int $instanceId): void
+            {
+            }
+            public function refreshSubscriberTtl(int $instanceId): void
+            {
+            }
+            public function decrementSubscriber(int $instanceId): void
+            {
+            }
+            public function getSubscriberCount(int $instanceId): int
+            {
+                return 0;
+            }
+            public function getInstancesWithSubscribers(): array
+            {
+                return [];
+            }
         };
 
         $controller = $this->controllerWith($eventBus, true, 0);
@@ -73,15 +108,34 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
 
     public function testReturnsBackendNotConfiguredStatusWhenNullClientActive(): void
     {
-        $eventBus = new class implements ConsoleEventBusInterface {
-            public function publishConsoleEvent(int $instanceId, array $payload): void {}
-            public function replayConsoleEvents(int $instanceId, int $lastSeq): array { return []; }
-            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void {}
-            public function incrementSubscriber(int $instanceId): void {}
-            public function refreshSubscriberTtl(int $instanceId): void {}
-            public function decrementSubscriber(int $instanceId): void {}
-            public function getSubscriberCount(int $instanceId): int { return 0; }
-            public function getInstancesWithSubscribers(): array { return []; }
+        $eventBus = new class () implements ConsoleEventBusInterface {
+            public function publishConsoleEvent(int $instanceId, array $payload): void
+            {
+            }
+            public function replayConsoleEvents(int $instanceId, int $lastSeq): array
+            {
+                return [];
+            }
+            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
+            {
+            }
+            public function incrementSubscriber(int $instanceId): void
+            {
+            }
+            public function refreshSubscriberTtl(int $instanceId): void
+            {
+            }
+            public function decrementSubscriber(int $instanceId): void
+            {
+            }
+            public function getSubscriberCount(int $instanceId): int
+            {
+                return 0;
+            }
+            public function getInstancesWithSubscribers(): array
+            {
+                return [];
+            }
         };
 
         $probe = $this->createMock(AgentEndpointProbeInterface::class);

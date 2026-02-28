@@ -158,18 +158,51 @@ class GdprExport
         $this->downloadTokenExpiresAt = null;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getCustomer(): User { return $this->customer; }
-    public function getStatus(): GdprExportStatus { return $this->status; }
-    public function setStatus(GdprExportStatus $status): void { $this->status = $status; }
-    public function getFileName(): string { return $this->fileName; }
-    public function getFileSize(): int { return $this->fileSize; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+    public function getCustomer(): User
+    {
+        return $this->customer;
+    }
+    public function getStatus(): GdprExportStatus
+    {
+        return $this->status;
+    }
+    public function setStatus(GdprExportStatus $status): void
+    {
+        $this->status = $status;
+    }
+    public function getFileName(): string
+    {
+        return $this->fileName;
+    }
+    public function getFileSize(): int
+    {
+        return $this->fileSize;
+    }
     /** @return array{key_id: string, nonce: string, ciphertext: string} */
-    public function getEncryptedPayload(): array { return $this->encryptedPayload; }
-    public function getRequestedAt(): \DateTimeImmutable { return $this->requestedAt; }
-    public function getReadyAt(): ?\DateTimeImmutable { return $this->readyAt; }
-    public function getExpiresAt(): \DateTimeImmutable { return $this->expiresAt; }
-    public function getDownloadTokenExpiresAt(): ?\DateTimeImmutable { return $this->downloadTokenExpiresAt; }
+    public function getEncryptedPayload(): array
+    {
+        return $this->encryptedPayload;
+    }
+    public function getRequestedAt(): \DateTimeImmutable
+    {
+        return $this->requestedAt;
+    }
+    public function getReadyAt(): ?\DateTimeImmutable
+    {
+        return $this->readyAt;
+    }
+    public function getExpiresAt(): \DateTimeImmutable
+    {
+        return $this->expiresAt;
+    }
+    public function getDownloadTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->downloadTokenExpiresAt;
+    }
 
     public function isExpired(\DateTimeImmutable $now): bool
     {

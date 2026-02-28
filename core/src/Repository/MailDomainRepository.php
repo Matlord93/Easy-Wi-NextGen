@@ -21,4 +21,3 @@ final class MailDomainRepository extends ServiceEntityRepository
         return $this->findOneBy(['domain' => $domain]);
     }
 }
-

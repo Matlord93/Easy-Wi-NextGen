@@ -18,12 +18,36 @@ final class BackupRun
     ) {
     }
 
-    public function runId(): string { return $this->runId; }
-    public function planId(): string { return $this->planId; }
-    public function status(): string { return $this->status; }
-    public function archivePath(): string { return $this->archivePath; }
-    public function sizeBytes(): int { return $this->sizeBytes; }
-    public function checksumSha256(): string { return $this->checksumSha256; }
-    public function createdAt(): \DateTimeImmutable { return $this->createdAt; }
-    public function restored(): bool { return $this->restored; }
+    public function runId(): string
+    {
+        return $this->runId;
+    }
+    public function planId(): string
+    {
+        return $this->planId;
+    }
+    public function status(): string
+    {
+        return $this->status;
+    }
+    public function archivePath(): string
+    {
+        return $this->archivePath;
+    }
+    public function sizeBytes(): int
+    {
+        return $this->sizeBytes;
+    }
+    public function checksumSha256(): string
+    {
+        return $this->checksumSha256;
+    }
+    public function createdAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+    public function restored(): bool
+    {
+        return $this->restored;
+    }
 }

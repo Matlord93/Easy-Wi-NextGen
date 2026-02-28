@@ -102,4 +102,3 @@ class UserSession
         return $this->credentialsVersion;
     }
 }
-

@@ -18,14 +18,35 @@ final class VoiceProvisioningJobsTest extends TestCase
 {
     public function testUserActionsAreAuditLoggedAndBackupHookIsCalled(): void
     {
-        $driver = new class implements VoiceDriver {
-            public function provider(): string { return 'ts3'; }
-            public function supports(VoiceServer $server): bool { return true; }
-            public function createServer(VoiceServer $server, VoiceQueryEngine $engine): array { return ['created' => true]; }
-            public function listUsers(VoiceServer $server, VoiceQueryEngine $engine): array { return []; }
-            public function manageUser(VoiceServer $server, VoiceUser $user, VoiceQueryEngine $engine): array { return ['user' => $user->id()]; }
-            public function applyPermissions(VoiceServer $server, VoiceUser $user, PermissionSet $permissions, VoiceQueryEngine $engine): array { return ['perms' => $permissions->permissions()]; }
-            public function createToken(VoiceServer $server, PermissionSet $permissions, VoiceQueryEngine $engine): array { return ['token' => 'abc']; }
+        $driver = new class () implements VoiceDriver {
+            public function provider(): string
+            {
+                return 'ts3';
+            }
+            public function supports(VoiceServer $server): bool
+            {
+                return true;
+            }
+            public function createServer(VoiceServer $server, VoiceQueryEngine $engine): array
+            {
+                return ['created' => true];
+            }
+            public function listUsers(VoiceServer $server, VoiceQueryEngine $engine): array
+            {
+                return [];
+            }
+            public function manageUser(VoiceServer $server, VoiceUser $user, VoiceQueryEngine $engine): array
+            {
+                return ['user' => $user->id()];
+            }
+            public function applyPermissions(VoiceServer $server, VoiceUser $user, PermissionSet $permissions, VoiceQueryEngine $engine): array
+            {
+                return ['perms' => $permissions->permissions()];
+            }
+            public function createToken(VoiceServer $server, PermissionSet $permissions, VoiceQueryEngine $engine): array
+            {
+                return ['token' => 'abc'];
+            }
         };
 
         $logs = new InMemoryActionLogStore();
@@ -35,7 +56,7 @@ final class VoiceProvisioningJobsTest extends TestCase
         $jobs->createServer($server, 'admin:1');
         $jobs->manageUser($server, new VoiceUser('42', 'alice', '7'), new PermissionSet(['b_virtualserver_join_ignore_password']), 'admin:1');
 
-        $hook = new class implements BackupIntegrationHookInterface {
+        $hook = new class () implements BackupIntegrationHookInterface {
             public bool $called = false;
             public function triggerForServer(VoiceServer $server): void
             {

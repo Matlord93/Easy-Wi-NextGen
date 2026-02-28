@@ -38,4 +38,3 @@ class MailForward
         $this->enabled = $enabled;
     }
 }
-

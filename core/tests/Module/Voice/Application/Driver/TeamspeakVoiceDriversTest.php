@@ -21,7 +21,7 @@ final class TeamspeakVoiceDriversTest extends TestCase
 {
     public function testTs3AndTs6UseDifferentTokenCommandsForSameFlow(): void
     {
-        $client = new class implements TeamSpeakQueryClientInterface {
+        $client = new class () implements TeamSpeakQueryClientInterface {
             /** @var list<string> */
             public array $commands = [];
 

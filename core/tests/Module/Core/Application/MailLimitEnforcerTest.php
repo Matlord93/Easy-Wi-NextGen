@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Module\Core\Application;
 
+use App\Module\Core\Application\MailboxStatsProviderInterface;
 use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\QuotaPolicy;
-use App\Module\Core\Application\MailboxStatsProviderInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 

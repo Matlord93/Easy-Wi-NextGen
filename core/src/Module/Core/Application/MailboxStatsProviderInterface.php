@@ -12,4 +12,3 @@ interface MailboxStatsProviderInterface
 
     public function sumQuotaByDomainId(int $domainId): int;
 }
-

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Gameserver;
 
-use App\Module\Core\Application\AuditLogHasher;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\AuditLogHasher;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -79,9 +79,14 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
         $auditRepo->method('findLatestHash')->willReturn(null);
         $audit = new AuditLogger($auditRepo, new AuditLogHasher(), $this->createMock(EntityManagerInterface::class));
 
-        $limiter = new class($rateAllowed) implements ConsoleCommandLimiterInterface {
-            public function __construct(private readonly bool $allowed) {}
-            public function consume(string $key): bool { return $this->allowed; }
+        $limiter = new class ($rateAllowed) implements ConsoleCommandLimiterInterface {
+            public function __construct(private readonly bool $allowed)
+            {
+            }
+            public function consume(string $key): bool
+            {
+                return $this->allowed;
+            }
         };
 
         $csrfManager = $this->createMock(CsrfTokenManagerInterface::class);
