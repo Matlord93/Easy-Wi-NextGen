@@ -16,10 +16,33 @@ final readonly class VoiceServer
     ) {
     }
 
-    public function id(): string { return $this->id; }
-    public function provider(): string { return $this->provider; }
-    public function host(): string { return $this->host; }
-    public function queryPort(): int { return $this->queryPort; }
-    public function voicePort(): int { return $this->voicePort; }
-    public function maxParallelQueries(): int { return max(1, $this->maxParallelQueries); }
+    public function id(): string
+    {
+        return $this->id;
+    }
+
+    public function provider(): string
+    {
+        return $this->provider;
+    }
+
+    public function host(): string
+    {
+        return $this->host;
+    }
+
+    public function queryPort(): int
+    {
+        return $this->queryPort;
+    }
+
+    public function voicePort(): int
+    {
+        return $this->voicePort;
+    }
+
+    public function maxParallelQueries(): int
+    {
+        return max(1, $this->maxParallelQueries);
+    }
 }

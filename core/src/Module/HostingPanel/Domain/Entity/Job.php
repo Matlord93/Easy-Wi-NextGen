@@ -48,7 +48,18 @@ class Job
         $this->runs = new ArrayCollection();
     }
 
-    public function getStatus(): JobStatus { return $this->status; }
-    public function setStatus(JobStatus $status): void { $this->status = $status; }
-    public function getIdempotencyKey(): string { return $this->idempotencyKey; }
+    public function getStatus(): JobStatus
+    {
+        return $this->status;
+    }
+
+    public function setStatus(JobStatus $status): void
+    {
+        $this->status = $status;
+    }
+
+    public function getIdempotencyKey(): string
+    {
+        return $this->idempotencyKey;
+    }
 }

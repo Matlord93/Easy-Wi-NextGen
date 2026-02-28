@@ -39,6 +39,13 @@ class Secret
         $this->rotatedAt = new \DateTimeImmutable();
     }
 
-    public function getCiphertext(): string { return $this->ciphertext; }
-    public function getNonce(): string { return $this->nonce; }
+    public function getCiphertext(): string
+    {
+        return $this->ciphertext;
+    }
+
+    public function getNonce(): string
+    {
+        return $this->nonce;
+    }
 }

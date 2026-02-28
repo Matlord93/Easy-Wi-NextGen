@@ -14,8 +14,23 @@ final readonly class VoiceUser
     ) {
     }
 
-    public function id(): string { return $this->id; }
-    public function nickname(): string { return $this->nickname; }
-    public function channelId(): ?string { return $this->channelId; }
-    public function token(): ?string { return $this->token; }
+    public function id(): string
+    {
+        return $this->id;
+    }
+
+    public function nickname(): string
+    {
+        return $this->nickname;
+    }
+
+    public function channelId(): ?string
+    {
+        return $this->channelId;
+    }
+
+    public function token(): ?string
+    {
+        return $this->token;
+    }
 }

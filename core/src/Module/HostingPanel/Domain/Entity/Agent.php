@@ -46,9 +46,20 @@ class Agent
         $this->tokenHash = $tokenHash;
     }
 
-    public function getId(): ?int { return $this->id; }
-    public function getAgentUuid(): string { return $this->agentUuid; }
-    public function getTokenHash(): string { return $this->tokenHash; }
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getAgentUuid(): string
+    {
+        return $this->agentUuid;
+    }
+
+    public function getTokenHash(): string
+    {
+        return $this->tokenHash;
+    }
 
     public function updateHeartbeat(string $version, string $os, array $capabilities): void
     {
