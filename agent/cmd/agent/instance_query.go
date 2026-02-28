@@ -228,7 +228,6 @@ func resolveQueryDialHost(host, bindIP, instanceIP, nodeIP, localOnly, networkMo
 	return newQueryDialResolution("", "", mode)
 }
 
-
 func normalizeQueryDialHostIsolated(host string) string {
 	normalized := strings.TrimSpace(host)
 	switch normalized {
@@ -362,11 +361,6 @@ func queryDialCandidates(host, port string) []string {
 func orderQueryIPs(ips []net.IP) []net.IP {
 	ordered := make([]net.IP, 0, len(ips))
 	for _, ip := range ips {
-		if ip != nil && ip.To4() == nil {
-			ordered = append(ordered, ip)
-		}
-	}
-	for _, ip := range ips {
 		if ip != nil && ip.To4() != nil {
 			ordered = append(ordered, ip)
 		}
@@ -381,7 +375,7 @@ func dialNetworkForAddress(baseNetwork, address string) string {
 	}
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return baseNetwork
+		return baseNetwork + "4"
 	}
 	if ip.To4() != nil {
 		return baseNetwork + "4"
@@ -499,7 +493,7 @@ func queryA2SInfo(conn net.Conn) ([]byte, error) {
 }
 
 func readA2SPacket(conn net.Conn) ([]byte, error) {
-	if err := conn.SetDeadline(time.Now().Add(a2sQueryTimeout)); err != nil {
+	if err := conn.SetReadDeadline(time.Now().Add(a2sQueryTimeout)); err != nil {
 		return nil, err
 	}
 	if queryA2SDebugEnabled {

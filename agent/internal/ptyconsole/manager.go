@@ -21,6 +21,7 @@ const (
 	defaultTailBytes     = 128 * 1024
 	defaultDedupTTL      = 2 * time.Minute
 	maxSubscriberDrops   = 8
+	maxCommandLength     = 1024
 )
 
 type CommandAck string
@@ -98,6 +99,24 @@ type Session struct {
 	err        error
 	drops      atomic.Uint64
 	disconnect atomic.Uint64
+}
+
+func sanitizeCommand(input string) string {
+	if input == "" {
+		return ""
+	}
+	buf := make([]rune, 0, len(input))
+	for _, r := range input {
+		if r == '\n' || r == '\r' || r == '\t' {
+			buf = append(buf, ' ')
+			continue
+		}
+		if r < 32 || r == 127 {
+			continue
+		}
+		buf = append(buf, r)
+	}
+	return string(buf)
 }
 
 type Manager struct {
@@ -216,8 +235,12 @@ func (s *Session) SendCommandWithAck(command, idempotencyKey string) (CommandRes
 		}
 		s.mu.Unlock()
 	}
+	command = sanitizeCommand(command)
 	if len(command) == 0 {
 		return CommandResult{}, errors.New("empty command")
+	}
+	if len(command) > maxCommandLength {
+		return CommandResult{}, errors.New("command too long")
 	}
 	_, err := io.WriteString(s.ptyFile, command+"\n")
 	result := CommandResult{Ack: CommandAckAccepted, Written: err == nil, Timestamp: now}

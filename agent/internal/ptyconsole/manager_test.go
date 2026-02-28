@@ -90,3 +90,22 @@ func TestSendCommandAckDuplicate(t *testing.T) {
 	}
 	_, _ = s.SendCommand("quit", "quit")
 }
+
+func TestSendCommandRejectsTooLong(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty tests require unix")
+	}
+	mgr := NewManager("test")
+	s, err := mgr.Start(context.Background(), "i-3", StartSpec{Command: "/bin/sh", Args: []string{"-c", "while read line; do [ \"$line\" = \"quit\" ] && exit 0; done"}}, "start-3")
+	if err != nil {
+		if strings.Contains(err.Error(), "operation not permitted") {
+			t.Skipf("pty unavailable in test environment: %v", err)
+		}
+		t.Fatalf("start: %v", err)
+	}
+	long := strings.Repeat("a", 1025)
+	if _, err := s.SendCommandWithAck(long, "long"); err == nil {
+		t.Fatal("expected too long command error")
+	}
+	_, _ = s.SendCommand("quit", "quit")
+}

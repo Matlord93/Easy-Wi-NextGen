@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -125,7 +126,7 @@ func TestNormalizeQueryDialHost(t *testing.T) {
 	}
 }
 
-func TestOrderQueryIPsPrefersIPv6ThenIPv4(t *testing.T) {
+func TestOrderQueryIPsReturnsOnlyIPv4(t *testing.T) {
 	ordered := orderQueryIPs([]net.IP{
 		net.ParseIP("192.0.2.10"),
 		net.ParseIP("2001:db8::10"),
@@ -133,14 +134,11 @@ func TestOrderQueryIPsPrefersIPv6ThenIPv4(t *testing.T) {
 		net.ParseIP("2001:db8::20"),
 	})
 
-	if len(ordered) != 4 {
-		t.Fatalf("ordered len=%d", len(ordered))
+	if len(ordered) != 2 {
+		t.Fatalf("ordered len=%d, want 2", len(ordered))
 	}
-	if ordered[0].To4() != nil || ordered[1].To4() != nil {
-		t.Fatalf("expected first two addresses to be IPv6, got %v", ordered)
-	}
-	if ordered[2].To4() == nil || ordered[3].To4() == nil {
-		t.Fatalf("expected last two addresses to be IPv4, got %v", ordered)
+	if ordered[0].To4() == nil || ordered[1].To4() == nil {
+		t.Fatalf("expected only IPv4 addresses, got %v", ordered)
 	}
 }
 
@@ -151,8 +149,58 @@ func TestDialNetworkForAddressUsesIPFamily(t *testing.T) {
 	if got := dialNetworkForAddress("udp", "192.0.2.42:27015"); got != "udp4" {
 		t.Fatalf("udp ipv4 network=%q", got)
 	}
-	if got := dialNetworkForAddress("tcp", "example.org:25565"); got != "tcp" {
+	if got := dialNetworkForAddress("tcp", "example.org:25565"); got != "tcp4" {
 		t.Fatalf("hostname network=%q", got)
+	}
+}
+
+type a2sTimeoutError struct{}
+
+func (a2sTimeoutError) Error() string   { return "i/o timeout" }
+func (a2sTimeoutError) Timeout() bool   { return true }
+func (a2sTimeoutError) Temporary() bool { return true }
+
+type a2sMockConn struct {
+	writeDeadlineSet bool
+	writes           [][]byte
+	reads            int
+}
+
+func (c *a2sMockConn) Read(_ []byte) (int, error) {
+	if c.reads == 0 {
+		c.reads++
+		return 0, &net.OpError{Op: "read", Net: "udp6", Err: a2sTimeoutError{}}
+	}
+	return 0, io.EOF
+}
+
+func (c *a2sMockConn) Write(b []byte) (int, error) {
+	if c.writeDeadlineSet {
+		return 0, &net.OpError{Op: "write", Net: "udp6", Err: a2sTimeoutError{}}
+	}
+	c.writes = append(c.writes, append([]byte(nil), b...))
+	return len(b), nil
+}
+
+func (c *a2sMockConn) Close() error                       { return nil }
+func (c *a2sMockConn) LocalAddr() net.Addr                { return nil }
+func (c *a2sMockConn) RemoteAddr() net.Addr               { return nil }
+func (c *a2sMockConn) SetDeadline(_ time.Time) error      { c.writeDeadlineSet = true; return nil }
+func (c *a2sMockConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (c *a2sMockConn) SetWriteDeadline(_ time.Time) error { c.writeDeadlineSet = true; return nil }
+
+func TestQueryA2SInfoRetryAfterTimeoutDoesNotExpireWrites(t *testing.T) {
+	conn := &a2sMockConn{}
+
+	_, err := queryA2SInfo(conn)
+	if err == nil {
+		t.Fatalf("expected query error")
+	}
+	if !strings.Contains(err.Error(), "read response") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(conn.writes) != 2 {
+		t.Fatalf("writes=%d, want 2 (initial + retry)", len(conn.writes))
 	}
 }
 
