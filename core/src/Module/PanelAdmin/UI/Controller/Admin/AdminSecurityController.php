@@ -436,7 +436,7 @@ final class AdminSecurityController
             if ($type === 'firewall' && ($port < 1 || $port > 65535)) {
                 continue;
             }
-            if ($service !== '' && preg_match('/[\*\+\?\[\]\{\}\(\)\\]/', $service)) {
+            if ($service !== '' && preg_match('/[\\*+?\[\]{}()\\\\]/', $service)) {
                 continue;
             }
             if ($reason !== '' && preg_match('/[\r\n]/', $reason)) {

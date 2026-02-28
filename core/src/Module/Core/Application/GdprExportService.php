@@ -292,7 +292,7 @@ final class GdprExportService
                         'created_at' => $backup->getCreatedAt()->format(DATE_RFC3339),
                     ];
                 }, $this->backupDefinitionRepository->findByCustomer($customer)),
-                'backup_targets' => array_map(static function ($target): array {
+                'backup_targets' => array_map(function ($target): array {
                     return [
                         'id' => $target->getId(),
                         'label' => $target->getLabel(),

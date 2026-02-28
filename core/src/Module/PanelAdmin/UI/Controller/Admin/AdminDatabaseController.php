@@ -326,8 +326,8 @@ final class AdminDatabaseController
         $errorCode = null;
         try {
             $dsn = match (strtolower($node->getEngine())) {
-                EngineType::PostgreSql->value => sprintf('pgsql:host=%s;port=%d;dbname=postgres', $host, $port),
-                EngineType::MySql->value, EngineType::MariaDb->value => sprintf('mysql:host=%s;port=%d;dbname=information_schema;charset=utf8mb4', $host, $port),
+                EngineType::Postgresql->value => sprintf('pgsql:host=%s;port=%d;dbname=postgres', $host, $port),
+                EngineType::Mysql->value, EngineType::Mariadb->value => sprintf('mysql:host=%s;port=%d;dbname=information_schema;charset=utf8mb4', $host, $port),
                 default => throw new \RuntimeException('Unsupported database engine for health check.'),
             };
             $secret = $node->getEncryptedAdminSecret() === null ? '' : $this->encryptionService->decrypt($node->getEncryptedAdminSecret());
