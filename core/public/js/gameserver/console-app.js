@@ -25,6 +25,7 @@
 
     const streamUrl = (root.dataset.streamUrl || '').trim();
     const streamUnavailableMessage = (root.dataset.streamUnavailableMessage || 'Live stream unavailable.').trim();
+    const pollingActiveMessage = (root.dataset.pollingActiveMessage || 'Live stream unavailable. Polling mode active.').trim();
 
     const SCROLLBACK_LIMIT = 1500;
     const logEl = document.getElementById('gs-console-log');
@@ -40,9 +41,13 @@
     let source = null;
     let reconnectTimer = null;
     let reconnectAttempt = 0;
+    let reconnectFailures = 0;
     let pollTimer = null;
     let logsCursor = null;
+    let fallbackActive = false;
     let lines = [];
+
+    const MAX_STREAM_FAILURES = 5;
 
     const renderLines = () => {
         logEl.textContent = lines.join('\n');
@@ -71,7 +76,7 @@
     };
 
     const scheduleReconnect = () => {
-        if (reconnectTimer) {
+        if (reconnectTimer || fallbackActive) {
             return;
         }
         reconnectAttempt += 1;
@@ -83,6 +88,24 @@
             reconnectTimer = null;
             connect();
         }, delay);
+    };
+
+    const activatePollingFallback = async (reason = streamUnavailableMessage) => {
+        if (fallbackActive) {
+            return;
+        }
+
+        fallbackActive = true;
+        if (reconnectTimer) {
+            window.clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+        if (source) {
+            source.close();
+            source = null;
+        }
+        errors.showInline(inlineError, { message: reason, error_code: 'STREAM_FALLBACK', request_id: '' });
+        await startPollingFallback();
     };
 
     const loadHealth = async () => {
@@ -108,6 +131,10 @@
     };
 
     const connect = () => {
+        if (fallbackActive) {
+            return;
+        }
+
         const url = new URL(streamUrl, window.location.origin);
 
         if (source) {
@@ -116,6 +143,7 @@
         source = new EventSource(url.toString(), { withCredentials: true });
         source.onopen = () => {
             reconnectAttempt = 0;
+            reconnectFailures = 0;
             errors.clearInline(inlineError);
             if (healthEl) {
                 healthEl.textContent = 'Live stream connected';
@@ -125,6 +153,14 @@
             const payload = JSON.parse(event.data || '{}');
             if (payload.chunk_base64) {
                 appendLine(decodeBase64(payload.chunk_base64));
+            }
+            if (payload.type === 'status' && payload.status) {
+                const degradedStatuses = ['backend_not_configured', 'redis_unavailable', 'relay_stale'];
+                if (degradedStatuses.includes(payload.status)) {
+                    const message = payload.message || streamUnavailableMessage;
+                    void activatePollingFallback(message);
+                    return;
+                }
             }
             if (payload.status && healthEl) {
                 healthEl.textContent = `State: ${payload.status}`;
@@ -136,6 +172,11 @@
         };
 
         source.onerror = () => {
+            reconnectFailures += 1;
+            if (reconnectFailures >= MAX_STREAM_FAILURES) {
+                void activatePollingFallback(streamUnavailableMessage);
+                return;
+            }
             scheduleReconnect();
             if (reconnectAttempt >= 3) {
                 errors.showInline(inlineError, { message: 'Live stream disconnected, reconnecting…', error_code: 'STREAM_RECONNECT', request_id: '' });
@@ -147,7 +188,7 @@
 
     const startPollingFallback = async () => {
         if (healthEl) {
-            healthEl.textContent = streamUnavailableMessage;
+            healthEl.textContent = pollingActiveMessage;
         }
 
         const poll = async () => {
@@ -157,12 +198,12 @@
                 errors.clearInline(inlineError);
                 if (healthEl && health && health.running_state) {
                     healthEl.textContent = health.running_state === 'running'
-                        ? streamUnavailableMessage
+                        ? pollingActiveMessage
                         : 'Server is offline.';
                 }
             } catch (error) {
                 if (healthEl) {
-                    healthEl.textContent = streamUnavailableMessage;
+                    healthEl.textContent = pollingActiveMessage;
                 }
             }
         };

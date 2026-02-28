@@ -392,14 +392,17 @@ func detectProFTPDServiceName() (string, error) {
 		out, err := runCommandLogged("systemctl", "list-unit-files", "--type=service", "--no-legend")
 		if err == nil {
 			rows := strings.Split(out, "\n")
+			serviceCandidates := []string{"proftpd.service", "proftpd-basic.service"}
 			for _, row := range rows {
-				if strings.Contains(row, "proftpd.service") {
-					return "proftpd.service", nil
+				for _, candidate := range serviceCandidates {
+					if strings.Contains(row, candidate) {
+						return candidate, nil
+					}
 				}
 			}
 		}
 	}
-	for _, candidate := range []string{"proftpd", "proftpd.service"} {
+	for _, candidate := range []string{"proftpd", "proftpd.service", "proftpd-basic", "proftpd-basic.service"} {
 		if _, err := runCommandLogged("service", candidate, "status"); err == nil {
 			return candidate, nil
 		}

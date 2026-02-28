@@ -147,6 +147,11 @@ func ensureBaseForRoleWindows(role string) (string, error) {
 	if err := ensureRoleFilesWindows(role, &output); err != nil {
 		return output.String(), err
 	}
+	if role == "game" || role == "web" || role == "core" {
+		if err := ensureWindowsSFTPAlternative(&output); err != nil {
+			return output.String(), err
+		}
+	}
 	if role == "game" {
 		if err := installSteamCmdWindows(&output); err != nil {
 			return output.String(), err
@@ -164,6 +169,7 @@ func windowsRoleInstallPlan(role string) *windowsRolePlan {
 	case "game":
 		return &windowsRolePlan{
 			wingetPackages: []string{"EclipseAdoptium.Temurin.25.JDK"},
+			services:       []string{"sshd"},
 		}
 	case "web", "core":
 		return &windowsRolePlan{
@@ -307,6 +313,29 @@ func ensureRoleFilesWindows(role string, output *strings.Builder) error {
 	return nil
 }
 
+func ensureWindowsSFTPAlternative(output *strings.Builder) error {
+	shell := windowsPowerShellBinary()
+	if shell == "" {
+		return fmt.Errorf("powershell is required to configure windows sftp")
+	}
+
+	script := strings.Join([]string{
+		`$ErrorActionPreference='Stop'`,
+		`$cap = Get-WindowsCapability -Online -Name OpenSSH.Server* -ErrorAction SilentlyContinue`,
+		`if ($cap -and $cap.State -ne 'Installed') { Add-WindowsCapability -Online -Name $cap.Name | Out-Null }`,
+		`if (Get-Service -Name sshd -ErrorAction SilentlyContinue) { Set-Service -Name sshd -StartupType Automatic; Start-Service -Name sshd -ErrorAction SilentlyContinue }`,
+		`$cfgPath='C:\ProgramData\ssh\sshd_config'`,
+		"if (Test-Path $cfgPath) { $cfg = Get-Content -Path $cfgPath -Raw; if ($cfg -notmatch '(?m)^Port\\s+2222$') { Add-Content -Path $cfgPath -Value '# BEGIN EASYWI MANAGED`nPort 2222`n# END EASYWI MANAGED'; Restart-Service -Name sshd -Force } }",
+		`if (-not (Get-NetFirewallRule -DisplayName 'EasyWI-SFTP-2222' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'EasyWI-SFTP-2222' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 2222 | Out-Null }`,
+	}, "; ")
+
+	if err := runCommandWithOutput(shell, []string{"-NoProfile", "-NonInteractive", "-Command", script}, output); err != nil {
+		return err
+	}
+	appendOutput(output, "windows_sftp=openssh_port_2222")
+	return nil
+}
+
 func enableWindowsRoleServices(services []string, output *strings.Builder) error {
 	if len(services) == 0 {
 		return nil
@@ -416,13 +445,18 @@ func rolePackages(role, family string) []string {
 	switch role {
 	case "game":
 		if family == "debian" {
-			return []string{"ca-certificates", "curl", "tar", "xz-utils", "unzip", "tmux", "screen", "lib32gcc-s1", "lib32stdc++6", "libc6-i386", "gnupg", "temurin-25-jdk"}
+			return []string{"ca-certificates", "curl", "tar", "xz-utils", "unzip", "tmux", "screen", "lib32gcc-s1", "lib32stdc++6", "libc6-i386", "gnupg", "temurin-25-jdk", "proftpd-basic", "proftpd-mod-crypto"}
 		}
 		if family == "rhel" {
-			return []string{"ca-certificates", "curl", "tar", "xz", "unzip", "tmux", "screen", "glibc.i686", "libstdc++.i686", "temurin-25-jdk"}
+			return []string{"ca-certificates", "curl", "tar", "xz", "unzip", "tmux", "screen", "glibc.i686", "libstdc++.i686", "temurin-25-jdk", "proftpd", "proftpd-utils", "proftpd-mod_sftp"}
 		}
 	case "web":
-		return []string{"nginx", "php-fpm"}
+		if family == "debian" {
+			return []string{"nginx", "php-fpm", "proftpd-basic", "proftpd-mod-crypto"}
+		}
+		if family == "rhel" {
+			return []string{"nginx", "php-fpm", "proftpd", "proftpd-utils", "proftpd-mod_sftp"}
+		}
 	case "core":
 		return []string{"nginx", "php-fpm"}
 	case "dns":
@@ -832,7 +866,7 @@ func enableRoleServices(role string, output *strings.Builder) error {
 
 	switch role {
 	case "web":
-		services = []string{"nginx", "php-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm"}
+		services = []string{"nginx", "php-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm", "proftpd", "proftpd.service", "proftpd-basic", "proftpd-basic.service"}
 	case "core":
 		services = []string{"nginx", "php-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm"}
 	case "dns":
@@ -842,7 +876,7 @@ func enableRoleServices(role string, output *strings.Builder) error {
 	case "db":
 		services = []string{"mariadb", "mysql", "postgresql"}
 	case "game":
-		return nil
+		services = []string{"proftpd", "proftpd.service", "proftpd-basic", "proftpd-basic.service"}
 	default:
 		return nil
 	}

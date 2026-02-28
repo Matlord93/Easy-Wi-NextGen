@@ -6,6 +6,7 @@
     data-url-health="{{ path('customer_instance_console_health_envelope', {id: instance.id}) }}"
     data-stream-url="{{ path('customer_instance_console_stream', {id: instance.id}) }}"
     data-stream-unavailable-message="{{ t('customer_instance_console_log_unavailable', page_locale()) }}"
+    data-polling-active-message="{{ t('customer_instance_console_polling_active', page_locale()) }}"
     data-csrf-token="{{ csrf_token('instance_console_' ~ instance.id) }}"
 >
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
