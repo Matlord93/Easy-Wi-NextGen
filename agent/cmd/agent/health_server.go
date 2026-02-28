@@ -52,6 +52,7 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 	mux.HandleFunc("/v1/mail/mailboxes/password", mailMutationHandler("mailbox_password"))
 	mux.HandleFunc("/v1/mail/aliases", mailMutationHandler("mail_alias"))
 	mux.HandleFunc("/v1/mail/reload", mailMutationHandler("mail_reload"))
+	mux.HandleFunc("/v1/agent/mail/metrics", handleMailMetricsHTTP)
 	mux.Handle("/health", fileServer.Handler())
 	mux.Handle("/healthz", fileServer.Handler())
 

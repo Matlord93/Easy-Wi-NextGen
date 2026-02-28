@@ -542,6 +542,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleRoundcubeInstall(job)
 	case "mail.domain.create":
 		return handleMailDomainCreate(job)
+	case "mail.dns.validate":
+		return handleMailDNSValidate(job)
 	case "database.create":
 		return handleDatabaseCreate(job)
 	case "database.password.reset":

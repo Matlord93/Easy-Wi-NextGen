@@ -1,0 +1,6 @@
+# deterministic postfix virtual mailbox map
+# domain=a.example.com
+x@a.example.com x@a.example.com
+# domain=b.example.com
+a@b.example.com a@b.example.com
+z@b.example.com z@b.example.com

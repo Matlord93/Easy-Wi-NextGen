@@ -19,12 +19,14 @@ import (
 
 // Client handles signed requests to the Easy-Wi API.
 type Client struct {
-	BaseURL   *url.URL
-	AgentID   string
-	Secret    string
-	Client    *http.Client
-	Version   string
-	UserAgent string
+	BaseURL     *url.URL
+	AgentID     string
+	Secret      string
+	Client      *http.Client
+	Version     string
+	UserAgent   string
+	JWTIssuer   string
+	JWTAudience string
 }
 
 // NewClient constructs a new API client.
@@ -34,13 +36,24 @@ func NewClient(baseURL, agentID, secret, version string) (*Client, error) {
 		return nil, fmt.Errorf("parse base url: %w", err)
 	}
 
+	jwtIssuer := strings.TrimSpace(os.Getenv("EASYWI_AGENT_JWT_ISSUER"))
+	if jwtIssuer == "" {
+		jwtIssuer = "easywi-panel"
+	}
+	jwtAudience := strings.TrimSpace(os.Getenv("EASYWI_AGENT_JWT_AUDIENCE"))
+	if jwtAudience == "" {
+		jwtAudience = "easywi-agent-api"
+	}
+
 	return &Client{
-		BaseURL:   parsed,
-		AgentID:   agentID,
-		Secret:    secret,
-		Version:   version,
-		Client:    &http.Client{Timeout: 15 * time.Second},
-		UserAgent: "easywi-agent/" + version,
+		BaseURL:     parsed,
+		AgentID:     agentID,
+		Secret:      secret,
+		Version:     version,
+		Client:      &http.Client{Timeout: 15 * time.Second},
+		UserAgent:   "easywi-agent/" + version,
+		JWTIssuer:   jwtIssuer,
+		JWTAudience: jwtAudience,
 	}, nil
 }
 
@@ -329,6 +342,11 @@ func (c *Client) doSignedJSONWithSecret(ctx context.Context, method, path string
 	req.Header.Set("X-Timestamp", headers.Timestamp)
 	req.Header.Set("X-Nonce", headers.Nonce)
 	req.Header.Set("X-Signature", headers.Signature)
+	jwtToken, err := agentcrypto.BuildAgentJWT(secret, c.AgentID, c.JWTIssuer, c.JWTAudience, headers.Nonce, time.Now(), time.Minute)
+	if err != nil {
+		return nil, fmt.Errorf("build jwt: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
 	req.Header.Set("User-Agent", c.UserAgent)
 
 	resp, err = c.Client.Do(req)
@@ -378,6 +396,11 @@ func (c *Client) doSignedRaw(ctx context.Context, method, path string, body []by
 	req.Header.Set("X-Timestamp", headers.Timestamp)
 	req.Header.Set("X-Nonce", headers.Nonce)
 	req.Header.Set("X-Signature", headers.Signature)
+	jwtToken, err := agentcrypto.BuildAgentJWT(c.Secret, c.AgentID, c.JWTIssuer, c.JWTAudience, headers.Nonce, time.Now(), time.Minute)
+	if err != nil {
+		return nil, fmt.Errorf("build jwt: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
 	req.Header.Set("User-Agent", c.UserAgent)
 	for k, v := range extraHeaders {
 		req.Header.Set(k, v)
