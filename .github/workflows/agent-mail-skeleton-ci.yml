@@ -1,0 +1,49 @@
+name: Agent Mail Skeleton CI
+
+on:
+  pull_request:
+    paths:
+      - 'agent/**'
+      - '.github/workflows/agent-mail-skeleton-ci.yml'
+  push:
+    branches: [ main, Dev, Beta ]
+    paths:
+      - 'agent/**'
+      - '.github/workflows/agent-mail-skeleton-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache: true
+          cache-dependency-path: agent/go.sum
+
+      - name: Format check
+        run: |
+          files=$(gofmt -l ./cmd ./internal)
+          if [ -n "$files" ]; then
+            echo "Go files not formatted:" >&2
+            echo "$files" >&2
+            exit 1
+          fi
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+      - name: Build
+        run: make build
