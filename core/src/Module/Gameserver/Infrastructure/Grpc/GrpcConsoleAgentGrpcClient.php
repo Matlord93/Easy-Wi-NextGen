@@ -109,6 +109,24 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
             return rtrim($baseUrl, '/');
         }
 
+        $gameServiceUrl = trim((string) ($metadata['gamesvc_url'] ?? ''));
+        if ($gameServiceUrl !== '') {
+            return rtrim($gameServiceUrl, '/');
+        }
+
+        $heartbeatIp = trim((string) $node->getLastHeartbeatIp());
+        $metadataPort = $metadata['agent_service_port'] ?? null;
+        if ($heartbeatIp !== '' && is_numeric($metadataPort)) {
+            $metadataScheme = $metadata['agent_service_scheme'] ?? null;
+            $scheme = is_string($metadataScheme) && trim($metadataScheme) !== '' ? trim($metadataScheme) : 'https';
+
+            return sprintf('%s://%s:%d', $scheme, $heartbeatIp, (int) $metadataPort);
+        }
+
+        if ($heartbeatIp !== '') {
+            return sprintf('https://%s', $heartbeatIp);
+        }
+
         throw new NodeEndpointMissingException('node_endpoint_missing');
     }
 

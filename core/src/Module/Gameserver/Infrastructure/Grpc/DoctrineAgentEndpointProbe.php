@@ -26,6 +26,16 @@ final class DoctrineAgentEndpointProbe implements AgentEndpointProbeInterface
             return true;
         }
 
+        $gameServiceUrl = trim((string) ($metadata['gamesvc_url'] ?? ''));
+        if ($gameServiceUrl !== '') {
+            return true;
+        }
+
+        $heartbeatIp = trim((string) $agent->getLastHeartbeatIp());
+        if ($heartbeatIp !== '') {
+            return true;
+        }
+
         return trim($agent->getServiceBaseUrl()) !== '';
     }
 }

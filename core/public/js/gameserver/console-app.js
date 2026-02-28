@@ -47,6 +47,7 @@
     let logsCursor = null;
     let fallbackActive = false;
     let lines = [];
+    let relayDisconnectNoticeShown = false;
 
     const MAX_STREAM_FAILURES = 5;
 
@@ -133,6 +134,13 @@
         return payload.data || {};
     };
 
+    const relayStatusLinePattern = /^status\s+"relay_stale"$/i;
+    const relayTypeLinePattern = /^type\s+"status"$/i;
+    const relayMessageLinePattern = /^message\s+"console relay heartbeat stale"$/i;
+    const relayTimestampLinePattern = /^ts\s+"\d{4}-\d{2}-\d{2}t\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:z|[+-]\d{2}:\d{2})"$/i;
+
+    const normalizeRelayLine = (line) => String(line || '').replace(/\s+/g, ' ').trim();
+
     const loadLogs = async () => {
         if (!root.dataset.urlLogs) {
             return;
@@ -142,7 +150,30 @@
         const payload = await apiClient.request(`${root.dataset.urlLogs}${query}`);
         const data = payload.data || {};
         const entries = Array.isArray(data.lines) ? data.lines : [];
-        entries.forEach((entry) => appendLine(entry.message || ''));
+        entries.forEach((entry) => {
+            const message = String(entry.message || '').trim();
+            if (!message) {
+                return;
+            }
+
+            const normalized = normalizeRelayLine(message);
+            if (relayTypeLinePattern.test(normalized)
+                || relayStatusLinePattern.test(normalized)
+                || relayMessageLinePattern.test(normalized)
+                || relayTimestampLinePattern.test(normalized)) {
+                return;
+            }
+
+            if (/^(verbindung geschlossen|connection closed)$/i.test(normalized)) {
+                if (!relayDisconnectNoticeShown) {
+                    appendLine('Connection to relay lost. Polling mode active.', 'meta');
+                    relayDisconnectNoticeShown = true;
+                }
+                return;
+            }
+
+            appendLine(message);
+        });
         logsCursor = data.cursor || logsCursor;
     };
 
@@ -160,6 +191,7 @@
         source.onopen = () => {
             reconnectAttempt = 0;
             reconnectFailures = 0;
+            relayDisconnectNoticeShown = false;
             fallbackActive = false;
             if (pollTimer) {
                 window.clearInterval(pollTimer);
@@ -175,12 +207,18 @@
             }
         };
         source.onmessage = (event) => {
-            const payload = JSON.parse(event.data || '{}');
+            let payload = {};
+            try {
+                payload = JSON.parse(event.data || '{}');
+            } catch (e) {
+                return;
+            }
+
             if (payload.chunk_base64) {
                 appendLine(decodeBase64(payload.chunk_base64));
             }
             if (payload.type === 'status' && payload.status) {
-                const degradedStatuses = ['backend_not_configured', 'redis_unavailable', 'relay_stale', 'stream_unavailable'];
+                const degradedStatuses = ['backend_not_configured', 'redis_unavailable', 'relay_stale', 'stream_unavailable', 'node_endpoint_missing'];
                 if (degradedStatuses.includes(payload.status)) {
                     const message = payload.message || streamUnavailableMessage;
                     void activatePollingFallback(message);
