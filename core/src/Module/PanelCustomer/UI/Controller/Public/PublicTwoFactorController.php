@@ -103,8 +103,8 @@ final class PublicTwoFactorController
                 $session->set('auth_2fa_attempts', 0);
             }
 
-            $this->auditLogger->log($pendingUser, 'auth.login.failed', [
-                'reason' => 'two_factor_failed',
+            $this->auditLogger->log($pendingUser, '2fa_challenge_failed', [
+                'reason' => 'invalid_totp',
                 'context' => 'public_2fa_check',
             ]);
 

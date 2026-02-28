@@ -7,6 +7,7 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\WebspacePathSanitizer;
 use App\Module\Core\Domain\Entity\Domain;
+use App\Module\Core\Domain\Entity\Certificate;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
@@ -79,7 +80,7 @@ final class WebspaceApiController
         }
 
         $normalizedDomain = $this->normalizeDomain($domain);
-        if ($normalizedDomain === '') {
+        if (!$this->isValidDomain($normalizedDomain)) {
             return new JsonResponse(['error' => 'Domain is invalid.'], JsonResponse::HTTP_BAD_REQUEST);
         }
         $domain = $normalizedDomain;
@@ -153,17 +154,20 @@ final class WebspaceApiController
 
         $domainJobPayload = [
             'agent_id' => $node->getId(),
+            'webspace_id' => (string) $webspace->getId(),
             'domain_id' => (string) $domainEntity->getId(),
             'domain' => $domainEntity->getName(),
+            'target_path' => '',
+            'runtime' => $webspace->getRuntime(),
             'web_root' => $webspace->getPath(),
-            'source_dir' => $webspace->getDocroot(),
             'docroot' => $webspace->getDocroot(),
             'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domainEntity->getName()),
-            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $systemUsername),
             'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $systemUsername),
-            'logs_dir' => rtrim($webspace->getPath(), '/') . '/logs',
+            'redirect_https' => '0',
+            'redirect_www' => '0',
+            'extra_directives' => '',
         ];
-        $domainJob = new Job('domain.add', $domainJobPayload);
+        $domainJob = new Job('webspace.domain.apply', $domainJobPayload);
         $this->entityManager->persist($domainJob);
 
         $firewallJob = $this->queueWebspaceFirewall($webspace);
@@ -514,6 +518,8 @@ final class WebspaceApiController
         $targetPath = (string) ($payload['target_path'] ?? '');
         $redirectHttps = (bool) ($payload['redirect_https'] ?? false);
         $redirectWww = (bool) ($payload['redirect_www'] ?? false);
+        $requestTls = (bool) ($payload['request_tls'] ?? false);
+        $extraDirectives = trim((string) ($payload['extra_directives'] ?? ''));
 
         try {
             $targetPath = $this->pathSanitizer->sanitizeRelativePath($targetPath);
@@ -521,8 +527,8 @@ final class WebspaceApiController
             return $this->responseEnvelopeFactory->error($request, 'Invalid target path.', (string) $e->getMessage(), 400);
         }
 
-        if ($fqdn === '') {
-            return $this->responseEnvelopeFactory->error($request, 'Domain invalid.', 'validation_failed', 400);
+        if (!$this->isValidDomain($fqdn)) {
+            return $this->responseEnvelopeFactory->error($request, 'Domain invalid.', 'invalid_domain_name', 400);
         }
 
         $active = $this->findActiveWebspaceActionJob((string) $webspace->getId());
@@ -550,10 +556,35 @@ final class WebspaceApiController
             'domain' => $fqdn,
             'target_path' => $targetPath,
             'runtime' => $webspace->getRuntime(),
+            'web_root' => $webspace->getPath(),
+            'docroot' => $webspace->getDocroot(),
+            'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
+            'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $fqdn),
             'redirect_https' => $redirectHttps ? '1' : '0',
             'redirect_www' => $redirectWww ? '1' : '0',
+            'extra_directives' => $extraDirectives,
         ]);
         $this->entityManager->persist($job);
+        if ($requestTls) {
+            $certificate = new Certificate($domain);
+            $certificate->setStatus('pending');
+            $this->entityManager->persist($certificate);
+
+            $tlsWebroot = $targetPath === ''
+                ? $webspace->getDocroot()
+                : rtrim($webspace->getPath(), '/') . '/' . ltrim($targetPath, '/');
+            $tlsJob = new Job('domain.ssl.issue', [
+                'agent_id' => $webspace->getNode()->getId(),
+                'webspace_id' => (string) $webspace->getId(),
+                'domain_id' => (string) $domain->getId(),
+                'domain' => $fqdn,
+                'web_root' => $tlsWebroot,
+                'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
+                'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $fqdn),
+                'runtime' => $webspace->getRuntime(),
+            ]);
+            $this->entityManager->persist($tlsJob);
+        }
         $webspace->setApplyRequired(true);
         $webspace->setApplyStatus('running');
         $this->entityManager->flush();
@@ -686,6 +717,30 @@ final class WebspaceApiController
         }
 
         return array_values(array_filter(array_map('strval', $value), static fn (string $item): bool => $item !== ''));
+    }
+
+
+    private function isValidDomain(string $domain): bool
+    {
+        if ($domain === '' || strlen($domain) > 253 || str_contains($domain, '..') || str_starts_with($domain, '.') || str_ends_with($domain, '.')) {
+            return false;
+        }
+
+        $labels = explode('.', $domain);
+        if (count($labels) < 2) {
+            return false;
+        }
+
+        foreach ($labels as $label) {
+            if ($label === '' || strlen($label) > 63) {
+                return false;
+            }
+            if (!preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/', $label)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

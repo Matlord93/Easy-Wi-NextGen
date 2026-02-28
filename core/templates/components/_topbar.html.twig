@@ -13,6 +13,12 @@
 {% set notificationsHref = user and user.isAdmin ? path('admin_notifications') : path('customer_notifications') %}
 {% set unreadCount = unread_notifications() %}
 {% set currentLocale = page_locale() %}
+{% set requestPath = app.request ? app.request.pathInfo : '' %}
+{% set requestQuery = app.request ? app.request.query.all : {} %}
+{% set localeQueryDe = requestQuery|merge({'lang': 'de'}) %}
+{% set localeQueryEn = requestQuery|merge({'lang': 'en'}) %}
+{% set localeHrefDe = requestPath ? requestPath ~ '?' ~ localeQueryDe|url_encode : '?lang=de' %}
+{% set localeHrefEn = requestPath ? requestPath ~ '?' ~ localeQueryEn|url_encode : '?lang=en' %}
 {% set profileHref = '/profile' %}
 {% set securityHref = '/account/security' %}
 {% if user and user.type.value in ['admin', 'superadmin'] %}
@@ -57,10 +63,10 @@
     </div>
     <div class="ng-topbar__actions">
         <div class="ng-language-switcher" role="group" aria-label="{{ t('language', page_locale()) }}">
-            <a class="ng-language-switcher__link {{ currentLocale == 'de' ? 'is-active' : '' }}" href="?lang=de">
+            <a class="ng-language-switcher__link {{ currentLocale == 'de' ? 'is-active' : '' }}" href="{{ localeHrefDe }}">
                 {{ t('language_short_de', page_locale()) }}
             </a>
-            <a class="ng-language-switcher__link {{ currentLocale == 'en' ? 'is-active' : '' }}" href="?lang=en">
+            <a class="ng-language-switcher__link {{ currentLocale == 'en' ? 'is-active' : '' }}" href="{{ localeHrefEn }}">
                 {{ t('language_short_en', page_locale()) }}
             </a>
         </div>

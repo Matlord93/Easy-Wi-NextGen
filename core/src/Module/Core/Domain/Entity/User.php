@@ -95,6 +95,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(options: ['default' => false])]
     private bool $customerAccessEnabled = false;
+    #[ORM\Column(options: ['default' => 1])]
+    private int $credentialsVersion = 1;
 
     public function __construct(string $email, UserType $type)
     {
@@ -130,6 +132,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function setPasswordHash(string $passwordHash): void
     {
+        if (isset($this->passwordHash) && $this->passwordHash !== $passwordHash) {
+            $this->bumpCredentialsVersion();
+        }
+
         $this->passwordHash = $passwordHash;
     }
 
@@ -413,4 +419,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         return $this->resellerOwner?->getId() === $reseller->getId();
     }
+    public function getCredentialsVersion(): int
+    {
+        return $this->credentialsVersion;
+    }
+
+    public function bumpCredentialsVersion(): void
+    {
+        $this->credentialsVersion++;
+    }
+
 }
+

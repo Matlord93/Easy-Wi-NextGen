@@ -4,19 +4,21 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\UserSession;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\UserRepository;
+use App\Security\IdentifierHasher;
+use App\Security\LoginCredentialVerifier;
 use App\Security\SessionTokenGenerator;
 use App\Security\TwoFactorPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
@@ -24,14 +26,16 @@ final class AuthController
 {
     public function __construct(
         private readonly UserRepository $users,
-        private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly LoginCredentialVerifier $credentialVerifier,
         private readonly SessionTokenGenerator $tokenGenerator,
         private readonly AuditLogger $auditLogger,
+        private readonly AppSettingsService $settingsService,
         private readonly EntityManagerInterface $entityManager,
         private readonly InstallerService $installerService,
         private readonly TwoFactorService $twoFactorService,
         private readonly SecretsCrypto $secretsCrypto,
         private readonly TwoFactorPolicy $twoFactorPolicy,
+        private readonly IdentifierHasher $identifierHasher,
         #[Autowire(service: 'limiter.public_login_ip')]
         private readonly RateLimiterFactory $loginIpLimiter,
         #[Autowire(service: 'limiter.public_login_identifier')]
@@ -55,6 +59,7 @@ final class AuthController
 
         $ipAddress = $request->getClientIp() ?? 'api';
         $identifier = $email !== '' ? mb_strtolower($email) : 'unknown';
+        $identifierHash = $this->identifierHasher->hash($identifier);
         $retryAfter = null;
 
         $ipLimit = $this->loginIpLimiter->create($ipAddress)->consume(1);
@@ -68,10 +73,12 @@ final class AuthController
                 }
             }
 
-            $this->auditLogger->log(null, 'auth.login.rate_limited', [
+            $this->auditLogger->log(null, 'auth.login_failed', [
+                'channel' => 'auth',
                 'ip_address' => $ipAddress,
-                'identifier' => $identifier,
+                'identifier_hash' => $identifierHash,
                 'context' => 'api_login',
+                'reason' => 'rate_limited',
                 'retry_after' => $retryAfter?->format(DATE_ATOM),
             ]);
 
@@ -80,6 +87,7 @@ final class AuthController
                 $seconds = max(1, $retryAfter->getTimestamp() - time());
                 $response->headers->set('Retry-After', (string) $seconds);
             }
+
             return $response;
         }
 
@@ -88,13 +96,15 @@ final class AuthController
         }
 
         $user = $this->users->findOneByEmail($email);
-        if ($user === null || !$this->passwordHasher->isPasswordValid($user, $password)) {
-            $this->auditLogger->log($user, 'auth.login.failed', [
+        if (!$this->credentialVerifier->isValid($user, $password)) {
+            $this->auditLogger->log($user, 'auth.login_failed', [
+                'channel' => 'auth',
                 'ip_address' => $ipAddress,
-                'identifier' => $identifier,
+                'identifier_hash' => $identifierHash,
                 'reason' => 'invalid_credentials',
                 'context' => 'api_login',
             ]);
+
             return new JsonResponse(['error' => 'Invalid credentials.'], JsonResponse::HTTP_UNAUTHORIZED);
         }
 
@@ -104,6 +114,7 @@ final class AuthController
                 'user_id' => $user->getId(),
                 'context' => 'api_login',
             ]);
+
             return new JsonResponse(['error' => 'Two-factor enrollment required.'], JsonResponse::HTTP_FORBIDDEN);
         }
 
@@ -114,12 +125,14 @@ final class AuthController
             }
 
             if ($otp === '' && $recoveryCode === '') {
-                $this->auditLogger->log($user, 'auth.login.failed', [
+                $this->auditLogger->log($user, 'auth.login_failed', [
+                    'channel' => 'auth',
                     'ip_address' => $ipAddress,
-                    'identifier' => $identifier,
+                    'identifier_hash' => $identifierHash,
                     'reason' => 'two_factor_missing',
                     'context' => 'api_login',
                 ]);
+
                 return new JsonResponse(['error' => 'Two-factor authentication required.'], JsonResponse::HTTP_UNAUTHORIZED);
             }
 
@@ -131,12 +144,14 @@ final class AuthController
             }
 
             if (!$valid) {
-                $this->auditLogger->log($user, 'auth.login.failed', [
+                $this->auditLogger->log($user, '2fa_challenge_failed', [
+                    'channel' => 'auth',
                     'ip_address' => $ipAddress,
-                    'identifier' => $identifier,
+                    'identifier_hash' => $identifierHash,
                     'reason' => 'two_factor_failed',
                     'context' => 'api_login',
                 ]);
+
                 return new JsonResponse(['error' => 'Invalid authentication code.'], JsonResponse::HTTP_UNAUTHORIZED);
             }
 
@@ -144,6 +159,7 @@ final class AuthController
                 $codes = $user->getTotpRecoveryCodes();
                 unset($codes[$recoveryIndex]);
                 $user->setTotpRecoveryCodes(array_values($codes));
+
                 $this->auditLogger->log($user, 'auth.login.recovery_used', [
                     'user_id' => $user->getId(),
                     'context' => 'api_login',
@@ -153,17 +169,18 @@ final class AuthController
 
         $token = $this->tokenGenerator->generateToken();
         $session = new UserSession($user, $this->tokenGenerator->hashToken($token));
-        $session->setExpiresAt((new \DateTimeImmutable())->modify('+30 days'));
+        $session->setExpiresAt((new \DateTimeImmutable())->modify(sprintf('+%d minutes', $this->settingsService->getSessionAbsoluteTimeoutMinutes())));
         $session->setLastUsedAt(new \DateTimeImmutable());
 
         $this->entityManager->persist($session);
         $this->auditLogger->log($user, 'session.created', [
             'user_id' => $user->getId(),
-            'email' => $user->getEmail(),
+            'context' => 'api_login',
         ]);
-        $this->auditLogger->log($user, 'auth.login.success', [
+        $this->auditLogger->log($user, 'auth.login_success', [
+            'channel' => 'auth',
             'ip_address' => $ipAddress,
-            'identifier' => $identifier,
+            'identifier_hash' => $identifierHash,
             'context' => 'api_login',
         ]);
 

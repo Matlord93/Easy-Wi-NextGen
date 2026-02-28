@@ -51,10 +51,33 @@ final class GdprExportService
     ) {
     }
 
+    public function generateFileName(User $customer, ?\DateTimeImmutable $now = null): string
+    {
+        $now ??= new \DateTimeImmutable();
+        return sprintf('gdpr_export_%d_%s.zip', $customer->getId() ?? 0, $now->format('Ymd_His'));
+    }
+
     public function buildExport(User $customer): GdprExport
     {
+        $data = $this->buildExportData($customer);
+
+        return new GdprExport(
+            $customer,
+            $data['fileName'],
+            $data['fileSize'],
+            $data['encryptedPayload'],
+            $data['expiresAt'],
+            $data['readyAt'],
+        );
+    }
+
+    /**
+     * @return array{fileName: string, fileSize: int, encryptedPayload: array{key_id: string, nonce: string, ciphertext: string}, readyAt: \DateTimeImmutable, expiresAt: \DateTimeImmutable}
+     */
+    public function buildExportData(User $customer): array
+    {
         $now = new \DateTimeImmutable();
-        $fileName = sprintf('gdpr_export_%d_%s.zip', $customer->getId() ?? 0, $now->format('Ymd_His'));
+        $fileName = $this->generateFileName($customer, $now);
         $zipPath = $this->buildZipArchive($customer, $fileName, $now);
         $zipBytes = file_get_contents($zipPath);
         if ($zipBytes === false) {
@@ -63,16 +86,13 @@ final class GdprExportService
 
         @unlink($zipPath);
 
-        $encryptedPayload = $this->encryptionService->encrypt($zipBytes);
-
-        return new GdprExport(
-            $customer,
-            $fileName,
-            strlen($zipBytes),
-            $encryptedPayload,
-            $now->modify('+7 days'),
-            $now,
-        );
+        return [
+            'fileName' => $fileName,
+            'fileSize' => strlen($zipBytes),
+            'encryptedPayload' => $this->encryptionService->encrypt($zipBytes),
+            'readyAt' => $now,
+            'expiresAt' => $now->modify('+7 days'),
+        ];
     }
 
     private function buildZipArchive(User $customer, string $fileName, \DateTimeImmutable $now): string
@@ -131,7 +151,7 @@ final class GdprExportService
             ];
         }
 
-        return [
+        return $this->redactSensitiveData([
             'generated_at' => $now->format(DATE_RFC3339),
             'customer' => [
                 'id' => $customer->getId(),
@@ -277,7 +297,7 @@ final class GdprExportService
                         'id' => $target->getId(),
                         'label' => $target->getLabel(),
                         'type' => $target->getType()->value,
-                        'config' => $target->getConfig(),
+                        'config' => $this->redactSensitiveData($target->getConfig()),
                         'created_at' => $target->getCreatedAt()->format(DATE_RFC3339),
                     ];
                 }, $this->backupTargetRepository->findByCustomer($customer)),
@@ -311,6 +331,30 @@ final class GdprExportService
                     ];
                 }, $this->portBlockRepository->findByCustomer($customer)),
             ],
-        ];
+        ]);
+    }
+
+    private function redactSensitiveData(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        $redacted = [];
+        foreach ($value as $key => $item) {
+            if (is_string($key) && $this->isSensitiveKey($key)) {
+                $redacted[$key] = '[REDACTED]';
+                continue;
+            }
+
+            $redacted[$key] = $this->redactSensitiveData($item);
+        }
+
+        return $redacted;
+    }
+
+    private function isSensitiveKey(string $key): bool
+    {
+        return (bool) preg_match('/(secret|token|password|private[_-]?key|api[_-]?key|client[_-]?secret|access[_-]?key)/i', $key);
     }
 }

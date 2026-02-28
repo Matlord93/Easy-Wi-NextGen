@@ -154,17 +154,20 @@ final class AdminWebspaceController
 
         $domainJobPayload = [
             'agent_id' => $node->getId(),
+            'webspace_id' => (string) $webspace->getId(),
             'domain_id' => (string) $domainEntity->getId(),
             'domain' => $domainEntity->getName(),
+            'target_path' => '',
+            'runtime' => $webspace->getRuntime(),
             'web_root' => $webspace->getPath(),
-            'source_dir' => $webspace->getDocroot(),
             'docroot' => $webspace->getDocroot(),
             'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domainEntity->getName()),
-            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $systemUsername),
             'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $systemUsername),
-            'logs_dir' => rtrim($webspace->getPath(), '/') . '/logs',
+            'redirect_https' => '0',
+            'redirect_www' => '0',
+            'extra_directives' => '',
         ];
-        $domainJob = new Job('domain.add', $domainJobPayload);
+        $domainJob = new Job('webspace.domain.apply', $domainJobPayload);
         $this->entityManager->persist($domainJob);
 
         $firewallJob = $this->queueWebspaceFirewall($webspace);

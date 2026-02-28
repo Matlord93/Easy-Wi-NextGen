@@ -51,7 +51,7 @@ final class AgentReleaseChecker
         return $latest;
     }
 
-    public function getReleaseAssetUrls(string $assetName): ?array
+    public function getReleaseAssetUrls(string $assetName, ?string $targetVersion = null): ?array
     {
         if ($this->repository === '') {
             return null;
@@ -63,7 +63,7 @@ final class AgentReleaseChecker
             return null;
         }
 
-        $candidate = $this->selectLatestReleaseAsset($releases, $channel, $assetName);
+        $candidate = $this->selectLatestReleaseAsset($releases, $channel, $assetName, $targetVersion);
         if ($candidate === null) {
             return null;
         }
@@ -259,7 +259,7 @@ final class AgentReleaseChecker
      *
      * @return array{tag:string,download_url:string,checksums_url:string,signature_url:?string}|null
      */
-    private function selectLatestReleaseAsset(array $releases, string $channel, string $assetName): ?array
+    private function selectLatestReleaseAsset(array $releases, string $channel, string $assetName, ?string $targetVersion = null): ?array
     {
         $selected = null;
 
@@ -290,6 +290,15 @@ final class AgentReleaseChecker
                 'checksums_url' => $checksumsUrl,
                 'signature_url' => $this->findAssetDownloadUrl($assets, 'checksums-agent.txt.asc'),
             ];
+
+            $normalizedTarget = $this->normalizeVersion($targetVersion);
+            if ($normalizedTarget !== null) {
+                $normalizedTag = $this->normalizeVersion($tag);
+                if ($normalizedTag !== null && $normalizedTag === $normalizedTarget) {
+                    return $candidate;
+                }
+                continue;
+            }
 
             if ($selected === null || $this->compareReleaseTags($candidate['tag'], $selected['tag']) > 0) {
                 $selected = $candidate;

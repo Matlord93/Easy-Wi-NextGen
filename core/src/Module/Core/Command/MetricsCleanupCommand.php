@@ -40,6 +40,8 @@ final class MetricsCleanupCommand extends Command
 
         $metricSamplesDeleted = $this->cleanupTable('metric_samples', 'recorded_at', $threshold, $batch);
         $instanceMetricSamplesDeleted = $this->cleanupTable('instance_metric_samples', 'collected_at', $threshold, $batch);
+        $aggregateThreshold = (new \DateTimeImmutable(sprintf('-%d days', max($days, 30))))->format('Y-m-d H:i:s');
+        $metricAggregatesDeleted = $this->cleanupTable('metric_aggregates', 'bucket_start', $aggregateThreshold, $batch);
 
         $summary = [
             'threshold' => $threshold,
@@ -47,14 +49,16 @@ final class MetricsCleanupCommand extends Command
             'batch' => $batch,
             'metric_samples_deleted' => $metricSamplesDeleted,
             'instance_metric_samples_deleted' => $instanceMetricSamplesDeleted,
+            'metric_aggregates_deleted' => $metricAggregatesDeleted,
         ];
 
         $this->logger->info('metrics.cleanup.completed', $summary);
 
         $io->success(sprintf(
-            'Metrics cleanup finished. metric_samples=%d, instance_metric_samples=%d (threshold=%s, batch=%d)',
+            'Metrics cleanup finished. metric_samples=%d, instance_metric_samples=%d, metric_aggregates=%d (threshold=%s, batch=%d)',
             $metricSamplesDeleted,
             $instanceMetricSamplesDeleted,
+            $metricAggregatesDeleted,
             $threshold,
             $batch,
         ));

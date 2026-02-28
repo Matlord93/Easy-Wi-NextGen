@@ -19,6 +19,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class InstanceSftpCredentialApiController
@@ -134,6 +135,13 @@ final class InstanceSftpCredentialApiController
                 $this->mapHttpErrorCode($exception),
                 $exception->getMessage(),
             );
+        } catch (TransportExceptionInterface $exception) {
+            return $this->errorResponse(
+                $request,
+                JsonResponse::HTTP_GATEWAY_TIMEOUT,
+                $this->mapTransportErrorCode($exception),
+                'Unable to reach node agent. Please retry in a moment.',
+            );
         } catch (\Throwable $exception) {
             $this->logger->error('instance.sftp.credentials.show_failed', [
                 'request_id' => $this->getRequestId($request),
@@ -244,6 +252,13 @@ final class InstanceSftpCredentialApiController
                 $exception->getStatusCode(),
                 $this->mapHttpErrorCode($exception),
                 $exception->getMessage(),
+            );
+        } catch (TransportExceptionInterface $exception) {
+            return $this->errorResponse(
+                $request,
+                JsonResponse::HTTP_GATEWAY_TIMEOUT,
+                $this->mapTransportErrorCode($exception),
+                'Unable to reach node agent. Please retry in a moment.',
             );
         } catch (\Throwable $exception) {
             $this->logger->error('instance.sftp.credentials.reset_failed', [
@@ -549,6 +564,13 @@ final class InstanceSftpCredentialApiController
             $exception instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException => 'sftp_not_found',
             default => 'sftp_request_failed',
         };
+    }
+
+    private function mapTransportErrorCode(TransportExceptionInterface $exception): string
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'timeout') ? 'sftp_agent_timeout' : 'sftp_agent_unreachable';
     }
 
     private function maskPassword(string $password = ''): string

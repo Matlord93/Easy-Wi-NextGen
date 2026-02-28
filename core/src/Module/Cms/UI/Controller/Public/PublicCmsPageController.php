@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Module\Cms\UI\Controller\Public;
 
 use App\Module\Cms\Application\BlockRenderer\BlockRendererRegistry;
-use App\Module\Cms\Application\CmsMaintenanceService;
+use App\Module\Cms\Application\CmsRenderingFlowResolver;
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\PageResolver;
 use App\Module\Cms\Application\ThemeResolver;
+use App\Module\Cms\UI\Http\MaintenancePageResponseFactory;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsBlock;
 use App\Module\Setup\Application\InstallerService;
@@ -26,10 +27,11 @@ final class PublicCmsPageController
         private readonly CmsBlockRepository $blockRepository,
         private readonly SiteResolver $siteResolver,
         private readonly InstallerService $installerService,
-        private readonly CmsMaintenanceService $maintenanceService,
         private readonly ThemeResolver $themeResolver,
+        private readonly CmsRenderingFlowResolver $renderingFlowResolver,
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly BlockRendererRegistry $blockRendererRegistry,
+        private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory,
         private readonly Environment $twig,
     ) {
     }
@@ -63,15 +65,10 @@ final class PublicCmsPageController
             return new Response('Site not found.', Response::HTTP_NOT_FOUND);
         }
 
-        $maintenance = $this->maintenanceService->resolve($request, $site);
+        $flow = $this->renderingFlowResolver->resolve($request, $site);
+        $maintenance = $flow['maintenance'];
         if ($maintenance['active']) {
-            return new Response($this->twig->render('public/maintenance.html.twig', [
-                'message' => $maintenance['message'],
-                'graphic_path' => $maintenance['graphic_path'],
-                'starts_at' => $maintenance['starts_at'],
-                'ends_at' => $maintenance['ends_at'],
-                'scope' => $maintenance['scope'],
-            ]), Response::HTTP_SERVICE_UNAVAILABLE);
+            return $this->maintenancePageResponseFactory->create($maintenance);
         }
 
         $page = $this->pageResolver->resolveHomePage($site);
@@ -97,15 +94,10 @@ final class PublicCmsPageController
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
 
-        $maintenance = $this->maintenanceService->resolve($request, $site);
+        $flow = $this->renderingFlowResolver->resolve($request, $site);
+        $maintenance = $flow['maintenance'];
         if ($maintenance['active']) {
-            return new Response($this->twig->render('public/maintenance.html.twig', [
-                'message' => $maintenance['message'],
-                'graphic_path' => $maintenance['graphic_path'],
-                'starts_at' => $maintenance['starts_at'],
-                'ends_at' => $maintenance['ends_at'],
-                'scope' => $maintenance['scope'],
-            ]), Response::HTTP_SERVICE_UNAVAILABLE);
+            return $this->maintenancePageResponseFactory->create($maintenance);
         }
 
         $page = $this->pageResolver->resolvePublishedPage($site, $slug);

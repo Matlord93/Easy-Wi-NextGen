@@ -34,7 +34,7 @@
                     <p class="font-semibold">{{ t('please_fix_following', page_locale()) }}</p>
                     <ul class="mt-2 list-disc space-y-1 pl-5">
                         {% for error in profile.errors %}
-                            <li>{{ error }}</li>
+                            <li>{{ t(error, page_locale()) }}</li>
                         {% endfor %}
                     </ul>
                 </div>
@@ -118,7 +118,7 @@
                     <p class="font-semibold">{{ t('please_fix_following', page_locale()) }}</p>
                     <ul class="mt-2 list-disc space-y-1 pl-5">
                         {% for error in preferences.errors %}
-                            <li>{{ error }}</li>
+                            <li>{{ t(error, page_locale()) }}</li>
                         {% endfor %}
                     </ul>
                 </div>

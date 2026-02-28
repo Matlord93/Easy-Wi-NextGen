@@ -42,6 +42,7 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_SFTP_PRIVATE_KEY_PASSPHRASE = 'sftp_private_key_passphrase';
     public const KEY_INVOICE_LAYOUT = 'invoice_layout_html';
     public const KEY_SECURITY_SESSION_IDLE_MINUTES = 'security_session_idle_minutes';
+    public const KEY_SECURITY_SESSION_ABSOLUTE_MINUTES = 'security_session_absolute_minutes';
     public const KEY_SECURITY_2FA_GLOBAL_REQUIRED = 'security_2fa_required_global';
     public const KEY_SECURITY_2FA_ADMIN_REQUIRED = 'security_2fa_required_admin';
     public const KEY_SECURITY_2FA_RESELLER_REQUIRED = 'security_2fa_required_reseller';
@@ -152,6 +153,7 @@ TWIG;
         self::KEY_SFTP_PRIVATE_KEY_PASSPHRASE => null,
         self::KEY_INVOICE_LAYOUT => self::DEFAULT_INVOICE_LAYOUT,
         self::KEY_SECURITY_SESSION_IDLE_MINUTES => 30,
+        self::KEY_SECURITY_SESSION_ABSOLUTE_MINUTES => 720,
         self::KEY_SECURITY_2FA_GLOBAL_REQUIRED => false,
         self::KEY_SECURITY_2FA_ADMIN_REQUIRED => true,
         self::KEY_SECURITY_2FA_RESELLER_REQUIRED => false,
@@ -658,6 +660,14 @@ TWIG;
         return is_numeric($value) ? max(5, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_IDLE_MINUTES];
     }
 
+    public function getSessionAbsoluteTimeoutMinutes(): int
+    {
+        $settings = $this->getSettings();
+        $value = $settings[self::KEY_SECURITY_SESSION_ABSOLUTE_MINUTES] ?? self::DEFAULTS[self::KEY_SECURITY_SESSION_ABSOLUTE_MINUTES];
+
+        return is_numeric($value) ? max(15, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_ABSOLUTE_MINUTES];
+    }
+
     /**
      * @param array<string, mixed> $settings
      *
@@ -721,6 +731,10 @@ TWIG;
 
             if ($key === self::KEY_SECURITY_SESSION_IDLE_MINUTES) {
                 $value = is_numeric($value) ? max(5, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_IDLE_MINUTES];
+            }
+
+            if ($key === self::KEY_SECURITY_SESSION_ABSOLUTE_MINUTES) {
+                $value = is_numeric($value) ? max(15, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_ABSOLUTE_MINUTES];
             }
 
             if ($key === self::KEY_ANTI_ABUSE_MIN_SUBMIT_SECONDS) {

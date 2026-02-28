@@ -69,27 +69,54 @@ final class SessionAuthenticator
         }
 
         $idleMinutes = $this->settingsService->getSessionIdleTimeoutMinutes();
+        $absoluteMinutes = $this->settingsService->getSessionAbsoluteTimeoutMinutes();
         if ($idleMinutes > 0) {
             $lastUsed = $session->getLastUsedAt() ?? $session->getCreatedAt();
             $idleCutoff = (new \DateTimeImmutable())->modify(sprintf('-%d minutes', $idleMinutes));
             if ($lastUsed <= $idleCutoff) {
                 $session->revoke();
                 $this->entityManager->persist($session);
-                $this->auditLogger->log($session->getUser(), 'session.expired', [
+                $this->auditLogger->log($session->getUser(), 'logout', [
                     'session_id' => $session->getId(),
-                    'user_id' => $session->getUser()->getId(),
                     'reason' => 'idle_timeout',
                 ]);
+                $this->entityManager->flush();
+
+                return null;
+            }
+        }
+
+
+        if ($session->getCredentialsVersion() !== $session->getUser()->getCredentialsVersion()) {
+            $session->revoke();
+            $this->entityManager->persist($session);
+            $this->auditLogger->log($session->getUser(), 'logout', [
+                'session_id' => $session->getId(),
+                'reason' => 'credentials_version_mismatch',
+            ]);
+            $this->entityManager->flush();
+
+            return null;
+        }
+
+        if ($absoluteMinutes > 0) {
+            $absoluteCutoff = (new \DateTimeImmutable())->modify(sprintf('-%d minutes', $absoluteMinutes));
+            if ($session->getCreatedAt() <= $absoluteCutoff) {
+                $session->revoke();
+                $this->entityManager->persist($session);
+                $this->auditLogger->log($session->getUser(), 'logout', [
+                    'session_id' => $session->getId(),
+                    'reason' => 'absolute_timeout',
+                ]);
+                $this->entityManager->flush();
+
                 return null;
             }
         }
 
         $session->setLastUsedAt(new \DateTimeImmutable());
         $this->entityManager->persist($session);
-        $this->auditLogger->log($session->getUser(), 'session.used', [
-            'session_id' => $session->getId(),
-            'user_id' => $session->getUser()->getId(),
-        ]);
+        $this->entityManager->flush();
 
         return $session->getUser();
     }

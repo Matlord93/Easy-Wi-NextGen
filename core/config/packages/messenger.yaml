@@ -19,3 +19,4 @@ framework:
     routing:
       App\Message\RunInstanceActionMessage: async
       App\Message\SendTemplateMailMessage: async
+      App\Module\HostingPanel\Application\Job\DispatchJobMessage: async

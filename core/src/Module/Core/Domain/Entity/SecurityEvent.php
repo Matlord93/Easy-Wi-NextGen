@@ -14,6 +14,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(columns: ['source'], name: 'idx_security_events_source')]
 #[ORM\Index(columns: ['ip'], name: 'idx_security_events_ip')]
 #[ORM\Index(columns: ['rule'], name: 'idx_security_events_rule')]
+#[ORM\Index(columns: ['dedup_key'], name: 'idx_security_events_dedup')]
+#[ORM\Index(columns: ['expires_at'], name: 'idx_security_events_expires')]
 class SecurityEvent
 {
     #[ORM\Id]
@@ -49,6 +51,12 @@ class SecurityEvent
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
+    #[ORM\Column(name: 'dedup_key', length: 64)]
+    private string $dedupKey;
+
+    #[ORM\Column(name: 'expires_at', type: 'datetime_immutable')]
+    private \DateTimeImmutable $expiresAt;
+
     public function __construct(
         Agent $node,
         string $direction,
@@ -58,6 +66,8 @@ class SecurityEvent
         ?string $rule,
         ?int $count,
         \DateTimeImmutable $occurredAt,
+        ?string $dedupKey = null,
+        ?\DateTimeImmutable $expiresAt = null,
     ) {
         $this->node = $node;
         $this->direction = $direction;
@@ -68,6 +78,15 @@ class SecurityEvent
         $this->count = $count;
         $this->occurredAt = $occurredAt;
         $this->createdAt = new \DateTimeImmutable();
+        $this->dedupKey = $dedupKey ?? hash('sha256', implode('|', [
+            $node->getId(),
+            $direction,
+            $source,
+            $ip ?? '',
+            $rule ?? '',
+            $occurredAt->format(DATE_RFC3339),
+        ]));
+        $this->expiresAt = $expiresAt ?? $this->createdAt->modify('+7 days');
     }
 
     public function getId(): int
@@ -118,5 +137,15 @@ class SecurityEvent
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getDedupKey(): string
+    {
+        return $this->dedupKey;
+    }
+
+    public function getExpiresAt(): \DateTimeImmutable
+    {
+        return $this->expiresAt;
     }
 }

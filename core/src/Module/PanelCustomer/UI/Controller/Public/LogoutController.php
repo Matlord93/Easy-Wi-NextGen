@@ -45,9 +45,9 @@ final class LogoutController
 
             $session->revoke();
             $this->entityManager->persist($session);
-            $this->auditLogger->log($session->getUser(), 'session.revoked', [
+            $this->auditLogger->log($session->getUser(), 'logout', [
                 'session_id' => $session->getId(),
-                'user_id' => $session->getUser()->getId(),
+                'reason' => 'user_logout',
             ]);
         }
 
@@ -59,9 +59,9 @@ final class LogoutController
                 Cookie::create($cookieName)
                     ->withValue('')
                     ->withPath('/')
-                    ->withSecure($request->isSecure())
+                    ->withSecure(true)
                     ->withHttpOnly(true)
-                    ->withSameSite('lax')
+                    ->withSameSite('strict')
                     ->withExpires((new \DateTimeImmutable('-1 day')))
             );
         }

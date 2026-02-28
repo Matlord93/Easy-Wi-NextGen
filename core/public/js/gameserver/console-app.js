@@ -12,7 +12,7 @@
         return;
     }
 
-    const required = domMount.requiredDataset(root, ['urlCommand', 'urlLogs', 'urlHealth']);
+    const required = domMount.requiredDataset(root, ['urlCommand']);
     const inlineError = document.getElementById('gs-console-error');
     if (!required.ok) {
         errors.showAll(inlineError, {
@@ -23,6 +23,10 @@
         return;
     }
 
+    const streamUrl = (root.dataset.streamUrl || '').trim();
+    const streamUnavailableMessage = (root.dataset.streamUnavailableMessage || 'Live stream unavailable.').trim();
+
+    const SCROLLBACK_LIMIT = 1500;
     const logEl = document.getElementById('gs-console-log');
     const commandEl = document.getElementById('gs-console-command');
     const sendEl = document.getElementById('gs-console-send');
@@ -31,28 +35,141 @@
     const clearEl = document.getElementById('gs-console-clear');
     const healthEl = document.getElementById('gs-console-health');
 
-    let polling = true;
+    let paused = false;
     let autoScroll = true;
-    let cursor = '';
-    let timer = null;
-    let reconnectShown = false;
+    let source = null;
+    let reconnectTimer = null;
+    let reconnectAttempt = 0;
+    let pollTimer = null;
+    let logsCursor = null;
+    let lines = [];
+
+    const renderLines = () => {
+        logEl.textContent = lines.join('\n');
+    };
 
     const appendLine = (line, kind = 'journal') => {
-        if (!line) return;
+        if (!line || paused) return;
         const shouldStick = autoScroll && (logEl.scrollTop + logEl.clientHeight + 32 >= logEl.scrollHeight);
         const prefix = kind === 'meta' ? '[meta] ' : '';
-        logEl.textContent += (logEl.textContent ? '\n' : '') + prefix + line;
+        lines.push(prefix + line);
+        if (lines.length > SCROLLBACK_LIMIT) {
+            lines = lines.slice(-SCROLLBACK_LIMIT);
+        }
+        renderLines();
         if (shouldStick) {
             logEl.scrollTop = logEl.scrollHeight;
         }
     };
 
-    logEl.addEventListener('scroll', () => {
-        if (logEl.scrollTop + logEl.clientHeight + 24 < logEl.scrollHeight && autoScroll) {
-            autoScroll = false;
-            autoScrollEl.textContent = 'Auto-scroll: Off';
+    const decodeBase64 = (base64) => {
+        try {
+            return new TextDecoder('utf-8').decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)));
+        } catch (e) {
+            return '';
         }
-    });
+    };
+
+    const scheduleReconnect = () => {
+        if (reconnectTimer) {
+            return;
+        }
+        reconnectAttempt += 1;
+        const delay = Math.min(10000, 500 * Math.pow(2, Math.min(reconnectAttempt, 6)));
+        if (healthEl) {
+            healthEl.textContent = `Live stream reconnecting… attempt ${reconnectAttempt}`;
+        }
+        reconnectTimer = window.setTimeout(() => {
+            reconnectTimer = null;
+            connect();
+        }, delay);
+    };
+
+    const loadHealth = async () => {
+        if (!root.dataset.urlHealth) {
+            return null;
+        }
+
+        const payload = await apiClient.request(root.dataset.urlHealth);
+        return payload.data || {};
+    };
+
+    const loadLogs = async () => {
+        if (!root.dataset.urlLogs) {
+            return;
+        }
+
+        const query = logsCursor ? `?cursor=${encodeURIComponent(logsCursor)}` : '';
+        const payload = await apiClient.request(`${root.dataset.urlLogs}${query}`);
+        const data = payload.data || {};
+        const entries = Array.isArray(data.lines) ? data.lines : [];
+        entries.forEach((entry) => appendLine(entry.message || ''));
+        logsCursor = data.cursor || logsCursor;
+    };
+
+    const connect = () => {
+        const url = new URL(streamUrl, window.location.origin);
+
+        if (source) {
+            source.close();
+        }
+        source = new EventSource(url.toString(), { withCredentials: true });
+        source.onopen = () => {
+            reconnectAttempt = 0;
+            errors.clearInline(inlineError);
+            if (healthEl) {
+                healthEl.textContent = 'Live stream connected';
+            }
+        };
+        source.onmessage = (event) => {
+            const payload = JSON.parse(event.data || '{}');
+            if (payload.chunk_base64) {
+                appendLine(decodeBase64(payload.chunk_base64));
+            }
+            if (payload.status && healthEl) {
+                healthEl.textContent = `State: ${payload.status}`;
+            }
+            if (payload.cpu !== undefined && healthEl) {
+                healthEl.textContent = `CPU: ${payload.cpu}% · RAM: ${payload.ram_mb || 0} MB`;
+            }
+            errors.clearInline(inlineError);
+        };
+
+        source.onerror = () => {
+            scheduleReconnect();
+            if (reconnectAttempt >= 3) {
+                errors.showInline(inlineError, { message: 'Live stream disconnected, reconnecting…', error_code: 'STREAM_RECONNECT', request_id: '' });
+            } else {
+                errors.clearInline(inlineError);
+            }
+        };
+    };
+
+    const startPollingFallback = async () => {
+        if (healthEl) {
+            healthEl.textContent = streamUnavailableMessage;
+        }
+
+        const poll = async () => {
+            try {
+                const health = await loadHealth();
+                await loadLogs();
+                errors.clearInline(inlineError);
+                if (healthEl && health && health.running_state) {
+                    healthEl.textContent = health.running_state === 'running'
+                        ? streamUnavailableMessage
+                        : 'Server is offline.';
+                }
+            } catch (error) {
+                if (healthEl) {
+                    healthEl.textContent = streamUnavailableMessage;
+                }
+            }
+        };
+
+        await poll();
+        pollTimer = window.setInterval(poll, 2500);
+    };
 
     const setSendLoading = (loading) => {
         sendEl.disabled = loading;
@@ -64,33 +181,6 @@
         }
     };
 
-    const pollLogs = async () => {
-        if (!polling) return;
-        try {
-            const payload = await apiClient.request(`${root.dataset.urlLogs}?cursor=${encodeURIComponent(cursor)}`);
-            const data = payload.data || {};
-            const lines = Array.isArray(data.lines) ? data.lines : [];
-            lines.forEach((entry) => {
-                appendLine(entry.text || entry.message || '', entry.stream || 'journal');
-            });
-            if (typeof data.cursor === 'string' || typeof data.cursor === 'number') {
-                cursor = String(data.cursor);
-            }
-            if (data.meta && data.meta.restarted && !reconnectShown) {
-                reconnectShown = true;
-                appendLine('Reconnected', 'meta');
-            }
-            errors.clearInline(inlineError);
-        } catch (error) {
-            errors.showAll(inlineError, error);
-        }
-    };
-
-    const schedulePoll = () => {
-        if (timer) window.clearInterval(timer);
-        timer = window.setInterval(pollLogs, 1500);
-    };
-
     sendEl.addEventListener('click', async () => {
         const command = (commandEl.value || '').trim();
         if (!command) {
@@ -99,16 +189,14 @@
         }
 
         setSendLoading(true);
-        errors.clearInline(inlineError);
-        appendLine(`> ${command}`, 'meta');
         try {
             await apiClient.request(root.dataset.urlCommand, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command }),
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': root.dataset.csrfToken || '' },
+                body: JSON.stringify({ command, idempotency_key: crypto.randomUUID(), csrf_token: root.dataset.csrfToken || '' }),
             });
+            appendLine(`> ${command}`, 'meta');
             commandEl.value = '';
-            errors.showToast({ message: 'Command sent.', error_code: 'OK', request_id: '' }, 1800);
         } catch (error) {
             errors.showAll(inlineError, error);
         } finally {
@@ -116,9 +204,16 @@
         }
     });
 
+    commandEl.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            sendEl.click();
+        }
+    });
+
     pauseEl.addEventListener('click', () => {
-        polling = !polling;
-        pauseEl.textContent = polling ? 'Pause' : 'Resume';
+        paused = !paused;
+        pauseEl.textContent = paused ? 'Resume' : 'Pause';
     });
 
     autoScrollEl.addEventListener('click', () => {
@@ -127,20 +222,22 @@
     });
 
     clearEl.addEventListener('click', () => {
-        logEl.textContent = '';
+        lines = [];
+        renderLines();
     });
 
-    apiClient.request(root.dataset.urlHealth)
-        .then((payload) => {
-            const data = payload.data || {};
-            if (healthEl) {
-                const state = data.unit_active_state || data.running_state || data.instance_status || 'unknown';
-                const unit = data.unit_name || 'n/a';
-                healthEl.textContent = `Unit: ${unit} · State: ${state}`;
-            }
-        })
-        .catch((error) => errors.showAll(inlineError, error));
+    if (streamUrl) {
+        connect();
+    } else {
+        startPollingFallback();
+    }
 
-    pollLogs();
-    schedulePoll();
+    window.addEventListener('beforeunload', () => {
+        if (source) {
+            source.close();
+        }
+        if (pollTimer) {
+            window.clearInterval(pollTimer);
+        }
+    });
 })();

@@ -142,7 +142,7 @@
                                         <span class="sinusbot-field__label">Verwaltungs-URL</span>
                                         {% if instance.manageUrl %}
                                             <div class="sinusbot-field__value">
-                                                <a class="sinusbot-link" href="{{ instance.manageUrl }}" target="_blank" rel="noopener">{{ instance.manageUrl }}</a>
+                                                <a class="sinusbot-link" href="{{ instance.manageUrl }}" target="_blank" rel="noopener noreferrer">{{ instance.manageUrl }}</a>
                                                 <button class="sinusbot-copy" type="button" data-sinusbot-copy="{{ instance.manageUrl }}">Kopieren</button>
                                             </div>
                                         {% else %}
@@ -273,7 +273,7 @@
                     <div>
                         <strong>Verwaltungs-URL:</strong>
                         {% if management_url %}
-                            <a class="sinusbot-link" href="{{ management_url }}" target="_blank" rel="noopener">{{ management_url }}</a>
+                            <a class="sinusbot-link" href="{{ management_url }}" target="_blank" rel="noopener noreferrer">{{ management_url }}</a>
                         {% else %}
                             –
                         {% endif %}
@@ -308,7 +308,7 @@
                 <div class="sinusbot-code">
                     <pre>{{ t('admin_sinusbot_user_management_example', page_locale()) }}</pre>
                 </div>
-                <a class="sinusbot-link" href="https://sinusbot.github.io/api-docs/" target="_blank" rel="noopener">
+                <a class="sinusbot-link" href="https://sinusbot.github.io/api-docs/" target="_blank" rel="noopener noreferrer">
                     {{ t('admin_sinusbot_user_management_link', page_locale()) }}
                 </a>
             </div>

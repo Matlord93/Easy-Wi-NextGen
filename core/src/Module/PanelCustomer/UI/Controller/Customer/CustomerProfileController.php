@@ -255,33 +255,33 @@ final class CustomerProfileController
         $vatId = strtoupper(str_replace(' ', '', trim((string) $request->request->get('vat_id', ''))));
 
         if ($firstname === '') {
-            $errors[] = 'First name is required.';
+            $errors[] = 'error_profile_first_name_required';
         }
         if ($lastname === '') {
-            $errors[] = 'Last name is required.';
+            $errors[] = 'error_profile_last_name_required';
         }
         if ($address === '') {
-            $errors[] = 'Address is required.';
+            $errors[] = 'error_profile_address_required';
         }
         if ($postal === '') {
-            $errors[] = 'Postal code is required.';
+            $errors[] = 'error_profile_postal_required';
         }
         if ($city === '') {
-            $errors[] = 'City is required.';
+            $errors[] = 'error_profile_city_required';
         }
         if ($country === '' || !array_key_exists($country, self::COUNTRY_OPTIONS)) {
-            $errors[] = 'Country selection is required.';
+            $errors[] = 'error_profile_country_required';
         }
 
         if ($vatId !== '') {
             if (!preg_match('/^[A-Z]{2}[A-Z0-9]{2,16}$/', $vatId)) {
-                $errors[] = 'VAT ID format is invalid.';
+                $errors[] = 'error_profile_vat_invalid';
             } elseif ($country !== '' && !str_starts_with($vatId, $country)) {
-                $errors[] = 'VAT ID should start with the country code.';
+                $errors[] = 'error_profile_vat_country_prefix';
             }
 
             if ($company === '') {
-                $errors[] = 'Company is required when VAT ID is provided.';
+                $errors[] = 'error_profile_company_required_with_vat';
             }
         }
 
@@ -309,17 +309,17 @@ final class CustomerProfileController
         $pdfDownloadHistory = $request->request->has('pdf_download_history');
 
         if ($locale === '' || !array_key_exists($locale, self::LOCALE_OPTIONS)) {
-            $errors[] = 'Locale is required.';
+            $errors[] = 'error_preferences_locale_required';
         }
 
         if ($portalLanguage === '' || !array_key_exists($portalLanguage, self::PORTAL_LANGUAGE_OPTIONS)) {
-            $errors[] = 'Portal language is required.';
+            $errors[] = 'error_preferences_portal_language_required';
         }
 
         if ($paymentMethod === '' || !array_key_exists($paymentMethod, $this->getPaymentMethods())) {
-            $errors[] = 'Payment method is required.';
+            $errors[] = 'error_preferences_payment_method_required';
             if ($paymentMethod === 'dummy' && !$this->isDummyPaymentAllowed()) {
-                $errors[] = 'Test payment is disabled for production environments.';
+                $errors[] = 'error_preferences_dummy_payment_disabled';
             }
         }
 
@@ -354,31 +354,31 @@ final class CustomerProfileController
     private function validateProfileForInvoices(?CustomerProfile $profile): array
     {
         if ($profile === null) {
-            return ['Complete the customer profile before configuring invoice preferences.'];
+            return ['error_preferences_profile_required'];
         }
 
         $errors = [];
         if (trim($profile->getFirstName()) === '') {
-            $errors[] = 'First name is required for invoices.';
+            $errors[] = 'error_invoice_first_name_required';
         }
         if (trim($profile->getLastName()) === '') {
-            $errors[] = 'Last name is required for invoices.';
+            $errors[] = 'error_invoice_last_name_required';
         }
         if (trim($profile->getAddress()) === '') {
-            $errors[] = 'Address is required for invoices.';
+            $errors[] = 'error_invoice_address_required';
         }
         if (trim($profile->getPostal()) === '') {
-            $errors[] = 'Postal code is required for invoices.';
+            $errors[] = 'error_invoice_postal_required';
         }
         if (trim($profile->getCity()) === '') {
-            $errors[] = 'City is required for invoices.';
+            $errors[] = 'error_invoice_city_required';
         }
         if (trim($profile->getCountry()) === '') {
-            $errors[] = 'Country is required for invoices.';
+            $errors[] = 'error_invoice_country_required';
         }
 
         if ($profile->getVatId() !== null && $profile->getCompany() === null) {
-            $errors[] = 'Company is required when VAT ID is provided.';
+            $errors[] = 'error_profile_company_required_with_vat';
         }
 
         return $errors;
@@ -388,7 +388,7 @@ final class CustomerProfileController
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || $actor->getType() !== UserType::Customer) {
-            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'error_security_unauthorized');
         }
 
         return $actor;

@@ -243,6 +243,42 @@
             </div>
         </div>
 
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h2 id="unified-ruleset" class="text-lg font-semibold">{{ t('admin_security_unified_title', page_locale()) }}</h2>
+                <p class="text-sm text-slate-700">{{ t('admin_security_unified_intro', page_locale()) }}</p>
+            </div>
+            <div class="px-5 py-5 space-y-4">
+                {% if rulesetUpdated == 'applied' %}
+                    <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{{ t('admin_security_unified_applied', page_locale()) }}</div>
+                {% elseif rulesetUpdated == 'rollback' %}
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{{ t('admin_security_unified_rollback', page_locale()) }}</div>
+                {% endif %}
+                <form method="post" action="/admin/security/ruleset/apply" class="grid gap-3 md:grid-cols-3">
+                    <select name="target_scope" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <option value="global">Global</option>
+                        <option value="node">Node</option>
+                    </select>
+                    <select name="target_node_id" class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <option value="">{{ t('admin_security_select_node', page_locale()) }}</option>
+                        {% for node in fail2banNodes %}
+                            <option value="{{ node.id }}">{{ node.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_security_unified_apply', page_locale()) }}</button>
+                    <textarea name="rules_json" rows="6" class="md:col-span-3 rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono" placeholder='[{"id":"allow-ssh","type":"firewall","action":"allow","protocol":"tcp","port":22,"priority":10,"enabled":true,"reason":"admin-access","target":{"scope":"global"}}]'></textarea>
+                </form>
+                <div class="grid gap-2 md:grid-cols-2">
+                    {% for node in fail2banNodes %}
+                        <form method="post" action="/admin/security/ruleset/{{ node.id }}/rollback" class="rounded-lg border border-slate-200 px-3 py-2 flex items-center justify-between text-xs">
+                            <span>{{ node.name }} · {{ node.unifiedPolicy ? ('v' ~ node.unifiedPolicy.version ~ ' ' ~ node.unifiedPolicy.status) : '-' }}</span>
+                            <button type="submit" class="rounded border border-slate-300 px-2 py-1">Rollback</button>
+                        </form>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
         <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
                 <h2 id="security-events" class="text-lg font-semibold">{{ t('admin_security_transparency_title', page_locale()) }}</h2>

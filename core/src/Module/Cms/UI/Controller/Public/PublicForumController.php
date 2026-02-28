@@ -9,6 +9,7 @@ use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\Security\CaptchaVerifierInterface;
 use App\Module\Cms\Application\ThemeResolver;
+use App\Module\Cms\UI\Http\MaintenancePageResponseFactory;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\ForumBoard;
 use App\Module\Core\Domain\Entity\ForumPost;
@@ -42,6 +43,7 @@ final class PublicForumController
         private readonly SiteResolver $siteResolver,
         private readonly CmsFeatureToggle $featureToggle,
         private readonly CmsMaintenanceService $maintenanceService,
+        private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory,
         private readonly ForumCategoryRepository $categoryRepository,
         private readonly ForumBoardRepository $boardRepository,
         private readonly ForumThreadRepository $threadRepository,
@@ -390,13 +392,7 @@ final class PublicForumController
             return null;
         }
 
-        return new Response($this->twig->render('public/maintenance.html.twig', [
-            'message' => $maintenance['message'],
-            'graphic_path' => $maintenance['graphic_path'],
-            'starts_at' => $maintenance['starts_at'],
-            'ends_at' => $maintenance['ends_at'],
-            'scope' => $maintenance['scope'],
-        ]), Response::HTTP_SERVICE_UNAVAILABLE);
+        return $this->maintenancePageResponseFactory->create($maintenance);
     }
 
     private function slugify(string $value): string

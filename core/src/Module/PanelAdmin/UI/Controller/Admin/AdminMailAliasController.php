@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\User;
@@ -27,6 +28,7 @@ final class AdminMailAliasController
         private readonly DomainRepository $domainRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly MailAliasLoopGuard $loopGuard,
         private readonly Environment $twig,
         #[Autowire('%env(default::APP_MAIL_ALIAS_MAP_PATH)%')]
         ?string $aliasMapPath,
@@ -118,6 +120,14 @@ final class AdminMailAliasController
             return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST);
         }
 
+        $existingAliases = $this->aliasRepository->findByCustomer($formData['domain']->getCustomer());
+        $sourceAddress = sprintf('%s@%s', $formData['local_part'], $formData['domain']->getName());
+        if ($this->loopGuard->wouldCreateLoop($sourceAddress, $formData['destinations'], $existingAliases)) {
+            $formData['errors'][] = 'Alias loop detected.';
+
+            return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST);
+        }
+
         $alias = new MailAlias(
             $formData['domain'],
             $formData['local_part'],
@@ -169,6 +179,13 @@ final class AdminMailAliasController
         $domains = $this->domainRepository->findBy([], ['name' => 'ASC']);
 
         if ($formData['errors'] !== []) {
+            return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST, $alias);
+        }
+
+        $existingAliases = $this->aliasRepository->findByCustomer($alias->getCustomer());
+        if ($this->loopGuard->wouldCreateLoop($alias->getAddress(), $formData['destinations'], $existingAliases)) {
+            $formData['errors'][] = 'Alias loop detected.';
+
             return $this->renderFormWithErrors($domains, $formData, Response::HTTP_BAD_REQUEST, $alias);
         }
 

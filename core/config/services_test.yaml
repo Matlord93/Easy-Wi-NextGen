@@ -7,3 +7,4 @@ services:
   App\Tests\Support\StatelessCsrfTokenManager: ~
 
   Symfony\Component\Security\Csrf\CsrfTokenManagerInterface: '@App\Tests\Support\StatelessCsrfTokenManager'
+  App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface: '@App\Module\Gameserver\Infrastructure\Mercure\NullConsoleAgentGrpcClient'

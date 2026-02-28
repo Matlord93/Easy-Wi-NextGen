@@ -11,6 +11,8 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\UserRepository;
+use App\Security\IdentifierHasher;
+use App\Security\LoginCredentialVerifier;
 use App\Security\LoginFinalizer;
 use App\Security\PostLoginRedirectResolver;
 use App\Security\TwoFactorPolicy;
@@ -18,7 +20,6 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
@@ -27,7 +28,7 @@ final class PublicLoginController
 {
     public function __construct(
         private readonly UserRepository $users,
-        private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly LoginCredentialVerifier $credentialVerifier,
         private readonly LoginFinalizer $loginFinalizer,
         private readonly AuditLogger $auditLogger,
         private readonly SiteResolver $siteResolver,
@@ -37,6 +38,7 @@ final class PublicLoginController
         private readonly CmsMaintenanceService $maintenanceService,
         private readonly ThemeResolver $themeResolver,
         private readonly AppSettingsService $appSettings,
+        private readonly IdentifierHasher $identifierHasher,
         #[Autowire(service: 'limiter.public_login_ip')]
         private readonly RateLimiterFactory $loginIpLimiter,
         #[Autowire(service: 'limiter.public_login_identifier')]
@@ -79,12 +81,13 @@ final class PublicLoginController
 
             $ipAddress = $request->getClientIp() ?? 'public';
             $identifier = $email !== '' ? mb_strtolower($email) : 'unknown';
+            $identifierHash = $this->identifierHasher->hash($identifier);
 
             $ipLimit = $this->loginIpLimiter->create($ipAddress)->consume(1);
             $idLimit = $this->loginIdentifierLimiter->create($identifier)->consume(1);
             if (!$ipLimit->isAccepted() || !$idLimit->isAccepted()) {
                 $status = Response::HTTP_TOO_MANY_REQUESTS;
-                $errors = ['Too many login attempts. Please try again in a moment.'];
+                $errors = ['Unable to sign in. Please try again later.'];
                 foreach ([$ipLimit, $idLimit] as $limit) {
                     if (!$limit->isAccepted() && $limit->getRetryAfter() !== null) {
                         if ($retryAfter === null || $limit->getRetryAfter() > $retryAfter) {
@@ -92,16 +95,24 @@ final class PublicLoginController
                         }
                     }
                 }
+                $this->auditLogger->log(null, 'auth.login_failed', [
+                    'channel' => 'auth',
+                    'ip_address' => $ipAddress,
+                    'identifier_hash' => $identifierHash,
+                    'reason' => 'rate_limited',
+                    'context' => 'public_login',
+                ]);
             }
 
             if ($errors === []) {
                 $user = $this->users->findOneByEmail($email);
-                if ($user === null || !$this->passwordHasher->isPasswordValid($user, $password)) {
+                if (!$this->credentialVerifier->isValid($user, $password)) {
                     $status = Response::HTTP_UNAUTHORIZED;
                     $errors[] = 'Invalid credentials.';
-                    $this->auditLogger->log($user, 'auth.login.failed', [
+                    $this->auditLogger->log($user, 'auth.login_failed', [
+                        'channel' => 'auth',
                         'ip_address' => $ipAddress,
-                        'identifier' => $identifier,
+                        'identifier_hash' => $identifierHash,
                         'reason' => 'invalid_credentials',
                         'context' => 'public_login',
                     ]);
@@ -129,7 +140,7 @@ final class PublicLoginController
 
                     return $this->loginFinalizer->finalizeLogin($request, $user, $redirectPath, 'public_login');
                 }
-            } else {
+            } elseif ($status === Response::HTTP_OK) {
                 $status = Response::HTTP_BAD_REQUEST;
             }
         }
@@ -154,6 +165,7 @@ final class PublicLoginController
 
         return $response;
     }
+
     private function resolveLoginTemplate(string $templateKey): string
     {
         $themeTemplate = sprintf('themes/%s/auth/login.html.twig', $templateKey);

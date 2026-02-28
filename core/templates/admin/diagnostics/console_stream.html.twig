@@ -1,0 +1,19 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Console stream diagnostics{% endblock %}
+
+{% block body %}
+<div class="space-y-4">
+    <h1 class="text-xl font-semibold">Console stream diagnostics</h1>
+    <div class="rounded-lg border border-slate-200 bg-white p-4">
+        <dl class="grid grid-cols-1 gap-2 text-sm">
+            {% for key, value in diagnostics %}
+                <div class="flex justify-between gap-4">
+                    <dt class="font-semibold text-slate-700">{{ key }}</dt>
+                    <dd class="text-slate-900">{{ value is same as(true) ? 'true' : (value is same as(false) ? 'false' : (value is null ? 'null' : value)) }}</dd>
+                </div>
+            {% endfor %}
+        </dl>
+    </div>
+</div>
+{% endblock %}

@@ -7,11 +7,13 @@ namespace App\Module\Core\Application;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Enum\ConnectionPolicy;
 
 final class DatabaseProvisioningService
 {
     private const DEFAULT_MAX_ATTEMPTS = 5;
     private const DEFAULT_ALLOWED_HOSTS = '%';
+    private const DEFAULT_CONNECTION_POLICY = ConnectionPolicy::Private;
 
     /** @return Job[] */
     public function buildCreateJobs(Database $database, string $agentId): array
@@ -41,6 +43,8 @@ final class DatabaseProvisioningService
             'database' => $database->getName(),
             'username' => $database->getUsername(),
             'allowed_hosts' => self::DEFAULT_ALLOWED_HOSTS,
+            // Metadata only: enforcement for network access is handled outside DB self-service jobs.
+            'connection_policy' => self::DEFAULT_CONNECTION_POLICY->value,
             'agent_id' => $agentId,
         ];
 

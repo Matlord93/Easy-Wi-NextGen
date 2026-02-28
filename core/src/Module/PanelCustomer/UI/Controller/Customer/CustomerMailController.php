@@ -6,11 +6,14 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\MailPasswordHasher;
+use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DomainRepository;
+use App\Repository\MailDomainRepository;
 use App\Repository\MailboxRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -35,9 +38,12 @@ final class CustomerMailController
     public function __construct(
         private readonly MailboxRepository $mailboxRepository,
         private readonly DomainRepository $domainRepository,
+        private readonly MailDomainRepository $mailDomainRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly EncryptionService $encryptionService,
+        private readonly MailPasswordHasher $mailPasswordHasher,
+        private readonly MailLimitEnforcer $mailLimitEnforcer,
         private readonly Environment $twig,
     ) {
     }
@@ -54,6 +60,7 @@ final class CustomerMailController
             'mailboxes' => $this->normalizeMailboxes($mailboxes),
             'domains' => $domains,
             'client_settings' => $this->buildClientSettings($domains),
+            'roundcube_bindings' => $this->buildRoundcubeBindings($domains),
         ]));
     }
 
@@ -98,20 +105,31 @@ final class CustomerMailController
             return $this->renderWithErrors($customer, $errors);
         }
 
-        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $passwordHash = $this->mailPasswordHasher->hash($password);
         $secretPayload = $this->encryptionService->encrypt($password);
 
-        $mailbox = new Mailbox(
-            $domain,
-            $localPart,
-            $passwordHash,
-            $secretPayload,
-            $quota,
-            $enabled,
-        );
+        try {
+            $mailbox = $this->entityManager->wrapInTransaction(function () use ($domain, $localPart, $passwordHash, $secretPayload, $quota, $enabled): Mailbox {
+                $this->mailLimitEnforcer->lockDomainForMailboxCreate($domain);
+                $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
+                $limitError = $this->mailLimitEnforcer->canCreateMailbox($domain, $mailDomain, max($quota, 0));
+                if ($limitError !== null) {
+                    throw new \DomainException($limitError);
+                }
 
-        $this->entityManager->persist($mailbox);
-        $this->entityManager->flush();
+                $mailbox = new Mailbox($domain, $localPart, $passwordHash, $secretPayload, $quota, $enabled);
+                $this->entityManager->persist($mailbox);
+                $this->entityManager->flush();
+
+                return $mailbox;
+            });
+        } catch (\DomainException $exception) {
+            return $this->renderWithErrors($customer, [$exception->getMessage()]);
+        }
+
+        if (!$mailbox instanceof Mailbox) {
+            return $this->renderWithErrors($customer, ['Mailbox creation failed.']);
+        }
 
         $job = $this->queueMailboxJob('mailbox.create', $mailbox, [
             'password_hash' => $passwordHash,
@@ -222,7 +240,7 @@ final class CustomerMailController
             return $this->renderWithErrors($customer, ['Password must be at least 8 characters.']);
         }
 
-        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $passwordHash = $this->mailPasswordHasher->hash($password);
         $secretPayload = $this->encryptionService->encrypt($password);
         $mailbox->setPassword($passwordHash, $secretPayload);
         $job = $this->queueMailboxJob('mailbox.password.reset', $mailbox, [
@@ -283,6 +301,7 @@ final class CustomerMailController
             'mailboxes' => $this->normalizeMailboxes($mailboxes),
             'domains' => $domains,
             'client_settings' => $this->buildClientSettings($domains),
+            'roundcube_bindings' => $this->buildRoundcubeBindings($domains),
             'errors' => $errors,
         ]), Response::HTTP_BAD_REQUEST);
     }
@@ -344,6 +363,30 @@ final class CustomerMailController
             $node = $domain->getWebspace()->getNode();
             $metadata = $node->getMetadata();
             $metadata = is_array($metadata) ? $metadata : [];
+            $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
+            if ($mailDomain !== null) {
+                $mailNode = $mailDomain->getNode();
+                $settings[] = [
+                    'domain' => $domain->getName(),
+                    'imap' => [
+                        'host' => $mailNode->getImapHost(),
+                        'port' => $mailNode->getImapPort(),
+                        'encryption' => self::ENCRYPTION_LABELS[self::DEFAULT_IMAP_ENCRYPTION],
+                    ],
+                    'smtp' => [
+                        'host' => $mailNode->getSmtpHost(),
+                        'port' => $mailNode->getSmtpPort(),
+                        'encryption' => self::ENCRYPTION_LABELS[self::DEFAULT_SMTP_ENCRYPTION],
+                    ],
+                    'dns' => [
+                        'spf' => sprintf('v=spf1 mx include:%s -all', $mailNode->getSmtpHost()),
+                        'dkim' => sprintf('%s._domainkey.%s', $mailDomain->getDkimSelector(), $domain->getName()),
+                        'dmarc' => sprintf('v=DMARC1; p=%s; adkim=s; aspf=s', $mailDomain->getDmarcPolicy()),
+                    ],
+                ];
+
+                continue;
+            }
             $defaultHost = sprintf('mail.%s', $domain->getName());
             $imapHost = $this->resolveMetadataValue($metadata, 'mail_imap_host', 'mail_host', $defaultHost);
             $smtpHost = $this->resolveMetadataValue($metadata, 'mail_smtp_host', 'mail_host', $defaultHost);
@@ -366,10 +409,29 @@ final class CustomerMailController
                     'port' => $smtpPort,
                     'encryption' => self::ENCRYPTION_LABELS[$smtpEncryption] ?? $smtpEncryption,
                 ],
+                'dns' => [
+                    'spf' => sprintf('v=spf1 mx a:mail.%s -all', $domain->getName()),
+                    'dkim' => sprintf('default._domainkey.%s', $domain->getName()),
+                    'dmarc' => 'v=DMARC1; p=quarantine; adkim=s; aspf=s',
+                ],
             ];
         }
 
         return $settings;
+    }
+
+    private function buildRoundcubeBindings(array $domains): array
+    {
+        $bindings = [];
+        foreach ($domains as $domain) {
+            $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
+            $bindings[] = [
+                'domain' => $domain->getName(),
+                'url' => $mailDomain?->getNode()->getRoundcubeUrl() ?? '/roundcube',
+            ];
+        }
+
+        return $bindings;
     }
 
     private function resolveMetadataValue(array $metadata, string $primaryKey, string $fallbackKey, string $default): string

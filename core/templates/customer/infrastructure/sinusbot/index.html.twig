@@ -30,7 +30,7 @@
                         <div>
                             <p class="font-medium text-slate-900">Verwaltungs-URL</p>
                             {% if instance.manageUrl %}
-                                <a class="text-blue-600 hover:underline" href="{{ instance.manageUrl }}" target="_blank" rel="noopener">{{ instance.manageUrl }}</a>
+                                <a class="text-blue-600 hover:underline" href="{{ instance.manageUrl }}" target="_blank" rel="noopener noreferrer">{{ instance.manageUrl }}</a>
                                 <p class="mt-1 text-xs text-amber-600">Hinweis: Bei direktem WebUI-Zugriff kann das Bot-Limit nur garantiert werden, wenn Bots über unseren Kundenbereich verwaltet werden.</p>
                             {% else %}
                                 <span>–</span>

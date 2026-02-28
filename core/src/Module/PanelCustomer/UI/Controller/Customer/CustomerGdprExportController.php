@@ -13,6 +13,7 @@ use App\Module\Core\Domain\Enum\GdprExportStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\GdprExportRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -62,7 +63,7 @@ final class CustomerGdprExportController
     {
         $customer = $this->requireCustomer($request);
 
-        $export = $this->exportService->buildExport($customer);
+        $export = GdprExport::createPending($customer, $this->exportService->generateFileName($customer));
         $this->entityManager->persist($export);
 
         $this->entityManager->flush();
@@ -70,8 +71,7 @@ final class CustomerGdprExportController
         $this->auditLogger->log($customer, 'gdpr.export_requested', [
             'user_id' => $customer->getId(),
             'export_id' => $export->getId(),
-            'expires_at' => $export->getExpiresAt()->format(DATE_RFC3339),
-            'file_name' => $export->getFileName(),
+            'status' => $export->getStatus()->value,
         ]);
 
         $this->entityManager->flush();
@@ -85,28 +85,41 @@ final class CustomerGdprExportController
         return $response;
     }
 
+    #[Route(path: '/{id}/token', name: 'customer_gdpr_exports_token', methods: ['POST'])]
+    public function createDownloadToken(Request $request, int $id): JsonResponse
+    {
+        $actor = $this->requireActor($request);
+        $export = $this->resolveAuthorizedExport($actor, $id);
+
+        $token = $export->issueDownloadToken();
+        $this->entityManager->persist($export);
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'token' => $token,
+            'expiresAt' => $export->getDownloadTokenExpiresAt()?->format(DATE_RFC3339),
+        ]);
+    }
+
     #[Route(path: '/{id}/download', name: 'customer_gdpr_exports_download', methods: ['GET'])]
     public function download(Request $request, int $id): Response
     {
-        $customer = $this->requireCustomer($request);
-        $export = $this->exportRepository->find($id);
+        $token = trim((string) $request->query->get('token', ''));
 
-        if (!$export instanceof GdprExport || $export->getCustomer()->getId() !== $customer->getId()) {
-            throw new NotFoundHttpException('Export not found.');
+        $actor = $this->resolveActor($request);
+        if ($actor instanceof User) {
+            $export = $this->resolveAuthorizedExport($actor, $id);
+        } else {
+            $export = $this->exportRepository->find($id);
+            if (!$export instanceof GdprExport || $token === '' || !$export->consumeValidDownloadToken($token)) {
+                throw new NotFoundHttpException('Export not found.');
+            }
+
+            $this->entityManager->persist($export);
         }
 
         $now = new \DateTimeImmutable();
         if ($export->isExpired($now)) {
-            if ($export->getStatus() !== GdprExportStatus::Expired) {
-                $export->setStatus(GdprExportStatus::Expired);
-                $this->entityManager->persist($export);
-                $this->auditLogger->log($customer, 'gdpr.export_expired', [
-                    'export_id' => $export->getId(),
-                    'user_id' => $customer->getId(),
-                ]);
-                $this->entityManager->flush();
-            }
-
             return new Response('Export expired.', Response::HTTP_GONE);
         }
 
@@ -116,7 +129,48 @@ final class CustomerGdprExportController
         $response->headers->set('Content-Type', 'application/zip');
         $response->headers->set('Content-Disposition', sprintf('attachment; filename="%s"', $export->getFileName()));
 
+        $this->entityManager->flush();
+
         return $response;
+    }
+
+    private function resolveAuthorizedExport(User $actor, int $id): GdprExport
+    {
+        if ($actor->isAdmin()) {
+            $export = $this->exportRepository->find($id);
+            if (!$export instanceof GdprExport) {
+                throw new NotFoundHttpException('Export not found.');
+            }
+
+            return $export;
+        }
+
+        $export = $this->exportRepository->findByIdAndCustomer($id, $actor);
+        if (!$export instanceof GdprExport) {
+            throw new NotFoundHttpException('Export not found.');
+        }
+
+        return $export;
+    }
+
+    private function requireActor(Request $request): User
+    {
+        $actor = $this->resolveActor($request);
+        if (!$actor instanceof User) {
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException('session', 'Unauthorized.');
+        }
+
+        return $actor;
+    }
+
+    private function resolveActor(Request $request): ?User
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || ($actor->getType() !== UserType::Customer && !$actor->isAdmin())) {
+            return null;
+        }
+
+        return $actor;
     }
 
     private function requireCustomer(Request $request): User
@@ -160,9 +214,17 @@ final class CustomerGdprExportController
                 'label' => 'Pending',
                 'badge' => 'bg-slate-50 text-slate-700 border border-slate-200',
             ],
+            GdprExportStatus::Running->value => [
+                'label' => 'Running',
+                'badge' => 'bg-blue-50 text-blue-700 border border-blue-200',
+            ],
             GdprExportStatus::Ready->value => [
                 'label' => 'Ready',
                 'badge' => 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+            ],
+            GdprExportStatus::Failed->value => [
+                'label' => 'Failed',
+                'badge' => 'bg-amber-50 text-amber-700 border border-amber-200',
             ],
             GdprExportStatus::Expired->value => [
                 'label' => 'Expired',

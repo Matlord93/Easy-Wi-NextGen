@@ -26,6 +26,8 @@ final class AdminMetricsController
         private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
         private readonly Environment $twig,
         private readonly LoggerInterface $logger,
+        #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%app.status_stale_grace_seconds%')]
+        private readonly int $heartbeatGraceSeconds,
     ) {
     }
 
@@ -158,6 +160,23 @@ final class AdminMetricsController
             $loadError = $loadError ?? 'instances';
         }
 
+
+        $nodeHealthStatus = 'offline';
+        $nodeLastSeenAt = $selectedAgent?->getLastHeartbeatAt();
+        if ($selectedAgent !== null && $nodeLastSeenAt !== null) {
+            $age = time() - $nodeLastSeenAt->getTimestamp();
+            $nodeHealthStatus = $age > $this->heartbeatGraceSeconds ? 'offline' : 'ok';
+            $metrics = $selectedAgent->getLastHeartbeatStats()['metrics'] ?? null;
+            if (is_array($metrics) && $nodeHealthStatus !== 'offline') {
+                $peak = max((float) ($metrics['cpu']['percent'] ?? 0), (float) ($metrics['memory']['percent'] ?? 0), (float) ($metrics['disk']['percent'] ?? 0));
+                if ($peak >= 95.0) {
+                    $nodeHealthStatus = 'critical';
+                } elseif ($peak >= 85.0) {
+                    $nodeHealthStatus = 'warning';
+                }
+            }
+        }
+
         return new Response($this->twig->render('admin/metrics/index.html.twig', [
             'activeNav' => 'metrics',
             'tab' => $tab,
@@ -199,6 +218,9 @@ final class AdminMetricsController
             'instanceMemPoints' => $instanceMemPoints,
             'instanceBrowseRows' => $instanceBrowseRows,
             'instanceBrowseTotal' => $instanceBrowseTotal,
+            'nodeHealthStatus' => $nodeHealthStatus,
+            'nodeLastSeenAt' => $nodeLastSeenAt,
+            'heartbeatGraceSeconds' => $this->heartbeatGraceSeconds,
         ]));
     }
 

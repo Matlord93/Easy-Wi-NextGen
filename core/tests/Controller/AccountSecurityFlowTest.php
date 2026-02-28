@@ -57,6 +57,29 @@ final class AccountSecurityFlowTest extends WebTestCase
         ]);
 
         self::assertResponseIsSuccessful();
+
+        $conn = self::getContainer()->get(EntityManagerInterface::class)->getConnection();
+        $remainingSessions = (int) $conn->fetchOne('SELECT COUNT(*) FROM user_sessions WHERE user_id = ?', [$user->getId()]);
+        self::assertSame(0, $remainingSessions);
+
+        $logoutEvents = (int) $conn->fetchOne("SELECT COUNT(*) FROM audit_logs WHERE action = 'logout'");
+        self::assertGreaterThanOrEqual(1, $logoutEvents);
+    }
+
+
+    public function testSessionGetsInvalidWhenCredentialsVersionChanges(): void
+    {
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $user = $this->seedSiteAndUser('security-version@example.test');
+        $this->loginWithSession($client, $user, 'security-session-version');
+
+        $user->setPasswordHash(self::getContainer()->get(UserPasswordHasherInterface::class)->hashPassword($user, 'ChangedP@ssw0rd!'));
+        self::getContainer()->get(EntityManagerInterface::class)->flush();
+
+        $client->request('GET', '/account/security');
+
+        self::assertResponseRedirects('/login?target=%2Faccount%2Fsecurity');
     }
 
     public function testQrRouteNeedsLoginAndReturnsImageForLoggedInUser(): void

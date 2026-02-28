@@ -15,6 +15,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_gdpr_exports_expires', columns: ['expires_at'])]
 class GdprExport
 {
+    private const DOWNLOAD_TOKEN_TTL = '+30 minutes';
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -45,6 +47,12 @@ class GdprExport
     #[ORM\Column]
     private \DateTimeImmutable $expiresAt;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $downloadTokenHash = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $downloadTokenExpiresAt = null;
+
     /**
      * @param array{key_id: string, nonce: string, ciphertext: string} $encryptedPayload
      */
@@ -55,69 +63,113 @@ class GdprExport
         array $encryptedPayload,
         \DateTimeImmutable $expiresAt,
         ?\DateTimeImmutable $readyAt = null,
+        ?GdprExportStatus $status = null,
     ) {
         $this->customer = $customer;
         $this->fileName = $fileName;
         $this->fileSize = $fileSize;
         $this->encryptedPayload = $encryptedPayload;
         $this->requestedAt = new \DateTimeImmutable();
-        $this->readyAt = $readyAt ?? $this->requestedAt;
+        $this->readyAt = $readyAt;
         $this->expiresAt = $expiresAt;
+        $this->status = $status ?? ($readyAt === null ? GdprExportStatus::Pending : GdprExportStatus::Ready);
+    }
+
+    public static function createPending(User $customer, string $fileName): self
+    {
+        return new self(
+            $customer,
+            $fileName,
+            0,
+            ['key_id' => 'pending', 'nonce' => '', 'ciphertext' => ''],
+            (new \DateTimeImmutable())->modify('+7 days'),
+            null,
+            GdprExportStatus::Pending,
+        );
+    }
+
+    public function markReady(string $fileName, int $fileSize, array $encryptedPayload, \DateTimeImmutable $expiresAt, ?\DateTimeImmutable $readyAt = null): void
+    {
+        if ($this->status !== GdprExportStatus::Running) {
+            throw new \LogicException('Only running exports can be marked ready.');
+        }
+
+        $this->fileName = $fileName;
+        $this->fileSize = $fileSize;
+        $this->encryptedPayload = $encryptedPayload;
+        $this->expiresAt = $expiresAt;
+        $this->readyAt = $readyAt ?? new \DateTimeImmutable();
         $this->status = GdprExportStatus::Ready;
     }
 
-    public function getId(): ?int
+    public function markRunning(): void
     {
-        return $this->id;
+        if ($this->status !== GdprExportStatus::Pending) {
+            throw new \LogicException('Only pending exports can enter running state.');
+        }
+
+        $this->status = GdprExportStatus::Running;
     }
 
-    public function getCustomer(): User
+    public function markFailed(): void
     {
-        return $this->customer;
+        if ($this->status !== GdprExportStatus::Running) {
+            throw new \LogicException('Only running exports can fail.');
+        }
+
+        $this->status = GdprExportStatus::Failed;
     }
 
-    public function getStatus(): GdprExportStatus
+    public function issueDownloadToken(?\DateTimeImmutable $now = null): string
     {
-        return $this->status;
+        $now ??= new \DateTimeImmutable();
+        $token = bin2hex(random_bytes(24));
+
+        $this->downloadTokenHash = password_hash($token, PASSWORD_DEFAULT);
+        $this->downloadTokenExpiresAt = $now->modify(self::DOWNLOAD_TOKEN_TTL);
+
+        return $token;
     }
 
-    public function setStatus(GdprExportStatus $status): void
+    public function consumeValidDownloadToken(string $token, ?\DateTimeImmutable $now = null): bool
     {
-        $this->status = $status;
+        $now ??= new \DateTimeImmutable();
+        if ($this->downloadTokenHash === null || $this->downloadTokenExpiresAt === null) {
+            return false;
+        }
+
+        if ($this->downloadTokenExpiresAt <= $now) {
+            $this->revokeDownloadToken();
+            return false;
+        }
+
+        if (!password_verify($token, $this->downloadTokenHash)) {
+            return false;
+        }
+
+        $this->revokeDownloadToken();
+
+        return true;
     }
 
-    public function getFileName(): string
+    public function revokeDownloadToken(): void
     {
-        return $this->fileName;
+        $this->downloadTokenHash = null;
+        $this->downloadTokenExpiresAt = null;
     }
 
-    public function getFileSize(): int
-    {
-        return $this->fileSize;
-    }
-
-    /**
-     * @return array{key_id: string, nonce: string, ciphertext: string}
-     */
-    public function getEncryptedPayload(): array
-    {
-        return $this->encryptedPayload;
-    }
-
-    public function getRequestedAt(): \DateTimeImmutable
-    {
-        return $this->requestedAt;
-    }
-
-    public function getReadyAt(): ?\DateTimeImmutable
-    {
-        return $this->readyAt;
-    }
-
-    public function getExpiresAt(): \DateTimeImmutable
-    {
-        return $this->expiresAt;
-    }
+    public function getId(): ?int { return $this->id; }
+    public function getCustomer(): User { return $this->customer; }
+    public function getStatus(): GdprExportStatus { return $this->status; }
+    public function setStatus(GdprExportStatus $status): void { $this->status = $status; }
+    public function getFileName(): string { return $this->fileName; }
+    public function getFileSize(): int { return $this->fileSize; }
+    /** @return array{key_id: string, nonce: string, ciphertext: string} */
+    public function getEncryptedPayload(): array { return $this->encryptedPayload; }
+    public function getRequestedAt(): \DateTimeImmutable { return $this->requestedAt; }
+    public function getReadyAt(): ?\DateTimeImmutable { return $this->readyAt; }
+    public function getExpiresAt(): \DateTimeImmutable { return $this->expiresAt; }
+    public function getDownloadTokenExpiresAt(): ?\DateTimeImmutable { return $this->downloadTokenExpiresAt; }
 
     public function isExpired(\DateTimeImmutable $now): bool
     {

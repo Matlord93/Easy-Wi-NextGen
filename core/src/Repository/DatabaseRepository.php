@@ -28,8 +28,13 @@ final class DatabaseRepository extends ServiceEntityRepository
             ->getResult();
     }
 
-    public function findOneByCustomerAndName(User $customer, string $name): ?Database
+    public function findOneByCustomerAndName(User $customer, string $engine, string $name): ?Database
     {
-        return $this->findOneBy(['customer' => $customer, 'name' => $name]);
+        return $this->findOneBy(['customer' => $customer, 'engine' => strtolower($engine), 'name' => $name]);
+    }
+
+    public function findOneByCustomerAndUsername(User $customer, string $engine, string $username): ?Database
+    {
+        return $this->findOneBy(['customer' => $customer, 'engine' => strtolower($engine), 'username' => $username]);
     }
 }

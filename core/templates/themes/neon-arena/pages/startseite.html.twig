@@ -1,0 +1,6 @@
+{% extends 'themes/neon-arena/base.html.twig' %}
+{% block body %}
+<section class="content-grid">
+  {% for block in blocks %}<article class="card">{{ block.html|raw }}</article>{% else %}<article class="card"><h2>{{ page.title }}</h2><p>Noch keine Inhalte.</p></article>{% endfor %}
+</section>
+{% endblock %}

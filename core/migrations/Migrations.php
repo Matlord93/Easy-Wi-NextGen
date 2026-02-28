@@ -6969,3 +6969,124 @@ final class Version20261002120000 extends AbstractMigration
         $this->addSql('ALTER TABLE port_pools DROP allocation_step');
     }
 }
+
+final class Version20260715103000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Create metric_aggregates table for 1m/5m/1h rollups.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if ($schema->hasTable('metric_aggregates')) {
+            return;
+        }
+
+        $this->addSql('CREATE TABLE metric_aggregates (id INT AUTO_INCREMENT NOT NULL, agent_id VARCHAR(64) NOT NULL, bucket VARCHAR(8) NOT NULL, bucket_start DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', sample_count INT NOT NULL, cpu_min DOUBLE PRECISION DEFAULT NULL, cpu_avg DOUBLE PRECISION DEFAULT NULL, cpu_max DOUBLE PRECISION DEFAULT NULL, memory_min DOUBLE PRECISION DEFAULT NULL, memory_avg DOUBLE PRECISION DEFAULT NULL, memory_max DOUBLE PRECISION DEFAULT NULL, disk_min DOUBLE PRECISION DEFAULT NULL, disk_avg DOUBLE PRECISION DEFAULT NULL, disk_max DOUBLE PRECISION DEFAULT NULL, INDEX IDX_2EBBB4A73414710B (agent_id), INDEX idx_metric_aggregate_bucket_start (bucket, bucket_start), UNIQUE INDEX uniq_metric_aggregate_bucket (agent_id, bucket, bucket_start), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        $this->addSql('ALTER TABLE metric_aggregates ADD CONSTRAINT FK_2EBBB4A73414710B FOREIGN KEY (agent_id) REFERENCES agents (id) ON DELETE CASCADE');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('metric_aggregates')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE metric_aggregates DROP FOREIGN KEY FK_2EBBB4A73414710B');
+        $this->addSql('DROP TABLE metric_aggregates');
+    }
+}
+
+final class Version20261015090000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add mail hosting platform entities (mail nodes/domains/policies/forwards).';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('mail_nodes')) {
+            $this->addSql('CREATE TABLE mail_nodes (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(120) NOT NULL, imap_host VARCHAR(255) NOT NULL, imap_port INT NOT NULL, smtp_host VARCHAR(255) NOT NULL, smtp_port INT NOT NULL, roundcube_url VARCHAR(255) NOT NULL, PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+
+        if (!$schema->hasTable('quota_policies')) {
+            $this->addSql('CREATE TABLE quota_policies (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(120) NOT NULL, max_accounts INT NOT NULL, max_domain_quota_mb INT NOT NULL, max_mailbox_quota_mb INT NOT NULL, UNIQUE INDEX UNIQ_QUOTA_POLICY_NAME (name), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+
+        if (!$schema->hasTable('mail_domains')) {
+            $this->addSql('CREATE TABLE mail_domains (id INT AUTO_INCREMENT NOT NULL, domain_id INT NOT NULL, node_id INT NOT NULL, quota_policy_id INT DEFAULT NULL, dkim_selector VARCHAR(64) NOT NULL, dmarc_policy VARCHAR(16) NOT NULL, INDEX IDX_MAIL_DOMAINS_DOMAIN (domain_id), INDEX IDX_MAIL_DOMAINS_NODE (node_id), INDEX IDX_MAIL_DOMAINS_POLICY (quota_policy_id), UNIQUE INDEX UNIQ_MAIL_DOMAIN_DOMAIN (domain_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $this->addSql('ALTER TABLE mail_domains ADD CONSTRAINT FK_MAIL_DOMAINS_DOMAIN FOREIGN KEY (domain_id) REFERENCES domains (id) ON DELETE CASCADE');
+            $this->addSql('ALTER TABLE mail_domains ADD CONSTRAINT FK_MAIL_DOMAINS_NODE FOREIGN KEY (node_id) REFERENCES mail_nodes (id)');
+            $this->addSql('ALTER TABLE mail_domains ADD CONSTRAINT FK_MAIL_DOMAINS_POLICY FOREIGN KEY (quota_policy_id) REFERENCES quota_policies (id)');
+        }
+
+        if (!$schema->hasTable('mail_forwards')) {
+            $this->addSql('CREATE TABLE mail_forwards (id INT AUTO_INCREMENT NOT NULL, domain_id INT NOT NULL, source_local_part VARCHAR(190) NOT NULL, destination VARCHAR(255) NOT NULL, enabled TINYINT(1) NOT NULL, INDEX IDX_MAIL_FORWARDS_DOMAIN (domain_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $this->addSql('ALTER TABLE mail_forwards ADD CONSTRAINT FK_MAIL_FORWARDS_DOMAIN FOREIGN KEY (domain_id) REFERENCES domains (id) ON DELETE CASCADE');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if ($schema->hasTable('mail_forwards')) {
+            $this->addSql('ALTER TABLE mail_forwards DROP FOREIGN KEY FK_MAIL_FORWARDS_DOMAIN');
+            $this->addSql('DROP TABLE mail_forwards');
+        }
+        if ($schema->hasTable('mail_domains')) {
+            $this->addSql('ALTER TABLE mail_domains DROP FOREIGN KEY FK_MAIL_DOMAINS_DOMAIN');
+            $this->addSql('ALTER TABLE mail_domains DROP FOREIGN KEY FK_MAIL_DOMAINS_NODE');
+            $this->addSql('ALTER TABLE mail_domains DROP FOREIGN KEY FK_MAIL_DOMAINS_POLICY');
+            $this->addSql('DROP TABLE mail_domains');
+        }
+        if ($schema->hasTable('quota_policies')) {
+            $this->addSql('DROP TABLE quota_policies');
+        }
+        if ($schema->hasTable('mail_nodes')) {
+            $this->addSql('DROP TABLE mail_nodes');
+        }
+    }
+}
+
+final class Version20270227195500 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Backfill optional columns backend and allocation_step for legacy installations.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if ($schema->hasTable('instance_sftp_credentials')) {
+            $table = $schema->getTable('instance_sftp_credentials');
+            if (!$table->hasColumn('backend')) {
+                $this->addSql("ALTER TABLE instance_sftp_credentials ADD backend VARCHAR(32) NOT NULL DEFAULT 'NONE'");
+            }
+        }
+
+        if ($schema->hasTable('port_pools')) {
+            $table = $schema->getTable('port_pools');
+            if (!$table->hasColumn('allocation_step')) {
+                $this->addSql('ALTER TABLE port_pools ADD allocation_step INT NOT NULL DEFAULT 1');
+            }
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if ($schema->hasTable('port_pools')) {
+            $table = $schema->getTable('port_pools');
+            if ($table->hasColumn('allocation_step')) {
+                $this->addSql('ALTER TABLE port_pools DROP allocation_step');
+            }
+        }
+
+        if ($schema->hasTable('instance_sftp_credentials')) {
+            $table = $schema->getTable('instance_sftp_credentials');
+            if ($table->hasColumn('backend')) {
+                $this->addSql('ALTER TABLE instance_sftp_credentials DROP backend');
+            }
+        }
+    }
+}

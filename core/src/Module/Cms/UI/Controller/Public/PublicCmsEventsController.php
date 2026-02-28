@@ -8,6 +8,7 @@ use App\Module\Cms\Application\CmsFeatureToggle;
 use App\Module\Cms\Application\CmsMaintenanceService;
 use App\Module\Cms\Application\CmsSettingsProvider;
 use App\Module\Cms\Application\ThemeResolver;
+use App\Module\Cms\UI\Http\MaintenancePageResponseFactory;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsEvent;
 use App\Module\Core\Domain\Entity\Site;
@@ -25,6 +26,7 @@ final class PublicCmsEventsController
         private readonly SiteResolver $siteResolver,
         private readonly CmsFeatureToggle $featureToggle,
         private readonly CmsMaintenanceService $maintenanceService,
+        private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory,
         private readonly ThemeResolver $themeResolver,
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly Environment $twig,
@@ -41,13 +43,7 @@ final class PublicCmsEventsController
 
         $maintenance = $this->maintenanceService->resolve($request, $site);
         if ($maintenance['active']) {
-            return new Response($this->twig->render('public/maintenance.html.twig', [
-                'message' => $maintenance['message'],
-                'graphic_path' => $maintenance['graphic_path'],
-                'starts_at' => $maintenance['starts_at'],
-                'ends_at' => $maintenance['ends_at'],
-                'scope' => $maintenance['scope'],
-            ]), Response::HTTP_SERVICE_UNAVAILABLE);
+            return $this->maintenancePageResponseFactory->create($maintenance);
         }
 
         return new Response($this->twig->render('public/events/index.html.twig', [
@@ -65,13 +61,7 @@ final class PublicCmsEventsController
 
         $maintenance = $this->maintenanceService->resolve($request, $site);
         if ($maintenance['active']) {
-            return new Response($this->twig->render('public/maintenance.html.twig', [
-                'message' => $maintenance['message'],
-                'graphic_path' => $maintenance['graphic_path'],
-                'starts_at' => $maintenance['starts_at'],
-                'ends_at' => $maintenance['ends_at'],
-                'scope' => $maintenance['scope'],
-            ]), Response::HTTP_SERVICE_UNAVAILABLE);
+            return $this->maintenancePageResponseFactory->create($maintenance);
         }
 
         $event = $this->eventRepository->findOneBySiteAndSlug($site, $slug, true);

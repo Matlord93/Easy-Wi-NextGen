@@ -1,7 +1,8 @@
 {% set statusStyles = {
-    'online': 'badge badge--success',
-    'stale': 'badge badge--warning',
+    'registered': 'badge badge--primary',
+    'active': 'badge badge--success',
     'offline': 'badge badge--danger',
+    'decommissioned': 'badge badge--neutral',
     'provisioning': 'badge badge--primary',
     'maintenance': 'badge badge--neutral'
 } %}
@@ -168,6 +169,8 @@
                     <div class="nodes-node__meta">{{ node.lastHeartbeatVersion ?? '—' }}</div>
                     <div class="nodes-node__meta">{{ node.osProvider ?? '—' }}</div>
                     <div class="nodes-node__meta">{{ t('admin_nodes_health', page_locale()) }}: {{ node.health|title }}</div>
+                    <div class="nodes-node__meta">Node ↔ Agent: {{ node.serviceMapping.node }} ↔ {{ node.serviceMapping.agent_id }}</div>
+                    <div class="nodes-node__meta">Services: GS {{ node.serviceMapping.services.instances }}, Web {{ node.serviceMapping.services.webspaces }}, TS3 {{ node.serviceMapping.services.ts3_instances }}, TS6 {{ node.serviceMapping.services.ts6_instances }}</div>
                     <div class="nodes-node__meta">
                         {{ updateChannel is defined ? t('admin_nodes_channel', page_locale())|replace({'%channel%': updateChannel|upper}) : t('admin_nodes_unknown', page_locale()) }}
                     </div>

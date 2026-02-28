@@ -13,6 +13,7 @@ use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\JobResult;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\EngineType;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Repository\DatabaseNodeRepository;
@@ -88,7 +89,7 @@ final class DatabaseApiController
             );
         }
 
-        $existing = $this->databaseRepository->findOneByCustomerAndName($customer, $name);
+        $existing = $this->databaseRepository->findOneByCustomerAndName($customer, $node->getEngine(), $name);
         if ($existing instanceof Database) {
             return $this->responseEnvelopeFactory->success($request, 'existing-'.$existing->getId(), 'Database already exists.', JsonResponse::HTTP_OK, [
                 'status' => 'succeeded',
@@ -290,8 +291,8 @@ final class DatabaseApiController
         }
 
         $engine = strtolower($node->getEngine());
-        if (!in_array($engine, ['mysql', 'mariadb'], true)) {
-            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Only MySQL/MariaDB nodes are allowed.', 'database_engine_unsupported', JsonResponse::HTTP_BAD_REQUEST)];
+        if (!in_array($engine, EngineType::values(), true)) {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Only MySQL/MariaDB/PostgreSQL nodes are allowed.', 'database_engine_unsupported', JsonResponse::HTTP_BAD_REQUEST)];
         }
 
         if ($name === '' || $username === '') {
@@ -316,6 +317,13 @@ final class DatabaseApiController
             return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Customer not found.', 'customer_not_found', JsonResponse::HTTP_NOT_FOUND)];
         }
 
+        if ($this->databaseRepository->findOneByCustomerAndName($customer, $engine, $name) instanceof Database) {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Database name already exists.', 'db_name_conflict', JsonResponse::HTTP_CONFLICT)];
+        }
+        if ($this->databaseRepository->findOneByCustomerAndUsername($customer, $engine, $username) instanceof Database) {
+            return ['customer' => null, 'node' => null, 'name' => '', 'username' => '', 'error' => $this->responseEnvelopeFactory->error($request, 'Database username already exists.', 'db_user_conflict', JsonResponse::HTTP_CONFLICT)];
+        }
+
         return ['customer' => $customer, 'node' => $node, 'name' => $name, 'username' => $username, 'error' => null];
     }
 
@@ -325,7 +333,7 @@ final class DatabaseApiController
             return false;
         }
 
-        return in_array(strtolower($node->getEngine()), ['mysql', 'mariadb'], true);
+        return in_array(strtolower($node->getEngine()), EngineType::values(), true);
     }
 
     private function canAccessDatabase(User $actor, Database $database): bool

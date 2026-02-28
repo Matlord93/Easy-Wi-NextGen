@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Module\Core\Application\AgentSignatureVerifier;
+use App\Module\Core\Application\AgentMetricsIngestionService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\FirewallStateManager;
@@ -15,6 +16,8 @@ use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Application\NotificationService;
 use App\Module\Core\Domain\Entity\DdosPolicy;
 use App\Module\Core\Domain\Entity\DdosStatus;
+use App\Module\Core\Domain\Entity\Certificate;
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceMetricSample;
 use App\Module\Core\Domain\Entity\Job;
@@ -106,6 +109,7 @@ final class AgentApiController
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
         private readonly AuditLogger $auditLogger,
+        private readonly AgentMetricsIngestionService $metricsIngestionService,
         private readonly FirewallStateManager $firewallStateManager,
         private readonly GdprAnonymizer $gdprAnonymizer,
         private readonly NotificationService $notificationService,
@@ -128,6 +132,17 @@ final class AgentApiController
             return $agent;
         }
 
+        if ($this->isDecommissionedAgent($agent)) {
+            $this->auditLogger->log(null, 'agent.heartbeat_rejected', [
+                'agent_id' => $agent->getId(),
+                'reason' => 'agent_decommissioned',
+            ]);
+
+            return new JsonResponse([
+                'error' => 'agent_decommissioned',
+            ], JsonResponse::HTTP_FORBIDDEN);
+        }
+
         try {
             $payload = $request->toArray();
         } catch (\JsonException $exception) {
@@ -147,15 +162,15 @@ final class AgentApiController
 
         $agent->recordHeartbeat($stats, $version, $ip, $roles, $metadata, $status);
         $this->entityManager->persist($agent);
-        $metricSample = $this->buildMetricSample($agent, $stats['metrics'] ?? null);
-        if ($metricSample !== null) {
-            $this->entityManager->persist($metricSample);
+        $ingested = $this->metricsIngestionService->ingestBatch($agent, [is_array($stats['metrics'] ?? null) ? $stats['metrics'] : []]);
+        if ($ingested > 0) {
             $this->auditLogger->log(null, 'agent.metrics_ingested', [
                 'agent_id' => $agent->getId(),
-                'recorded_at' => $metricSample->getRecordedAt()->format(DATE_RFC3339),
+                'ingested' => $ingested,
             ]);
         }
         $this->ingestInstanceMetrics($stats['metrics']['instance_metrics'] ?? null);
+        $agent->setStatus($this->metricsIngestionService->resolveStatus($agent, 120));
         $this->auditLogger->log(null, 'agent.heartbeat', [
             'agent_id' => $agent->getId(),
             'version' => $version,
@@ -190,6 +205,46 @@ final class AgentApiController
     }
 
 
+    #[Route(path: '/agent/metrics-batch', name: 'agent_metrics_batch', methods: ['POST'])]
+    public function ingestMetricsBatch(Request $request): JsonResponse
+    {
+        $agent = $this->requireAgent($request);
+        if ($agent instanceof JsonResponse) {
+            return $agent;
+        }
+
+        if ($this->isDecommissionedAgent($agent)) {
+            return new JsonResponse(['error' => 'agent_decommissioned'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $raw = (string) $request->getContent();
+        if (strtolower((string) $request->headers->get('Content-Encoding')) === 'gzip') {
+            $decoded = @gzdecode($raw);
+            if (!is_string($decoded)) {
+                throw new BadRequestHttpException('Invalid gzip payload.');
+            }
+            $raw = $decoded;
+        }
+
+        try {
+            $payload = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+        }
+
+        $samples = is_array($payload['samples'] ?? null) ? $payload['samples'] : [];
+        if (count($samples) > 1000) {
+            $samples = array_slice($samples, 0, 1000);
+        }
+
+        $ingested = $this->metricsIngestionService->ingestBatch($agent, array_values(array_filter($samples, static fn ($v): bool => is_array($v))));
+        $this->auditLogger->log(null, 'agent.metrics_batch_ingested', ['agent_id' => $agent->getId(), 'ingested' => $ingested]);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['status' => 'ok', 'ingested' => $ingested]);
+    }
+
+
     #[Route(path: '/agent/jobs', name: 'agent_jobs', methods: ['GET'])]
     #[Route(path: '/api/v1/agent/jobs', name: 'agent_jobs_v1', methods: ['GET'])]
     public function jobs(Request $request): JsonResponse
@@ -198,6 +253,16 @@ final class AgentApiController
         if ($agent instanceof JsonResponse) {
             return $agent;
         }
+
+        if ($this->isDecommissionedAgent($agent)) {
+            $cancelled = $this->cancelPendingJobsForDecommissionedAgent($agent, 'dispatch');
+
+            return new JsonResponse([
+                'error' => 'agent_decommissioned',
+                'cancelled_jobs' => $cancelled,
+            ], JsonResponse::HTTP_FORBIDDEN);
+        }
+
         $now = new DateTimeImmutable();
         $this->expireStaleJobs($now);
 
@@ -336,6 +401,12 @@ final class AgentApiController
             throw new NotFoundHttpException('Job not found.');
         }
 
+        if ($this->isDecommissionedAgent($agent)) {
+            $this->markJobFailedForDecommissionedAgent($job, $agent, 'start');
+
+            return new JsonResponse(['error' => 'agent_decommissioned'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
         if ($job->getStatus()->isTerminal()) {
             if ($job->getClaimedBy() !== $agent->getId()) {
                 throw new ConflictHttpException('Job is already completed by another agent.');
@@ -373,6 +444,12 @@ final class AgentApiController
 
         if ($job === null) {
             throw new NotFoundHttpException('Job not found.');
+        }
+
+        if ($this->isDecommissionedAgent($agent)) {
+            $this->markJobFailedForDecommissionedAgent($job, $agent, 'result');
+
+            return new JsonResponse(['error' => 'agent_decommissioned'], JsonResponse::HTTP_FORBIDDEN);
         }
 
         if (!in_array($job->getStatus(), [JobStatus::Claimed, JobStatus::Running], true)) {
@@ -441,6 +518,7 @@ final class AgentApiController
         $this->applyDdosPolicyFromJob($job, $resultStatus, $agent, $output, $completedAt);
         $this->applyFail2banStatusFromJob($job, $resultStatus, $agent, $output, $completedAt);
         $this->applyFail2banPolicyFromJob($job, $resultStatus, $agent, $output, $completedAt);
+        $this->applySecurityEventsFromJob($job, $resultStatus, $agent, $output, $completedAt);
         $this->applyPolicyRevisionStatusFromJob($job, $resultStatus, $completedAt);
         $this->applyTs3UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->applyTs6UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
@@ -485,6 +563,12 @@ final class AgentApiController
 
         if ($job === null) {
             throw new NotFoundHttpException('Job not found.');
+        }
+
+        if ($this->isDecommissionedAgent($agent)) {
+            $this->markJobFailedForDecommissionedAgent($job, $agent, 'logs');
+
+            return new JsonResponse(['error' => 'agent_decommissioned'], JsonResponse::HTTP_FORBIDDEN);
         }
 
         if (!in_array($job->getStatus(), [JobStatus::Claimed, JobStatus::Running], true)) {
@@ -792,6 +876,71 @@ final class AgentApiController
         }
 
         return in_array($jobType, $normalizedCapabilities, true);
+    }
+
+    private function isDecommissionedAgent(Agent $agent): bool
+    {
+        return $agent->getStatus() === Agent::STATUS_DECOMMISSIONED;
+    }
+
+    private function cancelPendingJobsForDecommissionedAgent(Agent $agent, string $context): int
+    {
+        $jobs = $this->jobRepository->createQueryBuilder('job')
+            ->where('job.payload LIKE :agentPayload')
+            ->andWhere('job.status IN (:statuses)')
+            ->setParameter('agentPayload', '%"agent_id":"' . $agent->getId() . '"%')
+            ->setParameter('statuses', [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running])
+            ->getQuery()
+            ->getResult();
+
+        $cancelled = 0;
+        foreach ($jobs as $job) {
+            if (!$job instanceof Job) {
+                continue;
+            }
+
+            if (!in_array($job->getStatus(), [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running], true)) {
+                continue;
+            }
+
+            $job->clearLock();
+            $job->clearClaim();
+            $job->transitionTo(JobStatus::Cancelled);
+            $job->recordFailure('agent_decommissioned', sprintf('Agent decommissioned; dispatch blocked during %s.', $context));
+            $this->jobLogger->log($job, 'Cancelled because node is decommissioned.', 100);
+            $cancelled++;
+
+            $this->auditLogger->log(null, 'agent.job_cancelled_decommissioned', [
+                'agent_id' => $agent->getId(),
+                'job_id' => $job->getId(),
+                'context' => $context,
+            ]);
+        }
+
+        if ($cancelled > 0) {
+            $this->entityManager->flush();
+        }
+
+        return $cancelled;
+    }
+
+    private function markJobFailedForDecommissionedAgent(Job $job, Agent $agent, string $context): void
+    {
+        if (!in_array($job->getStatus(), [JobStatus::Claimed, JobStatus::Running], true)) {
+            return;
+        }
+
+        $job->clearLock();
+        $job->clearClaim();
+        $job->transitionTo(JobStatus::Failed);
+        $job->recordFailure('agent_decommissioned', sprintf('Agent decommissioned; execution blocked during %s.', $context));
+        $this->jobLogger->log($job, 'Failed because node is decommissioned.', 100);
+        $this->auditLogger->log(null, 'agent.job_failed_decommissioned', [
+            'agent_id' => $agent->getId(),
+            'job_id' => $job->getId(),
+            'context' => $context,
+        ]);
+        $this->entityManager->flush();
     }
 
     private function parseCompletedAt(mixed $value): DateTimeImmutable
@@ -1258,6 +1407,97 @@ final class AgentApiController
         ]);
     }
 
+    private function applySecurityEventsFromJob(
+        \App\Module\Core\Domain\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        \App\Module\Core\Domain\Entity\Agent $agent,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'security.events.collect' || $resultStatus !== JobResultStatus::Succeeded) {
+            return;
+        }
+
+        $schema = is_string($output['schema'] ?? null) ? trim((string) $output['schema']) : 'security.events.v1';
+        if ($schema !== 'security.events.v1') {
+            return;
+        }
+
+        $rawEvents = $output['events'] ?? null;
+        if (!is_string($rawEvents) || $rawEvents === '') {
+            return;
+        }
+        if (strlen($rawEvents) > 262144) {
+            return;
+        }
+
+        $events = json_decode($rawEvents, true);
+        if (!is_array($events)) {
+            return;
+        }
+
+        $ttlRaw = is_string($output['retention_ttl'] ?? null) ? trim($output['retention_ttl']) : '24h';
+        $expiresAt = $this->resolveSecurityEventExpiry($completedAt, $ttlRaw);
+        $this->cleanupExpiredSecurityEvents();
+
+        foreach ($events as $event) {
+            if (!is_array($event)) {
+                continue;
+            }
+            $direction = is_string($event['direction'] ?? null) ? $event['direction'] : 'blocked';
+            $direction = in_array($direction, ['blocked', 'allowed'], true) ? $direction : 'blocked';
+            $source = is_string($event['source'] ?? null) ? mb_substr(trim((string) $event['source']), 0, 32) : 'firewall';
+            $reason = is_string($event['reason'] ?? null) ? mb_substr(trim((string) $event['reason']), 0, 120) : null;
+            $ip = is_string($event['ip'] ?? null) ? mb_substr(trim((string) $event['ip']), 0, 64) : null;
+            $rule = is_string($event['rule'] ?? null) ? mb_substr(trim((string) $event['rule']), 0, 120) : null;
+            $count = is_int($event['count'] ?? null) && $event['count'] > 0 ? $event['count'] : 1;
+            $dedupKey = hash('sha256', implode('|', [$agent->getId(), $direction, $source, $ip ?? '', $rule ?? '', $completedAt->format(DATE_RFC3339)]));
+            if ($this->entityManager->getRepository(SecurityEvent::class)->findOneBy(['dedupKey' => $dedupKey]) !== null) {
+                continue;
+            }
+
+            $this->entityManager->persist(new SecurityEvent(
+                $agent,
+                $direction,
+                $source,
+                $reason,
+                $ip,
+                $rule,
+                $count,
+                $completedAt,
+                $dedupKey,
+                $expiresAt,
+            ));
+        }
+    }
+
+    private function resolveSecurityEventExpiry(DateTimeImmutable $base, string $ttlRaw): DateTimeImmutable
+    {
+        $ttlRaw = strtolower($ttlRaw);
+        if (!preg_match('/^(\d+)([smhd])$/', $ttlRaw, $match)) {
+            return $base->modify('+24 hours');
+        }
+
+        $value = max(1, (int) $match[1]);
+        $unit = $match[2];
+        $maxSeconds = 30 * 24 * 60 * 60;
+        $seconds = match ($unit) {
+            's' => $value,
+            'm' => $value * 60,
+            'h' => $value * 3600,
+            default => $value * 86400,
+        };
+
+        return $base->modify(sprintf('+%d seconds', min($seconds, $maxSeconds)));
+    }
+
+    private function cleanupExpiredSecurityEvents(): void
+    {
+        $this->entityManager->createQuery('DELETE FROM App\Module\Core\Domain\Entity\SecurityEvent e WHERE e.expiresAt < :now')
+            ->setParameter('now', new DateTimeImmutable())
+            ->execute();
+    }
+
     private function applyPolicyRevisionStatusFromJob(
         \App\Module\Core\Domain\Entity\Job $job,
         JobResultStatus $resultStatus,
@@ -1404,33 +1644,18 @@ final class AgentApiController
     private function applyDomainUpdatesFromJob(\App\Module\Core\Domain\Entity\Job $job, JobResultStatus $resultStatus, string $agentId, array $output): void
     {
         $payload = $job->getPayload();
+        $domain = null;
         $domainId = $payload['domain_id'] ?? null;
-        if (!is_int($domainId) && !is_string($domainId)) {
-            return;
+        if (is_int($domainId) || is_string($domainId)) {
+            $domain = $this->domainRepository->find((int) $domainId);
         }
-
-        $domain = $this->domainRepository->find((int) $domainId);
+        if ($domain === null && $job->getType() === 'domain.ssl.issue') {
+            $domainName = is_string($payload['domain'] ?? null) ? trim((string) $payload['domain']) : '';
+            if ($domainName !== '') {
+                $domain = $this->domainRepository->findOneBy(['name' => $domainName]);
+            }
+        }
         if ($domain === null) {
-            return;
-        }
-
-        if (in_array($job->getType(), ['domain.add', 'domain.update'], true)) {
-            $status = match ($resultStatus) {
-                JobResultStatus::Succeeded => 'active',
-                JobResultStatus::Failed => 'failed',
-                JobResultStatus::Cancelled => 'cancelled',
-            };
-
-            $previousStatus = $domain->getStatus();
-            $domain->setStatus($status);
-            $this->entityManager->persist($domain);
-            $this->auditLogger->log(null, 'domain.status_updated', [
-                'domain_id' => $domain->getId(),
-                'job_id' => $job->getId(),
-                'agent_id' => $agentId,
-                'previous_status' => $previousStatus,
-                'status' => $status,
-            ]);
             return;
         }
 
@@ -1438,7 +1663,15 @@ final class AgentApiController
             return;
         }
 
-        if ($resultStatus !== JobResultStatus::Succeeded) {
+        if ($resultStatus === JobResultStatus::Failed || $resultStatus === JobResultStatus::Cancelled) {
+            $certificate = $this->entityManager->getRepository(Certificate::class)->findOneBy(['domain' => $domain], ['id' => 'DESC']);
+            if (!$certificate instanceof Certificate) {
+                $certificate = new Certificate($domain);
+            }
+            $certificate->setStatus('failed');
+            $errorMessage = is_string($output['error_message'] ?? ($output['message'] ?? null)) ? trim((string) ($output['error_message'] ?? $output['message'])) : 'TLS issuance failed.';
+            $certificate->setLastError(substr($errorMessage, 0, 1000));
+            $this->entityManager->persist($certificate);
             return;
         }
 
@@ -1446,6 +1679,15 @@ final class AgentApiController
         if ($expiresAt === null) {
             return;
         }
+
+        $certificate = $this->entityManager->getRepository(Certificate::class)->findOneBy(['domain' => $domain], ['id' => 'DESC']);
+        if (!$certificate instanceof Certificate) {
+            $certificate = new Certificate($domain);
+        }
+        $certificate->setStatus('success');
+        $certificate->setExpiresAt($expiresAt);
+        $certificate->setLastError(null);
+        $this->entityManager->persist($certificate);
 
         $previousExpiry = $domain->getSslExpiresAt();
         $domain->setSslExpiresAt($expiresAt);

@@ -10,7 +10,7 @@ use App\Repository\MailAliasRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: MailAliasRepository::class)]
-#[ORM\Table(name: 'mail_aliases')]
+#[ORM\Table(name: 'mail_aliases', uniqueConstraints: [new ORM\UniqueConstraint(name: 'uniq_mail_aliases_address', columns: ['address'])])]
 class MailAlias implements ResourceEventSource
 {
     use ResourceEventSourceTrait;

@@ -10,7 +10,7 @@ use App\Repository\MailboxRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: MailboxRepository::class)]
-#[ORM\Table(name: 'mailboxes')]
+#[ORM\Table(name: 'mailboxes', uniqueConstraints: [new ORM\UniqueConstraint(name: 'uniq_mailboxes_address', columns: ['address'])])]
 class Mailbox implements ResourceEventSource
 {
     use ResourceEventSourceTrait;

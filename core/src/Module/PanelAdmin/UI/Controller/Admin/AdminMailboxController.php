@@ -6,10 +6,13 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\MailLimitEnforcer;
+use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DomainRepository;
+use App\Repository\MailDomainRepository;
 use App\Repository\MailboxRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -25,9 +28,12 @@ final class AdminMailboxController
     public function __construct(
         private readonly MailboxRepository $mailboxRepository,
         private readonly DomainRepository $domainRepository,
+        private readonly MailDomainRepository $mailDomainRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly EncryptionService $encryptionService,
+        private readonly MailPasswordHasher $mailPasswordHasher,
+        private readonly MailLimitEnforcer $mailLimitEnforcer,
         private readonly Environment $twig,
     ) {
     }
@@ -117,20 +123,29 @@ final class AdminMailboxController
 
         $domain = $formData['domain'];
         $localPart = $formData['local_part'];
-        $passwordHash = password_hash($formData['password'], PASSWORD_ARGON2ID);
+        $passwordHash = $this->mailPasswordHasher->hash($formData['password']);
         $secretPayload = $this->encryptionService->encrypt($formData['password']);
 
-        $mailbox = new Mailbox(
-            $domain,
-            $localPart,
-            $passwordHash,
-            $secretPayload,
-            $formData['quota'],
-            $formData['enabled'],
-        );
+        try {
+            $mailbox = $this->entityManager->wrapInTransaction(function () use ($domain, $localPart, $passwordHash, $secretPayload, $formData): Mailbox {
+                $this->mailLimitEnforcer->lockDomainForMailboxCreate($domain);
+                $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
+                $limitError = $this->mailLimitEnforcer->canCreateMailbox($domain, $mailDomain, $formData['quota']);
+                if ($limitError !== null) {
+                    throw new \DomainException($limitError);
+                }
 
-        $this->entityManager->persist($mailbox);
-        $this->entityManager->flush();
+                $mailbox = new Mailbox($domain, $localPart, $passwordHash, $secretPayload, $formData['quota'], $formData['enabled']);
+                $this->entityManager->persist($mailbox);
+                $this->entityManager->flush();
+
+                return $mailbox;
+            });
+        } catch (\DomainException $exception) {
+            $formData['errors'][] = $exception->getMessage();
+
+            return $this->renderFormWithErrors($domains, $formData, Response::HTTP_CONFLICT);
+        }
 
         $job = $this->queueMailboxJob('mailbox.create', $mailbox, [
             'password_hash' => $passwordHash,
@@ -236,7 +251,7 @@ final class AdminMailboxController
         }
 
         if ($formData['password'] !== '') {
-            $passwordHash = password_hash($formData['password'], PASSWORD_ARGON2ID);
+            $passwordHash = $this->mailPasswordHasher->hash($formData['password']);
             $secretPayload = $this->encryptionService->encrypt($formData['password']);
             $mailbox->setPassword($passwordHash, $secretPayload);
 

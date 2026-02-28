@@ -10,6 +10,13 @@ final class GdprMenuProvider implements ExtensionMenuProviderInterface
     {
         return [
             new MenuItem(
+                'gdpr-overview',
+                'GDPR Overview',
+                '/admin/gdpr',
+                '<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2a7 7 0 1 0 7 7 7 7 0 0 0-7-7Zm0 3a.75.75 0 0 1 .75.75v3.19l1.97 1.96a.75.75 0 1 1-1.06 1.06l-2.19-2.19A.75.75 0 0 1 9.25 9V5.75A.75.75 0 0 1 10 5Z"/></svg>',
+                'admin_nav_gdpr_overview'
+            ),
+            new MenuItem(
                 'gdpr-retention',
                 'GDPR Retention',
                 '/admin/gdpr/retention',

@@ -235,12 +235,90 @@ final class AdminSecurityController
         return new RedirectResponse(sprintf('/admin/security?fail2ban=%s', $agent->getId()));
     }
 
+    #[Route(path: '/ruleset/apply', name: 'admin_security_ruleset_apply', methods: ['POST'])]
+    public function applyUnifiedRuleSet(Request $request): Response
+    {
+        $admin = $this->requireAdmin($request);
+
+        $targetScope = trim((string) $request->request->get('target_scope', 'global'));
+        $targetNodeId = trim((string) $request->request->get('target_node_id', ''));
+        $rulesJson = trim((string) $request->request->get('rules_json', '[]'));
+
+        try {
+            $rules = json_decode($rulesJson, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return $this->renderPage($admin, $request, ['Invalid unified rules JSON payload.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        if (!is_array($rules)) {
+            return $this->renderPage($admin, $request, ['Unified rules payload must be a JSON array.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $sanitizedRules = $this->sanitizeUnifiedRules($rules);
+        if ($sanitizedRules === []) {
+            return $this->renderPage($admin, $request, ['No valid unified rules to apply.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $targets = $targetScope === 'global' ? $this->agentRepository->findAll() : [];
+        if ($targetScope === 'node') {
+            $node = $this->agentRepository->find($targetNodeId);
+            if ($node === null) {
+                return $this->renderPage($admin, $request, ['Target node not found.'], Response::HTTP_NOT_FOUND);
+            }
+            $targets = [$node];
+        }
+
+        foreach ($targets as $targetNode) {
+            $canonicalRules = $this->canonicalizeUnifiedRules($sanitizedRules);
+            $rulesHash = hash('sha256', json_encode($canonicalRules) ?: '[]');
+            $revision = $this->buildPolicyRevision($targetNode, 'unified_ruleset', ['rules' => $canonicalRules, 'hash' => $rulesHash], $admin);
+            $this->cleanupLegacyDistributedSecurity($targetNode);
+            $job = new \App\Module\Core\Domain\Entity\Job('security.ruleset.apply', [
+                'agent_id' => $targetNode->getId(),
+                'target' => $targetScope,
+                'policy_revision_id' => $revision->getId(),
+                'ruleset' => [
+                    'version' => $revision->getVersion(),
+                    'created_by' => $admin->getEmail(),
+                    'hash' => $rulesHash,
+                    'rules' => $canonicalRules,
+                ],
+            ]);
+            $this->entityManager->persist($job);
+        }
+
+        $this->entityManager->flush();
+
+        return new RedirectResponse('/admin/security?ruleset=applied');
+    }
+
+    #[Route(path: '/ruleset/{id}/rollback', name: 'admin_security_ruleset_rollback', methods: ['POST'])]
+    public function rollbackUnifiedRuleSet(Request $request, string $id): Response
+    {
+        $admin = $this->requireAdmin($request);
+        $agent = $this->agentRepository->find($id);
+        if ($agent === null) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $revision = $this->buildPolicyRevision($agent, 'unified_ruleset', ['rollback' => true], $admin);
+        $job = new \App\Module\Core\Domain\Entity\Job('security.ruleset.rollback', [
+            'agent_id' => $agent->getId(),
+            'policy_revision_id' => $revision->getId(),
+        ]);
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+
+        return new RedirectResponse('/admin/security?ruleset=rollback');
+    }
+
     private function renderPage(User $admin, Request $request, array $errors = [], int $status = Response::HTTP_OK): Response
     {
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
         $firewallJobs = $this->buildFirewallJobIndex($agents);
         $firewallRevisions = $this->indexPolicyRevisions($agents, 'firewall');
         $fail2banRevisions = $this->indexPolicyRevisions($agents, 'fail2ban');
+        $unifiedRevisions = $this->indexPolicyRevisions($agents, 'unified_ruleset');
         $firewallNodes = array_map(function ($agent) use ($firewallJobs, $firewallRevisions): array {
             $state = $this->firewallStateRepository->findOneBy(['node' => $agent]);
             $ports = $state?->getPorts() ?? [];
@@ -277,8 +355,9 @@ final class AdminSecurityController
             ];
         }, $agents);
 
-        $fail2banNodes = array_map(function ($agent) use ($fail2banRevisions): array {
+        $fail2banNodes = array_map(function ($agent) use ($fail2banRevisions, $unifiedRevisions): array {
             $revision = $fail2banRevisions[$agent->getId()] ?? null;
+            $unifiedRevision = $unifiedRevisions[$agent->getId()] ?? null;
             $payload = $revision?->getPayload() ?? [];
 
             return [
@@ -293,6 +372,11 @@ final class AdminSecurityController
                     'updatedAt' => $revision->getUpdatedAt(),
                     'appliedAt' => $revision->getAppliedAt(),
                     'payload' => $payload,
+                ],
+                'unifiedPolicy' => $unifiedRevision === null ? null : [
+                    'version' => $unifiedRevision->getVersion(),
+                    'status' => $unifiedRevision->getStatus(),
+                    'updatedAt' => $unifiedRevision->getUpdatedAt(),
                 ],
             ];
         }, $agents);
@@ -322,7 +406,119 @@ final class AdminSecurityController
             'securityEvents' => $events,
             'securityEventSummary' => $eventSummary,
             'securityEventFilters' => $eventFilters,
+            'rulesetUpdated' => $request->query->get('ruleset'),
         ]), $status);
+    }
+
+    /**
+     * @param array<int, mixed> $rules
+     * @return array<int, array<string, mixed>>
+     */
+    private function sanitizeUnifiedRules(array $rules): array
+    {
+        $sanitized = [];
+        foreach ($rules as $idx => $rule) {
+            if (!is_array($rule)) {
+                continue;
+            }
+
+            $type = strtolower(trim((string) ($rule['type'] ?? '')));
+            $action = strtolower(trim((string) ($rule['action'] ?? '')));
+            $port = (int) ($rule['port'] ?? 0);
+            $priority = (int) ($rule['priority'] ?? 100);
+            $enabled = filter_var($rule['enabled'] ?? true, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+            $reason = trim((string) ($rule['reason'] ?? ''));
+            $service = trim((string) (($rule['target']['service'] ?? '')));
+
+            if (!in_array($type, ['firewall', 'fail2ban'], true) || !in_array($action, ['allow', 'block', 'ban'], true)) {
+                continue;
+            }
+            if ($type === 'firewall' && ($port < 1 || $port > 65535)) {
+                continue;
+            }
+            if ($service !== '' && preg_match('/[\*\+\?\[\]\{\}\(\)\\]/', $service)) {
+                continue;
+            }
+            if ($reason !== '' && preg_match('/[\r\n]/', $reason)) {
+                continue;
+            }
+
+            $sanitized[] = [
+                'id' => (string) ($rule['id'] ?? sprintf('rule-%d', $idx + 1)),
+                'type' => $type,
+                'action' => $action,
+                'protocol' => in_array(($rule['protocol'] ?? 'tcp'), ['tcp', 'udp'], true) ? $rule['protocol'] : 'tcp',
+                'port' => $port,
+                'priority' => max(1, min(1000, $priority)),
+                'enabled' => $enabled ?? true,
+                'reason' => mb_substr($reason, 0, 120),
+                'source_ip' => filter_var(($rule['source_ip'] ?? null), FILTER_VALIDATE_IP) ? (string) $rule['source_ip'] : null,
+                'source_asn' => is_string($rule['source_asn'] ?? null) ? mb_substr(trim((string) $rule['source_asn']), 0, 16) : null,
+                'target' => [
+                    'scope' => is_string($rule['target']['scope'] ?? null) ? $rule['target']['scope'] : 'global',
+                    'service' => $service !== '' ? mb_substr($service, 0, 64) : null,
+                ],
+            ];
+        }
+
+        usort($sanitized, static fn (array $left, array $right): int => [$left['priority'], $left['id']] <=> [$right['priority'], $right['id']]);
+        return $sanitized;
+    }
+
+
+    /**
+     * @param array<int, array<string, mixed>> $rules
+     * @return array<int, array<string, mixed>>
+     */
+    private function canonicalizeUnifiedRules(array $rules): array
+    {
+        foreach ($rules as &$rule) {
+            $rule['id'] = trim((string) ($rule['id'] ?? ''));
+            $rule['type'] = strtolower(trim((string) ($rule['type'] ?? '')));
+            $rule['action'] = strtolower(trim((string) ($rule['action'] ?? '')));
+            $rule['protocol'] = strtolower(trim((string) ($rule['protocol'] ?? 'tcp')));
+            $rule['port'] = max(0, min(65535, (int) ($rule['port'] ?? 0)));
+            $rule['priority'] = max(1, min(1000, (int) ($rule['priority'] ?? 100)));
+            $rule['enabled'] = (bool) ($rule['enabled'] ?? true);
+            $rule['reason'] = mb_substr(preg_replace('/\s+/', ' ', trim((string) ($rule['reason'] ?? ''))) ?? '', 0, 120);
+            $sourceIp = trim((string) ($rule['source_ip'] ?? ''));
+            if ($sourceIp !== '' && str_contains($sourceIp, '/')) {
+                [$ip, $mask] = array_pad(explode('/', $sourceIp, 2), 2, null);
+                $packed = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) ? ip2long($ip) : false;
+                if ($packed !== false && is_numeric($mask)) {
+                    $maskInt = max(0, min(32, (int) $mask));
+                    $network = long2ip($packed & (-1 << (32 - $maskInt)));
+                    $sourceIp = sprintf('%s/%d', $network, $maskInt);
+                }
+            }
+            $rule['source_ip'] = $sourceIp !== '' ? $sourceIp : null;
+            $rule['source_asn'] = isset($rule['source_asn']) ? mb_strtoupper(trim((string) $rule['source_asn'])) : null;
+            $target = is_array($rule['target'] ?? null) ? $rule['target'] : [];
+            $rule['target'] = [
+                'scope' => strtolower(trim((string) ($target['scope'] ?? 'global'))),
+                'service' => ($target['service'] ?? null) !== null ? strtolower(trim((string) $target['service'])) : null,
+            ];
+        }
+        unset($rule);
+
+        usort($rules, static fn (array $left, array $right): int => [$left['priority'], $left['id'], $left['port']] <=> [$right['priority'], $right['id'], $right['port']]);
+
+        return array_values($rules);
+    }
+
+    private function cleanupLegacyDistributedSecurity(\App\Module\Core\Domain\Entity\Agent $agent): void
+    {
+        $jobs = $this->jobRepository->findBy(['status' => \App\Module\Core\Domain\Enum\JobStatus::Queued], ['createdAt' => 'DESC']);
+        foreach ($jobs as $job) {
+            $payload = $job->getPayload();
+            $agentId = is_string($payload['agent_id'] ?? null) ? $payload['agent_id'] : null;
+            if ($agentId !== $agent->getId()) {
+                continue;
+            }
+            if (in_array($job->getType(), ['firewall.open_ports', 'firewall.close_ports', 'fail2ban.policy.apply'], true)) {
+                $job->transitionTo(\App\Module\Core\Domain\Enum\JobStatus::Cancelled);
+            }
+        }
     }
 
     private function buildPolicyRevision(\App\Module\Core\Domain\Entity\Agent $agent, string $policyType, array $payload, User $admin): SecurityPolicyRevision

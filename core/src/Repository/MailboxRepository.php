@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Module\Core\Application\MailboxStatsProviderInterface;
+use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class MailboxRepository extends ServiceEntityRepository
+final class MailboxRepository extends ServiceEntityRepository implements MailboxStatsProviderInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -27,5 +29,22 @@ final class MailboxRepository extends ServiceEntityRepository
     public function findOneByAddress(string $address): ?Mailbox
     {
         return $this->findOneBy(['address' => $address]);
+    }
+
+    public function countByDomain(Domain $domain): int
+    {
+        return $this->count(['domain' => $domain]);
+    }
+
+    public function sumQuotaByDomainId(int $domainId): int
+    {
+        $value = $this->createQueryBuilder('m')
+            ->select('COALESCE(SUM(m.quota), 0)')
+            ->where('IDENTITY(m.domain) = :domainId')
+            ->setParameter('domainId', $domainId)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return (int) $value;
     }
 }

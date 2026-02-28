@@ -92,4 +92,23 @@ class AuditLogRepository extends ServiceEntityRepository
     {
         return $this->findRecentSummaries($limit);
     }
+
+    /**
+     * @param list<string> $actions
+     * @return AuditLog[]
+     */
+    public function findRecentByActions(array $actions, int $limit = 50): array
+    {
+        if ($actions === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('audit')
+            ->andWhere('audit.action IN (:actions)')
+            ->setParameter('actions', $actions)
+            ->orderBy('audit.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
 }

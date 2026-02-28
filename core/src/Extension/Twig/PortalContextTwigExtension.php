@@ -7,10 +7,10 @@ namespace App\Extension\Twig;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\CookieConsentService;
+use App\Module\Core\Application\PortalLocale;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Repository\AgentRepository;
-use App\Repository\InvoicePreferencesRepository;
 use App\Repository\NotificationRepository;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -22,7 +22,6 @@ final class PortalContextTwigExtension extends AbstractExtension
     public function __construct(
         private readonly RequestStack $requestStack,
         private readonly NotificationRepository $notificationRepository,
-        private readonly InvoicePreferencesRepository $invoicePreferencesRepository,
         private readonly WebinterfaceUpdateService $webinterfaceUpdateService,
         private readonly AgentRepository $agentRepository,
         private readonly AgentReleaseChecker $agentReleaseChecker,
@@ -60,33 +59,9 @@ final class PortalContextTwigExtension extends AbstractExtension
     public function pageLocale(): string
     {
         $request = $this->requestStack->getCurrentRequest();
-        $requestedLocale = null;
+        $locale = $request?->getLocale();
 
-        if ($request !== null) {
-            $requestedLocale = $request->query->get('lang') ?? $request->query->get('locale');
-        }
-
-        if (is_string($requestedLocale)) {
-            $requestedLocale = strtolower(trim($requestedLocale));
-            if (in_array($requestedLocale, ['de', 'en'], true)) {
-                return $requestedLocale;
-            }
-        }
-
-        $actor = $request?->attributes->get('current_user');
-
-        if (!$actor instanceof User) {
-            $cookieLocale = $request?->cookies->get('portal_language');
-
-            if (is_string($cookieLocale) && in_array($cookieLocale, ['de', 'en'], true)) {
-                return $cookieLocale;
-            }
-
-            return 'de';
-        }
-
-        $preferences = $this->invoicePreferencesRepository->findOneByCustomer($actor);
-        return $preferences?->getPortalLanguage() ?? 'de';
+        return PortalLocale::normalize($locale) ?? PortalLocale::DEFAULT;
     }
 
     public function unreadNotifications(): int

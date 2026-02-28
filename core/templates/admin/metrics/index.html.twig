@@ -65,6 +65,12 @@
             </form>
         </div>
 
+        <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm">
+            <p class="text-xs uppercase text-slate-600">Node status</p>
+            <p class="mt-1 font-semibold {% if nodeHealthStatus == 'critical' %}text-red-600{% elseif nodeHealthStatus == 'warning' %}text-amber-600{% elseif nodeHealthStatus == 'offline' %}text-slate-500{% else %}text-emerald-600{% endif %}">{{ nodeHealthStatus|upper }}</p>
+            <p class="text-xs text-slate-600">last_seen: {{ nodeLastSeenAt ? nodeLastSeenAt|date('Y-m-d H:i:s') ~ ' UTC' : 'never' }} · grace {{ heartbeatGraceSeconds }}s</p>
+        </div>
+
         <div class="overflow-x-auto">
             <div class="grid min-w-[1500px] grid-cols-5 gap-4">
             <div class="rounded-xl border border-slate-200 bg-white p-5">

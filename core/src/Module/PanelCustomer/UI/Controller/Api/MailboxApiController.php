@@ -6,10 +6,13 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\MailLimitEnforcer;
+use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DomainRepository;
+use App\Repository\MailDomainRepository;
 use App\Repository\MailboxRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,9 +26,12 @@ final class MailboxApiController
     public function __construct(
         private readonly MailboxRepository $mailboxRepository,
         private readonly DomainRepository $domainRepository,
+        private readonly MailDomainRepository $mailDomainRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly EncryptionService $encryptionService,
+        private readonly MailPasswordHasher $mailPasswordHasher,
+        private readonly MailLimitEnforcer $mailLimitEnforcer,
     ) {
     }
 
@@ -61,20 +67,35 @@ final class MailboxApiController
             return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
         }
 
-        $passwordHash = password_hash($formData['password'], PASSWORD_ARGON2ID);
+        $passwordHash = $this->mailPasswordHasher->hash($formData['password']);
         $secretPayload = $this->encryptionService->encrypt($formData['password']);
 
-        $mailbox = new Mailbox(
-            $domain,
-            $formData['local_part'],
-            $passwordHash,
-            $secretPayload,
-            $formData['quota'],
-            $formData['enabled'],
-        );
+        try {
+            $mailbox = $this->entityManager->wrapInTransaction(function () use ($domain, $formData, $passwordHash, $secretPayload): Mailbox {
+                $this->mailLimitEnforcer->lockDomainForMailboxCreate($domain);
+                $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
+                $limitError = $this->mailLimitEnforcer->canCreateMailbox($domain, $mailDomain, $formData['quota']);
+                if ($limitError !== null) {
+                    throw new \DomainException($limitError);
+                }
 
-        $this->entityManager->persist($mailbox);
-        $this->entityManager->flush();
+                $mailbox = new Mailbox(
+                    $domain,
+                    $formData['local_part'],
+                    $passwordHash,
+                    $secretPayload,
+                    $formData['quota'],
+                    $formData['enabled'],
+                );
+
+                $this->entityManager->persist($mailbox);
+                $this->entityManager->flush();
+
+                return $mailbox;
+            });
+        } catch (\DomainException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_CONFLICT);
+        }
 
         $job = $this->queueMailboxJob('mailbox.create', $mailbox, [
             'password_hash' => $passwordHash,
@@ -246,7 +267,7 @@ final class MailboxApiController
             return new JsonResponse(['error' => 'Password must be at least 8 characters.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
-        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $passwordHash = $this->mailPasswordHasher->hash($password);
         $secretPayload = $this->encryptionService->encrypt($password);
         $mailbox->setPassword($passwordHash, $secretPayload);
 

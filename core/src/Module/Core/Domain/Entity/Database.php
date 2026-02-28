@@ -10,7 +10,13 @@ use App\Repository\DatabaseRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: DatabaseRepository::class)]
-#[ORM\Table(name: '`databases`')]
+#[ORM\Table(
+    name: '`databases`',
+    uniqueConstraints: [
+        new ORM\UniqueConstraint(name: 'uniq_databases_customer_engine_name', columns: ['customer_id', 'engine', 'name']),
+        new ORM\UniqueConstraint(name: 'uniq_databases_customer_engine_username', columns: ['customer_id', 'engine', 'username']),
+    ],
+)]
 class Database implements ResourceEventSource
 {
     use ResourceEventSourceTrait;

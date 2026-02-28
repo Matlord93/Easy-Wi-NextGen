@@ -10,6 +10,7 @@ use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\TwoFactorService;
 use App\Module\Core\Domain\Entity\User;
 use App\Security\TwoFactorPolicy;
+use App\Repository\UserSessionRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
@@ -35,6 +36,7 @@ final class CustomerSecurityController
         private readonly TwoFactorPolicy $twoFactorPolicy,
         private readonly AppSettingsService $settingsService,
         private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly UserSessionRepository $sessionRepository,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         #[Autowire(service: 'limiter.account_security_confirm')]
         private readonly RateLimiterFactory $confirmLimiter,
@@ -110,6 +112,19 @@ final class CustomerSecurityController
         }
 
         $user->setPasswordHash($this->passwordHasher->hashPassword($user, $newPassword));
+        $revokedSessions = $this->sessionRepository->deleteByUser($user);
+
+        $this->auditLogger->log($user, 'security_password_changed', [
+            'user_id' => $user->getId(),
+            'revoked_sessions' => $revokedSessions,
+            'context' => 'customer_security',
+        ]);
+        $this->auditLogger->log($user, 'logout', [
+            'reason' => 'password_changed',
+            'revoked_sessions' => $revokedSessions,
+            'context' => 'customer_security',
+        ]);
+
         $this->entityManager->flush();
 
         return $this->renderPage($request, $user, [], Response::HTTP_OK, ['success' => 'password_changed_success']);
@@ -139,7 +154,7 @@ final class CustomerSecurityController
         $codes = $this->twoFactorService->generateRecoveryCodes();
         $user->setTotpRecoveryCodes($this->twoFactorService->hashRecoveryCodes($codes));
 
-        $this->auditLogger->log($user, 'two_factor.enabled', [
+        $this->auditLogger->log($user, '2fa_enabled', [
             'user_id' => $user->getId(),
             'context' => 'customer_security',
         ]);
@@ -179,7 +194,7 @@ final class CustomerSecurityController
         $user->setTotpSecret(null);
         $user->clearTotpRecoveryCodes();
 
-        $this->auditLogger->log($user, 'two_factor.disabled', [
+        $this->auditLogger->log($user, '2fa_disabled', [
             'user_id' => $user->getId(),
             'context' => 'customer_security',
         ]);

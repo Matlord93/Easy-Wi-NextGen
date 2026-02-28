@@ -106,33 +106,34 @@ final class InstanceQueryResolverTest extends TestCase
         self::assertSame(27015, $spec->getPort());
     }
 
-    public function testPrefersServiceBaseUrlHostWhenOtherCandidatesAreLoopback(): void
+    public function testPrefersServiceBaseUrlIpv4HostWhenOtherCandidatesAreLoopback(): void
     {
         $instance = $this->createInstance('l4d2', 550, [
             ['name' => 'game', 'protocol' => 'udp'],
             ['name' => 'query', 'protocol' => 'udp'],
         ]);
         $instance->getNode()->setMetadata([]);
-        $instance->getNode()->setServiceBaseUrl('https://agent.example.net:7456');
+        $instance->getNode()->setServiceBaseUrl('https://198.51.100.13:7456');
         $instance->getNode()->recordHeartbeat([], '1.0.0', '127.0.0.1');
 
         $spec = (new InstanceQueryResolver())->resolve($instance, $this->createPortBlock($instance, 27015, 27016));
 
-        self::assertSame('agent.example.net', $spec->getHost());
+        self::assertSame('198.51.100.13', $spec->getHost());
         self::assertSame(27015, $spec->getPort());
     }
 
 
-    public function testFallsBackToMetadataHostnameWhenNoIpCandidatesExist(): void
+    public function testSkipsIpv6AddressAndUsesHostnameCandidate(): void
     {
         $instance = $this->createInstance('l4d2', 550, [
             ['name' => 'game', 'protocol' => 'udp'],
         ]);
         $instance->getNode()->setMetadata([
-            'hostname' => 'node-2.internal.lan',
+            'hostname' => 'ipv6-only.example.test',
+            'public_ip' => '2a01:4f8:10a:3daf::2',
         ]);
         $instance->getNode()->setServiceBaseUrl(null);
-        $instance->getNode()->recordHeartbeat([], '1.0.0', '127.0.0.1');
+        $instance->getNode()->recordHeartbeat([], '1.0.0', '2a01:4f8:10a:3daf::2');
         $instance->setSetupVars([
             'GAME_PORT' => '27015',
             'NETWORK_MODE' => 'isolated',
@@ -140,8 +141,30 @@ final class InstanceQueryResolverTest extends TestCase
 
         $spec = (new InstanceQueryResolver())->resolve($instance, null);
 
-        self::assertSame('node-2.internal.lan', $spec->getHost());
+        self::assertSame('ipv6-only.example.test', $spec->getHost());
         self::assertSame('node_ip', $spec->getExtra()['resolved_host_source']);
+    }
+
+
+    public function testRejectsIpv6OnlyCandidatesInIsolatedNetwork(): void
+    {
+        $instance = $this->createInstance('l4d2', 550, [
+            ['name' => 'game', 'protocol' => 'udp'],
+        ]);
+        $instance->getNode()->setMetadata([
+            'public_ip' => '2a01:4f8:10a:3daf::2',
+        ]);
+        $instance->getNode()->setServiceBaseUrl(null);
+        $instance->getNode()->recordHeartbeat([], '1.0.0', '2a01:4f8:10a:3daf::2');
+        $instance->setSetupVars([
+            'GAME_PORT' => '27015',
+            'NETWORK_MODE' => 'isolated',
+        ]);
+
+        $this->expectException(InvalidInstanceQueryConfiguration::class);
+        $this->expectExceptionMessage('Query host is missing');
+
+        (new InstanceQueryResolver())->resolve($instance, null);
     }
 
     public function testInvalidPortThrowsException(): void

@@ -23,5 +23,8 @@ final class InstanceAccessCredentialApiContractTest extends TestCase
         self::assertStringContainsString('resolvePreferredBackend', $controller);
         self::assertStringContainsString('getAccessCapabilities', $controller);
         self::assertStringContainsString("setBackend('NONE')", $controller);
+        self::assertStringContainsString('sftp_agent_timeout', $controller);
+        self::assertStringContainsString('sftp_agent_unreachable', $controller);
+        self::assertStringContainsString('HTTP_GATEWAY_TIMEOUT', $controller);
     }
 }

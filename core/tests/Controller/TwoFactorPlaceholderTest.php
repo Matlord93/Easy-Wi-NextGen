@@ -54,7 +54,7 @@ final class TwoFactorPlaceholderTest extends WebTestCase
         $client->request('POST', '/2fa_check', ['otp' => $code, '_token' => $csrf]);
 
         self::assertResponseRedirects('/');
-        self::assertNotNull($client->getCookieJar()->get('easywi_session'));
+        self::assertNotNull($client->getCookieJar()->get('easywi_customer_session') ?? $client->getCookieJar()->get('easywi_session'));
     }
 
     public function testTwoFactorInvalidCodeEventuallyLocksOut(): void

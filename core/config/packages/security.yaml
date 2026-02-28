@@ -15,5 +15,6 @@ security:
     main:
       lazy: true
       provider: app_users
+      remember_me: false
 
   access_control: []

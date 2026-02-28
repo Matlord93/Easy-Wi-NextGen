@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\User;
@@ -23,6 +24,7 @@ final class MailAliasApiController
         private readonly DomainRepository $domainRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly MailAliasLoopGuard $loopGuard,
         #[Autowire('%env(default::APP_MAIL_ALIAS_MAP_PATH)%')]
         private readonly ?string $aliasMapPath,
     ) {
@@ -89,6 +91,11 @@ final class MailAliasApiController
             return new JsonResponse(['error' => 'Alias address already exists.'], JsonResponse::HTTP_CONFLICT);
         }
 
+        $existingAliases = $this->aliasRepository->findByCustomer($domain->getCustomer());
+        if ($this->loopGuard->wouldCreateLoop($address, $destinations, $existingAliases)) {
+            return new JsonResponse(['error' => 'Alias loop detected.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
         $alias = new MailAlias($domain, $localPart, $destinations, $enabled);
         $this->entityManager->persist($alias);
         $this->entityManager->flush();
@@ -140,6 +147,11 @@ final class MailAliasApiController
         $destinations = $destinationsInput !== '' ? $this->parseDestinations($destinationsInput) : $alias->getDestinations();
         if ($destinations === []) {
             return new JsonResponse(['error' => 'Forward destinations are required.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $existingAliases = $this->aliasRepository->findByCustomer($alias->getCustomer());
+        if ($this->loopGuard->wouldCreateLoop($alias->getAddress(), $destinations, $existingAliases)) {
+            return new JsonResponse(['error' => 'Alias loop detected.'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
         $previous = [

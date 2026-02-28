@@ -17,6 +17,7 @@ use App\Module\Core\Domain\Entity\ShopProduct;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Ports\Domain\Entity\PortAllocation;
 use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
@@ -615,6 +616,38 @@ final class AdminNodeController
         return $this->renderNodesTable();
     }
 
+    #[Route(path: '/rollout', name: 'admin_nodes_rollout', methods: ['POST'])]
+    public function rolloutAgents(Request $request): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $stageSize = max(1, (int) $request->request->get('stage_size', 5));
+        $targetVersion = trim((string) $request->request->get('target_version', ''));
+        $rollbackVersion = trim((string) $request->request->get('rollback_version', ''));
+
+        $allNodes = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+        $nodes = array_values(array_filter($allNodes, static fn ($node): bool => $node->getStatus() !== \App\Module\Core\Domain\Entity\Agent::STATUS_DECOMMISSIONED));
+        $updateJobs = $this->buildUpdateJobIndex($nodes);
+        $chunks = array_chunk($nodes, $stageSize);
+
+        $queuedStages = 0;
+        foreach ($chunks as $stageIndex => $stageNodes) {
+            $queued = $this->queueAgentUpdates($stageNodes, $targetVersion !== '' ? $targetVersion : null, $updateJobs, $actor, [
+                'stage' => $stageIndex + 1,
+                'rollback_version' => $rollbackVersion !== '' ? $rollbackVersion : null,
+                'version_pinned' => $targetVersion !== '',
+            ]);
+            if ($queued > 0) {
+                $queuedStages++;
+            }
+        }
+
+        return $this->renderNodesTable(sprintf('Rollout queued in %d stage(s) with stage size %d.', $queuedStages, $stageSize));
+    }
+
     #[Route(path: '/{id}/update', name: 'admin_nodes_update_one', methods: ['POST'])]
     public function updateAgent(Request $request, string $id): Response
     {
@@ -763,19 +796,15 @@ final class AdminNodeController
             return $this->renderNodesTable(null, 'Deletion requires confirming the Agent ID.');
         }
 
-        $this->removeNodeArtifacts($node);
+        $this->decommissionNode($node);
 
         $this->auditLogger->log($actor, 'node.deleted', [
             'node_id' => $node->getId(),
             'name' => $node->getName(),
         ]);
-
-        $this->entityManager->remove($node);
         $this->entityManager->flush();
 
-        return new Response('', Response::HTTP_NO_CONTENT, [
-            'HX-Redirect' => '/admin/nodes',
-        ]);
+        return $this->renderNodesTable('Agent decommissioned. Tokens revoked and pending jobs cleaned up.');
     }
 
     #[Route(path: '/provision', name: 'admin_nodes_provision_all', methods: ['POST'])]
@@ -846,13 +875,26 @@ final class AdminNodeController
             'online' => 0,
             'stale' => 0,
             'offline' => 0,
+            'decommissioned' => 0,
             'updates' => 0,
             'latestVersion' => $latestVersion,
         ];
 
         foreach ($nodes as $node) {
             $status = $this->resolveNodeStatus($node);
-            $summary[$status]++;
+            if ($status === \App\Module\Core\Domain\Entity\Agent::STATUS_ACTIVE) {
+                $summary['online']++;
+            } elseif ($status === \App\Module\Core\Domain\Entity\Agent::STATUS_REGISTERED) {
+                $summary['stale']++;
+            } elseif ($status === \App\Module\Core\Domain\Entity\Agent::STATUS_DECOMMISSIONED) {
+                $summary['decommissioned']++;
+            } else {
+                $summary['offline']++;
+            }
+            if ($status === \App\Module\Core\Domain\Entity\Agent::STATUS_DECOMMISSIONED) {
+                continue;
+            }
+
             $updateAvailable = $this->releaseChecker->isUpdateAvailable(
                 $node->getLastHeartbeatVersion(),
                 $latestVersion,
@@ -938,34 +980,9 @@ final class AdminNodeController
         ];
     }
 
-    private function resolveStatus(?\DateTimeImmutable $lastHeartbeatAt): string
-    {
-        if ($lastHeartbeatAt === null) {
-            return 'offline';
-        }
-
-        $now = new \DateTimeImmutable();
-        $minutes = (int) floor(($now->getTimestamp() - $lastHeartbeatAt->getTimestamp()) / 60);
-
-        if ($minutes <= 2) {
-            return 'online';
-        }
-
-        if ($minutes <= 10) {
-            return 'stale';
-        }
-
-        return 'offline';
-    }
-
     private function resolveNodeStatus(\App\Module\Core\Domain\Entity\Agent $node): string
     {
-        $status = $node->getStatus();
-        if ($status !== '') {
-            return $status;
-        }
-
-        return $this->resolveStatus($node->getLastHeartbeatAt());
+        return $node->resolveLifecycleStatus();
     }
 
     private function hasAdminSshKey(): bool
@@ -1124,8 +1141,13 @@ final class AdminNodeController
         return sprintf('Node cannot be deleted while it still has: %s.', implode(', ', $parts));
     }
 
-    private function removeNodeArtifacts(\App\Module\Core\Domain\Entity\Agent $node): void
+    private function decommissionNode(\App\Module\Core\Domain\Entity\Agent $node): void
     {
+        $node->markDecommissioned();
+        $node->clearAgentApiToken();
+
+        $this->cleanupNodeJobs($node);
+
         $firewallState = $this->firewallStateRepository->findOneBy(['node' => $node]);
         if ($firewallState !== null) {
             $this->entityManager->remove($firewallState);
@@ -1190,6 +1212,43 @@ final class AdminNodeController
             ->execute();
     }
 
+    private function cleanupNodeJobs(\App\Module\Core\Domain\Entity\Agent $node): void
+    {
+        $jobs = $this->jobRepository->createQueryBuilder('job')
+            ->where('job.payload LIKE :agentPayload')
+            ->andWhere('job.status IN (:statuses)')
+            ->setParameter('agentPayload', '%"agent_id":"' . $node->getId() . '"%')
+            ->setParameter('statuses', [JobStatus::Queued, JobStatus::Claimed, JobStatus::Running])
+            ->getQuery()
+            ->getResult();
+
+        foreach ($jobs as $job) {
+            if (!$job instanceof Job) {
+                continue;
+            }
+
+            $job->transitionTo(JobStatus::Cancelled);
+            $job->recordFailure('agent_decommissioned', 'Agent decommissioned while job was still pending.');
+        }
+
+        $agentJobs = $this->agentJobRepository->createQueryBuilder('job')
+            ->where('job.node = :agent')
+            ->andWhere('job.status IN (:statuses)')
+            ->setParameter('agent', $node)
+            ->setParameter('statuses', [AgentJobStatus::Queued, AgentJobStatus::Running])
+            ->getQuery()
+            ->getResult();
+
+        foreach ($agentJobs as $agentJob) {
+            if (!$agentJob instanceof \App\Module\AgentOrchestrator\Domain\Entity\AgentJob) {
+                continue;
+            }
+
+            $agentJob->setErrorText('Agent decommissioned while job was pending.');
+            $agentJob->markFinished(AgentJobStatus::Failed);
+        }
+    }
+
     private function normalizeNodes(
         array $nodes,
         ?string $latestVersion,
@@ -1239,6 +1298,7 @@ final class AdminNodeController
             $coreAccessMode = $metadata['core_access_mode'] ?? null;
             $instanceBaseDirs = $this->normalizeInstanceBaseDirs($metadata['instance_base_dirs'] ?? null);
             $mailSettings = $this->normalizeMailSettings($metadata);
+            $usage = $this->buildNodeUsage($node);
 
             return [
                 'id' => $node->getId(),
@@ -1254,6 +1314,16 @@ final class AdminNodeController
                 'osProvider' => is_string($osProvider) ? $osProvider : null,
                 'rebootRequired' => is_bool($rebootRequired) ? $rebootRequired : null,
                 'services' => is_array($serviceStats) ? $serviceStats : [],
+                'serviceMapping' => [
+                    'node' => $node->getName() ?? $node->getId(),
+                    'agent_id' => $node->getId(),
+                    'services' => [
+                        'instances' => $usage['instances'],
+                        'webspaces' => $usage['webspaces'],
+                        'ts3_instances' => $usage['ts3_instances'],
+                        'ts6_instances' => $usage['ts6_instances'],
+                    ],
+                ],
                 'disk' => [
                     'free_bytes' => $diskStat['free_bytes'] ?? null,
                     'free_percent' => $diskStat['free_percent'] ?? null,
@@ -1484,15 +1554,22 @@ final class AdminNodeController
      * @param \App\Module\Core\Domain\Entity\Agent[] $nodes
      * @param array<string, Job> $existingJobs
      */
-    private function queueAgentUpdates(array $nodes, ?string $latestVersion, array $existingJobs, User $actor): void
+    private function queueAgentUpdates(array $nodes, ?string $latestVersion, array $existingJobs, User $actor, array $extraPayload = []): int
     {
+        $queued = 0;
+        $isVersionPinned = ($extraPayload['version_pinned'] ?? false) === true;
+
         foreach ($nodes as $node) {
-            $payload = $this->buildAgentUpdatePayload($node, $latestVersion);
+            $existingJob = $existingJobs[$node->getId()] ?? null;
+            $payload = $this->buildAgentUpdatePayload($node, $latestVersion, $extraPayload['rollback_version'] ?? null, $existingJob);
             if ($payload === null) {
                 continue;
             }
 
-            $existingJob = $existingJobs[$node->getId()] ?? null;
+            if ($extraPayload !== []) {
+                $payload = array_merge($payload, $extraPayload);
+            }
+
             if ($existingJob !== null) {
                 if ($existingJob->getStatus() === JobStatus::Running) {
                     continue;
@@ -1503,7 +1580,9 @@ final class AdminNodeController
                     $existingVersion = is_string($existingPayload['version'] ?? null) ? (string) $existingPayload['version'] : null;
                     $newVersion = is_string($payload['version'] ?? null) ? (string) $payload['version'] : null;
 
-                    if ($existingVersion !== null && $newVersion !== null
+                    if ($isVersionPinned && $existingVersion !== $newVersion) {
+                        $existingJob->transitionTo(JobStatus::Cancelled);
+                    } elseif ($existingVersion !== null && $newVersion !== null
                         && $this->releaseChecker->isUpdateAvailable($existingVersion, $newVersion) === true) {
                         $existingJob->transitionTo(JobStatus::Cancelled);
                     } else {
@@ -1521,12 +1600,14 @@ final class AdminNodeController
                 'version' => $payload['version'],
                 'asset_name' => $payload['asset_name'],
             ]);
+            $queued++;
         }
 
         $this->entityManager->flush();
+        return $queued;
     }
 
-    private function buildAgentUpdatePayload(\App\Module\Core\Domain\Entity\Agent $node, ?string $latestVersion): ?array
+    private function buildAgentUpdatePayload(\App\Module\Core\Domain\Entity\Agent $node, ?string $latestVersion, ?string $rollbackVersion = null, ?Job $existingJob = null): ?array
     {
         $currentVersion = $node->getLastHeartbeatVersion();
 
@@ -1539,7 +1620,8 @@ final class AdminNodeController
             return null;
         }
 
-        $releaseInfo = $this->releaseChecker->getReleaseAssetUrls($assetName);
+        $targetVersion = $rollbackVersion !== null && $rollbackVersion !== "" ? $rollbackVersion : $latestVersion;
+        $releaseInfo = $this->releaseChecker->getReleaseAssetUrls($assetName, $targetVersion);
         if ($releaseInfo === null) {
             return null;
         }
@@ -1549,8 +1631,15 @@ final class AdminNodeController
             return null;
         }
 
-        if ($this->releaseChecker->isUpdateAvailable($currentVersion, $version) !== true) {
-            return null;
+        if ($rollbackVersion === null || $rollbackVersion === '') {
+            if ($this->releaseChecker->isUpdateAvailable($currentVersion, $version) !== true) {
+                return null;
+            }
+        }
+
+        $lastFailedReason = null;
+        if ($existingJob instanceof Job && $existingJob->getStatus() === JobStatus::Failed) {
+            $lastFailedReason = $existingJob->getLastError() ?? $existingJob->getLastErrorCode();
         }
 
         return [
@@ -1560,6 +1649,9 @@ final class AdminNodeController
             'signature_url' => $releaseInfo['signature_url'] ?? null,
             'asset_name' => $releaseInfo['asset_name'],
             'version' => $version,
+            'last_known_good_version' => $currentVersion,
+            'previous_failed_reason' => $lastFailedReason,
+            'rollout_pin' => $latestVersion !== null && $latestVersion !== '',
         ];
     }
 

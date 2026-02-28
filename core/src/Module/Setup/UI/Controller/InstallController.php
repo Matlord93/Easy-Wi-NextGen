@@ -24,8 +24,6 @@ final class InstallController
     #[Route(path: '/install', name: 'public_install', methods: ['GET', 'POST'])]
     public function install(Request $request): Response
     {
-        $this->installerService->resolveInstallerLocale($request);
-
         if ($this->installerService->isLocked()) {
             return new Response($this->twig->render('install/already_installed.html.twig', [
                 'step' => 1,
@@ -413,8 +411,6 @@ final class InstallController
     #[Route(path: '/install/debug', name: 'public_install_debug', methods: ['GET'])]
     public function debugReport(Request $request): Response
     {
-        $this->installerService->resolveInstallerLocale($request);
-
         if ($this->installerService->isLocked()) {
             return new Response('', Response::HTTP_FORBIDDEN);
         }

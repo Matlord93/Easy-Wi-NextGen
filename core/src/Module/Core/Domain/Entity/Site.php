@@ -29,6 +29,10 @@ class Site
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $cmsTemplateKey = null;
 
+    #[ORM\ManyToOne(targetEntity: Webspace::class)]
+    #[ORM\JoinColumn(name: 'cms_webspace_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Webspace $cmsWebspace = null;
+
     #[ORM\Column(options: ['default' => false])]
     private bool $maintenanceEnabled = false;
 
@@ -113,6 +117,17 @@ class Site
     public function setCmsTemplateKey(?string $cmsTemplateKey): void
     {
         $this->cmsTemplateKey = $cmsTemplateKey;
+        $this->touch();
+    }
+
+    public function getCmsWebspace(): ?Webspace
+    {
+        return $this->cmsWebspace;
+    }
+
+    public function setCmsWebspace(?Webspace $cmsWebspace): void
+    {
+        $this->cmsWebspace = $cmsWebspace;
         $this->touch();
     }
 

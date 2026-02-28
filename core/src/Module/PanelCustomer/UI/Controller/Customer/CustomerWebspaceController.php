@@ -602,23 +602,25 @@ final class CustomerWebspaceController
     private function queueDomainUpdateJob(Domain $domain): Job
     {
         $webspace = $domain->getWebspace();
-        $systemUsername = $webspace->getSystemUsername();
 
         $payload = [
             'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => (string) $webspace->getId(),
             'domain_id' => (string) $domain->getId(),
             'domain' => $domain->getName(),
+            'target_path' => '',
+            'runtime' => $webspace->getRuntime(),
             'web_root' => $webspace->getPath(),
-            'source_dir' => $webspace->getDocroot(),
             'docroot' => $webspace->getDocroot(),
             'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
-            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $systemUsername),
-            'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $systemUsername),
-            'logs_dir' => rtrim($webspace->getPath(), '/') . '/logs',
+            'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
+            'redirect_https' => '0',
+            'redirect_www' => '0',
+            'extra_directives' => '',
             'server_aliases' => implode(' ', $domain->getServerAliases()),
         ];
 
-        $job = new Job('domain.update', $payload);
+        $job = new Job('webspace.domain.apply', $payload);
         $this->entityManager->persist($job);
 
         return $job;

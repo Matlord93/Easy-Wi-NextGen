@@ -18,9 +18,10 @@ final class InstanceQueryHostResolver
 
         foreach (['BIND_IP', 'bind_ip', 'CONNECT_IP', 'connect_ip'] as $setupVarKey) {
             $candidate = trim((string) ($setupVars[$setupVarKey] ?? ''));
-            if ($candidate !== '') {
+            $resolved = $this->resolveHost($candidate);
+            if ($resolved !== null) {
                 return [
-                    'host' => $candidate,
+                    'host' => $resolved,
                     'source' => 'bind_ip',
                     'network_mode' => $networkMode,
                     'missing_fields' => [],
@@ -30,9 +31,10 @@ final class InstanceQueryHostResolver
 
         foreach (['PUBLIC_IP', 'public_ip', 'HOST_IP', 'host_ip', 'SERVER_IP', 'server_ip', 'IP', 'ip'] as $setupVarKey) {
             $candidate = trim((string) ($setupVars[$setupVarKey] ?? ''));
-            if ($candidate !== '' && !$this->isLoopbackHost($candidate)) {
+            $resolved = $this->resolveHost($candidate);
+            if ($resolved !== null) {
                 return [
-                    'host' => $candidate,
+                    'host' => $resolved,
                     'source' => 'bind_ip',
                     'network_mode' => $networkMode,
                     'missing_fields' => [],
@@ -46,9 +48,10 @@ final class InstanceQueryHostResolver
 
         foreach (['primary_ip', 'node_ip', 'ip', 'public_ip', 'external_ip', 'query_ip', 'advertise_ip', 'advertised_ip', 'host', 'hostname', 'fqdn', 'domain', 'dns_name'] as $metadataKey) {
             $candidate = trim((string) ($metadata[$metadataKey] ?? ''));
-            if ($candidate !== '' && !$this->isLoopbackHost($candidate)) {
+            $resolved = $this->resolveHost($candidate);
+            if ($resolved !== null) {
                 return [
-                    'host' => $candidate,
+                    'host' => $resolved,
                     'source' => 'node_ip',
                     'network_mode' => $networkMode,
                     'missing_fields' => [],
@@ -57,9 +60,10 @@ final class InstanceQueryHostResolver
         }
 
         $heartbeatIp = trim((string) $node->getLastHeartbeatIp());
-        if ($heartbeatIp !== '' && !$this->isLoopbackHost($heartbeatIp)) {
+        $resolvedHeartbeat = $this->resolveHost($heartbeatIp);
+        if ($resolvedHeartbeat !== null) {
             return [
-                'host' => $heartbeatIp,
+                'host' => $resolvedHeartbeat,
                 'source' => 'node_ip',
                 'network_mode' => $networkMode,
                 'missing_fields' => [],
@@ -69,13 +73,16 @@ final class InstanceQueryHostResolver
         $serviceBaseUrl = trim((string) $node->getServiceBaseUrl());
         if ($serviceBaseUrl !== '') {
             $parsedHost = parse_url($serviceBaseUrl, PHP_URL_HOST);
-            if (is_string($parsedHost) && trim($parsedHost) !== '' && !$this->isLoopbackHost($parsedHost)) {
-                return [
-                    'host' => trim($parsedHost),
-                    'source' => 'node_ip',
-                    'network_mode' => $networkMode,
-                    'missing_fields' => [],
-                ];
+            if (is_string($parsedHost)) {
+                $resolved = $this->resolveHost($parsedHost);
+                if ($resolved !== null) {
+                    return [
+                        'host' => $resolved,
+                        'source' => 'node_ip',
+                        'network_mode' => $networkMode,
+                        'missing_fields' => [],
+                    ];
+                }
             }
         }
 
@@ -94,6 +101,24 @@ final class InstanceQueryHostResolver
             'network_mode' => $networkMode,
             'missing_fields' => ['instance.bind_ip|connect_ip', 'node.primary_ip|node_ip'],
         ];
+    }
+
+    private function resolveHost(string $candidate): ?string
+    {
+        $host = trim($candidate);
+        if ($host === '' || $this->isLoopbackHost($host)) {
+            return null;
+        }
+
+        if (filter_var($host, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV4) !== false) {
+            return $host;
+        }
+
+        if (filter_var($host, \FILTER_VALIDATE_DOMAIN, \FILTER_FLAG_HOSTNAME) !== false) {
+            return $host;
+        }
+
+        return null;
     }
 
     /**

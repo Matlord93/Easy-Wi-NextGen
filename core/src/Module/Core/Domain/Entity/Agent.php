@@ -12,6 +12,11 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'agents')]
 class Agent
 {
+    public const STATUS_REGISTERED = 'registered';
+    public const STATUS_ACTIVE = 'active';
+    public const STATUS_OFFLINE = 'offline';
+    public const STATUS_DECOMMISSIONED = 'decommissioned';
+
     #[ORM\Id]
     #[ORM\Column(length: 64)]
     private string $id;
@@ -71,7 +76,7 @@ class Agent
     private array $roles = [];
 
     #[ORM\Column(length: 20)]
-    private string $status = 'offline';
+    private string $status = self::STATUS_REGISTERED;
 
     #[ORM\Column]
     private int $jobConcurrency = 50;
@@ -320,7 +325,7 @@ class Agent
 
     public function setStatus(string $status): void
     {
-        $this->status = $status !== '' ? $status : 'offline';
+        $this->status = $status !== '' ? $status : self::STATUS_OFFLINE;
         $this->touch();
     }
 
@@ -340,6 +345,10 @@ class Agent
      */
     public function recordHeartbeat(array $stats, string $version, ?string $ip, array $roles = [], ?array $metadata = null, ?string $status = null): void
     {
+        if ($this->status === self::STATUS_DECOMMISSIONED) {
+            return;
+        }
+
         $seenAt = new \DateTimeImmutable();
         $this->lastHeartbeatAt = $seenAt;
         $this->lastSeenAt = $seenAt;
@@ -364,8 +373,42 @@ class Agent
             $this->setMetadata($metadata);
         }
 
-        $this->setStatus($status ?? 'online');
+        $this->setStatus($status ?? self::STATUS_ACTIVE);
         $this->touch();
+    }
+
+    public function markDecommissioned(): void
+    {
+        $this->setStatus(self::STATUS_DECOMMISSIONED);
+    }
+
+    public function markRegistered(): void
+    {
+        $this->setStatus(self::STATUS_REGISTERED);
+    }
+
+    public function resolveLifecycleStatus(?\DateTimeImmutable $now = null): string
+    {
+        if ($this->status === self::STATUS_DECOMMISSIONED) {
+            return self::STATUS_DECOMMISSIONED;
+        }
+
+        if ($this->status === self::STATUS_REGISTERED) {
+            return self::STATUS_REGISTERED;
+        }
+
+        $heartbeatAt = $this->lastHeartbeatAt;
+        if ($heartbeatAt === null) {
+            return self::STATUS_OFFLINE;
+        }
+
+        $now = $now ?? new \DateTimeImmutable();
+        $secondsSinceHeartbeat = $now->getTimestamp() - $heartbeatAt->getTimestamp();
+        if ($secondsSinceHeartbeat <= 180) {
+            return self::STATUS_ACTIVE;
+        }
+
+        return self::STATUS_OFFLINE;
     }
 
     private function touch(): void

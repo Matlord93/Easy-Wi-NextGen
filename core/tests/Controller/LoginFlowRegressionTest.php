@@ -99,7 +99,7 @@ final class LoginFlowRegressionTest extends WebTestCase
         self::assertResponseRedirects('/');
         self::assertTrue($client->getResponse()->headers->has('set-cookie'));
 
-        $sessionCookie = $client->getCookieJar()->get('easywi_session');
+        $sessionCookie = $client->getCookieJar()->get('easywi_customer_session') ?? $client->getCookieJar()->get('easywi_session');
         self::assertNotNull($sessionCookie);
         self::assertNotSame('', (string) $sessionCookie?->getValue());
 
@@ -123,6 +123,64 @@ final class LoginFlowRegressionTest extends WebTestCase
         $client->request('GET', '/admin/cms/pages');
 
         self::assertResponseStatusCodeSame(403);
+    }
+
+
+    public function testLoginUsesSameErrorForUnknownAndWrongPassword(): void
+    {
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $this->seedSite();
+        $this->createUser('known@example.test', UserType::Customer);
+
+        $client->request('POST', '/login', ['email' => 'missing@example.test', 'password' => 'bad-pass'], [], ['REMOTE_ADDR' => '127.0.0.31']);
+        self::assertResponseStatusCodeSame(401);
+        $unknownBody = (string) $client->getResponse()->getContent();
+
+        $client->request('POST', '/login', ['email' => 'known@example.test', 'password' => 'bad-pass'], [], ['REMOTE_ADDR' => '127.0.0.32']);
+        self::assertResponseStatusCodeSame(401);
+        $knownBody = (string) $client->getResponse()->getContent();
+
+        self::assertStringContainsString('Invalid credentials.', $unknownBody);
+        self::assertStringContainsString('Invalid credentials.', $knownBody);
+    }
+
+
+    public function testSpoofedForwardedForCannotBypassIpRateLimitWithoutTrustedProxy(): void
+    {
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $this->seedSite();
+
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $client->request('POST', '/login', ['email' => 'spoof@example.test', 'password' => 'bad-pass'], [], [
+                'REMOTE_ADDR' => '127.0.0.77',
+                'HTTP_X_FORWARDED_FOR' => '203.0.113.' . $attempt,
+            ]);
+        }
+
+        $client->request('POST', '/login', ['email' => 'spoof@example.test', 'password' => 'bad-pass'], [], [
+            'REMOTE_ADDR' => '127.0.0.77',
+            'HTTP_X_FORWARDED_FOR' => '198.51.100.123',
+        ]);
+
+        self::assertResponseStatusCodeSame(429);
+    }
+
+    public function testLoginLockoutActivatesAfterRepeatedFailures(): void
+    {
+        self::ensureKernelShutdown();
+        $client = static::createClient();
+        $this->seedSite();
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $client->request('POST', '/login', ['email' => 'lockout@example.test', 'password' => 'bad-pass'], [], ['REMOTE_ADDR' => '127.0.0.41']);
+        }
+
+        $client->request('POST', '/login', ['email' => 'lockout@example.test', 'password' => 'bad-pass'], [], ['REMOTE_ADDR' => '127.0.0.41']);
+
+        self::assertResponseStatusCodeSame(429);
+        self::assertStringContainsString('Unable to sign in. Please try again later.', (string) $client->getResponse()->getContent());
     }
 
     private function seedSite(): void

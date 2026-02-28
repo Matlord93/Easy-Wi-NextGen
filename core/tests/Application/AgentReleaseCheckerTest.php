@@ -55,4 +55,37 @@ final class AgentReleaseCheckerTest extends TestCase
         self::assertIsInt($result);
         self::assertGreaterThan(0, $result);
     }
+
+    public function testSelectLatestReleaseAssetSupportsPinnedTargetVersion(): void
+    {
+        $checker = new AgentReleaseChecker(new ArrayAdapter(), 'Matlord93/Easy-Wi-NextGen', 300, 'stable');
+
+        $releases = [
+            [
+                'draft' => false,
+                'prerelease' => false,
+                'tag_name' => 'v2.1.0',
+                'assets' => [
+                    ['name' => 'easywi-agent-linux-amd64', 'browser_download_url' => 'https://example.invalid/v2.1.0/easywi-agent-linux-amd64'],
+                    ['name' => 'checksums-agent.txt', 'browser_download_url' => 'https://example.invalid/v2.1.0/checksums-agent.txt'],
+                ],
+            ],
+            [
+                'draft' => false,
+                'prerelease' => false,
+                'tag_name' => 'v2.0.0',
+                'assets' => [
+                    ['name' => 'easywi-agent-linux-amd64', 'browser_download_url' => 'https://example.invalid/v2.0.0/easywi-agent-linux-amd64'],
+                    ['name' => 'checksums-agent.txt', 'browser_download_url' => 'https://example.invalid/v2.0.0/checksums-agent.txt'],
+                ],
+            ],
+        ];
+
+        $method = new \ReflectionMethod($checker, 'selectLatestReleaseAsset');
+        $selected = $method->invoke($checker, $releases, 'stable', 'easywi-agent-linux-amd64', '2.0.0');
+
+        self::assertIsArray($selected);
+        self::assertSame('v2.0.0', $selected['tag']);
+    }
+
 }

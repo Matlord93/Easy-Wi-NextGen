@@ -36,11 +36,15 @@ class UserSession
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $revokedAt = null;
 
+    #[ORM\Column(options: ['default' => 1])]
+    private int $credentialsVersion;
+
     public function __construct(User $user, string $tokenHash)
     {
         $this->user = $user;
         $this->tokenHash = $tokenHash;
         $this->createdAt = new \DateTimeImmutable();
+        $this->credentialsVersion = $user->getCredentialsVersion();
     }
 
     public function getId(): ?int
@@ -92,4 +96,10 @@ class UserSession
     {
         $this->revokedAt = new \DateTimeImmutable();
     }
+
+    public function getCredentialsVersion(): int
+    {
+        return $this->credentialsVersion;
+    }
 }
+

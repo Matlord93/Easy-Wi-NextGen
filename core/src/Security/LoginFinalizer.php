@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Security;
 
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\UserSession;
@@ -19,6 +20,8 @@ final class LoginFinalizer
         private readonly SessionTokenGenerator $tokenGenerator,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
+        private readonly AppSettingsService $settingsService,
+        private readonly IdentifierHasher $identifierHasher,
     ) {
     }
 
@@ -26,18 +29,19 @@ final class LoginFinalizer
     {
         $token = $this->tokenGenerator->generateToken();
         $session = new UserSession($user, $this->tokenGenerator->hashToken($token));
-        $session->setExpiresAt((new \DateTimeImmutable())->modify('+30 days'));
+        $absoluteMinutes = $this->settingsService->getSessionAbsoluteTimeoutMinutes();
+        $session->setExpiresAt((new \DateTimeImmutable())->modify(sprintf('+%d minutes', $absoluteMinutes)));
         $session->setLastUsedAt(new \DateTimeImmutable());
 
         $this->entityManager->persist($session);
         $this->auditLogger->log($user, 'session.created', [
             'user_id' => $user->getId(),
-            'email' => $user->getEmail(),
             'context' => $context,
         ]);
-        $this->auditLogger->log($user, 'auth.login.success', [
+        $this->auditLogger->log($user, 'auth.login_success', [
             'ip_address' => $request->getClientIp() ?? 'public',
-            'identifier' => mb_strtolower($user->getEmail()),
+            'channel' => 'auth',
+            'identifier_hash' => $this->identifierHasher->hash($user->getEmail()),
             'context' => $context,
         ]);
         $this->entityManager->flush();
@@ -46,13 +50,17 @@ final class LoginFinalizer
         $request->getSession()->set('last_password_confirmed_at', time());
 
         $response = new RedirectResponse($redirectPath);
+        $cookieName = $user->isAdmin() || in_array('ROLE_RESELLER', $user->getRoles(), true)
+            ? SessionAuthenticator::ADMIN_SESSION_COOKIE
+            : SessionAuthenticator::CUSTOMER_SESSION_COOKIE;
+
         $response->headers->setCookie(
-            Cookie::create(SessionAuthenticator::ADMIN_SESSION_COOKIE, $token)
+            Cookie::create($cookieName, $token)
                 ->withPath('/')
-                ->withSecure($request->isSecure())
+                ->withSecure(true)
                 ->withHttpOnly(true)
-                ->withSameSite('lax')
-                ->withExpires((new \DateTimeImmutable())->modify('+30 days'))
+                ->withSameSite('strict')
+                ->withExpires((new \DateTimeImmutable())->modify(sprintf('+%d minutes', $absoluteMinutes)))
         );
 
         return $response;

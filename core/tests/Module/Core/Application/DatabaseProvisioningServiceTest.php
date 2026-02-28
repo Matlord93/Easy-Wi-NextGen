@@ -24,6 +24,7 @@ final class DatabaseProvisioningServiceTest extends TestCase
         self::assertSame('database.create', $jobs[0]->getType());
         self::assertArrayNotHasKey('password', $jobs[0]->getPayload());
         self::assertArrayNotHasKey('encrypted_password', $jobs[0]->getPayload());
+        self::assertSame('private', $jobs[0]->getPayload()['connection_policy'] ?? null);
     }
 
     public function testRotateUsesNewJobTypeAndNoSecretPayload(): void

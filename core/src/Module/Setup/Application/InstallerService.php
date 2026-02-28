@@ -21,7 +21,6 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Process\PhpExecutableFinder;
 
@@ -31,7 +30,6 @@ final class InstallerService
     private const STATE_FILE = self::SETUP_DIR . '/state/install.state.json';
     private const LOCK_FILE = self::SETUP_DIR . '/state/install.lock';
     private const DEBUG_REPORT_FILE = self::SETUP_DIR . '/state/install.debug.json';
-    private const LOCALE_SESSION_KEY = 'installer.locale';
     private const SECRET_SETTING_KEYS = [
         'sftp_password',
         'sftp_private_key',
@@ -905,41 +903,6 @@ final class InstallerService
 
         $contents = (new \DateTimeImmutable())->format(DATE_ATOM);
         file_put_contents($path, $contents . "\n");
-    }
-
-    public function resolveInstallerLocale(Request $request): string
-    {
-        $session = $request->hasSession() ? $request->getSession() : null;
-        $rawLocale = $request->query->get('lang');
-
-        if (is_string($rawLocale)) {
-            $locale = strtolower(trim($rawLocale));
-            if (in_array($locale, ['de', 'en'], true)) {
-                if ($session !== null) {
-                    $session->set(self::LOCALE_SESSION_KEY, $locale);
-                }
-
-                $request->setLocale($locale);
-                return $locale;
-            }
-        }
-
-        if ($session !== null && $session->has(self::LOCALE_SESSION_KEY)) {
-            $locale = (string) $session->get(self::LOCALE_SESSION_KEY);
-            if (in_array($locale, ['de', 'en'], true)) {
-                $request->setLocale($locale);
-                return $locale;
-            }
-        }
-
-        $preferred = $request->getPreferredLanguage(['de', 'en']) ?? 'en';
-        $request->setLocale($preferred);
-
-        if ($session !== null) {
-            $session->set(self::LOCALE_SESSION_KEY, $preferred);
-        }
-
-        return $preferred;
     }
 
     public function logException(\Throwable $exception, string $message): void

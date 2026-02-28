@@ -7,6 +7,8 @@ namespace App\Module\Core\Domain\Enum;
 enum GdprExportStatus: string
 {
     case Pending = 'pending';
+    case Running = 'running';
     case Ready = 'ready';
+    case Failed = 'failed';
     case Expired = 'expired';
 }

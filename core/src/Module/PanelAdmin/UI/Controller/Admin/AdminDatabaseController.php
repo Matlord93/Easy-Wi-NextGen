@@ -11,6 +11,7 @@ use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Database;
 use App\Module\Core\Domain\Entity\DatabaseNode;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\EngineType;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\AgentRepository;
 use App\Repository\DatabaseNodeRepository;
@@ -25,8 +26,6 @@ use Twig\Environment;
 #[Route(path: '/admin/databases')]
 final class AdminDatabaseController
 {
-    private const ENGINES = ['mysql', 'mariadb'];
-
     public function __construct(
         private readonly DatabaseRepository $databaseRepository,
         private readonly DatabaseNodeRepository $databaseNodeRepository,
@@ -60,7 +59,7 @@ final class AdminDatabaseController
         return new Response($this->twig->render('admin/databases/index.html.twig', [
             'databases' => $databases,
             'customers' => $customers,
-            'engines' => self::ENGINES,
+            'engines' => EngineType::values(),
             'databaseNodes' => $databaseNodes,
             'nodeCandidates' => $nodeCandidates,
             'agents' => $agents,
@@ -101,6 +100,13 @@ final class AdminDatabaseController
         }
         $errors = array_merge($errors, $this->namingPolicy->validateDatabaseName($name));
         $errors = array_merge($errors, $this->namingPolicy->validateUsername($username));
+
+        if ($customer instanceof User && $node instanceof DatabaseNode && $this->databaseRepository->findOneByCustomerAndName($customer, $node->getEngine(), $name) instanceof Database) {
+            $errors[] = 'Database name already exists for this customer.';
+        }
+        if ($customer instanceof User && $node instanceof DatabaseNode && $this->databaseRepository->findOneByCustomerAndUsername($customer, $node->getEngine(), $username) instanceof Database) {
+            $errors[] = 'Database username already exists for this customer.';
+        }
 
         if ($errors !== []) {
             return $this->renderWithErrors($errors);
@@ -235,7 +241,7 @@ final class AdminDatabaseController
         if ($name === '') {
             $errors[] = 'Name is required.';
         }
-        if (!in_array($engine, self::ENGINES, true)) {
+        if (!in_array($engine, EngineType::values(), true)) {
             $errors[] = 'Engine is invalid.';
         }
         if ($host === '') {
@@ -319,7 +325,11 @@ final class AdminDatabaseController
         $timeout = 2.5;
         $errorCode = null;
         try {
-            $dsn = sprintf('mysql:host=%s;port=%d;dbname=information_schema;charset=utf8mb4', $host, $port);
+            $dsn = match (strtolower($node->getEngine())) {
+                EngineType::PostgreSql->value => sprintf('pgsql:host=%s;port=%d;dbname=postgres', $host, $port),
+                EngineType::MySql->value, EngineType::MariaDb->value => sprintf('mysql:host=%s;port=%d;dbname=information_schema;charset=utf8mb4', $host, $port),
+                default => throw new \RuntimeException('Unsupported database engine for health check.'),
+            };
             $secret = $node->getEncryptedAdminSecret() === null ? '' : $this->encryptionService->decrypt($node->getEncryptedAdminSecret());
             $pdo = new \PDO($dsn, (string) $node->getAdminUser(), $secret, [\PDO::ATTR_TIMEOUT => (int) $timeout]);
             $pdo->query('SELECT 1');
@@ -357,7 +367,7 @@ final class AdminDatabaseController
         return new Response($this->twig->render('admin/databases/index.html.twig', [
             'databases' => $databases,
             'customers' => $customers,
-            'engines' => self::ENGINES,
+            'engines' => EngineType::values(),
             'databaseNodes' => $databaseNodes,
             'nodeCandidates' => $nodeCandidates,
             'agents' => $agents,

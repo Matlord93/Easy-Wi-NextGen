@@ -67,7 +67,7 @@ final class PublicCmsUnifiedRegressionTest extends WebTestCase
         self::assertInstanceOf(Site::class, $site);
 
         $site->setMaintenanceEnabled(true);
-        $site->setMaintenanceMessage('Eigener Wartungstext');
+        $site->setMaintenanceMessage("Erste Zeile\n[b]Wichtig[/b] [url=https://example.com]Status[/url]");
         $site->setMaintenanceGraphicPath('/images/maintenance-custom.png');
         $site->setMaintenanceStartsAt(null);
         $site->setMaintenanceEndsAt(null);
@@ -77,8 +77,11 @@ final class PublicCmsUnifiedRegressionTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(503);
         $html = (string) $client->getResponse()->getContent();
-        self::assertStringContainsString('Eigener Wartungstext', $html);
+        self::assertStringContainsString('Erste Zeile<br>', $html);
+        self::assertStringContainsString('<strong>Wichtig</strong>', $html);
+        self::assertStringContainsString('<a href="https://example.com" target="_blank" rel="noopener noreferrer">Status</a>', $html);
         self::assertStringContainsString('/images/maintenance-custom.png', $html);
+        self::assertSame("default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'", $client->getResponse()->headers->get('Content-Security-Policy'));
     }
 
     private function seedCmsSite(): void

@@ -303,11 +303,11 @@ final class AdminUserManagementController
 
         $errors = [];
         if (!array_key_exists($portalLanguage, self::PORTAL_LANGUAGE_OPTIONS)) {
-            $errors[] = 'Select a valid portal language.';
+            $errors[] = 'error_preferences_portal_language_required';
         }
 
         if (!array_key_exists($locale, self::LOCALE_OPTIONS)) {
-            $errors[] = 'Select a valid invoice locale.';
+            $errors[] = 'error_preferences_locale_required';
         }
 
         if ($errors !== []) {

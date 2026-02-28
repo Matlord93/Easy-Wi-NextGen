@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ page.title|default('Clan') }}{% endblock %}</title>
+  <link rel="stylesheet" href="/themes/titan-squad/css/theme.css">
+</head>
+<body class="theme-shell">
+  <header class="hero">
+    <h1>{{ cms_branding.name|default('E-Sports Team') }}</h1>
+    <p>{{ cms_branding.tagline|default('Compete. Stream. Repeat.') }}</p>
+  </header>
+  <main>{% block body %}{% endblock %}</main>
+  <footer>© {{ "now"|date("Y") }} {{ cms_branding.name|default('Team') }}</footer>
+</body>
+</html>

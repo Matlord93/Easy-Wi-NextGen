@@ -1,0 +1,6 @@
+:root{--bg:#0b1020;--card:#141c32;--acc:#59f3d2;--txt:#e8efff}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui;background:radial-gradient(circle at top,#1d2952,var(--bg));color:var(--txt)}
+.hero{padding:3rem 2rem;text-align:center}.hero h1{margin:0;font-size:clamp(2rem,4vw,3.2rem)}.hero p{opacity:.85}
+.content-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;padding:1rem 2rem 3rem}
+.card{background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(89,243,210,.25);border-radius:14px;padding:1.1rem;backdrop-filter:blur(6px)}
+footer{padding:1rem 2rem;border-top:1px solid rgba(255,255,255,.15);opacity:.8}

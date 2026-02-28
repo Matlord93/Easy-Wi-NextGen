@@ -1,0 +1,4 @@
+This value should not be blank.: "This value should not be blank."
+This value is not valid.: "This value is not valid."
+This value is too short. It should have {{ limit }} character or more.|This value is too short. It should have {{ limit }} characters or more.: "This value is too short. It should have {{ limit }} character or more.|This value is too short. It should have {{ limit }} characters or more."
+This value is too long. It should have {{ limit }} character or less.|This value is too long. It should have {{ limit }} characters or less.: "This value is too long. It should have {{ limit }} character or less.|This value is too long. It should have {{ limit }} characters or less."

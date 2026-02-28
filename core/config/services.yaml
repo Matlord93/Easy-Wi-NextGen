@@ -46,8 +46,18 @@ parameters:
   app.agent_service_port: '%env(int:default:app.agent_service_port_default:APP_AGENT_SERVICE_PORT)%'
   app.status_agent_shared_secret_default: ''
   app.status_agent_shared_secret: '%env(default:app.status_agent_shared_secret_default:APP_STATUS_AGENT_SHARED_SECRET)%'
-  app.status_agent_signature_skew_seconds: '%env(int:default:300:APP_STATUS_AGENT_SIGNATURE_SKEW_SECONDS)%'
-  app.status_stale_grace_seconds: '%env(int:default:20:APP_STATUS_STALE_GRACE_SECONDS)%'
+  app.status_agent_signature_skew_seconds_default: '300'
+  app.status_agent_signature_skew_seconds: >-
+    %env(int:default:app.status_agent_signature_skew_seconds_default:APP_STATUS_AGENT_SIGNATURE_SKEW_SECONDS)%
+  app.status_stale_grace_seconds_default: '20'
+  app.status_stale_grace_seconds: >-
+    %env(int:default:app.status_stale_grace_seconds_default:APP_STATUS_STALE_GRACE_SECONDS)%
+  app.hosting_panel_secret_key_default: ''
+  app.identifier_hash_pepper_default: 'change_this_identifier_pepper'
+  app.hosting_panel_secret_key: '%env(default:app.hosting_panel_secret_key_default:APP_HOSTING_PANEL_SECRET_KEY)%'
+  app.identifier_hash_pepper: '%env(default:app.identifier_hash_pepper_default:AUTH_IDENTIFIER_HASH_PEPPER)%'
+  app.mail_password_hash_algorithm_default: 'argon2id'
+  app.mail_password_hash_algorithm: '%env(default:app.mail_password_hash_algorithm_default:APP_MAIL_PASSWORD_HASH_ALGORITHM)%'
 
 services:
   _defaults:
@@ -164,7 +174,12 @@ services:
     arguments:
       $authorizedKeysPath: '%app.admin_authorized_keys_path%'
 
+
+  App\Module\Core\Application\MailPasswordHasher:
+    arguments:
+      $algorithm: '%app.mail_password_hash_algorithm%'
   App\Module\Core\Domain\Event\EventBusInterface: '@App\Module\Core\Domain\Event\SymfonyEventBus'
+  App\Module\Core\Application\MailboxStatsProviderInterface: '@App\Repository\MailboxRepository'
 
   App\Repository\MinecraftVersionCatalogRepositoryInterface: '@App\Repository\MinecraftVersionCatalogRepository'
 
@@ -191,6 +206,11 @@ services:
     tags: ['app.cms.block_renderer']
 
   App\Module\Cms\Application\Security\CaptchaVerifierInterface: '@App\Module\Cms\Application\Security\NoneCaptchaVerifier'
+  App\Module\Cms\Application\CmsMaintenanceWindowProviderInterface: '@App\Module\Cms\Application\CmsMaintenanceWindowProvider'
+
+  App\Module\Cms\Application\CmsTemplateDeploymentManager:
+    arguments:
+      $deployRoot: '%kernel.project_dir%/var/cms-template-deployments'
 
   App\Module\Cms\UI\Controller\Public\PublicForumController:
     arguments:
@@ -220,6 +240,10 @@ services:
     arguments:
       $staleGraceSeconds: '%app.status_stale_grace_seconds%'
 
+  App\Security\IdentifierHasher:
+    arguments:
+      $pepper: '%app.identifier_hash_pepper%'
+
   App\Module\Voice\Application\VoiceRateLimitStateStoreInterface: '@App\Module\Voice\Application\DoctrineVoiceRateLimitStateStore'
 
   App\Module\Voice\Application\Provider\VoiceProviderRegistry:
@@ -239,3 +263,44 @@ services:
   App\Module\Voice\Application\Provider\Ts6ServerLookupInterface: '@App\Module\Voice\Application\Provider\DoctrineTs6ServerLookup'
 
   App\Module\Gameserver\Application\Query\QuerySmokeRunnerInterface: '@App\Module\Gameserver\Application\Query\QuerySmokeService'
+
+  App\Module\HostingPanel\Application\Security\SecretVault:
+    arguments:
+      $encryptionKey: '%app.hosting_panel_secret_key%'
+
+  App\Module\Core\Application\Backup\BackupPlanStoreInterface: '@App\Module\Core\Application\Backup\InMemoryBackupPlanStore'
+
+  App\Module\Core\Application\Backup\BackupAdapterRegistry:
+    arguments:
+      $adapters:
+        - '@App\Module\Core\Application\Backup\Adapter\WebBackupAdapter'
+        - '@App\Module\Core\Application\Backup\Adapter\DbBackupAdapter'
+        - '@App\Module\Core\Application\Backup\Adapter\MailBackupAdapter'
+        - '@App\Module\Core\Application\Backup\Adapter\VoiceBackupAdapter'
+        - '@App\Module\Core\Application\Backup\Adapter\GameBackupAdapter'
+
+  App\Module\Core\Application\Backup\BackupTargetWriterRegistry:
+    arguments:
+      $writers:
+        - '@App\Module\Core\Application\Backup\Target\LocalBackupTargetWriter'
+        - '@App\Module\Core\Application\Backup\Target\WebDavBackupTargetWriter'
+
+  App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface: '@App\Module\Gameserver\Infrastructure\Grpc\GrpcConsoleAgentGrpcClient'
+  App\Module\Gameserver\Application\Console\ConsoleEventBusInterface: '@App\Module\Gameserver\Infrastructure\Redis\RedisConsoleEventBus'
+  App\Module\Gameserver\Application\Console\AgentEndpointProbeInterface: '@App\Module\Gameserver\Infrastructure\Grpc\DoctrineAgentEndpointProbe'
+
+  Redis:
+    class: Redis
+    factory: ['App\Module\Gameserver\Infrastructure\Redis\RedisConnectionFactory', 'create']
+    arguments:
+      $dsn: '%env(REDIS_DSN)%'
+
+  App\Module\Gameserver\Infrastructure\Redis\RedisConsoleEventBus:
+    arguments:
+      $redis: '@Redis'
+
+  App\Module\Gameserver\Application\Console\SymfonyConsoleCommandLimiter:
+    arguments:
+      $consoleLimiter: '@limiter.instance_console_commands'
+
+  App\Module\Gameserver\Application\Console\ConsoleCommandLimiterInterface: '@App\Module\Gameserver\Application\Console\SymfonyConsoleCommandLimiter'
