@@ -486,12 +486,16 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 
 func ensureServiceRunning(service string) error {
 	if _, err := exec.LookPath("systemctl"); err == nil {
-		if out, err := runCommandLogged("systemctl", "enable", "--now", service); err != nil {
+		if out, err := runCommandLogged("systemctl", "daemon-reload"); err != nil {
 			return fmt.Errorf("SERVICE_START_FAILED: %s", strings.TrimSpace(out))
 		}
 		if out, err := runCommandLogged("systemctl", "restart", service); err != nil {
-			return fmt.Errorf("SERVICE_START_FAILED: %s", strings.TrimSpace(out))
+			if out2, err2 := runCommandLogged("systemctl", "start", service); err2 != nil {
+				return fmt.Errorf("SERVICE_START_FAILED: %s | %s", strings.TrimSpace(out), strings.TrimSpace(out2))
+			}
 		}
+		// Enabling boot-start should not fail provisioning on hosts with custom init wiring.
+		_, _ = runCommandLogged("systemctl", "enable", service)
 		return nil
 	}
 	if out, err := runCommandLogged("service", service, "restart"); err != nil {
@@ -508,14 +512,24 @@ func checkLinuxProFTPDHealth() error {
 	managedConfig := filepath.Join(confDir, "easywi-sftp.conf")
 	cfg, err := os.ReadFile(managedConfig)
 	if err != nil {
-		return fmt.Errorf("CONFIG_INVALID: managed config missing")
+		if err := ensureProFTPDConfig(confDir); err != nil {
+			return fmt.Errorf("CONFIG_INVALID: managed config missing")
+		}
+		cfg, err = os.ReadFile(managedConfig)
+		if err != nil {
+			return fmt.Errorf("CONFIG_INVALID: managed config missing")
+		}
 	}
 	cfgStr := string(cfg)
 	if !strings.Contains(cfgStr, "# BEGIN EASYWI MANAGED") || !strings.Contains(cfgStr, "# END EASYWI MANAGED") {
-		return fmt.Errorf("CONFIG_INVALID: managed markers missing")
+		if err := ensureProFTPDConfig(confDir); err != nil {
+			return fmt.Errorf("CONFIG_INVALID: managed markers missing")
+		}
 	}
 	if _, err := os.Stat(linuxHostKey); err != nil {
-		return fmt.Errorf("CONFIG_INVALID: host key missing")
+		if err := ensureProFTPDKeys(); err != nil {
+			return fmt.Errorf("CONFIG_INVALID: host key missing")
+		}
 	}
 	if _, err := os.Stat(linuxAuthUserFile); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: auth file missing")
@@ -527,7 +541,9 @@ func checkLinuxProFTPDHealth() error {
 	if _, err := exec.LookPath("systemctl"); err == nil {
 		out, err := runCommandOutput("systemctl", "is-active", service)
 		if err != nil || strings.TrimSpace(out) != "active" {
-			return fmt.Errorf("SERVICE_START_FAILED: %s not active", service)
+			if err := ensureServiceRunning(service); err != nil {
+				return err
+			}
 		}
 	}
 	if err := checkTCPListening(defaultAccessListenPort); err != nil {

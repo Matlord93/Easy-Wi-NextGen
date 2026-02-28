@@ -139,7 +139,7 @@ func TestConsoleCommandRateLimit(t *testing.T) {
 	}
 }
 
-func TestConsoleUnavailableEnvelopeIncludesRequestID(t *testing.T) {
+func TestConsoleHealthWithoutJournalctlReturnsOkEnvelopeWithRequestID(t *testing.T) {
 	origLookup := lookupCommand
 	defer func() { lookupCommand = origLookup }()
 	lookupCommand = func(file string) (string, error) { return "", fmt.Errorf("missing") }
@@ -153,8 +153,12 @@ func TestConsoleUnavailableEnvelopeIncludesRequestID(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if payload["error_code"] != "CONSOLE_UNAVAILABLE" {
-		t.Fatalf("expected CONSOLE_UNAVAILABLE, got %v", payload["error_code"])
+	if ok, _ := payload["ok"].(bool); !ok {
+		t.Fatalf("expected ok=true, got %v", payload["ok"])
+	}
+	data, _ := payload["data"].(map[string]any)
+	if journalAvailable, _ := data["journal_available"].(bool); journalAvailable {
+		t.Fatalf("expected journal_available=false, got %v", data["journal_available"])
 	}
 	if payload["request_id"] != "req-123" {
 		t.Fatalf("expected request id req-123, got %v", payload["request_id"])

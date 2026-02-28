@@ -46,22 +46,22 @@ final class CustomerInstanceConsoleStreamController
         $lastEventId = (int) $request->headers->get('Last-Event-ID', '0');
 
         $response = new StreamedResponse(function () use ($id, $lastEventId): void {
-            $degraded = $this->resolveDegradedCause();
-            if ($degraded !== null) {
-                $this->writeEvent([
-                    'type' => 'status',
-                    'status' => $degraded['status'],
-                    'message' => $degraded['message'],
-                    'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
-                ], 'status', null);
-
-                return;
-            }
-            $startedAt = time();
-            $lastPing = time();
-            $this->eventBus->incrementSubscriber($id);
-
             try {
+                $degraded = $this->resolveDegradedCause();
+                if ($degraded !== null) {
+                    $this->writeEvent([
+                        'type' => 'status',
+                        'status' => $degraded['status'],
+                        'message' => $degraded['message'],
+                        'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
+                    ], 'status', null);
+
+                    return;
+                }
+                $startedAt = time();
+                $lastPing = time();
+                $this->eventBus->incrementSubscriber($id);
+
                 foreach ($this->eventBus->replayConsoleEvents($id, $lastEventId) as $event) {
                     $this->writeEvent($event);
                 }
@@ -82,8 +82,19 @@ final class CustomerInstanceConsoleStreamController
                     }
                     usleep(200000);
                 }
+            } catch (\Throwable) {
+                $this->writeEvent([
+                    'type' => 'status',
+                    'status' => 'stream_unavailable',
+                    'message' => 'Console stream unavailable',
+                    'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
+                ], 'status', null);
             } finally {
-                $this->eventBus->decrementSubscriber($id);
+                try {
+                    $this->eventBus->decrementSubscriber($id);
+                } catch (\Throwable) {
+                    // stream is ending already; suppress transport shutdown errors.
+                }
             }
         });
 

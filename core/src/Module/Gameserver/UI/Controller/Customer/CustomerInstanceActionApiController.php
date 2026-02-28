@@ -25,6 +25,7 @@ use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Application\TemplateInstallResolver;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
@@ -70,6 +71,7 @@ final class CustomerInstanceActionApiController
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly ?AgentGameServerClient $agentGameServerClient = null,
     ) {
     }
 
@@ -904,50 +906,86 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $job = $this->resolveConsoleLogsJob($instance, $customer);
-        if ($job === null) {
-            return $this->apiError(
-                $request,
-                'INSTANCE_OFFLINE',
-                'No active or recent console source job found.',
-                JsonResponse::HTTP_CONFLICT,
-            );
+        $cursorRaw = trim((string) $request->query->get('cursor', ''));
+
+        if ($this->agentGameServerClient instanceof AgentGameServerClient) {
+            try {
+                $agentPayload = $this->agentGameServerClient->getConsoleLogs($instance, $cursorRaw !== '' ? $cursorRaw : null);
+                $data = is_array($agentPayload['data'] ?? null) ? $agentPayload['data'] : [];
+                $rawLines = is_array($data['lines'] ?? null) ? $data['lines'] : [];
+                $mapped = [];
+                foreach ($rawLines as $line) {
+                    if (!is_array($line)) {
+                        continue;
+                    }
+                    $mapped[] = [
+                        'id' => (int) ($line['id'] ?? 0),
+                        'message' => (string) ($line['text'] ?? ''),
+                        'created_at' => (string) ($line['ts'] ?? (new \DateTimeImmutable())->format(DATE_ATOM)),
+                        'progress' => null,
+                    ];
+                }
+
+                $meta = is_array($data['meta'] ?? null) ? $data['meta'] : [];
+                $connected = strtolower((string) ($meta['state'] ?? '')) === 'connected';
+
+                return $this->apiOk($request, [
+                    'cursor' => (string) ($data['cursor'] ?? $cursorRaw),
+                    'lines' => $mapped,
+                    'session' => [
+                        'connected' => $connected,
+                        'unit_name' => (string) ($meta['unit'] ?? sprintf('gs-%d', $instance->getId())),
+                        'started_at' => null,
+                    ],
+                ]);
+            } catch (\Throwable) {
+                // fallback to persisted job logs for legacy environments.
+            }
         }
 
-        $cursorRaw = trim((string) $request->query->get('cursor', ''));
-        $cursor = $cursorRaw !== '' && ctype_digit($cursorRaw) ? (int) $cursorRaw : null;
-        $logs = $this->jobLogRepository->findByJobAfterId($job, $cursor, 300);
-        $nextCursor = $cursor ?? 0;
-        $lines = [];
-        $unitName = sprintf('gs-%d', $instance->getId());
-        foreach ($logs as $log) {
-            $logId = (int) ($log->getId() ?? 0);
-            $nextCursor = max($nextCursor, $logId);
-            $message = (string) $log->getMessage();
-            if (str_starts_with($message, '--- journalctl ') || stripos($message, 'console restarted') !== false) {
-                continue;
+        $job = $this->resolveConsoleLogsJob($instance, $customer);
+        if ($job instanceof Job) {
+            $cursor = $cursorRaw !== '' && ctype_digit($cursorRaw) ? (int) $cursorRaw : null;
+            $logs = $this->jobLogRepository->findByJobAfterId($job, $cursor, 300);
+            $nextCursor = $cursor ?? 0;
+            $lines = [];
+            $unitName = sprintf('gs-%d', $instance->getId());
+            foreach ($logs as $log) {
+                $logId = (int) ($log->getId() ?? 0);
+                $nextCursor = max($nextCursor, $logId);
+                $message = (string) $log->getMessage();
+                if (str_starts_with($message, '--- journalctl ') || stripos($message, 'console restarted') !== false) {
+                    continue;
+                }
+
+                $lines[] = [
+                    'id' => $logId,
+                    'message' => $message,
+                    'created_at' => $log->getCreatedAt()->format(DATE_ATOM),
+                    'progress' => $log->getProgress(),
+                ];
             }
 
-            $lines[] = [
-                'id' => $logId,
-                'message' => $message,
-                'created_at' => $log->getCreatedAt()->format(DATE_ATOM),
-                'progress' => $log->getProgress(),
-            ];
+            return $this->apiOk($request, [
+                'job_id' => $job->getId(),
+                'job_type' => $job->getType(),
+                'status' => $job->getStatus()->value,
+                'cursor' => $nextCursor,
+                'lines' => $lines,
+                'session' => [
+                    'connected' => true,
+                    'unit_name' => $unitName,
+                    'started_at' => $job->getCreatedAt()->format(DATE_ATOM),
+                ],
+            ]);
         }
 
-        return $this->apiOk($request, [
-            'job_id' => $job->getId(),
-            'job_type' => $job->getType(),
-            'status' => $job->getStatus()->value,
-            'cursor' => $nextCursor,
-            'lines' => $lines,
-            'session' => [
-                'connected' => true,
-                'unit_name' => $unitName,
-                'started_at' => $job->getCreatedAt()->format(DATE_ATOM),
-            ],
-        ]);
+        return $this->apiError(
+            $request,
+            'INSTANCE_OFFLINE',
+            'No active or recent console source job found.',
+            JsonResponse::HTTP_CONFLICT,
+        );
     }
 
     #[Route(path: '/api/instances/{id}/console/health', name: 'customer_instance_console_health_envelope', methods: ['GET'])]

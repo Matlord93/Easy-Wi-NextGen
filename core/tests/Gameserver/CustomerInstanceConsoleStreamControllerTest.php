@@ -159,6 +159,57 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
         self::assertStringContainsString('backend_not_configured', $content);
     }
 
+    public function testStreamHandlesEventBusFailureGracefully(): void
+    {
+        $eventBus = new class () implements ConsoleEventBusInterface {
+            public function publishConsoleEvent(int $instanceId, array $payload): void
+            {
+            }
+            public function replayConsoleEvents(int $instanceId, int $lastSeq): array
+            {
+                return [];
+            }
+            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
+            {
+            }
+            public function incrementSubscriber(int $instanceId): void
+            {
+                throw new \RuntimeException('redis down');
+            }
+            public function refreshSubscriberTtl(int $instanceId): void
+            {
+            }
+            public function decrementSubscriber(int $instanceId): void
+            {
+                throw new \RuntimeException('redis down');
+            }
+            public function getSubscriberCount(int $instanceId): int
+            {
+                return 0;
+            }
+            public function getInstancesWithSubscribers(): array
+            {
+                return [];
+            }
+        };
+
+        $controller = $this->controllerWith($eventBus, true, 1);
+        $request = Request::create('/instances/1/console/stream', 'GET');
+        $user = new User('owner@example.test', UserType::Customer);
+        $this->setEntityId($user, 5);
+        $request->attributes->set('current_user', $user);
+
+        $response = $controller->stream($request, 1);
+        ob_start();
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+        $content = (string) ob_get_clean();
+
+        self::assertStringContainsString('event: status', $content);
+        self::assertStringContainsString('stream_unavailable', $content);
+    }
+
     private function controllerWith(ConsoleEventBusInterface $eventBus, bool $owner, int $maxDurationSeconds = 1, ?ConsoleStreamDiagnostics $diagnostics = null): CustomerInstanceConsoleStreamController
     {
         $instance = $this->createMock(Instance::class);

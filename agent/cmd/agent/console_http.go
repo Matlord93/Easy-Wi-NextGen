@@ -318,8 +318,20 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 			writeAccessEnvelope(w, 405, accessEnvelope{OK: false, ErrorCode: "INVALID_INPUT", Message: "method not allowed", RequestID: requestID})
 			return true
 		}
+		journalAvailable := true
 		if _, err := lookupCommand("journalctl"); err != nil {
-			writeAccessEnvelope(w, 200, accessEnvelope{OK: false, ErrorCode: "CONSOLE_UNAVAILABLE", Message: "journalctl is not available", RequestID: requestID})
+			journalAvailable = false
+		}
+		if !journalAvailable {
+			writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{
+				"cursor": "",
+				"lines":  []any{},
+				"meta": map[string]any{
+					"unit":              unit,
+					"state":             "unavailable",
+					"journal_available": false,
+				},
+			}})
 			return true
 		}
 		s := globalConsoleSessions.getOrCreate(instanceID, unit)
@@ -339,8 +351,26 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 			writeAccessEnvelope(w, 405, accessEnvelope{OK: false, ErrorCode: "INVALID_INPUT", Message: "method not allowed", RequestID: requestID})
 			return true
 		}
+		journalAvailable := true
 		if _, err := lookupCommand("journalctl"); err != nil {
-			writeAccessEnvelope(w, 200, accessEnvelope{OK: false, ErrorCode: "CONSOLE_UNAVAILABLE", Message: "journalctl is not available", RequestID: requestID})
+			journalAvailable = false
+		}
+		if !journalAvailable {
+			socketPath := systemdConsoleSocketPath(instanceID)
+			sockExists := false
+			if socketPath != "" {
+				if st, err := os.Stat(socketPath); err == nil {
+					sockExists = st.Mode()&os.ModeSocket != 0
+				}
+			}
+			writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{
+				"unit_name":         unit,
+				"unit_active_state": "inactive",
+				"socket_path":       socketPath,
+				"socket_exists":     sockExists,
+				"journal_available": false,
+				"journal_session":   map[string]any{"connected": false, "restarts": 0, "session_id": ""},
+			}})
 			return true
 		}
 		s := globalConsoleSessions.getOrCreate(instanceID, unit)

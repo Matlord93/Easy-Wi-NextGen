@@ -43,6 +43,7 @@
     let reconnectAttempt = 0;
     let reconnectFailures = 0;
     let pollTimer = null;
+    let fallbackRetryTimer = null;
     let logsCursor = null;
     let fallbackActive = false;
     let lines = [];
@@ -106,6 +107,21 @@
         }
         errors.showInline(inlineError, { message: reason, error_code: 'STREAM_FALLBACK', request_id: '' });
         await startPollingFallback();
+
+        if (fallbackRetryTimer) {
+            window.clearInterval(fallbackRetryTimer);
+        }
+        fallbackRetryTimer = window.setInterval(() => {
+            if (!streamUrl || !fallbackActive) {
+                return;
+            }
+            fallbackActive = false;
+            if (pollTimer) {
+                window.clearInterval(pollTimer);
+                pollTimer = null;
+            }
+            connect();
+        }, 45000);
     };
 
     const loadHealth = async () => {
@@ -144,6 +160,15 @@
         source.onopen = () => {
             reconnectAttempt = 0;
             reconnectFailures = 0;
+            fallbackActive = false;
+            if (pollTimer) {
+                window.clearInterval(pollTimer);
+                pollTimer = null;
+            }
+            if (fallbackRetryTimer) {
+                window.clearInterval(fallbackRetryTimer);
+                fallbackRetryTimer = null;
+            }
             errors.clearInline(inlineError);
             if (healthEl) {
                 healthEl.textContent = 'Live stream connected';
@@ -155,7 +180,7 @@
                 appendLine(decodeBase64(payload.chunk_base64));
             }
             if (payload.type === 'status' && payload.status) {
-                const degradedStatuses = ['backend_not_configured', 'redis_unavailable', 'relay_stale'];
+                const degradedStatuses = ['backend_not_configured', 'redis_unavailable', 'relay_stale', 'stream_unavailable'];
                 if (degradedStatuses.includes(payload.status)) {
                     const message = payload.message || streamUnavailableMessage;
                     void activatePollingFallback(message);
@@ -279,6 +304,9 @@
         }
         if (pollTimer) {
             window.clearInterval(pollTimer);
+        }
+        if (fallbackRetryTimer) {
+            window.clearInterval(fallbackRetryTimer);
         }
     });
 })();

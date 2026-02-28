@@ -105,6 +105,20 @@ final class AgentGameServerClient
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function getConsoleLogs(Instance $instance, ?string $cursor = null): array
+    {
+        $payload = [];
+        $cursor = trim((string) $cursor);
+        if ($cursor !== '') {
+            $payload['cursor'] = $cursor;
+        }
+
+        return $this->requestJson($instance, 'GET', sprintf('/v1/instances/%d/console/logs', (int) $instance->getId()), $payload);
+    }
+
+    /**
      * @param array<string, mixed> $payload
      * @return array<string, mixed>
      */
@@ -128,6 +142,8 @@ final class AgentGameServerClient
         ];
         if ($method !== 'GET') {
             $options['json'] = $payload;
+        } elseif ($payload !== []) {
+            $options['query'] = $payload;
         }
 
         $response = $this->httpClient->request($method, $this->resolveBaseUrl($instance->getNode()) . $endpoint, $options);
