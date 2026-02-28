@@ -52,7 +52,9 @@ func (p *startTLSProber) ProbeSTARTTLS(ctx context.Context, host string, port in
 	if err != nil {
 		return TLSProbeResult{}, err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	if err = conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
 		return TLSProbeResult{}, err
@@ -108,7 +110,9 @@ func (f *mtaSTSFetcher) FetchPolicy(ctx context.Context, domain string) (string,
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("status %d", resp.StatusCode)
 	}

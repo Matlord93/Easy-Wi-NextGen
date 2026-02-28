@@ -65,8 +65,6 @@ func TestLoadParsesConfigAndDefaults(t *testing.T) {
 	}
 }
 
-
-
 func TestLoadAcceptsUtf8BomOnFirstKey(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "agent.conf")

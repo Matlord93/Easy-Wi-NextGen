@@ -655,9 +655,9 @@ func handleInstanceDeleteWindows(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	return jobs.Result{
-		JobID:  job.ID,
-		Status: "success",
-		Output: map[string]string{"service_name": serviceName},
+		JobID:     job.ID,
+		Status:    "success",
+		Output:    map[string]string{"service_name": serviceName},
 		Completed: time.Now().UTC(),
 	}, nil
 }

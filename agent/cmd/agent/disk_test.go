@@ -19,7 +19,7 @@ func TestResolveInstanceDirSupportsRootPath(t *testing.T) {
 func TestResolveInstanceDirPrefersInstallPathOverRootPath(t *testing.T) {
 	resolved, err := resolveInstanceDir(map[string]any{
 		"install_path": "/home/gs22",
-		"root_path":   "/home/gs21",
+		"root_path":    "/home/gs21",
 	})
 	if err != nil {
 		t.Fatalf("resolveInstanceDir returned error: %v", err)

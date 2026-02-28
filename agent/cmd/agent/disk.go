@@ -196,7 +196,6 @@ func buildLegacyInstanceDir(payload map[string]any) string {
 	return filepath.Join(baseDir, fmt.Sprintf("gs%s%s", customerID, sanitized))
 }
 
-
 func ensureSafePath(path, baseDir string) (string, error) {
 	cleanPath := filepath.Clean(path)
 	cleanBase := filepath.Clean(baseDir)
