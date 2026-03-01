@@ -146,19 +146,12 @@ final class AdminMailPlatformController
 
         $p = $request->toArray();
         $selector = strtolower(trim((string) ($p['selector'] ?? 'default')));
-        $privateKey = trim((string) ($p['private_key'] ?? ''));
-        if ($privateKey === '') {
-            return new JsonResponse(['error' => 'private_key is required'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-
-        $encryptedPrivateKey = $this->encryptionService->encrypt($privateKey);
-        $mailDomain->rotateDkimKey($selector, $encryptedPrivateKey);
+        $mailDomain->rotateDkimKey($selector);
 
         $job = new Job('mail.dkim.rotate', [
             'domain_id' => (string) $domain->getId(),
             'domain' => $domain->getName(),
             'selector' => $mailDomain->getDkimSelector(),
-            'dkim_private_key_ref' => $encryptedPrivateKey['key_id'] ?? '',
             'agent_id' => $domain->getWebspace()->getNode()->getId(),
         ]);
         $this->entityManager->persist($job);

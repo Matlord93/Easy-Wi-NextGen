@@ -80,6 +80,7 @@
 
 {% set domainItems = [
     moduleDns ? { key: 'dns-records', label: t('admin_nav_dns_records', page_locale()), href: path('admin_dns_records') } : null,
+    moduleMail ? { key: 'mail-system', label: t('admin_nav_mail_system', page_locale()), href: path('admin_mail_system') } : null,
     moduleMail ? { key: 'mailboxes', label: t('admin_nav_mailboxes', page_locale()), href: path('admin_mailboxes') } : null,
     moduleMail ? { key: 'mail-aliases', label: t('admin_nav_mail_aliases', page_locale()), href: path('admin_mail_aliases') } : null
 ]|filter(v => v) %}

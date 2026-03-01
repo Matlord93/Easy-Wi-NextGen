@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DomainRepository;
+use App\Repository\JobRepository;
 use App\Repository\MailboxRepository;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -26,6 +27,7 @@ final class CustomerWebspaceController
         private readonly WebspaceRepository $webspaceRepository,
         private readonly DomainRepository $domainRepository,
         private readonly MailboxRepository $mailboxRepository,
+        private readonly JobRepository $jobRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
@@ -416,8 +418,14 @@ final class CustomerWebspaceController
             return new Response('Webspace not found.', Response::HTTP_NOT_FOUND);
         }
 
+        $agentId = (string) $webspace->getNode()->getId();
+        $activeJob = $this->jobRepository->findActiveByTypeAndPayloadField('roundcube.install', 'agent_id', $agentId);
+        if ($activeJob !== null) {
+            return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/webspace/manage?domain_id=' . $this->primaryDomainId($webspace)]);
+        }
+
         $job = new Job('roundcube.install', [
-            'agent_id' => $webspace->getNode()->getId(),
+            'agent_id' => $agentId,
         ]);
         $this->entityManager->persist($job);
 

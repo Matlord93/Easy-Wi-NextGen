@@ -1,0 +1,210 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ t('admin_mail_system_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-semibold">{{ t('admin_mail_system_title', page_locale()) }}</h1>
+        <p class="text-sm text-slate-700">{{ t('admin_mail_system_intro', page_locale()) }}</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="{{ path('admin_mailboxes') }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">{{ t('admin_nav_mailboxes', page_locale()) }}</a>
+        <a href="{{ path('admin_mail_aliases') }}" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500">{{ t('admin_nav_mail_aliases', page_locale()) }}</a>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+    <div class="rounded-xl bg-white border border-slate-200 p-4"><p class="text-xs uppercase text-slate-700">Nodes</p><p class="mt-2 text-2xl font-semibold">{{ summary.nodes }}</p></div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4"><p class="text-xs uppercase text-slate-700">Policies</p><p class="mt-2 text-2xl font-semibold">{{ summary.policies }}</p></div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4"><p class="text-xs uppercase text-slate-700">Domains</p><p class="mt-2 text-2xl font-semibold">{{ summary.domains }}</p></div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4"><p class="text-xs uppercase text-slate-700">Mailboxes</p><p class="mt-2 text-2xl font-semibold">{{ summary.mailboxes }}</p></div>
+    <div class="rounded-xl bg-white border border-slate-200 p-4"><p class="text-xs uppercase text-slate-700">Aliases</p><p class="mt-2 text-2xl font-semibold">{{ summary.aliases }}</p></div>
+</div>
+
+
+<div class="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden mb-6">
+    <div class="border-b border-slate-200 px-5 py-4 flex items-center justify-between gap-3">
+        <div>
+            <h2 class="text-lg font-semibold text-slate-900">Mail Server Status</h2>
+            <p class="text-xs text-slate-600">Letzte {{ status.window_hours }} Stunden (Postfix/Dovecot/OpenDKIM/Agent Logs)</p>
+        </div>
+        <a href="/api/v1/admin/mail/logs?limit=100" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500">JSON Logs öffnen</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 p-5 border-b border-slate-100">
+        <div class="rounded-lg border border-slate-200 p-3 bg-slate-50">
+            <p class="text-[11px] uppercase text-slate-500">Info</p>
+            <p class="mt-1 text-xl font-semibold text-slate-900">{{ status.levels.info|default(0) }}</p>
+        </div>
+        <div class="rounded-lg border border-amber-200 p-3 bg-amber-50">
+            <p class="text-[11px] uppercase text-amber-700">Warnings</p>
+            <p class="mt-1 text-xl font-semibold text-amber-900">{{ status.levels.warning|default(0) }}</p>
+        </div>
+        <div class="rounded-lg border border-rose-200 p-3 bg-rose-50">
+            <p class="text-[11px] uppercase text-rose-700">Errors</p>
+            <p class="mt-1 text-xl font-semibold text-rose-900">{{ status.levels.error|default(0) }}</p>
+        </div>
+        <div class="rounded-lg border border-red-300 p-3 bg-red-50">
+            <p class="text-[11px] uppercase text-red-700">Critical</p>
+            <p class="mt-1 text-xl font-semibold text-red-900">{{ status.levels.critical|default(0) }}</p>
+        </div>
+    </div>
+
+    <div class="px-5 py-4 border-b border-slate-100">
+        <h3 class="text-sm font-semibold text-slate-900 mb-2">Quellen</h3>
+        {% if status.sources is empty %}
+            <p class="text-sm text-slate-600">Keine Mail-Logdaten vorhanden.</p>
+        {% else %}
+            <div class="flex flex-wrap gap-2">
+                {% for source, total in status.sources %}
+                    <span class="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 bg-slate-50">{{ source }}: {{ total }}</span>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+            <tr>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Zeit</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Domain</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Source</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Level</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Event</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Message</th>
+            </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+            {% if status.recent is empty %}
+                <tr><td colspan="7" class="px-5 py-5 text-sm text-slate-600">Keine Einträge vorhanden.</td></tr>
+            {% else %}
+                {% for row in status.recent %}
+                    <tr>
+                        <td class="px-5 py-3 text-slate-600">{{ row.created_at|date('Y-m-d H:i:s') }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.domain }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.source }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.level }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.event_type }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.message|length > 140 ? row.message|slice(0, 140) ~ '…' : row.message }}</td>
+                        <td class="px-5 py-3">
+                            <form method="post" action="{{ path('admin_mail_security_contain_domain') }}" onsubmit="return confirm('Containment für diese Domain anwenden?');" class="inline-flex">
+                                <input type="hidden" name="_token" value="{{ csrf.contain_domain }}">
+                                <input type="hidden" name="domain_id" value="{{ row.domain_id }}">
+                                <button type="submit" class="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100">Contain Domain</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+<div class="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden mb-6">
+    <div class="border-b border-slate-200 px-5 py-4">
+        <h2 class="text-lg font-semibold text-slate-900">Mail Gateway Security</h2>
+        <p class="text-xs text-slate-600">Anti-Abuse, Anti-Phishing, Malware/Spam Sichtbarkeit wie bei einem Mail Gateway.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-3 p-5 border-b border-slate-100">
+        <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p class="text-[11px] uppercase text-slate-500">Policies</p>
+            <p class="mt-1 text-xl font-semibold text-slate-900">{{ security.policy_posture.total|default(0) }}</p>
+        </div>
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+            <p class="text-[11px] uppercase text-emerald-700">TLS required</p>
+            <p class="mt-1 text-xl font-semibold text-emerald-900">{{ security.policy_posture.strict_tls|default(0) }}</p>
+        </div>
+        <div class="rounded-lg border border-rose-200 bg-rose-50 p-3">
+            <p class="text-[11px] uppercase text-rose-700">External forwarding ON</p>
+            <p class="mt-1 text-xl font-semibold text-rose-900">{{ security.policy_posture.external_forwarding_enabled|default(0) }}</p>
+        </div>
+        <div class="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+            <p class="text-[11px] uppercase text-indigo-700">Spam protection high</p>
+            <p class="mt-1 text-xl font-semibold text-indigo-900">{{ security.policy_posture.high_spam_protection|default(0) }}</p>
+        </div>
+        <div class="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p class="text-[11px] uppercase text-amber-700">Suspicious events</p>
+            <p class="mt-1 text-xl font-semibold text-amber-900">{{ security.suspicious_count|default(0) }}</p>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+            <tr>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Zeit</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Domain</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Source</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Level</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Event</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Threat/Message</th>
+                <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Action</th>
+            </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+            {% if security.suspicious is empty %}
+                <tr><td colspan="7" class="px-5 py-5 text-sm text-slate-600">Keine auffälligen Events erkannt.</td></tr>
+            {% else %}
+                {% for row in security.suspicious %}
+                    <tr>
+                        <td class="px-5 py-3 text-slate-600">{{ row.created_at|date('Y-m-d H:i:s') }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.domain }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.source }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.level }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.event_type }}</td>
+                        <td class="px-5 py-3 text-slate-700">{{ row.message|length > 140 ? row.message|slice(0, 140) ~ '…' : row.message }}</td>
+                        <td class="px-5 py-3">
+                            <form method="post" action="{{ path('admin_mail_security_contain_domain') }}" onsubmit="return confirm('Containment für diese Domain anwenden?');" class="inline-flex">
+                                <input type="hidden" name="_token" value="{{ csrf.contain_domain }}">
+                                <input type="hidden" name="domain_id" value="{{ row.domain_id }}">
+                                <button type="submit" class="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100">Contain Domain</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+    <div class="border-b border-slate-200 px-5 py-4">
+        <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_mail_system_bindings', page_locale()) }}</h2>
+    </div>
+    {% if bindings is empty %}
+        <div class="px-5 py-6 text-sm text-slate-700">{{ t('admin_mail_system_empty', page_locale()) }}</div>
+    {% else %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Domain</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Customer</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Node</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Policy</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">DNS</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-slate-700">Updated</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                {% for binding in bindings %}
+                    <tr>
+                        <td class="px-5 py-4 font-semibold text-slate-900">{{ binding.domain }}</td>
+                        <td class="px-5 py-4 text-slate-700">{{ binding.customer }}</td>
+                        <td class="px-5 py-4 text-slate-700">{{ binding.node }}</td>
+                        <td class="px-5 py-4 text-slate-700">{{ binding.policy }}</td>
+                        <td class="px-5 py-4 text-xs text-slate-700">DKIM: {{ binding.dkim }} · SPF: {{ binding.spf }} · DMARC: {{ binding.dmarc }} · MX: {{ binding.mx }} · TLS: {{ binding.tls }}</td>
+                        <td class="px-5 py-4 text-slate-600">{{ binding.updated_at|date('Y-m-d H:i') }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

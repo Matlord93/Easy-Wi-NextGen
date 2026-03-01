@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Module\Core\Application\AgentMetricsIngestionService;
+use App\Module\Core\Application\AgentJwtVerifier;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
@@ -22,6 +23,7 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceMetricSample;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\JobResult;
+use App\Module\Core\Domain\Entity\MailLog;
 use App\Module\Core\Domain\Entity\MetricSample;
 use App\Module\Core\Domain\Entity\SecurityEvent;
 use App\Module\Core\Domain\Enum\BackupStatus;
@@ -108,6 +110,7 @@ final class AgentApiController
         private readonly EntityManagerInterface $entityManager,
         private readonly EncryptionService $encryptionService,
         private readonly AgentSignatureVerifier $signatureVerifier,
+        private readonly AgentJwtVerifier $jwtVerifier,
         private readonly AuditLogger $auditLogger,
         private readonly AgentMetricsIngestionService $metricsIngestionService,
         private readonly FirewallStateManager $firewallStateManager,
@@ -242,6 +245,75 @@ final class AgentApiController
         $this->entityManager->flush();
 
         return new JsonResponse(['status' => 'ok', 'ingested' => $ingested]);
+    }
+
+
+    #[Route(path: '/agent/mail/logs-batch', methods: ['POST'])]
+    #[Route(path: '/api/v1/agent/mail/logs-batch', methods: ['POST'])]
+    public function ingestMailLogsBatch(Request $request): JsonResponse
+    {
+        $agent = $this->requireAgent($request);
+        if ($agent instanceof JsonResponse) {
+            return $agent;
+        }
+
+        if ($this->isDecommissionedAgent($agent)) {
+            return new JsonResponse(['error' => 'agent_decommissioned'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        try {
+            $payload = $request->toArray();
+        } catch (\JsonException $exception) {
+            throw new BadRequestHttpException('Invalid JSON payload.', $exception);
+        }
+
+        $events = is_array($payload['events'] ?? null) ? $payload['events'] : [];
+        $events = array_slice($events, 0, 1000);
+
+        $persisted = 0;
+        foreach ($events as $event) {
+            if (!is_array($event)) {
+                continue;
+            }
+
+            $domainName = strtolower(trim((string) ($event['domain'] ?? '')));
+            if ($domainName === '') {
+                continue;
+            }
+
+            $domain = $this->domainRepository->findOneBy(['name' => $domainName]);
+            if ($domain === null) {
+                continue;
+            }
+
+            $user = null;
+            $userId = is_numeric($event['user_id'] ?? null) ? (int) $event['user_id'] : null;
+            if ($userId !== null) {
+                $foundUser = $this->userRepository->find($userId);
+                if ($foundUser !== null) {
+                    $user = $foundUser;
+                }
+            }
+
+            $message = trim((string) ($event['message'] ?? 'mail event'));
+            $mailLog = new MailLog(
+                $domain,
+                (string) ($event['level'] ?? 'info'),
+                (string) ($event['source'] ?? 'agent'),
+                (string) ($event['event_type'] ?? 'policy'),
+                $message !== '' ? $message : 'mail event',
+                is_array($event['payload'] ?? null) ? $event['payload'] : [],
+                $user,
+            );
+            $this->entityManager->persist($mailLog);
+            ++$persisted;
+        }
+
+        if ($persisted > 0) {
+            $this->entityManager->flush();
+        }
+
+        return new JsonResponse(['status' => 'ok', 'persisted' => $persisted]);
     }
 
 
@@ -752,10 +824,18 @@ final class AgentApiController
         }
 
         try {
+            $this->jwtVerifier->verify($request, $agentId, $secret);
             $this->signatureVerifier->verify($request, $agentId, $secret);
         } catch (UnauthorizedHttpException $exception) {
+            $this->auditLogger->log(null, 'agent.auth_failed', [
+                'agent_id' => $agentId,
+                'reason' => $exception->getMessage(),
+                'path' => $request->getPathInfo(),
+                'method' => $request->getMethod(),
+            ]);
             return $this->unauthorizedAgentResponse($exception->getMessage());
         }
+
 
         return $agent;
     }

@@ -350,16 +350,17 @@ func detectRoundcubeRoot() string {
 }
 
 func writeRoundcubeInclude(path, root string) error {
+	phpFpmEndpoint := detectPHPFpmEndpoint()
 	content := fmt.Sprintf(`location /roundcube {
     alias %s/;
     index index.php;
-    location ~ \\.php$ {
+    location ~ \.php$ {
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $request_filename;
-        fastcgi_pass unix:/run/php/php-fpm.sock;
+        fastcgi_pass %s;
     }
 }
-`, root)
+`, root, phpFpmEndpoint)
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
@@ -427,4 +428,23 @@ func sortedPhpSettings(settings map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func detectPHPFpmEndpoint() string {
+	candidates := []string{
+		"/run/php/php-fpm.sock",
+		"/run/php/php8.3-fpm.sock",
+		"/run/php/php8.2-fpm.sock",
+		"/run/php/php8.1-fpm.sock",
+		"/run/php/php8.0-fpm.sock",
+		"/run/php/php7.4-fpm.sock",
+	}
+
+	for _, socket := range candidates {
+		if info, err := os.Stat(socket); err == nil && !info.IsDir() {
+			return "unix:" + socket
+		}
+	}
+
+	return "127.0.0.1:9000"
 }

@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\DomainRepository;
 use App\Repository\MailAliasRepository;
+use App\Repository\MailPolicyRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -19,9 +20,12 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class MailAliasApiController
 {
+    private const MAX_DESTINATIONS = 20;
+
     public function __construct(
         private readonly MailAliasRepository $aliasRepository,
         private readonly DomainRepository $domainRepository,
+        private readonly MailPolicyRepository $mailPolicyRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly MailAliasLoopGuard $loopGuard,
@@ -85,6 +89,16 @@ final class MailAliasApiController
         if ($destinations === []) {
             return new JsonResponse(['error' => 'Forward destinations are required.'], JsonResponse::HTTP_BAD_REQUEST);
         }
+        if (count($destinations) > self::MAX_DESTINATIONS) {
+            return new JsonResponse(['error' => sprintf('A maximum of %d destinations is allowed.', self::MAX_DESTINATIONS)], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if (!$actor->isAdmin()) {
+            $policyError = $this->externalForwardingPolicyError($domain, $destinations);
+            if ($policyError !== null) {
+                return new JsonResponse(['error' => $policyError], JsonResponse::HTTP_BAD_REQUEST);
+            }
+        }
 
         $address = sprintf('%s@%s', $localPart, $domain->getName());
         if ($this->aliasRepository->findOneByAddress($address) !== null) {
@@ -147,6 +161,16 @@ final class MailAliasApiController
         $destinations = $destinationsInput !== '' ? $this->parseDestinations($destinationsInput) : $alias->getDestinations();
         if ($destinations === []) {
             return new JsonResponse(['error' => 'Forward destinations are required.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+        if (count($destinations) > self::MAX_DESTINATIONS) {
+            return new JsonResponse(['error' => sprintf('A maximum of %d destinations is allowed.', self::MAX_DESTINATIONS)], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        if (!$actor->isAdmin()) {
+            $policyError = $this->externalForwardingPolicyError($alias->getDomain(), $destinations);
+            if ($policyError !== null) {
+                return new JsonResponse(['error' => $policyError], JsonResponse::HTTP_BAD_REQUEST);
+            }
         }
 
         $existingAliases = $this->aliasRepository->findByCustomer($alias->getCustomer());
@@ -264,11 +288,41 @@ final class MailAliasApiController
             return [];
         }
 
-        $normalized = str_replace(["\r\n", "\n", ';'], ',', $input);
+        $normalized = str_replace(["
+", "
+", ';'], ',', $input);
         $parts = array_map('trim', explode(',', $normalized));
-        $filtered = array_filter($parts, static fn (string $value): bool => $value !== '');
+        $destinations = [];
 
-        return array_values(array_unique($filtered));
+        foreach ($parts as $value) {
+            $candidate = strtolower($value);
+            if ($candidate === '' || !filter_var($candidate, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+            $destinations[$candidate] = true;
+        }
+
+        return array_keys($destinations);
+    }
+
+    /**
+     * @param string[] $destinations
+     */
+    private function externalForwardingPolicyError(\App\Module\Core\Domain\Entity\Domain $domain, array $destinations): ?string
+    {
+        $policy = $this->mailPolicyRepository->findOneByDomain($domain);
+        if ($policy === null || $policy->isAllowExternalForwarding()) {
+            return null;
+        }
+
+        $suffix = '@' . strtolower($domain->getName());
+        foreach ($destinations as $destination) {
+            if (!str_ends_with(strtolower($destination), $suffix)) {
+                return 'External forwarding is disabled by mail policy for this domain.';
+            }
+        }
+
+        return null;
     }
 
     private function validateLocalPart(string $localPart): ?string

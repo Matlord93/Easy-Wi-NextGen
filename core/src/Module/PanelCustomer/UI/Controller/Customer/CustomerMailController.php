@@ -6,19 +6,25 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DomainRepository;
+use App\Repository\MailAliasRepository;
+use App\Repository\MailPolicyRepository;
 use App\Repository\MailboxRepository;
 use App\Repository\MailDomainRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 
 #[Route(path: '/mail')]
@@ -29,6 +35,8 @@ final class CustomerMailController
     private const DEFAULT_IMAP_ENCRYPTION = 'ssl_tls';
     private const DEFAULT_SMTP_ENCRYPTION = 'starttls';
 
+    private const MAX_ALIAS_DESTINATIONS = 20;
+
     private const ENCRYPTION_LABELS = [
         'ssl_tls' => 'SSL/TLS',
         'starttls' => 'STARTTLS',
@@ -37,13 +45,17 @@ final class CustomerMailController
 
     public function __construct(
         private readonly MailboxRepository $mailboxRepository,
+        private readonly MailAliasRepository $mailAliasRepository,
         private readonly DomainRepository $domainRepository,
         private readonly MailDomainRepository $mailDomainRepository,
+        private readonly MailPolicyRepository $mailPolicyRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly EncryptionService $encryptionService,
         private readonly MailPasswordHasher $mailPasswordHasher,
         private readonly MailLimitEnforcer $mailLimitEnforcer,
+        private readonly MailAliasLoopGuard $mailAliasLoopGuard,
+        private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
     ) {
     }
@@ -53,14 +65,17 @@ final class CustomerMailController
     {
         $customer = $this->requireCustomer($request);
         $mailboxes = $this->mailboxRepository->findByCustomer($customer);
+        $aliases = $this->mailAliasRepository->findByCustomer($customer);
         $domains = $this->domainRepository->findByCustomer($customer);
 
         return new Response($this->twig->render('customer/mail/index.html.twig', [
             'activeNav' => 'mail',
             'mailboxes' => $this->normalizeMailboxes($mailboxes),
             'domains' => $domains,
+            'aliases' => $this->normalizeAliases($aliases),
             'client_settings' => $this->buildClientSettings($domains),
             'roundcube_bindings' => $this->buildRoundcubeBindings($domains),
+            'csrf' => $this->csrfTokens($mailboxes, $aliases),
         ]));
     }
 
@@ -68,6 +83,9 @@ final class CustomerMailController
     public function create(Request $request): Response
     {
         $customer = $this->requireCustomer($request);
+        if (!$this->isCsrfValid($request, 'mailbox_create')) {
+            return $this->renderWithErrors($customer, ['Invalid CSRF token.']);
+        }
 
         $domainId = (int) $request->request->get('domain_id', 0);
         $localPart = strtolower(trim((string) $request->request->get('local_part', '')));
@@ -155,6 +173,9 @@ final class CustomerMailController
     public function updateQuota(Request $request, int $id): Response
     {
         $customer = $this->requireCustomer($request);
+        if (!$this->isCsrfValid($request, 'mailbox_quota_' . $id)) {
+            return $this->renderWithErrors($customer, ['Invalid CSRF token.']);
+        }
         $mailbox = $this->loadMailbox($customer, $id);
         if ($mailbox === null) {
             return $this->renderWithErrors($customer, ['Mailbox not found.']);
@@ -195,6 +216,9 @@ final class CustomerMailController
     public function updateStatus(Request $request, int $id): Response
     {
         $customer = $this->requireCustomer($request);
+        if (!$this->isCsrfValid($request, 'mailbox_status_' . $id)) {
+            return $this->renderWithErrors($customer, ['Invalid CSRF token.']);
+        }
         $mailbox = $this->loadMailbox($customer, $id);
         if ($mailbox === null) {
             return $this->renderWithErrors($customer, ['Mailbox not found.']);
@@ -227,6 +251,9 @@ final class CustomerMailController
     public function resetPassword(Request $request, int $id): Response
     {
         $customer = $this->requireCustomer($request);
+        if (!$this->isCsrfValid($request, 'mailbox_password_' . $id)) {
+            return $this->renderWithErrors($customer, ['Invalid CSRF token.']);
+        }
         $mailbox = $this->loadMailbox($customer, $id);
         if ($mailbox === null) {
             return $this->renderWithErrors($customer, ['Mailbox not found.']);
@@ -262,6 +289,9 @@ final class CustomerMailController
     public function delete(Request $request, int $id): Response
     {
         $customer = $this->requireCustomer($request);
+        if (!$this->isCsrfValid($request, 'mailbox_delete_' . $id)) {
+            return $this->renderWithErrors($customer, ['Invalid CSRF token.']);
+        }
         $mailbox = $this->loadMailbox($customer, $id);
         if ($mailbox === null) {
             return $this->renderWithErrors($customer, ['Mailbox not found.']);
@@ -281,6 +311,192 @@ final class CustomerMailController
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
     }
 
+
+    #[Route(path: '/aliases', name: 'customer_mail_alias_create', methods: ['POST'])]
+    public function createAlias(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        if (!$this->isCsrfValid($request, 'alias_create')) {
+            return $this->renderWithErrors($customer, ['Invalid CSRF token.']);
+        }
+
+        $domainId = (int) $request->request->get('domain_id', 0);
+        $localPart = strtolower(trim((string) $request->request->get('local_part', '')));
+        $destinations = $this->parseAliasDestinations((string) $request->request->get('destinations', ''));
+        $enabled = $request->request->get('enabled') === '1';
+
+        $errors = [];
+        $domain = $domainId > 0 ? $this->domainRepository->find($domainId) : null;
+        if ($domain === null || $domain->getCustomer()->getId() !== $customer->getId()) {
+            $errors[] = 'Domain not found.';
+        }
+        if ($localPart === '' || !preg_match('/^[a-z0-9._+\-]+$/i', $localPart) || str_contains($localPart, '@')) {
+            $errors[] = 'Invalid alias name.';
+        }
+        if ($destinations === []) {
+            $errors[] = 'At least one destination is required.';
+        }
+        if (count($destinations) > self::MAX_ALIAS_DESTINATIONS) {
+            $errors[] = sprintf('A maximum of %d destinations is allowed.', self::MAX_ALIAS_DESTINATIONS);
+        }
+
+        if ($domain !== null) {
+            $policyError = $this->validateAliasPolicy($domain, $destinations);
+            if ($policyError !== null) {
+                $errors[] = $policyError;
+            }
+            $address = sprintf('%s@%s', $localPart, $domain->getName());
+            if ($this->mailAliasRepository->findOneByAddress($address) !== null) {
+                $errors[] = 'Alias address already exists.';
+            }
+
+            $existingAliases = $this->mailAliasRepository->findByCustomer($customer);
+            if ($this->mailAliasLoopGuard->wouldCreateLoop($address, $destinations, $existingAliases)) {
+                $errors[] = 'Alias loop detected.';
+            }
+        }
+
+        if ($errors !== []) {
+            return $this->renderWithErrors($customer, $errors);
+        }
+
+        $alias = new MailAlias($domain, $localPart, $destinations, $enabled);
+        $this->entityManager->persist($alias);
+
+        $job = $this->queueAliasJob('mail.alias.create', $alias, [
+            'destinations' => implode(', ', $alias->getDestinations()),
+            'enabled' => $alias->isEnabled() ? 'true' : 'false',
+        ]);
+
+        $this->auditLogger->log($customer, 'mail.alias_created', [
+            'alias_id' => $alias->getId(),
+            'address' => $alias->getAddress(),
+            'destinations' => $alias->getDestinations(),
+            'enabled' => $alias->isEnabled(),
+            'job_id' => $job->getId(),
+        ]);
+
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+    }
+
+
+    #[Route(path: '/aliases/{id}/destinations', name: 'customer_mail_alias_destinations_update', methods: ['POST'])]
+    public function updateAliasDestinations(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        if (!$this->isCsrfValid($request, 'alias_destinations_' . $id)) {
+            return $this->renderWithErrors($customer, ['Invalid CSRF token.']);
+        }
+        $alias = $this->loadAlias($customer, $id);
+        if ($alias === null) {
+            return $this->renderWithErrors($customer, ['Alias not found.']);
+        }
+
+        $destinations = $this->parseAliasDestinations((string) $request->request->get('destinations', ''));
+        if ($destinations === []) {
+            return $this->renderWithErrors($customer, ['At least one destination is required.']);
+        }
+        if (count($destinations) > self::MAX_ALIAS_DESTINATIONS) {
+            return $this->renderWithErrors($customer, [sprintf('A maximum of %d destinations is allowed.', self::MAX_ALIAS_DESTINATIONS)]);
+        }
+
+        $policyError = $this->validateAliasPolicy($alias->getDomain(), $destinations);
+        if ($policyError !== null) {
+            return $this->renderWithErrors($customer, [$policyError]);
+        }
+
+        $existingAliases = $this->mailAliasRepository->findByCustomer($customer);
+        $filteredAliases = array_values(array_filter($existingAliases, static fn (MailAlias $existing): bool => $existing->getId() !== $alias->getId()));
+        if ($this->mailAliasLoopGuard->wouldCreateLoop($alias->getAddress(), $destinations, $filteredAliases)) {
+            return $this->renderWithErrors($customer, ['Alias loop detected.']);
+        }
+
+        $previousDestinations = $alias->getDestinations();
+        $alias->setDestinations($destinations);
+
+        $job = $this->queueAliasJob('mail.alias.update', $alias, [
+            'destinations' => implode(', ', $alias->getDestinations()),
+            'enabled' => $alias->isEnabled() ? 'true' : 'false',
+        ]);
+
+        $this->auditLogger->log($customer, 'mail.alias_updated', [
+            'alias_id' => $alias->getId(),
+            'address' => $alias->getAddress(),
+            'previous_destinations' => $previousDestinations,
+            'destinations' => $alias->getDestinations(),
+            'job_id' => $job->getId(),
+        ]);
+
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+    }
+
+    #[Route(path: '/aliases/{id}/status', name: 'customer_mail_alias_status_update', methods: ['POST'])]
+    public function updateAliasStatus(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        if (!$this->isCsrfValid($request, 'alias_status_' . $id)) {
+            return $this->renderWithErrors($customer, ['Invalid CSRF token.']);
+        }
+        $alias = $this->loadAlias($customer, $id);
+        if ($alias === null) {
+            return $this->renderWithErrors($customer, ['Alias not found.']);
+        }
+
+        $enabled = $request->request->get('enabled') === '1';
+        if ($enabled !== $alias->isEnabled()) {
+            $previousEnabled = $alias->isEnabled();
+            $alias->setEnabled($enabled);
+            $jobType = $enabled ? 'mail.alias.enable' : 'mail.alias.disable';
+            $job = $this->queueAliasJob($jobType, $alias, [
+                'destinations' => implode(', ', $alias->getDestinations()),
+                'enabled' => $enabled ? 'true' : 'false',
+            ]);
+
+            $this->auditLogger->log($customer, $enabled ? 'mail.alias_enabled' : 'mail.alias_disabled', [
+                'alias_id' => $alias->getId(),
+                'address' => $alias->getAddress(),
+                'previous_enabled' => $previousEnabled,
+                'enabled' => $enabled,
+                'job_id' => $job->getId(),
+            ]);
+        }
+
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+    }
+
+    #[Route(path: '/aliases/{id}/delete', name: 'customer_mail_alias_delete', methods: ['POST'])]
+    public function deleteAlias(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        if (!$this->isCsrfValid($request, 'alias_delete_' . $id)) {
+            return $this->renderWithErrors($customer, ['Invalid CSRF token.']);
+        }
+        $alias = $this->loadAlias($customer, $id);
+        if ($alias === null) {
+            return $this->renderWithErrors($customer, ['Alias not found.']);
+        }
+
+        $job = $this->queueAliasJob('mail.alias.delete', $alias, []);
+
+        $this->auditLogger->log($customer, 'mail.alias_deleted', [
+            'alias_id' => $alias->getId(),
+            'address' => $alias->getAddress(),
+            'destinations' => $alias->getDestinations(),
+            'job_id' => $job->getId(),
+        ]);
+
+        $this->entityManager->remove($alias);
+        $this->entityManager->flush();
+
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+    }
+
     private function requireCustomer(Request $request): User
     {
         $actor = $request->attributes->get('current_user');
@@ -294,14 +510,17 @@ final class CustomerMailController
     private function renderWithErrors(User $customer, array $errors = []): Response
     {
         $mailboxes = $this->mailboxRepository->findByCustomer($customer);
+        $aliases = $this->mailAliasRepository->findByCustomer($customer);
         $domains = $this->domainRepository->findByCustomer($customer);
 
         return new Response($this->twig->render('customer/mail/index.html.twig', [
             'activeNav' => 'mail',
             'mailboxes' => $this->normalizeMailboxes($mailboxes),
             'domains' => $domains,
+            'aliases' => $this->normalizeAliases($aliases),
             'client_settings' => $this->buildClientSettings($domains),
             'roundcube_bindings' => $this->buildRoundcubeBindings($domains),
+            'csrf' => $this->csrfTokens($mailboxes, $aliases),
             'errors' => $errors,
         ]), Response::HTTP_BAD_REQUEST);
     }
@@ -333,6 +552,137 @@ final class CustomerMailController
         $this->entityManager->persist($job);
 
         return $job;
+    }
+
+
+    private function loadAlias(User $customer, int $id): ?MailAlias
+    {
+        $alias = $this->mailAliasRepository->find($id);
+        if ($alias === null || $alias->getCustomer()->getId() !== $customer->getId()) {
+            return null;
+        }
+
+        return $alias;
+    }
+
+    private function queueAliasJob(string $type, MailAlias $alias, array $extraPayload): Job
+    {
+        $domain = $alias->getDomain();
+        $payload = array_merge([
+            'mail_alias_id' => (string) ($alias->getId() ?? ''),
+            'domain_id' => (string) $domain->getId(),
+            'domain' => $domain->getName(),
+            'local_part' => $alias->getLocalPart(),
+            'address' => $alias->getAddress(),
+            'customer_id' => (string) $alias->getCustomer()->getId(),
+            'agent_id' => $domain->getWebspace()->getNode()->getId(),
+        ], $extraPayload);
+
+        $job = new Job($type, $payload);
+        $this->entityManager->persist($job);
+
+        return $job;
+    }
+
+    /**
+     * @return string[]
+     */
+    private function parseAliasDestinations(string $input): array
+    {
+        $items = preg_split('/[\r\n,;]+/', $input) ?: [];
+        $cleaned = [];
+
+        foreach ($items as $item) {
+            $candidate = strtolower(trim($item));
+            if ($candidate === '' || !filter_var($candidate, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+            $cleaned[$candidate] = true;
+        }
+
+        return array_keys($cleaned);
+    }
+
+    /**
+     * @param string[] $destinations
+     */
+    private function validateAliasPolicy(\App\Module\Core\Domain\Entity\Domain $domain, array $destinations): ?string
+    {
+        $policy = $this->mailPolicyRepository->findOneByDomain($domain);
+        if ($policy !== null && !$policy->isAllowExternalForwarding()) {
+            $domainSuffix = '@' . strtolower($domain->getName());
+            foreach ($destinations as $destination) {
+                if (!str_ends_with(strtolower($destination), $domainSuffix)) {
+                    return 'External forwarding is disabled by mail policy for this domain.';
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param MailAlias[] $aliases
+     */
+    private function normalizeAliases(array $aliases): array
+    {
+        return array_map(static function (MailAlias $alias): array {
+            return [
+                'id' => $alias->getId(),
+                'address' => $alias->getAddress(),
+                'destinations' => $alias->getDestinations(),
+                'enabled' => $alias->isEnabled(),
+                'updated_at' => $alias->getUpdatedAt(),
+            ];
+        }, $aliases);
+    }
+
+    /**
+     * @param Mailbox[] $mailboxes
+     * @param MailAlias[] $aliases
+     */
+    private function csrfTokens(array $mailboxes, array $aliases): array
+    {
+        $tokens = [
+            'mailbox_create' => $this->csrfTokenManager->getToken('mailbox_create')->getValue(),
+            'alias_create' => $this->csrfTokenManager->getToken('alias_create')->getValue(),
+            'mailboxes' => [],
+            'aliases' => [],
+        ];
+
+        foreach ($mailboxes as $mailbox) {
+            $id = $mailbox->getId();
+            if ($id === null) {
+                continue;
+            }
+            $tokens['mailboxes'][$id] = [
+                'quota' => $this->csrfTokenManager->getToken('mailbox_quota_' . $id)->getValue(),
+                'status' => $this->csrfTokenManager->getToken('mailbox_status_' . $id)->getValue(),
+                'password' => $this->csrfTokenManager->getToken('mailbox_password_' . $id)->getValue(),
+                'delete' => $this->csrfTokenManager->getToken('mailbox_delete_' . $id)->getValue(),
+            ];
+        }
+
+        foreach ($aliases as $alias) {
+            $id = $alias->getId();
+            if ($id === null) {
+                continue;
+            }
+            $tokens['aliases'][$id] = [
+                'destinations' => $this->csrfTokenManager->getToken('alias_destinations_' . $id)->getValue(),
+                'status' => $this->csrfTokenManager->getToken('alias_status_' . $id)->getValue(),
+                'delete' => $this->csrfTokenManager->getToken('alias_delete_' . $id)->getValue(),
+            ];
+        }
+
+        return $tokens;
+    }
+
+    private function isCsrfValid(Request $request, string $tokenId): bool
+    {
+        $token = new CsrfToken($tokenId, (string) $request->request->get('_token', ''));
+
+        return $this->csrfTokenManager->isTokenValid($token);
     }
 
     /**
@@ -369,12 +719,12 @@ final class CustomerMailController
                 $settings[] = [
                     'domain' => $domain->getName(),
                     'imap' => [
-                        'host' => $mailNode->getImapHost(),
+                        'host' => $this->normalizeClientHost($mailNode->getImapHost(), sprintf('mail.%s', $domain->getName())),
                         'port' => $mailNode->getImapPort(),
                         'encryption' => self::ENCRYPTION_LABELS[self::DEFAULT_IMAP_ENCRYPTION],
                     ],
                     'smtp' => [
-                        'host' => $mailNode->getSmtpHost(),
+                        'host' => $this->normalizeClientHost($mailNode->getSmtpHost(), sprintf('mail.%s', $domain->getName())),
                         'port' => $mailNode->getSmtpPort(),
                         'encryption' => self::ENCRYPTION_LABELS[self::DEFAULT_SMTP_ENCRYPTION],
                     ],
@@ -400,12 +750,12 @@ final class CustomerMailController
             $settings[] = [
                 'domain' => $domain->getName(),
                 'imap' => [
-                    'host' => $imapHost,
+                    'host' => $this->normalizeClientHost($imapHost, $defaultHost),
                     'port' => $imapPort,
                     'encryption' => self::ENCRYPTION_LABELS[$imapEncryption] ?? $imapEncryption,
                 ],
                 'smtp' => [
-                    'host' => $smtpHost,
+                    'host' => $this->normalizeClientHost($smtpHost, $defaultHost),
                     'port' => $smtpPort,
                     'encryption' => self::ENCRYPTION_LABELS[$smtpEncryption] ?? $smtpEncryption,
                 ],
@@ -459,6 +809,30 @@ final class CustomerMailController
         }
 
         return $default;
+    }
+
+    private function normalizeClientHost(string $host, string $fallback): string
+    {
+        $candidate = trim($host);
+        if ($candidate === '') {
+            return $fallback;
+        }
+
+        if (preg_match('#^[a-z][a-z0-9+.-]*://#i', $candidate) === 1) {
+            $parsedHost = parse_url($candidate, PHP_URL_HOST);
+            if (is_string($parsedHost) && $parsedHost !== '') {
+                $candidate = $parsedHost;
+            }
+        } elseif (str_contains($candidate, '/') || str_contains($candidate, '?') || str_contains($candidate, '#') || (str_contains($candidate, ':') && !str_contains($candidate, ']'))) {
+            $parsedHost = parse_url(sprintf('tcp://%s', $candidate), PHP_URL_HOST);
+            if (is_string($parsedHost) && $parsedHost !== '') {
+                $candidate = $parsedHost;
+            }
+        }
+
+        $candidate = trim($candidate, " \t\n\r\0\x0B.");
+
+        return $candidate !== '' ? $candidate : $fallback;
     }
 
     private function normalizeEncryption(mixed $value, string $default): string
