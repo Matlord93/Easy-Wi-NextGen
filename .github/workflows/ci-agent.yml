@@ -70,12 +70,14 @@ jobs:
         run: go test ./cmd/agent -run TestAgentCoreConnectivitySmoke
 
       - name: Build agent
+        shell: bash
         run: |
           mkdir -p ../dist/${{ matrix.os }}
           go build -trimpath -ldflags="-s -w" \
             -o ../dist/${{ matrix.os }}/easywi-agent ./cmd/agent
 
       - name: Build easywi-sftp
+        shell: bash
         run: |
           go build -trimpath -ldflags="-s -w" \
             -o ../dist/${{ matrix.os }}/easywi-sftp ./cmd/easywi-sftp
