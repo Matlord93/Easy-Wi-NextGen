@@ -110,6 +110,13 @@ func handleNodeDiskStat(job jobs.Job) (jobs.Result, func() error) {
 	if baseDir == "" {
 		baseDir = "/home"
 	}
+	if !filepath.IsAbs(baseDir) {
+		absoluteBaseDir, err := filepath.Abs(baseDir)
+		if err != nil {
+			return failureResult(job.ID, fmt.Errorf("resolve base dir: %w", err))
+		}
+		baseDir = absoluteBaseDir
+	}
 	cleanBase, err := ensureSafePath(baseDir, baseDir)
 	if err != nil {
 		return failureResult(job.ID, err)
@@ -165,6 +172,13 @@ func resolveInstanceDir(payload map[string]any) (string, error) {
 	}
 	if baseDir == "" {
 		baseDir = "/"
+	}
+	if !filepath.IsAbs(baseDir) {
+		absoluteBaseDir, err := filepath.Abs(baseDir)
+		if err != nil {
+			return "", fmt.Errorf("resolve base dir: %w", err)
+		}
+		baseDir = absoluteBaseDir
 	}
 
 	return ensureSafePath(instanceDir, baseDir)
