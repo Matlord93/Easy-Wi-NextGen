@@ -167,13 +167,19 @@ func resolveInstanceDir(payload map[string]any) (string, error) {
 	}
 
 	baseDir := payloadValue(payload, "base_dir")
+	baseDirProvided := baseDir != ""
 	if baseDir == "" {
 		baseDir = os.Getenv("EASYWI_INSTANCE_BASE_DIR")
+		baseDirProvided = baseDir != ""
 	}
 	if baseDir == "" {
-		baseDir = "/"
+		if volume := filepath.VolumeName(instanceDir); volume != "" {
+			baseDir = volume + string(filepath.Separator)
+		} else {
+			baseDir = "/"
+		}
 	}
-	if !filepath.IsAbs(baseDir) {
+	if baseDirProvided && !filepath.IsAbs(baseDir) {
 		absoluteBaseDir, err := filepath.Abs(baseDir)
 		if err != nil {
 			return "", fmt.Errorf("resolve base dir: %w", err)
