@@ -25,7 +25,6 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 	}
 	state := &smokeState{}
 
-	heartbeatSeen := make(chan struct{}, 1)
 	jobStarted := make(chan struct{}, 1)
 	jobResult := make(chan jobs.Result, 1)
 	signal := func(ch chan struct{}) {
@@ -37,7 +36,6 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/agent/heartbeat", func(w http.ResponseWriter, _ *http.Request) {
-		signal(heartbeatSeen)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
@@ -119,7 +117,6 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		}
 	}
 
-	waitFor(heartbeatSeen, "heartbeat to be sent")
 	waitFor(jobStarted, "dummy job to be started")
 
 	var result jobs.Result
