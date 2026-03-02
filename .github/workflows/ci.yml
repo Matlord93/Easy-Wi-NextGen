@@ -41,4 +41,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: python3 docs/api/scripts/validate_openapi.py docs/api/core-agent.v1.openapi.yaml
+      - run: python3 "$GITHUB_WORKSPACE/docs/api/scripts/validate_openapi.py" "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"

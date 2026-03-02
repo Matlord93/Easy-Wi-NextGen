@@ -18,7 +18,7 @@
 | DEFAULT_URI | `http://localhost` | stage URL | prod URL | yes | none | config env |
 | MAILER_DSN | local smtp/mailhog | stage smtp | prod smtp | yes | none | Vault/KMS/Compose secret |
 | MESSENGER_TRANSPORT_DSN | local doctrine/redis | managed broker | managed broker | yes | none | config env |
-| REDIS_DSN | local redis | stage redis | prod redis | yes | none | Vault/KMS/Compose secret |
+| REDIS_DSN | local redis | stage redis | prod redis | yes | `redis://localhost:6379` fallback for startup validation | Vault/KMS/Compose secret |
 | AGENT_SIGNATURE_SKEW_SECONDS | 300 | 300 | 300 | yes | none | config env |
 | AGENT_NONCE_TTL_SECONDS | 600 | 600 | 600 | yes | none | config env |
 | APP_AGENT_RELEASE_CACHE_TTL | 300 | 300 | 300 | yes | none | config env |
@@ -36,6 +36,7 @@
 
 Startup validation runs during Symfony container loading (`core/config/startup_env_validation.php`).
 If a required variable is missing or empty, startup fails fast with an explicit error listing all missing keys.
+`REDIS_DSN` falls back to `redis://localhost:6379` when unset to keep local/bootstrap workflows (for example `composer install`) operational.
 This prevents implicit `null` behavior and late runtime faults.
 
 ## 4) Secret provisioning standard

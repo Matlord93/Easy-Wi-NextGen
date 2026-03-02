@@ -765,6 +765,10 @@ validate_systemd_unit() {
   fi
 }
 
+has_systemctl() {
+  command -v systemctl >/dev/null 2>&1
+}
+
 install_panel() {
   local mode="$1"
   local install_dir="$2"
@@ -931,15 +935,24 @@ CONF
 
   create_agent_systemd_service "${primary_base_dir}" "${sftp_base_dir}"
   validate_systemd_unit "easywi-agent"
-  systemctl daemon-reload
-  systemctl enable easywi-agent.service
+
+  if has_systemctl; then
+    systemctl daemon-reload
+    systemctl enable easywi-agent.service
+  fi
 
   cat <<'INFO'
 Die Binaries wurden installiert. Die Konfiguration und Dienste können
 nach der Registrierung im Webinterface ergänzt werden:
   - /etc/easywi/agent.conf
-Der Systemd-Service wurde angelegt und für den Autostart aktiviert.
+Der Systemd-Service wurde angelegt.
 INFO
+
+  if has_systemctl; then
+    echo "Systemd wurde erkannt: easywi-agent.service ist für den Autostart aktiviert."
+  else
+    echo "Hinweis: Kein systemctl gefunden. Starte den Agent manuell: /usr/local/bin/easywi-agent --config /etc/easywi/agent.conf"
+  fi
 }
 
 install_agent_services() {
@@ -970,8 +983,13 @@ CONF
   create_agent_systemd_service "${primary_base_dir}" "${sftp_base_dir}"
   validate_systemd_unit "easywi-agent"
 
-  systemctl daemon-reload
-  systemctl enable --now easywi-agent.service
+  if has_systemctl; then
+    systemctl daemon-reload
+    systemctl enable --now easywi-agent.service
+  else
+    log "Kein systemctl gefunden: easywi-agent.service kann nicht automatisch gestartet werden."
+    log "Manueller Start: /usr/local/bin/easywi-agent --config /etc/easywi/agent.conf"
+  fi
 }
 
 write_bootstrap_state() {

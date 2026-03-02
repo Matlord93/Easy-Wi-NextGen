@@ -22,7 +22,6 @@ import (
 	"easywi/agent/internal/trace"
 )
 
-
 var (
 	version = "0.0.0-dev"
 	commit  = "unknown"

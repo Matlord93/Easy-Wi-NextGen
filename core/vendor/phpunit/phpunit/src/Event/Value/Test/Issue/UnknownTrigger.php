@@ -14,7 +14,7 @@ namespace PHPUnit\Event\Code\IssueTrigger;
  *
  * @no-named-arguments Parameter names are not covered by the backward compatibility promise for PHPUnit
  */
-final class UnknownTrigger extends IssueTrigger
+final readonly class UnknownTrigger extends IssueTrigger
 {
     public function isUnknown(): true
     {

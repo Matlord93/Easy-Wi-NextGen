@@ -5,6 +5,10 @@ declare(strict_types=1);
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 return static function (ContainerConfigurator $container): void {
+    $defaults = [
+        'REDIS_DSN' => 'redis://localhost:6379',
+    ];
+
     $requiredEnvKeys = [
         'APP_SECRET',
         'DEFAULT_URI',
@@ -24,6 +28,13 @@ return static function (ContainerConfigurator $container): void {
     $missing = [];
     foreach ($requiredEnvKeys as $key) {
         $value = $_SERVER[$key] ?? $_ENV[$key] ?? getenv($key);
+        if ((!is_string($value) || trim($value) === '') && isset($defaults[$key])) {
+            $value = $defaults[$key];
+            $_SERVER[$key] = $value;
+            $_ENV[$key] = $value;
+            putenv(sprintf('%s=%s', $key, $value));
+        }
+
         if (!is_string($value) || trim($value) === '') {
             $missing[] = $key;
         }
