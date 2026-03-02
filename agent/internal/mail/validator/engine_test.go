@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
 
 type fakeResolver struct {
+	mu  sync.RWMutex
 	txt map[string][]string
 	mx  map[string][]*MXRecord
 	ptr map[string][]string
@@ -16,18 +18,24 @@ type fakeResolver struct {
 }
 
 func (f *fakeResolver) LookupTXT(_ context.Context, name string) ([]string, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	if err := f.err["txt:"+name]; err != nil {
 		return nil, err
 	}
 	return f.txt[name], nil
 }
 func (f *fakeResolver) LookupMX(_ context.Context, name string) ([]*MXRecord, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	if err := f.err["mx:"+name]; err != nil {
 		return nil, err
 	}
 	return f.mx[name], nil
 }
 func (f *fakeResolver) LookupAddr(_ context.Context, addr string) ([]string, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	if err := f.err["ptr:"+addr]; err != nil {
 		return nil, err
 	}
@@ -188,14 +196,15 @@ func TestWithRetryBackoff(t *testing.T) {
 		err: map[string]error{"txt:example.com": errors.New("temporary")},
 	}
 	attempts := 0
-	resolverErr := resolver.err
 	engine := NewEngine(resolver, fakeTLS{result: TLSProbeResult{NotAfter: time.Now().Add(time.Hour).Format(time.RFC3339), DNSNames: []string{"example.com"}}}, fakeSTS{}, passLimiter{}, noBackoff{})
 	engine.maxAttempts = 2
 	engine.backoff = noBackoff{}
 	engine.resolver = &retryResolver{base: resolver, onTXT: func(name string) {
+		resolver.mu.Lock()
+		defer resolver.mu.Unlock()
 		attempts++
 		if attempts >= 2 {
-			delete(resolverErr, "txt:"+name)
+			delete(resolver.err, "txt:"+name)
 		}
 	}}
 
