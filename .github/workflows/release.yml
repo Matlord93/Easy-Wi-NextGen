@@ -1,0 +1,50 @@
+name: release-core
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Build release artifacts
+        env:
+          VERSION: ${{ github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          VERSION="${VERSION#v}" ./scripts/build-core-release.sh dist/core-release
+
+      - name: Generate manifest signature (optional)
+        if: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY != '' }}
+        env:
+          EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}
+        run: |
+          printf '%s' "$EASYWI_RELEASE_PRIVATE_KEY" > /tmp/release_key.pem
+          openssl dgst -sha256 -sign /tmp/release_key.pem -out dist/core-release/manifest.sig dist/core-release/manifest.json
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/core-release/core-full-*.zip
+            dist/core-release/core-full-*.tar.gz
+            dist/core-release/core-novendor-*.zip
+            dist/core-release/core-novendor-*.tar.gz
+            dist/core-release/checksums.sha256
+            dist/core-release/manifest.json
+            dist/core-release/manifest.sig
+            dist/core-release/feed.json
+
+      - name: Upload SBOM (optional)
+        continue-on-error: true
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          syft dir:. -o spdx-json > dist/core-release/sbom.spdx.json

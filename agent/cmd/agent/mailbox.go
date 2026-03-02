@@ -10,6 +10,10 @@ import (
 )
 
 func handleMailboxCreate(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	address := payloadValue(job.Payload, "address", "email")
 	passwordHash := payloadValue(job.Payload, "password_hash", "password")
 	quotaValue := payloadValue(job.Payload, "quota_mb", "quota")
@@ -45,6 +49,10 @@ func handleMailboxCreate(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func handleMailboxPasswordReset(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	address := payloadValue(job.Payload, "address", "email")
 	passwordHash := payloadValue(job.Payload, "password_hash", "password")
 	if address == "" || passwordHash == "" {
@@ -68,6 +76,10 @@ func handleMailboxPasswordReset(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func handleMailboxQuotaUpdate(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	address := payloadValue(job.Payload, "address", "email")
 	quotaValue := payloadValue(job.Payload, "quota_mb", "quota")
 	if address == "" || quotaValue == "" {
@@ -93,14 +105,26 @@ func handleMailboxQuotaUpdate(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func handleMailboxEnable(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	return handleMailboxStatus(job, true)
 }
 
 func handleMailboxDisable(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	return handleMailboxStatus(job, false)
 }
 
 func handleMailboxDelete(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	address := payloadValue(job.Payload, "address", "email")
 	if address == "" {
 		return jobs.Result{

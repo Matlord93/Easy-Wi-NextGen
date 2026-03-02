@@ -1,0 +1,15 @@
+[Unit]
+Description=EasyWI console relay worker
+After=network.target redis.service
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/easywi/core
+ExecStart=/usr/bin/php /var/www/easywi/core/bin/console app:console:relay --env=prod
+Restart=always
+RestartSec=2
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -17,39 +16,59 @@ import (
 	"easywi/agent/internal/api"
 	"easywi/agent/internal/config"
 	"easywi/agent/internal/jobs"
+	"easywi/agent/internal/logging"
 	"easywi/agent/internal/metrics"
 	"easywi/agent/internal/system"
+	"easywi/agent/internal/trace"
+)
+
+
+var (
+	version = "0.0.0-dev"
+	commit  = "unknown"
+	date    = "unknown"
 )
 
 func main() {
 	configPath := flag.String("config", "", "path to agent.conf")
 	selfUpdate := flag.Bool("self-update", false, "perform self-update and restart")
+	showVersion := flag.Bool("version", false, "print agent version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("easywi-agent %s (commit=%s date=%s)\n", version, commit, date)
+		return
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		logger := logging.NewJSONLogger(os.Stdout, "agent", "")
+		logger.Error(context.Background(), "agent.startup_failed", "CONFIG_LOAD_FAILED", fmt.Sprintf("load config: %v", err), nil)
+		os.Exit(1)
 	}
+	logger := logging.NewJSONLogger(os.Stdout, "agent", cfg.AgentID)
 
 	if *selfUpdate {
 		if err := system.SelfUpdate(context.Background(), system.UpdateOptions{DownloadURL: cfg.UpdateURL, SHA256: cfg.UpdateSHA256}); err != nil {
-			log.Fatalf("self update failed: %v", err)
+			logger.Error(context.Background(), "agent.self_update_failed", "SELF_UPDATE_FAILED", fmt.Sprintf("self update failed: %v", err), nil)
+			os.Exit(1)
 		}
 		return
 	}
 
-	client, err := api.NewClient(cfg.APIURL, cfg.AgentID, cfg.Secret, cfg.Version)
+	client, err := api.NewClient(cfg.APIURL, cfg.AgentID, cfg.Secret, version)
 	if err != nil {
-		log.Fatalf("init api client: %v", err)
+		logger.Error(context.Background(), "agent.client_init_failed", "CLIENT_INIT_FAILED", fmt.Sprintf("init api client: %v", err), nil)
+		os.Exit(1)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	run(ctx, client, cfg, *configPath)
+	run(ctx, client, cfg, *configPath, logger)
 }
 
-func run(ctx context.Context, client *api.Client, cfg config.Config, configPath string) {
+func run(ctx context.Context, client *api.Client, cfg config.Config, configPath string, logger *logging.JSONLogger) {
 	heartbeatTicker := time.NewTicker(cfg.HeartbeatInterval)
 	pollTicker := time.NewTicker(cfg.PollInterval)
 	defer heartbeatTicker.Stop()
@@ -67,16 +86,16 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 	startServiceServer(ctx, cfg)
 	metricsQueue := make([]map[string]any, 0, 120)
 
-	stats := collectStats(cfg.Version, roles)
+	stats := collectStats(version, roles)
 	if metricSnapshot, ok := stats["metrics"].(map[string]any); ok {
 		metricsQueue = append(metricsQueue, metricSnapshot)
 	}
 	if err := client.SendHeartbeat(ctx, stats, roles, metadata, "online"); err != nil {
-		log.Printf("heartbeat failed: %v", err)
-		if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
-			log.Printf("agent credentials refreshed; retrying heartbeat")
+		logger.Error(ctx, "agent.heartbeat_failed", "HEARTBEAT_FAILED", fmt.Sprintf("heartbeat failed: %v", err), nil)
+		if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown, logger) {
+			logger.Info(ctx, "agent.credentials_refreshed", "agent credentials refreshed; retrying heartbeat", nil)
 			if retryErr := client.SendHeartbeat(ctx, stats, roles, metadata, "online"); retryErr != nil {
-				log.Printf("heartbeat retry failed: %v", retryErr)
+				logger.Error(ctx, "agent.heartbeat_retry_failed", "HEARTBEAT_RETRY_FAILED", fmt.Sprintf("heartbeat retry failed: %v", retryErr), nil)
 			}
 		}
 	} else if len(metricsQueue) > 0 {
@@ -92,7 +111,7 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 		case <-heartbeatTicker.C:
 			roles = collectRoles()
 			metadata = collectMetadata(cfg)
-			stats := collectStats(cfg.Version, roles)
+			stats := collectStats(version, roles)
 			if metricSnapshot, ok := stats["metrics"].(map[string]any); ok {
 				metricsQueue = append(metricsQueue, metricSnapshot)
 				if len(metricsQueue) > 120 {
@@ -100,9 +119,9 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 				}
 			}
 			if err := client.SendHeartbeat(ctx, stats, roles, metadata, "online"); err != nil {
-				log.Printf("heartbeat failed: %v", err)
-				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
-					log.Printf("agent credentials refreshed; heartbeat will use the new secret")
+				logger.Error(ctx, "agent.heartbeat_failed", "HEARTBEAT_FAILED", fmt.Sprintf("heartbeat failed: %v", err), nil)
+				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown, logger) {
+					logger.Info(ctx, "agent.credentials_refreshed", "agent credentials refreshed; heartbeat will use the new secret", nil)
 				}
 			} else if len(metricsQueue) > 0 {
 				batch := metricsQueue
@@ -116,9 +135,9 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 		case <-pollTicker.C:
 			jobsList, reportedConcurrency, err := client.PollJobs(ctx)
 			if err != nil {
-				log.Printf("poll jobs failed: %v", err)
-				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
-					log.Printf("agent credentials refreshed after poll auth failure")
+				logger.Error(ctx, "agent.poll_jobs_failed", "POLL_JOBS_FAILED", fmt.Sprintf("poll jobs failed: %v", err), nil)
+				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown, logger) {
+					logger.Info(ctx, "agent.credentials_refreshed", "agent credentials refreshed after poll auth failure", nil)
 				}
 				continue
 			}
@@ -133,18 +152,23 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 					lockMode:     lockMode,
 					isStream:     isStream,
 					handler: func(job jobs.Job) {
-						if err := client.StartJob(ctx, job.ID); err != nil {
-							log.Printf("start job failed: %v", err)
+						jobCorrelationID := payloadValue(job.Payload, "correlation_id", "request_id", "trace_id")
+						if strings.TrimSpace(job.CorrelationID) != "" {
+							jobCorrelationID = job.CorrelationID
+						}
+						jobCtx := trace.WithIDs(ctx, payloadValue(job.Payload, "request_id"), jobCorrelationID)
+						if err := client.StartJob(jobCtx, job.ID); err != nil {
+							logger.Error(jobCtx, "agent.start_job_failed", "START_JOB_FAILED", fmt.Sprintf("start job failed: %v", err), map[string]any{"job_id": job.ID})
 							return
 						}
 						result, afterSubmit := handleJob(job, logSender)
-						if err := client.SubmitJobResult(ctx, result); err != nil {
-							log.Printf("submit job result failed: %v", err)
+						if err := client.SubmitJobResult(jobCtx, result); err != nil {
+							logger.Error(jobCtx, "agent.submit_job_result_failed", "SUBMIT_JOB_RESULT_FAILED", fmt.Sprintf("submit job result failed: %v", err), map[string]any{"job_id": job.ID})
 							return
 						}
 						if afterSubmit != nil {
 							if err := afterSubmit(); err != nil {
-								log.Printf("post-submit job action failed: %v", err)
+								logger.Error(jobCtx, "agent.post_submit_failed", "POST_SUBMIT_FAILED", fmt.Sprintf("post-submit job action failed: %v", err), map[string]any{"job_id": job.ID})
 							}
 						}
 					},
@@ -153,9 +177,9 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 
 			orchestratorJobs, reportedAgentConcurrency, err := client.PollAgentJobs(ctx, cfg.AgentID, maxConcurrency)
 			if err != nil {
-				log.Printf("poll orchestrator jobs failed: %v", err)
-				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown) {
-					log.Printf("agent credentials refreshed after orchestrator poll auth failure")
+				logger.Error(ctx, "agent.poll_orchestrator_jobs_failed", "POLL_ORCHESTRATOR_FAILED", fmt.Sprintf("poll orchestrator jobs failed: %v", err), nil)
+				if tryRefreshAgentCredentials(ctx, client, &cfg, configPath, err, &lastCredentialRefresh, credentialRefreshCooldown, logger) {
+					logger.Info(ctx, "agent.credentials_refreshed", "agent credentials refreshed after orchestrator poll auth failure", nil)
 				}
 				continue
 			}
@@ -167,13 +191,18 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 					job:      jobCopy,
 					lockMode: jobLockNone,
 					handler: func(job jobs.Job) {
-						if err := client.StartAgentJob(ctx, cfg.AgentID, job.ID); err != nil {
-							log.Printf("start orchestrator job failed: %v", err)
+						jobCorrelationID := payloadValue(job.Payload, "correlation_id", "request_id", "trace_id")
+						if strings.TrimSpace(job.CorrelationID) != "" {
+							jobCorrelationID = job.CorrelationID
+						}
+						jobCtx := trace.WithIDs(ctx, payloadValue(job.Payload, "request_id"), jobCorrelationID)
+						if err := client.StartAgentJob(jobCtx, cfg.AgentID, job.ID); err != nil {
+							logger.Error(jobCtx, "agent.start_orchestrator_job_failed", "START_ORCHESTRATOR_JOB_FAILED", fmt.Sprintf("start orchestrator job failed: %v", err), map[string]any{"job_id": job.ID})
 							return
 						}
 						result := handleOrchestratorJob(job)
-						if err := client.FinishAgentJob(ctx, cfg.AgentID, job.ID, result.status, result.logText, result.errorText, result.resultPayload); err != nil {
-							log.Printf("finish orchestrator job failed: %v", err)
+						if err := client.FinishAgentJob(jobCtx, cfg.AgentID, job.ID, result.status, result.logText, result.errorText, result.resultPayload); err != nil {
+							logger.Error(jobCtx, "agent.finish_orchestrator_job_failed", "FINISH_ORCHESTRATOR_JOB_FAILED", fmt.Sprintf("finish orchestrator job failed: %v", err), map[string]any{"job_id": job.ID})
 						}
 					},
 				})
@@ -182,12 +211,12 @@ func run(ctx context.Context, client *api.Client, cfg config.Config, configPath 
 	}
 }
 
-func tryRefreshAgentCredentials(ctx context.Context, client *api.Client, cfg *config.Config, configPath string, requestErr error, lastRefresh *time.Time, cooldown time.Duration) bool {
+func tryRefreshAgentCredentials(ctx context.Context, client *api.Client, cfg *config.Config, configPath string, requestErr error, lastRefresh *time.Time, cooldown time.Duration, logger *logging.JSONLogger) bool {
 	if !isAuthFailure(requestErr) {
 		return false
 	}
 	if strings.TrimSpace(cfg.BootstrapToken) == "" {
-		log.Printf("agent auth failed, but bootstrap_token is not configured; cannot auto-refresh credentials")
+		logger.Error(ctx, "agent.credentials_refresh_skipped", "BOOTSTRAP_TOKEN_MISSING", "agent auth failed, but bootstrap_token is not configured; cannot auto-refresh credentials", nil)
 		return false
 	}
 	if !lastRefresh.IsZero() && time.Since(*lastRefresh) < cooldown {
@@ -197,16 +226,16 @@ func tryRefreshAgentCredentials(ctx context.Context, client *api.Client, cfg *co
 	secret, err := client.RefreshSecretWithBootstrap(ctx, cfg.BootstrapToken, runtime.GOOS)
 	*lastRefresh = time.Now()
 	if err != nil {
-		log.Printf("auto-refresh agent credentials failed: %v", err)
+		logger.Error(ctx, "agent.credentials_refresh_failed", "CREDENTIAL_REFRESH_FAILED", fmt.Sprintf("auto-refresh agent credentials failed: %v", err), nil)
 		return false
 	}
 
 	client.Secret = secret
 	cfg.Secret = secret
 	if err := config.UpdateSecret(configPath, secret); err != nil {
-		log.Printf("warning: refreshed secret but failed to persist to config: %v", err)
+		logger.Error(ctx, "agent.secret_persist_failed", "SECRET_PERSIST_FAILED", fmt.Sprintf("warning: refreshed secret but failed to persist to config: %v", err), nil)
 	} else {
-		log.Printf("agent secret refreshed and persisted to config")
+		logger.Info(ctx, "agent.secret_persisted", "agent secret refreshed and persisted to config", nil)
 	}
 
 	return true
@@ -475,10 +504,7 @@ func collectStats(version string, roles []string) map[string]any {
 }
 
 func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
-	jobType, aliased := normalizeJobType(job.Type)
-	if aliased {
-		log.Printf("[DEPRECATION] alias_hit legacy_job_type=%q canonical_job_type=%q", job.Type, jobType)
-	}
+	jobType, _ := normalizeJobType(job.Type)
 	if err := ensureJobSupportedByPlatform(jobType); err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -538,6 +564,10 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleDomainAdd(job)
 	case "domain.ssl.issue":
 		return handleDomainSSLIssue(job)
+	case "domain.ssl.renew":
+		return handleDomainSSLRenew(job)
+	case "domain.ssl.revoke":
+		return handleDomainSSLRevoke(job)
 	case "roundcube.install":
 		return handleRoundcubeInstall(job)
 	case "mail.domain.create":

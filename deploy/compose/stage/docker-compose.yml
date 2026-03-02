@@ -1,0 +1,109 @@
+name: webinterface-stage
+
+services:
+  core:
+    image: nginx:1.27-alpine
+    restart: always
+    env_file:
+      - ../../shared/env/stage.env
+    ports:
+      - "${CORE_PORT:-18080}:8080"
+    volumes:
+      - ../../shared/nginx/core.stage.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      db:
+        condition: service_healthy
+      queue:
+        condition: service_healthy
+    mem_limit: 512m
+    cpus: 0.50
+
+  agent:
+    image: nginx:1.27-alpine
+    restart: always
+    env_file:
+      - ../../shared/env/stage.env
+    ports:
+      - "${AGENT_PORT:-18087}:8087"
+    volumes:
+      - ../../shared/nginx/agent.stage.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8087/healthz || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      db:
+        condition: service_healthy
+      queue:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: 0.25
+
+  db:
+    image: postgres:16-alpine
+    restart: always
+    env_file:
+      - ../../shared/env/stage.env
+    ports:
+      - "${DB_PORT:-15432}:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME:-webinterface}
+      POSTGRES_USER: ${DB_USER:-webinterface}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in deploy/shared/env/stage.env}
+    volumes:
+      - stage_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-webinterface} -d ${DB_NAME:-webinterface}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    mem_limit: 1g
+    cpus: 1.50
+
+  queue:
+    image: redis:7-alpine
+    restart: always
+    env_file:
+      - ../../shared/env/stage.env
+    ports:
+      - "${QUEUE_PORT:-16379}:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${QUEUE_PASSWORD:?Set QUEUE_PASSWORD in deploy/shared/env/stage.env}"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${QUEUE_PASSWORD} ping | grep -q PONG"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    mem_limit: 256m
+    cpus: 0.25
+
+  reverse-proxy:
+    image: nginx:1.27-alpine
+    restart: always
+    profiles: ["edge"]
+    ports:
+      - "${PROXY_PORT:-8088}:80"
+    volumes:
+      - ../../shared/nginx/reverse-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      core:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  stage_db_data:

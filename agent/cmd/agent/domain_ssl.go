@@ -84,6 +84,40 @@ func handleDomainSSLIssue(job jobs.Job) (jobs.Result, func() error) {
 	}, nil
 }
 
+func handleDomainSSLRenew(job jobs.Job) (jobs.Result, func() error) {
+	domainName := payloadValue(job.Payload, "domain", "hostname", "name")
+	if strings.TrimSpace(domainName) == "" {
+		if err := runCommand("certbot", "renew", "--non-interactive"); err != nil {
+			return failureResult(job.ID, err)
+		}
+		_ = reloadNginx()
+		return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"action": "renew", "scope": "all"}, Completed: time.Now().UTC()}, nil
+	}
+
+	if err := runCommand("certbot", "certonly", "--non-interactive", "--keep-until-expiring", "--cert-name", domainName); err != nil {
+		return failureResult(job.ID, err)
+	}
+	_ = reloadNginx()
+	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"action": "renew", "scope": "single", "domain": domainName}, Completed: time.Now().UTC()}, nil
+}
+
+func handleDomainSSLRevoke(job jobs.Job) (jobs.Result, func() error) {
+	domainName := strings.TrimSpace(payloadValue(job.Payload, "domain", "hostname", "name"))
+	certPath := payloadValue(job.Payload, "cert_path")
+	if certPath == "" && domainName != "" {
+		certPath = filepath.Join("/etc/letsencrypt/live", domainName, "cert.pem")
+	}
+	if certPath == "" {
+		return failureResult(job.ID, fmt.Errorf("cert_path or domain is required"))
+	}
+
+	if err := runCommand("certbot", "revoke", "--non-interactive", "--cert-path", certPath); err != nil {
+		return failureResult(job.ID, err)
+	}
+	_ = reloadNginx()
+	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"action": "revoke", "domain": domainName, "cert_path": certPath}, Completed: time.Now().UTC()}, nil
+}
+
 func sslDomains(domainName, serverAliases string) []string {
 	var domains []string
 	if domainName != "" {

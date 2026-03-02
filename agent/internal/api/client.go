@@ -15,6 +15,7 @@ import (
 
 	agentcrypto "easywi/agent/internal/crypto"
 	"easywi/agent/internal/jobs"
+	"easywi/agent/internal/trace"
 )
 
 // Client handles signed requests to the Easy-Wi API.
@@ -27,6 +28,8 @@ type Client struct {
 	UserAgent   string
 	JWTIssuer   string
 	JWTAudience string
+	RetryPolicy RetryPolicy
+	breaker     *circuitBreaker
 }
 
 // NewClient constructs a new API client.
@@ -45,15 +48,18 @@ func NewClient(baseURL, agentID, secret, version string) (*Client, error) {
 		jwtAudience = "easywi-agent-api"
 	}
 
+	policy := DefaultRetryPolicy()
 	return &Client{
 		BaseURL:     parsed,
 		AgentID:     agentID,
 		Secret:      secret,
 		Version:     version,
-		Client:      &http.Client{Timeout: 15 * time.Second},
+		Client:      NewRetryHTTPClient(policy),
 		UserAgent:   "easywi-agent/" + version,
 		JWTIssuer:   jwtIssuer,
 		JWTAudience: jwtAudience,
+		RetryPolicy: policy,
+		breaker:     &circuitBreaker{},
 	}, nil
 }
 
@@ -260,16 +266,31 @@ func (c *Client) doUnsignedJSON(ctx context.Context, method, path string, body a
 		return nil, fmt.Errorf("parse request path: %w", err)
 	}
 	requestURL := c.BaseURL.ResolveReference(requestPath)
-	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(requestBody))
-	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
+	idempotencyKey := ""
+	if isMutatingMethod(method) {
+		idempotencyKey, err = NewIdempotencyKey()
+		if err != nil {
+			return nil, fmt.Errorf("build idempotency key: %w", err)
+		}
 	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	req.Header.Set("User-Agent", c.UserAgent)
-
-	resp, err = c.Client.Do(req)
+	retryClass := classifyRetry(method, idempotencyKey)
+	resp, err = doWithRetry(ctx, c.Client, c.RetryPolicy, c.breaker, retryClass, func() (*http.Request, error) {
+		req, buildErr := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(requestBody))
+		if buildErr != nil {
+			return nil, fmt.Errorf("build request: %w", buildErr)
+		}
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		req.Header.Set("User-Agent", c.UserAgent)
+		if idempotencyKey != "" {
+			req.Header.Set("Idempotency-Key", idempotencyKey)
+		}
+		requestID, correlationID := trace.IDsFromContext(ctx)
+		req.Header.Set("X-Request-ID", requestID)
+		req.Header.Set("X-Correlation-ID", correlationID)
+		return req, nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("request: %w", err)
 	}
@@ -319,37 +340,49 @@ func (c *Client) doSignedJSONWithSecret(ctx context.Context, method, path string
 		}
 	}
 	requestURL := c.BaseURL.ResolveReference(requestPath)
-
-	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(requestBody))
-	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
+	idempotencyKey := ""
+	if isMutatingMethod(method) {
+		idempotencyKey, err = NewIdempotencyKey()
+		if err != nil {
+			return nil, fmt.Errorf("build idempotency key: %w", err)
+		}
 	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	requestFactory := func() (*http.Request, error) {
+		req, buildErr := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(requestBody))
+		if buildErr != nil {
+			return nil, fmt.Errorf("build request: %w", buildErr)
+		}
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		nonce, nonceErr := agentcrypto.NewNonce()
+		if nonceErr != nil {
+			return nil, nonceErr
+		}
+		headers, signErr := agentcrypto.Sign(c.AgentID, secret, method, requestPath.Path, requestBody, time.Now(), nonce)
+		if signErr != nil {
+			return nil, signErr
+		}
+		req.Header.Set("X-Agent-ID", headers.AgentID)
+		req.Header.Set("X-Timestamp", headers.Timestamp)
+		req.Header.Set("X-Nonce", headers.Nonce)
+		req.Header.Set("X-Signature", headers.Signature)
+		jwtToken, jwtErr := agentcrypto.BuildAgentJWT(secret, c.AgentID, c.JWTIssuer, c.JWTAudience, headers.Nonce, time.Now(), time.Minute)
+		if jwtErr != nil {
+			return nil, fmt.Errorf("build jwt: %w", jwtErr)
+		}
+		req.Header.Set("Authorization", "Bearer "+jwtToken)
+		req.Header.Set("User-Agent", c.UserAgent)
+		if idempotencyKey != "" {
+			req.Header.Set("Idempotency-Key", idempotencyKey)
+		}
+		requestID, correlationID := trace.IDsFromContext(ctx)
+		req.Header.Set("X-Request-ID", requestID)
+		req.Header.Set("X-Correlation-ID", correlationID)
+		return req, nil
 	}
-
-	nonce, err := agentcrypto.NewNonce()
-	if err != nil {
-		return nil, err
-	}
-
-	headers, err := agentcrypto.Sign(c.AgentID, secret, method, requestPath.Path, requestBody, time.Now(), nonce)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("X-Agent-ID", headers.AgentID)
-	req.Header.Set("X-Timestamp", headers.Timestamp)
-	req.Header.Set("X-Nonce", headers.Nonce)
-	req.Header.Set("X-Signature", headers.Signature)
-	jwtToken, err := agentcrypto.BuildAgentJWT(secret, c.AgentID, c.JWTIssuer, c.JWTAudience, headers.Nonce, time.Now(), time.Minute)
-	if err != nil {
-		return nil, fmt.Errorf("build jwt: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+jwtToken)
-	req.Header.Set("User-Agent", c.UserAgent)
-
-	resp, err = c.Client.Do(req)
+	retryClass := classifyRetry(method, idempotencyKey)
+	resp, err = doWithRetry(ctx, c.Client, c.RetryPolicy, c.breaker, retryClass, requestFactory)
 	if err != nil {
 		return nil, fmt.Errorf("request: %w", err)
 	}
@@ -380,32 +413,49 @@ func (c *Client) doSignedRaw(ctx context.Context, method, path string, body []by
 		return nil, fmt.Errorf("parse request path: %w", err)
 	}
 	requestURL := c.BaseURL.ResolveReference(requestPath)
-	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
+	idempotencyKey := ""
+	if isMutatingMethod(method) {
+		idempotencyKey, err = NewIdempotencyKey()
+		if err != nil {
+			return nil, fmt.Errorf("build idempotency key: %w", err)
+		}
 	}
-	nonce, err := agentcrypto.NewNonce()
-	if err != nil {
-		return nil, err
+	requestFactory := func() (*http.Request, error) {
+		req, buildErr := http.NewRequestWithContext(ctx, method, requestURL.String(), bytes.NewReader(body))
+		if buildErr != nil {
+			return nil, fmt.Errorf("build request: %w", buildErr)
+		}
+		nonce, nonceErr := agentcrypto.NewNonce()
+		if nonceErr != nil {
+			return nil, nonceErr
+		}
+		headers, signErr := agentcrypto.Sign(c.AgentID, c.Secret, method, requestPath.Path, body, time.Now(), nonce)
+		if signErr != nil {
+			return nil, signErr
+		}
+		req.Header.Set("X-Agent-ID", headers.AgentID)
+		req.Header.Set("X-Timestamp", headers.Timestamp)
+		req.Header.Set("X-Nonce", headers.Nonce)
+		req.Header.Set("X-Signature", headers.Signature)
+		jwtToken, jwtErr := agentcrypto.BuildAgentJWT(c.Secret, c.AgentID, c.JWTIssuer, c.JWTAudience, headers.Nonce, time.Now(), time.Minute)
+		if jwtErr != nil {
+			return nil, fmt.Errorf("build jwt: %w", jwtErr)
+		}
+		req.Header.Set("Authorization", "Bearer "+jwtToken)
+		req.Header.Set("User-Agent", c.UserAgent)
+		requestID, correlationID := trace.IDsFromContext(ctx)
+		req.Header.Set("X-Request-ID", requestID)
+		req.Header.Set("X-Correlation-ID", correlationID)
+		if idempotencyKey != "" {
+			req.Header.Set("Idempotency-Key", idempotencyKey)
+		}
+		for k, v := range extraHeaders {
+			req.Header.Set(k, v)
+		}
+		return req, nil
 	}
-	headers, err := agentcrypto.Sign(c.AgentID, c.Secret, method, requestPath.Path, body, time.Now(), nonce)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("X-Agent-ID", headers.AgentID)
-	req.Header.Set("X-Timestamp", headers.Timestamp)
-	req.Header.Set("X-Nonce", headers.Nonce)
-	req.Header.Set("X-Signature", headers.Signature)
-	jwtToken, err := agentcrypto.BuildAgentJWT(c.Secret, c.AgentID, c.JWTIssuer, c.JWTAudience, headers.Nonce, time.Now(), time.Minute)
-	if err != nil {
-		return nil, fmt.Errorf("build jwt: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+jwtToken)
-	req.Header.Set("User-Agent", c.UserAgent)
-	for k, v := range extraHeaders {
-		req.Header.Set(k, v)
-	}
-	resp, err = c.Client.Do(req)
+	retryClass := classifyRetry(method, idempotencyKey)
+	resp, err = doWithRetry(ctx, c.Client, c.RetryPolicy, c.breaker, retryClass, requestFactory)
 	if err != nil {
 		return nil, fmt.Errorf("request: %w", err)
 	}

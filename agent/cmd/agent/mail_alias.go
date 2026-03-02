@@ -18,22 +18,42 @@ const (
 )
 
 func handleMailAliasCreate(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	return handleMailAliasUpsert(job, "created")
 }
 
 func handleMailAliasUpdate(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	return handleMailAliasUpsert(job, "updated")
 }
 
 func handleMailAliasEnable(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	return handleMailAliasStatus(job, true)
 }
 
 func handleMailAliasDisable(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	return handleMailAliasStatus(job, false)
 }
 
 func handleMailAliasDelete(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
 	address := payloadValue(job.Payload, "address", "alias")
 	mapPath := payloadValue(job.Payload, "map_path", "alias_map_path")
 

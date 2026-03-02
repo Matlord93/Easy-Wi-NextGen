@@ -44,6 +44,22 @@ jobs:
         env:
           COMPOSER_ALLOW_SUPERUSER: 1
 
+      - name: Setup Python for OpenAPI checks
+        run: |
+          python3 -m pip install --upgrade pip pyyaml
+        working-directory: ..
+
+      - name: Validate Core-Agent OpenAPI spec
+        run: python3 docs/api/scripts/validate_openapi.py docs/api/core-agent.v1.openapi.yaml
+        working-directory: ..
+
+      - name: Breaking-change check against main (Core-Agent OpenAPI)
+        run: |
+          git fetch origin main --depth=1
+          git show origin/main:docs/api/core-agent.v1.openapi.yaml > /tmp/core-agent.base.yaml
+          python3 docs/api/scripts/check_breaking_changes.py /tmp/core-agent.base.yaml docs/api/core-agent.v1.openapi.yaml
+        working-directory: ..
+
       - name: Lint (optional)
         run: |
           if composer run -q | grep -q "lint"; then composer run lint; else echo "No lint script"; fi

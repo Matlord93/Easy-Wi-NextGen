@@ -1,0 +1,58 @@
+name: security-release-gate
+
+on:
+  workflow_run:
+    workflows: ["Agent Release Builder"]
+    types: [requested]
+
+permissions:
+  actions: write
+  contents: read
+  security-events: read
+
+jobs:
+  gate-critical-findings:
+    name: gate-critical-findings
+    if: ${{ github.event.workflow_run.event == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for open critical code scanning alerts
+        id: critical
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          endpoint="/repos/${REPO}/code-scanning/alerts?state=open&severity=critical&per_page=1"
+          if ! response=$(gh api -H 'Accept: application/vnd.github+json' "$endpoint" 2>/tmp/gh_err.log); then
+            echo "Code scanning endpoint unavailable. Failing gate closed." >&2
+            cat /tmp/gh_err.log >&2 || true
+            echo "critical_count=-1" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          critical_count=$(printf '%s' "$response" | jq 'length')
+          echo "critical_count=${critical_count}" >> "$GITHUB_OUTPUT"
+
+          if [ "$critical_count" -gt 0 ]; then
+            echo "Found ${critical_count} open critical code scanning finding(s)." >&2
+            exit 1
+          fi
+
+      - name: Cancel release workflow run on gate failure
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          run_id="${{ github.event.workflow_run.id }}"
+          echo "Cancelling release workflow run ${run_id} due to security gate failure."
+          gh api \
+            --method POST \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${{ github.repository }}/actions/runs/${run_id}/cancel"
+
+      - name: Gate passed
+        if: ${{ success() }}
+        run: echo "No open critical code scanning findings detected."

@@ -146,6 +146,7 @@ func TestConsoleHealthWithoutJournalctlReturnsOkEnvelopeWithRequestID(t *testing
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/instances/5/console/health", nil)
 	req.Header.Set("X-Request-ID", "req-123")
+	req.Header.Set("X-Correlation-ID", "corr-123")
 	w := httptest.NewRecorder()
 	_ = handleInstanceConsoleHTTP(w, req, "5")
 
@@ -162,5 +163,57 @@ func TestConsoleHealthWithoutJournalctlReturnsOkEnvelopeWithRequestID(t *testing
 	}
 	if payload["request_id"] != "req-123" {
 		t.Fatalf("expected request id req-123, got %v", payload["request_id"])
+	}
+	if data["correlation_id"] != "corr-123" {
+		t.Fatalf("expected correlation id corr-123, got %v", data["correlation_id"])
+	}
+}
+
+func TestConsoleSnapshotTracksDroppedLinesAndOffsetResume(t *testing.T) {
+	s := &consoleSession{sessionID: "sess1", buffer: make([]consoleLine, 0, 1005), running: true}
+	for i := 0; i < 1100; i++ {
+		s.appendLine("journal", fmt.Sprintf("line-%d", i), "")
+	}
+	snap := s.snapshotAfterCursor("950")
+	if snap.droppedLines == 0 {
+		t.Fatalf("expected dropped lines to be tracked")
+	}
+	if snap.lastOffset <= 0 {
+		t.Fatalf("expected last offset to be set, got %d", snap.lastOffset)
+	}
+	for _, line := range snap.lines {
+		id, _ := line["id"].(int64)
+		if id <= 950 {
+			t.Fatalf("expected resumed snapshot to skip old lines, got id=%d", id)
+		}
+	}
+}
+
+func TestConsoleLogsSupportsLastOffsetQuery(t *testing.T) {
+	origLookup := lookupCommand
+	defer func() { lookupCommand = origLookup }()
+	lookupCommand = func(file string) (string, error) { return "/usr/bin/journalctl", nil }
+
+	instanceID := "8"
+	s := globalConsoleSessions.getOrCreate(instanceID, resolveInstanceUnitName(instanceID))
+	s.appendLine("journal", "one", "")
+	s.appendLine("journal", "two", "")
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/instances/8/console/logs?last_offset=1", nil)
+	w := httptest.NewRecorder()
+	_ = handleInstanceConsoleHTTP(w, req, instanceID)
+
+	var payload map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	data, _ := payload["data"].(map[string]any)
+	lines, _ := data["lines"].([]any)
+	if len(lines) != 1 {
+		t.Fatalf("expected one resumed line, got %d", len(lines))
+	}
+	meta, _ := data["meta"].(map[string]any)
+	if _, ok := meta["dropped_lines"]; !ok {
+		t.Fatalf("expected dropped_lines metric in meta")
 	}
 }

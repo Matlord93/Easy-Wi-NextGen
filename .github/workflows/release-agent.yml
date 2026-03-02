@@ -1,10 +1,13 @@
 name: Agent Release Builder
 
 on:
+  push:
+    tags:
+      - 'agent-v*'
   workflow_dispatch:
     inputs:
       version:
-        description: "Release tag (e.g. v1.2.3)"
+        description: "Release tag (e.g. agent-v1.2.3)"
         required: true
         type: string
 
@@ -13,7 +16,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build agent + wrapper + publish release
+    name: Build agent + publish release
     runs-on: ubuntu-latest
     env:
       GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
@@ -24,6 +27,19 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Resolve release version
+        id: version
+        run: |
+          if [[ -n "${{ github.ref_name }}" && "${{ github.ref_type }}" == "tag" ]]; then
+            version="${{ github.ref_name }}"
+          else
+            version="${{ inputs.version }}"
+          fi
+          version="${version#agent-v}"
+          version="${version#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=agent-v$version" >> "$GITHUB_OUTPUT"
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -31,54 +47,38 @@ jobs:
           cache: true
           cache-dependency-path: agent/go.sum
 
-      - name: Build linux-amd64 binaries
+      - name: Build agent binaries
         run: |
           mkdir -p ../dist
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-agent-linux-amd64 ./cmd/agent
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-sftp-linux-amd64 ./cmd/easywi-sftp
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-wrapper-linux-amd64 ./cmd/easywi-wrapper
-
-      - name: Build windows-amd64 binaries
-        run: |
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-agent-windows-amd64.exe ./cmd/agent
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-sftp-windows-amd64.exe ./cmd/easywi-sftp
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-wrapper-windows-amd64.exe ./cmd/easywi-wrapper
-
-      - name: Validate expected binaries exist
-        run: |
-          required=(
-            ../dist/easywi-agent-linux-amd64
-            ../dist/easywi-agent-windows-amd64.exe
-            ../dist/easywi-sftp-linux-amd64
-            ../dist/easywi-sftp-windows-amd64.exe
-            ../dist/easywi-wrapper-linux-amd64
-            ../dist/easywi-wrapper-windows-amd64.exe
-          )
-
-          missing=0
-          for file in "${required[@]}"; do
-            if [[ ! -f "$file" ]]; then
-              echo "Missing expected artifact: $file" >&2
-              missing=1
-            fi
+          targets=("linux amd64" "linux arm64" "windows amd64")
+          for target in "${targets[@]}"; do
+            read -r goos goarch <<<"$target"
+            out="../dist/easywi-agent-${goos}-${goarch}"
+            [[ "$goos" == "windows" ]] && out+=".exe"
+            GOOS="$goos" GOARCH="$goarch" go build -trimpath               -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ github.sha }} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"               -o "$out" ./cmd/agent
           done
 
-          if [[ $missing -ne 0 ]]; then
-            echo "Built artifacts in ../dist:" >&2
-            ls -la ../dist >&2 || true
-            exit 1
-          fi
-
-      - name: Generate checksums
+      - name: Package artifacts
         run: |
           cd ../dist
-          sha256sum easywi-* > checksums.txt
+          for bin in easywi-agent-linux-amd64 easywi-agent-linux-arm64; do
+            tar -czf "$bin.tar.gz" "$bin"
+            zip -q "$bin.zip" "$bin"
+          done
+          zip -q easywi-agent-windows-amd64.zip easywi-agent-windows-amd64.exe
+
+      - name: Generate checksums + manifest
+        run: |
+          cd ../dist
+          sha256sum *.zip *.tar.gz > checksums.sha256
+          cat > manifest.json <<JSON
+          {
+            "version": "${{ steps.version.outputs.version }}",
+            "commit": "${{ github.sha }}",
+            "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "artifacts": ["easywi-agent-linux-amd64.tar.gz","easywi-agent-linux-amd64.zip","easywi-agent-linux-arm64.tar.gz","easywi-agent-linux-arm64.zip","easywi-agent-windows-amd64.zip"]
+          }
+          JSON
 
       - name: Sign checksums
         if: ${{ env.GPG_PRIVATE_KEY != '' }}
@@ -87,26 +87,17 @@ jobs:
           GNUPGHOME="$(mktemp -d)"
           chmod 700 "${GNUPGHOME}"
           printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
-          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
-            --armor --detach-sign --output ../dist/checksums.txt.asc ../dist/checksums.txt
-          if [[ ! -f ../dist/checksums.txt.asc ]]; then
-            echo "Failed to create checksums.txt.asc" >&2
-            exit 1
-          fi
-
-      - name: Prepare release assets
-        id: release_assets
-        run: |
-          files="dist/easywi-agent-*"$'\n'"dist/easywi-sftp-*"$'\n'"dist/easywi-wrapper-*"$'\n'"dist/checksums.txt"
-          if [[ -f ../dist/checksums.txt.asc ]]; then
-            files="$files"$'\n'"dist/checksums.txt.asc"
-          fi
-          printf 'files<<EOF\n%s\nEOF\n' "$files" >> "$GITHUB_OUTPUT"
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}"             --armor --detach-sign --output ../dist/checksums.sha256.asc ../dist/checksums.sha256
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.version }}
-          name: Agent ${{ inputs.version }}
-          files: ${{ steps.release_assets.outputs.files }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Agent ${{ steps.version.outputs.version }}
+          files: |
+            dist/easywi-agent-*.zip
+            dist/easywi-agent-*.tar.gz
+            dist/checksums.sha256
+            dist/checksums.sha256.asc
+            dist/manifest.json
           generate_release_notes: true

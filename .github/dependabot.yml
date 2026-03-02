@@ -4,11 +4,26 @@ updates:
     directory: "/core"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "security"
+    assignees:
+      - "security-champion"
   - package-ecosystem: "gomod"
     directory: "/agent"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "security"
+    assignees:
+      - "security-champion"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "security"
+    assignees:
+      - "security-champion"

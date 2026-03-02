@@ -10,9 +10,46 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Agent - build
+  contract:
+    name: Agent - contract
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python for OpenAPI checks
+        run: |
+          python3 -m pip install --upgrade pip pyyaml
+
+      - name: Validate Core-Agent OpenAPI spec
+        run: python3 docs/api/scripts/validate_openapi.py docs/api/core-agent.v1.openapi.yaml
+
+      - name: Breaking-change check against main (Core-Agent OpenAPI)
+        run: |
+          git fetch origin main --depth=1
+          git show origin/main:docs/api/core-agent.v1.openapi.yaml > /tmp/core-agent.base.yaml
+          python3 docs/api/scripts/check_breaking_changes.py /tmp/core-agent.base.yaml docs/api/core-agent.v1.openapi.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.0"
+          cache: true
+          cache-dependency-path: agent/go.sum
+
+      - name: Agent contract tests
+        run: go test ./internal/api -run 'Contract|Spec'
+        working-directory: agent
+
+  build:
+    name: Agent - build/test/smoke (${{ matrix.os }})
+    needs: contract
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     defaults:
       run:
         working-directory: agent
@@ -22,33 +59,59 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.0"
+          go-version: "1.24.0"
           cache: true
           cache-dependency-path: agent/go.sum
 
-      - name: Build linux-amd64
-        run: |
-          mkdir -p ../dist
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-agent-linux-amd64 ./cmd/agent
+      - name: Go test
+        run: go test ./...
 
-      - name: Build windows-amd64
+      - name: Smoke test (agent startup + core connectivity + dummy job)
+        run: go test ./cmd/agent -run TestAgentCoreConnectivitySmoke
+
+      - name: Build agent
         run: |
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
-            -o ../dist/easywi-agent-windows-amd64.exe ./cmd/agent
+          mkdir -p ../dist/${{ matrix.os }}
+          go build -trimpath -ldflags="-s -w" \
+            -o ../dist/${{ matrix.os }}/easywi-agent ./cmd/agent
+
+      - name: Build easywi-sftp
+        run: |
+          go build -trimpath -ldflags="-s -w" \
+            -o ../dist/${{ matrix.os }}/easywi-sftp ./cmd/easywi-sftp
+
+      - name: Add executable suffix on Windows artifacts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Move-Item -Path ../dist/${{ matrix.os }}/easywi-agent -Destination ../dist/${{ matrix.os }}/easywi-agent.exe
+          Move-Item -Path ../dist/${{ matrix.os }}/easywi-sftp -Destination ../dist/${{ matrix.os }}/easywi-sftp.exe
 
       - name: Generate checksums
+        if: runner.os != 'Windows'
         run: |
-          cd ../dist
-          sha256sum easywi-agent-* > checksums-agent.txt
+          cd ../dist/${{ matrix.os }}
+          sha256sum easywi-* > checksums-agent-${{ runner.os }}.txt
+
+      - name: Generate checksums (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem ../dist/${{ matrix.os }}/easywi-* | Sort-Object Name
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 -Path $file.FullName).Hash.ToLower()
+            "$hash  $($file.Name)"
+          }
+          Set-Content -Path ../dist/${{ matrix.os }}/checksums-agent-${{ runner.os }}.txt -Value $lines
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: agent-binaries
+          name: agent-binaries-${{ matrix.os }}
           path: |
-            dist/easywi-agent-*
-            dist/checksums-agent.txt
+            dist/${{ matrix.os }}/easywi-agent*
+            dist/${{ matrix.os }}/easywi-sftp*
+            dist/${{ matrix.os }}/checksums-agent-*.txt
 
   release:
     name: Agent - publish release assets
@@ -63,7 +126,8 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
-          name: agent-binaries
+          pattern: agent-binaries-*
+          merge-multiple: true
           path: dist
 
       - name: Sign checksums
@@ -79,14 +143,17 @@ jobs:
           GNUPGHOME="$(mktemp -d)"
           chmod 700 "${GNUPGHOME}"
           printf '%s' "${GPG_PRIVATE_KEY}" | gpg --batch --import
-          gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
-            --armor --detach-sign dist/checksums-agent.txt
+          for file in dist/checksums-agent-*.txt; do
+            gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" \
+              --armor --detach-sign "$file"
+          done
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/easywi-agent-*
-            dist/checksums-agent.txt
-            dist/checksums-agent.txt.asc
+            dist/easywi-agent*
+            dist/easywi-sftp*
+            dist/checksums-agent-*.txt
+            dist/checksums-agent-*.txt.asc
           generate_release_notes: false

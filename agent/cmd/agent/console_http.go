@@ -25,12 +25,15 @@ type consoleLine struct {
 }
 
 type consoleSnapshot struct {
-	cursor    string
-	lines     []map[string]any
-	running   bool
-	restarted bool
-	restarts  int
-	sessionID string
+	cursor       string
+	lines        []map[string]any
+	running      bool
+	restarted    bool
+	restarts     int
+	sessionID    string
+	droppedLines int64
+	bytesPerSec  int64
+	lastOffset   int64
 }
 
 type consoleSession struct {
@@ -39,13 +42,17 @@ type consoleSession struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 
-	mu         sync.Mutex
-	buffer     []consoleLine
-	nextID     int64
-	lastAccess time.Time
-	restarts   int
-	running    bool
-	sessionID  string
+	mu           sync.Mutex
+	buffer       []consoleLine
+	nextID       int64
+	lastAccess   time.Time
+	restarts     int
+	running      bool
+	sessionID    string
+	droppedLines int64
+	windowBytes  int64
+	windowAt     time.Time
+	bytesPerSec  int64
 }
 
 type consoleSessionManager struct {
@@ -119,6 +126,7 @@ func (m *consoleSessionManager) getOrCreate(instanceID, unitName string) *consol
 		buffer:     make([]consoleLine, 0, 400),
 		lastAccess: time.Now(),
 		sessionID:  newConsoleSessionID(),
+		windowAt:   time.Now(),
 	}
 	m.sessions[key] = s
 	go s.run()
@@ -154,10 +162,19 @@ func (s *consoleSession) appendLine(stream, text, level string) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := time.Now()
 	s.nextID++
-	s.lastAccess = time.Now()
-	s.buffer = append(s.buffer, consoleLine{ID: s.nextID, TS: time.Now().UTC().Format(time.RFC3339), Stream: stream, Text: text, Level: level})
+	s.lastAccess = now
+	s.windowBytes += int64(len(text))
+	if now.Sub(s.windowAt) >= time.Second {
+		s.bytesPerSec = s.windowBytes
+		s.windowBytes = 0
+		s.windowAt = now
+	}
+	s.buffer = append(s.buffer, consoleLine{ID: s.nextID, TS: now.UTC().Format(time.RFC3339), Stream: stream, Text: text, Level: level})
 	if len(s.buffer) > 1000 {
+		dropped := len(s.buffer) - 1000
+		s.droppedLines += int64(dropped)
 		s.buffer = s.buffer[len(s.buffer)-1000:]
 	}
 }
@@ -184,12 +201,15 @@ func (s *consoleSession) snapshotAfterCursor(cursorRaw string) consoleSnapshot {
 		}
 	}
 	return consoleSnapshot{
-		cursor:    makeCursor(s.sessionID, lastID),
-		lines:     lines,
-		running:   s.running,
-		restarted: s.restarts > 0,
-		restarts:  s.restarts,
-		sessionID: s.sessionID,
+		cursor:       makeCursor(s.sessionID, lastID),
+		lines:        lines,
+		running:      s.running,
+		restarted:    s.restarts > 0,
+		restarts:     s.restarts,
+		sessionID:    s.sessionID,
+		droppedLines: s.droppedLines,
+		bytesPerSec:  s.bytesPerSec,
+		lastOffset:   lastID,
 	}
 }
 
@@ -281,6 +301,12 @@ func parseCursor(raw, expectedSessionID string) int64 {
 	if raw == "" {
 		return 0
 	}
+	if id, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		if id < 0 {
+			return 0
+		}
+		return id
+	}
 	parts := strings.Split(raw, ":")
 	if len(parts) != 2 {
 		return 0
@@ -305,6 +331,10 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 		return false
 	}
 	requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+	correlationID := strings.TrimSpace(r.Header.Get("X-Correlation-ID"))
+	if correlationID == "" {
+		correlationID = requestID
+	}
 	action := strings.Trim(strings.TrimPrefix(r.URL.Path, base), "/ ")
 	unit := resolveInstanceUnitName(instanceID)
 	if unit == "" {
@@ -330,19 +360,28 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 					"unit":              unit,
 					"state":             "unavailable",
 					"journal_available": false,
+					"correlation_id":    correlationID,
 				},
 			}})
 			return true
 		}
 		s := globalConsoleSessions.getOrCreate(instanceID, unit)
-		snapshot := s.snapshotAfterCursor(strings.TrimSpace(r.URL.Query().Get("cursor")))
+		resume := strings.TrimSpace(r.URL.Query().Get("cursor"))
+		if resume == "" {
+			resume = strings.TrimSpace(r.URL.Query().Get("last_offset"))
+		}
+		snapshot := s.snapshotAfterCursor(resume)
 		writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{
 			"cursor": snapshot.cursor,
 			"lines":  snapshot.lines,
 			"meta": map[string]any{
-				"unit":      unit,
-				"state":     map[bool]string{true: "connected", false: "restarting"}[snapshot.running],
-				"restarted": snapshot.restarted,
+				"unit":           unit,
+				"state":          map[bool]string{true: "connected", false: "restarting"}[snapshot.running],
+				"restarted":      snapshot.restarted,
+				"correlation_id": correlationID,
+				"dropped_lines":  snapshot.droppedLines,
+				"bytes_per_sec":  snapshot.bytesPerSec,
+				"last_offset":    snapshot.lastOffset,
 			},
 		}})
 		return true
@@ -370,6 +409,7 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 				"socket_exists":     sockExists,
 				"journal_available": false,
 				"journal_session":   map[string]any{"connected": false, "restarts": 0, "session_id": ""},
+				"correlation_id":    correlationID,
 			}})
 			return true
 		}
@@ -387,7 +427,8 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 			"unit_active_state": map[bool]string{true: "active", false: "inactive"}[snapshot.running],
 			"socket_path":       socketPath,
 			"socket_exists":     sockExists,
-			"journal_session":   map[string]any{"connected": snapshot.running, "restarts": snapshot.restarts, "session_id": snapshot.sessionID},
+			"journal_session":   map[string]any{"connected": snapshot.running, "restarts": snapshot.restarts, "session_id": snapshot.sessionID, "dropped_lines": snapshot.droppedLines, "bytes_per_sec": snapshot.bytesPerSec, "last_offset": snapshot.lastOffset},
+			"correlation_id":    correlationID,
 		}})
 		return true
 	case "command":
@@ -424,7 +465,7 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 		}
 		s := globalConsoleSessions.getOrCreate(instanceID, unit)
 		s.appendLine("meta", "> "+redactCommandForMeta(command), "info")
-		writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{"accepted": true, "sent_at": time.Now().UTC().Format(time.RFC3339)}})
+		writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{"accepted": true, "sent_at": time.Now().UTC().Format(time.RFC3339), "correlation_id": correlationID}})
 		return true
 	default:
 		writeAccessEnvelope(w, 404, accessEnvelope{OK: false, ErrorCode: "INVALID_INPUT", Message: "unknown console action", RequestID: requestID})

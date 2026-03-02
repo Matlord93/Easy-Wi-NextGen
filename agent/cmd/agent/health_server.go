@@ -96,7 +96,7 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 
 	httpServer := &http.Server{
 		Addr:              listen,
-		Handler:           mux,
+		Handler:           withTraceContext(mux),
 		ReadTimeout:       cfg.FileReadTimeout,
 		WriteTimeout:      cfg.FileWriteTimeout,
 		IdleTimeout:       cfg.FileIdleTimeout,

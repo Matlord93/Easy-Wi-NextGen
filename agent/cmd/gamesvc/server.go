@@ -1,6 +1,8 @@
 package main
 
 import (
+	"easywi/agent/internal/apienvelope"
+	"easywi/agent/internal/trace"
 	"encoding/json"
 	"errors"
 	"io"
@@ -36,7 +38,14 @@ func (s *gameServer) routes() http.Handler {
 	mux.HandleFunc("/instance/start", s.handleStartInstance)
 	mux.HandleFunc("/instance/stop", s.handleStopInstance)
 	mux.HandleFunc("/instance/status", s.handleInstanceStatus)
-	return mux
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID, correlationID := trace.Normalize(r.Header.Get(trace.RequestHeader), r.Header.Get(trace.CorrelationHeader))
+		r.Header.Set(trace.RequestHeader, requestID)
+		r.Header.Set(trace.CorrelationHeader, correlationID)
+		w.Header().Set(trace.RequestHeader, requestID)
+		w.Header().Set(trace.CorrelationHeader, correlationID)
+		mux.ServeHTTP(w, r.WithContext(trace.WithIDs(r.Context(), requestID, correlationID)))
+	})
 }
 
 type checkFreeRequest struct {
@@ -61,12 +70,12 @@ type portCheckResult struct {
 
 func (s *gameServer) handleCheckFree(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
 	var req checkFreeRequest
 	if err := readJSON(r.Body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid payload"})
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
 		return
 	}
 	results := make([]portCheckResult, 0, len(req.Checks))
@@ -125,16 +134,16 @@ type renderFile struct {
 
 func (s *gameServer) handleRenderConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
 	var req renderConfigRequest
 	if err := readJSON(r.Body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid payload"})
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
 		return
 	}
 	if req.InstanceID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "instance_id is required"})
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, "instance_id is required", nil)
 		return
 	}
 	baseTemplateDir := s.config.TemplateDir
@@ -149,16 +158,16 @@ func (s *gameServer) handleRenderConfig(w http.ResponseWriter, r *http.Request) 
 	for _, file := range req.Files {
 		templatePath, err := safeJoin(baseTemplateDir, file.Template)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+			apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, err.Error(), nil)
 			return
 		}
 		outputPath, err := safeJoin(baseOutputDir, file.Target)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+			apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, err.Error(), nil)
 			return
 		}
 		if err := renderTemplateFile(templatePath, outputPath, req.Values); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+			apienvelope.WriteError(w, r, http.StatusInternalServerError, apienvelope.ErrorInternal, err.Error(), nil)
 			return
 		}
 	}
@@ -213,23 +222,23 @@ type startInstanceRequest struct {
 
 func (s *gameServer) handleStartInstance(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
 	var req startInstanceRequest
 	if err := readJSON(r.Body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid payload"})
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
 		return
 	}
 	if req.InstanceID == "" || req.Command == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "instance_id and command are required"})
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, "instance_id and command are required", nil)
 		return
 	}
 
 	s.mu.Lock()
 	if _, exists := s.processes[req.InstanceID]; exists {
 		s.mu.Unlock()
-		writeJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "instance already running"})
+		apienvelope.WriteError(w, r, http.StatusConflict, apienvelope.ErrorConflict, "instance already running", nil)
 		return
 	}
 	s.mu.Unlock()
@@ -247,7 +256,7 @@ func (s *gameServer) handleStartInstance(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := cmd.Start(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+		apienvelope.WriteError(w, r, http.StatusInternalServerError, apienvelope.ErrorInternal, err.Error(), nil)
 		return
 	}
 
@@ -286,16 +295,16 @@ type instanceStatusResponse struct {
 
 func (s *gameServer) handleStopInstance(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
 	var req stopInstanceRequest
 	if err := readJSON(r.Body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid payload"})
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
 		return
 	}
 	if req.InstanceID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "instance_id is required"})
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, "instance_id is required", nil)
 		return
 	}
 
@@ -303,7 +312,7 @@ func (s *gameServer) handleStopInstance(w http.ResponseWriter, r *http.Request) 
 	cmd, exists := s.processes[req.InstanceID]
 	if !exists {
 		s.mu.Unlock()
-		writeJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "instance not running"})
+		apienvelope.WriteError(w, r, http.StatusNotFound, apienvelope.ErrorNotFound, "instance not running", nil)
 		return
 	}
 	delete(s.processes, req.InstanceID)
@@ -318,16 +327,16 @@ func (s *gameServer) handleStopInstance(w http.ResponseWriter, r *http.Request) 
 
 func (s *gameServer) handleInstanceStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		apienvelope.WriteError(w, r, http.StatusMethodNotAllowed, apienvelope.ErrorMethodNotAllowed, "method not allowed", nil)
 		return
 	}
 	var req instanceStatusRequest
 	if err := readJSON(r.Body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "invalid payload"})
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorInvalidPayload, "invalid payload", nil)
 		return
 	}
 	if req.InstanceID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "instance_id is required"})
+		apienvelope.WriteError(w, r, http.StatusBadRequest, apienvelope.ErrorValidationFailed, "instance_id is required", nil)
 		return
 	}
 

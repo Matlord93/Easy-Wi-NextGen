@@ -48,6 +48,56 @@ jobs:
             composer install --no-interaction --no-progress
           fi
 
+      - name: Guardrail - freeze legacy migration collection
+        run: |
+          set -euo pipefail
+          BASE_SHA='${{ github.event.pull_request.base.sha }}'
+          HEAD_SHA='${{ github.sha }}'
+
+          if git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" | grep -qx 'core/migrations/Migrations.php'; then
+            echo 'core/migrations/Migrations.php ist eingefroren (legacy). Neue Migrationen nur als einzelne Datei.' >&2
+            exit 1
+          fi
+
+      - name: Guardrail - one migration class per file
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(migrations/*.php)
+
+          for file in "${files[@]}"; do
+            base="$(basename "${file}")"
+
+            if [[ "${base}" == 'Migrations.php' ]]; then
+              continue
+            fi
+
+            if [[ ! "${base}" =~ ^Version[0-9]{14}\.php$ ]]; then
+              echo "Ungültiger Migrations-Dateiname: ${base}" >&2
+              exit 1
+            fi
+
+            class_count="$(grep -E -c '^final class Version[0-9]{14} extends AbstractMigration$' "${file}")"
+            if [[ "${class_count}" -ne 1 ]]; then
+              echo "${file} muss genau eine finale Version-Klasse enthalten." >&2
+              exit 1
+            fi
+          done
+
+      - name: Doctrine schema validate (CI safety)
+        env:
+          APP_ENV: test
+          APP_DEBUG: '0'
+          DATABASE_URL: 'sqlite:///%kernel.project_dir%/var/ci_migrations.db'
+        run: php bin/console doctrine:schema:validate --skip-sync --no-interaction
+
+      - name: Doctrine migrations dry-run (CI safety)
+        env:
+          APP_ENV: test
+          APP_DEBUG: '0'
+          DATABASE_URL: 'sqlite:///%kernel.project_dir%/var/ci_migrations.db'
+        run: php bin/console doctrine:migrations:migrate --dry-run --no-interaction --allow-no-migration
+
       - name: Lint (optional)
         run: |
           if composer run --list -q | grep -q "lint"; then composer run lint; else echo "No lint script"; fi
@@ -57,8 +107,12 @@ jobs:
           if composer run --list -q | grep -q "test"; then composer run test; else echo "No test script"; fi
 
   agent:
-    name: Agent (Go) - build
-    runs-on: ubuntu-latest
+    name: Agent (Go) - build/test/smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     defaults:
       run:
         working-directory: agent
@@ -72,16 +126,33 @@ jobs:
           cache: true
           cache-dependency-path: agent/go.sum
 
-      - name: Build linux-amd64 artifacts
-        run: |
-          mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/easywi-agent-linux-amd64 ./cmd/agent
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/easywi-sftp-linux-amd64 ./cmd/easywi-sftp
+      - name: Go test
+        run: go test ./...
 
-      - name: Build windows-amd64 artifacts
-        run: |
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/easywi-agent-windows-amd64.exe ./cmd/agent
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/easywi-sftp-windows-amd64.exe ./cmd/easywi-sftp
+      - name: Smoke test (agent startup + core connectivity + dummy job)
+        run: go test ./cmd/agent -run TestAgentCoreConnectivitySmoke
+
+      - name: Build agent
+        run: go build -trimpath -ldflags="-s -w" ./cmd/agent
+
+      - name: Build easywi-sftp
+        run: go build -trimpath -ldflags="-s -w" ./cmd/easywi-sftp
+
+
+  smoke-gates:
+    name: Smoke Gates (config + smoke script)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: "Pre-deploy gate: validate compose config (dev)"
+        run: docker compose -f deploy/compose/dev/docker-compose.yml config
+
+      - name: "Pre-deploy gate: validate compose config (stage)"
+        run: docker compose -f deploy/compose/stage/docker-compose.yml config
+
+      - name: "Post-deploy gate: smoke script executable"
+        run: SMOKE_SKIP_RUNTIME_CHECKS=1 ./scripts/smoke.sh
 
   installer:
     name: Installer - lint
