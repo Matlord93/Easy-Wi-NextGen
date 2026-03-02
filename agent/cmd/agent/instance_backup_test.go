@@ -9,35 +9,39 @@ import (
 )
 
 func TestResolveLocalBackupRootUsesConfiguredBasePath(t *testing.T) {
+	basePath := filepath.Join(t.TempDir(), "backups")
+	fallback := filepath.Join(t.TempDir(), "instances")
 	root, err := resolveLocalBackupRoot(map[string]any{
 		"backup_target_config": map[string]any{
-			"base_path": "/srv/backups",
+			"base_path": basePath,
 		},
-	}, "/var/lib/easywi/backups/instances")
+	}, fallback)
 	if err != nil {
 		t.Fatalf("resolveLocalBackupRoot returned error: %v", err)
 	}
-	if root != "/srv/backups" {
-		t.Fatalf("root=%q, want %q", root, "/srv/backups")
+	if root != basePath {
+		t.Fatalf("root=%q, want %q", root, basePath)
 	}
 }
 
 func TestResolveLocalBackupRootSupportsLegacyPathAliases(t *testing.T) {
+	legacyPath := filepath.Join(t.TempDir(), "legacy-backups")
+	fallback := filepath.Join(t.TempDir(), "instances")
 	root, err := resolveLocalBackupRoot(map[string]any{
 		"backup_target_config": map[string]any{
-			"path": "/data/backups",
+			"path": legacyPath,
 		},
-	}, "/var/lib/easywi/backups/instances")
+	}, fallback)
 	if err != nil {
 		t.Fatalf("resolveLocalBackupRoot returned error: %v", err)
 	}
-	if root != "/data/backups" {
-		t.Fatalf("root=%q, want %q", root, "/data/backups")
+	if root != legacyPath {
+		t.Fatalf("root=%q, want %q", root, legacyPath)
 	}
 }
 
 func TestResolveLocalBackupRootFallsBackToDefault(t *testing.T) {
-	fallback := "/var/lib/easywi/backups/instances"
+	fallback := filepath.Join(t.TempDir(), "instances")
 	root, err := resolveLocalBackupRoot(map[string]any{}, fallback)
 	if err != nil {
 		t.Fatalf("resolveLocalBackupRoot returned error: %v", err)

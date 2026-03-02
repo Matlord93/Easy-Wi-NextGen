@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -35,7 +36,15 @@ func TestWriteConfigAtomicallyWritesFile(t *testing.T) {
 
 func TestConfigApplyRejectsBinary(t *testing.T) {
 	root := t.TempDir()
-	req := httptest.NewRequest(http.MethodPost, "/v1/instances/1/configs/apply", strings.NewReader(`{"instance_root":"`+root+`","path":"`+filepath.Join(root, "a.cfg")+`","content":"a\u0000b"}`))
+	body, err := json.Marshal(map[string]string{
+		"instance_root": root,
+		"path":          filepath.Join(root, "a.cfg"),
+		"content":       "a\x00b",
+	})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/v1/instances/1/configs/apply", strings.NewReader(string(body)))
 	w := httptest.NewRecorder()
 	handled := handleInstanceConfigApplyHTTP(w, req, "1")
 	if !handled {

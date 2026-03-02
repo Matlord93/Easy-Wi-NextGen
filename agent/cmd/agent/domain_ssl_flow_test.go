@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -10,6 +11,9 @@ import (
 )
 
 func TestDomainSSLRenewAndRevokeFlow(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script command shims are not portable to windows")
+	}
 	binDir := t.TempDir()
 	logFile := filepath.Join(binDir, "certbot.log")
 	if err := os.WriteFile(filepath.Join(binDir, "certbot"), []byte("#!/bin/sh\necho \"$@\" >> \""+logFile+"\"\nexit 0\n"), 0o755); err != nil {

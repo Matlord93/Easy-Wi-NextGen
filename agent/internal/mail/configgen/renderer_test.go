@@ -3,6 +3,7 @@ package configgen
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -26,7 +27,14 @@ func TestRenderPostfixVirtualMapGolden(t *testing.T) {
 		t.Fatalf("read golden: %v", err)
 	}
 
-	if string(rendered.Content) != string(expected) {
+	normalize := func(v string) string {
+		v = strings.ReplaceAll(v, "\r\n", "\n")
+		return strings.TrimSuffix(v, "\n")
+	}
+
+	actual := normalize(string(rendered.Content))
+	want := normalize(string(expected))
+	if actual != want {
 		t.Fatalf("golden mismatch\nexpected:\n%s\nactual:\n%s", string(expected), string(rendered.Content))
 	}
 }

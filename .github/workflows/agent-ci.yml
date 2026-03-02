@@ -42,16 +42,16 @@ jobs:
 
 
       - name: Setup Python for OpenAPI checks
-        working-directory: ..
+        working-directory: .
         run: |
           python3 -m pip install --upgrade pip pyyaml
 
       - name: Validate Core-Agent OpenAPI spec
-        working-directory: ..
+        working-directory: .
         run: python3 "$GITHUB_WORKSPACE/docs/api/scripts/validate_openapi.py" "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"
 
       - name: Breaking-change check against main (Core-Agent OpenAPI)
-        working-directory: ..
+        working-directory: .
         run: |
           git fetch origin main --depth=1
           git show origin/main:docs/api/core-agent.v1.openapi.yaml > /tmp/core-agent.base.yaml

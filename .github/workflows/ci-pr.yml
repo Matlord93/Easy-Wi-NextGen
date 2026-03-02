@@ -147,12 +147,12 @@ jobs:
 
       - name: "Pre-deploy gate: validate compose config (dev)"
         run: docker compose --env-file deploy/shared/env/dev.env -f deploy/compose/dev/docker-compose.yml config
-        
+
       - name: "Pre-deploy gate: validate compose config (stage)"
         run: docker compose --env-file deploy/shared/env/stage.env -f deploy/compose/stage/docker-compose.yml config
-        
+
       - name: "Post-deploy gate: smoke script executable"
-        run: SMOKE_SKIP_RUNTIME_CHECKS=1 ./scripts/smoke.sh
+        run: SMOKE_SKIP_RUNTIME_CHECKS=1 bash ./scripts/smoke.sh
 
   installer:
     name: Installer - lint

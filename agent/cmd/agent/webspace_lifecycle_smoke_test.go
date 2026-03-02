@@ -3,12 +3,16 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"easywi/agent/internal/jobs"
 )
 
 func TestWebspaceLifecycleSmokeApplyFlow(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("webspace apply flow is linux-only")
+	}
 	binDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(binDir, "nginx"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("mock nginx: %v", err)

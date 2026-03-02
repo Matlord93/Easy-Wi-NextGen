@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	gssh "github.com/gliderlabs/ssh"
@@ -32,6 +33,9 @@ func TestResolveUserPath(t *testing.T) {
 }
 
 func TestEmbeddedSFTPIntegration(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("posix permission model differs on windows")
+	}
 	root := t.TempDir()
 	hash, err := bcrypt.GenerateFromPassword([]byte("pass123"), bcrypt.DefaultCost)
 	if err != nil {

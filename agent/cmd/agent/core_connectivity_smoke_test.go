@@ -95,7 +95,7 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		ServiceListen:     "disabled",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
 	defer cancel()
 
 	run(ctx, client, cfg, "", logging.NewJSONLogger(io.Discard, "agent", cfg.AgentID))

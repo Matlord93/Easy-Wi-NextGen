@@ -64,16 +64,16 @@ jobs:
 
 
       - name: Setup Python for OpenAPI checks
-        working-directory: ..
+        working-directory: .
         run: |
           python3 -m pip install --upgrade pip pyyaml
 
       - name: Validate Core-Agent OpenAPI spec
-        working-directory: ..
+        working-directory: .
         run: python3 "$GITHUB_WORKSPACE/docs/api/scripts/validate_openapi.py" "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"
 
       - name: Breaking-change check against main (Core-Agent OpenAPI)
-        working-directory: ..
+        working-directory: .
         run: |
           git fetch origin main --depth=1
           git show origin/main:docs/api/core-agent.v1.openapi.yaml > /tmp/core-agent.base.yaml
@@ -172,10 +172,9 @@ jobs:
 
       - name: "Pre-deploy gate: validate compose config (dev)"
         run: docker compose --env-file deploy/shared/env/dev.env -f deploy/compose/dev/docker-compose.yml config
-        
+
       - name: "Pre-deploy gate: validate compose config (stage)"
         run: docker compose --env-file deploy/shared/env/stage.env -f deploy/compose/stage/docker-compose.yml config
-        
-      - name: "Post-deploy gate: smoke script executable"
-        run: SMOKE_SKIP_RUNTIME_CHECKS=1 ./scripts/smoke.sh
 
+      - name: "Post-deploy gate: smoke script executable"
+        run: SMOKE_SKIP_RUNTIME_CHECKS=1 bash ./scripts/smoke.sh

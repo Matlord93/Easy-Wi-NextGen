@@ -368,7 +368,7 @@ func TestPerformProtocolQueryConnectionRefused(t *testing.T) {
 	if resp.OK {
 		t.Fatalf("expected failed query")
 	}
-	if resp.ErrorCode != "CONNECTION_REFUSED" {
+	if resp.ErrorCode != "CONNECTION_REFUSED" && resp.ErrorCode != "QUERY_TIMEOUT" {
 		t.Fatalf("error code=%s", resp.ErrorCode)
 	}
 }

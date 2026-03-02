@@ -6,11 +6,15 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
 
 func TestWriteConsoleCommandToSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix sockets are not supported on windows")
+	}
 	socketPath := filepath.Join(t.TempDir(), "console.sock")
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -73,6 +77,9 @@ func TestSanitizeConsoleCommandRejectsNewlines(t *testing.T) {
 }
 
 func TestWriteConsoleCommandToSocketRetriesUntilSocketReady(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix sockets are not supported on windows")
+	}
 	socketPath := filepath.Join(t.TempDir(), "console.sock")
 	received := make(chan string, 1)
 

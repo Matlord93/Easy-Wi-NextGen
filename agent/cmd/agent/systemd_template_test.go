@@ -1,10 +1,13 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestBuildSystemdExecStartUsesWrapperForGameserverUnits(t *testing.T) {
 	execStart, runtimeDir := buildSystemdExecStart("gs-42", "/srv/instance/start.sh")
-	if runtimeDir != "easywi/instances/42" {
+	if runtimeDir != filepath.FromSlash("easywi/instances/42") {
 		t.Fatalf("unexpected runtime directory %q", runtimeDir)
 	}
 	if execStart == "/srv/instance/start.sh" {

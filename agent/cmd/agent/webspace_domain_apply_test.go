@@ -3,12 +3,16 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"easywi/agent/internal/jobs"
 )
 
 func TestHandleWebspaceDomainApplyRollsBackOnConfigtestFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("webspace apply flow is linux-only")
+	}
 	binDir := t.TempDir()
 	nginxLog := filepath.Join(binDir, "nginx.log")
 	nginxScript := "#!/bin/sh\n" +
