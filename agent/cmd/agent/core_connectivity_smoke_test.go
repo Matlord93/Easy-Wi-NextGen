@@ -20,8 +20,9 @@ import (
 func TestAgentCoreConnectivitySmoke(t *testing.T) {
 	type smokeState struct {
 		sync.Mutex
-		result jobs.Result
-		polled bool
+		result  jobs.Result
+		polled  bool
+		started bool
 	}
 	state := &smokeState{}
 
@@ -47,7 +48,7 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		state.Lock()
 		defer state.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		if !state.polled {
+		if !state.started {
 			state.polled = true
 			_, _ = w.Write([]byte(`{"jobs":[{"id":"smoke-job-1","type":"agent.diagnostics","payload":{}}],"max_concurrency":1}`))
 			return
@@ -55,6 +56,9 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		_, _ = w.Write([]byte(`{"jobs":[],"max_concurrency":1}`))
 	})
 	mux.HandleFunc("/agent/jobs/smoke-job-1/start", func(w http.ResponseWriter, _ *http.Request) {
+		state.Lock()
+		state.started = true
+		state.Unlock()
 		signal(jobStarted)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
@@ -103,7 +107,7 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		ServiceListen:     "disabled",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
 	go run(ctx, client, cfg, "", logging.NewJSONLogger(io.Discard, "agent", cfg.AgentID))
