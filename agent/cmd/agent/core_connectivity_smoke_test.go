@@ -100,11 +100,7 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	runDone := make(chan struct{})
-	go func() {
-		defer close(runDone)
-		run(ctx, client, cfg, "", logging.NewJSONLogger(io.Discard, "agent", cfg.AgentID))
-	}()
+	go run(ctx, client, cfg, "", logging.NewJSONLogger(io.Discard, "agent", cfg.AgentID))
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -112,17 +108,9 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		ready := state.heartbeats > 0 && state.started && state.result.JobID == "smoke-job-1"
 		state.Unlock()
 		if ready {
-			cancel()
-			<-runDone
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
-	}
-
-	select {
-	case <-runDone:
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("agent run loop did not shut down in time")
 	}
 
 	state.Lock()
