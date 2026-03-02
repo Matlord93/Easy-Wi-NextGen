@@ -20,4 +20,3 @@ func terminateProcessGroup(pid int) error {
 func killProcessGroupHard(pid int) error {
 	return terminateProcessGroup(pid)
 }
-
