@@ -1,0 +1,22 @@
+{
+  "latest": "0.0.0",
+  "releases": [
+    {
+      "version": "0.0.0",
+      "date": "1970-01-01",
+      "channel": "stable",
+      "migrations": true,
+      "min_php": "8.3",
+      "min_db": {
+        "mysql": "8.0"
+      },
+      "artifacts": {
+        "core_full_zip": {"url": "", "sha256": "", "size": 0},
+        "core_full_targz": {"url": "", "sha256": "", "size": 0},
+        "core_novendor_zip": {"url": "", "sha256": "", "size": 0},
+        "core_novendor_targz": {"url": "", "sha256": "", "size": 0}
+      },
+      "changelog": ""
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+version: 1
+updated_at: "2026-03-02"
+task: TASK-017
+panels:
+  - panel: plesk
+    strategy:
+      mode: api-first
+      cli_fallback: limited
+      notes: "Prefer XML/REST APIs; CLI is restricted to repair/reconciliation operations."
+    supported_versions:
+      - "Obsidian >=18.0.55"
+    least_privilege:
+      model: "Dedicated API user with role-scoped permissions, no shell login by default."
+      required_scopes: [domains:read, domains:write, mail:write, dns:write]
+    capabilities:
+      discover: true
+      actions: [site.provision, site.suspend, dns.sync, mail.mailbox.ensure, ssl.issue]
+    certification:
+      - version: "18.0.55"
+        checklist: [auth-token-rotation, domain-create-delete, mailbox-crud, dns-record-reconcile, rollback-on-failure]
+  - panel: aapanel
+    strategy:
+      mode: api-first
+      cli_fallback: required
+      notes: "BT-Panel OpenAPI first; fallback to bt command for deterministic maintenance actions."
+    supported_versions:
+      - "7.0.x"
+      - "8.0.x"
+    least_privilege:
+      model: "Panel API key bound to dedicated operator account + sudo allowlist for bt subcommands."
+      required_scopes: [website:read, website:write, database:write, ssl:write]
+    capabilities:
+      discover: true
+      actions: [site.provision, site.delete, db.create, db.rotate-password, ssl.renew]
+    certification:
+      - version: "7.0.x"
+        checklist: [api-signature-validation, site-crud, db-user-rotation, ssl-renew, permission-boundary-check]
+      - version: "8.0.x"
+        checklist: [api-signature-validation, site-crud, db-user-rotation, ssl-renew, permission-boundary-check]
+  - panel: cpanel
+    strategy:
+      mode: api-first
+      cli_fallback: limited
+      notes: "Use UAPI/WHM API with reseller token; CLI reserved for account recovery runbooks."
+    supported_versions:
+      - "110"
+      - "118"
+    least_privilege:
+      model: "Reseller-scoped API token; deny root SSH for normal control-plane flows."
+      required_scopes: [account:read, account:write, dns:write, mail:write]
+    capabilities:
+      discover: true
+      actions: [account.create, account.suspend, dns.zone-sync, mail.forwarder.ensure, ssl.autossl.trigger]
+    certification:
+      - version: "110"
+        checklist: [token-scope-audit, account-crud, dns-zone-apply, mail-forwarder-crud, autossl-trigger]
+      - version: "118"
+        checklist: [token-scope-audit, account-crud, dns-zone-apply, mail-forwarder-crud, autossl-trigger]
+  - panel: directadmin
+    strategy:
+      mode: api-first
+      cli_fallback: limited
+      notes: "CMD_API endpoints are primary; directadmin CLI allowed for rollback-only operations."
+    supported_versions:
+      - "1.66"
+      - "1.67"
+    least_privilege:
+      model: "Per-reseller API login + optional command channel with forced-command SSH key."
+      required_scopes: [user:read, user:write, dns:write, email:write]
+    capabilities:
+      discover: true
+      actions: [user.create, user.suspend, dns.records.apply, mail.account.ensure, backup.trigger]
+    certification:
+      - version: "1.66"
+        checklist: [api-auth-check, user-crud, dns-record-lifecycle, mail-account-crud, backup-trigger]
+      - version: "1.67"
+        checklist: [api-auth-check, user-crud, dns-record-lifecycle, mail-account-crud, backup-trigger]
+  - panel: ispconfig
+    strategy:
+      mode: api-first
+      cli_fallback: required
+      notes: "Remote SOAP/REST APIs first; ispconfig_update.sh helpers as controlled fallback."
+    supported_versions:
+      - "3.2.x"
+      - "3.3.x"
+    least_privilege:
+      model: "Remote API user mapped to client-level permissions + sudo allowlist for system scripts."
+      required_scopes: [client:write, website:write, mail:write, dns:write]
+    capabilities:
+      discover: true
+      actions: [client.create, website.create, mail.domain.ensure, dns.zone.apply, cert.renew]
+    certification:
+      - version: "3.2.x"
+        checklist: [session-auth-rotation, client-website-crud, mail-domain-crud, dns-zone-reconcile, cert-renew]
+      - version: "3.3.x"
+        checklist: [session-auth-rotation, client-website-crud, mail-domain-crud, dns-zone-reconcile, cert-renew]
+  - panel: hestiacp
+    strategy:
+      mode: cli-fallback
+      cli_fallback: required
+      notes: "Hestia API coverage is partial; CLI wrappers are default with signed command requests."
+    supported_versions:
+      - "1.8.x"
+    least_privilege:
+      model: "Dedicated UNIX operator with command allowlist and audit logging enforced."
+      required_scopes: [web:create, web:delete, dns:write, mail:write]
+    capabilities:
+      discover: true
+      actions: [web.add, web.delete, dns.add-record, mail.add-account, backup.schedule]
+    certification:
+      - version: "1.8.x"
+        checklist: [sudo-allowlist-verified, web-crud, dns-record-crud, mail-account-crud, backup-schedule]
+  - panel: tech-preview
+    strategy:
+      mode: api-first
+      cli_fallback: none
+      notes: "Reference adapter used for contract/smoke validation in CI; not production certified."
+    supported_versions:
+      - "0.x"
+    least_privilege:
+      model: "Ephemeral token with synthetic capability set."
+      required_scopes: [capabilities:read, actions:execute]
+    capabilities:
+      discover: true
+      actions: [ping, account.describe]
+    certification:
+      - version: "0.x"
+        checklist: [capability-discovery-contract, standardized-error-contract, smoke-action-ping]

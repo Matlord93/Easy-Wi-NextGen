@@ -1,0 +1,430 @@
+openapi: 3.1.0
+info:
+  title: EasyWI Core-Agent Control Plane API
+  version: 1.0.0
+  description: |
+    Single Source of Truth for the production Core <-> Agent HTTP contract.
+    This spec covers bootstrap/registration and the runtime control-plane endpoints
+    used by agents to poll, execute and report jobs.
+
+    Retry semantics: GET endpoints are safe to retry. Mutating endpoints require
+    `Idempotency-Key` so Core can deduplicate and safely return cached responses
+    when clients retry after `429`/`5xx`/timeouts.
+servers:
+  - url: https://panel.example.com
+security:
+  - bearerAuth: []
+tags:
+  - name: Agent Control Plane
+components:
+  parameters:
+    RequestIdHeader:
+      name: X-Request-ID
+      in: header
+      required: false
+      schema: { type: string, format: uuid }
+      description: Request-scoped id propagated across Core and Agent.
+    CorrelationIdHeader:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema: { type: string, format: uuid }
+      description: End-to-end correlation id for request, jobs and logs.
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, minLength: 8, maxLength: 255 }
+      description: Required for mutating operations to guarantee idempotent retries.
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code:
+              type: string
+              enum: [INVALID_JSON, INVALID_PAYLOAD, VALIDATION_FAILED, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, METHOD_NOT_ALLOWED, CONFLICT, INTERNAL_ERROR]
+            message:
+              type: string
+            request_id:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+    ErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorEnvelope'
+    HeartbeatRequest:
+      type: object
+      required: [version, stats]
+      properties:
+        version:
+          type: string
+        stats:
+          type: object
+          additionalProperties: true
+        roles:
+          type: array
+          items: { type: string }
+        metadata:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+    StatusOkResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    MetricsBatchRequest:
+      type: object
+      required: [samples]
+      properties:
+        samples:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    MetricsBatchResponse:
+      type: object
+      required: [status, ingested]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        ingested:
+          type: integer
+          minimum: 0
+    MailLogsBatchRequest:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              domain: { type: string }
+              level: { type: string }
+              source: { type: string }
+              event_type: { type: string }
+              message: { type: string }
+              user_id: { type: integer }
+              payload:
+                type: object
+                additionalProperties: true
+    MailLogsBatchResponse:
+      type: object
+      required: [status, persisted]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        persisted:
+          type: integer
+          minimum: 0
+    AgentJob:
+      type: object
+      required: [id, type, payload]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        correlation_id: { type: string, format: uuid, description: Correlation id persisted in job metadata. }
+        payload:
+          type: object
+          additionalProperties: true
+    JobsPollResponse:
+      type: object
+      required: [jobs, max_concurrency]
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentJob'
+        max_concurrency:
+          type: integer
+          minimum: 1
+    JobLogsRequest:
+      type: object
+      required: [job_id]
+      properties:
+        job_id: { type: string }
+        logs:
+          type: array
+          items: { type: string }
+        message: { type: string }
+        stdout: { type: string }
+        stderr: { type: string }
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+    JobStartRequest:
+      type: object
+      additionalProperties: false
+      properties: {}
+    JobResultRequest:
+      type: object
+      required: [job_id, status]
+      properties:
+        job_id: { type: string }
+        status:
+          type: string
+          enum: [ok, failed]
+        output:
+          type: object
+          additionalProperties: true
+    BootstrapRequest:
+      type: object
+      required: [bootstrap_token, hostname, os, agent_version]
+      properties:
+        bootstrap_token: { type: string }
+        hostname: { type: string }
+        os: { type: string }
+        agent_version: { type: string }
+    BootstrapResponse:
+      type: object
+      required: [register_url, register_token, agent_id]
+      properties:
+        register_url: { type: string }
+        register_token: { type: string }
+        agent_id: { type: string }
+    RegisterRequest:
+      type: object
+      required: [agent_id]
+      properties:
+        agent_id: { type: string }
+        name: { type: string }
+        register_token: { type: string }
+        rotate_existing: { type: boolean }
+    RegisterResponse:
+      type: object
+      required: [agent_id, secret]
+      properties:
+        agent_id: { type: string }
+        secret: { type: string }
+        rotated: { type: boolean }
+paths:
+  /api/v1/agent/bootstrap:
+    post:
+      tags: [Agent Control Plane]
+      security: []
+      summary: Exchange a bootstrap token for a short-lived registration token
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BootstrapRequest' }
+      responses:
+        '200':
+          description: Registration token issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BootstrapResponse' }
+        '400': { description: Invalid request payload, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: Invalid/expired bootstrap token, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '429': { description: Rate limited (clients should honor Retry-After), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/v1/agent/register:
+    post:
+      tags: [Agent Control Plane]
+      summary: Register a new agent or rotate an existing secret
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Agent created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+        '200':
+          description: Agent secret rotated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+        '400': { description: Invalid request payload/signature mismatch, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: Invalid/expired registration token or signature, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: Agent exists but rotation preconditions not met, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/v1/agent/heartbeat:
+    post:
+      tags: [Agent Control Plane]
+      summary: Send heartbeat and inventory data
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HeartbeatRequest' }
+      responses:
+        '200':
+          description: Heartbeat accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusOkResponse' }
+        '400': { description: Invalid request payload, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: Invalid signature/JWT, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: Decommissioned agent, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/v1/agent/metrics-batch:
+    post:
+      tags: [Agent Control Plane]
+      summary: Submit compressed or plain metrics samples
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MetricsBatchRequest' }
+      responses:
+        '200':
+          description: Metrics batch ingested
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MetricsBatchResponse' }
+        '400': { description: Invalid gzip/json payload, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: Invalid signature/JWT, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: Decommissioned agent, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/v1/agent/mail/logs-batch:
+    post:
+      tags: [Agent Control Plane]
+      summary: Submit mail log events in batches
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MailLogsBatchRequest' }
+      responses:
+        '200':
+          description: Mail logs ingested
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MailLogsBatchResponse' }
+        '400': { description: Invalid json payload, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: Invalid signature/JWT, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: Decommissioned agent, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/v1/agent/jobs:
+    get:
+      tags: [Agent Control Plane]
+      summary: Poll queued jobs for this agent
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+      responses:
+        '200':
+          description: Jobs poll response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobsPollResponse' }
+        '401': { description: Invalid signature/JWT, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: Decommissioned agent, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/v1/agent/jobs/{id}/start:
+    post:
+      tags: [Agent Control Plane]
+      summary: Mark a claimed job as started
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobStartRequest' }
+      responses:
+        '200':
+          description: Job transition accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusOkResponse' }
+        '400': { description: Job id mismatch or invalid payload, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: Invalid signature/JWT, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: Job not found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: Invalid job state/lock owner, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/v1/agent/jobs/{id}/result:
+    post:
+      tags: [Agent Control Plane]
+      summary: Submit final result for a job
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobResultRequest' }
+      responses:
+        '200':
+          description: Job result accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusOkResponse' }
+        '400': { description: Validation error, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: Invalid signature/JWT, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: Job not found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: Invalid job state/lock owner, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/v1/agent/jobs/{id}/logs:
+    post:
+      tags: [Agent Control Plane]
+      summary: Stream incremental job logs
+      parameters:
+        - $ref: "#/components/parameters/RequestIdHeader"
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JobLogsRequest' }
+      responses:
+        '200':
+          description: Logs accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusOkResponse' }
+        '400': { description: Validation error, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { description: Invalid signature/JWT, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: Job not found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: Invalid job state/lock owner, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }

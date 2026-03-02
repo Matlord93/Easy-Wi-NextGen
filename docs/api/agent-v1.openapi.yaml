@@ -1,0 +1,8 @@
+openapi: 3.1.0
+info:
+  title: Deprecated Agent API alias
+  version: 1.0.0
+  description: |
+    Deprecated shim. The canonical agent contract lives in
+    `docs/api/core-agent.v1.openapi.yaml`.
+paths: {}
