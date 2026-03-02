@@ -51,14 +51,14 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         );
     }
 
-    public function attachStream(int $instanceId): iterable
+    public function attachStream(int $instanceId, int $lastOffset = 0): iterable
     {
         $node = $this->resolveNode($instanceId);
         $endpoint = $this->resolveEndpoint($node);
 
         $response = $this->httpClient->request('GET', rtrim($endpoint, '/') . '/v1/console/stream', [
             'headers' => $this->buildHeaders($node),
-            'query' => ['instance_id' => $instanceId],
+            'query' => ['instance_id' => $instanceId, 'last_offset' => max(0, $lastOffset)],
             'timeout' => 0,
         ]);
 

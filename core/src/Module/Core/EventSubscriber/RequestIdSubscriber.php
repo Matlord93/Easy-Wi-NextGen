@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\EventSubscriber;
 
+use App\Module\Core\Application\TraceContext;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
@@ -11,8 +12,10 @@ use Symfony\Component\HttpKernel\KernelEvents;
 
 final class RequestIdSubscriber implements EventSubscriberInterface
 {
-    public const HEADER_NAME = 'X-Request-ID';
-    private const ATTRIBUTE_NAME = 'request_id';
+    public function __construct(
+        private readonly TraceContext $traceContext,
+    ) {
+    }
 
     public static function getSubscribedEvents(): array
     {
@@ -29,13 +32,13 @@ final class RequestIdSubscriber implements EventSubscriberInterface
         }
 
         $request = $event->getRequest();
-        $requestId = $request->headers->get(self::HEADER_NAME);
-        if (!is_string($requestId) || $requestId === '') {
-            $requestId = bin2hex(random_bytes(16));
-            $request->headers->set(self::HEADER_NAME, $requestId);
-        }
+        $requestId = $this->traceContext->requestId($request);
+        $correlationId = $this->traceContext->correlationId($request);
 
-        $request->attributes->set(self::ATTRIBUTE_NAME, $requestId);
+        $request->headers->set(TraceContext::REQUEST_HEADER, $requestId);
+        $request->headers->set(TraceContext::CORRELATION_HEADER, $correlationId);
+        $request->attributes->set(TraceContext::REQUEST_ATTRIBUTE, $requestId);
+        $request->attributes->set(TraceContext::CORRELATION_ATTRIBUTE, $correlationId);
     }
 
     public function onKernelResponse(ResponseEvent $event): void
@@ -45,9 +48,7 @@ final class RequestIdSubscriber implements EventSubscriberInterface
         }
 
         $request = $event->getRequest();
-        $requestId = $request->headers->get(self::HEADER_NAME);
-        if (is_string($requestId) && $requestId !== '') {
-            $event->getResponse()->headers->set(self::HEADER_NAME, $requestId);
-        }
+        $event->getResponse()->headers->set(TraceContext::REQUEST_HEADER, $this->traceContext->requestId($request));
+        $event->getResponse()->headers->set(TraceContext::CORRELATION_HEADER, $this->traceContext->correlationId($request));
     }
 }

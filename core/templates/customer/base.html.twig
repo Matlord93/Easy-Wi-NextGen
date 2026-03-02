@@ -23,7 +23,7 @@
     <link rel="stylesheet" href="{{ asset('ts3.css') }}">
     <script src="{{ asset('htmx.min.js') }}"></script>
 </head>
-<body class="customer-interface ng-shell">
+<body class="customer-interface customer-interface-modern ng-shell">
 {% set activeNav = activeNav|default('') %}
 {% set voiceserverUrl = module_enabled('ts6')
     ? path('customer_ts6_servers_index')

@@ -881,6 +881,7 @@ final class CustomerInstanceController
             'node' => [
                 'id' => $instance->getNode()->getId(),
                 'name' => $instance->getNode()->getName(),
+                'location' => $this->resolveNodeLocationLabel($instance->getNode(), $instance),
             ],
             'status' => $instance->getStatus()->value,
             'display_status' => $displayStatus,
@@ -947,6 +948,48 @@ final class CustomerInstanceController
             'notice' => $notice,
             'error' => $error,
         ];
+    }
+
+
+    private function resolveNodeLocationLabel(\App\Module\Core\Domain\Entity\Agent $node, Instance $instance): ?string
+    {
+        $metadata = $node->getMetadata();
+        if (!is_array($metadata)) {
+            return null;
+        }
+
+        foreach (['root_location', 'root_datacenter', 'location_label', 'location', 'datacenter', 'dc', 'region_name', 'region'] as $key) {
+            $value = trim((string) ($metadata[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        $city = trim((string) ($metadata['city'] ?? ''));
+        $country = trim((string) ($metadata['country'] ?? $metadata['country_code'] ?? ''));
+        if ($city !== '' && $country !== '') {
+            return sprintf('%s, %s', $city, strtoupper($country));
+        }
+
+        if ($city !== '') {
+            return $city;
+        }
+
+        if ($country !== '') {
+            return strtoupper($country);
+        }
+
+        $instanceBaseDir = trim((string) $instance->getInstanceBaseDir());
+        if ($instanceBaseDir !== '') {
+            return $instanceBaseDir;
+        }
+
+        $installPath = trim((string) $instance->getInstallPath());
+        if ($installPath !== '') {
+            return dirname($installPath);
+        }
+
+        return null;
     }
 
     private function resolveDisplayStatus(Instance $instance, ?string $runtimeStatus): string

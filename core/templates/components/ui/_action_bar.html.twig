@@ -1,0 +1,13 @@
+<div class="flex flex-wrap items-center justify-between gap-3 {{ class|default('') }}">
+    <div>
+        {% if title is defined %}
+            <h2 class="text-lg font-semibold text-slate-900">{{ title }}</h2>
+        {% endif %}
+        {% if subtitle is defined and subtitle %}
+            <p class="mt-1 text-sm text-slate-600">{{ subtitle }}</p>
+        {% endif %}
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        {% block actions %}{% endblock %}
+    </div>
+</div>

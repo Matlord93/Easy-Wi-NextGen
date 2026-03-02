@@ -7,6 +7,7 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\MailLimitEnforcer;
+use App\Module\Core\Application\Mail\MailBackendContext;
 use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\Mailbox;
@@ -32,6 +33,7 @@ final class MailboxApiController
         private readonly EncryptionService $encryptionService,
         private readonly MailPasswordHasher $mailPasswordHasher,
         private readonly MailLimitEnforcer $mailLimitEnforcer,
+        private readonly MailBackendContext $mailBackendContext,
     ) {
     }
 
@@ -55,6 +57,10 @@ final class MailboxApiController
     public function create(Request $request): JsonResponse
     {
         $actor = $this->requireUser($request);
+        $backendBlock = $this->mailBackendContext->blockedResponsePayload('mailbox');
+        if ($backendBlock !== null) {
+            return new JsonResponse($backendBlock, JsonResponse::HTTP_CONFLICT);
+        }
         $payload = $this->parseJsonPayload($request);
 
         $formData = $this->validatePayload($payload, true);
@@ -146,6 +152,10 @@ final class MailboxApiController
     public function updateQuota(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
+        $backendBlock = $this->mailBackendContext->blockedResponsePayload('mailbox');
+        if ($backendBlock !== null) {
+            return new JsonResponse($backendBlock, JsonResponse::HTTP_CONFLICT);
+        }
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
             return new JsonResponse(['error' => 'Mailbox not found.'], JsonResponse::HTTP_NOT_FOUND);
@@ -197,6 +207,10 @@ final class MailboxApiController
     public function updateStatus(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
+        $backendBlock = $this->mailBackendContext->blockedResponsePayload('mailbox');
+        if ($backendBlock !== null) {
+            return new JsonResponse($backendBlock, JsonResponse::HTTP_CONFLICT);
+        }
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
             return new JsonResponse(['error' => 'Mailbox not found.'], JsonResponse::HTTP_NOT_FOUND);
@@ -249,6 +263,10 @@ final class MailboxApiController
     public function resetPassword(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
+        $backendBlock = $this->mailBackendContext->blockedResponsePayload('mailbox');
+        if ($backendBlock !== null) {
+            return new JsonResponse($backendBlock, JsonResponse::HTTP_CONFLICT);
+        }
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
             return new JsonResponse(['error' => 'Mailbox not found.'], JsonResponse::HTTP_NOT_FOUND);
@@ -294,6 +312,10 @@ final class MailboxApiController
     public function delete(Request $request, int $id): JsonResponse
     {
         $actor = $this->requireUser($request);
+        $backendBlock = $this->mailBackendContext->blockedResponsePayload('mailbox');
+        if ($backendBlock !== null) {
+            return new JsonResponse($backendBlock, JsonResponse::HTTP_CONFLICT);
+        }
         $mailbox = $this->mailboxRepository->find($id);
         if ($mailbox === null) {
             return new JsonResponse(['error' => 'Mailbox not found.'], JsonResponse::HTTP_NOT_FOUND);

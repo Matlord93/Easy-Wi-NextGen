@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+// LEGACY_FREEZE: Historische Sammelmigration, nicht um neue Klassen erweitern.
+// Neue Migrationen ausschließlich als einzelne Datei pro Klasse in core/migrations.
+
 namespace DoctrineMigrations;
 
 use Doctrine\DBAL\Platforms\SQLitePlatform;
@@ -7558,4 +7561,3 @@ final class Version20261015170000 extends AbstractMigration
         // Data sync migration is intentionally irreversible.
     }
 }
-

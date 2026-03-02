@@ -3,7 +3,7 @@
 {% block title %}{{ t('customer_instances_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
-    <div class="customer-dashboard customer-dashboard--revamp customer-section-gradient flex flex-col gap-6">
+    <div class="customer-dashboard customer-dashboard--revamp customer-instances-modern customer-section-gradient flex flex-col gap-6">
         <section class="dashboard-panel">
             <div class="dashboard-panel__header">
                 <div>
@@ -20,7 +20,17 @@
                 id="gameserver-instances-list"
                 data-poll-base-ms="12000"
                 data-label-query-unsupported="{{ t('customer_instance_query_unsupported', page_locale()) }}"
+                data-label-query-online="{{ t('customer_instance_query_status_online', page_locale()) }}"
+                data-label-query-running="{{ t('customer_instance_query_status_running', page_locale()) }}"
+                data-label-query-starting="{{ t('customer_instance_query_status_starting', page_locale()) }}"
+                data-label-query-offline="{{ t('customer_instance_query_status_offline', page_locale()) }}"
+                data-label-query-queued="{{ t('customer_instance_query_status_queued', page_locale()) }}"
                 data-label-query-unknown="{{ t('customer_instance_query_status_unknown', page_locale()) }}"
+                data-label-query-error="{{ t('customer_instance_query_status_error', page_locale()) }}"
+                data-label-query-crashed="{{ t('customer_instance_query_status_crashed', page_locale()) }}"
+                data-label-query-stopped="{{ t('customer_instance_query_status_stopped', page_locale()) }}"
+                data-label-query-hibernating="{{ t('customer_instance_query_status_hibernating', page_locale()) }}"
+                data-label-query-idle="{{ t('customer_instance_query_status_idle', page_locale()) }}"
                 data-label-query-player-unknown="{{ t('customer_instance_players_unknown', page_locale()) }}"
                 data-label-power-working="{{ t('customer_instances_power_working', page_locale()) }}"
                 data-label-power-queued="{{ t('customer_instances_power_queued', page_locale()) }}"
@@ -38,5 +48,8 @@
             </div>
         </section>
     </div>
+    <script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
+    <script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
+    <script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
     <script src="{{ asset('js/gameserver/instances-list-app.js') }}"></script>
 {% endblock %}

@@ -96,11 +96,15 @@ final class CustomerVoiceApiController
                 );
             }
 
+            $requestId = $this->resolveRequestId($request);
             $job = new Job('voice.probe', [
                 'voice_instance_id' => (string) $instance->getId(),
                 'provider_type' => $instance->getNode()->getProviderType(),
                 'external_id' => $instance->getExternalId(),
                 'node_id' => (string) $instance->getNode()->getId(),
+                'query_host' => $instance->getNode()->getHost(),
+                'query_port' => (string) $instance->getNode()->getQueryPort(),
+                'correlation_id' => $requestId,
             ]);
             $this->entityManager->persist($job);
             $this->entityManager->flush();

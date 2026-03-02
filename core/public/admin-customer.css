@@ -2418,3 +2418,197 @@ html:not(.dark) {
     position: relative;
     z-index: 1;
 }
+
+/* Modern customer dashboard + webspace + mail refresh */
+.customer-dashboard--revamp {
+    --dashboard-border: rgba(45, 212, 191, 0.24);
+    --dashboard-surface: linear-gradient(150deg, rgba(8, 20, 44, 0.95), rgba(17, 33, 62, 0.92));
+}
+
+.customer-dashboard--revamp .dashboard-stat--contract {
+    background: linear-gradient(135deg, rgba(20, 184, 166, 0.3), rgba(14, 116, 144, 0.38));
+}
+
+.customer-dashboard--revamp .dashboard-stat--storage {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(37, 99, 235, 0.34));
+}
+
+.customer-dashboard--revamp .dashboard-stat--tickets {
+    background: linear-gradient(135deg, rgba(94, 234, 212, 0.24), rgba(8, 145, 178, 0.32));
+}
+
+.customer-dashboard--revamp .dashboard-stat__headline {
+    color: #99f6e4;
+}
+
+.customer-dashboard--revamp .dashboard-stat__meter > div {
+    background: linear-gradient(90deg, #2dd4bf, #38bdf8 55%, #60a5fa);
+}
+
+.customer-dashboard--revamp .dashboard-panel,
+.customer-dashboard--revamp .dashboard-usage-panel,
+.customer-dashboard--revamp .server-card {
+    backdrop-filter: blur(6px);
+}
+
+.customer-webspace-modern .webspace-hero {
+    border-color: rgba(45, 212, 191, 0.26);
+    background-image: radial-gradient(circle at 10% 10%, rgba(45, 212, 191, 0.25), transparent 45%), radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.35), transparent 45%), linear-gradient(135deg, #0b1730 0%, #132449 45%, #1f3f72 100%);
+    box-shadow: 0 28px 60px rgba(15, 23, 42, 0.33);
+}
+
+.customer-webspace-modern .webspace-action-grid > a {
+    border-color: #dbeafe;
+    background: linear-gradient(150deg, #ffffff 0%, #f0f9ff 100%);
+    box-shadow: 0 12px 28px rgba(14, 116, 144, 0.1);
+}
+
+.customer-webspace-modern .webspace-action-grid > a:hover {
+    border-color: #7dd3fc;
+    box-shadow: 0 18px 36px rgba(14, 116, 144, 0.16);
+}
+
+.customer-webspace-modern .webspace-table-shell,
+.customer-webspace-manage-modern .rounded-2xl.border {
+    border-color: #cfe8ff;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.09);
+}
+
+.customer-webspace-modern table thead,
+.customer-webspace-modern table tbody tr:nth-child(2n) {
+    background-color: rgba(239, 246, 255, 0.45);
+}
+
+.customer-mail-modern > section:first-child {
+    border-color: rgba(45, 212, 191, 0.28);
+    background-image: radial-gradient(circle at 85% 0%, rgba(56, 189, 248, 0.24), transparent 42%), radial-gradient(circle at 15% 20%, rgba(45, 212, 191, 0.28), transparent 40%), linear-gradient(145deg, #081126 0%, #12213f 42%, #1b3765 100%);
+}
+
+.customer-mail-modern .dashboard-panel {
+    border-color: rgba(56, 189, 248, 0.28);
+}
+
+.customer-mail-modern .dashboard-panel__header h3 {
+    color: #e6f6ff;
+}
+
+.customer-mail-modern .dashboard-panel__header p,
+.customer-mail-modern .text-sm.text-slate-500 {
+    color: #9fb5d4 !important;
+}
+
+
+/* Global modern customer interface refresh */
+.customer-interface-modern {
+    --customer-bg: radial-gradient(circle at 12% 0%, rgba(45, 212, 191, 0.12), transparent 30%), radial-gradient(circle at 95% 8%, rgba(59, 130, 246, 0.18), transparent 34%), linear-gradient(180deg, #050b18 0%, #0b1428 55%, #101b34 100%);
+}
+
+.customer-interface-modern .ng-main,
+.customer-interface-modern .ng-content {
+    background: var(--customer-bg);
+}
+
+.customer-interface-modern .ng-content {
+    border-radius: 18px;
+    border: 1px solid rgba(56, 189, 248, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.customer-interface-modern .ng-sidebar {
+    background: linear-gradient(180deg, #050c1d 0%, #0b162b 62%, #0f1f39 100%);
+    border-right-color: rgba(56, 189, 248, 0.22);
+    box-shadow: inset -12px 0 30px rgba(2, 6, 23, 0.55), 6px 0 22px rgba(2, 6, 23, 0.45);
+}
+
+.customer-interface-modern .ng-sidebar__group {
+    border-color: rgba(56, 189, 248, 0.2);
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.72), rgba(13, 29, 54, 0.66));
+}
+
+.customer-interface-modern .ng-sidebar__item {
+    color: #b7c8e6;
+}
+
+.customer-interface-modern .ng-sidebar__item:hover,
+.customer-interface-modern .ng-sidebar__item.is-active {
+    color: #e8f3ff;
+    background: linear-gradient(90deg, rgba(14, 165, 233, 0.18), rgba(37, 99, 235, 0.22));
+    box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.36), 0 8px 18px rgba(2, 6, 23, 0.34);
+}
+
+.customer-interface-modern .ng-topbar {
+    background: linear-gradient(140deg, rgba(6, 16, 34, 0.9), rgba(11, 27, 52, 0.82));
+    border: 1px solid rgba(56, 189, 248, 0.24);
+    box-shadow: 0 16px 36px rgba(2, 6, 23, 0.38);
+}
+
+.customer-interface-modern .ng-topbar__profile {
+    background: rgba(15, 23, 42, 0.78);
+    border-color: rgba(56, 189, 248, 0.24);
+}
+
+.customer-interface-modern .ng-content .rounded-2xl.border,
+.customer-interface-modern .ng-content .rounded-3xl.border,
+.customer-interface-modern .ng-content .dashboard-panel {
+    border-color: rgba(56, 189, 248, 0.28) !important;
+    box-shadow: 0 14px 32px rgba(2, 6, 23, 0.33);
+}
+
+.customer-interface-modern .ng-content input,
+.customer-interface-modern .ng-content select,
+.customer-interface-modern .ng-content textarea {
+    border-color: rgba(56, 189, 248, 0.35) !important;
+    background: rgba(15, 23, 42, 0.72) !important;
+    color: #e2e8f0;
+}
+
+.customer-interface-modern .ng-content input:focus,
+.customer-interface-modern .ng-content select:focus,
+.customer-interface-modern .ng-content textarea:focus {
+    border-color: #22d3ee !important;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
+}
+
+.customer-interface-modern .ng-content .ui-button--primary,
+.customer-interface-modern .ng-content button.bg-indigo-600,
+.customer-interface-modern .ng-content a.bg-indigo-600 {
+    background: linear-gradient(90deg, #0ea5e9 0%, #2563eb 100%) !important;
+    border-color: rgba(56, 189, 248, 0.45) !important;
+}
+
+.customer-instances-modern [data-instance-card] {
+    border-color: rgba(56, 189, 248, 0.38);
+    box-shadow: 0 16px 34px rgba(2, 6, 23, 0.32);
+}
+
+
+.customer-module-modern {
+    color: #d6e3f7;
+}
+
+.customer-module-modern .rounded-xl,
+.customer-module-modern .rounded-2xl,
+.customer-module-modern .rounded-3xl {
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.82), rgba(13, 26, 48, 0.76));
+    border-color: rgba(56, 189, 248, 0.26) !important;
+}
+
+.customer-module-modern .text-slate-900 { color: #eef6ff !important; }
+.customer-module-modern .text-slate-700,
+.customer-module-modern .text-slate-600,
+.customer-module-modern .text-slate-500 { color: #9fb5d4 !important; }
+
+.customer-module-modern .bg-white,
+.customer-module-modern .bg-slate-50,
+.customer-module-modern .bg-indigo-50,
+.customer-module-modern .bg-emerald-50,
+.customer-module-modern .bg-amber-50,
+.customer-module-modern .bg-rose-50 {
+    background: rgba(15, 23, 42, 0.72) !important;
+}
+
+.server-card--placeholder {
+    opacity: 0.85;
+    border-style: dashed;
+}

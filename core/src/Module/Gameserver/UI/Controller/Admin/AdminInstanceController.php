@@ -9,6 +9,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\UiRefactorFlagService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\InstanceSchedule;
@@ -78,6 +79,7 @@ final class AdminInstanceController
         private readonly AgentGameServerClient $agentGameServerClient,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly PortLeaseManager $portLeaseManager,
+        private readonly UiRefactorFlagService $uiRefactorFlagService,
         private readonly Environment $twig,
         ?GameServerInstallPathManager $installPathManager = null,
     ) {
@@ -93,13 +95,19 @@ final class AdminInstanceController
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
         $normalizedInstances = $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances));
+        $uiRefactorFlags = $this->uiRefactorFlagService->all();
 
-        return new Response($this->twig->render('admin/instances/index.html.twig', [
+        $template = $uiRefactorFlags['instances']
+            ? 'admin/instances/refactor/index.html.twig'
+            : 'admin/instances/index.html.twig';
+
+        return new Response($this->twig->render($template, [
             'instances' => $normalizedInstances,
             'summary' => $this->buildSummary($normalizedInstances),
             'ops' => $this->buildOpsSummary($normalizedInstances),
             'activeNav' => 'game-instances',
             'createNotice' => $this->buildCreateNotice($request),
+            'uiRefactorFlags' => $uiRefactorFlags,
         ]));
     }
 
@@ -141,6 +149,12 @@ final class AdminInstanceController
         }
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
+
+        if ($this->uiRefactorFlagService->isEnabled('instances')) {
+            return new Response($this->twig->render('admin/instances/refactor/_table.html.twig', [
+                'instances' => $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances)),
+            ]));
+        }
 
         return $this->renderInstancesTable($instances);
     }

@@ -106,6 +106,154 @@ final class CustomerInstanceConsoleStreamControllerTest extends TestCase
     }
 
 
+
+    public function testCursorQueryParamIsUsedWhenLastEventIdMissing(): void
+    {
+        $eventBus = new class () implements ConsoleEventBusInterface {
+            public int $lastReplaySeq = -1;
+            public function publishConsoleEvent(int $instanceId, array $payload): void
+            {
+            }
+            public function replayConsoleEvents(int $instanceId, int $lastSeq): array
+            {
+                $this->lastReplaySeq = $lastSeq;
+                return [];
+            }
+            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
+            {
+            }
+            public function incrementSubscriber(int $instanceId): void
+            {
+            }
+            public function refreshSubscriberTtl(int $instanceId): void
+            {
+            }
+            public function decrementSubscriber(int $instanceId): void
+            {
+            }
+            public function getSubscriberCount(int $instanceId): int
+            {
+                return 0;
+            }
+            public function getInstancesWithSubscribers(): array
+            {
+                return [];
+            }
+        };
+
+        $controller = $this->controllerWith($eventBus, true, 0);
+        $request = Request::create('/instances/1/console/stream?cursor=123', 'GET');
+        $user = new User('owner@example.test', UserType::Customer);
+        $this->setEntityId($user, 5);
+        $request->attributes->set('current_user', $user);
+
+        $response = $controller->stream($request, 1);
+        $response->sendContent();
+
+        self::assertSame(123, $eventBus->lastReplaySeq);
+    }
+
+
+    public function testLastOffsetQueryParamIsUsedWhenLastEventIdMissing(): void
+    {
+        $eventBus = new class () implements ConsoleEventBusInterface {
+            public int $lastReplaySeq = -1;
+            public function publishConsoleEvent(int $instanceId, array $payload): void
+            {
+            }
+            public function replayConsoleEvents(int $instanceId, int $lastSeq): array
+            {
+                $this->lastReplaySeq = $lastSeq;
+                return [];
+            }
+            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
+            {
+            }
+            public function incrementSubscriber(int $instanceId): void
+            {
+            }
+            public function refreshSubscriberTtl(int $instanceId): void
+            {
+            }
+            public function decrementSubscriber(int $instanceId): void
+            {
+            }
+            public function getSubscriberCount(int $instanceId): int
+            {
+                return 0;
+            }
+            public function getInstancesWithSubscribers(): array
+            {
+                return [];
+            }
+        };
+
+        $controller = $this->controllerWith($eventBus, true, 0);
+        $request = Request::create('/instances/1/console/stream?last_offset=321', 'GET');
+        $user = new User('owner@example.test', UserType::Customer);
+        $this->setEntityId($user, 5);
+        $request->attributes->set('current_user', $user);
+
+        $response = $controller->stream($request, 1);
+        self::assertSame('321', $response->headers->get('X-Console-Resume-Offset'));
+        $response->sendContent();
+
+        self::assertSame(321, $eventBus->lastReplaySeq);
+    }
+
+    public function testCorrelationIdResponseHeaderAndPayload(): void
+    {
+        $eventBus = new class () implements ConsoleEventBusInterface {
+            public function publishConsoleEvent(int $instanceId, array $payload): void
+            {
+            }
+            public function replayConsoleEvents(int $instanceId, int $lastSeq): array
+            {
+                return [
+                    ['type' => 'chunk', 'seq' => 42, 'chunk_base64' => base64_encode('line'), 'instance_id' => $instanceId, 'ts' => '2026-01-01T00:00:00Z'],
+                ];
+            }
+            public function consumeConsoleEvents(int $instanceId, callable $onEvent, callable $shouldStop): void
+            {
+            }
+            public function incrementSubscriber(int $instanceId): void
+            {
+            }
+            public function refreshSubscriberTtl(int $instanceId): void
+            {
+            }
+            public function decrementSubscriber(int $instanceId): void
+            {
+            }
+            public function getSubscriberCount(int $instanceId): int
+            {
+                return 0;
+            }
+            public function getInstancesWithSubscribers(): array
+            {
+                return [];
+            }
+        };
+
+        $controller = $this->controllerWith($eventBus, true, 0);
+        $request = Request::create('/instances/1/console/stream', 'GET');
+        $request->headers->set('X-Correlation-ID', 'corr-123');
+        $user = new User('owner@example.test', UserType::Customer);
+        $this->setEntityId($user, 5);
+        $request->attributes->set('current_user', $user);
+
+        $response = $controller->stream($request, 1);
+        self::assertSame('corr-123', $response->headers->get('X-Correlation-ID'));
+
+        ob_start();
+        ob_start();
+        $response->sendContent();
+        ob_end_clean();
+        $content = (string) ob_get_clean();
+
+        self::assertStringContainsString('"correlation_id":"corr-123"', $content);
+    }
+
     public function testReturnsBackendNotConfiguredStatusWhenNullClientActive(): void
     {
         $eventBus = new class () implements ConsoleEventBusInterface {

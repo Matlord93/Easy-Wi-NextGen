@@ -41,7 +41,7 @@
 ]|filter(v => v) %}
 
 {% set systemModuleItems = [
-    { key: 'firewall', label: t('admin_nav_firewall', page_locale()), href: path('admin_security') },
+    { key: 'security', label: t('admin_nav_firewall', page_locale()), href: path('admin_security') },
     { key: 'port-pools', label: t('admin_nav_server_ports', page_locale()), href: path('admin_port_pools') },
     { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') },
     { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: path('admin_nodes') },
@@ -87,6 +87,7 @@
 
 {% set sidebarGroups = [
     {
+        id: 'ops-overview',
         label: t('admin_nav_group_overview', page_locale()),
         open: true,
         items: [
@@ -96,51 +97,61 @@
         ]
     },
     customerItems is not empty ? {
+        id: 'accounts',
         label: t('admin_nav_group_accounts', page_locale()),
         open: true,
         items: customerItems
     } : null,
     gameModuleItems is not empty ? {
+        id: 'instances',
         label: t('admin_nav_group_games', page_locale()),
         open: true,
         items: gameModuleItems
     } : null,
     voiceModuleItems is not empty ? {
+        id: 'voice',
         label: t('admin_nav_group_voice', page_locale()),
         open: true,
         items: voiceModuleItems
     } : null,
     systemModuleItems is not empty ? {
+        id: 'ops',
         label: t('admin_nav_group_system', page_locale()),
         open: true,
         items: systemModuleItems
     } : null,
     webinterfaceModuleItems is not empty ? {
+        id: 'platform',
         label: t('admin_nav_group_webinterface', page_locale()),
         open: true,
         items: webinterfaceModuleItems
     } : null,
     servicesItems is not empty ? {
+        id: 'webspace',
         label: t('admin_nav_group_services', page_locale()),
         open: true,
         items: servicesItems
     } : null,
     shopItems is not empty ? {
+        id: 'billing',
         label: t('admin_nav_group_shop', page_locale()),
         open: true,
         items: shopItems
     } : null,
     cmsItems is not empty ? {
+        id: 'content',
         label: t('admin_nav_group_cms', page_locale()),
         open: true,
         items: cmsItems
     } : null,
     domainItems is not empty ? {
+        id: 'mail-domain',
         label: t('admin_nav_group_domains_mail', page_locale()),
         open: true,
         items: domainItems
     } : null,
     {
+        id: 'support',
         label: t('admin_nav_group_support', page_locale()),
         open: true,
         items: [
@@ -148,11 +159,13 @@
         ]
     },
     gdprItems is not empty ? {
+        id: 'security-governance',
         label: t('admin_nav_group_gdpr', page_locale()),
         open: true,
         items: gdprItems
     } : null,
     marketplaceItems is not empty ? {
+        id: 'extensions',
         label: t('admin_nav_group_extensions', page_locale()),
         open: false,
         items: marketplaceItems

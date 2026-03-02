@@ -1,3 +1,6 @@
+imports:
+  - { resource: startup_env_validation.php }
+
 parameters:
   app.agent_signature_skew_seconds: '%env(int:AGENT_SIGNATURE_SKEW_SECONDS)%'
   app.agent_nonce_ttl_seconds: '%env(int:AGENT_NONCE_TTL_SECONDS)%'
@@ -12,6 +15,7 @@ parameters:
   app.agent_release_channel_default: 'stable'
   app.agent_release_repository: '%env(default::APP_AGENT_RELEASE_REPOSITORY)%'
   app.agent_release_channel: '%env(default:app.agent_release_channel_default:APP_AGENT_RELEASE_CHANNEL)%'
+  app.agent_update_feed_url: '%env(default::APP_AGENT_UPDATE_FEED_URL)%'
   app.changelog_repository: '%env(default::APP_CHANGELOG_REPOSITORY)%'
   app.core_release_channel_default: 'beta'
   app.core_release_repository: '%env(default::APP_CORE_RELEASE_REPOSITORY)%'
@@ -142,6 +146,7 @@ services:
       $repository: '%app.agent_release_repository%'
       $cacheTtlSeconds: '%env(int:APP_AGENT_RELEASE_CACHE_TTL)%'
       $channel: '%app.agent_release_channel%'
+      $updateFeedUrl: '%app.agent_update_feed_url%'
 
   App\Module\Core\Application\ChangelogFetcher:
     arguments:
@@ -197,6 +202,10 @@ services:
       - { name: doctrine.event_subscriber }
   App\Module\Core\Domain\Event\EventBusInterface: '@App\Module\Core\Domain\Event\SymfonyEventBus'
   App\Module\Core\Application\MailboxStatsProviderInterface: '@App\Repository\MailboxRepository'
+
+  App\Module\Core\Application\Logging\RequestTraceProcessor:
+    tags:
+      - { name: monolog.processor }
 
   App\Repository\MinecraftVersionCatalogRepositoryInterface: '@App\Repository\MinecraftVersionCatalogRepository'
 

@@ -19,6 +19,19 @@
 
     const labels = {
         queryUnsupported: root.dataset.labelQueryUnsupported || 'Unsupported',
+        queryStatus: {
+            online: root.dataset.labelQueryOnline || 'Online',
+            running: root.dataset.labelQueryRunning || 'Running',
+            starting: root.dataset.labelQueryStarting || 'Starting',
+            offline: root.dataset.labelQueryOffline || 'Offline',
+            queued: root.dataset.labelQueryQueued || 'Queued',
+            unknown: root.dataset.labelQueryUnknown || 'Unknown',
+            error: root.dataset.labelQueryError || 'Error',
+            crashed: root.dataset.labelQueryCrashed || 'Crashed',
+            stopped: root.dataset.labelQueryStopped || 'Stopped',
+            hibernating: root.dataset.labelQueryHibernating || 'Hibernating',
+            idle: root.dataset.labelQueryIdle || 'Idle',
+        },
         queryUnknown: root.dataset.labelQueryUnknown || 'Unknown',
         queryPlayerUnknown: root.dataset.labelQueryPlayerUnknown || 'Unknown',
         powerWorking: root.dataset.labelPowerWorking || 'Working…',
@@ -81,7 +94,7 @@
         });
     };
 
-    const applyQuery = (cardState, query = {}) => {
+    const applyQuery = (cardState, query = {}, clientLatencyMs = null) => {
         const supported = query.supported !== false;
         if (!supported) {
             setStatusBadge(cardState, labels.queryUnsupported, statusClass('unsupported'));
@@ -92,15 +105,20 @@
             return;
         }
 
-        const status = (query.status || 'unknown').toLowerCase();
+        const statusRaw = String(query.status || '').toLowerCase();
+        const status = (statusRaw === '' || statusRaw === 'unknown')
+            ? (query.online === true ? 'online' : (query.online === false ? 'offline' : 'unknown'))
+            : statusRaw;
         const players = Number.isFinite(Number(query.players?.online)) ? Number(query.players.online) : Number(query.players ?? NaN);
         const maxPlayers = Number.isFinite(Number(query.players?.max)) ? Number(query.players.max) : Number(query.max_players ?? NaN);
         const lastQuery = query.last_query_at || query.checked_at || query.debug?.last_query_at;
 
-        setStatusBadge(cardState, status, statusClass(status));
+        const statusLabel = labels.queryStatus[status] || status;
+        setStatusBadge(cardState, statusLabel, statusClass(status));
         cardState.el.querySelector('[data-query-players]')?.replaceChildren(document.createTextNode(Number.isFinite(players) && Number.isFinite(maxPlayers) && maxPlayers > 0 ? `${players} / ${maxPlayers}` : labels.queryPlayerUnknown));
         cardState.el.querySelector('[data-query-map]')?.replaceChildren(document.createTextNode(query.map || '—'));
-        cardState.el.querySelector('[data-query-latency]')?.replaceChildren(document.createTextNode(query.latency_ms != null ? `${query.latency_ms} ms` : '—'));
+        const latencyDisplay = Number.isFinite(clientLatencyMs) ? `${Math.round(clientLatencyMs)} ms` : (query.latency_ms != null ? `${query.latency_ms} ms` : '—');
+        cardState.el.querySelector('[data-query-latency]')?.replaceChildren(document.createTextNode(latencyDisplay));
         cardState.el.querySelector('[data-query-checked]')?.replaceChildren(document.createTextNode(fmtDate(lastQuery)));
 
         updateDebug(cardState, query.debug || {});
@@ -131,8 +149,11 @@
         if (cardState.running) return;
         cardState.running = true;
         try {
+            const startedAt = window.performance?.now ? window.performance.now() : Date.now();
             const payload = await apiClient.request(cardState.queryUrl);
-            applyQuery(cardState, payload.data?.query || {});
+            const finishedAt = window.performance?.now ? window.performance.now() : Date.now();
+            const clientLatencyMs = Number(finishedAt - startedAt);
+            applyQuery(cardState, payload.data?.query || {}, clientLatencyMs);
             errors.clearInline(inlineError);
         } catch (error) {
             applyFailureBackoff(cardState, error);

@@ -7,10 +7,13 @@ namespace App\Module\PanelCustomer\UI\Controller\Customer;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\DomainRepository;
+use App\Repository\MailDomainRepository;
+use App\Repository\MailNodeRepository;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,6 +26,8 @@ final class CustomerDomainController
 {
     public function __construct(
         private readonly DomainRepository $domainRepository,
+        private readonly MailNodeRepository $mailNodeRepository,
+        private readonly MailDomainRepository $mailDomainRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
@@ -78,6 +83,8 @@ final class CustomerDomainController
         $this->entityManager->persist($domainEntity);
         $this->entityManager->flush();
 
+        $this->ensureMailDomainBinding($domainEntity);
+
         $systemUsername = $webspace->getSystemUsername();
         $jobPayload = [
             'agent_id' => $webspace->getNode()->getId(),
@@ -106,6 +113,21 @@ final class CustomerDomainController
         $this->entityManager->flush();
 
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/domains']);
+    }
+
+    private function ensureMailDomainBinding(Domain $domain): void
+    {
+        if ($this->mailDomainRepository->findOneByDomain($domain) !== null) {
+            return;
+        }
+
+        $mailNode = $this->mailNodeRepository->findOneBy([], ['id' => 'ASC']);
+        if ($mailNode === null) {
+            return;
+        }
+
+        $this->entityManager->persist(new MailDomain($domain, $mailNode));
+        $this->entityManager->flush();
     }
 
     private function requireCustomer(Request $request): User

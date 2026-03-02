@@ -381,6 +381,13 @@ final class AdminMailboxController
             }
         }
 
+        if ($domain !== null && $requireIdentity) {
+            $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
+            if ($mailDomain === null) {
+                $errors[] = 'Domain is not mail-enabled. Bind it in Mail Platform first.';
+            }
+        }
+
         if ($domain !== null && $localPart !== '' && $requireIdentity) {
             $address = sprintf('%s@%s', $localPart, $domain->getName());
             $existing = $this->mailboxRepository->findOneByAddress($address);

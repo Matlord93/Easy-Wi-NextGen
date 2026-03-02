@@ -9,6 +9,7 @@ use App\Module\Core\Application\WebspacePathSanitizer;
 use App\Module\Core\Domain\Entity\Certificate;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
@@ -17,6 +18,8 @@ use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use App\Repository\AgentRepository;
 use App\Repository\DomainRepository;
 use App\Repository\JobRepository;
+use App\Repository\MailDomainRepository;
+use App\Repository\MailNodeRepository;
 use App\Repository\UserRepository;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -35,6 +38,8 @@ final class WebspaceApiController
         private readonly WebspaceRepository $webspaceRepository,
         private readonly DomainRepository $domainRepository,
         private readonly JobRepository $jobRepository,
+        private readonly MailNodeRepository $mailNodeRepository,
+        private readonly MailDomainRepository $mailDomainRepository,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly AuditLogger $auditLogger,
         private readonly WebspacePathSanitizer $pathSanitizer,
@@ -132,6 +137,8 @@ final class WebspaceApiController
         $domainEntity = new Domain($customer, $webspace, $domain);
         $this->entityManager->persist($domainEntity);
         $this->entityManager->flush();
+
+        $this->ensureMailDomainBinding($domainEntity);
 
         $jobPayload = [
             'agent_id' => $node->getId(),
@@ -549,6 +556,8 @@ final class WebspaceApiController
         $this->entityManager->persist($domain);
         $this->entityManager->flush();
 
+        $this->ensureMailDomainBinding($domain);
+
         $job = new Job('webspace.domain.apply', [
             'agent_id' => $webspace->getNode()->getId(),
             'webspace_id' => (string) $webspace->getId(),
@@ -674,6 +683,21 @@ final class WebspaceApiController
         }
 
         return null;
+    }
+
+    private function ensureMailDomainBinding(Domain $domain): void
+    {
+        if ($this->mailDomainRepository->findOneByDomain($domain) !== null) {
+            return;
+        }
+
+        $mailNode = $this->mailNodeRepository->findOneBy([], ['id' => 'ASC']);
+        if ($mailNode === null) {
+            return;
+        }
+
+        $this->entityManager->persist(new MailDomain($domain, $mailNode));
+        $this->entityManager->flush();
     }
 
     private function assignPort(\App\Module\Core\Domain\Entity\Agent $node): ?int

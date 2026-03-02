@@ -1,0 +1,46 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+    <div class="rounded-2xl border border-slate-200 bg-white p-6">
+        {% embed 'components/ui/_action_bar.html.twig' with {
+            title: t('admin_instances_title', page_locale()),
+            subtitle: t('admin_instances_table_intro', page_locale())
+        } %}
+            {% block actions %}
+                <button
+                    class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                    hx-get="{{ path('admin_instances_table') }}"
+                    hx-target="#instances-table"
+                    hx-swap="outerHTML"
+                >{{ t('admin_instances_refresh', page_locale()) }}</button>
+                <a class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white" href="{{ path('admin_instances_provision') }}">
+                    {{ t('admin_instances_new', page_locale()) }}
+                </a>
+            {% endblock %}
+        {% endembed %}
+    </div>
+
+    {% if createNotice %}
+        <div class="rounded-xl px-6 py-4 text-sm {{ createNotice.type == 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-amber-200 bg-amber-50 text-amber-800' }}">
+            {{ createNotice.message }}
+        </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-6">
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_total', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_running', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.running }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_pending_setup', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.pending_setup }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_provisioning', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.provisioning }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_suspended', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.suspended }}</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_needs_attention', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-rose-600">{{ summary.error }}</p></div>
+    </div>
+
+    <div id="instances-table" class="rounded-xl border border-slate-200 bg-white shadow-sm"
+         hx-get="{{ path('admin_instances_table') }}"
+         hx-trigger="instances-changed from:body"
+         hx-swap="outerHTML">
+        {% include 'admin/instances/refactor/_table.html.twig' with { instances: instances } %}
+    </div>
+</div>
+{% endblock %}

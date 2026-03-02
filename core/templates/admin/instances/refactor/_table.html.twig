@@ -1,0 +1,60 @@
+<div class="border-b border-slate-200 p-6">
+    {% embed 'components/ui/_action_bar.html.twig' with {
+        title: t('admin_instances_table_title', page_locale()),
+        subtitle: t('admin_instances_table_intro', page_locale())
+    } %}
+        {% block actions %}
+            <a class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700" href="{{ path('admin_instances_provision') }}">{{ t('admin_instances_new', page_locale()) }}</a>
+        {% endblock %}
+    {% endembed %}
+</div>
+
+<div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50">
+        <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">ID</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Kunde / Template</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Status</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">Setup</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-700">Aktionen</th>
+        </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 bg-white">
+        {% for instance in instances %}
+            {% set displayStatus = instance.display_status ?? instance.status %}
+            {% set tone = displayStatus == 'running' ? 'success' : (displayStatus in ['error', 'suspended'] ? 'danger' : 'warning') %}
+            <tr>
+                <td class="px-4 py-4 text-slate-700">#{{ instance.id }}</td>
+                <td class="px-4 py-4">
+                    <div class="font-medium text-slate-900">{{ instance.customer_email }}</div>
+                    <div class="mt-1 text-xs text-slate-700">{{ instance.template_name }} ({{ instance.game_key }})</div>
+                </td>
+                <td class="px-4 py-4">
+                    {% include 'components/ui/_status_badge.html.twig' with {
+                        tone: tone,
+                        label: t('customer_instance_status_' ~ displayStatus, page_locale())
+                    } %}
+                </td>
+                <td class="px-4 py-4">
+                    {% include 'components/ui/_status_badge.html.twig' with {
+                        tone: instance.install_ready ? 'success' : 'warning',
+                        label: instance.install_ready ? 'Install bereit' : 'Setup offen'
+                    } %}
+                </td>
+                <td class="px-4 py-4 text-right">
+                    <div class="flex flex-col items-end gap-2">
+                        <a href="{{ path('customer_instance_detail', {id: instance.id, tab: 'settings'}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Kunde-Einstellungen</a>
+                        {% if not instance.sftp_ready %}
+                            <button class="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-600" hx-post="{{ path('admin_instances_sftp_provision', {id: instance.id}) }}">{{ t('admin_instances_sftp_provision', page_locale()) }}</button>
+                        {% endif %}
+                        <button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600" hx-post="{{ path('admin_instances_delete_form', {id: instance.id}) }}" hx-confirm="{{ t('admin_instances_delete_confirm', page_locale()) }}">{{ t('delete', page_locale()) }}</button>
+                    </div>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td class="px-4 py-8 text-center text-sm text-slate-700" colspan="5">{{ t('admin_instances_empty', page_locale()) }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

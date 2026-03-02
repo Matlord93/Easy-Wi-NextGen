@@ -32,6 +32,7 @@ use App\Module\Core\Domain\Enum\JobResultStatus;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\Query\QueryResultNormalizer;
+use App\Module\Voice\Application\VoiceProbeGuard;
 use App\Repository\AgentRepository;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
@@ -121,6 +122,7 @@ final class AgentApiController
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly JobLogger $jobLogger,
         private readonly LoggerInterface $logger,
+        private readonly VoiceProbeGuard $voiceProbeGuard,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%app.windows_nodes_enabled%')]
         private readonly bool $windowsNodesEnabled,
     ) {
@@ -271,6 +273,7 @@ final class AgentApiController
         $events = array_slice($events, 0, 1000);
 
         $persisted = 0;
+        $authFailures = 0;
         foreach ($events as $event) {
             if (!is_array($event)) {
                 continue;
@@ -307,13 +310,28 @@ final class AgentApiController
             );
             $this->entityManager->persist($mailLog);
             ++$persisted;
+
+            $eventType = strtolower((string) ($event['event_type'] ?? ''));
+            $message = strtolower($message !== '' ? $message : 'mail event');
+            if ($eventType === 'auth_failure' || str_contains($message, 'auth failure') || str_contains($message, 'login failed')) {
+                ++$authFailures;
+            }
         }
 
         if ($persisted > 0) {
             $this->entityManager->flush();
         }
 
-        return new JsonResponse(['status' => 'ok', 'persisted' => $persisted]);
+        if ($authFailures > 0) {
+            $this->auditLogger->log(null, 'mail.security.auth_failures_alert', [
+                'agent_id' => $agent->getId(),
+                'auth_failures' => $authFailures,
+                'window' => 'batch',
+            ]);
+            $this->entityManager->flush();
+        }
+
+        return new JsonResponse(['status' => 'ok', 'persisted' => $persisted, 'auth_failures' => $authFailures]);
     }
 
 
@@ -793,7 +811,7 @@ final class AgentApiController
         $rawAgentHeader = $request->headers->get('X-Agent-ID');
         $agentId = AgentSignatureVerifier::normalizeAgentIdHeaderValue($rawAgentHeader);
         if ($agentId === '') {
-            return $this->unauthorizedAgentResponse('missing_agent_id');
+            return $this->unauthorizedAgentResponse($request, 'missing_agent_id');
         }
 
         $agent = $this->agentRepository->find($agentId);
@@ -806,7 +824,7 @@ final class AgentApiController
                 'client_ip' => $request->getClientIp(),
             ]);
 
-            return $this->unauthorizedAgentResponse('unknown_agent');
+            return $this->unauthorizedAgentResponse($request, 'unknown_agent');
         }
 
         try {
@@ -820,7 +838,7 @@ final class AgentApiController
                 'error' => $exception->getMessage(),
             ]);
 
-            return $this->unauthorizedAgentResponse('invalid_agent_credentials');
+            return $this->unauthorizedAgentResponse($request, 'invalid_agent_credentials');
         }
 
         try {
@@ -833,17 +851,27 @@ final class AgentApiController
                 'path' => $request->getPathInfo(),
                 'method' => $request->getMethod(),
             ]);
-            return $this->unauthorizedAgentResponse($exception->getMessage());
+            return $this->unauthorizedAgentResponse($request, $exception->getMessage());
         }
 
 
         return $agent;
     }
 
-    private function unauthorizedAgentResponse(string $reason): JsonResponse
+    private function unauthorizedAgentResponse(Request $request, string $reason): JsonResponse
     {
+        $requestId = trim((string) ($request->headers->get('X-Request-ID') ?? ''));
+        if ($requestId === '') {
+            $requestId = trim((string) ($request->attributes->get('request_id') ?? ''));
+        }
+
         return new JsonResponse([
-            'error' => $reason,
+            'error' => [
+                'code' => 'UNAUTHORIZED',
+                'message' => $reason,
+                'request_id' => $requestId,
+                'details' => ['reason' => $reason],
+            ],
         ], JsonResponse::HTTP_UNAUTHORIZED);
     }
 
@@ -1729,7 +1757,7 @@ final class AgentApiController
         if (is_int($domainId) || is_string($domainId)) {
             $domain = $this->domainRepository->find((int) $domainId);
         }
-        if ($domain === null && $job->getType() === 'domain.ssl.issue') {
+        if ($domain === null && in_array($job->getType(), ['domain.ssl.issue', 'domain.ssl.renew', 'domain.ssl.revoke'], true)) {
             $domainName = is_string($payload['domain'] ?? null) ? trim((string) $payload['domain']) : '';
             if ($domainName !== '') {
                 $domain = $this->domainRepository->findOneBy(['name' => $domainName]);
@@ -1739,7 +1767,7 @@ final class AgentApiController
             return;
         }
 
-        if ($job->getType() !== 'domain.ssl.issue') {
+        if (!in_array($job->getType(), ['domain.ssl.issue', 'domain.ssl.renew', 'domain.ssl.revoke'], true)) {
             return;
         }
 
@@ -1756,7 +1784,7 @@ final class AgentApiController
         }
 
         $expiresAt = $this->parseSslExpiry($output['expires_at'] ?? null);
-        if ($expiresAt === null) {
+        if ($job->getType() !== 'domain.ssl.revoke' && $expiresAt === null) {
             return;
         }
 
@@ -1764,19 +1792,19 @@ final class AgentApiController
         if (!$certificate instanceof Certificate) {
             $certificate = new Certificate($domain);
         }
-        $certificate->setStatus('success');
-        $certificate->setExpiresAt($expiresAt);
+        $certificate->setStatus($job->getType() === 'domain.ssl.revoke' ? 'revoked' : 'success');
+        $certificate->setExpiresAt($job->getType() === 'domain.ssl.revoke' ? null : $expiresAt);
         $certificate->setLastError(null);
         $this->entityManager->persist($certificate);
 
         $previousExpiry = $domain->getSslExpiresAt();
-        $domain->setSslExpiresAt($expiresAt);
+        $domain->setSslExpiresAt($job->getType() === 'domain.ssl.revoke' ? null : $expiresAt);
         $this->entityManager->persist($domain);
-        $this->auditLogger->log(null, 'domain.ssl_issued', [
+        $this->auditLogger->log(null, $job->getType() === 'domain.ssl.revoke' ? 'domain.ssl_revoked' : 'domain.ssl_issued', [
             'domain_id' => $domain->getId(),
             'job_id' => $job->getId(),
             'agent_id' => $agentId,
-            'ssl_expires_at' => $expiresAt->format(DATE_RFC3339),
+            'ssl_expires_at' => $expiresAt?->format(DATE_RFC3339),
             'previous_ssl_expires_at' => $previousExpiry?->format(DATE_RFC3339),
             'cert_path' => is_string($output['cert_path'] ?? null) ? $output['cert_path'] : null,
             'fullchain_path' => is_string($output['fullchain_path'] ?? null) ? $output['fullchain_path'] : null,
@@ -2686,6 +2714,12 @@ final class AgentApiController
                 $resultStatus === JobResultStatus::Failed ? ((string) ($output['error_code'] ?? 'voice_query_failed')) : null,
                 $completedAt,
             );
+
+            if ($resultStatus === JobResultStatus::Succeeded) {
+                $this->voiceProbeGuard->resetFailures($instance);
+            } else {
+                $this->voiceProbeGuard->registerFailure($instance);
+            }
         } else {
             if ($resultStatus === JobResultStatus::Failed) {
                 $instance->updateStatus(

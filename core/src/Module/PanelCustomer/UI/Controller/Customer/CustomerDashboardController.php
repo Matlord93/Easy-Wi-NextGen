@@ -8,6 +8,7 @@ use App\Module\Core\Application\DiskUsageFormatter;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Ticket;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\TicketStatus;
 use App\Module\Core\Domain\Enum\UserType;
@@ -48,6 +49,7 @@ final class CustomerDashboardController
     {
         $customer = $this->requireCustomer($request);
         $instances = $this->instanceRepository->findByCustomer($customer);
+        $webspaces = $this->webspaceRepository->findByCustomer($customer);
         $tickets = $this->ticketRepository->findByCustomer($customer);
         $rentals = $this->rentalRepository->findBy(['customer' => $customer], ['expiresAt' => 'DESC'], 1);
         $invoices = $this->invoiceRepository->findByCustomer($customer);
@@ -55,7 +57,7 @@ final class CustomerDashboardController
         $summary = [
             'instances_total' => count($instances),
             'instances_running' => $this->countInstancesByStatus($instances, InstanceStatus::Running),
-            'webspaces_total' => count($this->webspaceRepository->findByCustomer($customer)),
+            'webspaces_total' => count($webspaces),
             'databases_total' => count($this->databaseRepository->findByCustomer($customer)),
             'tickets_total' => count($tickets),
             'tickets_open' => $this->countTicketsByStatus($tickets, TicketStatus::Open),
@@ -63,7 +65,7 @@ final class CustomerDashboardController
         ];
 
         $latestInstanceMetrics = $this->instanceMetricSampleRepository->findLatestByInstances($instances);
-        $resourceUsage = $this->calculateResourceUsage($instances, $latestInstanceMetrics);
+        $resourceUsage = $this->calculateResourceUsage($instances, $webspaces, $latestInstanceMetrics);
         $resourceUsage['disk_used_human'] = $this->diskUsageFormatter->formatBytes($resourceUsage['disk_used_bytes']);
         $resourceUsage['disk_limit_human'] = $resourceUsage['disk_limit_bytes'] > 0
             ? $this->diskUsageFormatter->formatBytes($resourceUsage['disk_limit_bytes'])
@@ -80,7 +82,7 @@ final class CustomerDashboardController
             'activeNav' => 'dashboard',
             'customerName' => $this->resolveCustomerDisplayName($customer),
             'summary' => $summary,
-            'instances' => $this->normalizeInstances(array_slice($instances, 0, 3), $latestInstanceMetrics),
+            'instances' => $this->normalizeInstances(array_slice($instances, 0, 4), $latestInstanceMetrics),
             'tickets' => $this->normalizeTickets(array_slice($tickets, 0, 3)),
             'resourceUsage' => $resourceUsage,
             'activePlan' => $this->resolveActivePlan($rentals),
@@ -182,10 +184,11 @@ final class CustomerDashboardController
 
     /**
      * @param Instance[] $instances
+     * @param Webspace[] $webspaces
      * @param array<int, array{cpu_percent: ?float, mem_used_bytes: ?int, tasks_current: ?int, collected_at: \DateTimeImmutable, error_code: ?string}> $latestInstanceMetrics
-     * @return array{cpu: int|null, ram: int|null, disk: int, disk_used_bytes:int, disk_limit_bytes:int, total_booked_cpu_cores:?float, total_used_cpu_cores:?float, total_cpu_percent:?float, total_booked_ram_bytes:?int, total_used_ram_bytes:?int, total_ram_percent:?float}
+     * @return array{cpu: int|null, ram: int|null, disk: float, disk_used_bytes:int, disk_limit_bytes:int, total_booked_cpu_cores:?float, total_used_cpu_cores:?float, total_cpu_percent:?float, total_booked_ram_bytes:?int, total_used_ram_bytes:?int, total_ram_percent:?float}
      */
-    private function calculateResourceUsage(array $instances, array $latestInstanceMetrics): array
+    private function calculateResourceUsage(array $instances, array $webspaces, array $latestInstanceMetrics): array
     {
         $diskLimitBytes = 0.0;
         $diskUsedBytes = 0.0;
@@ -202,6 +205,10 @@ final class CustomerDashboardController
                 'used_cpu_percent' => is_array($metrics) && is_numeric($metrics['cpu_percent'] ?? null) ? (float) $metrics['cpu_percent'] : null,
                 'used_ram_bytes' => is_array($metrics) && is_numeric($metrics['mem_used_bytes'] ?? null) ? (int) $metrics['mem_used_bytes'] : null,
             ];
+        }
+
+        foreach ($webspaces as $webspace) {
+            $diskLimitBytes += max(0, (float) $webspace->getDiskLimitBytes());
         }
 
         $totals = $this->bookedResourceUsageAggregator->aggregate($rows);
@@ -222,13 +229,13 @@ final class CustomerDashboardController
     }
 
 
-    private function formatUsagePercent(float $used, float $total): int
+    private function formatUsagePercent(float $used, float $total): float
     {
         if ($total <= 0) {
-            return 0;
+            return 0.0;
         }
 
-        return (int) min(100, round(($used / $total) * 100));
+        return round(($used / $total) * 100, 1);
     }
 
 

@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace App\Module\Core\UI\Api;
 
+use App\Module\Core\Application\TraceContext;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 final class ResponseEnvelopeFactory
 {
+    public function __construct(
+        private readonly TraceContext $traceContext,
+    ) {
+    }
     /**
      * @param array<string, mixed> $extra
      */
@@ -23,7 +28,8 @@ final class ResponseEnvelopeFactory
             'job_id' => $jobId,
             'status' => 'queued',
             'message' => $message,
-            'request_id' => $this->resolveRequestId($request),
+            'request_id' => $this->traceContext->requestId($request),
+            'correlation_id' => $this->traceContext->correlationId($request),
         ], $extra), $statusCode);
     }
 
@@ -42,7 +48,8 @@ final class ResponseEnvelopeFactory
             'status' => 'failed',
             'message' => $message,
             'error_code' => $errorCode,
-            'request_id' => $this->resolveRequestId($request),
+            'request_id' => $this->traceContext->requestId($request),
+            'correlation_id' => $this->traceContext->correlationId($request),
         ], $extra);
 
         if ($retryAfter !== null) {
@@ -50,17 +57,5 @@ final class ResponseEnvelopeFactory
         }
 
         return new JsonResponse($payload, $statusCode);
-    }
-
-    private function resolveRequestId(Request $request): string
-    {
-        $requestId = trim((string) ($request->headers->get('X-Request-ID') ?? ''));
-        if ($requestId !== '') {
-            return $requestId;
-        }
-
-        $traceId = trim((string) ($request->attributes->get('request_id') ?? ''));
-
-        return $traceId;
     }
 }

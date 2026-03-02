@@ -15,7 +15,7 @@ final class NullConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         return new ConsoleCommandResult(true, false, null);
     }
 
-    public function attachStream(int $instanceId): iterable
+    public function attachStream(int $instanceId, int $lastOffset = 0): iterable
     {
         return [];
     }

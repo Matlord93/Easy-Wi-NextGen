@@ -1,0 +1,8 @@
+<form method="get" action="{{ action|default('') }}" class="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-12 {{ class|default('') }}">
+    {% block fields %}{% endblock %}
+    {% block submit %}
+        <div class="md:col-span-2 flex items-end">
+            <button type="submit" class="w-full rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">{{ submit_label|default('Filter') }}</button>
+        </div>
+    {% endblock %}
+</form>

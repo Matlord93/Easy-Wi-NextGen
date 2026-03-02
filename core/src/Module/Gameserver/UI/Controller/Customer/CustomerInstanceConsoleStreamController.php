@@ -43,9 +43,10 @@ final class CustomerInstanceConsoleStreamController
             throw new AccessDeniedHttpException('Forbidden');
         }
 
-        $lastEventId = (int) $request->headers->get('Last-Event-ID', '0');
+        $correlationId = $this->resolveCorrelationId($request);
+        $lastEventId = $this->resolveLastEventId($request);
 
-        $response = new StreamedResponse(function () use ($id, $lastEventId): void {
+        $response = new StreamedResponse(function () use ($id, $lastEventId, $correlationId): void {
             try {
                 $degraded = $this->resolveDegradedCause();
                 if ($degraded !== null) {
@@ -53,6 +54,7 @@ final class CustomerInstanceConsoleStreamController
                         'type' => 'status',
                         'status' => $degraded['status'],
                         'message' => $degraded['message'],
+                        'correlation_id' => $correlationId,
                         'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
                     ], 'status', null);
 
@@ -63,21 +65,30 @@ final class CustomerInstanceConsoleStreamController
                 $this->eventBus->incrementSubscriber($id);
 
                 foreach ($this->eventBus->replayConsoleEvents($id, $lastEventId) as $event) {
+                    $event['correlation_id'] ??= $correlationId;
                     $this->writeEvent($event);
                 }
 
                 while ((time() - $startedAt) < $this->maxDurationSeconds) {
+                    if (connection_aborted()) {
+                        break;
+                    }
                     $this->eventBus->refreshSubscriberTtl($id);
                     $this->eventBus->consumeConsoleEvents(
                         $id,
-                        function (array $event): void {
+                        function (array $event) use ($correlationId): void {
+                            $event['correlation_id'] ??= $correlationId;
                             $this->writeEvent($event);
                         },
-                        fn (): bool => (time() - $startedAt) >= $this->maxDurationSeconds,
+                        fn (): bool => (time() - $startedAt) >= $this->maxDurationSeconds || connection_aborted(),
                     );
 
                     if ((time() - $lastPing) >= $this->pingIntervalSeconds) {
-                        $this->writeEvent(['type' => 'ping', 'ts' => (new \DateTimeImmutable())->format(DATE_ATOM)], 'ping', null);
+                        $this->writeEvent([
+                            'type' => 'ping',
+                            'correlation_id' => $correlationId,
+                            'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
+                        ], 'ping', null);
                         $lastPing = time();
                     }
                     usleep(200000);
@@ -87,6 +98,7 @@ final class CustomerInstanceConsoleStreamController
                     'type' => 'status',
                     'status' => 'stream_unavailable',
                     'message' => 'Console stream unavailable',
+                    'correlation_id' => $correlationId,
                     'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
                 ], 'status', null);
             } finally {
@@ -99,11 +111,43 @@ final class CustomerInstanceConsoleStreamController
         });
 
         $response->headers->set('Content-Type', 'text/event-stream');
-        $response->headers->set('Cache-Control', 'no-cache');
+        $response->headers->set('Cache-Control', 'no-cache, no-transform');
         $response->headers->set('Connection', 'keep-alive');
         $response->headers->set('X-Accel-Buffering', 'no');
+        $response->headers->set('X-Correlation-ID', $correlationId);
+        $response->headers->set('X-Console-Resume-Offset', (string) $lastEventId);
 
         return $response;
+    }
+
+    private function resolveLastEventId(Request $request): int
+    {
+        $header = trim((string) $request->headers->get('Last-Event-ID', ''));
+        if ($header !== '' && ctype_digit($header)) {
+            return (int) $header;
+        }
+
+        $offset = trim((string) $request->query->get('last_offset', ''));
+        if ($offset !== '' && ctype_digit($offset)) {
+            return (int) $offset;
+        }
+
+        $cursor = trim((string) $request->query->get('cursor', ''));
+        if ($cursor !== '' && ctype_digit($cursor)) {
+            return (int) $cursor;
+        }
+
+        return 0;
+    }
+
+    private function resolveCorrelationId(Request $request): string
+    {
+        $raw = trim((string) ($request->headers->get('X-Correlation-ID') ?? $request->headers->get('X-Request-ID', '')));
+        if ($raw !== '') {
+            return substr($raw, 0, 64);
+        }
+
+        return bin2hex(random_bytes(8));
     }
 
     /** @return array{status:string,message:string}|null */

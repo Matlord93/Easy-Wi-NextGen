@@ -7,11 +7,14 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\Domain;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\Webspace;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Ports\Infrastructure\Repository\PortPoolRepository;
 use App\Repository\AgentRepository;
+use App\Repository\MailDomainRepository;
+use App\Repository\MailNodeRepository;
 use App\Repository\UserRepository;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,6 +32,8 @@ final class AdminWebspaceController
     public function __construct(
         private readonly UserRepository $userRepository,
         private readonly AgentRepository $agentRepository,
+        private readonly MailNodeRepository $mailNodeRepository,
+        private readonly MailDomainRepository $mailDomainRepository,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly EntityManagerInterface $entityManager,
@@ -132,6 +137,8 @@ final class AdminWebspaceController
         $domainEntity = new Domain($customer, $webspace, $domain);
         $this->entityManager->persist($domainEntity);
         $this->entityManager->flush();
+
+        $this->ensureMailDomainBinding($domainEntity);
 
         $jobPayload = [
             'agent_id' => $node->getId(),
@@ -432,6 +439,22 @@ final class AdminWebspaceController
         $path = '/var/www/' . $domain;
 
         return [$path, $path . '/public'];
+    }
+
+
+    private function ensureMailDomainBinding(Domain $domain): void
+    {
+        if ($this->mailDomainRepository->findOneByDomain($domain) !== null) {
+            return;
+        }
+
+        $mailNode = $this->mailNodeRepository->findOneBy([], ['id' => 'ASC']);
+        if ($mailNode === null) {
+            return;
+        }
+
+        $this->entityManager->persist(new MailDomain($domain, $mailNode));
+        $this->entityManager->flush();
     }
 
     private function normalizeDomain(string $domain): string

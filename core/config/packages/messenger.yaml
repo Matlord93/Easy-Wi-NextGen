@@ -1,5 +1,6 @@
 framework:
   messenger:
+    # Dead-letter queue (DLQ) for non-recoverable messages.
     failure_transport: failed
     transports:
       async:
@@ -8,6 +9,7 @@ framework:
           queue_name: async
           prefetch_count: 1
         retry_strategy:
+          # Keep retry settings explicit for predictable retry-rate alerting.
           max_retries: 3
           delay: 1000
           multiplier: 2
@@ -15,6 +17,7 @@ framework:
       failed:
         dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
         options:
+          # DLQ queue size is used as `dead-letter size` metric in operations runbook.
           queue_name: failed
     routing:
       App\Message\RunInstanceActionMessage: async
