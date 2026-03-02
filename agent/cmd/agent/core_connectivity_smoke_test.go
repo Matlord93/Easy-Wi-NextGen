@@ -20,18 +20,24 @@ import (
 func TestAgentCoreConnectivitySmoke(t *testing.T) {
 	type smokeState struct {
 		sync.Mutex
-		heartbeats int
-		started    bool
-		result     jobs.Result
-		polled     bool
+		result jobs.Result
+		polled bool
 	}
 	state := &smokeState{}
 
+	heartbeatSeen := make(chan struct{}, 1)
+	jobStarted := make(chan struct{}, 1)
+	jobResult := make(chan jobs.Result, 1)
+	signal := func(ch chan struct{}) {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/agent/heartbeat", func(w http.ResponseWriter, _ *http.Request) {
-		state.Lock()
-		state.heartbeats++
-		state.Unlock()
+		signal(heartbeatSeen)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
@@ -51,9 +57,7 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		_, _ = w.Write([]byte(`{"jobs":[],"max_concurrency":1}`))
 	})
 	mux.HandleFunc("/agent/jobs/smoke-job-1/start", func(w http.ResponseWriter, _ *http.Request) {
-		state.Lock()
-		state.started = true
-		state.Unlock()
+		signal(jobStarted)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
@@ -70,6 +74,10 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		state.Lock()
 		state.result = result
 		state.Unlock()
+		select {
+		case jobResult <- result:
+		default:
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
@@ -97,38 +105,33 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		ServiceListen:     "disabled",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
 	go run(ctx, client, cfg, "", logging.NewJSONLogger(io.Discard, "agent", cfg.AgentID))
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		state.Lock()
-		ready := state.heartbeats > 0 && state.started && state.result.JobID == "smoke-job-1"
-		state.Unlock()
-		if ready {
-			break
+	waitFor := func(ch <-chan struct{}, description string) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-ctx.Done():
+			t.Fatalf("timeout waiting for %s", description)
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 
-	state.Lock()
-	if state.heartbeats == 0 {
-		state.Unlock()
-		t.Fatal("expected at least one heartbeat to be sent")
+	waitFor(heartbeatSeen, "heartbeat to be sent")
+	waitFor(jobStarted, "dummy job to be started")
+
+	var result jobs.Result
+	select {
+	case result = <-jobResult:
+	case <-ctx.Done():
+		t.Fatal("timeout waiting for dummy job result")
 	}
-	if !state.started {
-		state.Unlock()
-		t.Fatal("expected dummy job to be started")
+	if result.JobID != "smoke-job-1" {
+		t.Fatalf("expected result for smoke-job-1, got %q", result.JobID)
 	}
-	if state.result.JobID != "smoke-job-1" {
-		state.Unlock()
-		t.Fatalf("expected result for smoke-job-1, got %q", state.result.JobID)
+	if strings.ToLower(result.Status) != "success" {
+		t.Fatalf("expected successful dummy job result, got %q", result.Status)
 	}
-	if strings.ToLower(state.result.Status) != "success" {
-		state.Unlock()
-		t.Fatalf("expected successful dummy job result, got %q", state.result.Status)
-	}
-	state.Unlock()
 }
