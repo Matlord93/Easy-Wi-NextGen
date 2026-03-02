@@ -167,7 +167,7 @@ func isTimeoutOrTemporary(err error) bool {
 		return true
 	}
 	var nerr net.Error
-	if errors.As(err, &nerr) && (nerr.Timeout() || nerr.Temporary()) {
+	if errors.As(err, &nerr) && nerr.Timeout() {
 		return true
 	}
 	return false

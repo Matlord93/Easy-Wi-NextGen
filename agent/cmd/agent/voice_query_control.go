@@ -145,7 +145,9 @@ func (g *voiceQueryGovernor) callServer(ctx context.Context, target voiceTarget,
 		}
 		return nil, &voiceQueryError{Code: "voice_query_failed", Message: err.Error(), Retryable: true}
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
 		return nil, &voiceQueryError{Code: "voice_query_auth_failed", Message: "query authentication failed", HardCooldown: true}

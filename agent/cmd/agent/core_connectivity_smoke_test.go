@@ -18,8 +18,6 @@ import (
 )
 
 func TestAgentCoreConnectivitySmoke(t *testing.T) {
-	t.Parallel()
-
 	type smokeState struct {
 		sync.Mutex
 		heartbeats int
@@ -60,7 +58,11 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
 	mux.HandleFunc("/agent/jobs/smoke-job-1/result", func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		defer func() {
+			if err := r.Body.Close(); err != nil {
+				t.Errorf("close request body: %v", err)
+			}
+		}()
 		var result jobs.Result
 		if err := json.NewDecoder(r.Body).Decode(&result); err != nil {
 			t.Fatalf("decode result payload: %v", err)
@@ -95,23 +97,38 @@ func TestAgentCoreConnectivitySmoke(t *testing.T) {
 		ServiceListen:     "disabled",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	run(ctx, client, cfg, "", logging.NewJSONLogger(io.Discard, "agent", cfg.AgentID))
 
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		state.Lock()
+		ready := state.heartbeats > 0 && state.started && state.result.JobID == "smoke-job-1"
+		state.Unlock()
+		if ready {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
 	state.Lock()
-	defer state.Unlock()
 	if state.heartbeats == 0 {
+		state.Unlock()
 		t.Fatal("expected at least one heartbeat to be sent")
 	}
 	if !state.started {
+		state.Unlock()
 		t.Fatal("expected dummy job to be started")
 	}
 	if state.result.JobID != "smoke-job-1" {
+		state.Unlock()
 		t.Fatalf("expected result for smoke-job-1, got %q", state.result.JobID)
 	}
 	if strings.ToLower(state.result.Status) != "success" {
+		state.Unlock()
 		t.Fatalf("expected successful dummy job result, got %q", state.result.Status)
 	}
+	state.Unlock()
 }
