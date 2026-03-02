@@ -48,14 +48,14 @@ jobs:
 
       - name: Validate Core-Agent OpenAPI spec
         working-directory: ..
-        run: python3 docs/api/scripts/validate_openapi.py docs/api/core-agent.v1.openapi.yaml
+        run: python3 "$GITHUB_WORKSPACE/docs/api/scripts/validate_openapi.py" "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"
 
       - name: Breaking-change check against main (Core-Agent OpenAPI)
         working-directory: ..
         run: |
           git fetch origin main --depth=1
           git show origin/main:docs/api/core-agent.v1.openapi.yaml > /tmp/core-agent.base.yaml
-          python3 docs/api/scripts/check_breaking_changes.py /tmp/core-agent.base.yaml docs/api/core-agent.v1.openapi.yaml
+          python3 "$GITHUB_WORKSPACE/docs/api/scripts/check_breaking_changes.py" /tmp/core-agent.base.yaml "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"
 
       - name: Verify golangci-lint config
         run: |

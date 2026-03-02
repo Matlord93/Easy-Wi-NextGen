@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/creack/pty"
@@ -159,7 +158,7 @@ func (m *Manager) Start(ctx context.Context, instanceID string, spec StartSpec, 
 	cmd := exec.CommandContext(ctx, spec.Command, spec.Args...)
 	cmd.Dir = spec.Dir
 	cmd.Env = append(os.Environ(), spec.Env...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = processGroupSysProcAttr()
 
 	f, err := pty.Start(cmd)
 	if err != nil {
@@ -275,12 +274,12 @@ func (s *Session) GracefulStop(ctx context.Context) error {
 	if s.cmd.Process == nil {
 		return nil
 	}
-	_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGTERM)
+	_ = terminateProcessGroup(s.cmd.Process.Pid)
 	select {
 	case <-s.done:
 		return nil
 	case <-time.After(termTimeout):
-		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
+		_ = killProcessGroupHard(s.cmd.Process.Pid)
 		select {
 		case <-s.done:
 			return nil

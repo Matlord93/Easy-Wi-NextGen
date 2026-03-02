@@ -14,7 +14,7 @@ namespace PHPUnit\Event\Code\IssueTrigger;
  *
  * @no-named-arguments Parameter names are not covered by the backward compatibility promise for PHPUnit
  */
-final class SelfTrigger extends IssueTrigger
+final readonly class SelfTrigger extends IssueTrigger
 {
     /**
      * Your own code triggers an issue in your own code.

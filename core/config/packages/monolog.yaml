@@ -1,8 +1,5 @@
 monolog:
   channels: ['files', 'update', 'setup']
-  formatters:
-    json:
-      class: Monolog\Formatter\JsonFormatter
   handlers:
     main:
       type: stream
