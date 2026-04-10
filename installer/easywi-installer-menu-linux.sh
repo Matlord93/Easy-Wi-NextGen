@@ -681,7 +681,21 @@ download_release_asset() {
 
   step "Lade ${asset} herunter."
   log "Download-Quelle: ${base_url}/${asset}"
-  curl -fsSL "${base_url}/${asset}" -o "${destination}"
+  if curl -fsSL "${base_url}/${asset}" -o "${destination}"; then
+    return 0
+  fi
+
+  if [[ "${asset}" =~ ^easywi-agent-linux-(amd64|x86_64)$ ]]; then
+    local fallback_asset
+    for fallback_asset in "${asset}.tar.gz" "${asset}.zip"; do
+      log "Primäres Asset nicht verfügbar, versuche Fallback: ${fallback_asset}"
+      if curl -fsSL "${base_url}/${fallback_asset}" -o "${destination}"; then
+        return 0
+      fi
+    done
+  fi
+
+  fatal "Asset nicht verfügbar: ${asset} (${base_url}/${asset})"
 }
 
 download_optional_release_asset() {
