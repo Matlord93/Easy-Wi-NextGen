@@ -935,7 +935,7 @@ final class AgentApiController
             return in_array($jobType, self::WINDOWS_ALLOWED_JOB_TYPES, true);
         }
 
-        if (str_starts_with($jobType, 'windows.service.')) {
+        if (str_starts_with($jobType, "windows.service.")) {
             return false;
         }
 
