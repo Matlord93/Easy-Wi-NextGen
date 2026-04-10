@@ -74,6 +74,14 @@ final class SetupInstallOrUpdateCommand extends Command
             $output->writeln('<info>[PASS] ' . $name . '</info>');
         }
 
+        $cronResult = $this->ensureAutomationCronJobs();
+        if ($cronResult['ok']) {
+            $output->writeln('<info>[PASS] automation cron jobs ensured.</info>');
+        } else {
+            $warnings[] = 'automation cron jobs';
+            $output->writeln('<comment>[WARN] automation cron jobs not installed: ' . $cronResult['message'] . '</comment>');
+        }
+
         $output->writeln('');
         if ($warnings !== []) {
             $output->writeln('<comment>SUMMARY: PASS with warnings (' . count($warnings) . ')</comment>');
@@ -83,5 +91,75 @@ final class SetupInstallOrUpdateCommand extends Command
         $output->writeln('<info>SUMMARY: PASS</info>');
 
         return 0;
+    }
+
+    /**
+     * @return array{ok: bool, message: string}
+     */
+    private function ensureAutomationCronJobs(): array
+    {
+        $logDir = $this->projectDir . '/var/log';
+        if (!is_dir($logDir) && !mkdir($logDir, 0775, true) && !is_dir($logDir)) {
+            return ['ok' => false, 'message' => 'cannot create var/log directory'];
+        }
+
+        $cronDir = $this->projectDir . '/srv/setup/cron';
+        if (!is_dir($cronDir) && !mkdir($cronDir, 0775, true) && !is_dir($cronDir)) {
+            return ['ok' => false, 'message' => 'cannot create srv/setup/cron directory'];
+        }
+
+        $escapedProjectDir = str_replace("'", "'\"'\"'", $this->projectDir);
+        $cronBlock = implode("\n", [
+            '# BEGIN EASYWI_AUTOMATION',
+            'SHELL=/bin/sh',
+            'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+            sprintf('*/5 * * * * cd \'%s\' && php bin/console app:update:auto --no-interaction >> var/log/cron-update-auto.log 2>&1', $escapedProjectDir),
+            sprintf('*/5 * * * * cd \'%s\' && php bin/console app:run-schedules --no-interaction >> var/log/cron-run-schedules.log 2>&1', $escapedProjectDir),
+            '# END EASYWI_AUTOMATION',
+            '',
+        ]);
+
+        $snapshotPath = $cronDir . '/easywi-automation.cron';
+        if (file_put_contents($snapshotPath, $cronBlock) === false) {
+            return ['ok' => false, 'message' => 'cannot write cron snapshot file'];
+        }
+
+        $whichCrontab = new Process(['sh', '-lc', 'command -v crontab']);
+        $whichCrontab->setTimeout(10);
+        $whichCrontab->run();
+        if (!$whichCrontab->isSuccessful()) {
+            return ['ok' => false, 'message' => 'crontab command not available'];
+        }
+
+        $existing = '';
+        $read = new Process(['crontab', '-l']);
+        $read->setTimeout(10);
+        $read->run();
+        if ($read->isSuccessful()) {
+            $existing = $read->getOutput();
+        }
+
+        $existing = preg_replace('/\n?# BEGIN EASYWI_AUTOMATION.*?# END EASYWI_AUTOMATION\n?/s', "\n", $existing) ?? $existing;
+        $existing = rtrim($existing) . "\n\n" . $cronBlock;
+
+        $tmp = tempnam(sys_get_temp_dir(), 'easywi-cron-');
+        if (!is_string($tmp)) {
+            return ['ok' => false, 'message' => 'cannot allocate temp file for crontab'];
+        }
+
+        if (file_put_contents($tmp, $existing) === false) {
+            @unlink($tmp);
+            return ['ok' => false, 'message' => 'cannot write temp crontab'];
+        }
+
+        $install = new Process(['crontab', $tmp]);
+        $install->setTimeout(10);
+        $install->run();
+        @unlink($tmp);
+        if (!$install->isSuccessful()) {
+            return ['ok' => false, 'message' => trim($install->getErrorOutput()) !== '' ? trim($install->getErrorOutput()) : 'crontab install failed'];
+        }
+
+        return ['ok' => true, 'message' => 'installed'];
     }
 }
