@@ -21,6 +21,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Process\PhpExecutableFinder;
 
@@ -37,6 +38,9 @@ final class InstallerService
     ];
     private const DB_HEALTHCHECK_ATTEMPTS = 8;
     private const DB_HEALTHCHECK_INITIAL_DELAY_MS = 250;
+    private const INSTALLER_LOCALE_SESSION_KEY = 'installer_language';
+    /** @var list<string> */
+    private const INSTALLER_SUPPORTED_LOCALES = ['de', 'en'];
 
     public function __construct(
         private readonly EntityManagerInterface $defaultEntityManager,
@@ -50,6 +54,30 @@ final class InstallerService
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
     ) {
+    }
+
+    public function resolveInstallerLocale(Request $request): void
+    {
+        $queryLocale = $this->normalizeInstallerLocale($request->query->get('lang'));
+        if ($queryLocale !== null) {
+            $this->applyInstallerLocale($request, $queryLocale);
+
+            return;
+        }
+
+        $sessionLocale = $request->hasSession()
+            ? $this->normalizeInstallerLocale($request->getSession()->get(self::INSTALLER_LOCALE_SESSION_KEY))
+            : null;
+        if ($sessionLocale !== null) {
+            $this->applyInstallerLocale($request, $sessionLocale);
+
+            return;
+        }
+
+        $preferredLocale = $this->normalizeInstallerLocale(
+            $request->getPreferredLanguage(self::INSTALLER_SUPPORTED_LOCALES),
+        );
+        $this->applyInstallerLocale($request, $preferredLocale ?? 'de');
     }
 
     /**
@@ -106,6 +134,30 @@ final class InstallerService
         );
 
         return $requirements;
+    }
+
+    private function applyInstallerLocale(Request $request, string $locale): void
+    {
+        $request->setLocale($locale);
+        $request->attributes->set('_locale', $locale);
+
+        if ($request->hasSession()) {
+            $request->getSession()->set(self::INSTALLER_LOCALE_SESSION_KEY, $locale);
+        }
+    }
+
+    private function normalizeInstallerLocale(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($value));
+        if (in_array($normalized, self::INSTALLER_SUPPORTED_LOCALES, true)) {
+            return $normalized;
+        }
+
+        return null;
     }
 
     /**
