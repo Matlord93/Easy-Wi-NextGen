@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-use App\Module\Core\Domain\Enum\MailBackend;
-
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Module\Gameserver\Application\ConsoleCommandSettings;
 use App\Repository\AppSettingRepository;
@@ -24,8 +22,6 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_MAIL_DEFAULT_LOCALE = 'mail_default_locale';
     public const KEY_MAILER_DSN = 'mailer_dsn';
     public const KEY_MAILER_VERIFY_TLS = 'mailer_verify_tls';
-    public const KEY_MAIL_ENABLED = 'mail_enabled';
-    public const KEY_MAIL_BACKEND = 'mail_backend';
     public const KEY_GAMESERVER_DEFAULT_SLOTS = 'gameserver_default_slots';
     public const KEY_GAMESERVER_MIN_SLOTS = 'gameserver_min_slots';
     public const KEY_GAMESERVER_MAX_SLOTS = 'gameserver_max_slots';
@@ -137,8 +133,6 @@ TWIG;
         self::KEY_MAIL_DEFAULT_LOCALE => 'en',
         self::KEY_MAILER_DSN => null,
         self::KEY_MAILER_VERIFY_TLS => true,
-        self::KEY_MAIL_ENABLED => true,
-        self::KEY_MAIL_BACKEND => MailBackend::Local->value,
         self::KEY_GAMESERVER_DEFAULT_SLOTS => 16,
         self::KEY_GAMESERVER_MIN_SLOTS => 1,
         self::KEY_GAMESERVER_MAX_SLOTS => 128,
@@ -725,13 +719,8 @@ TWIG;
                 self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_REGISTRATION,
                 self::KEY_ANTI_ABUSE_ENABLE_CAPTCHA_CONTACT,
                 self::KEY_MAILER_VERIFY_TLS,
-                self::KEY_MAIL_ENABLED,
             ], true)) {
                 $value = (bool) $value;
-            }
-
-            if ($key === self::KEY_MAIL_BACKEND) {
-                $value = MailBackend::normalize($value)->value;
             }
 
             if ($key === self::KEY_MAIL_DEFAULT_LOCALE) {

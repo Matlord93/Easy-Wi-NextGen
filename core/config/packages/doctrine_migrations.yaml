@@ -2,6 +2,3 @@ doctrine_migrations:
   transactional: false
   migrations_paths:
     DoctrineMigrations: '%kernel.project_dir%/migrations'
-  # Legacy-Sammeldatei bleibt aus Kompatibilitätsgründen geladen.
-  # Neue Migrationen müssen als einzelne Datei `VersionYYYYMMDDHHMMSS.php`
-  # unter `core/migrations/` erstellt werden (siehe docs/operations/db-migrations.md).

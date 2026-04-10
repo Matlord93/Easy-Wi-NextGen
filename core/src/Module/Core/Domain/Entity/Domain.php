@@ -25,14 +25,8 @@ class Domain implements ResourceEventSource
     private User $customer;
 
     #[ORM\ManyToOne(targetEntity: Webspace::class)]
-    #[ORM\JoinColumn(nullable: true)]
-    private ?Webspace $webspace;
-
-    #[ORM\Column(options: ['default' => true])]
-    private bool $capabilityWebspace = true;
-
-    #[ORM\Column(options: ['default' => false])]
-    private bool $capabilityMail = false;
+    #[ORM\JoinColumn(nullable: false)]
+    private Webspace $webspace;
 
     #[ORM\Column(length: 255)]
     private string $name;
@@ -76,11 +70,10 @@ class Domain implements ResourceEventSource
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $sslExpiresAt = null;
 
-    public function __construct(User $customer, ?Webspace $webspace, string $name, string $status = 'pending')
+    public function __construct(User $customer, Webspace $webspace, string $name, string $status = 'pending')
     {
         $this->customer = $customer;
         $this->webspace = $webspace;
-        $this->capabilityWebspace = $webspace !== null;
         $this->name = $name;
         $this->status = $status;
         $this->createdAt = new \DateTimeImmutable();
@@ -97,36 +90,9 @@ class Domain implements ResourceEventSource
         return $this->customer;
     }
 
-    public function getWebspace(): ?Webspace
+    public function getWebspace(): Webspace
     {
         return $this->webspace;
-    }
-
-    public function setWebspace(?Webspace $webspace): void
-    {
-        $this->webspace = $webspace;
-        $this->capabilityWebspace = $webspace !== null;
-        $this->touch();
-    }
-
-    public function hasWebspaceCapability(): bool
-    {
-        return $this->capabilityWebspace;
-    }
-
-    public function hasMailCapability(): bool
-    {
-        return $this->capabilityMail;
-    }
-
-    public function setCapabilities(bool $webspace, bool $mail): void
-    {
-        $this->capabilityWebspace = $webspace;
-        if (!$webspace) {
-            $this->webspace = null;
-        }
-        $this->capabilityMail = $mail;
-        $this->touch();
     }
 
     public function getName(): string

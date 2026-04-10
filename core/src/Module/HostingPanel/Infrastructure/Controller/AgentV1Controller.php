@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Module\HostingPanel\Infrastructure\Controller;
 
-use App\Module\Core\Application\TraceContext;
 use App\Module\HostingPanel\Application\Job\DispatchJobMessage;
 use App\Module\HostingPanel\Application\Security\AgentTokenAuthenticator;
 use App\Module\HostingPanel\Domain\Entity\Agent;
@@ -17,11 +16,6 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/v1/agent', name: 'hp_agent_v1_')]
 class AgentV1Controller extends AbstractController
 {
-    public function __construct(
-        private readonly TraceContext $traceContext,
-    ) {
-    }
-
     #[Route('/heartbeat', name: 'heartbeat', methods: ['POST'])]
     public function heartbeat(Request $request, AgentTokenAuthenticator $authenticator): JsonResponse
     {
@@ -31,7 +25,7 @@ class AgentV1Controller extends AbstractController
 
         $agent = $authenticator->authenticate($agentUuid, $token);
         if (!$agent instanceof Agent) {
-            return $this->json($this->errorEnvelope($request, 'UNAUTHORIZED', 'Unauthorized.'), 401);
+            return $this->json(['error' => 'unauthorized'], 401);
         }
 
         $agent->updateHeartbeat((string) ($payload['version'] ?? 'unknown'), (string) ($payload['os'] ?? 'unknown'), (array) ($payload['capabilities'] ?? []));
@@ -45,7 +39,7 @@ class AgentV1Controller extends AbstractController
         $payload = json_decode($request->getContent(), true, flags: JSON_THROW_ON_ERROR);
         $idempotencyKey = (string) $request->headers->get('Idempotency-Key', '');
         if ($idempotencyKey === '') {
-            return $this->json($this->errorEnvelope($request, 'VALIDATION_FAILED', 'missing idempotency key'), 400);
+            return $this->json(['error' => 'missing idempotency key'], 400);
         }
 
         $bus->dispatch(new DispatchJobMessage(
@@ -56,16 +50,5 @@ class AgentV1Controller extends AbstractController
         ));
 
         return $this->json(['status' => 'queued', 'idempotency_key' => $idempotencyKey], 202);
-    }
-
-    private function errorEnvelope(Request $request, string $code, string $message): array
-    {
-        return [
-            'error' => [
-                'code' => $code,
-                'message' => $message,
-                'request_id' => $this->traceContext->requestId($request),
-            ],
-        ];
     }
 }

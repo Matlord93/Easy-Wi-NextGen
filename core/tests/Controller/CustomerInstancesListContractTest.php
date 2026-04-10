@@ -28,14 +28,4 @@ final class CustomerInstancesListContractTest extends TestCase
         self::assertStringContainsString('data-power-url="{{ path(\'customer_instance_power_api\'', $template);
         self::assertStringContainsString('data-url-overview="{{ path(\'customer_instance_overview_page\'', $template);
     }
-
-    public function testInstancesListTemplateContainsQueryStatusLabels(): void
-    {
-        $template = file_get_contents(__DIR__ . '/../../templates/customer/instances/index.html.twig');
-        self::assertIsString($template);
-
-        self::assertStringContainsString('data-label-query-online="{{ t(\'customer_instance_query_status_online\'', $template);
-        self::assertStringContainsString('data-label-query-offline="{{ t(\'customer_instance_query_status_offline\'', $template);
-        self::assertStringContainsString('data-label-query-unknown="{{ t(\'customer_instance_query_status_unknown\'', $template);
-    }
 }

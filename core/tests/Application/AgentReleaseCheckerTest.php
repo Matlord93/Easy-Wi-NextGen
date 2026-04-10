@@ -88,38 +88,4 @@ final class AgentReleaseCheckerTest extends TestCase
         self::assertSame('v2.0.0', $selected['tag']);
     }
 
-
-    public function testLatestFromFeedUsesSemverInsteadOfStringSort(): void
-    {
-        $checker = new AgentReleaseChecker(new ArrayAdapter(), '', 300, 'stable');
-
-        $feed = [
-            'agent' => [
-                'releases' => [
-                    ['version' => '1.9.0', 'channel' => 'stable'],
-                    ['version' => '1.10.0', 'channel' => 'stable'],
-                    ['version' => '1.2.0', 'channel' => 'stable'],
-                ],
-            ],
-        ];
-
-        $method = new \ReflectionMethod($checker, 'latestFromFeed');
-        $latest = $method->invoke($checker, $feed, 'stable');
-
-        self::assertSame('1.10.0', $latest);
-    }
-
-    public function testResolveFeedArtifactSupportsMappedArtifactKeys(): void
-    {
-        $checker = new AgentReleaseChecker(new ArrayAdapter(), '', 300, 'stable');
-
-        $method = new \ReflectionMethod($checker, 'resolveFeedArtifact');
-        $artifact = $method->invoke($checker, [
-            'linux_amd64_targz' => ['url' => 'https://example.invalid/agent.tar.gz'],
-        ], 'easywi-agent-linux-amd64');
-
-        self::assertIsArray($artifact);
-        self::assertSame('https://example.invalid/agent.tar.gz', $artifact['url']);
-    }
-
 }

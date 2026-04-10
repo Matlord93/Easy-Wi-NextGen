@@ -6,7 +6,6 @@ namespace App\Module\PanelCustomer\UI\Controller\Api;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\MailAliasLoopGuard;
-use App\Module\Core\Application\Mail\MailBackendContext;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\User;
@@ -30,7 +29,6 @@ final class MailAliasApiController
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
         private readonly MailAliasLoopGuard $loopGuard,
-        private readonly MailBackendContext $mailBackendContext,
         #[Autowire('%env(default::APP_MAIL_ALIAS_MAP_PATH)%')]
         private readonly ?string $aliasMapPath,
     ) {
@@ -43,10 +41,6 @@ final class MailAliasApiController
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
-        }
-        $backendBlock = $this->mailBackendContext->blockedResponsePayload('alias');
-        if ($backendBlock !== null) {
-            return new JsonResponse($backendBlock, JsonResponse::HTTP_CONFLICT);
         }
 
         $aliases = $actor->isAdmin()
@@ -65,10 +59,6 @@ final class MailAliasApiController
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
-        }
-        $backendBlock = $this->mailBackendContext->blockedResponsePayload('alias');
-        if ($backendBlock !== null) {
-            return new JsonResponse($backendBlock, JsonResponse::HTTP_CONFLICT);
         }
 
         $payload = $request->toArray();
@@ -151,10 +141,6 @@ final class MailAliasApiController
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized.'], JsonResponse::HTTP_UNAUTHORIZED);
-        }
-        $backendBlock = $this->mailBackendContext->blockedResponsePayload('alias');
-        if ($backendBlock !== null) {
-            return new JsonResponse($backendBlock, JsonResponse::HTTP_CONFLICT);
         }
 
         $alias = $this->aliasRepository->find($id);

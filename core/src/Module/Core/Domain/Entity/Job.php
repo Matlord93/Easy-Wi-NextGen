@@ -7,7 +7,6 @@ namespace App\Module\Core\Domain\Entity;
 use App\Module\Core\Domain\Enum\JobStatus;
 use App\Repository\JobRepository;
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Component\Uid\Uuid;
 
 #[ORM\Entity(repositoryClass: JobRepository::class)]
 #[ORM\Table(name: 'jobs')]
@@ -85,9 +84,6 @@ class Job
         $this->id = bin2hex(random_bytes(16));
         $this->type = $type;
         $this->payload = $payload;
-        if (!isset($this->payload['correlation_id']) || !is_string($this->payload['correlation_id']) || !Uuid::isValid($this->payload['correlation_id'])) {
-            $this->payload['correlation_id'] = Uuid::v4()->toRfc4122();
-        }
         $this->status = JobStatus::Queued;
         $this->progress = 0;
         $this->createdAt = new \DateTimeImmutable();

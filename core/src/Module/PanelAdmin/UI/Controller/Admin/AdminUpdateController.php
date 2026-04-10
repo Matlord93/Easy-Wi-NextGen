@@ -92,17 +92,6 @@ final class AdminUpdateController
         $payload = [];
         if ($type === 'rollback') {
             $payload['backup_path'] = (string) $request->request->get('backup_path');
-        } elseif (in_array($type, ['update', 'both'], true)) {
-            $status = $this->updateService->checkForUpdate();
-            if ($status->assetUrl !== null && $status->assetUrl !== '') {
-                $payload['package_url'] = $status->assetUrl;
-            }
-            if ($status->assetSha256 !== null && $status->assetSha256 !== '') {
-                $payload['sha256'] = $status->assetSha256;
-            }
-            if ($status->latestVersion !== null && $status->latestVersion !== '') {
-                $payload['target_version'] = $status->latestVersion;
-            }
         }
 
         $job = $this->updateJobService->createJob($type, $createdBy, $payload);

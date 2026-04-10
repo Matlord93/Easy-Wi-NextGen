@@ -881,7 +881,7 @@ final class CustomerInstanceController
             'node' => [
                 'id' => $instance->getNode()->getId(),
                 'name' => $instance->getNode()->getName(),
-                'location' => $this->resolveNodeLocationLabel($instance->getNode(), $instance),
+                'location' => $this->resolveNodeLocationLabel($instance->getNode()),
             ],
             'status' => $instance->getStatus()->value,
             'display_status' => $displayStatus,
@@ -951,7 +951,7 @@ final class CustomerInstanceController
     }
 
 
-    private function resolveNodeLocationLabel(\App\Module\Core\Domain\Entity\Agent $node, Instance $instance): ?string
+    private function resolveNodeLocationLabel(\App\Module\Core\Domain\Entity\Agent $node): ?string
     {
         $metadata = $node->getMetadata();
         if (!is_array($metadata)) {
@@ -977,16 +977,6 @@ final class CustomerInstanceController
 
         if ($country !== '') {
             return strtoupper($country);
-        }
-
-        $instanceBaseDir = trim((string) $instance->getInstanceBaseDir());
-        if ($instanceBaseDir !== '') {
-            return $instanceBaseDir;
-        }
-
-        $installPath = trim((string) $instance->getInstallPath());
-        if ($installPath !== '') {
-            return dirname($installPath);
         }
 
         return null;

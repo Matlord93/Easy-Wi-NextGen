@@ -3,151 +3,234 @@ set -euo pipefail
 
 JOB_ID=""
 CORE_DIR="${EASYWI_CORE_DIR:-/var/www/easywi/core}"
-RELEASES_DIR="${EASYWI_CORE_RELEASES_DIR:-$CORE_DIR/srv/update/releases}"
-CURRENT_SYMLINK="${EASYWI_CORE_CURRENT_SYMLINK:-$CORE_DIR/current}"
 LOCK_FILE="${EASYWI_CORE_LOCK_FILE:-$CORE_DIR/srv/update/lock}"
 JOBS_DIR="${EASYWI_CORE_JOBS_DIR:-$CORE_DIR/srv/update/jobs}"
 LOGS_DIR="${EASYWI_CORE_LOGS_DIR:-$CORE_DIR/srv/update/logs}"
 BACKUPS_DIR="${EASYWI_CORE_BACKUPS_DIR:-$CORE_DIR/srv/update/backups}"
-UPDATES_DIR="${EASYWI_CORE_UPDATES_DIR:-$CORE_DIR/srv/update/work}"
-KEEP_RELEASES="${EASYWI_CORE_KEEP_RELEASES:-5}"
-HEALTHCHECK_URL="${EASYWI_CORE_HEALTHCHECK_URL:-http://127.0.0.1/health}"
-PUBLIC_KEY_PATH="${EASYWI_CORE_UPDATE_PUBLIC_KEY:-}"
+EXCLUDES=(
+  ".env"
+  "config/local*"
+  "var/"
+  "srv/"
+  "storage/"
+  "uploads/"
+)
 
-EXCLUDES=(".env" "config/local*" "var/" "srv/" "storage/" "uploads/")
+usage() {
+  echo "Usage: $0 --run-job <job-id>" >&2
+  exit 2
+}
 
-usage(){ echo "Usage: $0 --run-job <job-id>" >&2; exit 2; }
-while [[ $# -gt 0 ]]; do case "$1" in --run-job) JOB_ID="${2:-}"; shift 2;; *) usage;; esac; done
-[[ -n "$JOB_ID" ]] || usage
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --run-job)
+      JOB_ID="${2:-}"
+      shift 2
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+if [[ -z "$JOB_ID" ]]; then
+  usage
+fi
 
 JOB_FILE="$JOBS_DIR/$JOB_ID.json"
-[[ -f "$JOB_FILE" ]] || { echo "Job not found: $JOB_FILE" >&2; exit 1; }
-mkdir -p "$LOGS_DIR" "$BACKUPS_DIR" "$RELEASES_DIR" "$UPDATES_DIR"
+if [[ ! -f "$JOB_FILE" ]]; then
+  echo "Job not found: $JOB_FILE" >&2
+  exit 1
+fi
+
+mkdir -p "$LOGS_DIR" "$BACKUPS_DIR"
 LOG_PATH=$(php -r 'echo json_decode(file_get_contents($argv[1]), true)["logPath"] ?? "";' "$JOB_FILE")
-[[ -n "$LOG_PATH" ]] || LOG_PATH="$LOGS_DIR/$JOB_ID.log"
+if [[ -z "$LOG_PATH" ]]; then
+  LOG_PATH="$LOGS_DIR/$JOB_ID.log"
+fi
 
-log(){ printf '[%s] %s\n' "$(date --iso-8601=seconds)" "$1" | tee -a "$LOG_PATH"; }
-update_job(){ php -r '$p=$argv[1];$s=$argv[2];$e=$argv[3]!==""?(int)$argv[3]:null;$d=json_decode(file_get_contents($p),true);$d["status"]=$s;if($s==="running"&&empty($d["startedAt"])){$d["startedAt"]=(new DateTimeImmutable())->format(DateTimeInterface::ATOM);}if(in_array($s,["failed","finished"],true)){$d["finishedAt"]=(new DateTimeImmutable())->format(DateTimeInterface::ATOM);$d["exitCode"]=$e;}file_put_contents($p,json_encode($d,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL);' "$JOB_FILE" "$1" "${2:-}"; }
-read_job_field(){ php -r 'echo json_decode(file_get_contents($argv[1]), true)[$argv[2]] ?? "";' "$JOB_FILE" "$1"; }
-read_payload(){ php -r '$d=json_decode(file_get_contents($argv[1]),true);echo is_array($d)&&isset($d["payload"])?($d["payload"][$argv[2]]??""):"";' "$JOB_FILE" "$1"; }
-
-require_cmd(){ command -v "$1" >/dev/null 2>&1 || { log "Missing command: $1"; return 1; }; }
-current_release(){ if [[ -L "$CURRENT_SYMLINK" ]]; then readlink -f "$CURRENT_SYMLINK"; elif [[ -d "$CORE_DIR" ]]; then echo "$CORE_DIR"; fi }
-
-preflight(){
-  require_cmd curl && require_cmd rsync && require_cmd tar && require_cmd php || return 1
-  [[ -w "$JOBS_DIR" && -w "$LOGS_DIR" && -w "$RELEASES_DIR" ]] || { log "Write permissions missing."; return 1; }
-  local kb; kb=$(df -Pk "$UPDATES_DIR" | awk 'NR==2{print $4}'); [[ "${kb:-0}" -gt 524288 ]] || { log "Not enough free disk space."; return 1; }
-  php -v >/dev/null || return 1
+log() {
+  printf '[%s] %s\n' "$(date --iso-8601=seconds)" "$1" | tee -a "$LOG_PATH"
 }
 
-download_package(){
-  local url="$1" dest="$2"
-  [[ -n "$url" ]] || return 1
-  log "Downloading package: $url"
-  curl --fail --location --retry 4 --retry-delay 2 --continue-at - --connect-timeout 10 --max-time 600 "$url" -o "$dest"
+update_job() {
+  local status="$1"
+  local exit_code="${2:-}"
+  php -r '
+    $path = $argv[1];
+    $status = $argv[2];
+    $exitCode = $argv[3] !== "" ? (int) $argv[3] : null;
+    $data = json_decode(file_get_contents($path), true);
+    if (!is_array($data)) { exit(1); }
+    $data["status"] = $status;
+    if ($status === "running" && empty($data["startedAt"])) {
+        $data["startedAt"] = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+    }
+    if (in_array($status, ["failed", "finished"], true)) {
+        $data["finishedAt"] = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+        $data["exitCode"] = $exitCode;
+    }
+    file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+  ' "$JOB_FILE" "$status" "${exit_code:-}"
 }
 
-verify_sha(){
-  local file="$1" expected="$2"; [[ -n "$expected" ]] || return 0
-  local actual; actual=$(sha256sum "$file" | awk '{print $1}')
-  [[ "$actual" == "$expected" ]] || { log "SHA256 mismatch (expected $expected got $actual)."; return 1; }
-  log "SHA256 verification passed."
+read_job_field() {
+  local field="$1"
+  php -r 'echo json_decode(file_get_contents($argv[1]), true)[$argv[2]] ?? "";' "$JOB_FILE" "$field"
 }
 
-verify_signature(){
-  local archive="$1" sig_url="$2"
-  [[ -n "$sig_url" && -n "$PUBLIC_KEY_PATH" && -f "$PUBLIC_KEY_PATH" ]] || return 0
-  local sig_file="$archive.sig"
-  curl --fail --location --retry 3 "$sig_url" -o "$sig_file"
-  if command -v openssl >/dev/null 2>&1; then
-    openssl dgst -sha256 -verify "$PUBLIC_KEY_PATH" -signature "$sig_file" "$archive" >/dev/null
-    log "Signature verification passed."
+read_job_payload_field() {
+  local field="$1"
+  php -r '
+    $data = json_decode(file_get_contents($argv[1]), true);
+    echo is_array($data) && isset($data["payload"]) ? ($data["payload"][$argv[2]] ?? "") : "";
+  ' "$JOB_FILE" "$field"
+}
+
+download_package() {
+  local url="$1"
+  local dest="$2"
+  if [[ -z "$url" ]]; then
+    return 1
   fi
+  log "Downloading update package."
+  curl -fsSL "$url" -o "$dest"
 }
 
-extract_package(){
-  local archive="$1" target="$2"; mkdir -p "$target"
+extract_package() {
+  local archive="$1"
+  local target="$2"
+  mkdir -p "$target"
   case "$archive" in
-    *.zip) require_cmd unzip || return 1; unzip -q "$archive" -d "$target" ;;
-    *.tar.gz|*.tgz) tar -xzf "$archive" -C "$target" ;;
-    *.tar) tar -xf "$archive" -C "$target" ;;
-    *) log "Unsupported archive format."; return 1 ;;
+    *.zip)
+      unzip -q "$archive" -d "$target"
+      ;;
+    *.tar.gz|*.tgz)
+      tar -xzf "$archive" -C "$target"
+      ;;
+    *.tar)
+      tar -xf "$archive" -C "$target"
+      ;;
+    *)
+      return 1
+      ;;
   esac
 }
 
-perform_backup(){
-  local active; active=$(current_release)
+perform_backup() {
   local backup_path="$BACKUPS_DIR/$(date +%Y%m%d%H%M%S)"
-  mkdir -p "$backup_path"; log "Creating backup at $backup_path"
-  local rsync_excludes=(); for item in "${EXCLUDES[@]}"; do rsync_excludes+=(--exclude "$item"); done
-  rsync -a --delete "${rsync_excludes[@]}" "$active/" "$backup_path/"
+  mkdir -p "$backup_path"
+  log "Creating backup at $backup_path."
+  local rsync_excludes=()
+  for item in "${EXCLUDES[@]}"; do
+    rsync_excludes+=(--exclude "$item")
+  done
+  rsync -a --delete "${rsync_excludes[@]}" "$CORE_DIR/" "$backup_path/"
+  php -r '
+    $path = $argv[1];
+    $data = json_decode(file_get_contents($path), true);
+    $data["payload"]["backup_path"] = $argv[2];
+    file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+  ' "$JOB_FILE" "$backup_path"
 }
 
-activate_release(){
-  local version="$1" source="$2" previous="$3"
-  local release_dir="$RELEASES_DIR/$version"
-  rm -rf "$release_dir"; mkdir -p "$release_dir"
-  local rsync_excludes=(); for item in "${EXCLUDES[@]}"; do rsync_excludes+=(--exclude "$item"); done
-  rsync -a --delete "${rsync_excludes[@]}" "$source/" "$release_dir/"
-
-  if [[ -f "$release_dir/composer.lock" && ! -d "$release_dir/vendor" ]]; then
-    log "Running composer install for novendor package."
-    (cd "$release_dir" && composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader)
+perform_update() {
+  local package_url
+  package_url="$(read_job_payload_field package_url)"
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  local archive="$tmp_dir/package"
+  if ! download_package "$package_url" "$archive"; then
+    log "Missing package URL."
+    return 1
   fi
-
-  ln -sfn "$release_dir" "$CURRENT_SYMLINK"
-  log "Activated release $release_dir"
-
-  (cd "$CURRENT_SYMLINK" && php bin/console doctrine:migrations:migrate --no-interaction) || return 1
-  (cd "$CURRENT_SYMLINK" && php bin/console cache:clear --env=prod && php bin/console cache:warmup --env=prod) || return 1
-  curl --fail --silent --show-error "$HEALTHCHECK_URL" >/dev/null || return 1
-
-  cleanup_old_releases
-  echo "$previous" > "$UPDATES_DIR/$JOB_ID.previous"
-}
-
-cleanup_old_releases(){
-  mapfile -t releases < <(find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
-  local count=${#releases[@]}
-  if (( count > KEEP_RELEASES )); then
-    local rm_count=$((count - KEEP_RELEASES))
-    for ((i=0; i<rm_count; i++)); do rm -rf "${releases[$i]}"; done
+  local extract_dir="$tmp_dir/extract"
+  if ! extract_package "$archive" "$extract_dir"; then
+    log "Failed to extract archive."
+    return 1
   fi
+  local root_dir
+  root_dir="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  if [[ -z "$root_dir" ]]; then
+    root_dir="$extract_dir"
+  fi
+  local rsync_excludes=()
+  for item in "${EXCLUDES[@]}"; do
+    rsync_excludes+=(--exclude "$item")
+  done
+  log "Deploying core update to $CORE_DIR."
+  rsync -a --delete "${rsync_excludes[@]}" "$root_dir/" "$CORE_DIR/"
+  log "Running composer install."
+  (cd "$CORE_DIR" && composer install --no-dev --no-interaction --optimize-autoloader)
+  log "Clearing cache."
+  (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
+  log "Warming cache."
+  (cd "$CORE_DIR" && php bin/console cache:warmup --env=prod)
 }
 
-perform_update(){
-  preflight || return 1
-  local url sha target_version sig_url
-  url="$(read_payload package_url)"; sha="$(read_payload sha256)"; target_version="$(read_payload target_version)"; sig_url="$(read_payload signature_url)"
-  [[ -n "$target_version" ]] || target_version="$(date +%Y.%m.%d-%H%M%S)"
-  local filename="${url##*/}"
-  local archive="$UPDATES_DIR/$JOB_ID/${filename%%\?*}"
-  local work="$UPDATES_DIR/$JOB_ID/staging"
-  rm -rf "$UPDATES_DIR/$JOB_ID"; mkdir -p "$work"
-  download_package "$url" "$archive" || return 1
-  verify_sha "$archive" "$sha" || return 1
-  verify_signature "$archive" "$sig_url" || return 1
-  extract_package "$archive" "$work" || return 1
-  local root; root="$(find "$work" -mindepth 1 -maxdepth 1 -type d | head -n1)"; [[ -n "$root" ]] || root="$work"
-  if [[ ! -f "$root/bin/console" && -f "$work/bin/console" ]]; then root="$work"; fi
-  local previous; previous=$(current_release)
-  activate_release "$target_version" "$root" "$previous" || { [[ -n "$previous" ]] && ln -sfn "$previous" "$CURRENT_SYMLINK"; return 1; }
+perform_migrate() {
+  log "Running migrations."
+  (cd "$CORE_DIR" && php bin/console doctrine:migrations:migrate --no-interaction)
+  log "Clearing cache."
+  (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
 }
 
-perform_migrate(){ (cd "$CURRENT_SYMLINK" && php bin/console doctrine:migrations:migrate --no-interaction); }
-perform_rollback(){ local previous_file="$UPDATES_DIR/$JOB_ID.previous"; local target="$(read_payload backup_path)"; [[ -n "$target" ]] || target="$(cat "$previous_file" 2>/dev/null || true)"; [[ -d "$target" ]] || { log "Rollback target missing."; return 1; }; ln -sfn "$target" "$CURRENT_SYMLINK"; (cd "$CURRENT_SYMLINK" && php bin/console cache:clear --env=prod); }
+perform_rollback() {
+  local backup_path
+  backup_path="$(read_job_payload_field backup_path)"
+  if [[ -z "$backup_path" ]]; then
+    backup_path="$(ls -1 "$BACKUPS_DIR" | tail -n 1)"
+    backup_path="$BACKUPS_DIR/$backup_path"
+  fi
+  if [[ ! -d "$backup_path" ]]; then
+    log "Backup not found."
+    return 1
+  fi
+  local rsync_excludes=()
+  for item in "${EXCLUDES[@]}"; do
+    rsync_excludes+=(--exclude "$item")
+  done
+  log "Restoring backup from $backup_path."
+  rsync -a --delete "${rsync_excludes[@]}" "$backup_path/" "$CORE_DIR/"
+  log "Clearing cache."
+  (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
+}
 
-exec 9>"$LOCK_FILE"; flock -n 9 || { log "Another update job is running."; exit 1; }
-update_job "running"; TYPE="$(read_job_field type)"; EXIT_CODE=0
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  log "Another update job is running."
+  exit 1
+fi
+
+update_job "running"
+TYPE="$(read_job_field type)"
+EXIT_CODE=0
+
 log "Starting job $JOB_ID ($TYPE)."
-case "$TYPE" in
-  update) perform_backup; perform_update || EXIT_CODE=$? ;;
-  migrate) perform_migrate || EXIT_CODE=$? ;;
-  both) perform_backup; perform_update || EXIT_CODE=$?; [[ "$EXIT_CODE" -eq 0 ]] && perform_migrate || true ;;
-  rollback) perform_rollback || EXIT_CODE=$? ;;
-  *) log "Unknown job type."; EXIT_CODE=2 ;;
-esac
+if [[ "$TYPE" == "update" ]]; then
+  perform_backup
+  perform_update || EXIT_CODE=$?
+elif [[ "$TYPE" == "migrate" ]]; then
+  perform_migrate || EXIT_CODE=$?
+elif [[ "$TYPE" == "both" ]]; then
+  perform_backup
+  perform_update || EXIT_CODE=$?
+  if [[ "$EXIT_CODE" -eq 0 ]]; then
+    perform_migrate || EXIT_CODE=$?
+  fi
+elif [[ "$TYPE" == "rollback" ]]; then
+  perform_rollback || EXIT_CODE=$?
+else
+  log "Unknown job type."
+  EXIT_CODE=2
+fi
 
-if [[ "$EXIT_CODE" -eq 0 ]]; then update_job "finished" "0"; log "Job finished successfully."; else update_job "failed" "$EXIT_CODE"; log "Job failed with exit code $EXIT_CODE."; fi
+if [[ "$EXIT_CODE" -eq 0 ]]; then
+  update_job "finished" "0"
+  log "Job finished successfully."
+else
+  update_job "failed" "$EXIT_CODE"
+  log "Job failed with exit code $EXIT_CODE."
+fi
+
 exit "$EXIT_CODE"

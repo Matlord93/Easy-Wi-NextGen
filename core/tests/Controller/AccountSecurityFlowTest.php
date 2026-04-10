@@ -19,19 +19,6 @@ use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 final class AccountSecurityFlowTest extends WebTestCase
 {
     private static bool $schemaBootstrapped = false;
-    private const FIXED_NOW = '2035-01-01T00:00:00+00:00';
-
-    protected function tearDown(): void
-    {
-        if (self::$kernel !== null) {
-            $em = self::getContainer()->get(EntityManagerInterface::class);
-            $em->clear();
-        }
-
-        self::ensureKernelShutdown();
-
-        parent::tearDown();
-    }
 
     public function testSecurityPageRequiresReauthByDefault(): void
     {
@@ -148,7 +135,11 @@ final class AccountSecurityFlowTest extends WebTestCase
         $em = self::getContainer()->get(EntityManagerInterface::class);
         $this->ensureSchema($em);
         $this->ensureInstallLock();
-        $this->resetState($em);
+
+        $conn = $em->getConnection();
+        $conn->executeStatement('DELETE FROM user_sessions');
+        $conn->executeStatement('DELETE FROM users');
+        $conn->executeStatement('DELETE FROM sites');
 
         $site = new Site('Demo', 'localhost');
         $user = new User($email, UserType::Customer);
@@ -167,9 +158,8 @@ final class AccountSecurityFlowTest extends WebTestCase
     {
         $em = self::getContainer()->get(EntityManagerInterface::class);
         $session = new UserSession($user, hash('sha256', $rawToken));
-        $now = new \DateTimeImmutable(self::FIXED_NOW);
-        $session->setLastUsedAt($now);
-        $session->setExpiresAt($now->modify('+30 days'));
+        $session->setLastUsedAt(new \DateTimeImmutable());
+        $session->setExpiresAt((new \DateTimeImmutable())->modify('+30 days'));
         $em->persist($session);
         $em->flush();
 
@@ -203,15 +193,5 @@ final class AccountSecurityFlowTest extends WebTestCase
         if (!file_exists($path)) {
             file_put_contents($path, (new \DateTimeImmutable())->format(DATE_ATOM));
         }
-    }
-
-    private function resetState(EntityManagerInterface $em): void
-    {
-        $conn = $em->getConnection();
-        $conn->executeStatement('PRAGMA foreign_keys = OFF');
-        foreach (['user_sessions', 'audit_logs', 'users', 'sites'] as $table) {
-            $conn->executeStatement(sprintf('DELETE FROM %s', $table));
-        }
-        $conn->executeStatement('PRAGMA foreign_keys = ON');
     }
 }

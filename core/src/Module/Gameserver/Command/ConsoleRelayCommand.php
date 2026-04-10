@@ -55,47 +55,20 @@ final class ConsoleRelayCommand extends Command
     {
         $attempt = 0;
         $lastEventAt = time();
-        $streamCorrelationId = bin2hex(random_bytes(6));
-        $lastOffset = 0;
-        $reconnects = 0;
-        $windowStarted = microtime(true);
-        $windowBytes = 0;
 
         while ($this->eventBus->getSubscriberCount($instanceId) > 0) {
             try {
-                foreach ($this->grpcClient->attachStream($instanceId, $lastOffset) as $event) {
-                    $chunk = isset($event['chunk_bytes']) ? (string) $event['chunk_bytes'] : (isset($event['chunk']) ? (string) $event['chunk'] : '');
-                    $seq = (int) ($event['seq'] ?? 0);
-                    if ($seq > 0) {
-                        $lastOffset = max($lastOffset, $seq);
-                    }
-                    $windowBytes += strlen($chunk);
+                foreach ($this->grpcClient->attachStream($instanceId) as $event) {
                     $payload = [
                         'type' => 'chunk',
                         'ts' => $event['ts'] ?? (new \DateTimeImmutable())->format(DATE_ATOM),
                         'instance_id' => $instanceId,
-                        'chunk_base64' => $chunk !== '' ? base64_encode($chunk) : null,
-                        'seq' => $seq > 0 ? $seq : null,
+                        'chunk_base64' => isset($event['chunk_bytes']) ? base64_encode((string) $event['chunk_bytes']) : (isset($event['chunk']) ? base64_encode((string) $event['chunk']) : null),
+                        'seq' => $event['seq'] ?? null,
                         'status' => $event['status'] ?? null,
-                        'correlation_id' => $event['correlation_id'] ?? $streamCorrelationId,
                     ];
                     $this->eventBus->publishConsoleEvent($instanceId, $payload);
                     $lastEventAt = time();
-
-                    if ((microtime(true) - $windowStarted) >= 1.0) {
-                        $this->eventBus->publishConsoleEvent($instanceId, [
-                            'type' => 'metrics',
-                            'status' => 'stream_metrics',
-                            'instance_id' => $instanceId,
-                            'bytes_per_sec' => $windowBytes,
-                            'reconnects' => $reconnects,
-                            'last_offset' => $lastOffset,
-                            'correlation_id' => $streamCorrelationId,
-                            'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
-                        ]);
-                        $windowStarted = microtime(true);
-                        $windowBytes = 0;
-                    }
                 }
                 $attempt = 0;
             } catch (NodeEndpointMissingException $e) {
@@ -105,16 +78,12 @@ final class ConsoleRelayCommand extends Command
                     'status' => 'node_endpoint_missing',
                     'instance_id' => $instanceId,
                     'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
-                    'correlation_id' => $streamCorrelationId,
-                    'last_offset' => $lastOffset,
                 ]);
                 usleep(2_000_000);
             } catch (\Throwable $e) {
                 $attempt++;
-                $reconnects++;
                 $sleepMs = min(30_000, 1000 * (2 ** min($attempt, 5)) + random_int(0, 300));
-                $streamCorrelationId = bin2hex(random_bytes(6));
-                $this->logger->warning('console relay reconnect', ['instance_id' => $instanceId, 'attempt' => $attempt, 'correlation_id' => $streamCorrelationId, 'last_offset' => $lastOffset]);
+                $this->logger->warning('console relay reconnect', ['instance_id' => $instanceId, 'attempt' => $attempt, 'correlation_id' => bin2hex(random_bytes(6))]);
                 usleep($sleepMs * 1000);
             }
 
@@ -123,9 +92,6 @@ final class ConsoleRelayCommand extends Command
                     'type' => 'ping',
                     'instance_id' => $instanceId,
                     'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
-                    'correlation_id' => $streamCorrelationId,
-                    'last_offset' => $lastOffset,
-                    'reconnects' => $reconnects,
                 ]);
                 $lastEventAt = time();
             }

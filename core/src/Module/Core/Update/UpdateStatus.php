@@ -13,7 +13,6 @@ final class UpdateStatus
         public readonly ?string $notes,
         public readonly ?string $error,
         public readonly ?string $assetUrl,
-        public readonly ?string $assetSha256 = null,
     ) {
     }
 }

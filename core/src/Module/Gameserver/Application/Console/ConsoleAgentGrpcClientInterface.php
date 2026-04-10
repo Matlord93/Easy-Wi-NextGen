@@ -11,5 +11,5 @@ interface ConsoleAgentGrpcClientInterface
     /**
      * @return iterable<array<string,mixed>>
      */
-    public function attachStream(int $instanceId, int $lastOffset = 0): iterable;
+    public function attachStream(int $instanceId): iterable;
 }

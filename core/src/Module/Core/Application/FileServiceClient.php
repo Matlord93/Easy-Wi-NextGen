@@ -582,11 +582,6 @@ final class FileServiceClient
             $headers['X-Request-ID'] = $requestId;
         }
 
-        $correlationId = $this->requestStack->getCurrentRequest()?->headers->get('X-Correlation-ID');
-        if (is_string($correlationId) && $correlationId !== '') {
-            $headers['X-Correlation-ID'] = $correlationId;
-        }
-
         $options['headers'] = $headers;
 
         return [

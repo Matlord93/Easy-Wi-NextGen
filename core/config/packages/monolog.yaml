@@ -5,25 +5,21 @@ monolog:
       type: stream
       path: '%kernel.logs_dir%/%kernel.environment%.log'
       level: error
-      formatter: monolog.formatter.json
     files:
       type: stream
       path: '%kernel.logs_dir%/files.%kernel.environment%.log'
       level: info
       channels: ['files']
-      formatter: monolog.formatter.json
     update:
       type: stream
       path: '%kernel.logs_dir%/update.%kernel.environment%.log'
       level: info
       channels: ['update']
-      formatter: monolog.formatter.json
     setup:
       type: stream
       path: '%kernel.logs_dir%/setup.%kernel.environment%.log'
       level: info
       channels: ['setup']
-      formatter: monolog.formatter.json
     console:
       type: console
       process_psr_3_messages: false

@@ -14,7 +14,6 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
 
     public function publishConsoleEvent(int $instanceId, array $payload): void
     {
-        $payload['seq'] = $this->resolveSequence($instanceId, $payload);
         $json = json_encode($payload, JSON_THROW_ON_ERROR);
         $this->redis->multi();
         $this->redis->rPush($this->bufferKey($instanceId), $json);
@@ -93,7 +92,11 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
 
     public function getInstancesWithSubscribers(): array
     {
-        $keys = $this->scanSubscriberKeys();
+        $keys = $this->redis->keys('console_subscribers:*');
+        if (!is_array($keys)) {
+            return [];
+        }
+
         $out = [];
         foreach ($keys as $key) {
             if (!is_string($key) || !str_contains($key, ':')) {
@@ -106,36 +109,6 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
         }
 
         return array_values(array_unique($out));
-    }
-
-
-    private function resolveSequence(int $instanceId, array $payload): int
-    {
-        $provided = (int) ($payload['seq'] ?? 0);
-        if ($provided > 0) {
-            return $provided;
-        }
-
-        return (int) $this->redis->incr($this->sequenceKey($instanceId));
-    }
-
-    /** @return list<string> */
-    private function scanSubscriberKeys(): array
-    {
-        $cursor = null;
-        $keys = [];
-        do {
-            $result = $this->redis->scan($cursor, 'console_subscribers:*', 100);
-            if (is_array($result) && $result !== []) {
-                foreach ($result as $key) {
-                    if (is_string($key)) {
-                        $keys[] = $key;
-                    }
-                }
-            }
-        } while ($cursor !== 0 && $cursor !== '0');
-
-        return $keys;
     }
 
     private function channel(int $instanceId): string
@@ -151,10 +124,5 @@ final class RedisConsoleEventBus implements ConsoleEventBusInterface
     private function subscriberKey(int $instanceId): string
     {
         return sprintf('console_subscribers:%d', $instanceId);
-    }
-
-    private function sequenceKey(int $instanceId): string
-    {
-        return sprintf('console_seq:%d', $instanceId);
     }
 }

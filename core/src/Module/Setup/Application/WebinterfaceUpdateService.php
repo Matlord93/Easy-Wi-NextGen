@@ -61,7 +61,6 @@ final class WebinterfaceUpdateService
             $manifest->notes,
             null,
             $manifest->assetUrl,
-            $manifest->sha256,
         );
     }
 
@@ -428,13 +427,6 @@ final class WebinterfaceUpdateService
         $assetUrl = is_string($payload['asset_url'] ?? null) ? trim($payload['asset_url']) : '';
         $sha256 = is_string($payload['sha256'] ?? null) ? trim($payload['sha256']) : null;
         $notes = is_string($payload['notes'] ?? null) ? trim($payload['notes']) : null;
-
-        if (is_array($payload['releases'] ?? null)) {
-            $resolved = $this->createManifestFromFeedPayload($payload);
-            if ($resolved !== null) {
-                return $resolved;
-            }
-        }
         $deltaPayload = is_array($payload['delta'] ?? null) ? $payload['delta'] : null;
         $deltaFrom = is_array($deltaPayload) && is_string($deltaPayload['from'] ?? null) ? trim($deltaPayload['from']) : null;
         $deltaAssetUrl = is_array($deltaPayload) && is_string($deltaPayload['asset_url'] ?? null) ? trim($deltaPayload['asset_url']) : null;
@@ -459,58 +451,6 @@ final class WebinterfaceUpdateService
             $deltaAssetUrl !== '' ? $deltaAssetUrl : null,
             $deltaSha256 !== '' ? $deltaSha256 : null,
             $deltaDeletes,
-        );
-    }
-
-    private function createManifestFromFeedPayload(array $payload): ?UpdateManifest
-    {
-        $latest = is_string($payload['latest'] ?? null) ? trim($payload['latest']) : '';
-        if ($latest === '') {
-            return null;
-        }
-
-        $release = null;
-        foreach ($payload['releases'] as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-            if (trim((string) ($item['version'] ?? '')) !== $latest) {
-                continue;
-            }
-            $release = $item;
-            break;
-        }
-
-        if (!is_array($release)) {
-            return null;
-        }
-
-        $artifacts = is_array($release['artifacts'] ?? null) ? $release['artifacts'] : [];
-        $preferredArtifact = is_array($artifacts['core_novendor_targz'] ?? null)
-            ? $artifacts['core_novendor_targz']
-            : (is_array($artifacts['core_novendor_zip'] ?? null) ? $artifacts['core_novendor_zip'] : null);
-
-        if (!is_array($preferredArtifact)) {
-            return null;
-        }
-
-        $assetUrl = trim((string) ($preferredArtifact['url'] ?? ''));
-        if ($assetUrl === '') {
-            return null;
-        }
-
-        $sha256 = trim((string) ($preferredArtifact['sha256'] ?? ''));
-        $notes = trim((string) ($release['changelog'] ?? ''));
-
-        return new UpdateManifest(
-            $latest,
-            $assetUrl,
-            $sha256 !== '' ? $sha256 : null,
-            $notes !== '' ? $notes : null,
-            null,
-            null,
-            null,
-            [],
         );
     }
 

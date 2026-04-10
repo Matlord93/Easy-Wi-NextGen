@@ -48,9 +48,6 @@
     let fallbackActive = false;
     let lines = [];
     let relayDisconnectNoticeShown = false;
-    let lastOffset = 0;
-    let droppedLines = 0;
-    let heartbeatTimer = null;
 
     const MAX_STREAM_FAILURES = 5;
 
@@ -64,8 +61,6 @@
         const prefix = kind === 'meta' ? '[meta] ' : '';
         lines.push(prefix + line);
         if (lines.length > SCROLLBACK_LIMIT) {
-            const dropped = lines.length - SCROLLBACK_LIMIT;
-            droppedLines += dropped;
             lines = lines.slice(-SCROLLBACK_LIMIT);
         }
         renderLines();
@@ -95,19 +90,6 @@
             reconnectTimer = null;
             connect();
         }, delay);
-    };
-
-    const armHeartbeat = () => {
-        if (heartbeatTimer) {
-            window.clearTimeout(heartbeatTimer);
-        }
-        heartbeatTimer = window.setTimeout(() => {
-            if (source) {
-                source.close();
-                source = null;
-            }
-            scheduleReconnect();
-        }, 30000);
     };
 
     const activatePollingFallback = async (reason = streamUnavailableMessage) => {
@@ -201,9 +183,6 @@
         }
 
         const url = new URL(streamUrl, window.location.origin);
-        if (lastOffset > 0) {
-            url.searchParams.set('last_offset', String(lastOffset));
-        }
 
         if (source) {
             source.close();
@@ -223,9 +202,8 @@
                 fallbackRetryTimer = null;
             }
             errors.clearInline(inlineError);
-            armHeartbeat();
             if (healthEl) {
-                healthEl.textContent = `Live stream connected · offset ${lastOffset}`;
+                healthEl.textContent = 'Live stream connected';
             }
         };
         source.onmessage = (event) => {
@@ -236,11 +214,6 @@
                 return;
             }
 
-            armHeartbeat();
-            const seq = Number(payload.seq || 0);
-            if (Number.isFinite(seq) && seq > lastOffset) {
-                lastOffset = seq;
-            }
             if (payload.chunk_base64) {
                 appendLine(decodeBase64(payload.chunk_base64));
             }
@@ -252,11 +225,8 @@
                     return;
                 }
             }
-            if (payload.type === 'metrics' && healthEl) {
-                healthEl.textContent = `Live ${payload.bytes_per_sec || 0} B/s · reconnects ${payload.reconnects || 0} · dropped ${payload.dropped_lines || droppedLines}`;
-            }
             if (payload.status && healthEl) {
-                healthEl.textContent = `State: ${payload.status} · offset ${lastOffset}`;
+                healthEl.textContent = `State: ${payload.status}`;
             }
             if (payload.cpu !== undefined && healthEl) {
                 healthEl.textContent = `CPU: ${payload.cpu}% · RAM: ${payload.ram_mb || 0} MB`;
@@ -375,9 +345,6 @@
         }
         if (fallbackRetryTimer) {
             window.clearInterval(fallbackRetryTimer);
-        }
-        if (heartbeatTimer) {
-            window.clearTimeout(heartbeatTimer);
         }
     });
 })();
