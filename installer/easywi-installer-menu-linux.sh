@@ -685,7 +685,7 @@ download_release_asset() {
     return 0
   fi
 
-  if [[ "${asset}" =~ ^easywi-agent-linux-(amd64|x86_64)$ ]]; then
+  if [[ "${asset}" =~ ^easywi-agent-linux-(amd64|x86_64|arm64|aarch64)$ ]]; then
     local fallback_asset
     for fallback_asset in "${asset}.tar.gz" "${asset}.zip"; do
       log "Primäres Asset nicht verfügbar, versuche Fallback: ${fallback_asset}"
@@ -718,6 +718,23 @@ download_optional_release_asset() {
   return 1
 }
 
+download_release_asset_from_candidates() {
+  local destination="$1"
+  local version="$2"
+  shift 2
+  local candidates=("$@")
+  local asset
+
+  for asset in "${candidates[@]}"; do
+    if download_optional_release_asset "${asset}" "${destination}" "${version}"; then
+      echo "${asset}"
+      return 0
+    fi
+  done
+
+  fatal "Keines der erwarteten Release-Assets gefunden: ${candidates[*]}"
+}
+
 detect_release_arch() {
   local os
   local arch
@@ -732,8 +749,11 @@ detect_release_arch() {
     x86_64|amd64)
       echo "linux-amd64"
       ;;
+    aarch64|arm64)
+      echo "linux-arm64"
+      ;;
     *)
-      fatal "Nicht unterstützte Architektur: ${arch} (erwartet: amd64)."
+      fatal "Nicht unterstützte Architektur: ${arch} (erwartet: amd64 oder arm64)."
       ;;
   esac
 }
@@ -744,30 +764,50 @@ install_agent_release_binaries() {
   local tmp_dir
   tmp_dir="$(mktemp -d)"
 
-  step "Lade Agent/Wrapper-Releaseassets."
-  download_release_asset "easywi-agent-${release_arch}" "${tmp_dir}/easywi-agent-${release_arch}" "${agent_version}"
-  download_release_asset "easywi-wrapper-${release_arch}" "${tmp_dir}/easywi-wrapper-${release_arch}" "${agent_version}"
-  download_release_asset "checksums.txt" "${tmp_dir}/checksums.txt" "${agent_version}"
-  download_optional_release_asset "checksums.txt.asc" "${tmp_dir}/checksums.txt.asc" "${agent_version}" || true
+  local downloaded_agent_asset
+  local checksums_asset
+
+  step "Lade Agent-Releaseassets."
+  downloaded_agent_asset="$(download_release_asset_from_candidates "${tmp_dir}/agent-asset" "${agent_version}" \
+    "easywi-agent-${release_arch}.tar.gz" \
+    "easywi-agent-${release_arch}.zip" \
+    "easywi-agent-${release_arch}")"
+  checksums_asset="$(download_release_asset_from_candidates "${tmp_dir}/checksums" "${agent_version}" \
+    "checksums.txt" \
+    "checksums-agent.txt" \
+    "checksums.sha256")"
+
+  local extracted_agent="${tmp_dir}/easywi-agent-${release_arch}"
+  case "${downloaded_agent_asset}" in
+    *.tar.gz)
+      tar -xzf "${tmp_dir}/agent-asset" -C "${tmp_dir}"
+      ;;
+    *.zip)
+      unzip -oq "${tmp_dir}/agent-asset" -d "${tmp_dir}"
+      ;;
+    *)
+      mv "${tmp_dir}/agent-asset" "${extracted_agent}"
+      ;;
+  esac
+
+  if [[ ! -f "${extracted_agent}" ]]; then
+    fatal "Agent-Binary nicht gefunden nach Entpacken: ${extracted_agent}"
+  fi
+
+  mv "${tmp_dir}/checksums" "${tmp_dir}/${checksums_asset}"
 
   step "Prüfe SHA256-Checksummen."
   (
     cd "${tmp_dir}"
-    sha256sum -c checksums.txt --ignore-missing
+    sha256sum -c "${checksums_asset}" --ignore-missing
   )
 
-  install -m 0755 "${tmp_dir}/easywi-agent-${release_arch}" /usr/local/bin/easywi-agent
-  install -m 0755 "${tmp_dir}/easywi-wrapper-${release_arch}" /usr/local/bin/easywi-wrapper
+  install -m 0755 "${extracted_agent}" /usr/local/bin/easywi-agent
   chmod +x /usr/local/bin/easywi-agent
-  chmod +x /usr/local/bin/easywi-wrapper
 
   if ! command -v easywi-agent >/dev/null 2>&1; then
     fatal "easywi-agent wurde nicht korrekt installiert."
   fi
-  if ! command -v easywi-wrapper >/dev/null 2>&1; then
-    fatal "easywi-wrapper wurde nicht korrekt installiert."
-  fi
-
   rm -rf "${tmp_dir}"
 }
 

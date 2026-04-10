@@ -54,6 +54,66 @@ verify_checksum() {
   [[ "$expected" == "$actual" ]] || fail "Checksum mismatch for $assetName"
 }
 
+resolve_arch_suffix() {
+  local machine
+  machine="$(uname -m)"
+
+  case "$machine" in
+    x86_64|amd64)
+      echo "amd64"
+      ;;
+    aarch64|arm64)
+      echo "arm64"
+      ;;
+    *)
+      fail "Nicht unterstützte Architektur: ${machine}"
+      ;;
+  esac
+}
+
+resolve_agent_asset() {
+  local releaseBase="$1"
+  local targetDir="$2"
+  local checksumsFile="$3"
+  local archSuffix="$4"
+  local baseName="easywi-agent-linux-${archSuffix}"
+  local suffixes=('.tar.gz' '.zip' '')
+  local suffix
+  local assetName
+  local assetPath
+
+  for suffix in "${suffixes[@]}"; do
+    assetName="${baseName}${suffix}"
+    assetPath="${targetDir}/${assetName}"
+
+    if ! curl_cmd "${releaseBase}/${assetName}" -o "${assetPath}"; then
+      continue
+    fi
+
+    verify_checksum "$checksumsFile" "${assetPath}" "${assetName}"
+    case "${suffix}" in
+      '')
+        echo "${assetPath}"
+        return
+        ;;
+      '.tar.gz')
+        tar -xzf "${assetPath}" -C "${targetDir}"
+        ;;
+      '.zip')
+        command -v unzip >/dev/null || fail 'unzip fehlt'
+        unzip -oq "${assetPath}" -d "${targetDir}"
+        ;;
+    esac
+
+    if [[ -f "${targetDir}/${baseName}" ]]; then
+      echo "${targetDir}/${baseName}"
+      return
+    fi
+  done
+
+  fail "Kein passendes Agent-Asset gefunden (geprüft: ${baseName} mit '', .tar.gz, .zip)"
+}
+
 write_systemd_unit() {
   local binaryPath="$1"
   local tmpUnit
@@ -94,21 +154,21 @@ main() {
   [[ -n "$tag" && "$tag" != "null" ]] || fail 'keine Release-Version gefunden'
 
   local releaseBase="https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/${tag}"
-  local assetName='easywi-agent-linux-amd64'
   local targetBinary="${INSTALL_DIR}/easywi-agent"
+  local archSuffix
+  archSuffix="$(resolve_arch_suffix)"
 
   mkdir -p "$INSTALL_DIR" "$(dirname "$CONFIG_PATH")"
   local tempDir
   tempDir="$(mktemp -d)"
   trap 'rm -rf "$tempDir"' EXIT
 
-  local downloadedBinary="$tempDir/$assetName"
-  local checksumsFile="$tempDir/checksums-agent.txt"
+  local checksumsFile="$tempDir/checksums.sha256"
 
   log "Lade Agent ${tag} herunter"
-  curl_cmd "${releaseBase}/${assetName}" -o "$downloadedBinary"
-  curl_cmd "${releaseBase}/checksums-agent.txt" -o "$checksumsFile"
-  verify_checksum "$checksumsFile" "$downloadedBinary" "$assetName"
+  curl_cmd "${releaseBase}/checksums.sha256" -o "$checksumsFile"
+  local downloadedBinary
+  downloadedBinary="$(resolve_agent_asset "$releaseBase" "$tempDir" "$checksumsFile" "$archSuffix")"
 
   if [[ -f "$targetBinary" ]] && cmp -s "$downloadedBinary" "$targetBinary"; then
     log "Binary bereits aktuell (${tag}), überspringe Austausch"

@@ -488,6 +488,58 @@ function Try-DownloadReleaseAsset {
     }
 }
 
+
+function Download-ReleaseAssetFromCandidates {
+    param(
+        [string]$Version,
+        [string[]]$AssetNames,
+        [string]$TargetPath
+    )
+
+    foreach ($candidate in $AssetNames) {
+        if (Try-DownloadReleaseAsset -Version $Version -AssetName $candidate -TargetPath $TargetPath) {
+            return $candidate
+        }
+    }
+
+    throw "Keines der erwarteten Release-Assets gefunden: $($AssetNames -join ', ')"
+}
+
+function Resolve-WindowsExecutableAsset {
+    param(
+        [string]$Version,
+        [string]$BaseAssetName,
+        [string]$TargetPath
+    )
+
+    Ensure-Directory -Path (Split-Path -Parent $TargetPath)
+    $tempAssetPath = "$TargetPath.download"
+    $assetName = Download-ReleaseAssetFromCandidates -Version $Version -AssetNames @(
+        "$BaseAssetName.exe",
+        "$BaseAssetName.zip"
+    ) -TargetPath $tempAssetPath
+
+    if ($assetName.EndsWith('.zip')) {
+        $extractDir = Join-Path ([System.IO.Path]::GetTempPath()) ("easywi-installer-" + [guid]::NewGuid().ToString('N'))
+        Ensure-Directory -Path $extractDir
+        try {
+            Expand-Archive -Path $tempAssetPath -DestinationPath $extractDir -Force
+            $expectedExe = "$BaseAssetName.exe"
+            $exeCandidate = Get-ChildItem -Path $extractDir -Recurse -File | Where-Object { $_.Name -eq $expectedExe } | Select-Object -First 1
+            if ($null -eq $exeCandidate) {
+                throw "Keine ausführbare Datei $expectedExe im Archiv gefunden."
+            }
+            Move-Item -Path $exeCandidate.FullName -Destination $TargetPath -Force
+        } finally {
+            Remove-Item -Path $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path $tempAssetPath -Force -ErrorAction SilentlyContinue
+        }
+        return
+    }
+
+    Move-Item -Path $tempAssetPath -Destination $TargetPath -Force
+}
+
 function Install-AgentServices {
     param(
         [string]$ServiceName,
@@ -777,10 +829,15 @@ function Run-AgentInstall {
     $sftpPath = Join-Path $installDir 'easywi-sftp.exe'
     $sftpConfigPath = Join-Path $sftpBaseDir 'config.json'
 
-    Download-ReleaseAsset -Version $agentVersion -AssetName 'easywi-agent-windows-amd64.exe' -TargetPath $agentPath
+    Resolve-WindowsExecutableAsset -Version $agentVersion -BaseAssetName 'easywi-agent-windows-amd64' -TargetPath $agentPath
     $enableSftpService = $installEmbeddedSftp -match '^(1|y|yes|true)$'
     if ($enableSftpService) {
-        $downloadedSftp = Try-DownloadReleaseAsset -Version $agentVersion -AssetName 'easywi-sftp-windows-amd64.exe' -TargetPath $sftpPath
+        try {
+            Resolve-WindowsExecutableAsset -Version $agentVersion -BaseAssetName 'easywi-sftp-windows-amd64' -TargetPath $sftpPath
+            $downloadedSftp = $true
+        } catch {
+            $downloadedSftp = $false
+        }
         if (-not $downloadedSftp) {
             Write-Log 'easywi-sftp konnte nicht heruntergeladen werden, Agent wird ohne separaten SFTP-Service installiert.'
         }
