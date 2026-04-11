@@ -772,8 +772,6 @@ install_agent_release_binaries() {
     "easywi-agent-${release_arch}.tar.gz" \
     "easywi-agent-${release_arch}.zip" \
     "easywi-agent-${release_arch}")"
-  checksums_asset="$(download_release_asset_from_candidates "${tmp_dir}/checksums" "${agent_version}" \
-    "checksums.sha256")"
 
   local extracted_agent="${tmp_dir}/easywi-agent-${release_arch}"
   case "${downloaded_agent_asset}" in
