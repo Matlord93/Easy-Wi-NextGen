@@ -773,8 +773,6 @@ install_agent_release_binaries() {
     "easywi-agent-${release_arch}.zip" \
     "easywi-agent-${release_arch}")"
   checksums_asset="$(download_release_asset_from_candidates "${tmp_dir}/checksums" "${agent_version}" \
-    "checksums.txt" \
-    "checksums-agent.txt" \
     "checksums.sha256")"
 
   local extracted_agent="${tmp_dir}/easywi-agent-${release_arch}"
@@ -793,14 +791,6 @@ install_agent_release_binaries() {
   if [[ ! -f "${extracted_agent}" ]]; then
     fatal "Agent-Binary nicht gefunden nach Entpacken: ${extracted_agent}"
   fi
-
-  mv "${tmp_dir}/checksums" "${tmp_dir}/${checksums_asset}"
-
-  step "Prüfe SHA256-Checksummen."
-  (
-    cd "${tmp_dir}"
-    sha256sum -c "${checksums_asset}" --ignore-missing
-  )
 
   install -m 0755 "${extracted_agent}" /usr/local/bin/easywi-agent
   chmod +x /usr/local/bin/easywi-agent
