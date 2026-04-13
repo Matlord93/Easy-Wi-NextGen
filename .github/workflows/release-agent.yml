@@ -90,7 +90,7 @@ jobs:
           gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}"             --armor --detach-sign --output ../dist/checksums.sha256.asc ../dist/checksums.sha256
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Agent ${{ steps.version.outputs.version }}
