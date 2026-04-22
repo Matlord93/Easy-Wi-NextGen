@@ -9,7 +9,7 @@ use Twig\Environment;
 
 final class MaintenancePageResponseFactory
 {
-    private const CSP_POLICY = "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self'";
+    private const CSP_POLICY = "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'";
 
     public function __construct(private readonly Environment $twig)
     {

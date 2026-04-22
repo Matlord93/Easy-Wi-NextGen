@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
+use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Application\WebspaceFileServiceClient;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\PanelCustomer\Application\SftpFilesystemService;
 use App\Module\PanelCustomer\Form\EditFileType;
 use App\Module\PanelCustomer\Form\RenameFileType;
 use App\Module\PanelCustomer\Form\UploadFileType;
@@ -41,6 +43,8 @@ final class CustomerFileManagerController extends AbstractController
         private readonly WebspaceFileServiceClient $fileService,
         private readonly WebspaceRepository $webspaceRepository,
         private readonly LoggerInterface $logger,
+        private readonly AppSettingsService $settingsService,
+        private readonly SftpFilesystemService $sftpService,
     ) {
     }
 
@@ -433,13 +437,21 @@ final class CustomerFileManagerController extends AbstractController
     #[Route(path: '/health', name: 'customer_files_health', methods: ['GET'])]
     public function health(Request $request): JsonResponse
     {
+        $sftpHost = $this->settingsService->getSftpHost();
+        if ($sftpHost === null || $sftpHost === '') {
+            return new JsonResponse([
+                'ok' => false,
+                'message' => 'SFTP host is not configured.',
+                'missing' => ['sftp_host'],
+            ]);
+        }
+
         $webspaceId = (string) $request->query->get('webspace', '');
         if ($webspaceId === '') {
             return new JsonResponse([
-                'ok' => false,
-                'message' => 'Missing required webspace parameter.',
-                'missing' => ['webspace'],
-                'root_readable' => false,
+                'ok' => true,
+                'message' => 'SFTP configuration is present.',
+                'missing' => [],
             ]);
         }
 
@@ -448,6 +460,22 @@ final class CustomerFileManagerController extends AbstractController
             return new JsonResponse([
                 'ok' => false,
                 'message' => 'Webspace not found.',
+                'missing' => [],
+                'root_readable' => false,
+            ]);
+        }
+
+        try {
+            $this->sftpService->testConnection($webspace);
+        } catch (\Throwable $exception) {
+            $this->logger->error('files.health_sftp_failed', [
+                'webspace_id' => $webspace->getId(),
+                'exception' => $exception,
+            ]);
+
+            return new JsonResponse([
+                'ok' => false,
+                'message' => $exception->getMessage(),
                 'missing' => [],
                 'root_readable' => false,
             ]);

@@ -6,7 +6,7 @@ namespace App\Module\Core\Application;
 
 use RuntimeException;
 
-final class EncryptionService
+class EncryptionService
 {
     private int $keyBytes;
     private int $nonceBytes;

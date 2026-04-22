@@ -25,6 +25,7 @@ final class SetupChecker
             'is_ready' => $missing === [],
             'missing' => $missing,
             'blocked_actions' => $missing === [] ? [] : [
+                self::ACTION_INSTALL,
                 self::ACTION_START,
                 self::ACTION_UPDATE,
             ],

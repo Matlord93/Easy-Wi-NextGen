@@ -12,7 +12,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<WebspaceSftpCredential>
  */
-final class WebspaceSftpCredentialRepository extends ServiceEntityRepository
+class WebspaceSftpCredentialRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

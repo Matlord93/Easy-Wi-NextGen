@@ -61,6 +61,7 @@ final class WebinterfaceUpdateService
             $manifest->notes,
             null,
             $manifest->assetUrl,
+            $manifest->sha256,
         );
     }
 
@@ -424,6 +425,16 @@ final class WebinterfaceUpdateService
         }
 
         $latest = is_string($payload['latest'] ?? null) ? trim($payload['latest']) : '';
+        if ($latest === '') {
+            return null;
+        }
+
+        // New structured feed format: {latest, releases:[{version, artifacts:{core_novendor_targz:{url,sha256}}, changelog}]}
+        if (is_array($payload['releases'] ?? null)) {
+            return $this->createManifestFromReleaseFeed($latest, $payload['releases']);
+        }
+
+        // Legacy flat format: {latest, asset_url, sha256, notes, delta}
         $assetUrl = is_string($payload['asset_url'] ?? null) ? trim($payload['asset_url']) : '';
         $sha256 = is_string($payload['sha256'] ?? null) ? trim($payload['sha256']) : null;
         $notes = is_string($payload['notes'] ?? null) ? trim($payload['notes']) : null;
@@ -438,7 +449,7 @@ final class WebinterfaceUpdateService
             }, $deltaPayload['delete']), static fn (?string $value): bool => $value !== null && $value !== ''));
         }
 
-        if ($latest === '' || $assetUrl === '') {
+        if ($assetUrl === '') {
             return null;
         }
 
@@ -452,6 +463,50 @@ final class WebinterfaceUpdateService
             $deltaSha256 !== '' ? $deltaSha256 : null,
             $deltaDeletes,
         );
+    }
+
+    /**
+     * @param array<int, mixed> $releases
+     */
+    private function createManifestFromReleaseFeed(string $latest, array $releases): ?UpdateManifest
+    {
+        foreach ($releases as $release) {
+            if (!is_array($release)) {
+                continue;
+            }
+
+            $version = is_string($release['version'] ?? null) ? trim($release['version']) : '';
+            if ($version !== $latest) {
+                continue;
+            }
+
+            $artifacts = is_array($release['artifacts'] ?? null) ? $release['artifacts'] : [];
+            $artifact = is_array($artifacts['core_novendor_targz'] ?? null) ? $artifacts['core_novendor_targz'] : null;
+            if ($artifact === null) {
+                continue;
+            }
+
+            $assetUrl = is_string($artifact['url'] ?? null) ? trim($artifact['url']) : '';
+            $sha256 = is_string($artifact['sha256'] ?? null) ? trim($artifact['sha256']) : null;
+            $notes = is_string($release['changelog'] ?? null) ? trim($release['changelog']) : null;
+
+            if ($assetUrl === '') {
+                continue;
+            }
+
+            return new UpdateManifest(
+                $latest,
+                $assetUrl,
+                $sha256 !== '' ? $sha256 : null,
+                $notes !== '' ? $notes : null,
+                null,
+                null,
+                null,
+                [],
+            );
+        }
+
+        return null;
     }
 
     private function findAssetUrlByName(array $assets, string $assetName): ?string

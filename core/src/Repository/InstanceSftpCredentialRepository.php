@@ -9,7 +9,7 @@ use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class InstanceSftpCredentialRepository extends ServiceEntityRepository
+class InstanceSftpCredentialRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

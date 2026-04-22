@@ -14,7 +14,7 @@ use League\Flysystem\PhpseclibV3\SftpAdapter;
 use League\Flysystem\PhpseclibV3\SftpConnectionProvider;
 use Psr\Log\LoggerInterface;
 
-final class SftpFilesystemService
+class SftpFilesystemService
 {
     public const int MAX_EDIT_SIZE_BYTES = 1048576;
 

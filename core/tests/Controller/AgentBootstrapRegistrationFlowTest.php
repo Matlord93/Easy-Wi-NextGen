@@ -9,6 +9,7 @@ use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
+use App\Module\Core\Application\LimiterFactoryInterface;
 use App\Module\Core\Application\TokenGenerator;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\AgentBootstrapToken;
@@ -26,7 +27,6 @@ use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\LimiterInterface;
 use Symfony\Component\RateLimiter\RateLimit;
-use Symfony\Component\RateLimiter\RateLimiterFactory;
 
 final class AgentBootstrapRegistrationFlowTest extends TestCase
 {
@@ -42,7 +42,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
         $limiter = $this->createMock(LimiterInterface::class);
         $limiter->method('consume')->willReturn(new RateLimit(1, new DateTimeImmutable(), true, 1));
 
-        $limiterFactory = $this->createMock(RateLimiterFactory::class);
+        $limiterFactory = $this->createMock(LimiterFactoryInterface::class);
         $limiterFactory->method('create')->willReturn($limiter);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
@@ -120,7 +120,7 @@ final class AgentBootstrapRegistrationFlowTest extends TestCase
         $limiter = $this->createMock(LimiterInterface::class);
         $limiter->method('consume')->willReturn(new RateLimit(1, new DateTimeImmutable(), true, 1));
 
-        $limiterFactory = $this->createMock(RateLimiterFactory::class);
+        $limiterFactory = $this->createMock(LimiterFactoryInterface::class);
         $limiterFactory->method('create')->willReturn($limiter);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);

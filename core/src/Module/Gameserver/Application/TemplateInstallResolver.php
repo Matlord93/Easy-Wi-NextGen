@@ -7,7 +7,7 @@ namespace App\Module\Gameserver\Application;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 
-final class TemplateInstallResolver
+class TemplateInstallResolver
 {
     public function __construct(
         private readonly MinecraftCatalogService $catalogService,

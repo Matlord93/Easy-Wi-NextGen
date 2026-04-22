@@ -118,7 +118,6 @@ final class MetricSampleRepository extends ServiceEntityRepository
                 'sample.diskPercent AS diskPercent',
                 'sample.netBytesSent AS netBytesSent',
                 'sample.netBytesRecv AS netBytesRecv',
-                'sample.payload AS payload',
             )
             ->andWhere('sample.agent = :agent')
             ->andWhere('sample.recordedAt >= :since')

@@ -229,6 +229,11 @@ services:
     arguments:
       $deployRoot: '%kernel.project_dir%/var/cms-template-deployments'
 
+  app.limiter_factory.agent_bootstrap:
+    class: App\Module\Core\Application\SymfonyLimiterFactoryAdapter
+    arguments:
+      - '@limiter.agent_bootstrap'
+
   App\Module\Cms\UI\Controller\Public\PublicForumController:
     arguments:
       $forumReplyLimiter: '@limiter.forum_reply'

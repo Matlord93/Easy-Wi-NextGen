@@ -10,7 +10,7 @@ use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class JobRepository extends ServiceEntityRepository
+class JobRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

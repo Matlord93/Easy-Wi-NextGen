@@ -9,7 +9,7 @@ use App\Module\Ports\Domain\Entity\PortBlock;
 use App\Module\Ports\Domain\Entity\PortPool;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 
-final class PortLeaseManager
+class PortLeaseManager
 {
     public function __construct(private readonly PortBlockRepository $portBlockRepository)
     {

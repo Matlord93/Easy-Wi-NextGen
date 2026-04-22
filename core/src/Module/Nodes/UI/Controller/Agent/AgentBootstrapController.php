@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Nodes\UI\Controller\Agent;
 
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\LimiterFactoryInterface;
 use App\Module\Core\Application\TokenGenerator;
 use App\Module\Core\Domain\Entity\AgentRegistrationToken;
 use App\Repository\AgentBootstrapTokenRepository;
@@ -18,7 +19,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
-use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class AgentBootstrapController
@@ -31,8 +31,8 @@ final class AgentBootstrapController
         private readonly EntityManagerInterface $entityManager,
         private readonly TokenGenerator $tokenGenerator,
         private readonly AuditLogger $auditLogger,
-        #[Autowire(service: 'limiter.agent_bootstrap')]
-        private readonly RateLimiterFactory $bootstrapLimiter,
+        #[Autowire(service: 'app.limiter_factory.agent_bootstrap')]
+        private readonly LimiterFactoryInterface $bootstrapLimiter,
         #[Autowire('%app.agent_signature_skew_seconds%')]
         private readonly int $signatureSkewSeconds,
         #[Autowire('%app.windows_nodes_enabled%')]

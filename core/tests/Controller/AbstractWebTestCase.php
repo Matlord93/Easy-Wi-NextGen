@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Module\Core\Application\AppSettingsService;
+use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\CmsPage;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
+use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Site;
+use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Enum\InstanceStatus;
+use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
@@ -39,6 +44,11 @@ abstract class AbstractWebTestCase extends WebTestCase
             'forum_categories',
             'cms_site_settings',
             'cms_pages',
+            'instance_sftp_credentials',
+            'instances',
+            'port_blocks',
+            'agents',
+            'game_templates',
             'user_sessions',
             'users',
             'sites',
@@ -66,11 +76,11 @@ abstract class AbstractWebTestCase extends WebTestCase
         $em->persist($homepage);
         $em->persist($settings);
         $em->flush();
+        self::ensureKernelShutdown();
     }
 
     protected function loginAsRole(KernelBrowser $client, string $role): User
     {
-        self::bootKernel();
         $type = match (strtolower($role)) {
             'admin' => UserType::Admin,
             'reseller' => UserType::Reseller,
@@ -96,9 +106,50 @@ abstract class AbstractWebTestCase extends WebTestCase
             'password' => 'P@ssw0rd!',
         ]);
 
-        self::assertNotNull($client->getCookieJar()->get('easywi_session'));
+        $sessionCookie = $client->getCookieJar()->get('easywi_session')
+            ?? $client->getCookieJar()->get('easywi_customer_session');
+        self::assertNotNull($sessionCookie);
 
         return $user;
+    }
+
+    protected function seedInstance(): Instance
+    {
+        /** @var EntityManagerInterface $em */
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        /** @var \Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface $hasher */
+        $hasher = self::getContainer()->get(UserPasswordHasherInterface::class);
+
+        $customer = new User('instance-customer@example.test', UserType::Customer);
+        $customer->setCustomerAccessEnabled(true);
+        $customer->setPasswordHash($hasher->hashPassword($customer, 'P@ssw0rd!'));
+
+        $agent = new Agent('smoke-node-01', ['key_id' => 'v1', 'nonce' => 'n', 'ciphertext' => 'c']);
+
+        $template = new Template(
+            'smoke-game',
+            'Smoke Game',
+            null, null, null,
+            [], '', [], [], [], [], '', '', [], [],
+        );
+
+        $instance = new Instance(
+            $customer,
+            $template,
+            $agent,
+            1, 512, 10,
+            null,
+            InstanceStatus::Stopped,
+            InstanceUpdatePolicy::Manual,
+        );
+
+        $em->persist($customer);
+        $em->persist($agent);
+        $em->persist($template);
+        $em->persist($instance);
+        $em->flush();
+
+        return $instance;
     }
 
     protected function assertLoggedInHeaderContains(KernelBrowser $client, string $name): void

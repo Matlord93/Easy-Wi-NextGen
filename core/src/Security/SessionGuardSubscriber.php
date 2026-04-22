@@ -130,7 +130,9 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             || str_starts_with($routeName, 'public_forum_')
             || str_starts_with($routeName, 'public_cookie_')
             || str_starts_with($routeName, 'public_robots')
-            || str_starts_with($routeName, 'public_sitemap');
+            || str_starts_with($routeName, 'public_sitemap')
+            || $routeName === 'public_theme_preview'
+            || $routeName === 'customer_files_health';
     }
 
     private function isUiRoute(string $path): bool

@@ -10,7 +10,7 @@ use App\Module\Core\Domain\Entity\Webspace;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class WebspaceRepository extends ServiceEntityRepository
+class WebspaceRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

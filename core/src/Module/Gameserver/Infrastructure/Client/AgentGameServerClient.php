@@ -9,7 +9,7 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class AgentGameServerClient
+class AgentGameServerClient
 {
     private const HEADER_AGENT_ID = 'x-agent-id';
     private const HEADER_CUSTOMER_ID = 'x-customer-id';

@@ -6,7 +6,7 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\Agent;
 
-final class AgentCreator
+class AgentCreator
 {
     public function __construct(
         private readonly Ipv4AddressResolver $ipv4AddressResolver,

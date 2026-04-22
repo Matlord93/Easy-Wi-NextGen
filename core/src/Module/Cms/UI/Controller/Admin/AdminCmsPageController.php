@@ -239,6 +239,52 @@ final class AdminCmsPageController
         return $response;
     }
 
+    #[Route(path: '/{id}/blocks', name: 'admin_cms_pages_blocks_create', methods: ['POST'])]
+    public function createBlock(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $page = $this->pageRepository->find($id);
+        if (!$page instanceof CmsPage) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $formData = $this->parseBlockPayload($request);
+        if ($formData['errors'] !== []) {
+            $formData['page'] = $this->normalizePage($page);
+            return $this->renderBlockFormWithErrors($formData, Response::HTTP_BAD_REQUEST);
+        }
+
+        $existingBlocks = $this->blockRepository->findBy(['page' => $page], ['sortOrder' => 'ASC']);
+        $maxSortOrder = count($existingBlocks) > 0 ? max(array_map(static fn (CmsBlock $b): int => $b->getSortOrder(), $existingBlocks)) : 0;
+
+        $block = new CmsBlock($page, $formData['type'], $formData['content'], $maxSortOrder + 1);
+        $block->setVersion($formData['version']);
+        $block->setPayloadJson($formData['version'] === 2 ? $formData['payload'] : null);
+        $block->setSettingsJson($formData['version'] === 2 ? ['editor' => 'v2'] : null);
+        $this->entityManager->persist($block);
+        $this->entityManager->flush();
+
+        $this->auditLogger->log($actor, 'cms.block.created', [
+            'page_id' => $page->getId(),
+            'block_id' => $block->getId(),
+            'type' => $block->getType(),
+            'version' => $block->getVersion(),
+        ]);
+        $this->entityManager->flush();
+
+        $response = new Response($this->twig->render('admin/cms/pages/_block_form.html.twig', [
+            'blockForm' => $this->buildBlockFormContext(),
+            'page' => $this->normalizePage($page),
+        ]));
+        $response->headers->set('HX-Trigger', 'cms-blocks-changed');
+
+        return $response;
+    }
+
     #[Route(path: '/{id}/blocks/{blockId}', name: 'admin_cms_pages_blocks_update', methods: ['POST'])]
     public function updateBlock(Request $request, int $id, int $blockId): Response
     {

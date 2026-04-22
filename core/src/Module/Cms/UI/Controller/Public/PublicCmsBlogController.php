@@ -163,6 +163,7 @@ final class PublicCmsBlogController
         return array_map(static fn ($page): array => [
             'title' => $page->getTitle(),
             'slug' => $page->getSlug(),
+            'is_active' => false,
         ], $pages);
     }
 

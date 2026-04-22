@@ -9,7 +9,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Repository\AuditLogRepository;
 use Doctrine\ORM\EntityManagerInterface;
 
-final class AuditLogger
+class AuditLogger
 {
     private const MAX_PAYLOAD_JSON_BYTES = 65535;
 

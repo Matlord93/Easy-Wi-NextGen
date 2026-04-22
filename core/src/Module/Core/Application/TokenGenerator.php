@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Application;
 
-final class TokenGenerator
+class TokenGenerator
 {
     public function __construct(private readonly EncryptionService $encryptionService)
     {

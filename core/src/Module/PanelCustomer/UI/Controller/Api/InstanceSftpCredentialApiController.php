@@ -182,70 +182,38 @@ final class InstanceSftpCredentialApiController
             $username = $credential?->getUsername() ?? $this->buildUsername($instance);
             $expiresAt = (new \DateTimeImmutable('+15 minutes'))->setTimezone(new \DateTimeZone('UTC'));
             $newPassword = bin2hex(random_bytes(18));
+            $encryptedPassword = $this->encryptionService->encrypt($newPassword);
 
             if ($credential === null) {
-                $credential = new InstanceSftpCredential($instance, $username, $this->encryptionService->encrypt($newPassword));
+                $credential = new InstanceSftpCredential($instance, $username, $encryptedPassword);
                 $credential->setRotatedAt(null);
                 $credential->setExpiresAt($expiresAt);
                 $credential->setRevealedAt(null);
                 $this->entityManager->persist($credential);
-                $this->entityManager->flush();
             } else {
-                $credential->setEncryptedPassword($this->encryptionService->encrypt($newPassword));
+                $credential->setEncryptedPassword($encryptedPassword);
                 $credential->setRevealedAt(null);
                 $credential->setExpiresAt($expiresAt);
             }
 
-            $backendPreference = $this->resolvePreferredBackend($instance);
-            $agentResponse = $this->agentGameServerClient->resetInstanceAccess($instance, [
-                'username' => $username,
-                'password' => $newPassword,
-                'root_path' => $this->resolveInstanceRootPath($instance),
-                'preferred_backend' => $backendPreference,
-                'host' => $this->resolveHost($instance),
-            ]);
-            if (($agentResponse['ok'] ?? false) !== true) {
-                return $this->errorResponse(
-                    $request,
-                    JsonResponse::HTTP_CONFLICT,
-                    is_string($agentResponse['error_code'] ?? null) ? (string) $agentResponse['error_code'] : 'INTERNAL_ERROR',
-                    is_string($agentResponse['message'] ?? null) ? (string) $agentResponse['message'] : 'Access reset failed.',
-                );
-            }
-
-            $credential->setEncryptedPassword($this->encryptionService->encrypt($newPassword));
-            $credential->setExpiresAt($expiresAt);
-            $credential->setRevealedAt(null);
-            $agentData = is_array($agentResponse['data'] ?? null) ? $agentResponse['data'] : [];
-            $credential->setUsername(is_string($agentData['username'] ?? null) ? (string) $agentData['username'] : $username);
-            $credential->setBackend(is_string($agentData['backend'] ?? null) ? (string) $agentData['backend'] : $credential->getBackend());
-            $credential->setHost(is_string($agentData['host'] ?? null) ? (string) $agentData['host'] : $credential->getHost());
-            $credential->setPort(is_numeric($agentData['port'] ?? null) ? (int) $agentData['port'] : $credential->getPort());
-            $credential->setRootPath(is_string($agentData['root_path'] ?? null) ? (string) $agentData['root_path'] : $credential->getRootPath());
-            $credential->setLastError(null, null);
+            $job = $this->queueResetJob($request, $actor, $instance, $credential, $username, $newPassword, $expiresAt);
             $this->entityManager->flush();
-
-            $response = $this->okResponse($request, [
-                'credential' => $this->normalizeCredential($credential),
-                'job' => null,
-                'agent' => $this->normalizeAgentState($instance),
-                'password_delivery' => [
-                    'mode' => 'job_result',
-                    'one_time' => true,
-                ],
-            ], JsonResponse::HTTP_ACCEPTED);
 
             $this->logger->info('instance.sftp.credentials.reset', [
                 'request_id' => $this->getRequestId($request),
                 'user_id' => $actor->getId(),
                 'instance_id' => $instance->getId(),
                 'customer_id' => $instance->getCustomer()->getId(),
-                'status_code' => $response->getStatusCode(),
-                'job_id' => null,
+                'status_code' => JsonResponse::HTTP_ACCEPTED,
+                'job_id' => $job->getId(),
                 'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ]);
 
-            return $response;
+            return new JsonResponse([
+                'ok' => true,
+                'job' => $this->normalizeJobSummary($job),
+                'request_id' => $this->getRequestId($request),
+            ], JsonResponse::HTTP_ACCEPTED);
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
             return $this->errorResponse(
                 $request,

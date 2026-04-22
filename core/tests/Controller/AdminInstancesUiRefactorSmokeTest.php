@@ -12,6 +12,8 @@ final class AdminInstancesUiRefactorSmokeTest extends AbstractWebTestCase
         putenv('APP_UI_REFACTOR_INSTANCES=0');
 
         $this->seedSite();
+        $this->seedInstance();
+        static::ensureKernelShutdown();
         $client = static::createClient();
         $this->loginAsRole($client, 'admin');
 
@@ -34,6 +36,8 @@ final class AdminInstancesUiRefactorSmokeTest extends AbstractWebTestCase
         putenv('APP_UI_REFACTOR_INSTANCES=1');
 
         $this->seedSite();
+        $this->seedInstance();
+        static::ensureKernelShutdown();
         $client = static::createClient();
         $this->loginAsRole($client, 'admin');
 

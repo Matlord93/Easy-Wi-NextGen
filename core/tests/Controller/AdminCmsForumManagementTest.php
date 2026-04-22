@@ -33,7 +33,7 @@ final class AdminCmsForumManagementTest extends AbstractWebTestCase
 
         $this->seedSite();
         $this->seedForumBoard();
-        $this->loginAsRole($client, 'customer');
+        $this->loginAsRole($client, 'reseller');
         $client->request('GET', '/admin/cms/forum');
 
         self::assertResponseStatusCodeSame(403);
