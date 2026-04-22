@@ -194,15 +194,18 @@ func safeJoin(baseDir, relative string) (string, error) {
 	if relative == "" {
 		return "", errors.New("path is required")
 	}
-	clean := filepath.Clean(relative)
-	if strings.Contains(clean, "..") {
-		return "", errors.New("path traversal detected")
-	}
-	joined := filepath.Join(baseDir, clean)
-	if !strings.HasPrefix(joined, filepath.Clean(baseDir)+string(os.PathSeparator)) && filepath.Clean(joined) != filepath.Clean(baseDir) {
+	cleanBase := filepath.Clean(baseDir)
+	candidate := filepath.Clean(filepath.Join(cleanBase, relative))
+	rel, err := filepath.Rel(cleanBase, candidate)
+	if err != nil {
 		return "", errors.New("invalid path")
 	}
-	return joined, nil
+
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+		return "", errors.New("path traversal detected")
+	}
+
+	return candidate, nil
 }
 
 type startInstanceRequest struct {

@@ -49,6 +49,8 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         $instance = $this->buildInstance();
         $instanceRepository = $this->createMock(InstanceRepository::class);
         $instanceRepository->method('find')->willReturn($instance);
+        $jobRepository = $this->createMock(JobRepository::class);
+        $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
         $catalogRepo = new class () implements MinecraftVersionCatalogRepositoryInterface {
             public function findVersionsByChannel(string $channel): array
@@ -112,7 +114,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(BackupRepository::class),
             $this->newInstanceWithoutConstructor(GamePluginRepository::class),
             $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
-            $this->newInstanceWithoutConstructor(JobRepository::class),
+            $jobRepository,
             $this->newInstanceWithoutConstructor(JobLogRepository::class),
             $diskEnforcementService,
             $this->newInstanceWithoutConstructor(AuditLogger::class),
@@ -160,6 +162,8 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
 
         $instanceRepository = $this->createMock(InstanceRepository::class);
         $instanceRepository->method('find')->willReturn($instance);
+        $jobRepository = $this->createMock(JobRepository::class);
+        $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(null);
 
         $catalogRepo = $this->newInstanceWithoutConstructor(\App\Repository\MinecraftVersionCatalogRepository::class);
         $templateResolver = new TemplateInstallResolver(new MinecraftCatalogService($catalogRepo));
@@ -187,7 +191,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->newInstanceWithoutConstructor(BackupRepository::class),
             $this->newInstanceWithoutConstructor(GamePluginRepository::class),
             $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
-            $this->newInstanceWithoutConstructor(JobRepository::class),
+            $jobRepository,
             $this->newInstanceWithoutConstructor(\App\Repository\JobLogRepository::class),
             $diskEnforcementService,
             $this->newInstanceWithoutConstructor(AuditLogger::class),
@@ -213,6 +217,54 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
         self::assertSame(422, $response->getStatusCode());
         self::assertFalse((bool) $payload['ok']);
         self::assertSame('INVALID_INPUT', $payload['error_code']);
+    }
+
+    public function testReinstallReturnsConflictWhenLifecycleJobActive(): void
+    {
+        $instance = $this->buildInstance();
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->willReturn($instance);
+
+        $jobRepository = $this->createMock(JobRepository::class);
+        $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn(new \App\Module\Core\Domain\Entity\Job('instance.backup.create', []));
+
+        $templateResolver = $this->newInstanceWithoutConstructor(TemplateInstallResolver::class);
+        $payloadBuilder = $this->newInstanceWithoutConstructor(InstanceJobPayloadBuilder::class);
+        $appSettings = $this->createMock(AppSettingsService::class);
+
+        $controller = new CustomerInstanceActionApiController(
+            $instanceRepository,
+            $this->newInstanceWithoutConstructor(BackupDefinitionRepository::class),
+            $this->newInstanceWithoutConstructor(BackupRepository::class),
+            $this->newInstanceWithoutConstructor(GamePluginRepository::class),
+            $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
+            $jobRepository,
+            $this->newInstanceWithoutConstructor(JobLogRepository::class),
+            new DiskEnforcementService(new NodeDiskProtectionService(), new InstanceDiskStateResolver()),
+            $this->newInstanceWithoutConstructor(AuditLogger::class),
+            new ConsoleCommandValidator(new class () implements ConsoleCommandSettings {
+                public function getCustomerConsoleAllowedCommands(): array { return []; }
+            }),
+            $this->newInstanceWithoutConstructor(GameServerPathResolver::class),
+            new SetupChecker(),
+            $appSettings,
+            $this->newInstanceWithoutConstructor(MinecraftCatalogService::class),
+            $templateResolver,
+            $payloadBuilder,
+            $this->newInstanceWithoutConstructor(RateLimiterFactory::class),
+            $this->createMock(EntityManagerInterface::class),
+            $this->createMock(MessageBusInterface::class),
+            new ResponseEnvelopeFactory(),
+        );
+
+        $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode(['confirm' => true]));
+        $request->attributes->set('current_user', $instance->getCustomer());
+
+        $response = $controller->reinstall($request, 1);
+        $payload = json_decode((string) $response->getContent(), true);
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertSame('REINSTALL_CONFLICT', $payload['error_code']);
     }
 
     private function setPrivateProperty(object $target, string $property, mixed $value): void

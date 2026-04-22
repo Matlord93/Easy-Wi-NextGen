@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-4">
         <div>
             <h2 class="text-sm font-semibold">{{ t('cookie_banner_title', page_locale()) }}</h2>
-            <p class="mt-2 text-xs text-slate-300">{{ t('cookie_banner_description', page_locale()) }}</p>
+            <p class="mt-2 text-xs text-slate-300">{{ t('cookie_banner_description', page_locale()) }} <a href="/cookies" class="underline">Cookie-Richtlinie</a></p>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
             <button class="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800" data-cookie-reject>{{ t('cookie_reject_optional', page_locale()) }}</button>

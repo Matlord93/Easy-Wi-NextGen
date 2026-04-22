@@ -525,14 +525,29 @@ final class CustomerInstanceConfigApiController
         $configSchema = $this->resolveConfigSchema($instance, $configId);
 
         $applyMode = $this->resolveApplyMode($configSchema);
-        $active = $this->jobRepository->findLatestActiveByTypesAndInstanceId(['instance.config.apply', 'instance.restart'], (int) $instance->getId());
+        $active = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.config.apply',
+            'instance.restart',
+            'instance.reinstall',
+            'instance.backup.create',
+            'instance.backup.restore',
+            'instance.start',
+            'instance.stop',
+        ], (int) $instance->getId());
         if ($active !== null) {
+            $statusCode = in_array($active->getType(), ['instance.config.apply', 'instance.restart'], true)
+                ? JsonResponse::HTTP_ACCEPTED
+                : JsonResponse::HTTP_CONFLICT;
+
             return new JsonResponse([
-                'status' => 'queued',
+                'status' => $statusCode === JsonResponse::HTTP_ACCEPTED ? 'queued' : 'blocked',
                 'job_id' => $active->getId(),
-                'message' => 'Apply job already in progress.',
+                'job_type' => $active->getType(),
+                'message' => $statusCode === JsonResponse::HTTP_ACCEPTED
+                    ? 'Apply job already in progress.'
+                    : 'Config apply blocked while lifecycle operation is running.',
                 'apply_mode' => $applyMode,
-            ], JsonResponse::HTTP_ACCEPTED);
+            ], $statusCode);
         }
 
         if ($applyMode === 'restart') {

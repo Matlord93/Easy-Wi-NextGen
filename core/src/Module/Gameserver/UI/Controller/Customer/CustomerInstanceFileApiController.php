@@ -10,10 +10,12 @@ use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\Exception\FileServiceException;
 use App\Module\Core\Application\FileServiceClient;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Repository\InstanceRepository;
+use App\Repository\JobRepository;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -32,6 +34,7 @@ final class CustomerInstanceFileApiController
     private const int UPLOAD_MAX_BYTES = 104_857_600;
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
+        private readonly JobRepository $jobRepository,
         private readonly FileServiceClient $fileService,
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $appSettingsService,
@@ -151,6 +154,9 @@ final class CustomerInstanceFileApiController
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
+            return $blocked;
+        }
         $path = trim((string) $request->query->get('path', ''));
         $name = trim((string) $request->query->get('name', ''));
         if ($name === '') {
@@ -181,6 +187,9 @@ final class CustomerInstanceFileApiController
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
+            return $blocked;
+        }
         $path = trim((string) $request->query->get('path', ''));
         $name = trim((string) $request->query->get('name', ''));
         if ($name === '') {
@@ -243,6 +252,9 @@ final class CustomerInstanceFileApiController
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
+            return $blocked;
+        }
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
             return $this->rateLimitResponse($request);
@@ -285,6 +297,9 @@ final class CustomerInstanceFileApiController
         $this->assertFilePushEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
+            return $blocked;
+        }
 
         if (!$this->consumeLimiter($this->uploadsLimiter, $request, $instance, $customer)) {
             return $this->rateLimitResponse($request);
@@ -354,6 +369,9 @@ final class CustomerInstanceFileApiController
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
+            return $blocked;
+        }
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
             return $this->rateLimitResponse($request);
@@ -410,6 +428,9 @@ final class CustomerInstanceFileApiController
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
+            return $blocked;
+        }
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
             return $this->rateLimitResponse($request);
@@ -447,6 +468,9 @@ final class CustomerInstanceFileApiController
         $this->assertDataManagerEnabled();
         $customer = $this->requireCustomer($request);
         $instance = $this->findCustomerInstance($customer, $id);
+        if ($blocked = $this->assertMutableFilesActionAllowed($request, $instance)) {
+            return $blocked;
+        }
 
         if (!$this->consumeLimiter($this->commandsLimiter, $request, $instance, $customer)) {
             return $this->rateLimitResponse($request);
@@ -683,6 +707,34 @@ final class CustomerInstanceFileApiController
         }
 
         return null;
+    }
+
+    private function assertMutableFilesActionAllowed(Request $request, Instance $instance): ?JsonResponse
+    {
+        $active = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+            'instance.reinstall',
+            'instance.backup.create',
+            'instance.backup.restore',
+            'instance.config.apply',
+            'instance.settings.update',
+        ], (int) ($instance->getId() ?? 0));
+        if (!$active instanceof Job) {
+            return null;
+        }
+
+        return $this->errorResponse(
+            $request,
+            'files_action_blocked',
+            'Files action blocked while lifecycle operation is running.',
+            JsonResponse::HTTP_CONFLICT,
+            [
+                'active_job_id' => $active->getId(),
+                'active_job_type' => $active->getType(),
+            ],
+        );
     }
 
     private function handleListingError(

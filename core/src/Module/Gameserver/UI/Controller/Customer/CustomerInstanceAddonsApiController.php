@@ -157,6 +157,21 @@ final class CustomerInstanceAddonsApiController
             ]);
         }
 
+        $lifecycleJob = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.backup.create',
+            'instance.backup.restore',
+            'instance.reinstall',
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+        ], $instance->getId() ?? 0);
+        if ($lifecycleJob instanceof Job) {
+            return $this->apiError($request, 'CONFLICT', 'Addon action blocked while lifecycle operation is running.', JsonResponse::HTTP_CONFLICT, [
+                'active_job_id' => $lifecycleJob->getId(),
+                'active_job_type' => $lifecycleJob->getType(),
+            ]);
+        }
+
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
             return $this->apiError($request, 'CONFLICT', $blockMessage, JsonResponse::HTTP_CONFLICT);

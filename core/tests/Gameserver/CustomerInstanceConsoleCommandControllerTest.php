@@ -7,6 +7,8 @@ namespace App\Tests\Gameserver;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\AuditLogHasher;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
@@ -16,6 +18,7 @@ use App\Module\Gameserver\Application\Console\ConsoleCommandResult;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceConsoleCommandController;
 use App\Repository\AuditLogRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -60,7 +63,17 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
         self::assertSame(202, $response->getStatusCode());
     }
 
-    private function buildControllerAndRequest(bool $isOwner, bool $rateAllowed, bool $csrfValid): array
+    public function testLifecycleConflictReturns409(): void
+    {
+        [$controller, $request] = $this->buildControllerAndRequest(true, true, true, new Job('instance.backup.restore', ['instance_id' => '99']));
+        $response = $controller->send($request, 99);
+
+        self::assertSame(409, $response->getStatusCode());
+        $payload = json_decode((string) $response->getContent(), true);
+        self::assertSame('LIFECYCLE_CONFLICT', $payload['error_code']);
+    }
+
+    private function buildControllerAndRequest(bool $isOwner, bool $rateAllowed, bool $csrfValid, ?Job $activeJob = null): array
     {
         $actor = new User('customer@example.test', UserType::Customer);
         $owner = $isOwner ? $actor : new User('owner@example.test', UserType::Customer);
@@ -69,11 +82,15 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
 
         $instance = $this->createMock(Instance::class);
         $instance->method('getCustomer')->willReturn($owner);
+        $instance->method('getStatus')->willReturn(InstanceStatus::Running);
+        $instance->method('getId')->willReturn(99);
 
         $repo = $this->createMock(InstanceRepository::class);
         $repo->method('find')->with(99)->willReturn($instance);
 
         $grpc = $this->createMock(ConsoleAgentGrpcClientInterface::class);
+        $jobRepository = $this->createMock(JobRepository::class);
+        $jobRepository->method('findLatestActiveByTypesAndInstanceId')->willReturn($activeJob);
 
         $auditRepo = $this->createMock(AuditLogRepository::class);
         $auditRepo->method('findLatestHash')->willReturn(null);
@@ -94,6 +111,7 @@ final class CustomerInstanceConsoleCommandControllerTest extends TestCase
 
         $controller = new CustomerInstanceConsoleCommandController(
             $repo,
+            $jobRepository,
             new ResponseEnvelopeFactory(),
             $grpc,
             $limiter,

@@ -18,5 +18,8 @@ final class CustomerConfigTemplatesContractTest extends TestCase
         self::assertStringContainsString("'ok' => false", $controller);
         self::assertStringContainsString("'request_id'", $controller);
         self::assertStringContainsString('UNSUPPORTED_CONFIG_TARGET', $controller);
+        self::assertStringContainsString("'instance.backup.restore'", $controller);
+        self::assertStringContainsString("'instance.reinstall'", $controller);
+        self::assertStringContainsString('Config apply blocked while lifecycle operation is running.', $controller);
     }
 }

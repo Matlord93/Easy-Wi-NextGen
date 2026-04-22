@@ -92,12 +92,15 @@ final class AdminInstanceController
         }
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
+        $filters = $this->extractTableFilters($request);
         $normalizedInstances = $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances));
+        $normalizedInstances = $this->applyInstanceFilters($normalizedInstances, $filters);
 
         return new Response($this->twig->render('admin/instances/index.html.twig', [
             'instances' => $normalizedInstances,
             'summary' => $this->buildSummary($normalizedInstances),
             'ops' => $this->buildOpsSummary($normalizedInstances),
+            'filters' => $filters,
             'activeNav' => 'game-instances',
             'createNotice' => $this->buildCreateNotice($request),
         ]));
@@ -141,8 +144,9 @@ final class AdminInstanceController
         }
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
+        $filters = $this->extractTableFilters($request);
 
-        return $this->renderInstancesTable($instances);
+        return $this->renderInstancesTable($instances, [], Response::HTTP_OK, $filters);
     }
 
     #[Route(path: '/form', name: 'admin_instances_form', methods: ['GET'])]
@@ -561,10 +565,16 @@ final class AdminInstanceController
             $errors[] = 'Disk limit cannot be decreased from its current value.';
         }
 
+        $diskUsedMb = (int) ceil($instance->getDiskUsedBytes() / 1024 / 1024);
+        if ($diskLimit < $diskUsedMb) {
+            $errors[] = sprintf('Disk limit cannot be set below current usage (%d MB).', $diskUsedMb);
+        }
+
         if ($errors !== []) {
             $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
+            $filters = $this->resolveTableFilters($request);
 
-            return $this->renderInstancesTable($instances, $errors, Response::HTTP_BAD_REQUEST);
+            return $this->renderInstancesTable($instances, $errors, Response::HTTP_BAD_REQUEST, $filters);
         }
 
         $instance->setCpuLimit($cpuLimit);
@@ -583,8 +593,9 @@ final class AdminInstanceController
         $this->entityManager->flush();
 
         $instances = $this->instanceRepository->findBy([], ['updatedAt' => 'DESC']);
+        $filters = $this->resolveTableFilters($request);
 
-        return $this->renderInstancesTable($instances);
+        return $this->renderInstancesTable($instances, [], Response::HTTP_OK, $filters);
     }
 
     private function parsePayload(Request $request): array
@@ -1082,6 +1093,7 @@ final class AdminInstanceController
     private function normalizeInstances(array $instances, array $sftpCredentials): array
     {
         $portBlocks = $this->portBlockRepository->findByInstances($instances);
+        $latestLifecycleJobs = $this->buildLatestLifecycleJobMap();
         $portBlockIndex = [];
         foreach ($portBlocks as $portBlock) {
             $assignedInstance = $portBlock->getInstance();
@@ -1090,7 +1102,7 @@ final class AdminInstanceController
             }
         }
 
-        return array_map(function (Instance $instance) use ($sftpCredentials, $portBlockIndex): array {
+        return array_map(function (Instance $instance) use ($sftpCredentials, $portBlockIndex, $latestLifecycleJobs): array {
             $diskLimitBytes = $instance->getDiskLimitBytes();
             $diskUsedBytes = $instance->getDiskUsedBytes();
             $diskPercent = $diskLimitBytes > 0 ? ($diskUsedBytes / $diskLimitBytes) * 100 : 0;
@@ -1106,6 +1118,7 @@ final class AdminInstanceController
                 $runtimeStatus = InstanceStatus::Running->value;
             }
             $displayStatus = $this->resolveDisplayStatus($instance, $runtimeStatus);
+            $latestLifecycleJob = $latestLifecycleJobs[(int) ($instance->getId() ?? 0)] ?? null;
             $bookedRamBytes = (int) $instance->getRamLimit() * 1024 * 1024;
             $usedRamBytes = $instanceMetric?->getMemUsedBytes();
 
@@ -1135,6 +1148,10 @@ final class AdminInstanceController
                 'runtime_status_reason' => $runtimeState['reason'],
                 'runtime_status_error_code' => $runtimeState['error_code'],
                 'runtime_status_last_checked_at' => $runtimeState['checked_at'],
+                'latest_lifecycle_job_id' => $latestLifecycleJob?->getId(),
+                'latest_lifecycle_job_type' => $latestLifecycleJob?->getType(),
+                'latest_lifecycle_job_status' => $latestLifecycleJob?->getStatus()->value,
+                'latest_lifecycle_job_error_code' => $latestLifecycleJob?->getLastErrorCode(),
                 'instance_cpu_percent' => $instanceMetric?->getCpuPercent(),
                 'instance_mem_used_bytes' => $usedRamBytes,
                 'instance_mem_percent' => ($usedRamBytes !== null && $bookedRamBytes > 0) ? (($usedRamBytes / $bookedRamBytes) * 100) : null,
@@ -1149,6 +1166,41 @@ final class AdminInstanceController
                 'install_error_code' => $installStatus['error_code'] ?? null,
             ];
         }, $instances);
+    }
+
+    /**
+     * @return array<int, Job>
+     */
+    private function buildLatestLifecycleJobMap(): array
+    {
+        $types = [
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+            'instance.reinstall',
+            'instance.backup.create',
+            'instance.backup.restore',
+            'instance.config.apply',
+            'instance.settings.update',
+            'instance.addon.install',
+            'instance.addon.update',
+            'instance.addon.remove',
+            'sniper.update',
+        ];
+
+        $map = [];
+        foreach ($this->jobRepository->findLatest(400) as $job) {
+            if (!in_array($job->getType(), $types, true)) {
+                continue;
+            }
+            $instanceId = (int) ($job->getPayload()['instance_id'] ?? 0);
+            if ($instanceId <= 0 || isset($map[$instanceId])) {
+                continue;
+            }
+            $map[$instanceId] = $job;
+        }
+
+        return $map;
     }
 
     private function resolveDisplayStatus(Instance $instance, ?string $runtimeStatus): string
@@ -1475,11 +1527,101 @@ final class AdminInstanceController
     /**
      * @param Instance[] $instances
      */
-    private function renderInstancesTable(array $instances, array $errors = [], int $status = Response::HTTP_OK): Response
+    private function renderInstancesTable(array $instances, array $errors = [], int $status = Response::HTTP_OK, array $filters = []): Response
     {
+        $activeFilters = $filters !== [] ? $filters : ['q' => '', 'status' => '', 'node' => ''];
+        $normalized = $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances));
+        $normalized = $this->applyInstanceFilters($normalized, $activeFilters);
+
         return new Response($this->twig->render('admin/instances/_table.html.twig', [
-            'instances' => $this->normalizeInstances($instances, $this->buildSftpCredentialMap($instances)),
+            'instances' => $normalized,
             'errors' => $errors,
+            'filters' => $activeFilters,
         ]), $status);
+    }
+
+    /**
+     * @return array{q: string, status: string, node: string}
+     */
+    private function extractTableFilters(Request $request): array
+    {
+        $status = strtolower(trim((string) $request->query->get('status', '')));
+        $allowedStatus = array_map(static fn (InstanceStatus $value): string => $value->value, InstanceStatus::cases());
+        if (!in_array($status, $allowedStatus, true)) {
+            $status = '';
+        }
+
+        return [
+            'q' => trim((string) $request->query->get('q', '')),
+            'status' => $status,
+            'node' => trim((string) $request->query->get('node', '')),
+        ];
+    }
+
+    /**
+     * @return array{q: string, status: string, node: string}
+     */
+    private function resolveTableFilters(Request $request): array
+    {
+        $filters = $this->extractTableFilters($request);
+        if ($filters['q'] !== '' || $filters['status'] !== '' || $filters['node'] !== '') {
+            return $filters;
+        }
+
+        $status = strtolower(trim((string) $request->request->get('status', '')));
+        $allowedStatus = array_map(static fn (InstanceStatus $value): string => $value->value, InstanceStatus::cases());
+        if (!in_array($status, $allowedStatus, true)) {
+            $status = '';
+        }
+
+        return [
+            'q' => trim((string) $request->request->get('q', '')),
+            'status' => $status,
+            'node' => trim((string) $request->request->get('node', '')),
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $instances
+     * @param array{q: string, status: string, node: string} $filters
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyInstanceFilters(array $instances, array $filters): array
+    {
+        $needle = strtolower(trim($filters['q']));
+        $status = strtolower(trim($filters['status']));
+        $node = strtolower(trim($filters['node']));
+
+        return array_values(array_filter($instances, static function (array $instance) use ($needle, $status, $node): bool {
+            if ($status !== '') {
+                $displayStatus = strtolower((string) ($instance['display_status'] ?? $instance['status'] ?? ''));
+                if ($displayStatus !== $status) {
+                    return false;
+                }
+            }
+
+            if ($node !== '' && !str_contains(strtolower((string) ($instance['node'] ?? '')), $node)) {
+                return false;
+            }
+
+            if ($needle === '') {
+                return true;
+            }
+
+            $haystacks = [
+                strtolower((string) ($instance['id'] ?? '')),
+                strtolower((string) ($instance['customer_email'] ?? '')),
+                strtolower((string) ($instance['template_name'] ?? '')),
+                strtolower((string) ($instance['game_key'] ?? '')),
+                strtolower((string) ($instance['node'] ?? '')),
+            ];
+            foreach ($haystacks as $haystack) {
+                if ($haystack !== '' && str_contains($haystack, $needle)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }));
     }
 }

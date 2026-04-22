@@ -6,12 +6,15 @@ namespace App\Module\Gameserver\UI\Controller\Customer;
 
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
+use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandLimiterInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandRequest;
 use App\Repository\InstanceRepository;
+use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -27,6 +30,7 @@ final class CustomerInstanceConsoleCommandController
 {
     public function __construct(
         private readonly InstanceRepository $instanceRepository,
+        private readonly JobRepository $jobRepository,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly ConsoleAgentGrpcClientInterface $grpcClient,
         private readonly ConsoleCommandLimiterInterface $consoleLimiter,
@@ -51,6 +55,24 @@ final class CustomerInstanceConsoleCommandController
         if (!$isOwner && !$isAdmin) {
             $this->audit($actor, 'command_blocked', $id, null, 'forbidden');
             return $this->responseEnvelopeFactory->error($request, 'Forbidden', 'FORBIDDEN', JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        if ($instance->getStatus() !== InstanceStatus::Running) {
+            $this->audit($actor, 'command_blocked', $id, null, 'instance_not_running');
+            return $this->responseEnvelopeFactory->error($request, 'Instance is not running.', 'INSTANCE_OFFLINE', JsonResponse::HTTP_CONFLICT);
+        }
+
+        $blockingJob = $this->findBlockingLifecycleJob((int) ($instance->getId() ?? 0));
+        if ($blockingJob instanceof Job) {
+            $this->audit($actor, 'command_blocked', $id, null, 'lifecycle_blocked');
+            return $this->responseEnvelopeFactory->error(
+                $request,
+                'Console command blocked while lifecycle operation is active.',
+                'LIFECYCLE_CONFLICT',
+                JsonResponse::HTTP_CONFLICT,
+                null,
+                ['job_id' => $blockingJob->getId(), 'job_type' => $blockingJob->getType()],
+            );
         }
 
         $body = json_decode((string) $request->getContent(), true);
@@ -149,5 +171,26 @@ final class CustomerInstanceConsoleCommandController
             'command_hash' => $hash,
             'command_length' => strlen($command),
         ]);
+    }
+
+    private function findBlockingLifecycleJob(int $instanceId): ?Job
+    {
+        if ($instanceId <= 0) {
+            return null;
+        }
+
+        return $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+            'instance.reinstall',
+            'instance.backup.create',
+            'instance.backup.restore',
+            'instance.config.apply',
+            'instance.settings.update',
+            'instance.addon.install',
+            'instance.addon.update',
+            'instance.addon.remove',
+        ], $instanceId);
     }
 }

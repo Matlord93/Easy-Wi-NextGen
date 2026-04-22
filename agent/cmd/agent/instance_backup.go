@@ -3,6 +3,7 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
@@ -22,6 +23,7 @@ import (
 )
 
 const defaultInstanceBackupBaseDir = "/var/lib/easywi/backups/instances"
+const instanceBackupCommandTimeout = 30 * time.Minute
 
 func handleInstanceBackupCreate(job jobs.Job) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" {
@@ -65,7 +67,9 @@ func handleInstanceBackupCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	backupPath := filepath.Join(targetDir, fmt.Sprintf("instance-%s-%d.tar.gz", sanitizeIdentifier(instanceID), time.Now().UTC().Unix()))
-	cmd := exec.Command("tar", "-czf", backupPath, "-C", instanceDir, ".")
+	backupCtx, backupCancel := context.WithTimeout(context.Background(), instanceBackupCommandTimeout)
+	defer backupCancel()
+	cmd := exec.CommandContext(backupCtx, "tar", "-czf", backupPath, "-C", instanceDir, ".")
 	if _, err := StreamCommand(cmd, job.ID, nil); err != nil {
 		return failureResult(job.ID, fmt.Errorf("create backup archive: %w", err))
 	}
@@ -141,13 +145,18 @@ func handleInstanceBackupRestore(job jobs.Job) (jobs.Result, func() error) {
 
 	if parsePayloadBool(payloadValue(job.Payload, "pre_backup"), false) {
 		preBackupPath := filepath.Join(filepath.Dir(backupPath), fmt.Sprintf("pre-restore-%d.tar.gz", time.Now().UTC().Unix()))
-		cmd := exec.Command("tar", "-czf", preBackupPath, "-C", instanceDir, ".")
+		preBackupCtx, preBackupCancel := context.WithTimeout(context.Background(), instanceBackupCommandTimeout)
+		cmd := exec.CommandContext(preBackupCtx, "tar", "-czf", preBackupPath, "-C", instanceDir, ".")
 		if _, err := StreamCommand(cmd, job.ID, nil); err != nil {
+			preBackupCancel()
 			return failureResult(job.ID, fmt.Errorf("create pre-restore backup: %w", err))
 		}
+		preBackupCancel()
 	}
 
-	cmd := exec.Command("tar", "-xzf", backupPath, "-C", instanceDir)
+	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), instanceBackupCommandTimeout)
+	defer restoreCancel()
+	cmd := exec.CommandContext(restoreCtx, "tar", "-xzf", backupPath, "-C", instanceDir)
 	if _, err := StreamCommand(cmd, job.ID, nil); err != nil {
 		return failureResult(job.ID, fmt.Errorf("restore backup archive: %w", err))
 	}

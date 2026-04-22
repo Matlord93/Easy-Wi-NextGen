@@ -33,9 +33,9 @@
             <a href="/logout" class="block rounded px-3 py-2 text-sm hover:bg-slate-100">Logout</a>
           </div>
         </details>
-		{% else %}
-		  {% set targetUri = app is not null and app.request is not null ? app.request.requestUri : '/' %}
-		  <a href="/login?target={{ targetUri|url_encode }}">Login</a>
+      {% else %}
+        {% set targetUri = app is not null and app.request is not null ? app.request.requestUri : '/' %}
+        <a href="/login?target={{ targetUri|url_encode }}">Login</a>
       {% endif %}
     </nav>
   </div>

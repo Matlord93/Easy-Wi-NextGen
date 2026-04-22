@@ -129,18 +129,118 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, 'INSTANCE_SUSPENDED', 'This instance is suspended.', JsonResponse::HTTP_CONFLICT);
         }
 
+        if (in_array($action, ['start', 'restart'], true)) {
+            $preflightBlock = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
+            if ($preflightBlock !== null) {
+                return $this->apiError($request, 'RESOURCE_PRECHECK_FAILED', $preflightBlock, JsonResponse::HTTP_CONFLICT);
+            }
+        }
+
         $existingJob = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
             'instance.start',
             'instance.stop',
             'instance.restart',
         ], $instance->getId() ?? 0);
         if ($existingJob instanceof Job) {
+            $this->auditLogger->log($customer, 'instance.power.already_queued', [
+                'instance_id' => $instance->getId(),
+                'job_id' => $existingJob->getId(),
+                'action' => $action,
+            ]);
+
             return $this->apiOk($request, [
                 'current_state' => strtolower($instance->getStatus()->value),
                 'desired_state' => $action === 'stop' ? 'stopped' : 'running',
                 'transition' => true,
                 'job_id' => $existingJob->getId(),
             ], JsonResponse::HTTP_ACCEPTED);
+        }
+
+        $blockingLifecycleJob = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.create',
+            'instance.reinstall',
+            'instance.backup.create',
+            'instance.backup.restore',
+            'instance.settings.update',
+            'instance.config.apply',
+            'instance.schedule.update',
+            'instance.addon.install',
+            'instance.addon.update',
+            'instance.addon.remove',
+            'sniper.install',
+            'sniper.update',
+        ], $instance->getId() ?? 0);
+        if ($blockingLifecycleJob instanceof Job) {
+            $this->auditLogger->log($customer, 'instance.power.blocked', [
+                'instance_id' => $instance->getId(),
+                'action' => $action,
+                'blocking_job_id' => $blockingLifecycleJob->getId(),
+                'blocking_job_type' => $blockingLifecycleJob->getType(),
+            ]);
+
+            return $this->apiError(
+                $request,
+                'POWER_BLOCKED_BY_LIFECYCLE',
+                'Power action blocked while lifecycle operation is running.',
+                JsonResponse::HTTP_CONFLICT,
+                [
+                    'job_id' => $blockingLifecycleJob->getId(),
+                    'job_type' => $blockingLifecycleJob->getType(),
+                ],
+            );
+        }
+
+        if ($this->agentGameServerClient instanceof AgentGameServerClient) {
+            try {
+                $runtimePayload = $this->agentGameServerClient->getInstanceStatus($instance);
+                $runtimeStatus = $this->normalizeAgentRuntimeStatus(
+                    $runtimePayload['status'] ?? null,
+                    $runtimePayload['running'] ?? null,
+                    $runtimePayload['online'] ?? null,
+                );
+                if ($runtimeStatus === InstanceStatus::Running && $action === 'start') {
+                    $this->auditLogger->log($customer, 'instance.power.noop', [
+                        'instance_id' => $instance->getId(),
+                        'action' => $action,
+                        'runtime_status' => $runtimeStatus->value,
+                    ]);
+
+                    return $this->apiOk($request, [
+                        'current_state' => InstanceStatus::Running->value,
+                        'desired_state' => 'running',
+                        'transition' => false,
+                        'message' => 'Instance is already running.',
+                    ]);
+                }
+                if ($runtimeStatus === InstanceStatus::Stopped && $action === 'stop') {
+                    $this->auditLogger->log($customer, 'instance.power.noop', [
+                        'instance_id' => $instance->getId(),
+                        'action' => $action,
+                        'runtime_status' => $runtimeStatus->value,
+                    ]);
+
+                    return $this->apiOk($request, [
+                        'current_state' => InstanceStatus::Stopped->value,
+                        'desired_state' => 'stopped',
+                        'transition' => false,
+                        'message' => 'Instance is already stopped.',
+                    ]);
+                }
+                if ($runtimeStatus === InstanceStatus::Stopped && $action === 'restart') {
+                    return $this->apiError(
+                        $request,
+                        'INSTANCE_OFFLINE',
+                        'Cannot restart a stopped instance. Start it instead.',
+                        JsonResponse::HTTP_CONFLICT,
+                    );
+                }
+            } catch (\Throwable $exception) {
+                $this->auditLogger->log($customer, 'instance.power.runtime_probe_failed', [
+                    'instance_id' => $instance->getId(),
+                    'action' => $action,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
 
         $message = new InstanceActionMessage(sprintf('instance.%s', $action), $customer->getId(), $instance->getId(), [
@@ -154,8 +254,18 @@ final class CustomerInstanceActionApiController
         $response = $this->dispatchJob($message, JsonResponse::HTTP_ACCEPTED);
         $result = json_decode((string) $response->getContent(), true);
         if (!is_array($result) || !is_string($result['job_id'] ?? null)) {
+            $this->auditLogger->log($customer, 'instance.power.queue_failed', [
+                'instance_id' => $instance->getId(),
+                'action' => $action,
+            ]);
             return $this->apiError($request, 'POWER_QUEUE_FAILED', 'Unable to queue power action.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
+
+        $this->auditLogger->log($customer, 'instance.power.queued', [
+            'instance_id' => $instance->getId(),
+            'action' => $action,
+            'job_id' => $result['job_id'],
+        ]);
 
         return $this->apiOk($request, [
             'current_state' => strtolower($instance->getStatus()->value),
@@ -163,6 +273,91 @@ final class CustomerInstanceActionApiController
             'transition' => true,
             'job_id' => $result['job_id'],
         ], JsonResponse::HTTP_ACCEPTED);
+    }
+
+    #[Route(path: '/api/instances/{id}/status/fix', name: 'customer_instance_status_fix_api', methods: ['POST'])]
+    #[Route(path: '/api/v1/customer/instances/{id}/status/fix', name: 'customer_instance_status_fix_api_v1', methods: ['POST'])]
+    public function fixStatus(Request $request, int $id): JsonResponse
+    {
+        try {
+            $customer = $this->requireCustomer($request);
+            $instance = $this->findCustomerInstance($customer, $id);
+        } catch (HttpExceptionInterface $exception) {
+            return $this->apiError(
+                $request,
+                $exception instanceof AccessDeniedHttpException ? 'FORBIDDEN' : ($exception instanceof UnauthorizedHttpException ? 'UNAUTHORIZED' : 'NOT_FOUND'),
+                $exception->getMessage() !== '' ? $exception->getMessage() : 'Request failed.',
+                $exception->getStatusCode(),
+            );
+        }
+
+        $activePowerJob = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+            'instance.reinstall',
+        ], $instance->getId() ?? 0);
+        if ($activePowerJob instanceof Job) {
+            return $this->apiError(
+                $request,
+                'STATUS_FIX_BLOCKED',
+                'Status sync blocked while a lifecycle job is active.',
+                JsonResponse::HTTP_CONFLICT,
+                ['job_id' => $activePowerJob->getId()],
+            );
+        }
+
+        if (!$this->agentGameServerClient instanceof AgentGameServerClient) {
+            return $this->apiError($request, 'AGENT_UNAVAILABLE', 'Agent status client is not configured.', JsonResponse::HTTP_SERVICE_UNAVAILABLE);
+        }
+
+        try {
+            $runtimePayload = $this->agentGameServerClient->getInstanceStatus($instance);
+        } catch (\Throwable $exception) {
+            return $this->apiError(
+                $request,
+                'AGENT_STATUS_PROBE_FAILED',
+                sprintf('Agent status probe failed: %s', $exception->getMessage()),
+                JsonResponse::HTTP_BAD_GATEWAY,
+            );
+        }
+
+        $runtimeStatus = $this->normalizeAgentRuntimeStatus(
+            $runtimePayload['status'] ?? null,
+            $runtimePayload['running'] ?? null,
+            $runtimePayload['online'] ?? null,
+        );
+        if ($runtimeStatus === null) {
+            return $this->apiError(
+                $request,
+                'AGENT_STATUS_INVALID',
+                'Agent status response did not contain a recognizable status.',
+                JsonResponse::HTTP_BAD_GATEWAY,
+            );
+        }
+
+        $previousStatus = $instance->getStatus();
+        if (!in_array($previousStatus, [InstanceStatus::Suspended, InstanceStatus::PendingSetup, InstanceStatus::Provisioning], true) && $previousStatus !== $runtimeStatus) {
+            $instance->setStatus($runtimeStatus);
+            $this->entityManager->persist($instance);
+            $this->entityManager->flush();
+        }
+
+        $this->auditLogger->log($customer, 'instance.status.fix', [
+            'instance_id' => $instance->getId(),
+            'previous_status' => $previousStatus->value,
+            'runtime_status' => $runtimeStatus->value,
+            'changed' => $previousStatus !== $instance->getStatus(),
+        ]);
+
+        return $this->apiOk($request, [
+            'instance_id' => $instance->getId(),
+            'previous_status' => $previousStatus->value,
+            'status' => $instance->getStatus()->value,
+            'runtime_status' => $runtimeStatus->value,
+            'changed' => $previousStatus !== $instance->getStatus(),
+            'checked_at' => (new \DateTimeImmutable())->format(DATE_ATOM),
+        ]);
     }
 
     #[Route(path: '/api/instances/{id}/backups', name: 'customer_instance_backups_list', methods: ['GET'])]
@@ -262,6 +457,31 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, 'NOT_FOUND', 'Backup definition not found.', JsonResponse::HTTP_NOT_FOUND);
         }
 
+        $activeJob = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.backup.create',
+            'instance.backup.restore',
+            'instance.reinstall',
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+        ], (int) ($instance->getId() ?? 0));
+        if ($activeJob instanceof Job) {
+            $this->auditLogger->log($customer, 'instance.backup.blocked', [
+                'instance_id' => $instance->getId(),
+                'reason' => 'active_job',
+                'active_job_id' => $activeJob->getId(),
+                'active_job_type' => $activeJob->getType(),
+            ]);
+
+            return $this->apiError(
+                $request,
+                'BACKUP_CONFLICT',
+                'Backup action blocked while another lifecycle job is running.',
+                JsonResponse::HTTP_CONFLICT,
+                ['active_job_id' => $activeJob->getId(), 'active_job_type' => $activeJob->getType()],
+            );
+        }
+
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
             return $this->apiError($request, 'BACKUP_NOT_SUPPORTED', $blockMessage, JsonResponse::HTTP_CONFLICT);
@@ -283,6 +503,12 @@ final class CustomerInstanceActionApiController
         if (!is_array($result) || !is_string($result['job_id'] ?? null) || $result['job_id'] === '') {
             return $this->apiError($request, 'INTERNAL_ERROR', 'Unable to queue backup creation job.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
+
+        $this->auditLogger->log($customer, 'instance.backup.queued', [
+            'instance_id' => $instance->getId(),
+            'definition_id' => $definition->getId(),
+            'job_id' => $result['job_id'],
+        ]);
 
         return $this->apiOk($request, [
                 'job_id' => $result['job_id'],
@@ -323,6 +549,31 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, 'NOT_FOUND', 'Backup not found.', JsonResponse::HTTP_NOT_FOUND);
         }
 
+        $activeJob = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.backup.create',
+            'instance.backup.restore',
+            'instance.reinstall',
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+        ], (int) ($instance->getId() ?? 0));
+        if ($activeJob instanceof Job) {
+            $this->auditLogger->log($customer, 'instance.backup.restore_blocked', [
+                'instance_id' => $instance->getId(),
+                'backup_id' => $backup->getId(),
+                'active_job_id' => $activeJob->getId(),
+                'active_job_type' => $activeJob->getType(),
+            ]);
+
+            return $this->apiError(
+                $request,
+                'RESTORE_CONFLICT',
+                'Restore blocked while another lifecycle job is running.',
+                JsonResponse::HTTP_CONFLICT,
+                ['active_job_id' => $activeJob->getId(), 'active_job_type' => $activeJob->getType()],
+            );
+        }
+
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
             return $this->apiError($request, 'BACKUP_NOT_SUPPORTED', $blockMessage, JsonResponse::HTTP_CONFLICT);
@@ -346,6 +597,13 @@ final class CustomerInstanceActionApiController
         if (!is_array($result) || !is_string($result['job_id'] ?? null) || $result['job_id'] === '') {
             return $this->apiError($request, 'INTERNAL_ERROR', 'Unable to queue backup restore job.', JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
+
+        $this->auditLogger->log($customer, 'instance.backup.restore_queued', [
+            'instance_id' => $instance->getId(),
+            'backup_id' => $backup->getId(),
+            'job_id' => $result['job_id'],
+            'pre_backup_job_id' => $result['pre_backup_job_id'] ?? null,
+        ]);
 
         return $this->apiOk($request, [
                 'job_id' => $result['job_id'],
@@ -1112,6 +1370,30 @@ final class CustomerInstanceActionApiController
             ]);
         }
 
+        $activeJob = $this->jobRepository->findLatestActiveByTypesAndInstanceId([
+            'instance.reinstall',
+            'instance.backup.create',
+            'instance.backup.restore',
+            'instance.start',
+            'instance.stop',
+            'instance.restart',
+            'instance.config.apply',
+            'instance.settings.update',
+            'instance.addon.install',
+            'instance.addon.update',
+            'instance.addon.remove',
+            'sniper.update',
+        ], (int) ($instance->getId() ?? 0));
+        if ($activeJob instanceof Job) {
+            return $this->apiError(
+                $request,
+                'REINSTALL_CONFLICT',
+                'Reinstall blocked while another lifecycle job is running.',
+                JsonResponse::HTTP_CONFLICT,
+                ['active_job_id' => $activeJob->getId(), 'active_job_type' => $activeJob->getType()],
+            );
+        }
+
         $blockMessage = $this->diskEnforcementService->guardInstanceAction($instance, new \DateTimeImmutable());
         if ($blockMessage !== null) {
             return $this->apiError($request, 'CONFLICT', $blockMessage, JsonResponse::HTTP_CONFLICT);
@@ -1586,6 +1868,28 @@ final class CustomerInstanceActionApiController
             'FILES_UNAUTHORIZED' => 'UNAUTHORIZED',
             default => $code,
         };
+    }
+
+    private function normalizeAgentRuntimeStatus(mixed $status, mixed $running, mixed $online): ?InstanceStatus
+    {
+        if (is_string($status)) {
+            return match (strtolower(trim($status))) {
+                'running', 'online', 'up' => InstanceStatus::Running,
+                'stopped', 'offline', 'down' => InstanceStatus::Stopped,
+                'error', 'failed', 'crashed' => InstanceStatus::Error,
+                default => null,
+            };
+        }
+
+        if (is_bool($running)) {
+            return $running ? InstanceStatus::Running : InstanceStatus::Stopped;
+        }
+
+        if (is_bool($online)) {
+            return $online ? InstanceStatus::Running : InstanceStatus::Stopped;
+        }
+
+        return null;
     }
 
     /**
