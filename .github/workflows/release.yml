@@ -10,6 +10,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -23,9 +25,7 @@ jobs:
           VERSION="${VERSION#v}" ./scripts/build-core-release.sh dist/core-release
 
       - name: Generate manifest signature (optional)
-        if: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY != '' }}
-        env:
-          EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}
+        if: ${{ env.EASYWI_RELEASE_PRIVATE_KEY != '' }}
         run: |
           printf '%s' "$EASYWI_RELEASE_PRIVATE_KEY" > /tmp/release_key.pem
           openssl dgst -sha256 -sign /tmp/release_key.pem -out dist/core-release/manifest.sig dist/core-release/manifest.json

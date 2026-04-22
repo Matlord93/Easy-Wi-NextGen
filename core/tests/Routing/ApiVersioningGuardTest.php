@@ -41,6 +41,7 @@ final class ApiVersioningGuardTest extends KernelTestCase
             '#^/api/instances/\\{id\\}/settings(?:/automation|/health)?$#',
             '#^/api/instances/\\{id\\}/reinstall(?:/options)?$#',
             '#^/api/instances/\\{id\\}/files(?:/.*)?$#',
+            '#^/api/instances/\\{id\\}/status/fix$#',
             '#^/api/instances/\\{id\\}/power$#',
             '#^/api/instances/\\{id\\}/slots$#',
             '#^/api/instances/\\{id\\}/query(?:/health)?$#',
