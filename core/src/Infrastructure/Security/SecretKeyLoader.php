@@ -8,6 +8,7 @@ final class SecretKeyLoader
 {
     private const DEFAULT_KEY_PATH = '/etc/easywi/secret.key';
     private const FALLBACK_KEY_DIR = 'var/easywi';
+    private const DEFAULT_KEY_BYTES = 32;
 
     public function __construct(
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%env(default::EASYWI_SECRET_KEY_PATH)%')]
@@ -46,12 +47,14 @@ final class SecretKeyLoader
             throw new \RuntimeException('Secret key file is empty.');
         }
 
+        $keyBytes = \defined('SODIUM_CRYPTO_SECRETBOX_KEYBYTES') ? \SODIUM_CRYPTO_SECRETBOX_KEYBYTES : self::DEFAULT_KEY_BYTES;
+
         $decoded = base64_decode($contents, true);
-        if ($decoded !== false && strlen($decoded) === SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
+        if ($decoded !== false && strlen($decoded) === $keyBytes) {
             return $decoded;
         }
 
-        if (strlen($contents) === SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
+        if (strlen($contents) === $keyBytes) {
             return $contents;
         }
 

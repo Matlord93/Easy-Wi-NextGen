@@ -457,7 +457,8 @@ final class InstallerService
             throw new \RuntimeException('Unable to create secret key directory.');
         }
 
-        $key = base64_encode(random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES));
+        $keyBytes = \defined('SODIUM_CRYPTO_SECRETBOX_KEYBYTES') ? \SODIUM_CRYPTO_SECRETBOX_KEYBYTES : 32;
+        $key = base64_encode(random_bytes($keyBytes));
         if (file_put_contents($keyPath, $key . "\n") === false) {
             throw new \RuntimeException('Unable to write secret key file.');
         }
@@ -585,20 +586,22 @@ final class InstallerService
         $candidates[] = 'php';
 
         $checked = [];
-        $fallbackCandidate = null;
+        $probeFailures = [];
         foreach ($candidates as $candidate) {
             if ($candidate === '' || isset($checked[$candidate])) {
                 continue;
             }
             $checked[$candidate] = true;
 
-            $versionCheck = $this->runInstallerCommand([$candidate, '-v']);
-            if ($versionCheck['exitCode'] !== 0) {
+            if (!$this->isCliPhpCandidate($candidate)) {
+                $probeFailures[$candidate] = 'not_cli_binary';
                 continue;
             }
 
-            if ($fallbackCandidate === null) {
-                $fallbackCandidate = $candidate;
+            $versionCheck = $this->runInstallerCommand([$candidate, '-v']);
+            if ($versionCheck['exitCode'] !== 0) {
+                $probeFailures[$candidate] = 'version_check_failed';
+                continue;
             }
 
             $moduleCheck = $this->runInstallerCommand([$candidate, '-m']);
@@ -606,26 +609,41 @@ final class InstallerService
                 return $candidate;
             }
 
+            $probeFailures[$candidate] = 'pdo_mysql_not_detected';
             $this->logger->warning('Using PHP binary fallback for installer migrations; pdo_mysql could not be verified via module probe.', [
                 'php_binary' => $candidate,
                 'module_probe_exit_code' => $moduleCheck['exitCode'] ?? null,
             ]);
         }
 
-        if ($fallbackCandidate !== null) {
-            return $fallbackCandidate;
+        $this->logger->error('Unable to resolve a PHP CLI binary with pdo_mysql for installer migrations.', [
+            'candidates' => array_keys($checked),
+            'probe_failures' => $probeFailures,
+        ]);
+
+        throw new \RuntimeException('No executable PHP CLI binary with pdo_mysql found for installer migrations. Configure EASYWI_PHP_BIN with a valid php-cli path.');
+    }
+
+    private function isCliPhpCandidate(string $candidate): bool
+    {
+        $normalized = strtolower(trim($candidate));
+        if ($normalized === '') {
+            return false;
         }
 
-        foreach ($candidates as $candidate) {
-            if (is_string($candidate) && trim($candidate) !== '') {
-                $this->logger->warning('Falling back to unverified PHP binary candidate for installer migrations.', [
-                    'php_binary' => $candidate,
-                ]);
-                return $candidate;
-            }
+        $basename = basename($normalized);
+        if (str_contains($basename, 'php-fpm') || str_contains($basename, 'fpm')) {
+            return false;
         }
 
-        throw new \RuntimeException('No executable PHP CLI binary found for installer migrations.');
+        $sapiProbe = $this->runInstallerCommand([$candidate, '-r', 'echo PHP_SAPI;']);
+        if ($sapiProbe['exitCode'] !== 0) {
+            return false;
+        }
+
+        $sapi = strtolower(trim((string) ($sapiProbe['output'] ?? '')));
+
+        return $sapi === 'cli' || $sapi === 'phpdbg';
     }
 
     /**

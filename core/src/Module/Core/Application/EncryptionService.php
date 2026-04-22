@@ -23,11 +23,11 @@ class EncryptionService
         ?string $keyring,
     ) {
         $this->activeKeyId = $activeKeyId ?? '';
-        $this->keyBytes = defined('SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES')
-            ? SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES
+        $this->keyBytes = \defined('SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES')
+            ? \SODIUM_CRYPTO_AEAD_AES256GCM_KEYBYTES
             : 32;
-        $this->nonceBytes = defined('SODIUM_CRYPTO_AEAD_AES256GCM_NPUBBYTES')
-            ? SODIUM_CRYPTO_AEAD_AES256GCM_NPUBBYTES
+        $this->nonceBytes = \defined('SODIUM_CRYPTO_AEAD_AES256GCM_NPUBBYTES')
+            ? \SODIUM_CRYPTO_AEAD_AES256GCM_NPUBBYTES
             : 12;
         $this->keyring = $this->parseKeyring($keyring ?? '');
     }
@@ -37,6 +37,8 @@ class EncryptionService
      */
     public function encrypt(string $plaintext): array
     {
+        $this->assertAeadAvailable();
+
         $keyId = $this->activeKeyId;
         if ($keyId === '') {
             throw new RuntimeException('No active encryption key configured.');
@@ -62,6 +64,8 @@ class EncryptionService
      */
     public function decrypt(array $payload): string
     {
+        $this->assertAeadAvailable();
+
         $keyId = (string) ($payload['key_id'] ?? '');
         if ($keyId === '') {
             throw new RuntimeException('Missing encryption key id.');
@@ -144,5 +148,15 @@ class EncryptionService
         }
 
         return $key;
+    }
+
+    private function assertAeadAvailable(): void
+    {
+        if (
+            !\function_exists('sodium_crypto_aead_aes256gcm_encrypt')
+            || !\function_exists('sodium_crypto_aead_aes256gcm_decrypt')
+        ) {
+            throw new RuntimeException('Libsodium extension is required for AEAD encryption/decryption.');
+        }
     }
 }

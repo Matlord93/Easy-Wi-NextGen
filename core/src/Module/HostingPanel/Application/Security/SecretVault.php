@@ -18,7 +18,10 @@ class SecretVault
 
     public function put(string $name, string $plaintext): void
     {
-        $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        $this->assertSecretboxAvailable();
+
+        $nonceBytes = \defined('SODIUM_CRYPTO_SECRETBOX_NONCEBYTES') ? \SODIUM_CRYPTO_SECRETBOX_NONCEBYTES : 24;
+        $nonce = random_bytes($nonceBytes);
         $cipher = sodium_crypto_secretbox($plaintext, $nonce, $this->binaryKey());
 
         $secret = new Secret($name, base64_encode($cipher), base64_encode($nonce), $this->keyVersion);
@@ -28,6 +31,8 @@ class SecretVault
 
     public function get(string $name): ?string
     {
+        $this->assertSecretboxAvailable();
+
         $secret = $this->entityManager->getRepository(Secret::class)->findOneBy(['name' => $name]);
         if (!$secret instanceof Secret) {
             return null;
@@ -42,5 +47,12 @@ class SecretVault
     {
         $decoded = base64_decode($this->encryptionKey, true);
         return is_string($decoded) ? $decoded : hash('sha256', $this->encryptionKey, true);
+    }
+
+    private function assertSecretboxAvailable(): void
+    {
+        if (!\function_exists('sodium_crypto_secretbox') || !\function_exists('sodium_crypto_secretbox_open')) {
+            throw new \RuntimeException('Libsodium extension is required for secret vault operations.');
+        }
     }
 }
