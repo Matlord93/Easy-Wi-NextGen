@@ -55,7 +55,11 @@ jobs:
             read -r goos goarch <<<"$target"
             out="../dist/easywi-agent-${goos}-${goarch}"
             [[ "$goos" == "windows" ]] && out+=".exe"
-            GOOS="$goos" GOARCH="$goarch" go build -trimpath               -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ github.sha }} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"               -o "$out" ./cmd/agent
+            build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            ldflags="-s -w -X main.version=${{ steps.version.outputs.version }} -X main.commit=${{ github.sha }} -X main.date=${build_date}"
+            GOOS="$goos" GOARCH="$goarch" go build -trimpath \
+              -ldflags "$ldflags" \
+              -o "$out" ./cmd/agent
           done
 
       - name: Package artifacts
