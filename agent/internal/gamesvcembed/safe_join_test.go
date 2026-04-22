@@ -24,4 +24,3 @@ func TestSafeJoinRejectsTraversal(t *testing.T) {
 		t.Fatal("expected traversal error, got nil")
 	}
 }
-
