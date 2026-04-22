@@ -765,7 +765,6 @@ install_agent_release_binaries() {
   tmp_dir="$(mktemp -d)"
 
   local downloaded_agent_asset
-  local checksums_asset
 
   step "Lade Agent-Releaseassets."
   downloaded_agent_asset="$(download_release_asset_from_candidates "${tmp_dir}/agent-asset" "${agent_version}" \
