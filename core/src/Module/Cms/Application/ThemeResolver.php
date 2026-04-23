@@ -16,7 +16,7 @@ final class ThemeResolver
         'theme3' => 'fantasy',
     ];
 
-    private const SUPPORTED_THEMES = ['esports', 'minimal', 'fantasy',  'clan-nova', 'neon-arena', 'titan-squad'];
+    private const SUPPORTED_THEMES = ['esports', 'minimal', 'fantasy', 'clan-nova', 'neon-arena', 'titan-squad'];
 
     public function __construct(private readonly CmsSettingsProvider $settingsProvider)
     {
