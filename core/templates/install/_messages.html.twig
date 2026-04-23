@@ -4,13 +4,13 @@
     <div class="rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm text-rose-700">
         <ul class="list-disc space-y-1 pl-5">
             {% for error in errors %}
-                <li>{{ error.key|trans(error.params|default({})) }}</li>
+                <li>{{ error.key|trans(error.params|default({}), 'installer') }}</li>
             {% endfor %}
         </ul>
         {% if debugAvailable|default(false) %}
             <div class="mt-4">
                 <a href="{{ path('public_install_debug') }}" class="inline-flex items-center rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-                    {{ 'actions.download_debug'|trans }}
+                    {{ 'actions.download_debug'|trans({}, 'installer') }}
                 </a>
             </div>
         {% endif %}
@@ -21,7 +21,7 @@
     <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm text-emerald-700">
         <ul class="list-disc space-y-1 pl-5">
             {% for message in success %}
-                <li>{{ message.key|trans(message.params|default({})) }}</li>
+                <li>{{ message.key|trans(message.params|default({}), 'installer') }}</li>
             {% endfor %}
         </ul>
     </div>

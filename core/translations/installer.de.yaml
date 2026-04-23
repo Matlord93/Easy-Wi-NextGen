@@ -79,6 +79,7 @@ errors:
   db_connection_failed: "Datenbankverbindung fehlgeschlagen. Bitte Zugangsdaten und Host prüfen."
   db_privileges_failed: "Datenbankrechteprüfung fehlgeschlagen. Stellen Sie CREATE-, ALTER- und INDEX-Rechte sicher."
   db_migrations_failed: "Datenbank-Migrationen fehlgeschlagen. Prüfen Sie die Logs und versuchen Sie es erneut."
+  php_version_too_low: "Installer-Migrationen benötigen PHP %required% oder neuer, aber Ihre CLI nutzt PHP %current%. Wählen Sie in Plesk eine neuere CLI-Binary oder setzen Sie EASYWI_PHP_BIN."
   db_migrations_not_run: "Bitte führen Sie zuerst die Datenbank-Migrationen im vorherigen Schritt aus."
   db_config_save_required: "Bitte speichern Sie zuerst die Datenbank-Konfiguration im vorherigen Schritt."
   db_config_write_failed: "Die Datenbankkonfiguration konnte nicht gespeichert werden. Prüfen Sie die Rechte für %path%."

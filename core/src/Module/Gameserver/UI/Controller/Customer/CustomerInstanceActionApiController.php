@@ -1272,7 +1272,7 @@ final class CustomerInstanceActionApiController
         $liveOutputStatus = 'ok';
         $liveOutputMessage = null;
 
-        if ($this->consoleStreamDiagnostics instanceof ConsoleStreamDiagnostics) {
+        if (isset($this->consoleStreamDiagnostics) && $this->consoleStreamDiagnostics instanceof ConsoleStreamDiagnostics) {
             if ($this->consoleStreamDiagnostics->isNullClient()) {
                 $supportsLiveOutput = false;
                 $liveOutputStatus = 'backend_not_configured';

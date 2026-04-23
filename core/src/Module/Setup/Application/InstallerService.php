@@ -27,6 +27,7 @@ use Symfony\Component\Process\PhpExecutableFinder;
 
 final class InstallerService
 {
+    private const MIN_SUPPORTED_PHP_VERSION_ID = 80400;
     private const SETUP_DIR = 'srv/setup';
     private const STATE_FILE = self::SETUP_DIR . '/state/install.state.json';
     private const LOCK_FILE = self::SETUP_DIR . '/state/install.lock';
@@ -91,14 +92,14 @@ final class InstallerService
 
         $requirements[] = [
             'key' => 'php_version',
-            'ok' => PHP_VERSION_ID >= 80200,
+            'ok' => PHP_VERSION_ID >= self::MIN_SUPPORTED_PHP_VERSION_ID,
             'required' => true,
             'messageKey' => 'requirements.php_version',
             'messageParams' => [
                 '%current%' => PHP_VERSION,
                 '%required%' => '8.4',
             ],
-            'fixHintKey' => PHP_VERSION_ID >= 80200 ? null : 'hints.update_php',
+            'fixHintKey' => PHP_VERSION_ID >= self::MIN_SUPPORTED_PHP_VERSION_ID ? null : 'hints.update_php',
             'fixHintParams' => [],
         ];
 
@@ -558,7 +559,7 @@ final class InstallerService
 
     private function resolvePhpExecutableForMigrations(): string
     {
-        $candidates = [];
+        $candidates = $this->discoverPleskPhpCandidates();
 
         foreach (['EASYWI_PHP_BIN', 'PHP_CLI_BIN'] as $envKey) {
             $value = trim((string) getenv($envKey));
@@ -566,8 +567,6 @@ final class InstallerService
                 $candidates[] = $value;
             }
         }
-
-        $candidates = array_merge($candidates, $this->discoverPleskPhpCandidates());
 
         if (PHP_BINARY !== '') {
             $candidates[] = PHP_BINARY;
@@ -604,6 +603,16 @@ final class InstallerService
                 continue;
             }
 
+            $versionId = $this->readPhpVersionIdFromBinary($candidate);
+            if ($versionId === null) {
+                $probeFailures[$candidate] = 'version_id_probe_failed';
+                continue;
+            }
+            if ($versionId < self::MIN_SUPPORTED_PHP_VERSION_ID) {
+                $probeFailures[$candidate] = sprintf('php_version_too_low:%d', $versionId);
+                continue;
+            }
+
             $moduleCheck = $this->runInstallerCommand([$candidate, '-m']);
             if ($moduleCheck['exitCode'] === 0 && preg_match('/^pdo_mysql$/mi', $moduleCheck['output']) === 1) {
                 return $candidate;
@@ -621,7 +630,22 @@ final class InstallerService
             'probe_failures' => $probeFailures,
         ]);
 
-        throw new \RuntimeException('No executable PHP CLI binary with pdo_mysql found for installer migrations. Configure EASYWI_PHP_BIN with a valid php-cli path.');
+        throw new \RuntimeException('No executable PHP CLI binary with PHP >= 8.4 and pdo_mysql found for installer migrations. Configure EASYWI_PHP_BIN with a valid php-cli path.');
+    }
+
+    private function readPhpVersionIdFromBinary(string $candidate): ?int
+    {
+        $result = $this->runInstallerCommand([$candidate, '-r', 'echo PHP_VERSION_ID;']);
+        if (($result['exitCode'] ?? 1) !== 0) {
+            return null;
+        }
+
+        $versionRaw = trim((string) ($result['output'] ?? ''));
+        if ($versionRaw === '' || !ctype_digit($versionRaw)) {
+            return null;
+        }
+
+        return (int) $versionRaw;
     }
 
     private function isCliPhpCandidate(string $candidate): bool

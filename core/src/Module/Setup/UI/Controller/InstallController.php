@@ -450,6 +450,11 @@ final class InstallController
      */
     private function resolveDatabaseMigrationError(array $databaseState, \Throwable $exception): array
     {
+        $phpVersionError = $this->resolvePhpVersionRequirementError($exception);
+        if ($phpVersionError !== null) {
+            return $phpVersionError;
+        }
+
         if ($this->isMissingDriverException($exception)) {
             if (!extension_loaded('pdo_mysql')) {
                 return [
@@ -460,6 +465,33 @@ final class InstallController
         }
 
         return ['key' => 'errors.db_migrations_failed'];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolvePhpVersionRequirementError(\Throwable $exception): ?array
+    {
+        $current = $exception;
+
+        while (true) {
+            if (preg_match('/require a PHP version ">=\\s*([0-9.]+)".*You are running\\s*([0-9.]+)/si', $current->getMessage(), $matches) === 1) {
+                return [
+                    'key' => 'errors.php_version_too_low',
+                    'params' => [
+                        '%required%' => $matches[1],
+                        '%current%' => $matches[2],
+                    ],
+                ];
+            }
+
+            $previous = $current->getPrevious();
+            if ($previous === null) {
+                return null;
+            }
+
+            $current = $previous;
+        }
     }
 
     private function isMissingDriverException(\Throwable $exception): bool

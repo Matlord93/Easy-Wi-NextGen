@@ -79,6 +79,7 @@ errors:
   db_connection_failed: "Database connection failed. Please verify the credentials and host."
   db_privileges_failed: "Database privilege test failed. Ensure CREATE, ALTER, and INDEX rights."
   db_migrations_failed: "Database migrations failed. Check logs for details and try again."
+  php_version_too_low: "Installer migrations require PHP %required% or newer, but your CLI uses PHP %current%. Select a newer CLI binary in Plesk or set EASYWI_PHP_BIN."
   db_migrations_not_run: "Please run database migrations in the previous step first."
   db_config_save_required: "Please save your database configuration in the previous step first."
   db_config_write_failed: "Database configuration could not be saved. Check file permissions for %path%."
