@@ -401,11 +401,11 @@ final class AdminInstanceController
         if ($instance->getPortBlockId() !== null) {
             $portBlock = $this->portBlockRepository->find($instance->getPortBlockId());
             if ($portBlock !== null && $portBlock->getInstance()?->getId() === $instance->getId()) {
-                $portBlock->releaseInstance();
-                $this->entityManager->persist($portBlock);
-                $this->auditLogger->log($actor, 'port_block.released', [
+                $this->entityManager->remove($portBlock);
+                $this->auditLogger->log($actor, 'port_block.deleted_with_instance', [
                     'port_block_id' => $portBlock->getId(),
                     'instance_id' => $instance->getId(),
+                    'install_path' => $instance->getInstallPath(),
                     'customer_id' => $instance->getCustomer()->getId(),
                 ]);
             }
