@@ -4,14 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}{{ page.title|default('Clan') }}{% endblock %}</title>
-  <link rel="stylesheet" href="/themes/neon-arena/css/theme.css">
+  {% block head %}{% endblock %}
+  <link rel="stylesheet" href="{{ asset('themes/' ~ (active_theme|default('neon-arena')) ~ '/css/theme.css') }}">
 </head>
 <body class="theme-shell">
-  <header class="hero">
-    <h1>{{ cms_branding.name|default('E-Sports Team') }}</h1>
-    <p>{{ cms_branding.tagline|default('Compete. Stream. Repeat.') }}</p>
-  </header>
-  <main>{% block body %}{% endblock %}</main>
-  <footer>© {{ "now"|date("Y") }} {{ cms_branding.name|default('Team') }}</footer>
+  {% if cms_layout.show_header|default(true) %}
+    {% block header %}
+      <header class="hero">
+        <h1>{{ cms_branding.name|default('E-Sports Team') }}</h1>
+        <p>{{ cms_branding.tagline|default('Compete. Stream. Repeat.') }}</p>
+      </header>
+    {% endblock %}
+  {% endif %}
+
+  <main class="{% block main_class %}{% endblock %}">{% block body %}{% endblock %}</main>
+
+  {% if cms_layout.show_footer|default(true) %}
+    {% block footer %}
+      <footer>© {{ "now"|date("Y") }} {{ cms_branding.name|default('Team') }}</footer>
+    {% endblock %}
+  {% endif %}
 </body>
 </html>

@@ -66,10 +66,13 @@ final class RunSchedulesCommand extends Command
         $queued = 0;
 
         try {
-            $instanceSchedules = $this->instanceScheduleRepository->findBy(['enabled' => true], ['id' => 'ASC'], self::DEFAULT_BATCH_SIZE);
-            foreach ($instanceSchedules as $schedule) {
-                $instance = $schedule->getInstance();
-                $action = $schedule->getAction();
+            $lastInstanceScheduleId = 0;
+            do {
+                $instanceSchedules = $this->instanceScheduleRepository->findEnabledBatchAfterId($lastInstanceScheduleId, self::DEFAULT_BATCH_SIZE);
+                foreach ($instanceSchedules as $schedule) {
+                    $lastInstanceScheduleId = max($lastInstanceScheduleId, (int) ($schedule->getId() ?? 0));
+                    $instance = $schedule->getInstance();
+                    $action = $schedule->getAction();
 
                 if ($action === InstanceScheduleAction::Update && $instance->getUpdatePolicy() !== InstanceUpdatePolicy::Auto) {
                     continue;
@@ -230,15 +233,19 @@ final class RunSchedulesCommand extends Command
                     'time_zone' => $timeZone,
                     'job_id' => $job->getId(),
                 ]);
-                $queued++;
-            }
-
-            $backupSchedules = $this->backupScheduleRepository->findBy(['enabled' => true], ['id' => 'ASC'], self::DEFAULT_BATCH_SIZE);
-            foreach ($backupSchedules as $schedule) {
-                $definition = $schedule->getDefinition();
-                if ($definition->getTargetType() !== BackupTargetType::Game) {
-                    continue;
+                    $queued++;
                 }
+            } while (count($instanceSchedules) === self::DEFAULT_BATCH_SIZE);
+
+            $lastBackupScheduleId = 0;
+            do {
+                $backupSchedules = $this->backupScheduleRepository->findEnabledBatchAfterId($lastBackupScheduleId, self::DEFAULT_BATCH_SIZE);
+                foreach ($backupSchedules as $schedule) {
+                    $lastBackupScheduleId = max($lastBackupScheduleId, (int) ($schedule->getId() ?? 0));
+                    $definition = $schedule->getDefinition();
+                    if ($definition->getTargetType() !== BackupTargetType::Game) {
+                        continue;
+                    }
 
                 $instanceId = (int) $definition->getTargetId();
                 $instance = $this->instanceRepository->find($instanceId);
@@ -341,8 +348,9 @@ final class RunSchedulesCommand extends Command
                     'job_id' => $job->getId(),
                     'backup_target_id' => $targetId,
                 ]);
-                $queued++;
-            }
+                    $queued++;
+                }
+            } while (count($backupSchedules) === self::DEFAULT_BATCH_SIZE);
 
             $this->entityManager->flush();
 

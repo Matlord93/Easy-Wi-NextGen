@@ -1,1 +1,10 @@
-<footer class="theme-footer"><div class="theme-wrap">© Theme minimal · Easy-Wi</div></footer>
+<footer class="theme-footer">
+  <div class="theme-wrap">
+    <span>© Theme minimal · Easy-Wi</span>
+    {% for item in cms_footer_links|default([]) %}
+      {% if item.url is defined and item.url is not empty %}
+        <a href="{{ item.url }}"{% if item.external|default(false) %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.label|default('Link') }}</a>
+      {% endif %}
+    {% endfor %}
+  </div>
+</footer>

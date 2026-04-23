@@ -14,6 +14,8 @@
 
     const inlineError = document.getElementById('gs-instances-list-error');
     const refreshButton = document.getElementById('gs-instances-refresh');
+    const restartSelectedButton = document.getElementById('gs-instances-restart-selected');
+    const restartAllButton = document.getElementById('gs-instances-restart-all');
     const baseInterval = Number(root.dataset.pollBaseMs || 12000);
     const backoffSteps = [baseInterval, 30000, 60000];
 
@@ -23,6 +25,10 @@
         queryPlayerUnknown: root.dataset.labelQueryPlayerUnknown || 'Unknown',
         powerWorking: root.dataset.labelPowerWorking || 'Working…',
         powerQueued: root.dataset.labelPowerQueued || 'Power action queued',
+        restartNoneSelected: root.dataset.labelRestartNoneSelected || 'No server selected.',
+        restartNoneAvailable: root.dataset.labelRestartNoneAvailable || 'No running server available.',
+        restartBulkQueued: root.dataset.labelRestartBulkQueued || 'Bulk restart started.',
+        restartBulkFinished: root.dataset.labelRestartBulkFinished || 'Bulk restart completed.',
     };
 
     const cards = Array.from(root.querySelectorAll('[data-instance-card]')).map((card) => ({
@@ -180,6 +186,56 @@
         }
     };
 
+    const getRestartButton = (cardState) => cardState.el.querySelector('[data-power-action="restart"]');
+
+    const getRestartTargets = (selectedOnly) => cards.filter((cardState) => {
+        const restartButton = getRestartButton(cardState);
+        if (!restartButton || restartButton.disabled) {
+            return false;
+        }
+        if (!selectedOnly) {
+            return true;
+        }
+        const selector = cardState.el.querySelector('[data-bulk-select-restart]');
+        return Boolean(selector?.checked);
+    });
+
+    const sendBulkRestart = async (selectedOnly) => {
+        const targets = getRestartTargets(selectedOnly);
+        if (targets.length === 0) {
+            errors.showToast({
+                message: selectedOnly ? labels.restartNoneSelected : labels.restartNoneAvailable,
+                error_code: 'NO_TARGET',
+                request_id: '',
+            }, 2500);
+            return;
+        }
+
+        errors.showToast({
+            message: `${labels.restartBulkQueued} (${targets.length})`,
+            error_code: 'OK',
+            request_id: '',
+        }, 1800);
+
+        for (const cardState of targets) {
+            const restartButton = getRestartButton(cardState);
+            if (!restartButton) continue;
+            // Sequential queueing avoids bursts against the API and keeps button state predictable.
+            // eslint-disable-next-line no-await-in-loop
+            await sendPower(cardState, 'restart', restartButton);
+            const selector = cardState.el.querySelector('[data-bulk-select-restart]');
+            if (selector) {
+                selector.checked = false;
+            }
+        }
+
+        errors.showToast({
+            message: labels.restartBulkFinished,
+            error_code: 'OK',
+            request_id: '',
+        }, 2200);
+    };
+
     cards.forEach((cardState, index) => {
         cardState.el.querySelectorAll('[data-power-action]').forEach((button) => {
             button.addEventListener('click', () => sendPower(cardState, button.dataset.powerAction, button));
@@ -206,6 +262,18 @@
                 window.clearTimeout(cardState.timer);
                 pollCard(cardState);
             });
+        });
+    }
+
+    if (restartSelectedButton) {
+        restartSelectedButton.addEventListener('click', () => {
+            sendBulkRestart(true);
+        });
+    }
+
+    if (restartAllButton) {
+        restartAllButton.addEventListener('click', () => {
+            sendBulkRestart(false);
         });
     }
 })();

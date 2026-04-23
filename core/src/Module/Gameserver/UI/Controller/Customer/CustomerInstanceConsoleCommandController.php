@@ -57,7 +57,8 @@ final class CustomerInstanceConsoleCommandController
             return $this->responseEnvelopeFactory->error($request, 'Forbidden', 'FORBIDDEN', JsonResponse::HTTP_FORBIDDEN);
         }
 
-        if ($instance->getStatus() !== InstanceStatus::Running) {
+        $runtimeStatus = strtolower((string) ($instance->getQueryStatusCache()['status'] ?? ''));
+        if ($instance->getStatus() !== InstanceStatus::Running && $runtimeStatus !== 'online') {
             $this->audit($actor, 'command_blocked', $id, null, 'instance_not_running');
             return $this->responseEnvelopeFactory->error($request, 'Instance is not running.', 'INSTANCE_OFFLINE', JsonResponse::HTTP_CONFLICT);
         }

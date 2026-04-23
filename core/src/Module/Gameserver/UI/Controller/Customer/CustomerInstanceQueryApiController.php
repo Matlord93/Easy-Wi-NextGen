@@ -83,6 +83,7 @@ final class CustomerInstanceQueryApiController
             'supported' => true,
             'type' => $spec->getType(),
             'target' => sprintf('%s:%d', (string) $spec->getHost(), (int) $spec->getPort()),
+            'status' => $this->resolveQueryStatus($snapshot['status'] ?? null, $normalized['status'] ?? null, $normalized['online'] ?? null),
             'latency_ms' => isset($normalized['latency_ms']) && is_numeric($normalized['latency_ms']) ? (int) $normalized['latency_ms'] : null,
             'online' => isset($normalized['online']) ? (bool) $normalized['online'] : null,
             'players' => [
@@ -228,5 +229,32 @@ final class CustomerInstanceQueryApiController
         }
 
         return $error;
+    }
+
+    private function resolveQueryStatus(mixed $snapshotStatus, mixed $resultStatus, mixed $onlineHint): string
+    {
+        $normalize = static function (mixed $value): ?string {
+            if (!is_string($value)) {
+                return null;
+            }
+
+            return match (strtolower(trim($value))) {
+                'running', 'online', 'up' => 'online',
+                'stopped', 'offline', 'down' => 'offline',
+                'queued', 'starting', 'error', 'unknown' => strtolower(trim($value)),
+                default => null,
+            };
+        };
+
+        $status = $normalize($resultStatus) ?? $normalize($snapshotStatus);
+        if ($status !== null) {
+            return $status;
+        }
+
+        if (is_bool($onlineHint)) {
+            return $onlineHint ? 'online' : 'offline';
+        }
+
+        return 'unknown';
     }
 }

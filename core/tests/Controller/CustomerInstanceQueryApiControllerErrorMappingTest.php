@@ -45,4 +45,28 @@ final class CustomerInstanceQueryApiControllerErrorMappingTest extends TestCase
 
         self::assertSame('invalid input payload', $message);
     }
+
+    public function testResolveQueryStatusUsesOnlineAliasAsOnline(): void
+    {
+        $controller = (new ReflectionClass(CustomerInstanceQueryApiController::class))->newInstanceWithoutConstructor();
+
+        $method = new \ReflectionMethod(CustomerInstanceQueryApiController::class, 'resolveQueryStatus');
+        $method->setAccessible(true);
+
+        $status = $method->invoke($controller, 'offline', 'running', null);
+
+        self::assertSame('online', $status);
+    }
+
+    public function testResolveQueryStatusFallsBackToOnlineHint(): void
+    {
+        $controller = (new ReflectionClass(CustomerInstanceQueryApiController::class))->newInstanceWithoutConstructor();
+
+        $method = new \ReflectionMethod(CustomerInstanceQueryApiController::class, 'resolveQueryStatus');
+        $method->setAccessible(true);
+
+        $status = $method->invoke($controller, null, null, true);
+
+        self::assertSame('online', $status);
+    }
 }

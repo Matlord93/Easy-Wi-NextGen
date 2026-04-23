@@ -1,0 +1,44 @@
+{% extends 'themes/xenal/base.html.twig' %}
+
+{% block content %}
+<section class="theme-wrap xenal-page-shell">
+  <header class="xenal-section-head">
+    <p class="xenal-kicker">Xenal Server</p>
+    <h1>Serverübersicht</h1>
+  </header>
+
+  <div class="xenal-card" style="margin-bottom:1rem;">
+    <form method="get" class="grid gap-3 md:grid-cols-4">
+      <input type="search" name="search" value="{{ filters.search }}" placeholder="Server suchen" class="xenal-input" />
+      <select name="game" class="xenal-input">
+        <option value="">Alle Spiele</option>
+        {% for game in games %}
+          <option value="{{ game }}" {% if filters.game == game %}selected{% endif %}>{{ game }}</option>
+        {% endfor %}
+      </select>
+      <select name="status" class="xenal-input">
+        <option value="">Alle Status</option>
+        <option value="online" {% if filters.status == 'online' %}selected{% endif %}>Online</option>
+        <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>Offline</option>
+        <option value="unknown" {% if filters.status == 'unknown' %}selected{% endif %}>Unknown</option>
+      </select>
+      <button type="submit" class="xn-btn xn-btn--outline">Filtern</button>
+    </form>
+  </div>
+
+  <div class="xenal-section-stack">
+    {% for server in servers %}
+      <article class="xenal-card">
+        <h3>{{ server.name }}</h3>
+        <p>{{ server.game_key|upper }} · {{ server.address }}</p>
+        <p>Status: {{ server.status|upper }}</p>
+        {% if server.players is not null and server.max_players is not null %}
+          <p>Spieler: {{ server.players }}/{{ server.max_players }}</p>
+        {% endif %}
+      </article>
+    {% else %}
+      <article class="xenal-card">Keine Server gefunden.</article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

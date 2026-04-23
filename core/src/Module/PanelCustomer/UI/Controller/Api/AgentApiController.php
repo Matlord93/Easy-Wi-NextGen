@@ -1108,7 +1108,30 @@ final class AgentApiController
         }
 
         $samples = is_array($payload['samples'] ?? null) ? $payload['samples'] : [];
-        $retentionThreshold = (new \DateTimeImmutable('-1 day'));
+        $retentionThreshold = new \DateTimeImmutable('-30 days');
+        $resolvedInstances = [];
+        $instanceIds = [];
+
+        foreach ($samples as $sample) {
+            if (!is_array($sample) || !is_numeric($sample['instance_id'] ?? null)) {
+                continue;
+            }
+
+            $instanceId = (int) $sample['instance_id'];
+            if ($instanceId <= 0 || isset($resolvedInstances[$instanceId])) {
+                continue;
+            }
+
+            $instance = $this->instanceRepository->find($instanceId);
+            if ($instance === null) {
+                continue;
+            }
+
+            $resolvedInstances[$instanceId] = $instance;
+            $instanceIds[] = $instanceId;
+        }
+
+        $latestCollectedMap = $this->instanceMetricSampleRepository->findLatestCollectedAtByInstanceIds($instanceIds);
 
         foreach ($samples as $sample) {
             if (!is_array($sample)) {
@@ -1119,9 +1142,19 @@ final class AgentApiController
             if (!is_numeric($instanceId)) {
                 continue;
             }
-
-            $instance = $this->instanceRepository->find((int) $instanceId);
+            $instanceId = (int) $instanceId;
+            $instance = $resolvedInstances[$instanceId] ?? null;
             if ($instance === null) {
+                continue;
+            }
+
+            $collectedAt = $this->parseMetricTimestamp($sample['collected_at'] ?? null);
+            if ($collectedAt === null) {
+                continue;
+            }
+
+            $lastCollectedAt = $latestCollectedMap[$instanceId] ?? null;
+            if ($lastCollectedAt instanceof \DateTimeImmutable && $collectedAt < $lastCollectedAt->modify('+5 minutes')) {
                 continue;
             }
 
@@ -1130,10 +1163,11 @@ final class AgentApiController
                 is_numeric($sample['cpu_percent'] ?? null) ? (float) $sample['cpu_percent'] : null,
                 is_numeric($sample['mem_current_bytes'] ?? null) ? (int) $sample['mem_current_bytes'] : null,
                 is_numeric($sample['tasks_current'] ?? null) ? (int) $sample['tasks_current'] : null,
-                $this->parseMetricTimestamp($sample['collected_at'] ?? null),
+                $collectedAt,
                 is_string($sample['error_code'] ?? null) ? (string) $sample['error_code'] : null,
             );
             $this->entityManager->persist($metricSample);
+            $latestCollectedMap[$instanceId] = $collectedAt;
         }
 
         $this->instanceMetricSampleRepository->deleteOlderThan($retentionThreshold);

@@ -21,6 +21,7 @@ use App\Module\Core\Domain\Enum\InstanceUpdatePolicy;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\Application\ConsoleCommandValidator;
+use App\Module\Gameserver\Application\Console\ConsoleStreamDiagnostics;
 use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
@@ -72,6 +73,7 @@ final class CustomerInstanceActionApiController
         private readonly MessageBusInterface $messageBus,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
         private readonly ?AgentGameServerClient $agentGameServerClient = null,
+        private readonly ?ConsoleStreamDiagnostics $consoleStreamDiagnostics = null,
     ) {
     }
 
@@ -1266,6 +1268,29 @@ final class CustomerInstanceActionApiController
 
         $running = $instance->getStatus() === InstanceStatus::Running || $runtimeStatus === 'online';
 
+        $supportsLiveOutput = true;
+        $liveOutputStatus = 'ok';
+        $liveOutputMessage = null;
+
+        if ($this->consoleStreamDiagnostics instanceof ConsoleStreamDiagnostics) {
+            if ($this->consoleStreamDiagnostics->isNullClient()) {
+                $supportsLiveOutput = false;
+                $liveOutputStatus = 'backend_not_configured';
+                $liveOutputMessage = 'Console backend not configured.';
+            } elseif (!$this->consoleStreamDiagnostics->redisPingOk()) {
+                $supportsLiveOutput = false;
+                $liveOutputStatus = 'redis_unavailable';
+                $liveOutputMessage = 'Redis unavailable.';
+            } else {
+                $relayAge = $this->consoleStreamDiagnostics->relayHeartbeatAgeSeconds();
+                if ($relayAge === null || $relayAge > 20) {
+                    $supportsLiveOutput = false;
+                    $liveOutputStatus = 'relay_stale';
+                    $liveOutputMessage = 'Console relay offline.';
+                }
+            }
+        }
+
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
             'instance_status' => strtolower($instance->getStatus()->value),
@@ -1273,7 +1298,9 @@ final class CustomerInstanceActionApiController
             'can_send_command' => $running,
             'unit_name' => sprintf('gs-%d', $instance->getId()),
             'running_state' => $running ? 'running' : 'offline',
-            'supports_live_output' => true,
+            'supports_live_output' => $supportsLiveOutput,
+            'live_output_status' => $liveOutputStatus,
+            'live_output_message' => $liveOutputMessage,
             'supports_command_injection' => true,
             'injection_mechanism' => 'unix_socket',
             'session_active' => $running,
@@ -1502,7 +1529,7 @@ final class CustomerInstanceActionApiController
         }
 
         $plugin = $this->gamePluginRepository->find((int) $pluginId);
-        if ($plugin === null || $plugin->getTemplate()->getGameKey() !== $instance->getTemplate()->getGameKey()) {
+        if ($plugin === null || !$this->isPluginAssignableToInstance($plugin, $instance)) {
             return $this->responseEnvelopeFactory->error(
                 $request,
                 'Plugin not found for this instance.',
@@ -1614,6 +1641,23 @@ final class CustomerInstanceActionApiController
                 'reapply_on_update' => true,
             ]],
         ];
+    }
+
+    private function isPluginAssignableToInstance(\App\Module\Core\Domain\Entity\GamePlugin $plugin, Instance $instance): bool
+    {
+        $pluginTemplate = $plugin->getTemplate();
+        $instanceTemplate = $instance->getTemplate();
+
+        if ($pluginTemplate->getId() !== null && $instanceTemplate->getId() !== null && $pluginTemplate->getId() === $instanceTemplate->getId()) {
+            return true;
+        }
+
+        return $this->normalizeGameKey($pluginTemplate->getGameKey()) === $this->normalizeGameKey($instanceTemplate->getGameKey());
+    }
+
+    private function normalizeGameKey(string $gameKey): string
+    {
+        return mb_strtolower(trim($gameKey));
     }
 
     private function findActiveAddonJob(Instance $instance): ?Job

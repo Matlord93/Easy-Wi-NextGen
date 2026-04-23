@@ -71,7 +71,15 @@ final class InstanceAddonResolver
         if (!$plugin instanceof GamePlugin) {
             return null;
         }
-        if ($plugin->getTemplate()->getGameKey() !== $instance->getTemplate()->getGameKey()) {
+
+        $pluginTemplate = $plugin->getTemplate();
+        $instanceTemplate = $instance->getTemplate();
+
+        if ($pluginTemplate->getId() !== null && $instanceTemplate->getId() !== null && $pluginTemplate->getId() === $instanceTemplate->getId()) {
+            return $plugin;
+        }
+
+        if ($this->normalizeGameKey($pluginTemplate->getGameKey()) !== $this->normalizeGameKey($instanceTemplate->getGameKey())) {
             return null;
         }
 
@@ -170,5 +178,10 @@ final class InstanceAddonResolver
         $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
 
         return trim($value, '-');
+    }
+
+    private function normalizeGameKey(string $value): string
+    {
+        return mb_strtolower(trim($value));
     }
 }

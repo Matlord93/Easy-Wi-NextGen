@@ -35,7 +35,7 @@ final class AdminGdprRetentionController
             'activeNav' => 'gdpr-retention',
             'policy' => [
                 'ticketRetentionDays' => $policy?->getTicketRetentionDays() ?? 365,
-                'logRetentionDays' => $policy?->getLogRetentionDays() ?? 90,
+                'logRetentionDays' => $policy?->getLogRetentionDays() ?? 7,
                 'sessionRetentionDays' => $policy?->getSessionRetentionDays() ?? 30,
                 'updatedAt' => $policy?->getUpdatedAt(),
                 'updatedBy' => $admin->getEmail(),
@@ -51,7 +51,7 @@ final class AdminGdprRetentionController
         $policy = $this->retentionRepository->getCurrent();
 
         $ticketDays = max(1, (int) $request->request->get('ticket_retention_days', 365));
-        $logDays = max(1, (int) $request->request->get('log_retention_days', 90));
+        $logDays = max(1, (int) $request->request->get('log_retention_days', 7));
         $sessionDays = max(1, (int) $request->request->get('session_retention_days', 30));
 
         $previous = $policy === null ? null : [

@@ -45,6 +45,27 @@ final class MetricSampleRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    public function findLatestRecordedAtForAgent(Agent $agent): ?\DateTimeImmutable
+    {
+        $row = $this->createQueryBuilder('sample')
+            ->select('sample.recordedAt AS recordedAt')
+            ->andWhere('sample.agent = :agent')
+            ->setParameter('agent', $agent)
+            ->orderBy('sample.recordedAt', 'DESC')
+            ->addOrderBy('sample.id', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (!is_array($row)) {
+            return null;
+        }
+
+        $recordedAt = $row['recordedAt'] ?? null;
+
+        return $recordedAt instanceof \DateTimeImmutable ? $recordedAt : null;
+    }
+
     /**
      * @return array{count: int, cpu_avg: ?float, cpu_max: ?float, memory_avg: ?float, memory_max: ?float, disk_avg: ?float, disk_max: ?float}
      */

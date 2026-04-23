@@ -182,7 +182,13 @@
             return;
         }
 
-        const url = new URL(streamUrl, window.location.origin);
+        let url;
+        try {
+            url = new URL(streamUrl, window.location.origin);
+        } catch (error) {
+            void activatePollingFallback(streamUnavailableMessage);
+            return;
+        }
 
         if (source) {
             source.close();
@@ -236,6 +242,10 @@
 
         source.onerror = () => {
             reconnectFailures += 1;
+            if (source && source.readyState === EventSource.CLOSED) {
+                void activatePollingFallback(streamUnavailableMessage);
+                return;
+            }
             if (reconnectFailures >= MAX_STREAM_FAILURES) {
                 void activatePollingFallback(streamUnavailableMessage);
                 return;
@@ -301,6 +311,9 @@
             });
             appendLine(`> ${command}`, 'meta');
             commandEl.value = '';
+            if (fallbackActive) {
+                void loadLogs().catch(() => {});
+            }
         } catch (error) {
             errors.showAll(inlineError, error);
         } finally {
@@ -330,11 +343,27 @@
         renderLines();
     });
 
-    if (streamUrl) {
+    const initializeConsole = async () => {
+        if (!streamUrl) {
+            await startPollingFallback();
+            return;
+        }
+
+        try {
+            const health = await loadHealth();
+            if (health && health.supports_live_output === false) {
+                const reason = (health.live_output_message || '').trim() || streamUnavailableMessage;
+                await activatePollingFallback(reason);
+                return;
+            }
+        } catch (error) {
+            // Ignore health probe errors and try live stream directly.
+        }
+
         connect();
-    } else {
-        startPollingFallback();
-    }
+    };
+
+    void initializeConsole();
 
     window.addEventListener('beforeunload', () => {
         if (source) {

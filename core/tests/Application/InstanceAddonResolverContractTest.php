@@ -15,7 +15,8 @@ final class InstanceAddonResolverContractTest extends TestCase
 
         self::assertStringContainsString('findByTemplateGameKey($instance->getTemplate())', $resolver);
         self::assertStringContainsString('findAddonForInstance', $resolver);
-        self::assertStringContainsString('getTemplate()->getGameKey() !== $instance->getTemplate()->getGameKey()', $resolver);
+        self::assertStringContainsString('normalizeGameKey($pluginTemplate->getGameKey()) !== $this->normalizeGameKey($instanceTemplate->getGameKey())', $resolver);
+        self::assertStringContainsString('$pluginTemplate->getId() === $instanceTemplate->getId()', $resolver);
     }
 
     public function testResolverComputesInstalledAndUpdateFlagsPerInstance(): void

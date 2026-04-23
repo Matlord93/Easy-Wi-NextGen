@@ -14,4 +14,20 @@ final class BackupScheduleRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, BackupSchedule::class);
     }
+
+    /**
+     * @return BackupSchedule[]
+     */
+    public function findEnabledBatchAfterId(int $afterId, int $limit): array
+    {
+        return $this->createQueryBuilder('schedule')
+            ->andWhere('schedule.enabled = :enabled')
+            ->andWhere('schedule.id > :afterId')
+            ->setParameter('enabled', true)
+            ->setParameter('afterId', $afterId)
+            ->orderBy('schedule.id', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
 }

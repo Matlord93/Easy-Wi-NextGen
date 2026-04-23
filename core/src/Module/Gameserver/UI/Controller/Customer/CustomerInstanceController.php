@@ -24,6 +24,7 @@ use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\Application\InstanceInstallService;
 use App\Module\Gameserver\Application\InstanceJobPayloadBuilder;
 use App\Module\Gameserver\Application\InstanceQueryService;
+use App\Module\Gameserver\Application\GameServerPathResolver;
 use App\Module\Gameserver\Application\MinecraftCatalogService;
 use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Ports\Infrastructure\Repository\PortAllocationRepository;
@@ -65,6 +66,7 @@ final class CustomerInstanceController
         private readonly GamePluginRepository $gamePluginRepository,
         private readonly InstanceJobPayloadBuilder $instanceJobPayloadBuilder,
         private readonly InstanceQueryService $instanceQueryService,
+        private readonly GameServerPathResolver $gameServerPathResolver,
         private readonly AuditLogger $auditLogger,
         private readonly DiskEnforcementService $diskEnforcementService,
         private readonly DiskUsageFormatter $diskUsageFormatter,
@@ -870,6 +872,8 @@ final class CustomerInstanceController
         $activePowerJob = $this->findActivePowerJob($instance);
         $powerState = $this->resolvePowerState($instance, $runtimeStatus, $runtimeState, $activePowerJob);
 
+        $dataPath = $this->resolveInstanceDataPath($instance);
+
         return [
             'id' => $instance->getId(),
             'template' => [
@@ -933,6 +937,7 @@ final class CustomerInstanceController
             'instance_metrics_checked_at' => $instanceMetric?->getCollectedAt(),
             'instance_metrics_reason' => $instanceMetric?->getErrorCode(),
             'connection' => $connection,
+            'data_path' => $dataPath,
             'ports' => $ports,
             'ports_state' => $ports === [] ? 'pending' : 'ready',
             'has_ports' => $ports !== [],
@@ -950,6 +955,15 @@ final class CustomerInstanceController
         ];
     }
 
+
+    private function resolveInstanceDataPath(Instance $instance): ?string
+    {
+        try {
+            return $this->gameServerPathResolver->resolveRoot($instance);
+        } catch (\RuntimeException) {
+            return null;
+        }
+    }
 
     private function resolveNodeLocationLabel(\App\Module\Core\Domain\Entity\Agent $node): ?string
     {

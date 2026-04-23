@@ -26,7 +26,7 @@ final class MetricsCleanupCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('days', null, InputOption::VALUE_REQUIRED, 'Retention in days.', '14')
+            ->addOption('days', null, InputOption::VALUE_REQUIRED, 'Retention in days.', '30')
             ->addOption('batch', null, InputOption::VALUE_REQUIRED, 'Batch size per delete statement.', '5000');
     }
 

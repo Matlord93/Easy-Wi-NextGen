@@ -1,41 +1,499 @@
 {% extends 'themes/xenal/base.html.twig' %}
 
+{% block header %}{% endblock %}
+{% block main_class %}xn-landing-main{% endblock %}
+
 {% block content %}
-{% set heroBlocks = [] %}
-{% set contentBlocks = [] %}
-{% for block in blocks %}
-    {% if block.type == 'hero' %}
-        {% set heroBlocks = heroBlocks|merge([block]) %}
-    {% else %}
-        {% set contentBlocks = contentBlocks|merge([block]) %}
-    {% endif %}
+{# ── Collect blocks ─────────────────────────────────────────────────── #}
+{% set _hero_data  = null %}
+{% set _srv_data   = null %}
+{% set _stats_data = null %}
+{% set _teams_data = null %}
+{% set _events_data = null %}
+{% set _cta_data   = null %}
+
+{% for b in blocks %}
+  {% if b.type == 'hero'       and _hero_data   is null %}{% set _hero_data   = b.payload %}
+  {% elseif b.type == 'xn_servers' and _srv_data    is null %}{% set _srv_data    = b.payload %}
+  {% elseif b.type == 'xn_stats'   and _stats_data  is null %}{% set _stats_data  = b.payload %}
+  {% elseif b.type == 'xn_teams'   and _teams_data  is null %}{% set _teams_data  = b.payload %}
+  {% elseif b.type == 'xn_events'  and _events_data is null %}{% set _events_data = b.payload %}
+  {% elseif b.type == 'xn_cta'     and _cta_data    is null %}{% set _cta_data    = b.payload ?? {'title': b.content} %}
+  {% endif %}
 {% endfor %}
 
-{% set heroBlock = heroBlocks[0]|default(null) %}
+{% set _h  = _hero_data   ?? {} %}
+{% set _s  = _srv_data    ?? {} %}
+{% set _st = _stats_data  ?? {} %}
+{% set _t  = _teams_data  ?? {} %}
+{% set _e  = _events_data ?? {} %}
+{% set _c  = _cta_data    ?? {} %}
+{% set _dyn = xenal_dynamic|default({}) %}
 
-<section class="xenal-page theme-wrap">
-    <div class="xenal-bg-glow xenal-bg-glow--one"></div>
-    <div class="xenal-bg-glow xenal-bg-glow--two"></div>
+{% set servers  = _s.servers|default([]) %}
+{% set stats    = _st.stats|default([]) %}
+{% set teams    = _t.teams|default([]) %}
+{% set upcoming = _e.upcoming|default([]) %}
+{% set tournList = _e.tournaments|default([]) %}
+{% set tourn    = _e.tournament|default({}) %}
+{% set cd       = tourn.countdown|default({days:'00',hours:'00',minutes:'00',seconds:'00'}) %}
+{% set heroMeta = _h.meta|default(['Community','Competition','Performance']) %}
 
-    <section class="xenal-hero xenal-glass">
-        {% if heroBlock %}
-            {% include 'public/blocks/_block.html.twig' with { block: heroBlock, text_class: 'xenal-hero-block' } only %}
-        {% else %}
-            <div class="xenal-placeholder">Lege einen Hero-Block (V2) an, um die Startseite zu füllen.</div>
+{% if _dyn.servers is defined and _dyn.servers is not empty %}
+  {% set servers = _dyn.servers|slice(0, _s.maxItems|default(4)) %}
+{% endif %}
+
+{% if _dyn.teams is defined and _dyn.teams is not empty %}
+  {% set teams = _dyn.teams|slice(0, 3) %}
+{% endif %}
+
+{% if _dyn.upcoming_events is defined and _dyn.upcoming_events is not empty %}
+  {% set upcoming = _dyn.upcoming_events %}
+{% endif %}
+
+{% if _dyn.next_tournament is defined and _dyn.next_tournament is not empty %}
+  {% set tourn = {
+    badge: 'NEXT',
+    title: 'Nächstes Turnier',
+    game: _dyn.next_tournament.title|default(''),
+    details: _dyn.next_tournament.start_at is defined and _dyn.next_tournament.start_at ? _dyn.next_tournament.start_at|date('d.m.Y H:i') : '',
+    link: '/events/' ~ (_dyn.next_tournament.slug|default('')),
+    linkText: 'Details anzeigen',
+    labelDays:'Tage', labelHours:'Std', labelMinutes:'Min', labelSeconds:'Sek',
+    countdown:{days:'00', hours:'00', minutes:'00', seconds:'00'}
+  } %}
+{% endif %}
+
+{% if tournList is not empty and (tourn is empty) %}
+  {% set tourn = tournList|first %}
+{% endif %}
+
+{% if _dyn.active_team_count is defined %}
+  {% set stats = [
+    {value: (_st.memberCount|default(_dyn.active_member_count|default(0))) ~ '+', label:'AKTIVE MEMBER'},
+    {value: _dyn.active_team_count|default(0), label:'TEAMS'},
+    {value: _dyn.events_this_month|default(0), label:'EVENTS / MONAT'},
+    {value: _dyn.active_tournament_count|default(0), label:'AKTIVE TOURNAMENTS'}
+  ] %}
+{% endif %}
+
+{# ── Fallback demo data (shown when no CMS blocks are configured yet) ─── #}
+{% if _srv_data is null %}
+  {% set _s = {
+    sectionTitle: 'Unsere Gameserver',
+    moreText: 'Zur Serverübersicht',
+    moreLink: '/servers',
+    servers: [
+      {name:'CS2 Competitive', game:'cs2',  status:'online',  players:'12/116', playerSuffix:'Spieler', registered:'12 116 Spieler', info:'Bester Server',        currentPlayer:'Gnever Namer', link:'/servers', linkText:'Server anzeigen'},
+      {name:'ARK',             game:'ark',  status:'online',  players:'45/70',  playerSuffix:'Spieler', map:'In: Mirage',            info:'Aktuell: Game Server', currentPlayer:'Garver Sayger', link:'/servers', linkText:'Server anzeigen'},
+      {name:'CS2',             game:'cs2',  status:'offline', players:'45/70',  playerSuffix:'Spieler', map:'In: Vivavekt',          info:'Das kostet',           link:'/servers', linkText:'Server anzeigen'},
+      {name:'RUST',            game:'rust', status:'online',  players:'78/150', playerSuffix:'Spieler', map:'In: Rome Teruna',       info:'Das lösest',           link:'/servers', linkText:'Server anzeigen'}
+    ]
+  } %}
+  {% set servers = _s.servers %}
+{% endif %}
+
+{% if _stats_data is null %}
+  {% set _st = {
+    sectionTitle: 'CLAN STATS',
+    stats: [
+      {value:'25+', label:'AKTIVE MEMBER'},
+      {value:'4',   label:'TEAMS'},
+      {value:'7',   label:'EVENTS / MONAT'},
+      {value:'3',   label:'AKTIVE TOURNAMENTS'}
+    ]
+  } %}
+  {% set stats = _st.stats %}
+{% endif %}
+
+{% if _teams_data is null %}
+  {% set _t = {
+    sectionTitle: 'UNSERE TEAMS',
+    moreText: 'Alle Teams anzeigen',
+    moreLink: '/teams',
+    overviewText: 'Zur Serverübersicht',
+    overviewLink: '/teams',
+    teams: [
+      {name:'Valorant Team',  game:'valorant', division:'Division 2',     color:'rgba(220,20,60,.45)', info1:'5 AKTIVE RAIDER, REISEN 2024 TO:F0', links:[{label:'Mehr Infos', url:'/teams/valorant'}]},
+      {name:'CS2 Main Squad', game:'cs2',      division:'ESL Open',       color:'rgba(224,120,0,.45)', info1:'JAG: RETRION RAIDEN REDIN MTG',       links:[{label:'Mehr Infos', url:'/teams/cs2'}]},
+      {name:'Casual Squad',   game:'cs2',      division:'Community Team', color:'rgba(40,80,180,.45)', info1:'CAIMAN: ASSAULT Solo', info2:'Esiner Farevamas', links:[{label:'Mehr Infos', url:'/teams/casual'}]}
+    ]
+  } %}
+  {% set teams = _t.teams %}
+{% endif %}
+
+{% if _events_data is null %}
+  {% set _e = {
+    sectionTitle:  'EVENTS & TURNIERE',
+    upcomingTitle: 'Kommende Events',
+    upcoming: [
+      {date:'18.02', name:'Clan Scrim'},
+      {date:'21.02', name:'Community Night'},
+      {date:'02.03', name:'Tournament Qualifier'}
+    ],
+    tournament: {
+      badge:'ESL',
+      title:'Aktuelles Turnier',
+      game:'ESL Open',
+      details:'1 Bay – Angeles Remotely, Cheats',
+      link:'/events/esl-open',
+      linkText:'Details anzeigen',
+      labelDays:'Tage', labelHours:'Std', labelMinutes:'Min', labelSeconds:'Sek',
+      countdown:{days:'06', hours:'14', minutes:'31', seconds:'01'}
+    }
+  } %}
+  {% set upcoming = _e.upcoming %}
+  {% set tourn    = _e.tournament %}
+  {% set cd       = tourn.countdown %}
+{% endif %}
+
+{% if _cta_data is null %}
+  {% set _c = {title:'BEREIT EIN TEIL VON XENAL ZU WERDEN?'} %}
+{% endif %}
+
+{% set socials = (_c.socials is defined and _c.socials is not empty)
+  ? _c.socials
+  : [
+      {label:'X',  url: cms_branding.socials.twitter|default('#')},
+      {label:'YT', url: cms_branding.socials.youtube|default('#')},
+      {label:'DC', url: cms_branding.socials.discord|default('#')}
+    ]
+%}
+
+{# ── Game-icon macro ────────────────────────────────────────────────── #}
+{% macro game_icon(game) %}
+{%- set g = game|lower -%}
+{%- if g == 'cs2' -%}
+<span class="xn-gi xn-gi--cs2" aria-label="CS2">
+  <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="22" cy="22" r="21" fill="rgba(224,120,0,.14)" stroke="#e07800" stroke-width=".9"/>
+    <path d="M14 18c0-1.1.9-2 2-2h4v2h-4v8h4v2h-4a2 2 0 0 1-2-2v-8Z" fill="#ffb347"/>
+    <path d="M22 16h4a2 2 0 0 1 2 2v2h-2v-2h-4v2h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-4v-2h4v-2h-4a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2Z" fill="#ffb347"/>
+  </svg>
+</span>
+{%- elseif g == 'ark' -%}
+<span class="xn-gi xn-gi--ark" aria-label="ARK">
+  <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="22" cy="22" r="21" fill="rgba(0,180,160,.12)" stroke="#00bfb3" stroke-width=".9"/>
+    <polygon points="22,12 32,32 12,32" fill="none" stroke="#2de8d8" stroke-width="1.8" stroke-linejoin="round"/>
+    <text x="22" y="28" text-anchor="middle" fill="#2de8d8" font-size="8" font-weight="900" font-family="Arial,sans-serif">ARK</text>
+  </svg>
+</span>
+{%- elseif g == 'rust' -%}
+<span class="xn-gi xn-gi--rust" aria-label="RUST">
+  <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="22" cy="22" r="21" fill="rgba(224,80,0,.14)" stroke="#e05200" stroke-width=".9"/>
+    <rect x="14" y="14" width="16" height="16" rx="2" fill="none" stroke="#ff7a3a" stroke-width="1.6"/>
+    <text x="22" y="25" text-anchor="middle" fill="#ff7a3a" font-size="7.5" font-weight="900" font-family="Arial,sans-serif">RUST</text>
+  </svg>
+</span>
+{%- elseif g == 'valorant' -%}
+<span class="xn-gi xn-gi--valorant" aria-label="Valorant">
+  <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="22" cy="22" r="21" fill="rgba(220,20,60,.12)" stroke="#e6173d" stroke-width=".9"/>
+    <path d="M11 14l11 18 11-18H11Z" fill="none" stroke="#ff4060" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M17 14l5 10 5-10" fill="none" stroke="#ff4060" stroke-width="1.2"/>
+  </svg>
+</span>
+{%- else -%}
+<span class="xn-gi xn-gi--generic" aria-label="{{ game }}">
+  <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="22" cy="22" r="21" fill="rgba(54,227,255,.08)" stroke="rgba(54,227,255,.28)" stroke-width=".9"/>
+    <text x="22" y="27" text-anchor="middle" fill="rgba(54,227,255,.88)" font-size="10" font-weight="900" font-family="Arial,sans-serif">{{ game|upper|slice(0,3) }}</text>
+  </svg>
+</span>
+{%- endif -%}
+{% endmacro %}
+
+{# ── Social-icon macro ───────────────────────────────────────────────── #}
+{% macro social_svg(label) %}
+{%- set l = label|lower -%}
+{%- if l == 'x' or 'twitter' in l or l == 'tw' -%}
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.259 5.629L18.244 2.25Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z"/></svg>
+{%- elseif 'youtube' in l or l == 'yt' -%}
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814ZM9.545 15.568V8.432L15.818 12l-6.273 3.568Z"/></svg>
+{%- elseif 'discord' in l or l == 'dc' -%}
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.013.043.031.056a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03Z"/></svg>
+{%- else -%}
+  <span class="xn-social-label">{{ label|slice(0,2)|upper }}</span>
+{%- endif -%}
+{% endmacro %}
+
+{# ═══════════════════════════════════════════════════════════════════════
+   PAGE
+   ═══════════════════════════════════════════════════════════════════════ #}
+<div class="xn-page">
+
+  {# ── HERO ──────────────────────────────────────────────────────────── #}
+  <section class="xn-hero">
+    {# optional background image via CMS #}
+    {% if _h.backgroundImage is defined and _h.backgroundImage %}
+      <img class="xn-hero__bg-img" src="{{ _h.backgroundImage }}" alt="" loading="eager">
+    {% endif %}
+
+    {# grid overlay #}
+    <div class="xn-hero__grid" aria-hidden="true"></div>
+
+    <div class="theme-wrap xn-hero__inner">
+      {# left column #}
+      <div class="xn-hero__left">
+        {% if heroMeta is not empty %}
+          <p class="xn-hero__eyebrow">{{ heroMeta|join(' · ') }}</p>
+        {% elseif _h.subheadline is defined and _h.subheadline %}
+          <p class="xn-hero__eyebrow">{{ _h.subheadline }}</p>
         {% endif %}
-    </section>
 
-    {% for block in contentBlocks %}
-        <section class="xenal-section">
-            <div class="xenal-glass xenal-panel{% if block.type != 'cards' %} xenal-panel--narrow{% endif %}">
-                {% set textClass = block.type == 'cards' ? 'xenal-cards' : null %}
-                {% include 'public/blocks/_block.html.twig' with { block: block, text_class: textClass } only %}
-            </div>
-        </section>
-    {% else %}
-        <section class="xenal-section xenal-glass xenal-panel xenal-panel--narrow">
-            <h3>Keine weiteren Inhalte hinterlegt.</h3>
-        </section>
-    {% endfor %}
-</section>
+        <h1 class="xn-hero__title">{{ _h.headline|default('DOMINATE<br>THE GAME.')|raw }}</h1>
+
+        <div class="xn-hero__actions">
+          {% if _h.ctaText is defined and _h.ctaText and _h.ctaUrl is defined and _h.ctaUrl %}
+            <a href="{{ _h.ctaUrl }}" class="xn-btn xn-btn--outline">{{ _h.ctaText }}</a>
+          {% else %}
+            <a href="{{ path('public_login') }}" class="xn-btn xn-btn--outline">Join the Clan</a>
+          {% endif %}
+          {% if _h.cta2Text is defined and _h.cta2Text and _h.cta2Url is defined and _h.cta2Url %}
+            <a href="{{ _h.cta2Url }}" class="xn-btn xn-btn--ghost">{{ _h.cta2Text }}</a>
+          {% else %}
+            <a href="#gameserver" class="xn-btn xn-btn--ghost">Unsere Server</a>
+          {% endif %}
+        </div>
+      </div>
+
+      {# right column – big X mark + brand #}
+      <div class="xn-hero__media" aria-hidden="true">
+        {% if _h.rightImage is defined and _h.rightImage %}
+          <img class="xn-hero__right-img" src="{{ _h.rightImage }}" alt="">
+        {% endif %}
+        <span class="xn-hero__xletter">{{ _h.logoLetter|default('X') }}</span>
+        <div class="xn-hero__brand-label">
+          <span class="xn-hero__brand-x">{{ _h.logoLetter|default('X') }}</span>
+          <span class="xn-hero__brand-name">{{ _h.brandName|default(app_setting('branding_name','XENAL GAMING')) }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ── CONTENT WRAP ─────────────────────────────────────────────────── #}
+  <div class="theme-wrap xn-content-wrap">
+
+    {# ── GAMESERVER ───────────────────────────────────────────────────── #}
+    {% if servers is not empty %}
+      <section class="xn-section" id="gameserver">
+        <h2 class="xn-section__title">{{ _s.sectionTitle|default('Unsere Gameserver') }}</h2>
+        <div class="xn-servers">
+          {% for srv in servers %}
+            {% set status = srv.status|default('online') %}
+            <article class="xn-server-card xn-server-card--{{ status }}">
+              <div class="xn-server-card__top">
+                {{ _self.game_icon(srv.game|default('game')) }}
+                <span class="xn-badge xn-badge--{{ status }}">{{ status|upper }}</span>
+              </div>
+              <h3 class="xn-server-card__name">{{ srv.name|default('') }}</h3>
+              {% if srv.registered is defined and srv.registered %}
+                <p class="xn-server-registered">{{ srv.registered }}</p>
+              {% endif %}
+              <p class="xn-server-players">
+                <strong>{{ srv.players|default('—') }}</strong>
+                {% if srv.playerSuffix is defined and srv.playerSuffix %}
+                  <span>{{ srv.playerSuffix }}</span>
+                {% endif %}
+              </p>
+              {% if srv.map is defined and srv.map %}
+                <p class="xn-server-map">
+                  <svg class="xn-server-map__icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a5 5 0 1 0 0 10A5 5 0 0 0 8 1Zm0 9a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/><circle cx="8" cy="5.5" r="1"/></svg>
+                  {{ srv.map }}
+                </p>
+              {% endif %}
+              {% if srv.info is defined and srv.info %}
+                <p class="xn-server-info">
+                  <span class="xn-dot xn-dot--{{ status }}"></span>
+                  {{ srv.info }}
+                </p>
+              {% endif %}
+              {% if srv.currentPlayer is defined and srv.currentPlayer %}
+                <p class="xn-server-player-row">
+                  <svg class="xn-srv-player-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 6a5 5 0 0 1 10 0H3Z"/></svg>
+                  {{ srv.currentPlayer }}
+                </p>
+              {% endif %}
+              {% if srv.link is defined and srv.link %}
+                <a href="{{ srv.link }}" class="xn-server-link">
+                  {{ srv.linkText|default('Server anzeigen') }}
+                  <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M6 3l5 5-5 5"/></svg>
+                </a>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+        {% if _s.moreText is defined and _s.moreText and _s.moreLink is defined and _s.moreLink %}
+          <div class="xn-section__more">
+            <a href="{{ _s.moreLink }}" class="xn-more-btn">{{ _s.moreText }} ›</a>
+          </div>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    {# ── CLAN STATS ───────────────────────────────────────────────────── #}
+    {% if stats is not empty %}
+      <section class="xn-section">
+        <h2 class="xn-section__title">{{ _st.sectionTitle|default('CLAN STATS') }}</h2>
+        <div class="xn-stats">
+          {% for stat in stats %}
+            <article class="xn-stat">
+              <span class="xn-stat__val">{{ stat.value|default('') }}</span>
+              <span class="xn-stat__lbl">{{ stat.label|default('') }}</span>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    {# ── TEAMS ────────────────────────────────────────────────────────── #}
+    {% if teams is not empty %}
+      <section class="xn-section">
+        <div class="xn-section__head">
+          <h2 class="xn-section__title xn-section__title--inline">{{ _t.sectionTitle|default('UNSERE TEAMS') }}</h2>
+          {% if _t.moreText is defined and _t.moreText and _t.moreLink is defined and _t.moreLink %}
+            <a href="{{ _t.moreLink }}" class="xn-see-all">{{ _t.moreText }} ›</a>
+          {% endif %}
+        </div>
+        <div class="xn-teams">
+          {% for team in teams %}
+            <article class="xn-team-card" style="--team-color:{{ team.color|default('rgba(40,80,180,.45)') }}">
+              {# art / banner #}
+              <div class="xn-team-card__art xn-team-card__art--{{ team.game|default('casual') }}"
+                   {% if team.image is defined and team.image %}style="background-image:url('{{ team.image }}')"{% endif %}>
+                <div class="xn-team-card__art-icon">
+                  {{ _self.game_icon(team.game|default('casual')) }}
+                </div>
+              </div>
+              {# body #}
+              <div class="xn-team-card__body">
+                <h3>{{ team.name|default('') }}</h3>
+                <p class="xn-team__div">{{ team.division|default('') }}</p>
+                {% if team.info1 is defined and team.info1 %}
+                  <p class="xn-team__info">
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" opacity=".5"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 6a5 5 0 0 1 10 0H3Z"/></svg>
+                    {{ team.info1 }}
+                  </p>
+                {% endif %}
+                {% if team.info2 is defined and team.info2 %}
+                  <p class="xn-team__info">
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" opacity=".5"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 6a5 5 0 0 1 10 0H3Z"/></svg>
+                    {{ team.info2 }}
+                  </p>
+                {% endif %}
+                {% if team.links is defined and team.links %}
+                  <div class="xn-team__actions">
+                    {% for lnk in team.links %}
+                      <a href="{{ lnk.url|default('#') }}" class="xn-btn xn-btn--sm xn-btn--outline">{{ lnk.label|default('Mehr Infos') }}</a>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+        {% if _t.overviewText is defined and _t.overviewText and _t.overviewLink is defined and _t.overviewLink %}
+          <div class="xn-section__more">
+            <a href="{{ _t.overviewLink }}" class="xn-more-btn">{{ _t.overviewText }} ›</a>
+          </div>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    {# ── EVENTS & TURNIERE ────────────────────────────────────────────── #}
+    {% if upcoming is not empty or tourn is not empty %}
+      <section class="xn-section">
+        <h2 class="xn-section__title">{{ _e.sectionTitle|default('EVENTS & TURNIERE') }}</h2>
+        <div class="xn-events">
+          {# upcoming list #}
+          {% if upcoming is not empty %}
+            <article class="xn-events__upcoming">
+              {% if _e.upcomingTitle is defined and _e.upcomingTitle %}
+                <h3 class="xn-events__heading">{{ _e.upcomingTitle }}</h3>
+              {% endif %}
+              <ul class="xn-event-list">
+                {% for ev in upcoming %}
+                  <li class="xn-event-item">
+                    <span class="xn-event-date">{{ ev.name|default(ev.title|default('Event')) }}</span>
+                    <span class="xn-event-name">{{ ev.location|default('') }}</span>
+                    <span class="xn-event-arrow">›</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endif %}
+
+          {# tournament countdown #}
+          {% if tourn is not empty %}
+            <article class="xn-events__tournament">
+              <div class="xn-esl-row">
+                <div class="xn-esl-badge">{{ tourn.badge|default('ESL') }}</div>
+                <div class="xn-countdown">
+                  <div class="xn-cdown__unit">
+                    <span class="xn-cdown__val">{{ cd.days|default('00') }}</span>
+                    <span class="xn-cdown__lbl">{{ tourn.labelDays|default('Tage') }}</span>
+                  </div>
+                  <span class="xn-cdown__sep">:</span>
+                  <div class="xn-cdown__unit">
+                    <span class="xn-cdown__val">{{ cd.hours|default('00') }}</span>
+                    <span class="xn-cdown__lbl">{{ tourn.labelHours|default('Std') }}</span>
+                  </div>
+                  <span class="xn-cdown__sep">:</span>
+                  <div class="xn-cdown__unit">
+                    <span class="xn-cdown__val">{{ cd.minutes|default('00') }}</span>
+                    <span class="xn-cdown__lbl">{{ tourn.labelMinutes|default('Min') }}</span>
+                  </div>
+                  <span class="xn-cdown__sep">:</span>
+                  <div class="xn-cdown__unit">
+                    <span class="xn-cdown__val">{{ cd.seconds|default('00') }}</span>
+                    <span class="xn-cdown__lbl">{{ tourn.labelSeconds|default('Sek') }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="xn-tournament-info">
+                <h3>{{ tourn.title|default('Aktuelles Turnier') }}</h3>
+                <p class="xn-tournament-meta">
+                  <span class="xn-tournament-game">{{ tourn.game|default('') }}</span>
+                  {% if tourn.details is defined and tourn.details %}<br><small>{{ tourn.details }}</small>{% endif %}
+                </p>
+                {% if tourn.link is defined and tourn.link %}
+                  <a href="{{ tourn.link }}" class="xn-btn xn-btn--outline xn-btn--sm">{{ tourn.linkText|default('Details anzeigen') }} ›</a>
+                {% endif %}
+              </div>
+            </article>
+          {% endif %}
+        </div>
+      </section>
+    {% endif %}
+
+    {# ── MID-PAGE SOCIAL BAR ──────────────────────────────────────────── #}
+    {% if socials is not empty %}
+      <nav class="xn-landing-social" aria-label="Community-Links">
+        {% for social in socials %}
+          <a href="{{ social.url|default('#') }}"
+             class="xenal-social-link"
+             aria-label="{{ social.label|default('Link') }}"
+             {% if social.url is defined and social.url and social.url != '#' %}
+               target="_blank" rel="noopener noreferrer"
+             {% endif %}>
+            {{ _self.social_svg(social.label|default('')) }}
+          </a>
+        {% endfor %}
+      </nav>
+    {% endif %}
+
+  </div>{# /xn-content-wrap #}
+
+  {# ── CTA BAR ──────────────────────────────────────────────────────── #}
+  {% if _c.title is defined and _c.title %}
+    <section class="xn-cta-bar">
+      <div class="theme-wrap">
+        <h2 class="xn-cta-bar__title">{{ _c.title }}</h2>
+      </div>
+    </section>
+  {% endif %}
+
+</div>{# /xn-page #}
 {% endblock %}

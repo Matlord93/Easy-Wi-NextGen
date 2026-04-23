@@ -24,19 +24,33 @@ final class GamePluginRepository extends ServiceEntityRepository
      */
     public function findByTemplateGameKey(Template $template): array
     {
+        $templateId = $template->getId();
         $gameKey = trim($template->getGameKey());
-        if ($gameKey === '') {
+        if ($templateId === null && $gameKey === '') {
             return [];
         }
 
-        return $this->createQueryBuilder('plugin')
+        $queryBuilder = $this->createQueryBuilder('plugin')
             ->innerJoin('plugin.template', 'template')
-            ->andWhere('template.gameKey = :gameKey')
-            ->setParameter('gameKey', $gameKey)
             ->orderBy('plugin.name', 'ASC')
-            ->addOrderBy('plugin.updatedAt', 'DESC')
-            ->getQuery()
-            ->getResult();
+            ->addOrderBy('plugin.updatedAt', 'DESC');
+
+        if ($templateId !== null && $gameKey !== '') {
+            $queryBuilder
+                ->andWhere('template.id = :templateId OR LOWER(TRIM(template.gameKey)) = :gameKey')
+                ->setParameter('templateId', $templateId)
+                ->setParameter('gameKey', mb_strtolower($gameKey));
+        } elseif ($templateId !== null) {
+            $queryBuilder
+                ->andWhere('template.id = :templateId')
+                ->setParameter('templateId', $templateId);
+        } else {
+            $queryBuilder
+                ->andWhere('LOWER(TRIM(template.gameKey)) = :gameKey')
+                ->setParameter('gameKey', mb_strtolower($gameKey));
+        }
+
+        return $queryBuilder->getQuery()->getResult();
     }
 
     public function findDuplicateForGameKey(string $gameKey, string $name, string $version, ?int $excludeId = null): ?GamePlugin

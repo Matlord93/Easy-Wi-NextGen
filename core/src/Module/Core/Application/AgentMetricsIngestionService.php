@@ -8,6 +8,7 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\MetricAggregate;
 use App\Module\Core\Domain\Entity\MetricSample;
 use App\Repository\MetricAggregateRepository;
+use App\Repository\MetricSampleRepository;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\DBAL\Exception as DbalException;
@@ -20,6 +21,7 @@ final class AgentMetricsIngestionService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly MetricAggregateRepository $aggregateRepository,
+        private readonly MetricSampleRepository $metricSampleRepository,
         private readonly AuditLogger $auditLogger,
     ) {
     }
@@ -27,6 +29,7 @@ final class AgentMetricsIngestionService
     /** @param list<array<string,mixed>> $metricRows */
     public function ingestBatch(Agent $agent, array $metricRows): int
     {
+        $latestRecordedAt = $this->metricSampleRepository->findLatestRecordedAtForAgent($agent);
         $ingested = 0;
         foreach ($metricRows as $row) {
             $sample = $this->buildSample($agent, $row);
@@ -34,8 +37,13 @@ final class AgentMetricsIngestionService
                 continue;
             }
 
+            if ($latestRecordedAt !== null && $sample->getRecordedAt() < $latestRecordedAt->modify('+5 minutes')) {
+                continue;
+            }
+
             $this->entityManager->persist($sample);
             $this->upsertAggregates($agent, $sample);
+            $latestRecordedAt = $sample->getRecordedAt();
             $ingested++;
         }
 

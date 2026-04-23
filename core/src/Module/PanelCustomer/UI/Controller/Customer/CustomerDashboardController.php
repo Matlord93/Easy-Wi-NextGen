@@ -106,12 +106,15 @@ final class CustomerDashboardController
      */
     private function normalizeInstances(array $instances, array $latestInstanceMetrics): array
     {
-        return array_map(static function (Instance $instance) use ($latestInstanceMetrics): array {
+        return array_map(function (Instance $instance) use ($latestInstanceMetrics): array {
             $statusLabel = ucwords(str_replace('_', ' ', $instance->getStatus()->value));
             $queryCache = $instance->getQueryStatusCache();
             $latencyMs = isset($queryCache['latency_ms']) && is_numeric($queryCache['latency_ms'])
                 ? (int) $queryCache['latency_ms']
                 : null;
+            $diskLimitBytes = max(0, (int) $instance->getDiskLimitBytes());
+            $diskUsedBytes = max(0, (int) $instance->getDiskUsedBytes());
+            $diskUsagePercent = $diskLimitBytes > 0 ? round(($diskUsedBytes / $diskLimitBytes) * 100, 1) : null;
 
             return [
                 'id' => $instance->getId(),
@@ -124,6 +127,11 @@ final class CustomerDashboardController
                 'ram_limit' => $instance->getRamLimit(),
                 'booked_cpu_cores' => (float) $instance->getCpuLimit(),
                 'booked_ram_bytes' => (int) $instance->getRamLimit() * 1024 * 1024,
+                'disk_limit_bytes' => $diskLimitBytes,
+                'disk_used_bytes' => $diskUsedBytes,
+                'disk_limit_human' => $diskLimitBytes > 0 ? $this->diskUsageFormatter->formatBytes($diskLimitBytes) : null,
+                'disk_used_human' => $this->diskUsageFormatter->formatBytes($diskUsedBytes),
+                'disk_usage_percent' => $diskUsagePercent,
                 'cpu_percent' => is_numeric($latestInstanceMetrics[$instance->getId()]['cpu_percent'] ?? null) ? (float) $latestInstanceMetrics[$instance->getId()]['cpu_percent'] : null,
                 'mem_used_bytes' => is_numeric($latestInstanceMetrics[$instance->getId()]['mem_used_bytes'] ?? null) ? (int) $latestInstanceMetrics[$instance->getId()]['mem_used_bytes'] : null,
                 'metrics_reason' => is_string($latestInstanceMetrics[$instance->getId()]['error_code'] ?? null) ? $latestInstanceMetrics[$instance->getId()]['error_code'] : null,

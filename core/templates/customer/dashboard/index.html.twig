@@ -14,7 +14,6 @@
 
 {% block content %}
 {% set storagePercent = resourceUsage.disk %}
-{% set ringValue = storagePercent ~ '%' %}
 {% set billingEnabled = module_enabled('billing') %}
 {% set invoiceStatusLabels = {
     'open': t('customer_dashboard_invoice_status_open', page_locale()),
@@ -131,16 +130,32 @@
         <aside class="dashboard-usage-panel">
             <h3>{{ t('customer_dashboard_usage_title', page_locale()) }}</h3>
             <p>{{ t('customer_dashboard_usage_subtitle', page_locale()) }}</p>
-            <div class="ui-ring" style="--ring-value: {{ ringValue }};">
-                <div class="ui-ring__value">{{ storagePercent|number_format(1, '.', ',') }}%</div>
+            <div class="dashboard-usage-list">
+                {% for instance in instances %}
+                    <article class="dashboard-usage-item">
+                        <div class="dashboard-usage-item__head">
+                            <strong>{{ instance.server_name ?: instance.name }}</strong>
+                            <span>#{{ instance.id }}</span>
+                        </div>
+                        <ul>
+                            <li>
+                                <span>{{ t('customer_dashboard_cpu_usage', page_locale()) }}</span>
+                                <strong>{{ instance.cpu_percent is not null ? instance.cpu_percent|number_format(1, '.', ',') ~ '%' : t('customer_resource_unknown', page_locale()) }}</strong>
+                            </li>
+                            <li>
+                                <span>{{ t('customer_dashboard_ram_usage', page_locale()) }}</span>
+                                <strong>{% if instance.mem_used_bytes is not null %}{{ (instance.mem_used_bytes / 1024 / 1024)|number_format(0, '.', ',') }} MiB / {{ instance.ram_limit ?? '—' }} MiB{% else %}{{ t('customer_resource_unknown', page_locale()) }}{% endif %}</strong>
+                            </li>
+                            <li>
+                                <span>{{ t('customer_dashboard_disk_usage', page_locale()) }}</span>
+                                <strong>{% if instance.disk_limit_human %}{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}{% else %}{{ instance.disk_used_human }}{% endif %}{% if instance.disk_usage_percent is not null %} ({{ instance.disk_usage_percent|number_format(1, '.', ',') }}%){% endif %}</strong>
+                            </li>
+                        </ul>
+                    </article>
+                {% else %}
+                    <div class="dashboard-usage-empty">{{ t('customer_dashboard_usage_empty', page_locale()) }}</div>
+                {% endfor %}
             </div>
-            <ul>
-                <li><span>{{ t('customer_resource_total_cpu_booked', page_locale()) }}</span><strong>{{ resourceUsage.total_booked_cpu_cores is not null ? resourceUsage.total_booked_cpu_cores|number_format(2, '.', ',') : t('customer_resource_unknown', page_locale()) }}</strong></li>
-                <li><span>{{ t('customer_resource_total_cpu_used', page_locale()) }}</span><strong>{% if resourceUsage.total_used_cpu_cores is not null %}{{ resourceUsage.total_used_cpu_cores|number_format(2, '.', ',') }} ({{ resourceUsage.total_cpu_percent is not null ? resourceUsage.total_cpu_percent|number_format(1, '.', ',') ~ '%' : t('customer_resource_unknown', page_locale()) }}){% else %}{{ t('customer_resource_unknown', page_locale()) }}{% endif %}</strong></li>
-                <li><span>{{ t('customer_resource_total_ram_booked', page_locale()) }}</span><strong>{{ resourceUsage.booked_ram_human ?? t('customer_resource_unknown', page_locale()) }}</strong></li>
-                <li><span>{{ t('customer_resource_total_ram_used', page_locale()) }}</span><strong>{% if resourceUsage.used_ram_human %}{{ resourceUsage.used_ram_human }} ({{ resourceUsage.total_ram_percent is not null ? resourceUsage.total_ram_percent|number_format(1, '.', ',') ~ '%' : t('customer_resource_unknown', page_locale()) }}){% else %}{{ t('customer_resource_unknown', page_locale()) }}{% endif %}</strong></li>
-                <li><span>{{ t('customer_dashboard_usage_disk', page_locale()) }}</span><strong>{{ resourceUsage.disk|number_format(1, '.', ',') }}%</strong></li>
-            </ul>
         </aside>
     </section>
 

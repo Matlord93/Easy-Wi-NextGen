@@ -78,6 +78,40 @@ final class InstanceMetricSampleRepository extends ServiceEntityRepository
     }
 
     /**
+     * @param list<int> $instanceIds
+     * @return array<int, \DateTimeImmutable>
+     */
+    public function findLatestCollectedAtByInstanceIds(array $instanceIds): array
+    {
+        $instanceIds = array_values(array_unique(array_filter($instanceIds, static fn (mixed $id): bool => is_int($id) && $id > 0)));
+        if ($instanceIds === []) {
+            return [];
+        }
+
+        $rows = $this->createQueryBuilder('sample')
+            ->select('IDENTITY(sample.instance) AS instance_id')
+            ->addSelect('MAX(sample.collectedAt) AS max_collected_at')
+            ->andWhere('sample.instance IN (:instanceIds)')
+            ->setParameter('instanceIds', $instanceIds)
+            ->groupBy('sample.instance')
+            ->getQuery()
+            ->getArrayResult();
+
+        $latest = [];
+        foreach ($rows as $row) {
+            $instanceId = is_numeric($row['instance_id'] ?? null) ? (int) $row['instance_id'] : 0;
+            $collectedAt = $row['max_collected_at'] ?? null;
+            if ($instanceId <= 0 || !$collectedAt instanceof \DateTimeImmutable) {
+                continue;
+            }
+
+            $latest[$instanceId] = $collectedAt;
+        }
+
+        return $latest;
+    }
+
+    /**
      * @return array{count: int, cpu_avg: ?float, cpu_max: ?float, mem_avg: ?float, mem_max: ?float}
      */
     public function fetchAggregateForInstanceSince(Instance $instance, \DateTimeImmutable $since): array

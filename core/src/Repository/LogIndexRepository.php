@@ -41,4 +41,41 @@ final class LogIndexRepository extends ServiceEntityRepository
             ->getQuery()
             ->execute();
     }
+
+    /**
+     * @param list<string> $sources
+     */
+    public function deleteOlderThanBySources(\DateTimeImmutable $cutoff, array $sources): int
+    {
+        if ($sources === []) {
+            return 0;
+        }
+
+        return $this->createQueryBuilder('log')
+            ->delete()
+            ->andWhere('log.updatedAt < :cutoff')
+            ->andWhere('log.source IN (:sources)')
+            ->setParameter('cutoff', $cutoff)
+            ->setParameter('sources', array_values(array_unique($sources)))
+            ->getQuery()
+            ->execute();
+    }
+
+    /**
+     * @param list<string> $sources
+     */
+    public function deleteOlderThanExcludingSources(\DateTimeImmutable $cutoff, array $sources): int
+    {
+        $qb = $this->createQueryBuilder('log')
+            ->delete()
+            ->andWhere('log.updatedAt < :cutoff')
+            ->setParameter('cutoff', $cutoff);
+
+        if ($sources !== []) {
+            $qb->andWhere('log.source NOT IN (:sources)')
+                ->setParameter('sources', array_values(array_unique($sources)));
+        }
+
+        return $qb->getQuery()->execute();
+    }
 }

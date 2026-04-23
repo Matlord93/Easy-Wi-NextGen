@@ -18,6 +18,8 @@ final class CustomerInstanceQueryApiControllerContractTest extends TestCase
         self::assertStringContainsString("'ok' => false", $controller);
         self::assertStringContainsString("'resolved_host'", $controller);
         self::assertStringContainsString("'resolved_host_source'", $controller);
+        self::assertStringContainsString("'status' => ", $controller);
+        self::assertStringContainsString('resolveQueryStatus(', $controller);
         self::assertStringContainsString("'timeout_ms'", $controller);
         self::assertStringContainsString("'network_mode'", $controller);
         self::assertStringContainsString("'resolved_port'", $controller);

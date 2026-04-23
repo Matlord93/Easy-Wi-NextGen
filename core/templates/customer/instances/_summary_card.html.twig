@@ -31,11 +31,21 @@
 {% set playersMax = instance.query_players_max %}
 {% set playersKnown = playersOnline is not null and playersMax is not null and playersMax > 0 %}
 {% set connection = instance.connection ?? {} %}
+{% set runtimeStatus = (instance.runtime_status ?? displayStatus ?? status)|lower %}
+{% set runningStates = ['running', 'online', 'up'] %}
+{% set isRunning = runtimeStatus in runningStates %}
+{% set powerState = instance.power ?? {} %}
+{% set powerDisabled = powerState.disabled ?? false %}
+{% set powerReason = powerState.reason ?? '' %}
 
 <div class="rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-indigo-50/40 to-sky-50/70 p-5 shadow-sm" data-instance-card data-instance-id="{{ instance.id }}" data-query-url="{{ path('customer_instance_query_api', {id: instance.id}) }}" data-query-health-url="{{ path('customer_instance_query_health_api_v2', {id: instance.id}) }}" data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}" data-url-overview="{{ path('customer_instance_overview_page', {id: instance.id}) }}">
     <div class="flex flex-col gap-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-2">
+                <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700">
+                    <input type="checkbox" data-bulk-select-restart class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" {% if not isRunning or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>
+                    {{ t('customer_instances_select_for_restart', page_locale()) }}
+                </label>
                 {% include 'components/_game_icon.html.twig' with { gameKey: instance.template.game_key, class: 'h-9 w-9 text-indigo-500' } %}
                 <h2 class="text-lg font-semibold text-slate-900">{{ displayName }}</h2>
                 <span class="rounded-full px-3 py-1 text-xs font-semibold {{ statusColor }}">{{ t('customer_instance_status_' ~ displayStatus, page_locale()) }}</span>
@@ -56,7 +66,7 @@
             <div class="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
                 <div>{{ t('customer_instances_game_address', page_locale()) }}: <strong>{{ connection.host ?? '—' }}{% if connection.port is defined and connection.port %}:{{ connection.port }}{% endif %}</strong></div>
                 <div>{{ t('customer_instances_query_address', page_locale()) }}: <strong data-query-map>{{ query.map ?? '—' }}</strong></div>
-                <div>{{ t('customer_instances_location_label', page_locale()) }}: <strong>{{ instance.node.location ?? t('customer_instances_location_unknown', page_locale()) }}</strong></div>
+                <div>{{ t('customer_instances_data_path_label', page_locale()) }}: <strong>{{ instance.data_path ?? t('customer_instances_data_path_unknown', page_locale()) }}</strong></div>
                 <div>{{ t('customer_instances_sftp_access', page_locale()) }}: <strong>{{ t('customer_instance_files_sftp_title', page_locale()) }}</strong></div>
                 <div>{{ t('customer_instances_ftp_access', page_locale()) }}: <strong>{{ t('customer_instances_access_in_filemanager', page_locale()) }}</strong></div>
                 <div>{{ t('customer_instances_latency', page_locale()) }}: <strong data-query-latency>{{ query.result.latency_ms is not null ? query.result.latency_ms ~ ' ms' : '—' }}</strong></div>
@@ -83,9 +93,9 @@
         </div>
 
         <div class="flex flex-wrap gap-2">
-            <button type="button" data-power-action="start" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700" {% if displayStatus == 'running' %}disabled{% endif %}>{{ t('customer_instance_start', page_locale()) }}</button>
-            <button type="button" data-power-action="stop" class="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700" {% if displayStatus != 'running' %}disabled{% endif %}>{{ t('customer_instance_stop', page_locale()) }}</button>
-            <button type="button" data-power-action="restart" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700" {% if displayStatus != 'running' %}disabled{% endif %}>{{ t('customer_instance_restart', page_locale()) }}</button>
+            <button type="button" data-power-action="start" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700" {% if isRunning or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>{{ t('customer_instance_start', page_locale()) }}</button>
+            <button type="button" data-power-action="stop" class="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700" {% if (not isRunning) or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>{{ t('customer_instance_stop', page_locale()) }}</button>
+            <button type="button" data-power-action="restart" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700" {% if (not isRunning) or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>{{ t('customer_instance_restart', page_locale()) }}</button>
             <a href="{{ path('customer_instance_console_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instance_tab_console', page_locale()) }}</a>
             <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instance_tab_files', page_locale()) }}</a>
             <a href="{{ path('customer_instance_backups_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instance_tab_backups', page_locale()) }}</a>

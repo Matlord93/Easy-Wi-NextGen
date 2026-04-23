@@ -43,7 +43,7 @@ final class AdminGdprController
             'inventory' => $this->inventoryMap->all(),
             'policy' => [
                 'ticketRetentionDays' => $policy?->getTicketRetentionDays() ?? 365,
-                'logRetentionDays' => $policy?->getLogRetentionDays() ?? 90,
+                'logRetentionDays' => $policy?->getLogRetentionDays() ?? 7,
                 'sessionRetentionDays' => $policy?->getSessionRetentionDays() ?? 30,
             ],
             'auditEntries' => $auditEntries,
