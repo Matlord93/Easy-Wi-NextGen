@@ -79,6 +79,7 @@ func TestJobRunnerReadLockAllowsConcurrentSameInstance(t *testing.T) {
 func TestJobRunnerWriteWaitsForReadSameInstance(t *testing.T) {
 	runner := newJobRunner(2, 2)
 	started := make(chan string, 2)
+	readStarted := make(chan struct{})
 	releaseRead := make(chan struct{})
 	done := make(chan struct{})
 
@@ -88,9 +89,17 @@ func TestJobRunnerWriteWaitsForReadSameInstance(t *testing.T) {
 		lockMode:     jobLockRead,
 		handler: func(j jobs.Job) {
 			started <- "stream"
+			close(readStarted)
 			<-releaseRead
 		},
 	})
+
+	select {
+	case <-readStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected reader to acquire lock")
+	}
+
 	runner.Submit(jobTask{
 		job:          jobs.Job{ID: "start"},
 		instanceLock: "instance:1",
@@ -104,15 +113,15 @@ func TestJobRunnerWriteWaitsForReadSameInstance(t *testing.T) {
 	select {
 	case first := <-started:
 		if first != "stream" {
-			t.Fatalf("expected stream first, got %s", first)
+			t.Fatalf("expected reader start signal, got %s", first)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("expected first job start")
+		t.Fatal("expected reader start signal")
 	}
 
 	select {
 	case second := <-started:
-		t.Fatalf("expected writer to wait for reader, got %s", second)
+		t.Fatalf("expected writer to wait for reader completion, got %s", second)
 	case <-time.After(200 * time.Millisecond):
 	}
 

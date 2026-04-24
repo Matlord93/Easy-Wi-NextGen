@@ -14,6 +14,7 @@ final class ThemeResolver
         'theme1' => 'esports',
         'theme2' => 'minimal',
         'theme3' => 'fantasy',
+        'theme4' => 'clan-nova',
     ];
 
     private const SUPPORTED_THEMES = ['esports', 'minimal', 'fantasy', 'clan-nova', 'neon-arena', 'titan-squad'];

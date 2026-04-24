@@ -52,7 +52,7 @@ final class ConsoleStreamDiagnostics
     public function relayHeartbeatAgeSeconds(): ?int
     {
         if (!$this->redis instanceof \Redis) {
-            return 0;
+            return null;
         }
 
         try {
