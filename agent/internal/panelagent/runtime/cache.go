@@ -40,3 +40,16 @@ func LoadCache(path string) ([]CachedEvent, error) {
 func ClearCache(path string) error {
 	return os.Remove(path)
 }
+
+func SaveCache(path string, events []CachedEvent) error {
+	if len(events) == 0 {
+		return ClearCache(path)
+	}
+
+	payload, err := json.Marshal(events)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, payload, 0o600)
+}

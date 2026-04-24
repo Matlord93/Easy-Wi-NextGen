@@ -32,6 +32,7 @@ final class InstanceConfigService
             'work_dir' => null,
         ];
 
+        $payload = $this->applyTemplateStartParams($instance, $payload);
         $payload = $this->applyPortEnforcement($profile, $ports, $payload);
         $payload = $this->applySlotEnforcement($profile, $slots, $payload);
 
@@ -166,6 +167,67 @@ final class InstanceConfigService
         }
 
         return $ports;
+    }
+
+
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function applyTemplateStartParams(Instance $instance, array $payload): array
+    {
+        $startParams = trim($instance->getTemplate()->getStartParams());
+        if ($startParams === '') {
+            return $payload;
+        }
+
+        $tokens = $this->tokenizeCommandLine($startParams);
+        if ($tokens === []) {
+            return $payload;
+        }
+
+        $command = array_shift($tokens);
+        if (!is_string($command) || trim($command) === '') {
+            return $payload;
+        }
+
+        $payload['command'] = $command;
+        $payload['args'] = array_values(array_merge($payload['args'] ?? [], $tokens));
+
+        return $payload;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function tokenizeCommandLine(string $commandLine): array
+    {
+        if (trim($commandLine) === '') {
+            return [];
+        }
+
+        if (!preg_match_all("/\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|\\S+/", $commandLine, $matches)) {
+            return [];
+        }
+
+        $tokens = [];
+        foreach ($matches[0] as $token) {
+            $token = trim((string) $token);
+            if ($token === '') {
+                continue;
+            }
+
+            $first = $token[0] ?? '';
+            $last = $token[strlen($token) - 1] ?? '';
+            if (("'" === $first && "'" === $last) || ('"' === $first && '"' === $last)) {
+                $token = substr($token, 1, -1);
+            }
+
+            $tokens[] = $token;
+        }
+
+        return $tokens;
     }
 
     /**

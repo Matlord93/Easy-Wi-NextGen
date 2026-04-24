@@ -64,9 +64,6 @@ func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() 
 	}
 	if startCommand == "" {
 		startCommand = "/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1"
-		if adminPassword != "" {
-			startCommand = fmt.Sprintf("%s serveradmin_password=%s", startCommand, adminPassword)
-		}
 	}
 
 	osUsername := buildTs3Username(customerID, instanceID)
@@ -97,20 +94,21 @@ func handleTs3Create(job jobs.Job, logSender JobLogSender) (jobs.Result, func() 
 	}
 
 	config := buildTs3Config(ts3Config{
-		name:        name,
-		voiceIP:     voiceIP,
-		licensePath: licensePath,
-		voicePort:   voicePort,
-		queryPort:   queryPort,
-		queryIP:     queryIP,
-		filePort:    filePort,
-		fileIP:      fileIP,
-		dbMode:      dbMode,
-		dbHost:      dbHost,
-		dbPort:      dbPort,
-		dbName:      dbName,
-		dbUsername:  dbUsername,
-		dbPassword:  dbPassword,
+		name:          name,
+		voiceIP:       voiceIP,
+		licensePath:   licensePath,
+		adminPassword: adminPassword,
+		voicePort:     voicePort,
+		queryPort:     queryPort,
+		queryIP:       queryIP,
+		filePort:      filePort,
+		fileIP:        fileIP,
+		dbMode:        dbMode,
+		dbHost:        dbHost,
+		dbPort:        dbPort,
+		dbName:        dbName,
+		dbUsername:    dbUsername,
+		dbPassword:    dbPassword,
 	})
 	if err := os.WriteFile(configPath, []byte(config), instanceFileMode); err != nil {
 		return failureResult(job.ID, fmt.Errorf("write config: %w", err))
@@ -338,20 +336,21 @@ func handleTs3ServiceAction(job jobs.Job, action string) (jobs.Result, func() er
 }
 
 type ts3Config struct {
-	name        string
-	voiceIP     string
-	licensePath string
-	voicePort   string
-	queryPort   string
-	queryIP     string
-	filePort    string
-	fileIP      string
-	dbMode      string
-	dbHost      string
-	dbPort      string
-	dbName      string
-	dbUsername  string
-	dbPassword  string
+	name          string
+	voiceIP       string
+	licensePath   string
+	adminPassword string
+	voicePort     string
+	queryPort     string
+	queryIP       string
+	filePort      string
+	fileIP        string
+	dbMode        string
+	dbHost        string
+	dbPort        string
+	dbName        string
+	dbUsername    string
+	dbPassword    string
 }
 
 func buildTs3Config(cfg ts3Config) string {
@@ -375,6 +374,9 @@ func buildTs3Config(cfg ts3Config) string {
 		"query_ip_blacklist=query_ip_blacklist.txt",
 		"filetransfer_port=" + cfg.filePort,
 		"filetransfer_ip=" + cfg.fileIP,
+	}
+	if strings.TrimSpace(cfg.adminPassword) != "" {
+		lines = append(lines, "serveradmin_password="+cfg.adminPassword)
 	}
 	switch cfg.dbMode {
 	case "mysql":
@@ -469,4 +471,16 @@ func upsertConfigValue(path, key, value string) error {
 		lines = append(lines, key+"="+value)
 	}
 	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), instanceFileMode)
+}
+
+func appendShellKeyValueArg(command, key, value string) string {
+	if strings.TrimSpace(value) == "" {
+		return command
+	}
+	return fmt.Sprintf("%s %s=%s", command, key, quotePOSIXShellArg(value))
+}
+
+func quotePOSIXShellArg(value string) string {
+	replacer := strings.NewReplacer("\\", "\\\\", `"`, `\"`, "$", `\$`, "`", "\\`")
+	return `"` + replacer.Replace(value) + `"`
 }

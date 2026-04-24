@@ -136,6 +136,7 @@ func writeFileAtomic(target string, reader io.Reader, perm os.FileMode) error {
 		}
 		return fmt.Errorf("sync temp file: %w", err)
 	}
+	releaseFileFromPageCache(tmp)
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("close temp file: %w", err)
 	}

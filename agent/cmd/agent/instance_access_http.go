@@ -459,7 +459,10 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 		hash = "$easywi$" + hex.EncodeToString(h[:])
 	}
 	entry := fmt.Sprintf("%s:%s:%s:%s::%s:/usr/sbin/nologin", username, strings.TrimSpace(hash), strings.TrimSpace(uidOut), strings.TrimSpace(gidOut), rootPath)
-	existing, _ := os.ReadFile(linuxAuthUserFile)
+	existing, readErr := os.ReadFile(linuxAuthUserFile)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		return fmt.Errorf("PERMISSION_DENIED: read auth file: %w", readErr)
+	}
 	lines := strings.Split(strings.TrimSpace(string(existing)), "\n")
 	updated := make([]string, 0, len(lines)+1)
 	replaced := false
@@ -577,7 +580,10 @@ func provisionWindowsEmbeddedSFTP(username, password, rootPath string) error {
 		return fmt.Errorf("PERMISSION_DENIED: %w", err)
 	}
 	config := map[string]any{"version": 1, "listen": fmt.Sprintf("0.0.0.0:%d", defaultAccessListenPort), "users_file": windowsEmbeddedUsers, "marker": "BEGIN EASYWI MANAGED"}
-	blob, _ := json.MarshalIndent(config, "", "  ")
+	blob, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("INTERNAL_ERROR: marshal embedded config: %w", err)
+	}
 	if err := os.WriteFile(windowsEmbeddedConfig, blob, 0o644); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: %w", err)
 	}
@@ -609,8 +615,14 @@ func upsertWindowsEmbeddedUserFile(usersPath, username, password, rootPath strin
 	}
 	newEntry := embeddedUser{Username: username, PasswordHash: string(hash), RootPath: rootPath, Enabled: true, UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 	users := []embeddedUser{}
-	if raw, err := os.ReadFile(usersPath); err == nil {
-		_ = json.Unmarshal(raw, &users)
+	raw, readErr := os.ReadFile(usersPath)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		return fmt.Errorf("PERMISSION_DENIED: read embedded users file: %w", readErr)
+	}
+	if readErr == nil {
+		if err := json.Unmarshal(raw, &users); err != nil {
+			return fmt.Errorf("CONFIG_INVALID: parse embedded users file: %w", err)
+		}
 	}
 	found := false
 	for i := range users {
@@ -624,7 +636,10 @@ func upsertWindowsEmbeddedUserFile(usersPath, username, password, rootPath strin
 		users = append(users, newEntry)
 	}
 	sort.Slice(users, func(i, j int) bool { return users[i].Username < users[j].Username })
-	blob, _ := json.MarshalIndent(users, "", "  ")
+	blob, err := json.MarshalIndent(users, "", "  ")
+	if err != nil {
+		return fmt.Errorf("INTERNAL_ERROR: marshal embedded users file: %w", err)
+	}
 	if err := os.WriteFile(usersPath, blob, 0o600); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: %w", err)
 	}

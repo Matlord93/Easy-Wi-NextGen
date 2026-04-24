@@ -50,7 +50,7 @@ func NewClient(baseURL, token string, c *http.Client) *Client {
 }
 
 func (c *Client) Heartbeat(ctx context.Context, req HeartbeatRequest) error {
-	return c.postJSON(ctx, "/api/v1/agent/heartbeat", req, "heartbeat")
+	return c.postJSON(ctx, "/api/v1/hp/agent/heartbeat", req, "heartbeat")
 }
 
 func (c *Client) PostMailLogsBatch(ctx context.Context, req MailLogsBatchRequest) error {

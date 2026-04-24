@@ -90,4 +90,136 @@ final class InstanceConfigServiceTest extends TestCase
         self::assertSame('32', $serverProperties['MAX_PLAYERS'] ?? null);
         self::assertSame('25565', $serverProperties['SERVER_PORT'] ?? null);
     }
+
+    public function testUsesTemplateStartParamsAsDirectAgentCommand(): void
+    {
+        $template = new Template(
+            'cs2',
+            'Counter-Strike 2',
+            null,
+            null,
+            null,
+            [['name' => 'game', 'label' => 'Game', 'protocol' => 'udp']],
+            'srcds_linux -console -usercon',
+            [],
+            [],
+            [],
+            [],
+            'install',
+            'update',
+            [],
+            [],
+            [],
+            [],
+            ['linux'],
+            [],
+            [],
+        );
+        $customer = new User('customer@example.com', UserType::Customer);
+        $agent = new Agent('node-1', [
+            'key_id' => 'key-1',
+            'nonce' => 'nonce',
+            'ciphertext' => 'ciphertext',
+        ]);
+        $instance = new Instance(
+            $customer,
+            $template,
+            $agent,
+            100,
+            1024,
+            10240,
+            null,
+            InstanceStatus::Running,
+            InstanceUpdatePolicy::Manual,
+        );
+        $instance->setCurrentSlots(24);
+
+        $profile = new GameProfile(
+            'cs2',
+            EnforceMode::EnforceByArgs,
+            EnforceMode::EnforceByArgs,
+            [],
+            [],
+        );
+
+        $allocation = new PortAllocation(
+            $instance,
+            $agent,
+            'GAME_PORT',
+            'udp',
+            27015,
+            'static',
+            true,
+        );
+
+        $service = new InstanceConfigService();
+        $payload = $service->buildStartPayload($instance, $profile, [$allocation]);
+
+        self::assertSame('srcds_linux', $payload['command'] ?? null);
+        self::assertSame('-console', $payload['args'][0] ?? null);
+        self::assertSame('-usercon', $payload['args'][1] ?? null);
+        self::assertContains('-port', $payload['args']);
+        self::assertContains('-maxplayers', $payload['args']);
+    }
+
+
+    public function testParsesQuotedStartArgsWithoutShellWrapper(): void
+    {
+        $template = new Template(
+            'cs2',
+            'Counter-Strike 2',
+            null,
+            null,
+            null,
+            [['name' => 'game', 'label' => 'Game', 'protocol' => 'udp']],
+            '{{INSTANCE_DIR}}/srcds_run +hostname "My Fancy Server" +map de_dust2',
+            [],
+            [],
+            [],
+            [],
+            'install',
+            'update',
+            [],
+            [],
+            [],
+            [],
+            ['linux'],
+            [],
+            [],
+        );
+        $customer = new User('customer@example.com', UserType::Customer);
+        $agent = new Agent('node-1', [
+            'key_id' => 'key-1',
+            'nonce' => 'nonce',
+            'ciphertext' => 'ciphertext',
+        ]);
+        $instance = new Instance(
+            $customer,
+            $template,
+            $agent,
+            100,
+            1024,
+            10240,
+            null,
+            InstanceStatus::Running,
+            InstanceUpdatePolicy::Manual,
+        );
+
+        $profile = new GameProfile(
+            'cs2',
+            EnforceMode::EnforceByConfig,
+            EnforceMode::EnforceByConfig,
+            [],
+            [],
+        );
+
+        $service = new InstanceConfigService();
+        $payload = $service->buildStartPayload($instance, $profile, []);
+
+        self::assertSame('{{INSTANCE_DIR}}/srcds_run', $payload['command'] ?? null);
+        self::assertContains('+hostname', $payload['args']);
+        self::assertContains('My Fancy Server', $payload['args']);
+        self::assertContains('+map', $payload['args']);
+    }
+
 }

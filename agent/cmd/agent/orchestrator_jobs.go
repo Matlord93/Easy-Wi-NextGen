@@ -329,14 +329,15 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 
 	configPath := filepath.Join(installDir, ts3ConfigFile)
 	config := buildTs3Config(ts3Config{
-		name:        instanceName,
-		voiceIP:     voiceIP,
-		licensePath: licensePath,
-		voicePort:   voicePort,
-		queryPort:   queryPort,
-		queryIP:     queryIP,
-		filePort:    filePort,
-		fileIP:      fileIP,
+		name:          instanceName,
+		voiceIP:       voiceIP,
+		licensePath:   licensePath,
+		adminPassword: adminPassword,
+		voicePort:     voicePort,
+		queryPort:     queryPort,
+		queryIP:       queryIP,
+		filePort:      filePort,
+		fileIP:        fileIP,
 	})
 
 	if runtime.GOOS == "windows" {
@@ -348,9 +349,6 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
 		serviceCommand := fmt.Sprintf("\"%s\" inifile=ts3server.ini license_accepted=1", exePath)
-		if adminPassword != "" {
-			serviceCommand = fmt.Sprintf("%s serveradmin_password=%s", serviceCommand, adminPassword)
-		}
 		if err := runCommand("sc", "create", serviceName, "binPath=", serviceCommand); err != nil {
 			return orchestratorResult{status: "failed", errorText: err.Error()}
 		}
@@ -382,9 +380,6 @@ func handleTs3NodeInstall(job jobs.Job) orchestratorResult {
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	startCommand := "/home/teamspeak3/ts3server inifile=ts3server.ini license_accepted=1"
-	if adminPassword != "" {
-		startCommand = fmt.Sprintf("%s serveradmin_password=%s", startCommand, adminPassword)
-	}
 	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, startCommand, "", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
@@ -616,7 +611,7 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
 	startCommand := filepath.Join(installDir, "sinusbot")
 	if adminPassword != "" {
-		startCommand = fmt.Sprintf("%s --override-password=%s", startCommand, adminPassword)
+		startCommand = fmt.Sprintf("%s --override-password=%s", startCommand, quotePOSIXShellArg(adminPassword))
 	}
 	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, startCommand, "", 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {

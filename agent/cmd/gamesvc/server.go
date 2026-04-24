@@ -342,6 +342,10 @@ func (s *gameServer) handleInstanceStatus(w http.ResponseWriter, r *http.Request
 
 	s.mu.Lock()
 	cmd, exists := s.processes[req.InstanceID]
+	pid := 0
+	if exists && cmd != nil && cmd.Process != nil {
+		pid = cmd.Process.Pid
+	}
 	s.mu.Unlock()
 
 	response := instanceStatusResponse{
@@ -353,9 +357,7 @@ func (s *gameServer) handleInstanceStatus(w http.ResponseWriter, r *http.Request
 	if exists {
 		response.Status = "running"
 		response.Running = true
-		if cmd.Process != nil {
-			response.Pid = cmd.Process.Pid
-		}
+		response.Pid = pid
 	}
 
 	writeJSON(w, http.StatusOK, response)

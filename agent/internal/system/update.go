@@ -178,6 +178,10 @@ func downloadToFile(ctx context.Context, downloadURL, target string) (err error)
 	if _, err := io.Copy(file, resp.Body); err != nil {
 		return fmt.Errorf("write update file: %w", err)
 	}
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("sync update file: %w", err)
+	}
+	releaseFileFromPageCache(file)
 
 	if err := file.Chmod(0o755); err != nil {
 		return fmt.Errorf("chmod update file: %w", err)

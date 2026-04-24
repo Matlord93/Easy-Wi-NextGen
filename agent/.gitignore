@@ -1,0 +1,11 @@
+# Compiled binaries
+agent
+panel-agent
+gamesvc
+*.exe
+
+# Test binaries
+*.test
+
+# Build output
+dist/

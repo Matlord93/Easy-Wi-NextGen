@@ -19,10 +19,7 @@ class TemplateInstallResolver
         $template = $instance->getTemplate();
         $installCommand = $template->getInstallCommand();
         if ($installCommand !== '' && !$this->isResolverPlaceholder($installCommand, 'install')) {
-            return $this->applyLinuxSteamCacheCleanup(
-                $this->applySteamLogin($installCommand, $instance),
-                $instance,
-            );
+            return $this->applySteamLogin($installCommand, $instance);
         }
         $resolver = $template->getInstallResolver();
         $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
@@ -33,10 +30,7 @@ class TemplateInstallResolver
             default => $installCommand,
         };
 
-        return $this->applyLinuxSteamCacheCleanup(
-            $this->applySteamLogin($command, $instance),
-            $instance,
-        );
+        return $this->applySteamLogin($command, $instance);
     }
 
     public function resolveUpdateCommand(Instance $instance): string
@@ -184,24 +178,5 @@ class TemplateInstallResolver
         return $updated ?? $command;
     }
 
-    private function applyLinuxSteamCacheCleanup(string $command, Instance $instance): string
-    {
-        if ($this->resolveOs($instance->getNode()) !== 'linux') {
-            return $command;
-        }
 
-        if (!preg_match('/\bsteamcmd\b/i', $command)) {
-            return $command;
-        }
-
-        if (str_contains($command, '__easywi_steam_cache_cleanup')) {
-            return $command;
-        }
-
-        return '{ ' . $command . '; }; __easywi_install_status=$?; '
-            . '# __easywi_steam_cache_cleanup '
-            . 'sync; '
-            . '(echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null 2>&1 || true); '
-            . 'exit $__easywi_install_status';
-    }
 }
