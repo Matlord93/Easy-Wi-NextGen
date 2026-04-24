@@ -101,7 +101,7 @@ final class AdminPluginCatalogController
         ]));
     }
 
-    #[Route(path: '/{id}/edit', name: 'admin_plugins_edit', methods: ['GET'])]
+    #[Route(path: '/{id}/edit', name: 'admin_plugins_edit', methods: ['GET'], requirements: ['id' => '\d+'])]
     public function editPage(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
@@ -122,7 +122,7 @@ final class AdminPluginCatalogController
         ]));
     }
 
-    #[Route(path: '/{id}/preview', name: 'admin_plugins_preview', methods: ['GET'])]
+    #[Route(path: '/{id}/preview', name: 'admin_plugins_preview', methods: ['GET'], requirements: ['id' => '\d+'])]
     public function previewPage(Request $request, int $id): Response
     {
         if (!$this->isAdmin($request)) {
@@ -196,15 +196,20 @@ final class AdminPluginCatalogController
         return $response;
     }
 
-    #[Route(path: '/{id}', name: 'admin_plugins_update', methods: ['POST'])]
-    public function update(Request $request, int $id): Response
+    #[Route(path: '/{id}', name: 'admin_plugins_update', methods: ['POST'], requirements: ['id' => '\d+'])]
+    public function update(Request $request, string $id): Response
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $plugin = $this->pluginRepository->find($id);
+        $pluginId = filter_var($id, FILTER_VALIDATE_INT);
+        if ($pluginId === false) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $plugin = $this->pluginRepository->find($pluginId);
         if ($plugin === null) {
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }
@@ -265,15 +270,20 @@ final class AdminPluginCatalogController
         return $response;
     }
 
-    #[Route(path: '/{id}/delete', name: 'admin_plugins_delete', methods: ['POST'])]
-    public function delete(Request $request, int $id): Response
+    #[Route(path: '/{id}/delete', name: 'admin_plugins_delete', methods: ['POST'], requirements: ['id' => '\d+'])]
+    public function delete(Request $request, string $id): Response
     {
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
-        $plugin = $this->pluginRepository->find($id);
+        $pluginId = filter_var($id, FILTER_VALIDATE_INT);
+        if ($pluginId === false) {
+            return new Response('Not found.', Response::HTTP_NOT_FOUND);
+        }
+
+        $plugin = $this->pluginRepository->find($pluginId);
         if ($plugin === null) {
             return new Response('Not found.', Response::HTTP_NOT_FOUND);
         }

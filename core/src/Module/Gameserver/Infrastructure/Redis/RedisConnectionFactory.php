@@ -18,12 +18,19 @@ final class RedisConnectionFactory
         $db = isset($parts['path']) ? (int) ltrim((string) $parts['path'], '/') : 0;
 
         $redis = new \Redis();
-        $redis->connect($host, $port, 1.5);
-        if (isset($parts['pass'])) {
-            $redis->auth($parts['pass']);
-        }
-        if ($db > 0) {
-            $redis->select($db);
+
+        try {
+            $redis->connect($host, $port, 1.5);
+            if (isset($parts['pass'])) {
+                $redis->auth($parts['pass']);
+            }
+            if ($db > 0) {
+                $redis->select($db);
+            }
+        } catch (\RedisException) {
+            // Redis is optional in some panel setups (e.g. Plesk-only deployments).
+            // Return a non-connected client so runtime diagnostics can degrade gracefully
+            // instead of failing the entire HTTP request at container service creation time.
         }
 
         return $redis;

@@ -46,6 +46,8 @@ final class LoginFinalizer
         ]);
         $this->entityManager->flush();
 
+        $request->getSession()->migrate(true);
+
         $request->getSession()->set('last_login_at', time());
         $request->getSession()->set('last_password_confirmed_at', time());
 

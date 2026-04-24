@@ -46,4 +46,36 @@ return static function (ContainerConfigurator $container): void {
             implode(', ', $missing)
         ));
     }
+
+    $env = strtolower((string) ($_SERVER['APP_ENV'] ?? $_ENV['APP_ENV'] ?? getenv('APP_ENV') ?? 'dev'));
+    if (in_array($env, ['prod', 'production', 'stage', 'staging'], true)) {
+        $placeholderPatterns = [
+            'APP_SECRET' => ['change_this_secret', 'changeme', 'placeholder', 'replace-with'],
+            'AGENT_REGISTRATION_TOKEN' => ['change_this_secret', 'changeme', 'placeholder', 'replace-with'],
+            'AUTH_IDENTIFIER_HASH_PEPPER' => ['change_this_identifier_pepper', 'changeme', 'placeholder', 'replace-with'],
+            'APP_GITHUB_TOKEN' => ['token erstellen', 'changeme', 'placeholder', 'replace-with'],
+        ];
+
+        $placeholderKeys = [];
+        foreach ($placeholderPatterns as $key => $patterns) {
+            $value = strtolower(trim((string) ($_SERVER[$key] ?? $_ENV[$key] ?? getenv($key) ?? '')));
+            if ($value === '') {
+                continue;
+            }
+
+            foreach ($patterns as $pattern) {
+                if (str_contains($value, $pattern)) {
+                    $placeholderKeys[] = $key;
+                    break;
+                }
+            }
+        }
+
+        if ($placeholderKeys !== []) {
+            throw new \RuntimeException(sprintf(
+                'Startup validation failed: placeholder secrets detected in %s. Replace with real secrets from your secret manager.',
+                implode(', ', $placeholderKeys)
+            ));
+        }
+    }
 };

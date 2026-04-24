@@ -46,6 +46,8 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
                 'Overwrite' => 'T',
             ],
             'auth_basic' => $this->authBasic($target),
+            'verify_peer' => (bool) ($target->config()['verify_tls'] ?? true),
+            'verify_host' => (bool) ($target->config()['verify_tls'] ?? true),
         ]);
 
         if ($move->getStatusCode() >= 300) {
@@ -72,9 +74,12 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
     /** @return array<string, mixed> */
     private function requestOptions(BackupStorageTarget $target, string $sourceFile): array
     {
+        $verifyTls = (bool) ($target->config()['verify_tls'] ?? true);
         $options = [
             'headers' => $this->authHeaders($target),
             'body' => fopen($sourceFile, 'rb'),
+            'verify_peer' => $verifyTls,
+            'verify_host' => $verifyTls,
         ];
 
         $authBasic = $this->authBasic($target);
@@ -110,9 +115,12 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
 
     private function verifyUpload(string $url, BackupStorageTarget $target, string $sourceFile): void
     {
+        $verifyTls = (bool) ($target->config()['verify_tls'] ?? true);
         $response = $this->httpClient->request('HEAD', $url, [
             'headers' => $this->authHeaders($target),
             'auth_basic' => $this->authBasic($target),
+            'verify_peer' => $verifyTls,
+            'verify_host' => $verifyTls,
         ]);
 
         if ($response->getStatusCode() >= 300) {
@@ -135,9 +143,12 @@ final class WebDavBackupTargetWriter implements BackupTargetWriterInterface
 
     private function tryDelete(string $url, BackupStorageTarget $target): void
     {
+        $verifyTls = (bool) ($target->config()['verify_tls'] ?? true);
         $this->httpClient->request('DELETE', $url, [
             'headers' => $this->authHeaders($target),
             'auth_basic' => $this->authBasic($target),
+            'verify_peer' => $verifyTls,
+            'verify_host' => $verifyTls,
         ]);
     }
 }

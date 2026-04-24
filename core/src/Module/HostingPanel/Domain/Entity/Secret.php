@@ -48,4 +48,12 @@ class Secret
     {
         return $this->nonce;
     }
+
+    public function rotate(string $ciphertext, string $nonce, string $keyVersion): void
+    {
+        $this->ciphertext = $ciphertext;
+        $this->nonce = $nonce;
+        $this->keyVersion = $keyVersion;
+        $this->rotatedAt = new \DateTimeImmutable();
+    }
 }

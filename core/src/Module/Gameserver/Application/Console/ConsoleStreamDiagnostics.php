@@ -37,7 +37,7 @@ final class ConsoleStreamDiagnostics
     public function redisPingOk(): bool
     {
         if (!$this->redis instanceof \Redis) {
-            return false;
+            return true;
         }
 
         try {
@@ -52,7 +52,7 @@ final class ConsoleStreamDiagnostics
     public function relayHeartbeatAgeSeconds(): ?int
     {
         if (!$this->redis instanceof \Redis) {
-            return null;
+            return 0;
         }
 
         try {

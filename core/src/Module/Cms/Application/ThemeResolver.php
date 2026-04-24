@@ -14,10 +14,9 @@ final class ThemeResolver
         'theme1' => 'esports',
         'theme2' => 'minimal',
         'theme3' => 'fantasy',
-        'theme4' => 'xenal',
     ];
 
-    private const SUPPORTED_THEMES = ['esports', 'minimal', 'fantasy', 'xenal', 'clan-nova', 'neon-arena', 'titan-squad'];
+    private const SUPPORTED_THEMES = ['esports', 'minimal', 'fantasy', 'clan-nova', 'neon-arena', 'titan-squad'];
 
     public function __construct(private readonly CmsSettingsProvider $settingsProvider)
     {

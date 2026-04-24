@@ -10,25 +10,18 @@ use App\Module\HostingPanel\Domain\Entity\Module;
 use App\Module\HostingPanel\Domain\Entity\Node;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 use Doctrine\ORM\Event\OnFlushEventArgs;
+use Doctrine\ORM\Event\PostPersistEventArgs;
 use Doctrine\ORM\Events;
+use Doctrine\ORM\UnitOfWork;
 
 #[AsDoctrineListener(event: Events::onFlush)]
+#[AsDoctrineListener(event: Events::postPersist)]
 class AuditDoctrineSubscriber
 {
     public function onFlush(OnFlushEventArgs $args): void
     {
         $entityManager = $args->getObjectManager();
         $uow = $entityManager->getUnitOfWork();
-
-        foreach ($uow->getScheduledEntityInsertions() as $entity) {
-            if (!$this->supports($entity)) {
-                continue;
-            }
-
-            $log = new AuditLog('system', 'create', $entity::class, (string) spl_object_id($entity), [], ['created' => true]);
-            $entityManager->persist($log);
-            $uow->computeChangeSet($entityManager->getClassMetadata($log::class), $log);
-        }
 
         foreach ($uow->getScheduledEntityUpdates() as $entity) {
             if (!$this->supports($entity)) {
@@ -43,10 +36,49 @@ class AuditDoctrineSubscriber
                 $after[$field] = is_scalar($new) || $new === null ? $new : get_debug_type($new);
             }
 
-            $log = new AuditLog('system', 'update', $entity::class, (string) spl_object_id($entity), $before, $after);
+            $targetId = $this->resolveTargetId($entity, $uow);
+            if ($targetId === null) {
+                continue;
+            }
+
+            $log = new AuditLog('system', 'update', $entity::class, $targetId, $before, $after);
             $entityManager->persist($log);
             $uow->computeChangeSet($entityManager->getClassMetadata($log::class), $log);
         }
+    }
+
+    public function postPersist(PostPersistEventArgs $args): void
+    {
+        $entity = $args->getObject();
+        if (!$this->supports($entity)) {
+            return;
+        }
+
+        $entityManager = $args->getObjectManager();
+        $identifier = $entityManager->getUnitOfWork()->getSingleIdentifierValue($entity);
+        if (!is_scalar($identifier)) {
+            return;
+        }
+
+        $entityManager->getConnection()->insert('hp_audit_log', [
+            'actor' => 'system',
+            'action' => 'create',
+            'target_type' => $entity::class,
+            'target_id' => (string) $identifier,
+            'before_state' => json_encode([], JSON_THROW_ON_ERROR),
+            'after_state' => json_encode(['created' => true], JSON_THROW_ON_ERROR),
+            'created_at' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    private function resolveTargetId(object $entity, UnitOfWork $uow): ?string
+    {
+        $identifier = $uow->getSingleIdentifierValue($entity);
+        if (is_scalar($identifier)) {
+            return (string) $identifier;
+        }
+
+        return null;
     }
 
     private function supports(object $entity): bool

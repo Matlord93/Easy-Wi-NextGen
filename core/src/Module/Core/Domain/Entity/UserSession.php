@@ -10,6 +10,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: UserSessionRepository::class)]
 #[ORM\Table(name: 'user_sessions')]
 #[ORM\Index(name: 'idx_user_sessions_token_hash', columns: ['token_hash'])]
+#[ORM\Index(name: 'idx_user_sessions_user_id', columns: ['user_id'])]
+#[ORM\Index(name: 'idx_user_sessions_expires_at', columns: ['expires_at'])]
 class UserSession
 {
     #[ORM\Id]

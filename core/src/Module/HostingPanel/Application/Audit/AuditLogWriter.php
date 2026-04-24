@@ -16,5 +16,6 @@ class AuditLogWriter
     public function write(string $actor, string $action, string $targetType, string $targetId, array $before, array $after): void
     {
         $this->entityManager->persist(new AuditLog($actor, $action, $targetType, $targetId, $before, $after));
+        $this->entityManager->flush();
     }
 }

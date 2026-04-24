@@ -52,7 +52,7 @@ parameters:
   app.agent_service_port: '%env(int:default:app.agent_service_port_default:APP_AGENT_SERVICE_PORT)%'
   app.status_agent_shared_secret_default: ''
   app.status_agent_shared_secret: '%env(default:app.status_agent_shared_secret_default:APP_STATUS_AGENT_SHARED_SECRET)%'
-  app.status_agent_signature_skew_seconds_default: '300'
+  app.status_agent_signature_skew_seconds_default: '120'
   app.status_agent_signature_skew_seconds: >-
     %env(int:default:app.status_agent_signature_skew_seconds_default:APP_STATUS_AGENT_SIGNATURE_SKEW_SECONDS)%
   app.status_stale_grace_seconds_default: '20'
@@ -326,7 +326,7 @@ services:
         - '@App\Module\Core\Application\Backup\Target\WebDavBackupTargetWriter'
 
   App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface: '@App\Module\Gameserver\Infrastructure\Grpc\GrpcConsoleAgentGrpcClient'
-  App\Module\Gameserver\Application\Console\ConsoleEventBusInterface: '@App\Module\Gameserver\Infrastructure\Redis\RedisConsoleEventBus'
+  App\Module\Gameserver\Application\Console\ConsoleEventBusInterface: '@App\Module\Gameserver\Infrastructure\Console\FallbackConsoleEventBus'
   App\Module\Gameserver\Application\Console\AgentEndpointProbeInterface: '@App\Module\Gameserver\Infrastructure\Grpc\DoctrineAgentEndpointProbe'
 
   Redis:
@@ -338,6 +338,11 @@ services:
   App\Module\Gameserver\Infrastructure\Redis\RedisConsoleEventBus:
     arguments:
       $redis: '@Redis'
+
+  App\Module\Gameserver\Infrastructure\Console\FallbackConsoleEventBus:
+    arguments:
+      $grpcClient: '@App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface'
+      $redis: '@?Redis'
 
   App\Module\Gameserver\Application\Console\SymfonyConsoleCommandLimiter:
     arguments:

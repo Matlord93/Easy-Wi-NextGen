@@ -24,8 +24,16 @@ class SecretVault
         $nonce = random_bytes($nonceBytes);
         $cipher = sodium_crypto_secretbox($plaintext, $nonce, $this->binaryKey());
 
-        $secret = new Secret($name, base64_encode($cipher), base64_encode($nonce), $this->keyVersion);
-        $this->entityManager->persist($secret);
+        $ciphertext = base64_encode($cipher);
+        $encodedNonce = base64_encode($nonce);
+        $secret = $this->entityManager->getRepository(Secret::class)->findOneBy(['name' => $name]);
+        if ($secret instanceof Secret) {
+            $secret->rotate($ciphertext, $encodedNonce, $this->keyVersion);
+        } else {
+            $secret = new Secret($name, $ciphertext, $encodedNonce, $this->keyVersion);
+            $this->entityManager->persist($secret);
+        }
+
         $this->entityManager->flush();
     }
 
