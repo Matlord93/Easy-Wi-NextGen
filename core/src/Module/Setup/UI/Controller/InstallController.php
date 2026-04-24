@@ -268,7 +268,7 @@ final class InstallController
                     $errors[] = ['key' => 'errors.admin_ssh_key_invalid'];
                 }
 
-                $supportedThemes = ['esports', 'minimal', 'fantasy', 'xenal'];
+                $supportedThemes = ['esports', 'minimal', 'fantasy', 'clan-nova'];
                 if (!in_array($applicationState['cms_template'], $supportedThemes, true)) {
                     $errors[] = ['key' => 'errors.cms_template_invalid'];
                 }
