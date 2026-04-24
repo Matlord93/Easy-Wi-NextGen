@@ -36,7 +36,7 @@ final class ThemeResolverTest extends TestCase
         self::assertSame('minimal', $resolver->resolveThemeKey($site));
     }
 
-    public function testLegacyTheme4AliasResolvesToXenal(): void
+    public function testLegacyTheme4AliasResolvesToclannova(): void
     {
         [$provider] = $this->createProviderWithStorage($storage);
         $resolver = new ThemeResolver($provider);
