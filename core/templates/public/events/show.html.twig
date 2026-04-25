@@ -1,10 +1,73 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
+
+{% block title %}{{ event.title }} · Events · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
+
 {% block content %}
-<div class="mx-auto max-w-4xl space-y-4 px-4 py-10">
-    <a href="/events" class="text-sm text-indigo-600">← Back to events</a>
-    <h1 class="text-3xl font-semibold">{{ event.title }}</h1>
-    <p class="text-sm text-slate-500">{{ event.start_at|date('d.m.Y H:i') }}{% if event.end_at %} - {{ event.end_at|date('d.m.Y H:i') }}{% endif %}{% if event.location %} · {{ event.location }}{% endif %} · {{ event.status }}</p>
-    {% if event.cover_image_path %}<img src="{{ event.cover_image_path }}" alt="{{ event.title }}" class="h-64 w-full rounded object-cover" />{% endif %}
-    <article class="prose max-w-none">{{ event.description|nl2br }}</article>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <a href="/events">Events</a>
+            <span class="truncate">{{ event.title }}</span>
+        </nav>
+        <div class="flex flex-wrap items-center gap-3 mb-3">
+            {% set statusClass = 'border-slate-700 bg-slate-800/60 text-slate-400' %}
+            {% set statusLabel = event.status %}
+            {% if event.status == 'live' or event.status == 'running' %}
+                {% set statusClass = 'border-green-500/40 bg-green-500/10 text-green-400' %}
+                {% set statusLabel = 'Live' %}
+            {% elseif event.status == 'upcoming' or event.status == 'scheduled' %}
+                {% set statusClass = 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' %}
+                {% set statusLabel = 'Demnächst' %}
+            {% elseif event.status == 'finished' or event.status == 'past' %}
+                {% set statusClass = 'border-slate-700 bg-slate-800/40 text-slate-500' %}
+                {% set statusLabel = 'Abgeschlossen' %}
+            {% endif %}
+            <span class="rounded-full border px-2.5 py-0.5 text-xs font-semibold {{ statusClass }}">{{ statusLabel }}</span>
+        </div>
+        <h1 class="text-3xl font-bold ng-gradient-text">{{ event.title }}</h1>
+    </div>
+</div>
+
+<div class="ng-container ng-section">
+    <div class="mx-auto max-w-3xl">
+        {% if event.cover_image_path %}
+            <div class="mb-8 overflow-hidden rounded-xl border border-slate-800">
+                <img src="{{ event.cover_image_path }}" alt="{{ event.title }}" class="h-64 w-full object-cover" />
+            </div>
+        {% endif %}
+
+        <div class="mb-6 flex flex-wrap gap-4 rounded-xl border border-slate-800 bg-slate-900/60 px-5 py-4">
+            <div class="flex items-center gap-2 text-sm text-slate-300">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span>{{ event.start_at|date('d.m.Y H:i') }}</span>
+                {% if event.end_at %}
+                    <span class="text-slate-500">–</span>
+                    <span>{{ event.end_at|date('d.m.Y H:i') }}</span>
+                {% endif %}
+            </div>
+            {% if event.location %}
+                <div class="flex items-center gap-2 text-sm text-slate-300">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span>{{ event.location }}</span>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if event.description %}
+            <div class="prose prose-invert max-w-none text-slate-200
+                        prose-headings:text-slate-100 prose-a:text-cyan-400 prose-a:no-underline hover:prose-a:text-cyan-300
+                        prose-strong:text-slate-100 prose-code:text-cyan-300 prose-blockquote:border-l-cyan-500 prose-blockquote:text-slate-400">
+                {{ event.description|nl2br }}
+            </div>
+        {% endif %}
+
+        <div class="mt-10 flex items-center justify-between border-t border-slate-800 pt-6">
+            <a href="/events" class="ng-btn ng-btn--ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                Zurück zu Events
+            </a>
+        </div>
+    </div>
 </div>
 {% endblock %}

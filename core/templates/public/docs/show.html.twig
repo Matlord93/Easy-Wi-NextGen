@@ -1,16 +1,34 @@
-{% extends 'public/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
+{% block title %}{{ article.title }} · Docs · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div>
-        <a href="/docs" class="text-xs font-semibold text-slate-700 hover:text-slate-700">← {{ t('back_to_docs', page_locale()) }}</a>
-        <h1 class="mt-2 text-2xl font-semibold">{{ article.title }}</h1>
-        <p class="text-sm text-slate-700">{{ article.category }}</p>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <a href="/docs">{{ t('docs_title', page_locale()) }}</a>
+            <span class="truncate">{{ article.title }}</span>
+        </nav>
+        {% if article.category %}
+            <p class="mb-1 text-xs uppercase tracking-wider text-slate-500">{{ article.category }}</p>
+        {% endif %}
+        <h1 class="text-3xl font-bold ng-gradient-text">{{ article.title }}</h1>
     </div>
+</div>
 
-    <div class="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700 whitespace-pre-line">
-        {{ article.content }}
+<div class="ng-container ng-section">
+    <div class="mx-auto max-w-3xl">
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-sm leading-relaxed text-slate-300 whitespace-pre-line">
+            {{ article.content }}
+        </div>
+
+        <div class="mt-8 flex items-center border-t border-slate-800 pt-6">
+            <a href="/docs" class="ng-btn ng-btn--ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                {{ t('back_to_docs', page_locale()) }}
+            </a>
+        </div>
     </div>
 </div>
 {% endblock %}

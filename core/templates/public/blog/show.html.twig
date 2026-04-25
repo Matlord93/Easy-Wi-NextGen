@@ -6,39 +6,58 @@
 {% endblock %}
 
 {% block content %}
-<div class="mx-auto w-full max-w-5xl space-y-8 px-4 py-10 sm:px-6">
-    <nav class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 px-6 py-4 text-xs uppercase tracking-[0.2em] text-slate-400">
-        <div class="font-semibold text-slate-200">Blog</div>
-        <div class="flex flex-wrap gap-4 text-[11px] text-slate-400">
-            {% for page in cms_pages %}
-                {% set link = page.slug == 'startseite' ? '/' : '/' ~ page.slug %}
-                <a href="{{ link }}" class="hover:text-cyan-300">{{ page.title }}</a>
-            {% endfor %}
-            <a href="/blog" class="hover:text-cyan-300">{{ t('cms_blog_title', page_locale()) }}</a>
-        </div>
-        <div class="flex items-center gap-2 text-xs normal-case">
-            <a href="/blog" class="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-slate-600">{{ t('cms_blog_back', page_locale()) }}</a>
-        </div>
-    </nav>
-
-    <article class="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 shadow-lg shadow-black/20">
-        <header class="space-y-2">
-            <p class="text-xs uppercase tracking-[0.3em] text-cyan-300">{{ t('cms_blog_post', page_locale()) }}</p>
-            <h1 class="text-3xl font-semibold text-slate-100">{{ post.title }}</h1>
-            {% if post.published_at %}
-                <p class="text-xs text-slate-400">{{ post.published_at|date('d.m.Y') }}</p>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <a href="/blog">{{ t('cms_blog_title', page_locale()) }}</a>
+            <span class="truncate">{{ post.title }}</span>
+        </nav>
+        <div class="flex flex-wrap items-center gap-3 mb-3">
+            {% if post.category %}
+                <span class="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-semibold text-cyan-400">{{ post.category.name }}</span>
             {% endif %}
-            {% if post.category %}<p class="text-xs text-slate-400">Category: {{ post.category.name }}</p>{% endif %}
-            {% if post.tags is not empty %}<p class="text-xs text-slate-400">Tags: {{ post.tags|map(t => t.name)|join(', ') }}</p>{% endif %}
-        </header>
+            {% if post.published_at %}
+                <span class="text-xs text-slate-500">{{ post.published_at|date('d.m.Y') }}</span>
+            {% endif %}
+        </div>
+        <h1 class="text-3xl font-bold ng-gradient-text">{{ post.title }}</h1>
+        {% if post.tags is not empty %}
+            <div class="mt-3 flex flex-wrap gap-2">
+                {% for tag in post.tags %}
+                    <span class="rounded-full border border-slate-700 bg-slate-800/60 px-2.5 py-0.5 text-xs text-slate-400">{{ tag.name }}</span>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="ng-container ng-section">
+    <article class="mx-auto max-w-3xl">
         {% if post.featured_image_path %}
-            <img src="{{ post.featured_image_path }}" alt="{{ post.title }}" class="mt-5 h-72 w-full rounded-lg object-cover" />
+            <div class="mb-8 overflow-hidden rounded-xl border border-slate-800">
+                <img src="{{ post.featured_image_path }}" alt="{{ post.title }}"
+                     class="h-72 w-full object-cover" />
+            </div>
         {% endif %}
+
         {% if post.excerpt %}
-            <p class="mt-4 text-sm text-slate-300">{{ post.excerpt }}</p>
+            <p class="mb-6 text-base leading-relaxed text-slate-300 border-l-2 border-cyan-500/50 pl-4">{{ post.excerpt }}</p>
         {% endif %}
-        <div class="prose prose-invert mt-6 max-w-none text-slate-200">
+
+        <div class="prose prose-invert max-w-none text-slate-200
+                    prose-headings:text-slate-100 prose-a:text-cyan-400 prose-a:no-underline hover:prose-a:text-cyan-300
+                    prose-strong:text-slate-100 prose-code:text-cyan-300 prose-code:bg-slate-800/60 prose-code:rounded prose-code:px-1
+                    prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-800
+                    prose-blockquote:border-l-cyan-500 prose-blockquote:text-slate-400">
             {{ post.content }}
+        </div>
+
+        <div class="mt-10 flex items-center justify-between border-t border-slate-800 pt-6">
+            <a href="/blog" class="ng-btn ng-btn--ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                {{ t('cms_blog_back', page_locale()) }}
+            </a>
         </div>
     </article>
 </div>

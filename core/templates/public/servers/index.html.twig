@@ -1,24 +1,31 @@
-{% extends 'public/base.html.twig' %}
-
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
 {% set activeNav = 'servers' %}
 
-{% block content %}
-<div class="space-y-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('server_directory_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('server_directory_intro', page_locale()) }}</p>
-    </div>
+{% block title %}{{ t('server_directory_title', page_locale()) }} · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
-    <div class="rounded-xl border border-slate-200 bg-white p-4">
-        <form method="get" class="grid gap-4 lg:grid-cols-[2fr,1fr,1fr,auto] lg:items-end">
+{% block content %}
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <span>{{ t('server_directory_title', page_locale()) }}</span>
+        </nav>
+        <h1 class="text-3xl font-bold ng-gradient-text">{{ t('server_directory_title', page_locale()) }}</h1>
+        <p class="mt-2 text-sm text-slate-400">{{ t('server_directory_intro', page_locale()) }}</p>
+    </div>
+</div>
+
+<div class="ng-container ng-section space-y-6">
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+        <form method="get" class="grid gap-3 lg:grid-cols-[2fr,1fr,1fr,auto] lg:items-end">
             <div>
-                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('search', page_locale()) }}</label>
-                <input type="search" name="search" value="{{ filters.search }}" placeholder="{{ t('server_search_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">{{ t('search', page_locale()) }}</label>
+                <input type="search" name="search" value="{{ filters.search }}" placeholder="{{ t('server_search_placeholder', page_locale()) }}" class="ng-input w-full">
             </div>
             <div>
-                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('game', page_locale()) }}</label>
-                <select name="game" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">{{ t('game', page_locale()) }}</label>
+                <select name="game" class="ng-input w-full">
                     <option value="">{{ t('all_games', page_locale()) }}</option>
                     {% for game in games %}
                         <option value="{{ game }}" {% if filters.game == game %}selected{% endif %}>{{ game }}</option>
@@ -26,8 +33,8 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ t('status', page_locale()) }}</label>
-                <select name="status" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">{{ t('status', page_locale()) }}</label>
+                <select name="status" class="ng-input w-full">
                     <option value="">{{ t('all', page_locale()) }}</option>
                     <option value="online" {% if filters.status == 'online' %}selected{% endif %}>{{ t('status_online', page_locale()) }}</option>
                     <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>{{ t('status_offline', page_locale()) }}</option>
@@ -36,12 +43,12 @@
                 </select>
             </div>
             <div>
-                <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ t('filter', page_locale()) }}</button>
+                <button type="submit" class="ng-btn w-full">{{ t('filter', page_locale()) }}</button>
             </div>
         </form>
     </div>
 
-    <div class="rounded-xl border border-slate-200 bg-white">
+    <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
         {% include 'public/servers/_server_list.html.twig' with { servers: servers, show_players: true, show_join_button: false } %}
     </div>
 </div>

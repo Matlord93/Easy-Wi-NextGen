@@ -1,32 +1,63 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
-{% block title %}Forum Suche{% endblock %}
+{% block title %}Suche · Forum · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
-<div class="mx-auto w-full max-w-5xl space-y-6 px-4 py-10 sm:px-6">
-    <div>
-        <a href="/forum" class="text-sm text-cyan-300 hover:text-cyan-200">← Forum</a>
-        <h1 class="mt-2 text-3xl font-semibold text-slate-100">Suche</h1>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <a href="/forum">Forum</a>
+            <span>Suche</span>
+        </nav>
+        <h1 class="text-3xl font-bold ng-gradient-text">Forum Suche</h1>
     </div>
+</div>
 
-    <form method="get" action="/forum/search" class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-        <input name="q" value="{{ q }}" placeholder="Threadtitel oder Inhalt" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" required>
+<div class="ng-container ng-section">
+    <form method="get" action="/forum/search" class="mb-8 flex gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 backdrop-blur-sm">
+        <input name="q" value="{{ q }}" placeholder="Threadtitel oder Inhalt suchen …"
+               class="ng-input flex-1" autofocus>
+        <button class="ng-btn ng-btn--primary px-6">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            Suchen
+        </button>
     </form>
 
-    {% if error %}<div class="rounded-lg border border-amber-300/40 bg-amber-500/10 p-3 text-sm text-amber-200">{{ error }}</div>{% endif %}
+    {% if error %}
+        <div class="ng-alert ng-alert--danger mb-6">{{ error }}</div>
+    {% endif %}
 
-    <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-        <h2 class="text-lg font-semibold text-slate-100">Ergebnisse</h2>
-        <div class="mt-4 space-y-2">
+    {% if q %}
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+            <div class="border-b border-slate-800 px-5 py-3">
+                <h2 class="text-sm font-semibold uppercase tracking-widest text-slate-400">
+                    Ergebnisse{% if results is not empty %} <span class="text-cyan-400">({{ results|length }})</span>{% endif %}
+                </h2>
+            </div>
+
             {% for thread in results %}
-                <a class="block rounded-lg border border-slate-700 p-3 hover:bg-slate-800/70" href="/forum/thread/{{ thread.id }}">
-                    <p class="font-semibold text-slate-100">{{ thread.title }}</p>
-                    <p class="text-xs text-slate-400">Board: {{ thread.board.title }} · {{ thread.lastActivityAt|date('Y-m-d H:i') }}</p>
+                <a href="/forum/thread/{{ thread.id }}"
+                   class="group flex items-start gap-4 border-b border-slate-800/60 px-5 py-4 transition-colors last:border-b-0 hover:bg-slate-800/50">
+                    <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/60 text-slate-500">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-semibold text-slate-100 group-hover:text-cyan-300 transition-colors">{{ thread.title }}</p>
+                        <p class="mt-0.5 text-xs text-slate-500">
+                            Board: <span class="text-slate-400">{{ thread.board.title }}</span>
+                            · {{ thread.lastActivityAt|date('d.m.Y H:i') }}
+                        </p>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-shrink-0 mt-1 text-slate-600 group-hover:text-slate-400 transition-colors"><path d="M9 18l6-6-6-6"/></svg>
                 </a>
             {% else %}
-                <p class="text-sm text-slate-400">Keine Treffer.</p>
+                <div class="ng-empty-state py-10">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <p>Keine Treffer für „{{ q }}"</p>
+                </div>
             {% endfor %}
         </div>
-    </section>
+    {% endif %}
 </div>
 {% endblock %}

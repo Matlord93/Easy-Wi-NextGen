@@ -10,8 +10,9 @@ final class AgentReleaseChecker
 {
     private const CACHE_KEY = 'agent.latest_release_version';
 
-    private const CHANNEL_STABLE = 'stable';
-    private const CHANNEL_BETA = 'beta';
+    public const CHANNEL_STABLE = 'stable';
+    public const CHANNEL_BETA = 'beta';
+    public const CHANNEL_ALPHA = 'alpha';
 
     public function __construct(
         private readonly CacheItemPoolInterface $cache,
@@ -26,13 +27,23 @@ final class AgentReleaseChecker
         return $this->repository;
     }
 
+    public function getChannel(): string
+    {
+        return $this->normalizeChannel($this->channel);
+    }
+
     public function getLatestVersion(): ?string
+    {
+        return $this->getLatestVersionForChannel($this->channel);
+    }
+
+    public function getLatestVersionForChannel(string $channel): ?string
     {
         if ($this->repository === '') {
             return null;
         }
 
-        $channel = $this->normalizeChannel($this->channel);
+        $channel = $this->normalizeChannel($channel);
         $cacheKey = sprintf('%s.%s', self::CACHE_KEY, $channel);
 
         $item = $this->cache->getItem($cacheKey);
@@ -53,11 +64,16 @@ final class AgentReleaseChecker
 
     public function getReleaseAssetUrls(string $assetName, ?string $targetVersion = null): ?array
     {
+        return $this->getReleaseAssetUrlsForChannel($assetName, $this->channel, $targetVersion);
+    }
+
+    public function getReleaseAssetUrlsForChannel(string $assetName, string $channel, ?string $targetVersion = null): ?array
+    {
         if ($this->repository === '') {
             return null;
         }
 
-        $channel = $this->normalizeChannel($this->channel);
+        $channel = $this->normalizeChannel($channel);
         $releases = $this->fetchReleases();
         if ($releases === null) {
             return null;
@@ -89,9 +105,14 @@ final class AgentReleaseChecker
         return version_compare($current, $latest, '<');
     }
 
-    public function getChannel(): string
+    /** @return array<string, string> */
+    public static function channels(): array
     {
-        return $this->normalizeChannel($this->channel);
+        return [
+            self::CHANNEL_STABLE => 'Stable',
+            self::CHANNEL_BETA => 'Beta',
+            self::CHANNEL_ALPHA => 'Alpha',
+        ];
     }
 
     private function fetchLatestVersion(string $channel): ?string
@@ -170,12 +191,11 @@ final class AgentReleaseChecker
 
     private function normalizeChannel(string $channel): string
     {
-        $value = strtolower(trim($channel));
-        if ($value === self::CHANNEL_BETA) {
-            return self::CHANNEL_BETA;
-        }
-
-        return self::CHANNEL_STABLE;
+        return match (strtolower(trim($channel))) {
+            self::CHANNEL_BETA => self::CHANNEL_BETA,
+            self::CHANNEL_ALPHA => self::CHANNEL_ALPHA,
+            default => self::CHANNEL_STABLE,
+        };
     }
 
     private function findAssetDownloadUrl(array $assets, string $assetName): ?string
@@ -218,11 +238,25 @@ final class AgentReleaseChecker
             }
 
             $isPrerelease = ($release['prerelease'] ?? false) === true;
-            if ($channel === self::CHANNEL_STABLE && $isPrerelease) {
-                continue;
-            }
-            if ($channel === self::CHANNEL_BETA && !$isPrerelease) {
-                continue;
+            $tagLower = strtolower((string) ($release['tag_name'] ?? ''));
+
+            if ($channel === self::CHANNEL_STABLE) {
+                if ($isPrerelease) {
+                    continue;
+                }
+            } elseif ($channel === self::CHANNEL_BETA) {
+                // beta: prerelease releases that are NOT alpha-tagged
+                if (!$isPrerelease) {
+                    continue;
+                }
+                if (str_contains($tagLower, 'alpha')) {
+                    continue;
+                }
+            } elseif ($channel === self::CHANNEL_ALPHA) {
+                // alpha: all prerelease releases (including alpha-tagged)
+                if (!$isPrerelease) {
+                    continue;
+                }
             }
 
             $filtered[] = $release;

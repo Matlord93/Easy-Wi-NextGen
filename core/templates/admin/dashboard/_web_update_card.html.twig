@@ -34,6 +34,43 @@
         </div>
     </div>
 
+    {# ── Release channel selector ── #}
+    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
+        <p class="text-xs font-semibold uppercase text-slate-500 mb-2">Release-Kanal</p>
+        <form method="post" hx-post="/admin/updates/core/channel" hx-target="#core-update-card" hx-swap="outerHTML" class="flex flex-wrap items-center gap-3">
+            <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.core_channel }}">
+            {% for value, label in coreUpdate.channels %}
+                <label class="flex cursor-pointer items-center gap-2 text-sm">
+                    <input
+                        type="radio" name="channel" value="{{ value }}"
+                        {% if coreUpdate.channel == value %}checked{% endif %}
+                        onchange="this.form.requestSubmit()"
+                        class="accent-indigo-600"
+                    >
+                    <span class="font-medium text-slate-700">{{ label }}</span>
+                    {% if value == 'stable' %}
+                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">Empfohlen</span>
+                    {% elseif value == 'beta' %}
+                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">Vorschau</span>
+                    {% elseif value == 'alpha' %}
+                        <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-700">Experimentell</span>
+                    {% endif %}
+                </label>
+            {% endfor %}
+        </form>
+        <p class="mt-2 text-xs text-slate-500">
+            Aktueller Kanal:
+            <span class="font-semibold text-slate-700">{{ coreUpdate.channels[coreUpdate.channel] ?? coreUpdate.channel }}</span>.
+            {% if coreUpdate.channel == 'alpha' %}
+                Alpha-Updates können instabil sein und sind nur für Testumgebungen gedacht.
+            {% elseif coreUpdate.channel == 'beta' %}
+                Beta-Updates sind Vorabversionen und können Fehler enthalten.
+            {% else %}
+                Stable-Updates sind getestete Produktions-Releases.
+            {% endif %}
+        </p>
+    </div>
+
     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
             <p class="text-xs font-semibold uppercase text-slate-500">{{ t('admin_dashboard_core_current_version', page_locale()) }}</p>
@@ -75,6 +112,42 @@
         {% else %}
             <p class="mt-2">{{ t('admin_dashboard_core_migration_pending', page_locale())|replace({'%count%': coreUpdate.migrationStatus.pending}) }}</p>
         {% endif %}
+    </div>
+
+    {# ── Auto-update toggles ── #}
+    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
+            <p class="text-xs font-semibold uppercase text-slate-500 mb-2">Automatische Updates</p>
+            <form method="post" hx-post="/admin/updates/webinterface/auto" hx-target="#core-update-card" hx-swap="outerHTML" class="flex items-center gap-3">
+                <label class="relative inline-flex cursor-pointer items-center">
+                    <input
+                        type="checkbox" name="enabled" value="1"
+                        {% if coreUpdate.autoEnabled %}checked{% endif %}
+                        onchange="this.form.requestSubmit()"
+                        class="peer sr-only"
+                    >
+                    <div class="peer h-5 w-9 rounded-full bg-slate-300 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full"></div>
+                </label>
+                <span class="text-sm text-slate-700">{{ coreUpdate.autoEnabled ? 'Aktiviert' : 'Deaktiviert' }}</span>
+            </form>
+            <p class="mt-1 text-xs text-slate-500">Panel über <code class="rounded bg-slate-200 px-1">app:update:auto</code> automatisch aktualisieren.</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
+            <p class="text-xs font-semibold uppercase text-slate-500 mb-2">Automatische Migrationen</p>
+            <form method="post" hx-post="/admin/updates/webinterface/auto-migrate" hx-target="#core-update-card" hx-swap="outerHTML" class="flex items-center gap-3">
+                <label class="relative inline-flex cursor-pointer items-center">
+                    <input
+                        type="checkbox" name="enabled" value="1"
+                        {% if coreUpdate.autoMigrate %}checked{% endif %}
+                        onchange="this.form.requestSubmit()"
+                        class="peer sr-only"
+                    >
+                    <div class="peer h-5 w-9 rounded-full bg-slate-300 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full"></div>
+                </label>
+                <span class="text-sm text-slate-700">{{ coreUpdate.autoMigrate ? 'Aktiviert' : 'Deaktiviert' }}</span>
+            </form>
+            <p class="mt-1 text-xs text-slate-500">DB-Migrationen nach jedem Auto-Update automatisch ausführen.</p>
+        </div>
     </div>
 
     {% if coreUpdate.autoEnabled and coreUpdate.notesList is not empty %}
@@ -141,4 +214,11 @@
             </form>
         </div>
     {% endif %}
+
+    {# ── Cron hint ── #}
+    <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3 text-sm text-slate-700">
+        <p class="text-xs font-semibold uppercase text-slate-500 mb-1">Automatisierung via Cron / Systemd</p>
+        <p class="text-xs text-slate-500 mb-2">Füge folgenden Eintrag in deine Crontab ein, um Updates automatisch zu prüfen und zu installieren:</p>
+        <pre class="rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700">*/15 * * * * www-data php /var/www/easywi/core/bin/console app:update:auto --env=prod</pre>
+    </div>
 </div>

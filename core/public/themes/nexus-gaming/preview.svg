@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 750" width="1200" height="750">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00d4ff"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="gradV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#050709"/>
+      <stop offset="100%" stop-color="#070a10"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="rgba(0,212,255,0.05)" stroke-width="1"/>
+    </pattern>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="screen"><rect width="1200" height="750" rx="0"/></clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="750" fill="url(#gradV)"/>
+  <rect width="1200" height="750" fill="url(#grid)"/>
+
+  <!-- Glow blobs -->
+  <ellipse cx="200" cy="300" rx="320" ry="280" fill="rgba(0,212,255,0.04)" filter="url(#glow)"/>
+  <ellipse cx="1050" cy="500" rx="300" ry="260" fill="rgba(124,58,237,0.05)" filter="url(#glow)"/>
+
+  <!-- ─── HEADER ─── -->
+  <rect width="1200" height="64" fill="rgba(5,7,9,0.92)"/>
+  <rect width="1200" height="1" y="64" fill="rgba(255,255,255,0.07)"/>
+
+  <!-- Logo text -->
+  <text x="32" y="39" font-family="Segoe UI,system-ui,sans-serif" font-size="16" font-weight="700" fill="url(#grad)">Easy-Wi NextGen</text>
+
+  <!-- Nav links -->
+  <text x="230" y="39" font-family="Segoe UI,system-ui,sans-serif" font-size="13" fill="rgba(168,178,196,0.7)">Home</text>
+  <text x="285" y="39" font-family="Segoe UI,system-ui,sans-serif" font-size="13" fill="rgba(168,178,196,0.7)">Blog</text>
+  <text x="327" y="39" font-family="Segoe UI,system-ui,sans-serif" font-size="13" fill="rgba(168,178,196,0.7)">Events</text>
+  <text x="376" y="39" font-family="Segoe UI,system-ui,sans-serif" font-size="13" fill="rgba(168,178,196,0.7)">Team</text>
+  <text x="419" y="39" font-family="Segoe UI,system-ui,sans-serif" font-size="13" fill="rgba(168,178,196,0.7)">Forum</text>
+  <!-- Active indicator -->
+  <line x1="230" y1="56" x2="260" y2="56" stroke="url(#grad)" stroke-width="2"/>
+  <text x="230" y="39" font-family="Segoe UI,system-ui,sans-serif" font-size="13" fill="#00d4ff">Home</text>
+
+  <!-- Login button -->
+  <rect x="1100" y="20" width="72" height="26" rx="6" fill="rgba(255,255,255,0.0)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+  <text x="1136" y="37" font-family="Segoe UI,system-ui,sans-serif" font-size="12" fill="rgba(168,178,196,0.8)" text-anchor="middle">Login</text>
+
+  <!-- ─── HERO SECTION ─── -->
+  <!-- Overline -->
+  <circle cx="60" cy="165" r="4" fill="#00d4ff" filter="url(#glow)"/>
+  <text x="72" y="169" font-family="Segoe UI,system-ui,sans-serif" font-size="11" font-weight="600" fill="rgba(107,120,150,0.9)" letter-spacing="2">EASY-WI NEXTGEN</text>
+
+  <!-- Main title -->
+  <text x="55" y="225" font-family="Segoe UI,system-ui,sans-serif" font-size="58" font-weight="800" fill="url(#grad)" letter-spacing="-2">Easy-Wi NextGen</text>
+
+  <!-- Subtitle -->
+  <text x="57" y="262" font-family="Segoe UI,system-ui,sans-serif" font-size="17" fill="rgba(168,178,196,0.85)">Dein Clan. Dein Spiel. Deine Community.</text>
+
+  <!-- CTA Buttons -->
+  <defs>
+    <linearGradient id="btnGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00d4ff"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect x="57" y="288" width="140" height="40" rx="8" fill="url(#btnGrad)"/>
+  <text x="127" y="313" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="600" fill="#050709" text-anchor="middle">Jetzt einloggen →</text>
+
+  <rect x="207" y="288" width="130" height="40" rx="8" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+  <text x="272" y="313" font-family="Segoe UI,system-ui,sans-serif" font-size="13" fill="rgba(168,178,196,0.8)" text-anchor="middle">Forum erkunden</text>
+
+  <!-- Stats bar -->
+  <line x1="57" y1="352" x2="440" y2="352" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <circle cx="70" cy="374" r="3" fill="#00d4ff"/>
+  <text x="80" y="378" font-family="Segoe UI,system-ui,sans-serif" font-size="11" fill="rgba(107,120,150,0.9)">Team aktiv</text>
+  <circle cx="152" cy="374" r="3" fill="#00d4ff"/>
+  <text x="162" y="378" font-family="Segoe UI,system-ui,sans-serif" font-size="11" fill="rgba(107,120,150,0.9)">Events</text>
+  <circle cx="218" cy="374" r="3" fill="#00d4ff"/>
+  <text x="228" y="378" font-family="Segoe UI,system-ui,sans-serif" font-size="11" fill="rgba(107,120,150,0.9)">Community Forum</text>
+
+  <!-- ─── HERO EMBLEM (right side) ─── -->
+  <g transform="translate(870, 230)">
+    <circle cx="0" cy="0" r="138" fill="none" stroke="rgba(0,212,255,0.06)" stroke-width="1"/>
+    <circle cx="0" cy="0" r="104" fill="none" stroke="rgba(0,212,255,0.09)" stroke-width="1"/>
+    <circle cx="0" cy="0" r="70"  fill="none" stroke="rgba(124,58,237,0.12)" stroke-width="1"/>
+    <!-- Hex emblem -->
+    <polygon points="0,-44 38,-22 38,22 0,44 -38,22 -38,-22"
+             fill="rgba(0,212,255,0.04)" stroke="url(#grad)" stroke-width="1.5"/>
+    <polygon points="0,-28 24,-14 24,14 0,28 -24,14 -24,-14"
+             fill="rgba(124,58,237,0.05)" stroke="url(#grad)" stroke-width="1"/>
+    <circle cx="0" cy="0" r="10" fill="url(#grad)"/>
+  </g>
+
+  <!-- ─── MODULE CARDS ─── -->
+  <rect x="0" y="430" width="1200" height="1" fill="rgba(255,255,255,0.05)"/>
+  <rect x="0" y="430" width="1200" height="120" fill="rgba(12,15,23,0.8)"/>
+
+  <!-- 4 module cards -->
+  <!-- Card 1 -->
+  <rect x="55"  y="450" width="258" height="80" rx="0" fill="rgba(12,15,23,1)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <rect x="70"  y="467" width="36" height="36" rx="6" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+  <text x="88"  y="490" font-family="Segoe UI,system-ui,sans-serif" font-size="18" fill="rgba(107,120,150,0.7)" text-anchor="middle">✦</text>
+  <text x="118" y="483" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="600" fill="#eef0f8">Blog</text>
+  <text x="118" y="499" font-family="Segoe UI,system-ui,sans-serif" font-size="11" fill="rgba(107,120,150,0.8)">News &amp; Updates</text>
+
+  <!-- Card 2 -->
+  <rect x="314" y="450" width="258" height="80" rx="0" fill="rgba(12,15,23,1)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <rect x="329" y="467" width="36" height="36" rx="6" fill="none" stroke="rgba(0,212,255,0.2)" stroke-width="1"/>
+  <text x="347" y="490" font-family="Segoe UI,system-ui,sans-serif" font-size="18" fill="#00d4ff" text-anchor="middle">◈</text>
+  <text x="377" y="483" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="600" fill="#eef0f8">Events</text>
+  <text x="377" y="499" font-family="Segoe UI,system-ui,sans-serif" font-size="11" fill="rgba(107,120,150,0.8)">Turniere &amp; Events</text>
+
+  <!-- Card 3 -->
+  <rect x="573" y="450" width="258" height="80" rx="0" fill="rgba(12,15,23,1)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <rect x="588" y="467" width="36" height="36" rx="6" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+  <text x="606" y="490" font-family="Segoe UI,system-ui,sans-serif" font-size="18" fill="rgba(107,120,150,0.7)" text-anchor="middle">⬡</text>
+  <text x="636" y="483" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="600" fill="#eef0f8">Team</text>
+  <text x="636" y="499" font-family="Segoe UI,system-ui,sans-serif" font-size="11" fill="rgba(107,120,150,0.8)">Mitglieder &amp; Roster</text>
+
+  <!-- Card 4 -->
+  <rect x="832" y="450" width="258" height="80" rx="0" fill="rgba(12,15,23,1)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <rect x="847" y="467" width="36" height="36" rx="6" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+  <text x="865" y="490" font-family="Segoe UI,system-ui,sans-serif" font-size="18" fill="rgba(107,120,150,0.7)" text-anchor="middle">◇</text>
+  <text x="895" y="483" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="600" fill="#eef0f8">Forum</text>
+  <text x="895" y="499" font-family="Segoe UI,system-ui,sans-serif" font-size="11" fill="rgba(107,120,150,0.8)">Community</text>
+
+  <!-- Connector lines between cards -->
+  <rect x="313" y="450" width="1"  height="80" fill="rgba(255,255,255,0.04)"/>
+  <rect x="572" y="450" width="1"  height="80" fill="rgba(255,255,255,0.04)"/>
+  <rect x="831" y="450" width="1"  height="80" fill="rgba(255,255,255,0.04)"/>
+
+  <!-- ─── FOOTER PREVIEW ─── -->
+  <rect x="0" y="680" width="1200" height="70" fill="rgba(7,10,16,0.98)"/>
+  <rect x="0" y="680" width="1200" height="1" fill="rgba(255,255,255,0.06)"/>
+  <text x="40"  y="720" font-family="Segoe UI,system-ui,sans-serif" font-size="13" font-weight="700" fill="url(#grad)">Easy-Wi NextGen</text>
+  <text x="600" y="720" font-family="Segoe UI,system-ui,sans-serif" font-size="11" fill="rgba(61,70,96,0.9)" text-anchor="middle">© 2026 Easy-Wi NextGen — Powered by Easy-Wi NextGen</text>
+
+  <!-- Social icon placeholders -->
+  <rect x="1090" y="706" width="28" height="28" rx="6" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <rect x="1126" y="706" width="28" height="28" rx="6" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <rect x="1162" y="706" width="28" height="28" rx="6" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+
+  <!-- Gradient accent line at very top -->
+  <rect x="0" y="0" width="1200" height="2" fill="url(#grad)"/>
+</svg>

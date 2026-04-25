@@ -1,58 +1,32 @@
-{% extends 'public/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
-{% set showPortalShell = false %}
-{% set contentClass = 'mx-auto w-full max-w-5xl px-4 py-10 sm:px-8 bg-slate-50' %}
-
-{% block title %}{{ page.title }} · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ page.title }} · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
-    <nav class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-rose-200/70 bg-white px-6 py-4 text-xs uppercase tracking-[0.2em] text-rose-500 shadow-sm">
-        <div class="flex items-center gap-3 text-slate-900">
-            <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-600">Private</span>
-        </div>
-        <div class="flex flex-wrap gap-4"></div>
-        <div class="flex items-center gap-3 text-sm normal-case">
-            {% if currentUser %}
-                {% set portalPath = '/dashboard' %}
-                {% set portalLabel = t('customer_portal', page_locale()) %}
-                {% if is_granted('ROLE_ADMIN') %}
-                    {% set portalPath = '/admin' %}
-                    {% set portalLabel = t('admin_portal', page_locale()) %}
-                {% elseif is_granted('ROLE_RESELLER') %}
-                    {% set portalPath = '/reseller/customers' %}
-                    {% set portalLabel = t('reseller_portal', page_locale()) %}
-                {% endif %}
-                <details class="relative">
-                    <summary class="cursor-pointer rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-rose-300">
-                        {{ t('hosting_user_menu_label', page_locale()) }}
-                    </summary>
-                    <div class="absolute right-0 mt-2 w-40 rounded-xl border border-rose-200 bg-white p-2 text-xs shadow-xl">
-                        <a href="{{ portalPath }}" class="block rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-50">{{ portalLabel }}</a>
-                        <a href="{{ path('public_logout') }}" class="block rounded-lg px-3 py-2 text-slate-700 hover:bg-slate-50">{{ t('logout', page_locale()) }}</a>
-                    </div>
-                </details>
-            {% else %}
-                <a href="{{ path('public_login') }}" class="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:border-rose-300">{{ t('login', page_locale()) }}</a>
-                <a href="{{ path('public_register') }}" class="rounded-full bg-rose-500 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-400">{{ t('register', page_locale()) }}</a>
-            {% endif %}
-        </div>
-    </nav>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <span>{{ page.title }}</span>
+        </nav>
+        <p class="mb-1 text-xs uppercase tracking-wider text-slate-500">Privat</p>
+        <h1 class="text-3xl font-bold ng-gradient-text">{{ page.title }}</h1>
+        <p class="mt-2 text-sm text-slate-400">Persönliche Inhalte und Projekte.</p>
+    </div>
+</div>
 
-    <header class="space-y-3 border-b border-rose-200 pb-6">
-        <p class="text-xs uppercase tracking-[0.25em] text-rose-500">Privat</p>
-        <h1 class="text-3xl font-semibold text-slate-900">{{ page.title }}</h1>
-        <p class="text-sm text-slate-600">Reduziertes Layout für persönliche Inhalte und Projekte.</p>
-    </header>
-
-    <section class="space-y-6">
+<div class="ng-container ng-section">
+    <div class="mx-auto max-w-3xl space-y-6">
         {% for block in blocks %}
-            <article class="rounded-xl border border-rose-200 bg-white p-6 shadow-sm">
-                {% include 'public/blocks/_block.html.twig' with { block: block } only %}
+            <article class="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+                {% include 'public/blocks/_block.html.twig' with { block: block, text_class: 'prose prose-invert prose-sm max-w-none text-slate-300 prose-headings:text-slate-100 prose-a:text-cyan-400 prose-strong:text-slate-100' } only %}
             </article>
         {% else %}
-            <div class="rounded-xl border border-rose-200 bg-white p-6 text-sm text-rose-600">Noch keine Inhalte vorhanden.</div>
+            <div class="ng-empty-state">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                <p>Noch keine Inhalte vorhanden.</p>
+            </div>
         {% endfor %}
-    </section>
+    </div>
 </div>
 {% endblock %}

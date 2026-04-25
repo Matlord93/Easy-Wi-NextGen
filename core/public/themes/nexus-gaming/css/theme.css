@@ -1,0 +1,2080 @@
+/* =================================================================
+   NEXUS GAMING THEME — Easy-Wi NextGen
+   Section 1: CSS Variables & Base Reset
+   ================================================================= */
+
+:root {
+  --ng-bg:              #050709;
+  --ng-bg-alt:          #070a10;
+  --ng-surface:         #0c0f17;
+  --ng-surface-alt:     #101420;
+  --ng-surface-hover:   #151b28;
+  --ng-border:          rgba(255,255,255,0.06);
+  --ng-border-strong:   rgba(255,255,255,0.10);
+  --ng-border-cyan:     rgba(0,212,255,0.20);
+  --ng-cyan:            #00d4ff;
+  --ng-cyan-dark:       #00a8cc;
+  --ng-cyan-glow:       rgba(0,212,255,0.12);
+  --ng-cyan-glow-lg:    rgba(0,212,255,0.22);
+  --ng-purple:          #7c3aed;
+  --ng-purple-glow:     rgba(124,58,237,0.12);
+  --ng-gradient:        linear-gradient(135deg, #00d4ff 0%, #7c3aed 100%);
+  --ng-gradient-subtle: linear-gradient(135deg, rgba(0,212,255,0.06) 0%, rgba(124,58,237,0.06) 100%);
+  --ng-text:            #eef0f8;
+  --ng-text-2:          #a8b2c4;
+  --ng-text-3:          #6b7896;
+  --ng-text-4:          #3d4a60;
+  --ng-success:         #10b981;
+  --ng-danger:          #ef4444;
+  --ng-warning:         #f59e0b;
+  --ng-radius:          12px;
+  --ng-radius-sm:       8px;
+  --ng-radius-lg:       20px;
+  --ng-header-h:        64px;
+  --ng-max-w:           1200px;
+  --ng-transition:      0.18s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+.ng-body {
+  background-color: var(--ng-bg);
+  color: var(--ng-text);
+  font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ng-body a { color: inherit; text-decoration: none; }
+.ng-body img { max-width: 100%; display: block; }
+.ng-body button { cursor: pointer; border: none; background: none; font: inherit; }
+
+/* =================================================================
+   Section 2: Layout Utilities
+   ================================================================= */
+
+.ng-container {
+  width: 100%;
+  max-width: var(--ng-max-w);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.ng-main {
+  min-height: calc(100vh - var(--ng-header-h) - 120px);
+}
+
+.ng-section {
+  padding: 64px 0;
+}
+
+.ng-gradient-text {
+  background: var(--ng-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ng-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ng-cyan);
+  box-shadow: 0 0 8px var(--ng-cyan);
+  animation: ng-pulse 2s ease-in-out infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.ng-visually-hidden {
+  position: absolute !important;
+  width: 1px !important; height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0,0,0,0) !important;
+  white-space: nowrap !important;
+}
+
+/* Breadcrumb */
+.ng-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ng-text-3);
+  margin-bottom: 16px;
+}
+.ng-breadcrumb__link { color: var(--ng-cyan); transition: opacity var(--ng-transition); }
+.ng-breadcrumb__link:hover { opacity: 0.75; }
+.ng-breadcrumb__sep { color: var(--ng-text-4); }
+
+/* =================================================================
+   Section 3: Header & Navigation
+   ================================================================= */
+
+.ng-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--ng-header-h);
+  background: rgba(5,7,9,0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--ng-border);
+  transition: border-color var(--ng-transition), box-shadow var(--ng-transition);
+}
+.ng-header.is-scrolled {
+  border-bottom-color: var(--ng-border-strong);
+  box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+}
+
+.ng-header__inner {
+  max-width: var(--ng-max-w);
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+/* Logo */
+.ng-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+.ng-logo__img { height: 28px; width: auto; }
+.ng-logo__text {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: var(--ng-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  white-space: nowrap;
+}
+
+/* Desktop Nav */
+.ng-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+.ng-nav__link {
+  position: relative;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ng-text-3);
+  border-radius: var(--ng-radius-sm);
+  transition: color var(--ng-transition), background var(--ng-transition);
+  white-space: nowrap;
+}
+.ng-nav__link::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 12px;
+  right: 12px;
+  height: 1.5px;
+  background: var(--ng-gradient);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--ng-transition);
+  border-radius: 2px;
+}
+.ng-nav__link:hover { color: var(--ng-text); background: rgba(255,255,255,0.04); }
+.ng-nav__link:hover::after { transform: scaleX(1); }
+.ng-nav__link.is-active { color: var(--ng-cyan); }
+.ng-nav__link.is-active::after { transform: scaleX(1); }
+
+/* User area */
+.ng-header__user { margin-left: auto; flex-shrink: 0; }
+
+.ng-user-menu { position: relative; }
+.ng-user-menu__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: var(--ng-radius-sm);
+  background: var(--ng-surface);
+  border: 1px solid var(--ng-border-strong);
+  color: var(--ng-text-2);
+  font-size: 13px;
+  transition: border-color var(--ng-transition), background var(--ng-transition);
+}
+.ng-user-menu__toggle:hover {
+  border-color: var(--ng-border-cyan);
+  background: var(--ng-surface-hover);
+}
+.ng-user-avatar {
+  width: 24px; height: 24px;
+  background: var(--ng-gradient);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: #050709;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ng-user-email { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ng-user-menu__arrow { transition: transform var(--ng-transition); flex-shrink: 0; }
+.ng-user-menu__toggle[aria-expanded="true"] .ng-user-menu__arrow { transform: rotate(180deg); }
+
+.ng-user-menu__dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 180px;
+  background: var(--ng-surface-alt);
+  border: 1px solid var(--ng-border-strong);
+  border-radius: var(--ng-radius);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+  padding: 6px;
+  display: none;
+  z-index: 200;
+}
+.ng-user-menu__dropdown.is-open { display: block; }
+.ng-user-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--ng-text-2);
+  border-radius: var(--ng-radius-sm);
+  transition: background var(--ng-transition), color var(--ng-transition);
+}
+.ng-user-menu__item:hover { background: var(--ng-surface-hover); color: var(--ng-text); }
+.ng-user-menu__item--danger { color: var(--ng-danger); }
+.ng-user-menu__item--danger:hover { background: rgba(239,68,68,0.08); color: var(--ng-danger); }
+
+/* Mobile toggle */
+.ng-nav-toggle {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+  margin-left: auto;
+}
+.ng-nav-toggle span {
+  display: block;
+  width: 22px; height: 2px;
+  background: var(--ng-text-2);
+  border-radius: 2px;
+  transition: transform var(--ng-transition), opacity var(--ng-transition);
+}
+.ng-nav-toggle.is-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.ng-nav-toggle.is-open span:nth-child(2) { opacity: 0; }
+.ng-nav-toggle.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Mobile nav drawer */
+.ng-mobile-nav {
+  display: none;
+  flex-direction: column;
+  background: var(--ng-surface);
+  border-top: 1px solid var(--ng-border);
+  padding: 8px 16px 16px;
+}
+.ng-mobile-nav.is-open { display: flex; }
+.ng-mobile-nav__link {
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--ng-text-2);
+  border-radius: var(--ng-radius-sm);
+  transition: background var(--ng-transition), color var(--ng-transition);
+}
+.ng-mobile-nav__link:hover,
+.ng-mobile-nav__link.is-active { background: var(--ng-surface-hover); color: var(--ng-text); }
+.ng-mobile-nav__link--accent { color: var(--ng-cyan); }
+.ng-mobile-nav__link--danger { color: var(--ng-danger); }
+
+/* =================================================================
+   Section 4: Footer
+   ================================================================= */
+
+.ng-footer {
+  background: var(--ng-bg-alt);
+  border-top: 1px solid var(--ng-border);
+  margin-top: auto;
+}
+.ng-footer__inner {
+  max-width: var(--ng-max-w);
+  margin: 0 auto;
+  padding: 48px 24px 32px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 48px;
+  flex-wrap: wrap;
+}
+.ng-footer__brand { display: flex; flex-direction: column; gap: 8px; }
+.ng-footer__logo { height: 28px; width: auto; }
+.ng-footer__name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  background: var(--ng-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.ng-footer__tagline { font-size: 13px; color: var(--ng-text-3); max-width: 240px; }
+.ng-footer__socials { display: flex; gap: 8px; margin-top: 8px; }
+.ng-footer__social {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--ng-radius-sm);
+  border: 1px solid var(--ng-border-strong);
+  color: var(--ng-text-3);
+  transition: border-color var(--ng-transition), color var(--ng-transition), background var(--ng-transition);
+}
+.ng-footer__social:hover {
+  border-color: var(--ng-border-cyan);
+  color: var(--ng-cyan);
+  background: var(--ng-cyan-glow);
+}
+.ng-footer__social--disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+.ng-footer__links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ng-footer__link {
+  font-size: 13px;
+  color: var(--ng-text-3);
+  transition: color var(--ng-transition);
+}
+.ng-footer__link:hover { color: var(--ng-cyan); }
+.ng-footer__bottom {
+  border-top: 1px solid var(--ng-border);
+  padding: 16px 24px;
+  font-size: 12px;
+  color: var(--ng-text-4);
+  max-width: var(--ng-max-w);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.ng-footer__legal {
+  display: flex;
+  gap: 16px;
+}
+.ng-footer__legal-link {
+  color: var(--ng-text-4);
+  font-size: 12px;
+  transition: color var(--ng-transition);
+}
+.ng-footer__legal-link:hover { color: var(--ng-text-3); }
+
+/* =================================================================
+   Section 5: Buttons & Common Components
+   ================================================================= */
+
+.ng-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--ng-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: all var(--ng-transition);
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.ng-btn--primary {
+  background: var(--ng-gradient);
+  color: #050709;
+  border-color: transparent;
+}
+.ng-btn--primary:hover {
+  box-shadow: 0 0 20px var(--ng-cyan-glow-lg);
+  transform: translateY(-1px);
+}
+
+.ng-btn--ghost {
+  background: transparent;
+  color: var(--ng-text-2);
+  border-color: var(--ng-border-strong);
+}
+.ng-btn--ghost:hover {
+  border-color: var(--ng-border-cyan);
+  color: var(--ng-cyan);
+  background: var(--ng-cyan-glow);
+}
+
+.ng-btn--sm { padding: 6px 14px; font-size: 13px; }
+.ng-btn--full { width: 100%; justify-content: center; }
+
+/* Alerts */
+.ng-alert {
+  padding: 11px 14px;
+  border-radius: var(--ng-radius-sm);
+  font-size: 13px;
+  border: 1px solid;
+  margin-bottom: 14px;
+}
+.ng-alert--danger {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.25);
+  color: #fca5a5;
+}
+.ng-alert--success {
+  background: rgba(16,185,129,0.08);
+  border-color: rgba(16,185,129,0.25);
+  color: #6ee7b7;
+}
+
+/* Link */
+.ng-link { color: var(--ng-cyan); transition: opacity var(--ng-transition); }
+.ng-link:hover { opacity: 0.75; }
+
+/* Empty state */
+.ng-empty-state {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--ng-text-3);
+  border: 1px dashed var(--ng-border-strong);
+  border-radius: var(--ng-radius-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.ng-empty-state p { font-size: 14px; }
+
+/* =================================================================
+   Section 6: Forms & Inputs
+   ================================================================= */
+
+.ng-field { display: flex; flex-direction: column; gap: 6px; }
+
+.ng-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ng-text-2);
+}
+
+.ng-input {
+  padding: 10px 14px;
+  background: var(--ng-bg);
+  border: 1px solid var(--ng-border-strong);
+  border-radius: var(--ng-radius-sm);
+  color: var(--ng-text);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color var(--ng-transition), box-shadow var(--ng-transition);
+  width: 100%;
+}
+.ng-input::placeholder { color: var(--ng-text-4); }
+.ng-input:focus {
+  outline: none;
+  border-color: var(--ng-cyan);
+  box-shadow: 0 0 0 3px var(--ng-cyan-glow);
+}
+.ng-input--center { text-align: center; letter-spacing: 0.3em; font-size: 20px; font-weight: 600; }
+.ng-input--lg { padding: 14px 18px; font-size: 18px; }
+
+/* =================================================================
+   Section 7: Homepage Hero
+   ================================================================= */
+
+.ng-main--home { padding-top: 0; }
+
+.ng-hero {
+  position: relative;
+  min-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* CSS grid pattern background */
+.ng-hero__bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 40%, transparent 100%);
+}
+
+.ng-hero__glow {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+.ng-hero__glow--left {
+  top: -100px; left: -80px;
+  background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%);
+}
+.ng-hero__glow--right {
+  bottom: -80px; right: -80px;
+  background: radial-gradient(circle, rgba(124,58,237,0.10) 0%, transparent 70%);
+}
+
+.ng-hero__inner {
+  position: relative;
+  z-index: 1;
+  max-width: var(--ng-max-w);
+  margin: 0 auto;
+  padding: 80px 24px 60px;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 48px;
+  align-items: center;
+}
+
+.ng-hero__content { display: flex; flex-direction: column; gap: 20px; }
+
+.ng-hero__overline {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ng-text-3);
+  display: flex;
+  align-items: center;
+}
+
+.ng-hero__title {
+  font-size: clamp(36px, 5vw, 68px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.ng-hero__subtitle {
+  font-size: 18px;
+  color: var(--ng-text-2);
+  max-width: 480px;
+  line-height: 1.6;
+}
+
+.ng-hero__actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+.ng-hero__stats {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--ng-border);
+}
+.ng-hero__stat {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ng-text-3);
+}
+.ng-hero__stat svg { color: var(--ng-cyan); flex-shrink: 0; }
+
+/* Hero visual / emblem */
+.ng-hero__visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ng-hero__emblem {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ng-hero__ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid;
+  animation: ng-spin linear infinite;
+}
+.ng-hero__ring--1 {
+  width: 280px; height: 280px;
+  border-color: rgba(0,212,255,0.08);
+  animation-duration: 30s;
+}
+.ng-hero__ring--2 {
+  width: 210px; height: 210px;
+  border-color: rgba(0,212,255,0.12);
+  animation-duration: 20s;
+  animation-direction: reverse;
+}
+.ng-hero__ring--3 {
+  width: 140px; height: 140px;
+  border-color: rgba(124,58,237,0.15);
+  animation-duration: 15s;
+}
+.ng-hero__core {
+  position: relative;
+  z-index: 2;
+  width: 80px; height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ng-hero__icon { width: 64px; height: 64px; }
+
+.ng-hero__scroll-hint {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ng-scroll-line {
+  width: 1px;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, var(--ng-cyan), transparent);
+  animation: ng-scroll-bounce 2s ease-in-out infinite;
+}
+
+/* =================================================================
+   Section 8: Module Cards (Homepage) & Page Hero
+   ================================================================= */
+
+/* Module Cards */
+.ng-modules { padding-top: 0; }
+.ng-modules__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1px;
+  border: 1px solid var(--ng-border);
+  border-radius: var(--ng-radius-lg);
+  overflow: hidden;
+  background: var(--ng-border);
+}
+
+.ng-module-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 20px;
+  background: var(--ng-surface);
+  transition: background var(--ng-transition);
+  text-decoration: none;
+}
+.ng-module-card:hover { background: var(--ng-surface-hover); }
+.ng-module-card:hover .ng-module-card__arrow { transform: translateX(4px); }
+.ng-module-card:hover .ng-module-card__icon { border-color: var(--ng-border-cyan); color: var(--ng-cyan); }
+
+.ng-module-card__icon {
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--ng-radius-sm);
+  border: 1px solid var(--ng-border-strong);
+  color: var(--ng-text-3);
+  transition: border-color var(--ng-transition), color var(--ng-transition);
+}
+.ng-module-card__content { flex: 1; }
+.ng-module-card__content h3 { font-size: 14px; font-weight: 600; color: var(--ng-text); margin-bottom: 2px; }
+.ng-module-card__content p { font-size: 12px; color: var(--ng-text-3); }
+.ng-module-card__arrow { color: var(--ng-text-4); flex-shrink: 0; transition: transform var(--ng-transition); }
+
+/* CMS Blocks wrapper */
+.ng-blocks-section { padding-top: 32px; }
+.ng-blocks-grid { display: flex; flex-direction: column; gap: 24px; }
+.ng-block-wrap { width: 100%; }
+
+/* Page Hero */
+.ng-page-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--ng-bg-alt);
+  border-bottom: 1px solid var(--ng-border);
+  padding: 56px 0 40px;
+}
+.ng-page-hero__bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(ellipse 90% 100% at 10% 50%, black 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 100% at 10% 50%, black 30%, transparent 100%);
+}
+.ng-page-hero__inner { position: relative; z-index: 1; }
+.ng-page-hero__title {
+  font-size: clamp(26px, 3.5vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--ng-text);
+  margin-bottom: 8px;
+}
+.ng-page-hero__accent {
+  width: 48px; height: 3px;
+  background: var(--ng-gradient);
+  border-radius: 2px;
+}
+
+/* =================================================================
+   Section 9: Auth Pages
+   ================================================================= */
+
+.ng-auth-wrap {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: var(--ng-bg);
+  overflow: hidden;
+}
+.ng-auth-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 0%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 0%, transparent 100%);
+}
+.ng-auth-glow {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(0,212,255,0.05) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.ng-auth-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  background: var(--ng-surface);
+  border: 1px solid var(--ng-border-strong);
+  border-radius: var(--ng-radius-lg);
+  padding: 36px 32px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+}
+
+.ng-auth-card__header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.ng-auth-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  font-size: 16px;
+  font-weight: 700;
+  background: var(--ng-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.ng-auth-card__title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ng-text);
+  margin-bottom: 6px;
+}
+.ng-auth-card__sub { font-size: 13px; color: var(--ng-text-3); }
+
+.ng-auth-form { display: flex; flex-direction: column; gap: 16px; }
+
+.ng-auth-footer {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--ng-text-3);
+}
+.ng-auth-footer--muted { color: var(--ng-text-4); }
+
+.ng-auth-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  font-size: 12px;
+  color: var(--ng-text-4);
+  transition: color var(--ng-transition);
+}
+.ng-auth-back:hover { color: var(--ng-text-3); }
+
+.ng-auth-2fa-icon {
+  width: 56px; height: 56px;
+  margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--ng-radius);
+  border: 1px solid var(--ng-border-cyan);
+  background: var(--ng-cyan-glow);
+}
+
+/* =================================================================
+   Section 10: Tailwind Class Overrides for Public Templates
+   (Blog, Events, Team, Media, Forum - all extend ng base)
+   ================================================================= */
+
+/* Backgrounds */
+.ng-body [class*="bg-slate-900"] { background-color: var(--ng-surface) !important; }
+.ng-body [class*="bg-slate-950"] { background-color: var(--ng-bg) !important; }
+.ng-body [class*="bg-white"]     { background-color: var(--ng-surface-alt) !important; }
+.ng-body [class*="bg-indigo-600"]  { background: var(--ng-gradient) !important; color: #050709 !important; }
+.ng-body [class*="hover:bg-indigo-500"]:hover { filter: brightness(1.1); }
+
+/* Borders */
+.ng-body [class*="border-slate-800"] { border-color: var(--ng-border) !important; }
+.ng-body [class*="border-slate-700"] { border-color: var(--ng-border-strong) !important; }
+.ng-body [class*="hover:bg-slate-800"]:hover { background-color: var(--ng-surface-hover) !important; }
+
+/* Text */
+.ng-body [class*="text-slate-100"],
+.ng-body [class*="text-slate-200"] { color: var(--ng-text) !important; }
+.ng-body [class*="text-slate-300"] { color: var(--ng-text-2) !important; }
+.ng-body [class*="text-slate-400"],
+.ng-body [class*="text-slate-500"] { color: var(--ng-text-3) !important; }
+.ng-body [class*="text-slate-700"] { color: var(--ng-text-2) !important; }
+.ng-body [class*="text-cyan-300"],
+.ng-body [class*="hover:text-cyan-300"]:hover { color: var(--ng-cyan) !important; }
+.ng-body [class*="text-indigo-300"],
+.ng-body [class*="text-indigo-600"] { color: var(--ng-cyan) !important; }
+.ng-body [class*="text-amber-300"] { color: var(--ng-warning) !important; }
+
+/* Cards & containers — add subtle glow on hover */
+.ng-body [class*="rounded-2xl"][class*="border"] {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.ng-body a[class*="rounded-2xl"]:hover,
+.ng-body a[class*="rounded-lg"]:hover {
+  border-color: var(--ng-border-cyan) !important;
+  box-shadow: 0 0 0 1px var(--ng-border-cyan), 0 8px 32px rgba(0,212,255,0.06);
+}
+
+/* Form inputs in public templates */
+.ng-body input[class*="border-slate-700"],
+.ng-body select[class*="border-slate-700"],
+.ng-body textarea[class*="border-slate-700"] {
+  background-color: var(--ng-bg) !important;
+  border-color: var(--ng-border-strong) !important;
+  color: var(--ng-text) !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.ng-body input:focus,
+.ng-body select:focus,
+.ng-body textarea:focus {
+  outline: none !important;
+  border-color: var(--ng-cyan) !important;
+  box-shadow: 0 0 0 3px var(--ng-cyan-glow) !important;
+}
+
+/* Pagination links */
+.ng-body [class*="text-cyan-300"][class*="pointer-events-none"] { opacity: 0.3 !important; }
+
+/* Media gallery – override white bg */
+.ng-body figure[class*="bg-white"] {
+  background-color: var(--ng-surface) !important;
+  border-color: var(--ng-border) !important;
+}
+.ng-body figure [class*="text-slate-700"] { color: var(--ng-text-2) !important; }
+
+/* =================================================================
+   Section 11: CMS Block v2 Overrides (Hero, Cards, etc.)
+   ================================================================= */
+
+/* Hero block */
+.ng-body section[class*="bg-slate-900"] {
+  background: linear-gradient(135deg, var(--ng-surface) 0%, var(--ng-surface-alt) 100%) !important;
+  border-color: var(--ng-border-cyan) !important;
+}
+.ng-body section[class*="bg-slate-900"] h2 {
+  background: var(--ng-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.ng-body section[class*="bg-slate-900"] a[class*="rounded"] {
+  background: var(--ng-gradient) !important;
+  color: #050709 !important;
+  font-weight: 600;
+  border: none !important;
+}
+
+/* Cards block */
+.ng-body article[class*="rounded-xl"] {
+  background: var(--ng-surface) !important;
+  border-color: var(--ng-border) !important;
+  transition: border-color 0.18s ease, transform 0.18s ease !important;
+}
+.ng-body article[class*="rounded-xl"]:hover {
+  border-color: var(--ng-border-cyan) !important;
+  transform: translateY(-2px);
+}
+
+/* =================================================================
+   Section 12: Animations
+   ================================================================= */
+
+@keyframes ng-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--ng-cyan); opacity: 1; }
+  50%       { box-shadow: 0 0 16px var(--ng-cyan); opacity: 0.6; }
+}
+
+@keyframes ng-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes ng-scroll-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50%       { transform: translateY(8px); opacity: 1; }
+}
+
+/* =================================================================
+   Section 13: Responsive
+   ================================================================= */
+
+@media (max-width: 900px) {
+  .ng-hero__inner { grid-template-columns: 1fr; text-align: center; }
+  .ng-hero__visual { display: none; }
+  .ng-hero__subtitle { margin: 0 auto; }
+  .ng-hero__actions { justify-content: center; }
+  .ng-hero__stats { justify-content: center; }
+}
+
+@media (max-width: 768px) {
+  .ng-nav { display: none; }
+  .ng-header__user { display: none; }
+  .ng-nav-toggle { display: flex; }
+  .ng-footer__inner { flex-direction: column; gap: 24px; }
+  .ng-auth-card { padding: 28px 20px; }
+  .ng-modules__grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 480px) {
+  .ng-modules__grid { grid-template-columns: 1fr; }
+  .ng-hero__title { font-size: 32px; }
+  .ng-btn { padding: 9px 16px; font-size: 13px; }
+}
+
+/* =================================================================
+   Section 14: Module Page Refinements
+   ================================================================= */
+
+/* Breadcrumb — link colour + auto separators */
+.ng-breadcrumb a { color: var(--ng-cyan); }
+.ng-breadcrumb a:hover { opacity: 0.75; }
+.ng-breadcrumb > *:not(:first-child)::before {
+  content: '/';
+  margin-right: 6px;
+  color: var(--ng-text-4);
+}
+
+/* Select and textarea as ng-input */
+select.ng-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7896' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px;
+}
+textarea.ng-input { resize: vertical; min-height: 100px; }
+
+/* Page hero inner grid pattern (optional bg element) */
+.ng-page-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 90% 100% at 10% 50%, black 20%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 100% at 10% 50%, black 20%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Article cards in public module pages */
+.ng-body article.group {
+  background: var(--ng-surface) !important;
+  border-color: var(--ng-border) !important;
+}
+.ng-body article.group:hover {
+  border-color: var(--ng-border-strong) !important;
+}
+
+/* Ensure inline flex on icon-bearing buttons */
+.ng-btn svg { flex-shrink: 0; }
+
+/* =================================================================
+   Section 15: Portal Homepage Layout (Sidebar + Dashboard)
+   ================================================================= */
+
+/* Main override for portal layout */
+.ng-main.ng-portal-layout {
+  min-height: 0;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  padding: 0;
+  margin: 0;
+}
+
+
+/* Prevent body scroll when portal layout is active */
+body:has(.ng-portal-layout) { overflow: hidden; height: 100vh; }
+
+.ng-portal {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── SIDEBAR ── */
+.ng-sidebar {
+  width: 185px;
+  flex-shrink: 0;
+  background: #070a10;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.06) transparent;
+}
+
+.ng-sidebar__logo-area {
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.ng-sidebar__logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+.ng-sidebar__logo-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.ng-sidebar__logo-top {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ng-text);
+}
+.ng-sidebar__logo-bottom {
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--ng-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Nav items */
+.ng-sidebar__nav {
+  padding: 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ng-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--ng-text-3);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background var(--ng-transition), color var(--ng-transition);
+  position: relative;
+  flex-wrap: wrap;
+}
+.ng-sidebar__item:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--ng-text-2);
+}
+.ng-sidebar__item.is-active {
+  background: linear-gradient(135deg, rgba(0,212,255,0.15) 0%, rgba(124,58,237,0.15) 100%);
+  color: var(--ng-text);
+  border: 1px solid rgba(0,212,255,0.12);
+}
+.ng-sidebar__icon {
+  flex-shrink: 0;
+  width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+.ng-sidebar__item.is-active .ng-sidebar__icon { color: var(--ng-cyan); }
+.ng-sidebar__label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ng-sidebar__sub {
+  width: 100%;
+  padding-left: 28px;
+  font-size: 10px;
+  color: var(--ng-text-4);
+  margin-top: -4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ng-sidebar__item.is-active .ng-sidebar__sub { color: var(--ng-text-3); }
+
+.ng-sidebar__spacer { flex: 1; }
+
+/* Discord banner */
+.ng-sidebar__discord {
+  margin: 10px 10px;
+  padding: 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(88,101,242,0.2) 0%, rgba(124,58,237,0.2) 100%);
+  border: 1px solid rgba(88,101,242,0.25);
+}
+.ng-sidebar__discord-logo { margin-bottom: 8px; }
+.ng-sidebar__discord-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ng-text);
+  margin-bottom: 5px;
+  line-height: 1.4;
+}
+.ng-sidebar__discord-title span { color: #7c85f5; }
+.ng-sidebar__discord-desc {
+  font-size: 10px;
+  color: var(--ng-text-3);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.ng-sidebar__discord-btn {
+  display: block;
+  text-align: center;
+  padding: 7px 12px;
+  border-radius: 6px;
+  background: var(--ng-gradient);
+  color: #050709;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: opacity var(--ng-transition);
+}
+.ng-sidebar__discord-btn:hover { opacity: 0.85; }
+
+/* Social icons at bottom of sidebar */
+.ng-sidebar__socials {
+  display: flex;
+  gap: 6px;
+  padding: 12px 12px 16px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.ng-sidebar__social-icon {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--ng-text-3);
+  text-decoration: none;
+  transition: border-color var(--ng-transition), color var(--ng-transition), background var(--ng-transition);
+}
+.ng-sidebar__social-icon:hover {
+  border-color: var(--ng-border-cyan);
+  color: var(--ng-cyan);
+  background: var(--ng-cyan-glow);
+}
+.ng-sidebar__social-icon--dim { opacity: 0.3; cursor: default; }
+
+/* ── PORTAL MAIN ── */
+.ng-portal-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── TOPBAR ── */
+.ng-topbar {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: rgba(5,7,9,0.9);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  backdrop-filter: blur(12px);
+}
+.ng-topbar__nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ng-topbar__link {
+  position: relative;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ng-text-3);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: color var(--ng-transition), background var(--ng-transition);
+}
+.ng-topbar__link:hover { color: var(--ng-text-2); background: rgba(255,255,255,0.03); }
+.ng-topbar__link.is-active { color: var(--ng-cyan); }
+.ng-topbar__link.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 12px; right: 12px;
+  height: 2px;
+  background: var(--ng-gradient);
+  border-radius: 2px;
+}
+.ng-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ng-topbar__icon-btn {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: transparent;
+  color: var(--ng-text-3);
+  cursor: pointer;
+  transition: border-color var(--ng-transition), color var(--ng-transition);
+}
+.ng-topbar__icon-btn:hover { border-color: var(--ng-border-cyan); color: var(--ng-cyan); }
+.ng-topbar__login-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  color: var(--ng-text-2);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color var(--ng-transition), color var(--ng-transition);
+}
+.ng-topbar__login-btn:hover { border-color: var(--ng-border-cyan); color: var(--ng-text); }
+
+/* ── SCROLLABLE CONTENT ── */
+.ng-portal-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+
+/* ── PORTAL HERO ── */
+.ng-phero {
+  position: relative;
+  min-height: 280px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+.ng-phero__bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #050709 0%, #070a10 50%, #080a18 100%);
+}
+.ng-phero__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.ng-phero__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+}
+.ng-phero__blob--1 {
+  width: 400px; height: 400px;
+  top: -100px; left: -50px;
+  background: radial-gradient(circle, rgba(0,212,255,0.07) 0%, transparent 70%);
+}
+.ng-phero__blob--2 {
+  width: 500px; height: 400px;
+  bottom: -80px; right: 0;
+  background: radial-gradient(circle, rgba(124,58,237,0.1) 0%, transparent 70%);
+}
+.ng-phero__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 48px 32px;
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 32px;
+  align-items: center;
+}
+.ng-phero__left { display: flex; flex-direction: column; gap: 16px; }
+.ng-phero__overline {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ng-text-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ng-phero__title {
+  font-size: clamp(28px, 4vw, 52px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.ng-phero__sub {
+  font-size: 15px;
+  color: var(--ng-text-2);
+  line-height: 1.6;
+}
+.ng-phero__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.ng-phero__stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 12px;
+}
+.ng-phero__stats .ng-hero__stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ng-text-3);
+}
+
+/* Emblem */
+.ng-phero__right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ng-phero__emblem {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ng-phero__ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid;
+  animation: ng-spin linear infinite;
+}
+.ng-phero__ring--1 { width: 200px; height: 200px; border-color: rgba(0,212,255,0.08); animation-duration: 30s; }
+.ng-phero__ring--2 { width: 150px; height: 150px; border-color: rgba(0,212,255,0.12); animation-duration: 20s; animation-direction: reverse; }
+.ng-phero__ring--3 { width: 100px; height: 100px; border-color: rgba(124,58,237,0.15); animation-duration: 14s; }
+.ng-phero__hex { width: 80px; height: 80px; position: relative; z-index: 2; }
+
+/* ── STAT CARDS ── */
+.ng-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(255,255,255,0.04);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.ng-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  background: #080b12;
+  position: relative;
+  overflow: hidden;
+}
+.ng-stat-card__icon {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: var(--ng-cyan);
+}
+.ng-stat-card__body { flex: 1; min-width: 0; }
+.ng-stat-card__num {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ng-text);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.ng-stat-card__label {
+  font-size: 11px;
+  color: var(--ng-text-3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ng-stat-card__trend {
+  font-size: 10px;
+  color: var(--ng-text-4);
+  margin-top: 2px;
+}
+.ng-stat-card__trend--up { color: var(--ng-success); }
+.ng-stat-card__trend--online { color: var(--ng-success); }
+.ng-stat-chart {
+  flex-shrink: 0;
+  width: 64px;
+  height: 28px;
+}
+
+/* ── PANELS GRID ── */
+.ng-panels-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.6fr 1.5fr;
+  gap: 16px;
+  padding: 16px;
+}
+.ng-panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── PANEL ── */
+.ng-panel {
+  background: #080b12;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ng-panel--compact .ng-panel__body { max-height: 180px; overflow-y: auto; }
+.ng-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+.ng-panel__icon { color: var(--ng-cyan); flex-shrink: 0; }
+.ng-panel__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ng-text);
+  flex: 1;
+}
+.ng-panel__action {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ng-text-3);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 3px 10px;
+  text-decoration: none;
+  transition: border-color var(--ng-transition), color var(--ng-transition);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ng-panel__action:hover { border-color: var(--ng-border-cyan); color: var(--ng-cyan); }
+.ng-panel__body { flex: 1; overflow-y: auto; }
+.ng-panel__empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ng-text-4);
+}
+
+/* Live badge */
+.ng-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ng-cyan);
+  border: 1px solid rgba(0,212,255,0.25);
+  border-radius: 99px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+/* ── EVENT ITEMS ── */
+.ng-event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  text-decoration: none;
+  transition: background var(--ng-transition);
+}
+.ng-event-item:last-child { border-bottom: none; }
+.ng-event-item:hover { background: rgba(255,255,255,0.03); }
+.ng-event-item__img {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.05);
+}
+.ng-event-item__img img { width: 100%; height: 100%; object-fit: cover; }
+.ng-event-item__img--placeholder { background: linear-gradient(135deg, rgba(0,212,255,0.08), rgba(124,58,237,0.08)); }
+.ng-event-item__date {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 32px;
+}
+.ng-event-item__day {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--ng-text);
+  line-height: 1;
+}
+.ng-event-item__month {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--ng-cyan);
+  letter-spacing: 0.05em;
+}
+.ng-event-item__info { flex: 1; min-width: 0; }
+.ng-event-item__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ng-text);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ng-event-item__desc {
+  font-size: 11px;
+  color: var(--ng-text-3);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ng-event-item__meta {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--ng-text-4);
+}
+.ng-event-item__meta span { display: flex; align-items: center; gap: 3px; }
+.ng-event-item__badge {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 4px;
+  background: rgba(0,212,255,0.12);
+  color: var(--ng-cyan);
+  border: 1px solid rgba(0,212,255,0.2);
+}
+
+/* ── SERVER ITEMS ── */
+.ng-server-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  position: relative;
+}
+.ng-server-item:last-child { border-bottom: none; }
+.ng-server-item--online::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--ng-success);
+  border-radius: 0 2px 2px 0;
+}
+.ng-server-item__icon {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: var(--ng-text-3);
+}
+.ng-server-item__info { flex: 1; min-width: 0; }
+.ng-server-item__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ng-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ng-server-item__addr {
+  font-size: 10px;
+  color: var(--ng-text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ng-server-item__right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.ng-server-item__status {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.ng-server-item__status--online {
+  background: rgba(16,185,129,0.12);
+  color: var(--ng-success);
+  border: 1px solid rgba(16,185,129,0.25);
+}
+.ng-server-item__status--offline {
+  background: rgba(239,68,68,0.1);
+  color: var(--ng-danger);
+  border: 1px solid rgba(239,68,68,0.2);
+}
+.ng-server-item__players { font-size: 10px; color: var(--ng-text-4); }
+
+/* ── ACTIVITY ITEMS ── */
+.ng-activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.ng-activity-item:last-child { border-bottom: none; }
+.ng-activity-item__avatar {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--ng-gradient);
+  color: #050709;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.ng-activity-item__text {
+  flex: 1;
+  font-size: 11px;
+  color: var(--ng-text-3);
+  line-height: 1.45;
+}
+.ng-activity-item__text strong { color: var(--ng-text-2); font-weight: 600; }
+.ng-activity-item__time {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--ng-text-4);
+  white-space: nowrap;
+}
+
+/* ── MEMBER ITEMS ── */
+.ng-member-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.ng-member-item:last-child { border-bottom: none; }
+.ng-member-item__rank {
+  font-size: 14px;
+  font-weight: 800;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ng-member-item__avatar {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--ng-gradient);
+  color: #050709;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.ng-member-item__avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ng-member-item__info { flex: 1; min-width: 0; }
+.ng-member-item__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ng-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ng-member-item__role {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ng-member-item__online {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--ng-success);
+  flex-shrink: 0;
+}
+.ng-online-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ng-success);
+  box-shadow: 0 0 6px var(--ng-success);
+}
+
+/* ── PORTAL FOOTER ── */
+.ng-portal-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 24px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  background: rgba(5,7,9,0.8);
+  font-size: 12px;
+  color: var(--ng-text-4);
+}
+.ng-portal-footer__brand {
+  font-size: 13px;
+  font-weight: 700;
+}
+.ng-portal-footer__copy { text-align: center; flex: 1; }
+.ng-portal-footer__legal {
+  display: flex;
+  gap: 14px;
+}
+.ng-portal-footer__legal a {
+  color: var(--ng-text-4);
+  text-decoration: none;
+  transition: color var(--ng-transition);
+}
+.ng-portal-footer__legal a:hover { color: var(--ng-text-3); }
+
+/* CMS blocks within portal */
+.ng-portal-blocks { padding: 0 16px 16px; }
+
+/* Responsive: collapse sidebar on small screens */
+@media (max-width: 900px) {
+  .ng-sidebar { width: 60px; }
+  .ng-sidebar__label,
+  .ng-sidebar__sub,
+  .ng-sidebar__logo-text,
+  .ng-sidebar__discord,
+  .ng-sidebar__discord-btn { display: none; }
+  .ng-sidebar__item { justify-content: center; padding: 10px; }
+  .ng-stat-cards { grid-template-columns: repeat(2, 1fr); }
+  .ng-panels-grid { grid-template-columns: 1fr; }
+}
+
+/* =================================================================
+   Section 16: Hero Cosmic Scene Enhancements
+   ================================================================= */
+
+/* Larger hero to show the scene */
+.ng-phero { min-height: 320px; }
+
+/* Right side fills fully, acts as scene container */
+.ng-phero__right {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  overflow: visible;
+}
+
+/* Starfield — tiny white dots via box-shadow */
+.ng-phero__stars {
+  position: absolute;
+  inset: -20px;
+  pointer-events: none;
+  box-shadow:
+    18px  32px 0 rgba(255,255,255,0.55),
+    52px  12px 0 rgba(255,255,255,0.40),
+    89px  68px 0 rgba(255,255,255,0.50),
+   134px  22px 0 rgba(255,255,255,0.35),
+   162px  85px 0 rgba(255,255,255,0.60),
+   198px  41px 0 rgba(255,255,255,0.30),
+   230px  98px 0 rgba(255,255,255,0.45),
+   267px  18px 0 rgba(255,255,255,0.55),
+   303px  74px 0 rgba(255,255,255,0.35),
+   341px  33px 0 rgba(255,255,255,0.50),
+    28px 122px 0 rgba(255,255,255,0.40),
+    74px 148px 0 rgba(255,255,255,0.30),
+   115px 172px 0 rgba(255,255,255,0.45),
+   158px 134px 0 rgba(255,255,255,0.55),
+   203px 188px 0 rgba(255,255,255,0.35),
+   244px 155px 0 rgba(255,255,255,0.50),
+   289px 210px 0 rgba(255,255,255,0.30),
+   318px 168px 0 rgba(255,255,255,0.45),
+    42px 234px 0 rgba(255,255,255,0.40),
+    92px 258px 0 rgba(255,255,255,0.55),
+   140px 242px 0 rgba(255,255,255,0.30),
+   188px 270px 0 rgba(255,255,255,0.45),
+   236px 248px 0 rgba(255,255,255,0.35),
+   280px 238px 0 rgba(255,255,255,0.50),
+   326px 262px 0 rgba(255,255,255,0.40),
+    10px  56px 0 rgba(255,255,255,0.30),
+    64px  88px 0 rgba(255,255,255,0.45),
+   108px  42px 0 rgba(255,255,255,0.55),
+   176px  62px 0 rgba(255,255,255,0.30),
+   218px 118px 0 rgba(255,255,255,0.40),
+   260px  52px 0 rgba(255,255,255,0.50),
+   310px 108px 0 rgba(255,255,255,0.35);
+  width: 1px;
+  height: 1px;
+  border-radius: 50%;
+}
+
+/* Planet — large glowing sphere */
+.ng-phero__planet {
+  position: absolute;
+  top: -80px;
+  right: -60px;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 32%,
+      rgba(120,210,255,0.22) 0%,
+      rgba(40,100,220,0.18) 25%,
+      rgba(20,50,140,0.14) 50%,
+      rgba(10,20,60,0.08) 70%,
+      transparent 85%);
+  filter: blur(6px);
+  pointer-events: none;
+}
+/* Planet edge ring */
+.ng-phero__planet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(0,212,255,0.12);
+  box-shadow:
+    inset 0 0 40px rgba(0,212,255,0.06),
+    0 0 60px rgba(0,212,255,0.08),
+    0 0 120px rgba(0,180,255,0.04);
+}
+
+/* Purple nebula cloud */
+.ng-phero__nebula {
+  position: absolute;
+  top: 20px;
+  right: 40px;
+  width: 280px;
+  height: 200px;
+  background:
+    radial-gradient(ellipse at 60% 40%, rgba(124,58,237,0.14) 0%, transparent 60%),
+    radial-gradient(ellipse at 30% 70%, rgba(80,30,180,0.10) 0%, transparent 50%);
+  filter: blur(24px);
+  pointer-events: none;
+}
+
+/* Bigger emblem centered in the scene */
+.ng-phero__emblem {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 260px;
+  height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ng-phero__ring--1 { width: 260px; height: 260px; border-color: rgba(0,212,255,0.10); animation-duration: 28s; }
+.ng-phero__ring--2 { width: 196px; height: 196px; border-color: rgba(0,212,255,0.14); animation-duration: 18s; animation-direction: reverse; }
+.ng-phero__ring--3 { width: 132px; height: 132px; border-color: rgba(124,58,237,0.18); animation-duration: 12s; }
+.ng-phero__hex { width: 100px; height: 100px; position: relative; z-index: 2; }
+
+/* Hero content grid — more space for the scene */
+.ng-phero__content {
+  grid-template-columns: 1fr 340px;
+  min-height: 280px;
+  padding: 44px 32px;
+}
+
+/* =================================================================
+   Section 17: Portal Responsive Fixes & Remaining Polish
+   ================================================================= */
+
+/* 640px — hide cosmic scene, 1-col stat cards */
+@media (max-width: 640px) {
+  .ng-phero__right { display: none; }
+  .ng-phero__content { grid-template-columns: 1fr; }
+  .ng-stat-cards { grid-template-columns: 1fr 1fr; }
+  .ng-topbar { padding: 0 12px; }
+  .ng-topbar__nav { gap: 0; }
+  .ng-topbar__link { padding: 5px 8px; font-size: 12px; }
+}
+
+/* 480px — sidebar icon-only, 1-col stats */
+@media (max-width: 480px) {
+  .ng-sidebar { width: 50px; }
+  .ng-sidebar__social-icon { width: 26px; height: 26px; }
+  .ng-stat-cards { grid-template-columns: 1fr; }
+  .ng-phero__content { padding: 28px 16px; }
+  .ng-phero { min-height: auto; }
+  .ng-panels-grid { padding: 10px; gap: 10px; }
+}
+
+/* Portal footer responsive */
+@media (max-width: 640px) {
+  .ng-portal-footer {
+    flex-direction: column;
+    text-align: center;
+    gap: 6px;
+    padding: 10px 16px;
+  }
+  .ng-portal-footer__copy { order: 2; }
+  .ng-portal-footer__legal { order: 3; justify-content: center; }
+}
+
+/* Fix: ng-phero__content min-height so hero doesn't collapse */
+.ng-phero__content { min-height: 240px; align-items: center; }
+
+/* Subtle border on stat cards so they're visually separated even at dark bg */
+.ng-stat-card { border-right: 1px solid rgba(255,255,255,0.04); }
+.ng-stat-card:last-child { border-right: none; }
+
+/* Ensure panel grid fills remaining height on large screens */
+@media (min-height: 700px) {
+  .ng-panels-grid { min-height: 340px; }
+}
+
+/* Active sidebar item — stronger accent line on left */
+.ng-sidebar__item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 6px; bottom: 6px;
+  width: 3px;
+  background: var(--ng-gradient);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Topbar shadow on scroll */
+.ng-topbar { box-shadow: 0 1px 0 rgba(255,255,255,0.04); }
+
+/* Default page hero bg-grid (the before-pseudo wasn't working for pages using __bg-grid div) */
+.ng-page-hero__bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION 18 — Portal-always-on fixes + dropdown z-index
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Body always locked when portal is active */
+.ng-portal-body { overflow: hidden; height: 100vh; }
+
+/* Topbar stacking context so dropdown is never clipped by portal-content */
+.ng-topbar { position: relative; z-index: 60; }
+.ng-user-menu { position: relative; z-index: 60; }
+.ng-user-menu__dropdown { z-index: 999; }
+
+/* Server status — live dot indicator */
+.ng-server-item__dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.ng-server-item__dot--online  { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
+.ng-server-item__dot--offline { background: var(--ng-text-5); }
+
+.ng-server-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ng-text-4);
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+.ng-server-item__sep { color: var(--ng-text-5); }
+.ng-server-item__addr { font-family: monospace; font-size: 10px; }
+.ng-server-item__players {
+  font-size: 11px;
+  color: var(--ng-text-4);
+  margin-top: 2px;
+}
+
+/* ng-page-hero inside portal-content: no outer header/footer, just content */
+.ng-portal-content .ng-page-hero { min-height: 100px; padding: 20px 0; }
+.ng-portal-content .ng-page-hero h1 { font-size: 1.6rem; }
+
+/* Remove old portal-layout body:has rule (now handled by ng-portal-body) */

@@ -1,15 +1,37 @@
-{% extends 'public/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
+
+{% block title %}Mein Profil · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
-<div class="grid gap-6 lg:grid-cols-[220px,1fr]">
-  {% include 'public/account/_nav.html.twig' %}
-  <div>
-<div class="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-  <h1 class="text-xl font-semibold text-slate-900">Mein Profil</h1>
-  <p class="mt-4 text-sm text-slate-600">Name: <span class="font-medium text-slate-900">{{ user.name ?? user.email }}</span></p>
-  <p class="mt-2 text-sm text-slate-600">E-Mail: <span class="font-medium text-slate-900">{{ user.email }}</span></p>
-  <a href="/profile/edit" class="mt-6 inline-flex rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Profil bearbeiten</a>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <span>Mein Profil</span>
+        </nav>
+        <h1 class="text-3xl font-bold ng-gradient-text">Mein Profil</h1>
+    </div>
 </div>
-  </div>
+
+<div class="ng-container ng-section">
+    <div class="grid gap-6 lg:grid-cols-[200px,1fr]">
+        {% include 'public/account/_nav.html.twig' %}
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+            <h2 class="text-lg font-semibold text-slate-100">Profil-Informationen</h2>
+            <div class="mt-4 space-y-3 text-sm">
+                <div class="flex gap-4">
+                    <span class="w-20 text-slate-500">Name</span>
+                    <span class="font-medium text-slate-200">{{ user.name ?? user.email }}</span>
+                </div>
+                <div class="flex gap-4">
+                    <span class="w-20 text-slate-500">E-Mail</span>
+                    <span class="font-medium text-slate-200">{{ user.email }}</span>
+                </div>
+            </div>
+            <div class="mt-6">
+                <a href="/profile/edit" class="ng-btn">Profil bearbeiten</a>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

@@ -25,7 +25,7 @@ const (
 	baseDirMode             = 0o755
 	instanceDirMode         = 0o750
 	instanceFileMode        = 0o640
-	maxConsoleCommandLength = 512
+	maxConsoleCommandLength = 1024
 )
 
 var consoleCommandRateLimiter = newTokenBucketLimiter(5, time.Second)

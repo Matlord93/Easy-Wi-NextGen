@@ -1,48 +1,46 @@
-{% extends 'public/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
-{% block content %}
-    {% set brandingLogo = app_setting('branding_logo_url') %}
-    <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-2xl border border-cyan-500/20 bg-slate-900/95 p-8 text-center shadow-xl shadow-black/20">
+{% block shell %}{% block content %}
+{% set brandingLogo = app_setting('branding_logo_url') %}
+<div class="flex min-h-screen items-center justify-center px-4 py-12">
+    <div class="w-full max-w-lg text-center">
+
         {% if brandingLogo is not empty %}
-            <div class="mx-auto overflow-hidden rounded-xl border border-slate-700 bg-slate-950/70 p-4">
-                <img src="{{ brandingLogo }}" alt="{{ app_setting('branding_name', app_setting('site_title', 'Easy-Wi NextGen')) }}" class="max-h-16 w-auto object-contain">
+            <div class="mx-auto mb-6 w-fit overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                <img src="{{ brandingLogo }}" alt="{{ app_setting('branding_name', 'Easy-Wi NextGen') }}" class="max-h-14 w-auto object-contain">
             </div>
         {% endif %}
 
-        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300">
-            <span class="text-xl">🛠️</span>
+        <div class="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full border border-cyan-500/20 bg-cyan-500/10 text-2xl">
+            🛠️
         </div>
 
         {% if graphic_path is not empty %}
-            <div class="mx-auto overflow-hidden rounded-xl border border-slate-700 bg-slate-950/70 p-2">
-                <img src="{{ graphic_path }}" alt="Maintenance graphic" class="max-h-64 w-auto object-contain">
+            <div class="mx-auto mb-6 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                <img src="{{ graphic_path }}" alt="Maintenance" class="mx-auto max-h-56 w-auto object-contain">
             </div>
         {% endif %}
 
-        <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">{{ t('cms_maintenance_kicker', page_locale()) }}</p>
-            <h1 class="mt-3 text-3xl font-semibold text-white">{{ t('cms_maintenance_heading', page_locale()) }}</h1>
-            <div class="prose prose-sm prose-invert mx-auto mt-3 max-w-none text-slate-300">{{ (message is not empty ? message : t('cms_maintenance_default_message', page_locale()))|bbcode }}</div>
+        <p class="mb-2 text-xs font-semibold uppercase tracking-widest text-cyan-400">{{ t('cms_maintenance_kicker', page_locale()) }}</p>
+        <h1 class="text-3xl font-bold text-white">{{ t('cms_maintenance_heading', page_locale()) }}</h1>
+        <div class="mx-auto mt-4 max-w-sm text-sm text-slate-400">
+            {{ (message is not empty ? message : t('cms_maintenance_default_message', page_locale()))|bbcode }}
         </div>
 
         {% if starts_at or ends_at %}
-            <div class="rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-slate-200">
-                <p class="font-semibold text-slate-100">{{ t('cms_maintenance_window_title', page_locale()) }}</p>
-                <p class="mt-1">
-                    {% if starts_at %}
-                        {{ t('cms_maintenance_window_start', page_locale()) }} {{ starts_at|date('Y-m-d H:i') }}
-                    {% endif %}
-                    {% if ends_at %}
-                        {% if starts_at %} · {% endif %}
-                        {{ t('cms_maintenance_window_end', page_locale()) }} {{ ends_at|date('Y-m-d H:i') }}
-                    {% endif %}
+            <div class="mx-auto mt-6 max-w-sm rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+                <p class="font-semibold text-slate-200">{{ t('cms_maintenance_window_title', page_locale()) }}</p>
+                <p class="mt-1 text-slate-400">
+                    {% if starts_at %}{{ t('cms_maintenance_window_start', page_locale()) }} {{ starts_at|date('d.m.Y H:i') }}{% endif %}
+                    {% if ends_at %}{% if starts_at %} · {% endif %}{{ t('cms_maintenance_window_end', page_locale()) }} {{ ends_at|date('d.m.Y H:i') }}{% endif %}
                 </p>
             </div>
         {% endif %}
 
-        <div class="text-xs text-slate-400">
+        <p class="mt-6 text-xs text-slate-600">
             {% set scopeLabel = scope == 'site' ? t('cms_maintenance_scope_site_label', page_locale()) : t('cms_maintenance_scope_global_label', page_locale()) %}
             {{ t('cms_maintenance_scope_note', page_locale())|replace({'%scope%': scopeLabel}) }}
-        </div>
+        </p>
     </div>
-{% endblock %}
+</div>
+{% endblock %}{% endblock %}

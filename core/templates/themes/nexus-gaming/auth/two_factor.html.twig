@@ -1,0 +1,66 @@
+{% extends 'themes/nexus-gaming/base.html.twig' %}
+
+{% block title %}2FA Verifizierung – {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
+
+{% block shell %}{% block content %}
+<div class="ng-auth-wrap">
+    <div class="ng-auth-bg-grid"></div>
+    <div class="ng-auth-glow"></div>
+
+    <div class="ng-auth-card">
+        <div class="ng-auth-card__header">
+            <div class="ng-auth-2fa-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="url(#tfa-g)" stroke-width="1.5">
+                    <rect x="5" y="11" width="14" height="10" rx="2"/>
+                    <path d="M8 11V7a4 4 0 018 0v4"/>
+                    <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                    <defs>
+                        <linearGradient id="tfa-g" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stop-color="#00d4ff"/>
+                            <stop offset="100%" stop-color="#7c3aed"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <h1 class="ng-auth-card__title">Zwei-Faktor-Authentifizierung</h1>
+            <p class="ng-auth-card__sub">Gib den Code aus deiner Authenticator-App ein</p>
+        </div>
+
+        {% for error in errors|default([]) %}
+            <div class="ng-alert ng-alert--danger">{{ error }}</div>
+        {% endfor %}
+
+            <form method="post" action="/2fa_check" class="ng-auth-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('public_2fa_check') }}">
+            <div class="ng-field">
+                <label class="ng-label" for="tfa-code">6-stelliger Code</label>
+                <input class="ng-input ng-input--center ng-input--lg"
+                       id="tfa-code" name="otp" type="text"
+                       inputmode="numeric" pattern="[0-9]{6}"
+                       maxlength="6" placeholder="000000"
+                       autocomplete="one-time-code" required autofocus>
+            </div>
+
+            <button type="submit" class="ng-btn ng-btn--primary ng-btn--full">
+                Verifizieren
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </button>
+        </form>
+
+        <p class="ng-auth-footer ng-auth-footer--muted">
+            Kein Zugriff mehr auf deinen Authenticator?<br>
+            Kontaktiere einen Administrator.
+        </p>
+
+        <a href="{{ path('public_login') }}" class="ng-auth-back">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Zurück zum Login
+        </a>
+    </div>
+</div>
+{% endblock %}{% endblock %}

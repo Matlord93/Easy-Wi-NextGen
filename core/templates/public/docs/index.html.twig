@@ -1,30 +1,44 @@
-{% extends 'public/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
+{% block title %}{{ t('docs_title', page_locale()) }} · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('docs_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('docs_description', page_locale()) }}</p>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <span>{{ t('docs_title', page_locale()) }}</span>
+        </nav>
+        <h1 class="text-3xl font-bold ng-gradient-text">{{ t('docs_title', page_locale()) }}</h1>
+        <p class="mt-2 text-sm text-slate-400">{{ t('docs_description', page_locale()) }}</p>
     </div>
+</div>
 
+<div class="ng-container ng-section">
     <div class="grid gap-6 lg:grid-cols-2">
         {% for category in categories %}
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
-                <h2 class="text-lg font-semibold text-slate-900">{{ category.label }}</h2>
-                <ul class="mt-4 space-y-3 text-sm text-slate-600">
+            <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-5 transition hover:border-slate-700">
+                <h2 class="text-base font-semibold text-slate-100">{{ category.label }}</h2>
+                <ul class="mt-4 space-y-3">
                     {% for item in category.items %}
-                        <li class="flex flex-col gap-1">
-                            <a href="/docs/{{ item.slug }}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-700">{{ item.title }}</a>
-                            <span class="text-xs text-slate-700">{{ item.excerpt }}</span>
+                        <li>
+                            <a href="/docs/{{ item.slug }}" class="block rounded-lg border border-transparent px-3 py-2 transition hover:border-slate-700 hover:bg-slate-800/50">
+                                <span class="text-sm font-semibold text-cyan-400 hover:text-cyan-300">{{ item.title }}</span>
+                                {% if item.excerpt %}
+                                    <span class="mt-0.5 block text-xs text-slate-500">{{ item.excerpt }}</span>
+                                {% endif %}
+                            </a>
                         </li>
                     {% else %}
-                        <li class="text-sm text-slate-700">{{ t('no_docs_in_category', page_locale()) }}</li>
+                        <li class="text-sm text-slate-600">{{ t('no_docs_in_category', page_locale()) }}</li>
                     {% endfor %}
                 </ul>
             </div>
         {% else %}
-            <div class="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-700">{{ t('no_public_docs', page_locale()) }}</div>
+            <div class="ng-empty-state col-span-full">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                <p>{{ t('no_public_docs', page_locale()) }}</p>
+            </div>
         {% endfor %}
     </div>
 </div>

@@ -1,67 +1,110 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
-{% block title %}{{ thread.title }} · Forum{% endblock %}
+{% block title %}{{ thread.title }} · Forum · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
-<div class="mx-auto w-full max-w-5xl space-y-6 px-4 py-10 sm:px-6">
-    <div>
-        <a href="/forum/board/{{ thread.board.slug }}" class="text-sm text-cyan-300 hover:text-cyan-200">← {{ thread.board.title }}</a>
-        <h1 class="mt-2 text-3xl font-semibold text-slate-100">{{ thread.title }}</h1>
-        {% if thread.isClosed %}<p class="text-sm text-amber-200">Dieser Thread ist geschlossen.</p>{% endif %}
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <a href="/forum">Forum</a>
+            <a href="/forum/board/{{ thread.board.slug }}">{{ thread.board.title }}</a>
+            <span class="truncate">{{ thread.title }}</span>
+        </nav>
+        <div class="flex flex-wrap items-start gap-3">
+            <h1 class="text-3xl font-bold ng-gradient-text flex-1">{{ thread.title }}</h1>
+            {% if thread.isClosed %}
+                <span class="mt-1 rounded-full px-3 py-1 text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">Geschlossen</span>
+            {% endif %}
+        </div>
     </div>
+</div>
 
-    <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-        <h2 class="text-lg font-semibold text-slate-100">Beiträge</h2>
-        <div class="mt-4 space-y-4">
-            {% for post in posts %}
-                <article id="post-{{ post.id }}" class="rounded-lg border border-slate-700 p-4 {% if post.isDeleted %}bg-slate-900{% endif %}">
-                    <p class="text-xs text-slate-500">{{ post.authorUser ? post.authorUser.email : 'deleted-user' }} · {{ post.createdAt|date('Y-m-d H:i') }}</p>
-                    {% if post.isDeleted %}
-                        <p class="mt-2 text-sm italic text-slate-500">[deleted]</p>
-                    {% else %}
-                        <p class="mt-2 whitespace-pre-line text-sm text-slate-200">{{ post.content }}</p>
-                        {% if can_post %}
-                            <form method="post" action="/forum/post/{{ post.id }}/report" class="mt-2 flex flex-wrap gap-2">
+<div class="ng-container ng-section">
+    <div class="space-y-4 mb-8">
+        {% for post in posts %}
+            <article id="post-{{ post.id }}"
+                     class="rounded-xl border {% if post.isDeleted %}border-slate-800/40 bg-slate-900/30 opacity-60{% else %}border-slate-800 bg-slate-900/70{% endif %} overflow-hidden">
+                {% if not post.isDeleted %}
+                    <div class="flex items-center gap-3 border-b border-slate-800/60 bg-slate-900/50 px-5 py-3">
+                        <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 text-xs font-bold text-white">
+                            {{ post.authorUser ? post.authorUser.email|first|upper : '?' }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-slate-200 truncate">
+                                {{ post.authorUser ? post.authorUser.email : 'Gelöschter Benutzer' }}
+                            </p>
+                            <p class="text-xs text-slate-500">{{ post.createdAt|date('d.m.Y H:i') }}</p>
+                        </div>
+                        <a href="#post-{{ post.id }}" class="text-xs text-slate-600 hover:text-slate-400">#{{ loop.index }}</a>
+                    </div>
+                    <div class="px-5 py-4">
+                        <p class="whitespace-pre-line text-sm text-slate-200 leading-relaxed">{{ post.content }}</p>
+                    </div>
+                    {% if can_post %}
+                        <div class="border-t border-slate-800/40 px-5 py-3">
+                            <form method="post" action="/forum/post/{{ post.id }}/report" class="flex flex-wrap items-center gap-2">
                                 <input type="hidden" name="_token" value="{{ csrf_token('forum_report_' ~ post.id) }}">
                                 <input type="hidden" name="form_rendered_at" value="{{ 'now'|date('U') }}">
                                 <input type="text" name="website" value="" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
-                                <select name="reason" class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200" required>
-                                    {% for reason in report_reasons %}<option value="{{ reason }}">{{ reason|capitalize }}</option>{% endfor %}
+                                <select name="reason" class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-300" required>
+                                    {% for reason in report_reasons %}
+                                        <option value="{{ reason }}">{{ reason|capitalize }}</option>
+                                    {% endfor %}
                                 </select>
-                                <input type="text" name="reason_details" class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200" placeholder="Details (optional)">
-                                <button class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-200">Melden</button>
+                                <input type="text" name="reason_details" placeholder="Details (optional)"
+                                       class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-300">
+                                <button class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1 text-xs text-slate-400 hover:border-slate-600 hover:text-slate-200 transition-colors">
+                                    Melden
+                                </button>
                             </form>
-                        {% endif %}
+                        </div>
                     {% endif %}
-                </article>
-            {% else %}
-                <p class="text-sm text-slate-400">Keine Beiträge.</p>
-            {% endfor %}
-        </div>
-        {% if total_pages > 1 %}
-            <div class="mt-4 flex items-center justify-between text-sm text-slate-300">
-                <a class="text-cyan-300 {% if page <= 1 %}pointer-events-none opacity-50{% endif %}" href="/forum/thread/{{ thread.id }}?page={{ page - 1 }}">← Zurück</a>
-                <span>Seite {{ page }} / {{ total_pages }}</span>
-                <a class="text-cyan-300 {% if page >= total_pages %}pointer-events-none opacity-50{% endif %}" href="/forum/thread/{{ thread.id }}?page={{ page + 1 }}">Weiter →</a>
+                {% else %}
+                    <div class="px-5 py-4 text-sm italic text-slate-600">[Beitrag gelöscht]</div>
+                {% endif %}
+            </article>
+        {% else %}
+            <div class="ng-empty-state">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <p>Keine Beiträge.</p>
             </div>
-        {% endif %}
-    </section>
+        {% endfor %}
+    </div>
+
+    {% if total_pages > 1 %}
+        <div class="mb-8 flex items-center justify-between text-sm">
+            <a href="/forum/thread/{{ thread.id }}?page={{ page - 1 }}"
+               class="ng-btn ng-btn--ghost {% if page <= 1 %}pointer-events-none opacity-40{% endif %}">← Zurück</a>
+            <span class="text-slate-400">Seite {{ page }} / {{ total_pages }}</span>
+            <a href="/forum/thread/{{ thread.id }}?page={{ page + 1 }}"
+               class="ng-btn ng-btn--ghost {% if page >= total_pages %}pointer-events-none opacity-40{% endif %}">Weiter →</a>
+        </div>
+    {% endif %}
 
     {% if not thread.isClosed and can_post %}
-        <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-            <h2 class="text-lg font-semibold text-slate-100">Antworten</h2>
-            <form method="post" action="/forum/thread/{{ thread.id }}/reply" class="mt-4 space-y-3">
+        <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-6 backdrop-blur-sm">
+            <h2 class="mb-4 text-base font-semibold text-slate-200">Antworten</h2>
+            <form method="post" action="/forum/thread/{{ thread.id }}/reply" class="space-y-3">
                 <input type="hidden" name="_token" value="{{ csrf_token('forum_reply_' ~ thread.id) }}">
                 <input type="hidden" name="form_rendered_at" value="{{ 'now'|date('U') }}">
                 <input type="text" name="website" value="" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true">
-                <textarea name="content" rows="4" placeholder="Antwort" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" required></textarea>
-                <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Antwort absenden</button>
+                <textarea name="content" rows="5" placeholder="Deine Antwort …"
+                          class="ng-input w-full resize-y" required></textarea>
+                <button class="ng-btn ng-btn--primary">
+                    Antwort absenden
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
             </form>
-        </section>
+        </div>
+    {% elseif thread.isClosed %}
+        <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 px-5 py-4 text-sm text-amber-400">
+            Dieser Thread ist geschlossen und akzeptiert keine neuen Antworten.
+        </div>
     {% elseif not can_post %}
-        <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-            <p class="text-sm text-slate-400">Zum Antworten bitte als Mitglied einloggen.</p>
-        </section>
+        <div class="rounded-xl border border-slate-700/60 bg-slate-900/40 px-5 py-4 text-sm text-slate-400">
+            <a href="/login" class="text-cyan-400 hover:text-cyan-300">Einloggen</a>, um zu antworten.
+        </div>
     {% endif %}
 </div>
 {% endblock %}

@@ -1,0 +1,44 @@
+{% extends 'themes/nexus-gaming/base.html.twig' %}
+
+{% block title %}{{ page.title }} – {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
+
+{% block content %}
+
+<section class="ng-page-hero">
+    <div class="ng-page-hero__bg-grid"></div>
+    <div class="ng-container">
+        <div class="ng-page-hero__inner">
+            <div class="ng-breadcrumb">
+                <a href="/" class="ng-breadcrumb__link">Home</a>
+                <span class="ng-breadcrumb__sep">›</span>
+                <span class="ng-breadcrumb__current">{{ page.title }}</span>
+            </div>
+            <h1 class="ng-page-hero__title">{{ page.title }}</h1>
+            <div class="ng-page-hero__accent"></div>
+        </div>
+    </div>
+</section>
+
+<section class="ng-section">
+    <div class="ng-container">
+        {% if blocks|default([])|length > 0 %}
+            <div class="ng-blocks-grid">
+                {% for block in blocks %}
+                    <div class="ng-block-wrap" data-block-type="{{ block.type }}">
+                        {% include 'public/blocks/_block.html.twig' with { block: block } only %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="ng-empty-state">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <p>Diese Seite hat noch keine Inhalte.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+{% endblock %}

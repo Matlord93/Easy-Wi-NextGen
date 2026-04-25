@@ -1,0 +1,167 @@
+{% set clanName = app_setting('branding_name', 'Easy-Wi NextGen') %}
+{% set lang = app.request ? app.request.query.get('lang') : null %}
+{% set langSuffix = lang in ['de', 'en'] ? '?lang=' ~ lang : '' %}
+{% set currentUser = current_user() %}
+{% set currentSlug = page.slug|default('') %}
+
+<header class="ng-header" id="ng-header">
+    <div class="ng-header__inner">
+
+        {# Logo #}
+        <a href="/{{ langSuffix }}" class="ng-logo">
+            {% if cms_branding.logo_path|default(false) %}
+                <img src="{{ cms_branding.logo_path }}" alt="{{ clanName }}" class="ng-logo__img">
+            {% endif %}
+            <span class="ng-logo__text">{{ clanName }}</span>
+        </a>
+
+        {# Desktop Navigation #}
+        <nav class="ng-nav" aria-label="Hauptnavigation">
+            {% for item in cms_pages|default([]) %}
+                {% set moduleSlug = item.slug in ['blog', 'events', 'team', 'forum'] ? item.slug : null %}
+                {% if moduleSlug is null or module_toggles[moduleSlug]|default(false) %}
+                    {% set href = item.slug == 'startseite' ? '/' : '/' ~ item.slug %}
+                    <a href="{{ href }}{{ langSuffix }}"
+                       class="ng-nav__link{% if item.is_active %} is-active{% endif %}">
+                        {{ item.title }}
+                    </a>
+                {% endif %}
+            {% endfor %}
+
+            {% for item in cms_navigation|default([]) %}
+                {% if item.url is defined and item.url is not empty %}
+                    <a href="{{ item.url }}"
+                       class="ng-nav__link"
+                       {% if item.external|default(false) %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                        {{ item.label|default('Link') }}
+                    </a>
+                {% endif %}
+            {% endfor %}
+
+            {% if module_toggles.blog|default(false) %}
+                <a href="/blog{{ langSuffix }}" class="ng-nav__link{% if currentSlug == 'blog' %} is-active{% endif %}">
+                    {{ t('cms_nav_blog', page_locale()) }}
+                </a>
+            {% endif %}
+            {% if module_toggles.events|default(false) %}
+                <a href="/events{{ langSuffix }}" class="ng-nav__link{% if currentSlug == 'events' %} is-active{% endif %}">
+                    {{ t('cms_nav_events', page_locale()) }}
+                </a>
+            {% endif %}
+            {% if module_toggles.team|default(false) %}
+                <a href="/teams{{ langSuffix }}" class="ng-nav__link{% if currentSlug == 'teams' %} is-active{% endif %}">
+                    {{ t('cms_nav_team', page_locale()) }}
+                </a>
+            {% endif %}
+            {% if module_toggles.forum|default(false) %}
+                <a href="/forum{{ langSuffix }}" class="ng-nav__link{% if currentSlug == 'forum' %} is-active{% endif %}">
+                    {{ t('cms_nav_forum', page_locale()) }}
+                </a>
+            {% endif %}
+        </nav>
+
+        {# User Area #}
+        <div class="ng-header__user">
+            {% if currentUser %}
+                {% set panelPath = '/customer' %}
+                {% set panelLabel = t('customer_portal', page_locale()) %}
+                {% if currentUser.type.value in ['admin', 'superadmin'] %}
+                    {% set panelPath = '/admin' %}
+                    {% set panelLabel = t('admin_portal', page_locale()) %}
+                {% elseif currentUser.type.value == 'reseller' %}
+                    {% set panelPath = '/reseller' %}
+                    {% set panelLabel = t('reseller_portal', page_locale()) %}
+                {% endif %}
+                <div class="ng-user-menu">
+                    <button class="ng-user-menu__toggle" aria-expanded="false" aria-haspopup="true">
+                        <span class="ng-user-avatar">{{ currentUser.email|slice(0,1)|upper }}</span>
+                        <span class="ng-user-email">{{ currentUser.email }}</span>
+                        <svg class="ng-user-menu__arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    <div class="ng-user-menu__dropdown">
+                        <a href="{{ panelPath }}{{ langSuffix }}" class="ng-user-menu__item">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                            </svg>
+                            {{ panelLabel }}
+                        </a>
+                        <a href="{{ path('public_logout') }}{{ langSuffix }}" class="ng-user-menu__item ng-user-menu__item--danger">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+                            </svg>
+                            {{ t('logout', page_locale()) }}
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <a href="{{ path('public_login') }}{{ langSuffix }}" class="ng-btn ng-btn--ghost ng-btn--sm">
+                    {{ t('login', page_locale()) }}
+                </a>
+            {% endif %}
+        </div>
+
+        {# Mobile Toggle #}
+        <button class="ng-nav-toggle" id="ng-nav-toggle" aria-label="Menü öffnen" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+
+    {# Mobile Nav Drawer #}
+    <div class="ng-mobile-nav" id="ng-mobile-nav" aria-hidden="true">
+        {% for item in cms_pages|default([]) %}
+            {% set moduleSlug = item.slug in ['blog', 'events', 'team', 'forum'] ? item.slug : null %}
+            {% if moduleSlug is null or module_toggles[moduleSlug]|default(false) %}
+                {% set href = item.slug == 'startseite' ? '/' : '/' ~ item.slug %}
+                <a href="{{ href }}{{ langSuffix }}" class="ng-mobile-nav__link{% if item.is_active %} is-active{% endif %}">{{ item.title }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if module_toggles.blog|default(false) %}<a href="/blog{{ langSuffix }}" class="ng-mobile-nav__link">Blog</a>{% endif %}
+        {% if module_toggles.events|default(false) %}<a href="/events{{ langSuffix }}" class="ng-mobile-nav__link">Events</a>{% endif %}
+        {% if module_toggles.team|default(false) %}<a href="/teams{{ langSuffix }}" class="ng-mobile-nav__link">Team</a>{% endif %}
+        {% if module_toggles.forum|default(false) %}<a href="/forum{{ langSuffix }}" class="ng-mobile-nav__link">Forum</a>{% endif %}
+        {% if currentUser %}
+            {% set panelPath2 = currentUser.type.value in ['admin','superadmin'] ? '/admin' : (currentUser.type.value == 'reseller' ? '/reseller' : '/customer') %}
+            <a href="{{ panelPath2 }}{{ langSuffix }}" class="ng-mobile-nav__link">Portal</a>
+            <a href="{{ path('public_logout') }}{{ langSuffix }}" class="ng-mobile-nav__link ng-mobile-nav__link--danger">Logout</a>
+        {% else %}
+            <a href="{{ path('public_login') }}{{ langSuffix }}" class="ng-mobile-nav__link ng-mobile-nav__link--accent">Login</a>
+        {% endif %}
+    </div>
+</header>
+
+<script>
+(function(){
+    var toggle = document.getElementById('ng-nav-toggle');
+    var nav = document.getElementById('ng-mobile-nav');
+    var header = document.getElementById('ng-header');
+    if(toggle && nav){
+        toggle.addEventListener('click', function(){
+            var open = nav.classList.toggle('is-open');
+            toggle.classList.toggle('is-open', open);
+            toggle.setAttribute('aria-expanded', open);
+            nav.setAttribute('aria-hidden', !open);
+        });
+    }
+    if(header){
+        window.addEventListener('scroll', function(){
+            header.classList.toggle('is-scrolled', window.scrollY > 20);
+        }, {passive:true});
+    }
+    var userToggle = document.querySelector('.ng-user-menu__toggle');
+    var userDropdown = document.querySelector('.ng-user-menu__dropdown');
+    if(userToggle && userDropdown){
+        userToggle.addEventListener('click', function(e){
+            e.stopPropagation();
+            var open = userDropdown.classList.toggle('is-open');
+            userToggle.setAttribute('aria-expanded', open);
+        });
+        document.addEventListener('click', function(){
+            userDropdown.classList.remove('is-open');
+            userToggle.setAttribute('aria-expanded', false);
+        });
+    }
+})();
+</script>

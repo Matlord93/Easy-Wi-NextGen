@@ -1,4 +1,4 @@
-{% set theme = theme|default('light') %}
+{% set theme = theme|default('dark') %}
 {% if theme == 'emerald-dark' %}
     {% set headerClass = 'text-xs uppercase text-emerald-200/80 border-b border-emerald-500/20' %}
     {% set bodyClass = 'divide-y divide-emerald-500/10 text-emerald-100/80' %}
@@ -8,43 +8,61 @@
     {% set metaClass = 'text-emerald-100/80' %}
     {% set joinClass = 'border-emerald-500/30 text-emerald-100 hover:bg-slate-900' %}
 {% else %}
-    {% set headerClass = 'text-xs uppercase text-slate-700 border-b border-slate-200' %}
-    {% set bodyClass = 'divide-y divide-slate-100 text-slate-600' %}
-    {% set rowHoverClass = 'hover:bg-slate-50' %}
-    {% set nameClass = 'text-slate-900' %}
-    {% set cellClass = 'text-slate-600' %}
-    {% set metaClass = 'text-slate-700' %}
-    {% set joinClass = 'border-slate-200 text-slate-700' %}
+    {% set headerClass = 'text-xs uppercase text-slate-500 border-b border-slate-800' %}
+    {% set bodyClass = 'divide-y divide-slate-800' %}
+    {% set rowHoverClass = 'hover:bg-slate-800/40' %}
+    {% set nameClass = 'text-slate-200' %}
+    {% set cellClass = 'text-slate-400' %}
+    {% set metaClass = 'text-slate-500' %}
+    {% set joinClass = 'border-slate-700 text-slate-300 hover:bg-slate-800' %}
 {% endif %}
+
 <div class="overflow-x-auto">
     <table class="min-w-full text-sm">
         <thead class="{{ headerClass }}">
             <tr>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('server', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('game', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('address', page_locale()) }}</th>
-                <th class="px-5 py-3 text-left font-semibold">{{ t('status', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold tracking-wider">{{ t('server', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold tracking-wider">{{ t('game', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold tracking-wider">{{ t('address', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold tracking-wider">{{ t('status', page_locale()) }}</th>
                 {% if show_players %}
-                    <th class="px-5 py-3 text-left font-semibold">{{ t('players', page_locale()) }}</th>
-                    <th class="px-5 py-3 text-left font-semibold">{{ t('map', page_locale()) }}</th>
+                    <th class="px-5 py-3 text-left font-semibold tracking-wider">{{ t('players', page_locale()) }}</th>
+                    <th class="px-5 py-3 text-left font-semibold tracking-wider">{{ t('map', page_locale()) }}</th>
                 {% endif %}
-                <th class="px-5 py-3 text-left font-semibold">{{ t('last_update', page_locale()) }}</th>
+                <th class="px-5 py-3 text-left font-semibold tracking-wider">{{ t('last_update', page_locale()) }}</th>
                 {% if show_join_button %}
-                    <th class="px-5 py-3 text-right font-semibold">{{ t('join', page_locale()) }}</th>
+                    <th class="px-5 py-3 text-right font-semibold tracking-wider">{{ t('join', page_locale()) }}</th>
                 {% endif %}
             </tr>
         </thead>
         <tbody class="{{ bodyClass }}">
             {% for server in servers %}
-                <tr class="{{ rowHoverClass }}">
+                <tr class="transition {{ rowHoverClass }}">
                     <td class="px-5 py-4 font-medium {{ nameClass }}">{{ server.name }}</td>
                     <td class="px-5 py-4 {{ cellClass }}">{{ server.game_key }}</td>
-                    <td class="px-5 py-4 {{ cellClass }}">{{ server.address }}</td>
+                    <td class="px-5 py-4 {{ cellClass }} font-mono text-xs">{{ server.address }}</td>
                     <td class="px-5 py-4">
-                        {% set statusColor = server.status == 'online' ? 'bg-emerald-100 text-emerald-700' : (server.status == 'offline' ? 'bg-slate-100 text-slate-600' : (server.status == 'error' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700')) %}
-                        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ statusColor }}">
-                            {{ t('status_' ~ server.status, page_locale()) }}
-                        </span>
+                        {% if server.status == 'online' %}
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-0.5 text-xs font-semibold text-green-400">
+                                <span class="h-1.5 w-1.5 rounded-full bg-green-400"></span>
+                                {{ t('status_online', page_locale()) }}
+                            </span>
+                        {% elseif server.status == 'offline' %}
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800/60 px-2.5 py-0.5 text-xs font-semibold text-slate-500">
+                                <span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>
+                                {{ t('status_offline', page_locale()) }}
+                            </span>
+                        {% elseif server.status == 'error' %}
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-400">
+                                <span class="h-1.5 w-1.5 rounded-full bg-rose-400"></span>
+                                {{ t('status_error', page_locale()) }}
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-400">
+                                <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                                {{ t('status_' ~ server.status, page_locale()) }}
+                            </span>
+                        {% endif %}
                     </td>
                     {% if show_players %}
                         <td class="px-5 py-4 {{ cellClass }}">
@@ -56,16 +74,20 @@
                         </td>
                         <td class="px-5 py-4 {{ cellClass }}">{{ server.map ?? '—' }}</td>
                     {% endif %}
-                    <td class="px-5 py-4 {{ metaClass }}">{{ server.last_checked_at ? server.last_checked_at|date('Y-m-d H:i') : '—' }}</td>
+                    <td class="px-5 py-4 {{ metaClass }}">{{ server.last_checked_at ? server.last_checked_at|date('d.m.Y H:i') : '—' }}</td>
                     {% if show_join_button %}
                         <td class="px-5 py-4 text-right">
-                            <a href="steam://connect/{{ server.address }}" class="inline-flex items-center rounded-lg border px-3 py-2 text-xs font-semibold {{ joinClass }}">{{ t('join', page_locale()) }}</a>
+                            <a href="steam://connect/{{ server.address }}" class="inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-semibold transition {{ joinClass }}">
+                                {{ t('join', page_locale()) }}
+                            </a>
                         </td>
                     {% endif %}
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="{{ show_players ? (show_join_button ? 8 : 7) : (show_join_button ? 6 : 5) }}" class="px-5 py-6 text-center text-sm {{ metaClass }}">{{ t('no_public_servers', page_locale()) }}</td>
+                    <td colspan="{{ show_players ? (show_join_button ? 8 : 7) : (show_join_button ? 6 : 5) }}" class="px-5 py-10 text-center text-sm {{ metaClass }}">
+                        {{ t('no_public_servers', page_locale()) }}
+                    </td>
                 </tr>
             {% endfor %}
         </tbody>

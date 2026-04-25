@@ -22,6 +22,7 @@ final class WebinterfaceUpdateService
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
+        private readonly WebinterfaceUpdateSettingsService $settingsService,
         private readonly string $manifestUrl,
         private readonly string $installDir,
         private readonly string $releasesDir,
@@ -343,8 +344,9 @@ final class WebinterfaceUpdateService
             return null;
         }
 
-        $channel = strtolower(trim($this->releaseChannel));
-        $allowPrerelease = $channel === 'beta';
+        $channel = strtolower(trim($this->settingsService->getCoreChannel()));
+        $allowPrerelease = in_array($channel, ['beta', 'alpha'], true);
+        $alphaOnly = $channel === 'alpha';
         $endpoint = sprintf('https://api.github.com/repos/%s/releases?per_page=20', $repository);
 
         try {
@@ -379,6 +381,13 @@ final class WebinterfaceUpdateService
             $isPrerelease = ($release['prerelease'] ?? false) === true;
             if (!$allowPrerelease && $isPrerelease) {
                 continue;
+            }
+            // beta channel: skip alpha-tagged prereleases
+            if ($allowPrerelease && !$alphaOnly && $isPrerelease) {
+                $tagLower = strtolower((string) ($release['tag_name'] ?? ''));
+                if (str_contains($tagLower, 'alpha')) {
+                    continue;
+                }
             }
 
             $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];

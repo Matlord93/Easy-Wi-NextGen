@@ -10,8 +10,9 @@ final class CoreReleaseChecker
 {
     private const CACHE_KEY = 'core.latest_release_version';
 
-    private const CHANNEL_STABLE = 'stable';
-    private const CHANNEL_BETA = 'beta';
+    public const CHANNEL_STABLE = 'stable';
+    public const CHANNEL_BETA = 'beta';
+    public const CHANNEL_ALPHA = 'alpha';
 
     public function __construct(
         private readonly CacheItemPoolInterface $cache,
@@ -26,13 +27,23 @@ final class CoreReleaseChecker
         return $this->repository;
     }
 
+    public function getChannel(): string
+    {
+        return $this->normalizeChannel($this->channel);
+    }
+
     public function getLatestVersion(): ?string
+    {
+        return $this->getLatestVersionForChannel($this->channel);
+    }
+
+    public function getLatestVersionForChannel(string $channel): ?string
     {
         if ($this->repository === '') {
             return null;
         }
 
-        $channel = $this->normalizeChannel($this->channel);
+        $channel = $this->normalizeChannel($channel);
         $cacheKey = sprintf('%s.%s', self::CACHE_KEY, $channel);
 
         $item = $this->cache->getItem($cacheKey);
@@ -63,9 +74,14 @@ final class CoreReleaseChecker
         return version_compare($current, $latest, '<');
     }
 
-    public function getChannel(): string
+    /** @return array<string, string> */
+    public static function channels(): array
     {
-        return $this->normalizeChannel($this->channel);
+        return [
+            self::CHANNEL_STABLE => 'Stable',
+            self::CHANNEL_BETA => 'Beta',
+            self::CHANNEL_ALPHA => 'Alpha',
+        ];
     }
 
     private function fetchLatestVersion(string $channel): ?string
@@ -80,11 +96,25 @@ final class CoreReleaseChecker
                 continue;
             }
 
-            $isPrerelease = $release['prerelease'] ?? false;
+            if (($release['draft'] ?? false) === true) {
+                continue;
+            }
+
+            $isPrerelease = ($release['prerelease'] ?? false) === true;
+            $tagLower = strtolower((string) ($release['tag_name'] ?? $release['name'] ?? ''));
+
             if ($channel === self::CHANNEL_STABLE && $isPrerelease) {
                 continue;
             }
-            if ($channel === self::CHANNEL_BETA && !$isPrerelease) {
+            if ($channel === self::CHANNEL_BETA) {
+                if (!$isPrerelease) {
+                    continue;
+                }
+                if (str_contains($tagLower, 'alpha')) {
+                    continue;
+                }
+            }
+            if ($channel === self::CHANNEL_ALPHA && !$isPrerelease) {
                 continue;
             }
 
@@ -153,11 +183,10 @@ final class CoreReleaseChecker
 
     private function normalizeChannel(string $channel): string
     {
-        $value = strtolower(trim($channel));
-        if ($value === self::CHANNEL_BETA) {
-            return self::CHANNEL_BETA;
-        }
-
-        return self::CHANNEL_STABLE;
+        return match (strtolower(trim($channel))) {
+            self::CHANNEL_BETA => self::CHANNEL_BETA,
+            self::CHANNEL_ALPHA => self::CHANNEL_ALPHA,
+            default => self::CHANNEL_STABLE,
+        };
     }
 }

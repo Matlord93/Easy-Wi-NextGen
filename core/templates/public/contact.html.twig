@@ -1,20 +1,63 @@
-{% extends 'public/base.html.twig' %}
+{% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
+
+{% block title %}Kontakt · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
+
 {% block content %}
-<div class="max-w-2xl rounded-xl border border-slate-200 bg-white p-6">
-  <h1 class="text-lg font-semibold">Kontakt</h1>
-  {% if success %}<p class="mt-3 rounded bg-emerald-50 p-3 text-emerald-700">Danke, wir melden uns.</p>{% endif %}
-  {% if errors is not empty %}<div class="mt-3 rounded bg-rose-50 p-3 text-rose-700">{% for error in errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
-  <form method="post" class="mt-4 space-y-3">
-    <input type="hidden" name="_token" value="{{ csrf_token('public_contact') }}">
-    <input name="name" placeholder="Name" class="w-full rounded border border-slate-200 px-3 py-2" required>
-    <input name="email" type="email" placeholder="E-Mail" class="w-full rounded border border-slate-200 px-3 py-2" required>
-    <input name="subject" placeholder="Betreff" class="w-full rounded border border-slate-200 px-3 py-2" required>
-    <textarea name="message" rows="6" class="w-full rounded border border-slate-200 px-3 py-2" required></textarea>
-    <input type="text" name="website" class="hidden" autocomplete="off" tabindex="-1">
-    <input type="hidden" name="pow_solution" id="pow_solution">
-    {% if captcha_question %}<label class="block text-sm">{{ captcha_question }}<input name="captcha_answer" class="mt-1 w-full rounded border border-slate-200 px-3 py-2" required></label>{% endif %}
-    <button class="rounded bg-indigo-600 px-4 py-2 font-semibold text-white">Senden</button>
-  </form>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <span>Kontakt</span>
+        </nav>
+        <h1 class="text-3xl font-bold ng-gradient-text">Kontakt</h1>
+        <p class="mt-2 text-sm text-slate-400">Schreib uns – wir melden uns so schnell wie möglich.</p>
+    </div>
+</div>
+
+<div class="ng-container ng-section">
+    <div class="mx-auto max-w-xl">
+        {% if success %}
+            <div class="mb-6 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+                Danke, wir melden uns.
+            </div>
+        {% endif %}
+        {% if errors is not empty %}
+            <div class="mb-6 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+                {% for error in errors %}<p>{{ error }}</p>{% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+            <form method="post" class="space-y-4">
+                <input type="hidden" name="_token" value="{{ csrf_token('public_contact') }}">
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">Name</label>
+                    <input name="name" placeholder="Dein Name" class="ng-input w-full" required>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">E-Mail</label>
+                    <input name="email" type="email" placeholder="deine@email.de" class="ng-input w-full" required>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">Betreff</label>
+                    <input name="subject" placeholder="Betreff" class="ng-input w-full" required>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">Nachricht</label>
+                    <textarea name="message" rows="6" class="ng-input w-full" required></textarea>
+                </div>
+                <input type="text" name="website" class="hidden" autocomplete="off" tabindex="-1">
+                <input type="hidden" name="pow_solution" id="pow_solution">
+                {% if captcha_question %}
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-slate-400">{{ captcha_question }}</label>
+                        <input name="captcha_answer" class="ng-input w-full" required>
+                    </div>
+                {% endif %}
+                <button class="ng-btn">Senden</button>
+            </form>
+        </div>
+    </div>
 </div>
 <script>
 (async()=>{const nonce='{{ anti_abuse_nonce }}';const diff={{ pow_difficulty|default(4) }};const out=document.getElementById('pow_solution');if(!nonce||!out||!window.crypto?.subtle){return;}const target='0'.repeat(diff);const enc=new TextEncoder();for(let i=0;i<2000000;i++){const bytes=enc.encode(nonce+String(i));const hash=await crypto.subtle.digest('SHA-256',bytes);const hex=[...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');if(hex.startsWith(target)){out.value=String(i);break;}}})();

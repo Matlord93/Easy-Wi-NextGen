@@ -6,6 +6,7 @@ namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AuditLogger;
+use App\Module\Core\Application\CoreReleaseChecker;
 use App\Module\Core\Application\UpdateJobService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Job;
@@ -56,7 +57,8 @@ final class AdminUpdateController
         }
 
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $agentChannel = $this->updateSettingsService->getAgentChannel();
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($agentChannel);
 
         return new Response($this->twig->render('admin/updates/index.html.twig', [
             'activeNav' => 'updates',
@@ -155,6 +157,59 @@ final class AdminUpdateController
         return $this->renderUpdateCard($this->buildCoreUpdateSummary());
     }
 
+    #[Route(path: '/webinterface/auto-migrate', name: 'admin_updates_webinterface_auto_migrate', methods: ['POST'])]
+    public function toggleAutoMigrate(Request $request): Response
+    {
+        if (!$this->isSuperAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $enabled = $request->request->getBoolean('enabled');
+        $this->updateSettingsService->setAutoMigrate($enabled);
+
+        return $this->renderUpdateCard($this->buildCoreUpdateSummary());
+    }
+
+    #[Route(path: '/core/channel', name: 'admin_updates_core_channel', methods: ['POST'])]
+    public function setCoreChannel(Request $request): Response
+    {
+        if (!$this->isSuperAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $token = new CsrfToken('admin_update_core_channel', (string) $request->request->get('csrf_token'));
+        if (!$this->csrfTokenManager->isTokenValid($token)) {
+            throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
+        }
+
+        $channel = (string) $request->request->get('channel', CoreReleaseChecker::CHANNEL_STABLE);
+        $this->updateSettingsService->setCoreChannel($channel);
+
+        return $this->renderUpdateCard($this->buildCoreUpdateSummary());
+    }
+
+    #[Route(path: '/agents/channel', name: 'admin_updates_agents_channel', methods: ['POST'])]
+    public function setAgentChannel(Request $request): Response
+    {
+        if (!$this->isSuperAdmin($request)) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $token = new CsrfToken('admin_update_agents_channel', (string) $request->request->get('csrf_token'));
+        if (!$this->csrfTokenManager->isTokenValid($token)) {
+            throw new UnauthorizedHttpException('csrf', 'Invalid CSRF token.');
+        }
+
+        $channel = (string) $request->request->get('channel', AgentReleaseChecker::CHANNEL_STABLE);
+        $this->updateSettingsService->setAgentChannel($channel);
+
+        $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($channel);
+        $summary = $this->buildAgentUpdateSummary($agents, $latestVersion);
+
+        return $this->renderAgentUpdateCard($summary);
+    }
+
     #[Route(path: '/agents/update', name: 'admin_updates_agents', methods: ['POST'])]
     public function updateAgents(Request $request): Response
     {
@@ -163,11 +218,12 @@ final class AdminUpdateController
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
         }
 
+        $agentChannel = $this->updateSettingsService->getAgentChannel();
         $agents = $this->agentRepository->findBy([], ['updatedAt' => 'DESC']);
-        $latestVersion = $this->releaseChecker->getLatestVersion();
+        $latestVersion = $this->releaseChecker->getLatestVersionForChannel($agentChannel);
         $updateJobs = $this->buildUpdateJobIndex($agents);
 
-        $this->queueAgentUpdates($agents, $latestVersion, $updateJobs, $actor);
+        $this->queueAgentUpdates($agents, $latestVersion, $updateJobs, $actor, $agentChannel);
 
         $summary = $this->buildAgentUpdateSummary($agents, $latestVersion);
         $summary['notice'] = true;
@@ -208,11 +264,15 @@ final class AdminUpdateController
             'notice' => null,
             'error' => null,
             'autoEnabled' => $settings['autoEnabled'],
+            'autoMigrate' => $settings['autoMigrate'],
+            'channel' => $settings['coreChannel'],
+            'channels' => CoreReleaseChecker::channels(),
             'csrf' => [
                 'update' => $this->csrfTokenManager->getToken('admin_update_update')->getValue(),
                 'migrate' => $this->csrfTokenManager->getToken('admin_update_migrate')->getValue(),
                 'both' => $this->csrfTokenManager->getToken('admin_update_both')->getValue(),
                 'rollback' => $this->csrfTokenManager->getToken('admin_update_rollback')->getValue(),
+                'core_channel' => $this->csrfTokenManager->getToken('admin_update_core_channel')->getValue(),
             ],
         ];
     }
@@ -222,6 +282,7 @@ final class AdminUpdateController
      */
     private function buildAgentUpdateSummary(array $agents, ?string $latestVersion): array
     {
+        $agentChannel = $this->updateSettingsService->getAgentChannel();
         $updates = 0;
         if ($latestVersion !== null && $latestVersion !== '') {
             foreach ($agents as $agent) {
@@ -235,7 +296,12 @@ final class AdminUpdateController
             'total' => count($agents),
             'updates' => $updates,
             'latestVersion' => $latestVersion,
+            'channel' => $agentChannel,
+            'channels' => AgentReleaseChecker::channels(),
             'notice' => null,
+            'csrf' => [
+                'agents_channel' => $this->csrfTokenManager->getToken('admin_update_agents_channel')->getValue(),
+            ],
         ];
     }
 
@@ -307,10 +373,10 @@ final class AdminUpdateController
      * @param Agent[] $agents
      * @param array<string, Job> $existingJobs
      */
-    private function queueAgentUpdates(array $agents, ?string $latestVersion, array $existingJobs, User $actor): void
+    private function queueAgentUpdates(array $agents, ?string $latestVersion, array $existingJobs, User $actor, string $channel): void
     {
         foreach ($agents as $agent) {
-            $payload = $this->buildAgentUpdatePayload($agent, $latestVersion);
+            $payload = $this->buildAgentUpdatePayload($agent, $latestVersion, $channel);
             if ($payload === null) {
                 continue;
             }
@@ -343,13 +409,14 @@ final class AdminUpdateController
                 'job_id' => $job->getId(),
                 'version' => $payload['version'],
                 'asset_name' => $payload['asset_name'],
+                'channel' => $channel,
             ]);
         }
 
         $this->entityManager->flush();
     }
 
-    private function buildAgentUpdatePayload(Agent $agent, ?string $latestVersion): ?array
+    private function buildAgentUpdatePayload(Agent $agent, ?string $latestVersion, string $channel): ?array
     {
         $currentVersion = $agent->getLastHeartbeatVersion();
 
@@ -362,7 +429,7 @@ final class AdminUpdateController
             return null;
         }
 
-        $releaseInfo = $this->releaseChecker->getReleaseAssetUrls($assetName);
+        $releaseInfo = $this->releaseChecker->getReleaseAssetUrlsForChannel($assetName, $channel);
         if ($releaseInfo === null) {
             return null;
         }
@@ -383,6 +450,7 @@ final class AdminUpdateController
             'signature_url' => $releaseInfo['signature_url'] ?? null,
             'asset_name' => $releaseInfo['asset_name'],
             'version' => $version,
+            'channel' => $channel,
         ];
     }
 

@@ -1,37 +1,60 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
-{% block title %}Forum · Easy-Wi NextGen{% endblock %}
+{% block title %}Forum · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
-<div class="mx-auto w-full max-w-5xl space-y-6 px-4 py-10 sm:px-6">
-    <div>
-        <h1 class="text-3xl font-semibold text-slate-100">Forum</h1>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <span>Forum</span>
+        </nav>
+        <h1 class="text-3xl font-bold text-slate-100 ng-gradient-text">Forum</h1>
         <p class="mt-2 text-sm text-slate-400">Diskutiere Taktiken, Orga und alles rund um den Clan.</p>
     </div>
-    <form method="get" action="/forum/search" class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-        <label class="text-sm font-medium text-slate-200">Suche</label>
-        <div class="mt-2 flex gap-2">
-            <input name="q" value="{{ q }}" placeholder="Thread oder Beitrag suchen" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
-            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Suchen</button>
-        </div>
+</div>
+
+<div class="ng-container ng-section">
+    <form method="get" action="/forum/search" class="mb-8 flex gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 backdrop-blur-sm">
+        <input name="q" value="{{ q }}" placeholder="Thread oder Beitrag suchen …"
+               class="ng-input flex-1" />
+        <button class="ng-btn ng-btn--primary px-6">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            Suchen
+        </button>
     </form>
 
     {% for category in categories %}
-        <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-            <h2 class="text-lg font-semibold text-slate-100">{{ category.title }}</h2>
-            <div class="mt-4 space-y-3">
+        <section class="mb-8">
+            <div class="mb-3 flex items-center gap-3">
+                <span class="ng-dot"></span>
+                <h2 class="text-base font-semibold uppercase tracking-widest text-slate-400">{{ category.title }}</h2>
+            </div>
+            <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
                 {% for board in boards_by_category[category.id] ?? [] %}
-                    <a class="block rounded-lg border border-slate-700 p-4 hover:bg-slate-800/70" href="/forum/board/{{ board.slug }}">
-                        <p class="font-semibold text-slate-100">{{ board.title }}</p>
-                        <p class="text-sm text-slate-400">{{ board.description }}</p>
+                    <a href="/forum/board/{{ board.slug }}"
+                       class="group flex items-start gap-4 border-b border-slate-800/60 p-5 transition-colors last:border-b-0 hover:bg-slate-800/50">
+                        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/70 text-cyan-400 transition group-hover:border-cyan-500/40 group-hover:bg-cyan-500/10">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-slate-100 group-hover:text-cyan-300 transition-colors">{{ board.title }}</p>
+                            {% if board.description %}
+                                <p class="mt-0.5 text-sm text-slate-400 truncate">{{ board.description }}</p>
+                            {% endif %}
+                        </div>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="flex-shrink-0 mt-1 text-slate-600 group-hover:text-slate-400 transition-colors"><path d="M9 18l6-6-6-6"/></svg>
                     </a>
                 {% else %}
-                    <p class="text-sm text-slate-400">Keine Boards in dieser Kategorie.</p>
+                    <p class="p-5 text-sm text-slate-500">Keine Boards in dieser Kategorie.</p>
                 {% endfor %}
             </div>
         </section>
     {% else %}
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-400">Noch keine Forum-Kategorien vorhanden.</div>
+        <div class="ng-empty-state">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <p>Noch keine Forum-Kategorien vorhanden.</p>
+        </div>
     {% endfor %}
 </div>
 {% endblock %}

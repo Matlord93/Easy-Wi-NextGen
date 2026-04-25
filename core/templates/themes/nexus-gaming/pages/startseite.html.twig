@@ -1,0 +1,255 @@
+{% extends 'themes/nexus-gaming/base.html.twig' %}
+{% set clanName = app_setting('branding_name', 'Easy-Wi NextGen') %}
+
+{% block title %}{{ clanName }} – NextGen Clan Portal{% endblock %}
+
+{% block content %}
+
+{# ── HERO ── #}
+{% set currentUser = current_user() %}
+<section class="ng-phero">
+  <div class="ng-phero__bg">
+    <div class="ng-phero__blob ng-phero__blob--1"></div>
+    <div class="ng-phero__blob ng-phero__blob--2"></div>
+    <div class="ng-phero__grid"></div>
+  </div>
+  <div class="ng-phero__content">
+    <div class="ng-phero__left">
+      <p class="ng-phero__overline">
+        <span class="ng-dot"></span>
+        {{ app_setting('site_subtitle', 'EASY-WI NEXTGEN') }}
+      </p>
+      <h1 class="ng-phero__title ng-gradient-text">{{ clanName }}</h1>
+      <p class="ng-phero__sub">{{ cms_branding.tagline|default('Dein Clan. Dein Spiel. Deine Community.') }}</p>
+      <div class="ng-phero__actions">
+        {% if currentUser %}
+          {% set panelPath = currentUser.type.value in ['admin','superadmin'] ? '/admin' : (currentUser.type.value == 'reseller' ? '/reseller' : '/customer') %}
+          <a href="{{ panelPath }}" class="ng-btn ng-btn--primary">Portal öffnen →</a>
+        {% else %}
+          <a href="{{ path('public_login') }}" class="ng-btn ng-btn--primary">Jetzt einloggen →</a>
+        {% endif %}
+        <a href="/forum" class="ng-btn ng-btn--ghost">Forum erkunden</a>
+      </div>
+      <div class="ng-phero__stats">
+        {% set hs = cms_home_stats|default({}) %}
+        {% if hs.members_count|default(false) %}
+          <span class="ng-hero__stat"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#00d4ff"/></svg> {{ hs.members_count }} Mitglieder</span>
+        {% endif %}
+        {% if hs.events_count|default(false) %}
+          <span class="ng-hero__stat"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#00d4ff"/></svg> {{ hs.events_count }} Events</span>
+        {% endif %}
+        {% if hs.servers_count|default(false) %}
+          <span class="ng-hero__stat"><svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#7c3aed"/></svg> {{ hs.servers_count }} Server</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="ng-phero__right" aria-hidden="true">
+      <div class="ng-phero__stars"></div>
+      <div class="ng-phero__planet"></div>
+      <div class="ng-phero__nebula"></div>
+      <div class="ng-phero__emblem">
+        <div class="ng-phero__ring ng-phero__ring--1"></div>
+        <div class="ng-phero__ring ng-phero__ring--2"></div>
+        <div class="ng-phero__ring ng-phero__ring--3"></div>
+        <svg viewBox="0 0 160 160" class="ng-phero__hex" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="phg" x1="0" y1="0" x2="160" y2="160" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#00d4ff"/><stop offset="100%" stop-color="#7c3aed"/>
+            </linearGradient>
+            <filter id="phglow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <polygon points="80,6 148,43 148,117 80,154 12,117 12,43" fill="rgba(0,212,255,0.03)" stroke="url(#phg)" stroke-width="1.5" filter="url(#phglow)"/>
+          <polygon points="80,26 128,53 128,107 80,134 32,107 32,53" fill="rgba(124,58,237,0.04)" stroke="url(#phg)" stroke-width="1"/>
+          <polygon points="80,46 108,63 108,97 80,114 52,97 52,63" fill="rgba(0,212,255,0.03)" stroke="url(#phg)" stroke-width="0.75"/>
+          <circle cx="80" cy="80" r="22" fill="url(#phg)" opacity="0.9" filter="url(#phglow)"/>
+          <circle cx="80" cy="80" r="13" fill="#050709"/>
+          <circle cx="80" cy="80" r="7" fill="url(#phg)"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── STAT CARDS ── #}
+{% set hs = cms_home_stats|default({}) %}
+<div class="ng-stat-cards">
+  <div class="ng-stat-card">
+    <div class="ng-stat-card__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+    <div class="ng-stat-card__body">
+      <div class="ng-stat-card__num">{{ hs.members_count|default('—') }}</div>
+      <div class="ng-stat-card__label">Aktive Mitglieder</div>
+      {% if hs.members_growth|default(false) %}<div class="ng-stat-card__trend ng-stat-card__trend--up">{{ hs.members_growth }}</div>{% endif %}
+    </div>
+    <svg class="ng-stat-chart" viewBox="0 0 80 30" preserveAspectRatio="none"><polyline points="0,25 13,20 26,22 39,13 52,15 65,7 80,9" fill="none" stroke="#00d4ff" stroke-width="1.5" opacity="0.7"/></svg>
+  </div>
+  <div class="ng-stat-card">
+    <div class="ng-stat-card__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+    <div class="ng-stat-card__body">
+      <div class="ng-stat-card__num">{{ hs.events_count|default('—') }}</div>
+      <div class="ng-stat-card__label">Events</div>
+      {% if hs.next_event|default(false) %}<div class="ng-stat-card__trend">Nächste: {{ hs.next_event }}</div>{% endif %}
+    </div>
+    <svg class="ng-stat-chart" viewBox="0 0 80 30" preserveAspectRatio="none"><polyline points="0,22 13,18 26,25 39,14 52,18 65,10 80,6" fill="none" stroke="#7c3aed" stroke-width="1.5" opacity="0.7"/></svg>
+  </div>
+  <div class="ng-stat-card">
+    <div class="ng-stat-card__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></div>
+    <div class="ng-stat-card__body">
+      <div class="ng-stat-card__num">{{ hs.servers_count|default('—') }}</div>
+      <div class="ng-stat-card__label">Game Server</div>
+      {% if hs.servers_online|default(false) %}<div class="ng-stat-card__trend ng-stat-card__trend--online">{{ hs.servers_online }} online</div>{% endif %}
+    </div>
+    <svg class="ng-stat-chart" viewBox="0 0 80 30" preserveAspectRatio="none"><polyline points="0,20 13,16 26,18 39,12 52,14 65,8 80,5" fill="none" stroke="#00d4ff" stroke-width="1.5" opacity="0.7"/></svg>
+  </div>
+  <div class="ng-stat-card">
+    <div class="ng-stat-card__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+    <div class="ng-stat-card__body">
+      <div class="ng-stat-card__num">{{ hs.forum_posts|default('—') }}</div>
+      <div class="ng-stat-card__label">Forum Beiträge</div>
+      {% if hs.forum_posts_new|default(false) %}<div class="ng-stat-card__trend ng-stat-card__trend--up">{{ hs.forum_posts_new }}</div>{% endif %}
+    </div>
+    <svg class="ng-stat-chart" viewBox="0 0 80 30" preserveAspectRatio="none"><polyline points="0,24 13,20 26,22 39,14 52,16 65,9 80,4" fill="none" stroke="#7c3aed" stroke-width="1.5" opacity="0.7"/></svg>
+  </div>
+</div>
+
+{# ── PANELS GRID ── #}
+<div class="ng-panels-grid">
+
+  {# Events Panel #}
+  <div class="ng-panel">
+    <div class="ng-panel__head">
+      <span class="ng-panel__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+      <h2 class="ng-panel__title">Nächste Events</h2>
+      <a href="/events" class="ng-panel__action">Alle anzeigen</a>
+    </div>
+    <div class="ng-panel__body">
+      {% for event in cms_recent_events|default([]) %}
+        <a href="/events/{{ event.slug }}" class="ng-event-item">
+          <div class="ng-event-item__img {% if not event.cover_image_path %}ng-event-item__img--placeholder{% endif %}">
+            {% if event.cover_image_path %}<img src="{{ event.cover_image_path }}" alt="{{ event.title }}">{% endif %}
+          </div>
+          <div class="ng-event-item__date">
+            <span class="ng-event-item__day">{{ event.start_at|date('d') }}</span>
+            <span class="ng-event-item__month">{{ event.start_at|date('M') }}</span>
+          </div>
+          <div class="ng-event-item__info">
+            <p class="ng-event-item__title">{{ event.title }}</p>
+            {% if event.description %}<p class="ng-event-item__desc">{{ event.description|slice(0,60) }}…</p>{% endif %}
+            <div class="ng-event-item__meta">
+              <span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {{ event.start_at|date('H:i') }}</span>
+              {% if event.location %}<span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/></svg> {{ event.location }}</span>{% endif %}
+            </div>
+            {% if event.status %}
+              {% set eBadge = event.status == 'live' or event.status == 'running' ? 'ng-event-item__badge--live' : (event.status == 'upcoming' or event.status == 'scheduled' ? 'ng-event-item__badge--upcoming' : '') %}
+              <span class="ng-event-item__badge {{ eBadge }}">{{ event.status|capitalize }}</span>
+            {% endif %}
+          </div>
+        </a>
+      {% else %}
+        <div class="ng-panel__empty">
+          <p>Keine Events geplant.</p>
+          <a href="/events" class="ng-link">Alle Events →</a>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# Server Status Panel #}
+  <div class="ng-panel">
+    <div class="ng-panel__head">
+      <span class="ng-panel__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></span>
+      <h2 class="ng-panel__title">Server Status</h2>
+      <a href="/servers" class="ng-panel__action">Alle Server</a>
+    </div>
+    <div class="ng-panel__body">
+      {% for server in cms_server_status|default([]) %}
+        {% set isOnline = server.status|default('') == 'online' or server.online|default(false) %}
+        <div class="ng-server-item {% if isOnline %}ng-server-item--online{% endif %}">
+          <div class="ng-server-item__dot {% if isOnline %}ng-server-item__dot--online{% else %}ng-server-item__dot--offline{% endif %}"></div>
+          <div class="ng-server-item__info">
+            <p class="ng-server-item__name">{{ server.name }}</p>
+            <p class="ng-server-item__meta">
+              {% if server.game_key|default(false) %}<span>{{ server.game_key }}</span>{% endif %}
+              {% if server.map|default(false) %}<span class="ng-server-item__sep">·</span><span>{{ server.map }}</span>{% endif %}
+              {% if server.address|default(false) %}<span class="ng-server-item__sep">·</span><span class="ng-server-item__addr">{{ server.address }}</span>{% endif %}
+            </p>
+          </div>
+          <div class="ng-server-item__right">
+            <span class="ng-server-item__status {% if isOnline %}ng-server-item__status--online{% else %}ng-server-item__status--offline{% endif %}">
+              {{ isOnline ? 'ONLINE' : 'OFFLINE' }}
+            </span>
+            {% if isOnline %}
+              {% set curPlayers = server.players_current|default(server.players|default(null)) %}
+              {% set maxPlayers = server.players_max|default(server.max_players|default(null)) %}
+              {% if curPlayers is not null %}
+                <span class="ng-server-item__players">{{ curPlayers }}{% if maxPlayers is not null %}/{{ maxPlayers }}{% endif %} Spieler</span>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <div class="ng-panel__empty"><p>Keine freigegebenen Server.</p></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# Community + Team Column #}
+  <div class="ng-panel-stack">
+
+    <div class="ng-panel ng-panel--compact">
+      <div class="ng-panel__head">
+        <span class="ng-panel__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <h2 class="ng-panel__title">Community Aktivität</h2>
+        <span class="ng-live-badge"><span class="ng-dot" style="width:5px;height:5px;margin:0"></span> Live</span>
+      </div>
+      <div class="ng-panel__body">
+        {% for item in cms_activity|default([]) %}
+          <div class="ng-activity-item">
+            <div class="ng-activity-item__avatar">{{ item.user_name|default('?')|first|upper }}</div>
+            <p class="ng-activity-item__text"><strong>{{ item.user_name|default('Unbekannt') }}</strong> {{ item.action|default('') }}</p>
+            <span class="ng-activity-item__time">{{ item.time|default('') }}</span>
+          </div>
+        {% else %}
+          <div class="ng-panel__empty"><p>Keine aktuellen Aktivitäten.</p></div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="ng-panel ng-panel--compact">
+      <div class="ng-panel__head">
+        <span class="ng-panel__icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span>
+        <h2 class="ng-panel__title">Top Mitglieder</h2>
+        <a href="/team" class="ng-panel__action">Alle →</a>
+      </div>
+      <div class="ng-panel__body">
+        {% for member in cms_top_members|default([]) %}
+          <div class="ng-member-item">
+            <span class="ng-member-item__rank" style="color:{% if loop.index==1 %}#f59e0b{% elseif loop.index==2 %}#9ca3af{% else %}#cd7f32{% endif %}">{{ loop.index }}</span>
+            <div class="ng-member-item__avatar">
+              {% if member.avatar_path %}<img src="{{ member.avatar_path }}" alt="{{ member.name }}">{% else %}{{ member.name|first|upper }}{% endif %}
+            </div>
+            <div class="ng-member-item__info">
+              <p class="ng-member-item__name">{{ member.name }}</p>
+              <p class="ng-member-item__role">{{ member.role_title|default('Mitglied') }}</p>
+            </div>
+          </div>
+        {% else %}
+          <div class="ng-panel__empty"><p>Noch keine Mitglieder.</p></div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>{# /panel-stack #}
+</div>{# /panels-grid #}
+
+{# Optional CMS Blocks #}
+{% if blocks|default([])|length > 0 %}
+  <div class="ng-portal-blocks">
+    {% for block in blocks %}
+      <div class="ng-block-wrap" data-block-type="{{ block.type }}">
+        {% include 'public/blocks/_block.html.twig' with { block: block } only %}
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% endblock %}

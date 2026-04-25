@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\Application;
 
+use App\Module\Core\Application\AgentReleaseChecker;
+use App\Module\Core\Application\CoreReleaseChecker;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class WebinterfaceUpdateSettingsService
 {
     private const DEFAULT_SETTINGS = [
         'autoEnabled' => false,
+        'autoMigrate' => true,
+        'coreChannel' => CoreReleaseChecker::CHANNEL_STABLE,
+        'agentChannel' => AgentReleaseChecker::CHANNEL_STABLE,
     ];
 
     public function __construct(
@@ -19,7 +24,7 @@ final class WebinterfaceUpdateSettingsService
     }
 
     /**
-     * @return array{autoEnabled: bool}
+     * @return array{autoEnabled: bool, autoMigrate: bool, coreChannel: string, agentChannel: string}
      */
     public function getSettings(): array
     {
@@ -27,22 +32,66 @@ final class WebinterfaceUpdateSettingsService
 
         return [
             'autoEnabled' => (bool) ($settings['autoEnabled'] ?? self::DEFAULT_SETTINGS['autoEnabled']),
+            'autoMigrate' => (bool) ($settings['autoMigrate'] ?? self::DEFAULT_SETTINGS['autoMigrate']),
+            'coreChannel' => $this->normalizeChannel((string) ($settings['coreChannel'] ?? self::DEFAULT_SETTINGS['coreChannel'])),
+            'agentChannel' => $this->normalizeChannel((string) ($settings['agentChannel'] ?? self::DEFAULT_SETTINGS['agentChannel'])),
         ];
     }
 
-    /**
-     * @return array{autoEnabled: bool}
-     */
-    public function setAutoEnabled(bool $enabled): array
+    public function getCoreChannel(): string
+    {
+        return $this->getSettings()['coreChannel'];
+    }
+
+    public function getAgentChannel(): string
+    {
+        return $this->getSettings()['agentChannel'];
+    }
+
+    public function isAutoMigrateEnabled(): bool
+    {
+        return $this->getSettings()['autoMigrate'];
+    }
+
+    public function setAutoEnabled(bool $enabled): void
     {
         $settings = $this->readSettings();
         $settings['autoEnabled'] = $enabled;
         $settings['updatedAt'] = (new \DateTimeImmutable())->format(DATE_ATOM);
         $this->writeSettings($settings);
+    }
 
-        return [
-            'autoEnabled' => $enabled,
-        ];
+    public function setAutoMigrate(bool $enabled): void
+    {
+        $settings = $this->readSettings();
+        $settings['autoMigrate'] = $enabled;
+        $settings['updatedAt'] = (new \DateTimeImmutable())->format(DATE_ATOM);
+        $this->writeSettings($settings);
+    }
+
+    public function setCoreChannel(string $channel): void
+    {
+        $settings = $this->readSettings();
+        $settings['coreChannel'] = $this->normalizeChannel($channel);
+        $settings['updatedAt'] = (new \DateTimeImmutable())->format(DATE_ATOM);
+        $this->writeSettings($settings);
+    }
+
+    public function setAgentChannel(string $channel): void
+    {
+        $settings = $this->readSettings();
+        $settings['agentChannel'] = $this->normalizeChannel($channel);
+        $settings['updatedAt'] = (new \DateTimeImmutable())->format(DATE_ATOM);
+        $this->writeSettings($settings);
+    }
+
+    private function normalizeChannel(string $channel): string
+    {
+        return match (strtolower(trim($channel))) {
+            CoreReleaseChecker::CHANNEL_BETA => CoreReleaseChecker::CHANNEL_BETA,
+            CoreReleaseChecker::CHANNEL_ALPHA => CoreReleaseChecker::CHANNEL_ALPHA,
+            default => CoreReleaseChecker::CHANNEL_STABLE,
+        };
     }
 
     private function readSettings(): array

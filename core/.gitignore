@@ -1,4 +1,3 @@
-/vendor/
 /var/
 /srv/
 /.env.local

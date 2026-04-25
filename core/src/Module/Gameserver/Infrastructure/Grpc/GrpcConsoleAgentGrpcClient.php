@@ -27,7 +27,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         $node = $this->resolveNode($request->instanceId);
         $endpoint = $this->resolveEndpoint($node);
 
-        $response = $this->httpClient->request('POST', rtrim($endpoint, '/') . '/v1/console/command', [
+        $response = $this->httpClient->request('POST', rtrim($endpoint, '/') . '/v1/instances/' . $request->instanceId . '/console/command', [
             'headers' => $this->buildHeaders($node),
             'json' => [
                 'instance_id' => $request->instanceId,
@@ -55,33 +55,47 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
     {
         $node = $this->resolveNode($instanceId);
         $endpoint = $this->resolveEndpoint($node);
+        $headers = $this->buildHeaders($node);
+        $url = rtrim($endpoint, '/') . '/v1/instances/' . $instanceId . '/console/logs';
 
-        $response = $this->httpClient->request('GET', rtrim($endpoint, '/') . '/v1/console/stream', [
-            'headers' => $this->buildHeaders($node),
-            'query' => ['instance_id' => $instanceId],
-            'timeout' => 0,
-        ]);
+        $cursor = '';
+        $emptyStreak = 0;
 
-        $buffer = '';
-        foreach ($this->httpClient->stream($response, 30.0) as $chunk) {
-            if ($chunk->isTimeout()) {
-                continue;
+        while (true) {
+            $response = $this->httpClient->request('GET', $url, [
+                'headers' => $headers,
+                'query' => $cursor !== '' ? ['cursor' => $cursor] : [],
+                'timeout' => 10,
+            ]);
+
+            if ($response->getStatusCode() >= 400) {
+                throw new \RuntimeException('Agent console logs returned HTTP ' . $response->getStatusCode());
             }
-            if ($chunk->isLast()) {
-                break;
+
+            $payload = $response->toArray(false);
+            $data = $payload['data'] ?? [];
+            $newCursor = (string) ($data['cursor'] ?? '');
+            $lines = (array) ($data['lines'] ?? []);
+
+            if ($newCursor !== '') {
+                $cursor = $newCursor;
             }
 
-            $buffer .= $chunk->getContent();
-            while (($pos = strpos($buffer, "\n")) !== false) {
-                $line = trim(substr($buffer, 0, $pos));
-                $buffer = substr($buffer, $pos + 1);
-                if ($line === '') {
-                    continue;
-                }
-                $decoded = json_decode($line, true);
-                if (is_array($decoded)) {
-                    yield $decoded;
-                }
+            foreach ($lines as $line) {
+                yield [
+                    'chunk' => (string) ($line['text'] ?? ''),
+                    'ts' => (string) ($line['ts'] ?? (new \DateTimeImmutable())->format(DATE_ATOM)),
+                    'seq' => isset($line['id']) ? (int) $line['id'] : null,
+                    'status' => isset($line['level']) && $line['level'] !== '' ? (string) $line['level'] : null,
+                ];
+            }
+
+            if (empty($lines)) {
+                $emptyStreak++;
+                usleep(min(2_000_000, 100_000 + ($emptyStreak * 100_000)));
+            } else {
+                $emptyStreak = 0;
+                usleep(50_000);
             }
         }
     }

@@ -1,18 +1,37 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
+{% block title %}Media · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
+
 {% block content %}
-<div class="mx-auto max-w-6xl space-y-4 px-4 py-10">
-    <h1 class="text-3xl font-semibold">Media</h1>
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/">Home</a>
+            <span>Media</span>
+        </nav>
+        <h1 class="text-3xl font-bold ng-gradient-text">Media</h1>
+        <p class="mt-2 text-sm text-slate-400">Screenshots, Clips und Highlights aus dem Clan-Alltag.</p>
+    </div>
+</div>
+
+<div class="ng-container ng-section">
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {% for asset in assets %}
-            <figure class="rounded-2xl border bg-white p-3 shadow-sm">
-                <img src="{{ asset.path }}" alt="{{ asset.alt ?: asset.title ?: 'Media' }}" class="h-56 w-full rounded object-cover" />
+            <figure class="group overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70 transition-all duration-300 hover:border-slate-700 hover:shadow-lg hover:shadow-black/40">
+                <div class="relative overflow-hidden">
+                    <img src="{{ asset.path }}" alt="{{ asset.alt ?: asset.title ?: 'Media' }}"
+                         class="h-56 w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                </div>
                 {% if asset.title %}
-                    <figcaption class="mt-2 text-sm text-slate-700">{{ asset.title }}</figcaption>
+                    <figcaption class="px-4 py-3 text-sm font-medium text-slate-300">{{ asset.title }}</figcaption>
                 {% endif %}
             </figure>
         {% else %}
-            <p class="text-slate-500">No media assets available.</p>
+            <div class="ng-empty-state col-span-full">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <p>Keine Medien verfügbar.</p>
+            </div>
         {% endfor %}
     </div>
 </div>
