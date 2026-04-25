@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Module\Setup\Application;
 
 use App\Module\Setup\Application\WebinterfaceUpdateService;
+use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -29,15 +30,18 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $service = $this->newWebinterfaceUpdateService([
             'httpClient' => new MockHttpClient([new MockResponse((string) json_encode($feed))]),
+            'settingsService' => new WebinterfaceUpdateSettingsService('/tmp'),
             'manifestUrl' => 'https://example.invalid/feed.json',
-            'installPath' => '/tmp/install',
-            'releaseStoragePath' => '/tmp/releases',
-            'currentReleasePath' => '/tmp/current',
-            'lockFilePath' => '/tmp/lock',
-            'channel' => 'stable',
-            'environment' => 'test',
-            'allowPrerelease' => false,
-            'installedVersion' => '1.0.0',
+            'installDir' => '/tmp/install',
+            'releasesDir' => '/tmp/releases',
+            'currentSymlink' => '/tmp/current',
+            'lockFile' => '/tmp/lock',
+            'releaseChannel' => 'stable',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'fallbackVersion' => '1.0.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'excludes' => '',
         ]);
 
         $status = $service->checkForUpdate();

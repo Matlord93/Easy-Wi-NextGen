@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Service;
 
 use App\Module\Setup\Application\WebinterfaceUpdateService;
+use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -43,16 +44,18 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $service = $this->newWebinterfaceUpdateService([
             'httpClient' => $httpClient,
+            'settingsService' => new WebinterfaceUpdateSettingsService($tmpDir),
             'manifestUrl' => 'https://localhost/manifest.json',
-            'installPath' => $tmpDir,
-            'releaseStoragePath' => '',
-            'currentReleasePath' => '',
-            'lockFilePath' => $tmpDir . '/update.lock',
-            'installedVersion' => '1.2.2',
-            'githubRepository' => 'Matlord93/Easy-Wi-NextGen',
-            'channel' => 'stable',
-            'environment' => 'test',
-            'allowPrerelease' => false,
+            'installDir' => $tmpDir,
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => $tmpDir . '/update.lock',
+            'fallbackVersion' => '1.2.2',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'stable',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
         ]);
 
         $status = $service->checkForUpdate();
@@ -90,16 +93,18 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $service = $this->newWebinterfaceUpdateService([
             'httpClient' => $httpClient,
+            'settingsService' => new WebinterfaceUpdateSettingsService($tmpDir),
             'manifestUrl' => 'https://localhost/manifest.json',
-            'installPath' => $tmpDir,
-            'releaseStoragePath' => '',
-            'currentReleasePath' => '',
-            'lockFilePath' => $tmpDir . '/update.lock',
-            'installedVersion' => '1.9.0',
-            'githubRepository' => 'Matlord93/Easy-Wi-NextGen',
-            'channel' => 'stable',
-            'environment' => 'test',
-            'allowPrerelease' => false,
+            'installDir' => $tmpDir,
+            'releasesDir' => '',
+            'currentSymlink' => '',
+            'lockFile' => $tmpDir . '/update.lock',
+            'fallbackVersion' => '1.9.0',
+            'releaseRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'releaseChannel' => 'stable',
+            'kernelEnvironment' => 'test',
+            'kernelDebug' => false,
+            'excludes' => '',
         ]);
 
         $status = $service->checkForUpdate();
