@@ -31,8 +31,9 @@ final class ProfileFlowTest extends WebTestCase
         $client->request('GET', '/contact');
 
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('Hallo, Max Muster', (string) $client->getResponse()->getContent());
-        self::assertStringContainsString('/account/security', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('theme-user-email', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('header-user@example.test', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('/customer', (string) $client->getResponse()->getContent());
     }
 
     public function testProfileEditRequiresAuth(): void

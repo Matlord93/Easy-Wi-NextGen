@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Module\Setup\Application;
 
 use App\Module\Setup\Application\WebinterfaceUpdateService;
+use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -29,6 +30,7 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $service = new WebinterfaceUpdateService(
             new MockHttpClient([new MockResponse((string) json_encode($feed))]),
+            $this->createStub(WebinterfaceUpdateSettingsService::class),
             'https://example.invalid/feed.json',
             '/tmp/install',
             '/tmp/releases',

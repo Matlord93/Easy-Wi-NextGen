@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Service;
 
 use App\Module\Setup\Application\WebinterfaceUpdateService;
+use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -43,6 +44,7 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $service = new WebinterfaceUpdateService(
             $httpClient,
+            $this->createStub(WebinterfaceUpdateSettingsService::class),
             'https://localhost/manifest.json',
             $tmpDir,
             '',
@@ -91,6 +93,7 @@ final class WebinterfaceUpdateServiceTest extends TestCase
 
         $service = new WebinterfaceUpdateService(
             $httpClient,
+            $this->createStub(WebinterfaceUpdateSettingsService::class),
             'https://localhost/manifest.json',
             $tmpDir,
             '',

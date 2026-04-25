@@ -18,7 +18,7 @@ final class AgentReleaseCheckerTest extends TestCase
             [
                 'draft' => false,
                 'prerelease' => true,
-                'tag_name' => '1.1.0.4-Alpha',
+                'tag_name' => '1.1.0-beta.4',
                 'assets' => [
                     ['name' => 'easywi-agent-linux-amd64', 'browser_download_url' => 'https://example.invalid/1.1.0.4/easywi-agent-linux-amd64'],
                     ['name' => 'checksums-agent.txt', 'browser_download_url' => 'https://example.invalid/1.1.0.4/checksums-agent.txt'],
@@ -27,7 +27,7 @@ final class AgentReleaseCheckerTest extends TestCase
             [
                 'draft' => false,
                 'prerelease' => true,
-                'tag_name' => '1.1.1.1-Alpha',
+                'tag_name' => '1.1.1-beta.1',
                 'assets' => [
                     ['name' => 'easywi-agent-linux-amd64', 'browser_download_url' => 'https://example.invalid/1.1.1.1/easywi-agent-linux-amd64'],
                     ['name' => 'checksums-agent.txt', 'browser_download_url' => 'https://example.invalid/1.1.1.1/checksums-agent.txt'],
@@ -40,7 +40,7 @@ final class AgentReleaseCheckerTest extends TestCase
         $selected = $method->invoke($checker, $releases, 'beta', 'easywi-agent-linux-amd64');
 
         self::assertIsArray($selected);
-        self::assertSame('1.1.1.1-Alpha', $selected['tag']);
+        self::assertSame('1.1.1-beta.1', $selected['tag']);
         self::assertSame('https://example.invalid/1.1.1.1/easywi-agent-linux-amd64', $selected['download_url']);
     }
 
@@ -50,7 +50,7 @@ final class AgentReleaseCheckerTest extends TestCase
 
         $method = new \ReflectionMethod($checker, 'compareReleaseTags');
 
-        $result = $method->invoke($checker, '1.1.1.1-Alpha', '1.1.0.4-Alpha');
+        $result = $method->invoke($checker, '1.1.1-beta.1', '1.1.0-beta.4');
 
         self::assertIsInt($result);
         self::assertGreaterThan(0, $result);
