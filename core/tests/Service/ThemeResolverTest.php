@@ -44,7 +44,7 @@ final class ThemeResolverTest extends TestCase
         $site = new Site('Demo', 'demo.local');
         $provider->save($site, 'theme4', [], CmsSettingsProvider::DEFAULT_MODULE_TOGGLES);
 
-        self::assertSame('clan-nova', $resolver->resolveThemeKey($site));
+        self::assertSame('nexus-gaming', $resolver->resolveThemeKey($site));
     }
 
     /**
