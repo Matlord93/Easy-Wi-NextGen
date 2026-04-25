@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Tests\Service;
 
 use App\Module\Setup\Application\WebinterfaceUpdateService;
-use App\Module\Setup\Application\WebinterfaceUpdateSettingsService;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
@@ -42,21 +41,19 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         mkdir($tmpDir, 0775, true);
         file_put_contents($tmpDir . '/VERSION', "1.2.2\n");
 
-        $service = new WebinterfaceUpdateService(
-            $httpClient,
-            $this->createStub(WebinterfaceUpdateSettingsService::class),
-            'https://localhost/manifest.json',
-            $tmpDir,
-            '',
-            '',
-            $tmpDir . '/update.lock',
-            '',
-            '1.2.2',
-            'Matlord93/Easy-Wi-NextGen',
-            'stable',
-            'test',
-            false,
-        );
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => $httpClient,
+            'manifestUrl' => 'https://localhost/manifest.json',
+            'installPath' => $tmpDir,
+            'releaseStoragePath' => '',
+            'currentReleasePath' => '',
+            'lockFilePath' => $tmpDir . '/update.lock',
+            'installedVersion' => '1.2.2',
+            'githubRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'channel' => 'stable',
+            'environment' => 'test',
+            'allowPrerelease' => false,
+        ]);
 
         $status = $service->checkForUpdate();
 
@@ -91,21 +88,19 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         mkdir($tmpDir, 0775, true);
         file_put_contents($tmpDir . '/VERSION', "1.9.0\n");
 
-        $service = new WebinterfaceUpdateService(
-            $httpClient,
-            $this->createStub(WebinterfaceUpdateSettingsService::class),
-            'https://localhost/manifest.json',
-            $tmpDir,
-            '',
-            '',
-            $tmpDir . '/update.lock',
-            '',
-            '1.9.0',
-            'Matlord93/Easy-Wi-NextGen',
-            'stable',
-            'test',
-            false,
-        );
+        $service = $this->newWebinterfaceUpdateService([
+            'httpClient' => $httpClient,
+            'manifestUrl' => 'https://localhost/manifest.json',
+            'installPath' => $tmpDir,
+            'releaseStoragePath' => '',
+            'currentReleasePath' => '',
+            'lockFilePath' => $tmpDir . '/update.lock',
+            'installedVersion' => '1.9.0',
+            'githubRepository' => 'Matlord93/Easy-Wi-NextGen',
+            'channel' => 'stable',
+            'environment' => 'test',
+            'allowPrerelease' => false,
+        ]);
 
         $status = $service->checkForUpdate();
 
@@ -114,5 +109,65 @@ final class WebinterfaceUpdateServiceTest extends TestCase
         self::assertTrue($status->updateAvailable);
         self::assertSame('Generated fallback notes', $status->notes);
         self::assertSame('https://example.test/easywi-webinterface-2.0.0.zip', $status->assetUrl);
+    }
+
+    /**
+     * @param array<string, mixed> $namedOverrides
+     */
+    private function newWebinterfaceUpdateService(array $namedOverrides): WebinterfaceUpdateService
+    {
+        $reflection = new \ReflectionClass(WebinterfaceUpdateService::class);
+        $constructor = $reflection->getConstructor();
+        if ($constructor === null) {
+            return $reflection->newInstance();
+        }
+
+        $args = [];
+        foreach ($constructor->getParameters() as $parameter) {
+            if (array_key_exists($parameter->getName(), $namedOverrides)) {
+                $args[] = $namedOverrides[$parameter->getName()];
+                continue;
+            }
+
+            if ($parameter->isDefaultValueAvailable()) {
+                $args[] = $parameter->getDefaultValue();
+                continue;
+            }
+
+            $type = $parameter->getType();
+            if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
+                $dependency = $this->tryInstantiateDependency($type->getName());
+                if ($dependency !== null) {
+                    $args[] = $dependency;
+                    continue;
+                }
+            }
+
+            throw new \RuntimeException(sprintf('No test value available for "%s".', $parameter->getName()));
+        }
+
+        /** @var WebinterfaceUpdateService $service */
+        $service = $reflection->newInstanceArgs($args);
+
+        return $service;
+    }
+
+    private function tryInstantiateDependency(string $className): object|null
+    {
+        if (!class_exists($className)) {
+            return null;
+        }
+
+        $dependencyReflection = new \ReflectionClass($className);
+        if (!$dependencyReflection->isInstantiable()) {
+            return null;
+        }
+
+        $constructor = $dependencyReflection->getConstructor();
+        if ($constructor === null || $constructor->getNumberOfRequiredParameters() === 0) {
+            return $dependencyReflection->newInstance();
+        }
+
+        return null;
     }
 }
