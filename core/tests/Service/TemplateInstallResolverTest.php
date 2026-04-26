@@ -71,7 +71,7 @@ final class TemplateInstallResolverTest extends TestCase
         self::assertStringContainsString('https://example.com/paper-1.20.4-123.jar', $command);
     }
 
-    public function testKeepsSteamInstallCommandUnwrappedOnLinux(): void
+    public function testPrependsSteamDumpCleanupForLinuxSteamInstallCommands(): void
     {
         $resolver = $this->buildResolver(new InMemoryMinecraftCatalogRepository());
         $instance = $this->buildInstance([], 'linux');
@@ -79,7 +79,7 @@ final class TemplateInstallResolverTest extends TestCase
 
         $command = $resolver->resolveInstallCommand($instance);
 
-        self::assertSame('steamcmd +app_update 740 validate +quit', $command);
+        self::assertSame('rm -rf /tmp/dumps /tmp/dumps-* 2>/dev/null || true; steamcmd +app_update 740 validate +quit', $command);
     }
 
     public function testDoesNotAppendSteamCacheCleanupForWindowsInstallCommands(): void
