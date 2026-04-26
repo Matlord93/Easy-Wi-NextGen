@@ -19,7 +19,7 @@ class TemplateInstallResolver
         $template = $instance->getTemplate();
         $installCommand = $template->getInstallCommand();
         if ($installCommand !== '' && !$this->isResolverPlaceholder($installCommand, 'install')) {
-            return $this->applySteamLogin($installCommand, $instance);
+            return $this->finalizeCommand($installCommand, $instance);
         }
         $resolver = $template->getInstallResolver();
         $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
@@ -30,7 +30,7 @@ class TemplateInstallResolver
             default => $installCommand,
         };
 
-        return $this->applySteamLogin($command, $instance);
+        return $this->finalizeCommand($command, $instance);
     }
 
     public function resolveUpdateCommand(Instance $instance): string
@@ -38,7 +38,7 @@ class TemplateInstallResolver
         $template = $instance->getTemplate();
         $updateCommand = $template->getUpdateCommand();
         if ($updateCommand !== '' && !$this->isResolverPlaceholder($updateCommand, 'update')) {
-            return $this->applySteamLogin($updateCommand, $instance);
+            return $this->finalizeCommand($updateCommand, $instance);
         }
         $resolver = $template->getInstallResolver();
         $type = is_array($resolver) ? (string) ($resolver['type'] ?? '') : '';
@@ -49,7 +49,14 @@ class TemplateInstallResolver
             default => $updateCommand,
         };
 
-        return $this->applySteamLogin($command, $instance);
+        return $this->finalizeCommand($command, $instance);
+    }
+
+    private function finalizeCommand(string $command, Instance $instance): string
+    {
+        $command = $this->applySteamLogin($command, $instance);
+
+        return $this->prependSteamDumpCleanup($command, $instance);
     }
 
     private function resolveMinecraftCommand(Instance $instance, string $channel): string
@@ -157,6 +164,23 @@ class TemplateInstallResolver
             : 'install handled by catalog resolver';
 
         return str_contains($normalized, $needle);
+    }
+
+    private function prependSteamDumpCleanup(string $command, Instance $instance): string
+    {
+        if ($this->resolveOs($instance->getNode()) !== 'linux') {
+            return $command;
+        }
+
+        if (stripos($command, 'steamcmd') === false || stripos($command, 'steamcmd.exe') !== false) {
+            return $command;
+        }
+
+        if (str_contains($command, '/tmp/dumps')) {
+            return $command;
+        }
+
+        return 'rm -rf /tmp/dumps /tmp/dumps-* 2>/dev/null || true; ' . $command;
     }
 
     private function applySteamLogin(string $command, Instance $instance): string
