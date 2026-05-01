@@ -36,6 +36,12 @@ class GamePlugin
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $description = null;
 
+    #[ORM\Column(length: 128, nullable: true)]
+    private ?string $extractSubdir = null;
+
+    #[ORM\Column(length: 32)]
+    private string $installMode = 'extract';
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -49,6 +55,8 @@ class GamePlugin
         string $checksum,
         string $downloadUrl,
         ?string $description = null,
+        string $installMode = 'extract',
+        ?string $extractSubdir = null,
     ) {
         $this->template = $template;
         $this->name = $name;
@@ -56,6 +64,8 @@ class GamePlugin
         $this->checksum = $checksum;
         $this->downloadUrl = $downloadUrl;
         $this->description = $description;
+        $this->installMode = $installMode;
+        $this->extractSubdir = $extractSubdir;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -128,6 +138,28 @@ class GamePlugin
     public function setDescription(?string $description): void
     {
         $this->description = $description;
+        $this->touch();
+    }
+
+    public function getExtractSubdir(): ?string
+    {
+        return $this->extractSubdir;
+    }
+
+    public function setExtractSubdir(?string $extractSubdir): void
+    {
+        $this->extractSubdir = $extractSubdir;
+        $this->touch();
+    }
+
+    public function getInstallMode(): string
+    {
+        return $this->installMode;
+    }
+
+    public function setInstallMode(string $installMode): void
+    {
+        $this->installMode = $installMode;
         $this->touch();
     }
 

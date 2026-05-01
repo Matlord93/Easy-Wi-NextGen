@@ -46,6 +46,8 @@ final class AdminUpdateController
         #[Autowire(service: 'limiter.admin_update_jobs')]
         private readonly RateLimiterFactory $updateLimiter,
         private readonly Environment $twig,
+        #[Autowire('%kernel.project_dir%')]
+        private readonly string $projectDir,
     ) {
     }
 
@@ -237,6 +239,28 @@ final class AdminUpdateController
         return $actor instanceof User && $actor->getType() === UserType::Superadmin;
     }
 
+    private function buildCronCommand(): string
+    {
+        $snapshotPath = $this->projectDir . '/srv/setup/cron/easywi-automation.cron';
+        if (is_file($snapshotPath)) {
+            $content = file_get_contents($snapshotPath);
+            if ($content !== false) {
+                foreach (explode("\n", $content) as $line) {
+                    if (str_contains($line, 'app:update:auto')) {
+                        return trim($line);
+                    }
+                }
+            }
+        }
+
+        $escaped = str_replace("'", "'\"'\"'", $this->projectDir);
+
+        return sprintf(
+            "*/5 * * * * cd '%s' && php bin/console app:update:auto --no-interaction >> var/log/cron-update-auto.log 2>&1",
+            $escaped,
+        );
+    }
+
     private function buildCoreUpdateSummary(): array
     {
         $status = $this->updateService->checkForUpdate();
@@ -267,6 +291,7 @@ final class AdminUpdateController
             'autoMigrate' => $settings['autoMigrate'],
             'channel' => $settings['coreChannel'],
             'channels' => CoreReleaseChecker::channels(),
+            'cronCommand' => $this->buildCronCommand(),
             'csrf' => [
                 'update' => $this->csrfTokenManager->getToken('admin_update_update')->getValue(),
                 'migrate' => $this->csrfTokenManager->getToken('admin_update_migrate')->getValue(),

@@ -18,15 +18,22 @@ final class ConsoleStreamDiagnostics
     public function snapshot(): array
     {
         $heartbeatAge = $this->relayHeartbeatAgeSeconds();
+        $relayRequired = $this->isRelayRequired();
 
         return [
             'active_grpc_client_class' => $this->grpcClient::class,
             'backend_configured' => !$this->isNullClient(),
             'redis_ping_ok' => $this->redisPingOk(),
+            'relay_required' => $relayRequired,
             'relay_heartbeat_age_seconds' => $heartbeatAge,
-            'relay_stale' => $heartbeatAge === null ? true : $heartbeatAge > $this->relayStaleAfterSeconds,
+            'relay_stale' => $relayRequired && ($heartbeatAge === null || $heartbeatAge > $this->relayStaleAfterSeconds),
             'sample_node_endpoint_present' => $this->sampleNodeEndpointPresent(),
         ];
+    }
+
+    public function isRelayRequired(): bool
+    {
+        return $this->redis instanceof \Redis;
     }
 
     public function isNullClient(): bool

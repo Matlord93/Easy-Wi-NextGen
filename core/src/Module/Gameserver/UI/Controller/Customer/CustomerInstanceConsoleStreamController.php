@@ -119,6 +119,13 @@ final class CustomerInstanceConsoleStreamController
             return ['status' => 'backend_not_configured', 'message' => 'Console backend not configured'];
         }
 
+        // Redis + relay are only needed when the event bus uses pub/sub mode.
+        // In direct mode (no Redis configured) the FallbackConsoleEventBus streams
+        // straight from the agent, so a missing relay heartbeat is not an error.
+        if (!$this->diagnostics->isRelayRequired()) {
+            return null;
+        }
+
         if (!$this->diagnostics->redisPingOk()) {
             return ['status' => 'redis_unavailable', 'message' => 'Redis unavailable'];
         }

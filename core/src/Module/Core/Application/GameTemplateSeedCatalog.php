@@ -1521,94 +1521,194 @@ final class GameTemplateSeedCatalog
      */
     public function listPlugins(): array
     {
+        return array_merge(
+            $this->cs2Plugins(),
+            $this->source1Plugins(),
+            $this->minecraftPaperPlugins(),
+            $this->rustPlugins(),
+        );
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function cs2Plugins(): array
+    {
         return [
-            $this->plugin(
-                'minecraft_java',
-                'EssentialsX',
-                '2.20.1',
-                'sha256:3f1a4a7991e2457c8b5e5a7b5b3f0e59a2f266f2fd5a1d7f6b82bbf83cb5e6c2',
-                'https://github.com/EssentialsX/Essentials/releases/download/2.20.1/EssentialsX-2.20.1.jar',
-                'Core commands and moderation suite.',
-            ),
-            $this->plugin(
-                'minecraft_java',
-                'ViaVersion',
-                '5.0.0',
-                'sha256:2c3f1b6c6c8e4c7e3c1d6d5c8b9c7e7f7e0a2f3b4c5d6e7f8a9b0c1d2e3f4a5',
-                'https://github.com/ViaVersion/ViaVersion/releases/download/5.0.0/ViaVersion-5.0.0.jar',
-                'Protocol compatibility layer for mixed client versions.',
-            ),
-            $this->plugin(
-                'minecraft_java',
-                'LuckPerms',
-                '5.4.138',
-                'sha256:0fdc75f2603c9b975a5e1f9bfe1b6d2e1c0e43e2a4efb0d4c39d296f04a5e1d8',
-                'https://github.com/LuckPerms/LuckPerms/releases/download/v5.4.138/LuckPerms-Bukkit-5.4.138.jar',
-                'Permissions management plugin.',
-            ),
-            $this->plugin(
-                'minecraft_java',
-                'PlaceholderAPI',
-                '2.11.6',
-                'sha256:4d1c2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1',
-                'https://github.com/PlaceholderAPI/PlaceholderAPI/releases/download/2.11.6/PlaceholderAPI-2.11.6.jar',
-                'Placeholder support for chat and scoreboards.',
-            ),
-            $this->plugin(
-                'minecraft_java',
-                'WorldEdit',
-                '7.3.4',
-                'sha256:fbfc2c2a1f2f2a2d8b2e1846b3f6e0e6b8f2c6245a2f3c6a394e228bc41a786a',
-                'https://github.com/EngineHub/WorldEdit/releases/download/7.3.4/worldedit-bukkit-7.3.4.jar',
-                'In-game map editor and builder tools.',
-            ),
-            $this->plugin(
-                'minecraft_java',
-                'Vault',
-                '1.7.3',
-                'sha256:8f6b8b7bcd1fd6b2d9f9a16d637e9a3b61abdb928f8d410911a8b905c71e7021',
-                'https://github.com/MilkBowl/Vault/releases/download/1.7.3/Vault.jar',
-                'Economy and permissions bridge.',
-            ),
-            $this->plugin(
-                'minecraft_java',
-                'Geyser',
-                '2.4.1',
-                'sha256:8f0e1d2c3b4a59687766554433221100ffeeddccbbaa99887766554433221100',
-                'https://github.com/GeyserMC/Geyser/releases/download/v2.4.1/Geyser-Spigot.jar',
-                'Allow Bedrock clients to join Java servers.',
-            ),
-            $this->plugin(
-                'minecraft_java',
-                'Floodgate',
-                '2.2.3',
-                'sha256:1a2b3c4d5e6f7081928374655647382910ffeeddccbbaa998877665544332211',
-                'https://github.com/GeyserMC/Floodgate/releases/download/v2.2.3/Floodgate-Spigot.jar',
-                'Authentication bridge for Geyser Bedrock players.',
-            ),
             $this->plugin(
                 'cs2',
                 'MetaMod:Source',
-                '2.0.0',
-                'sha256:2157a4a2a7a5b93e1d3e9c0a12a0b0b3f6b5f4d6f4e81375a944f9b6132f9b23',
-                'https://mms.alliedmods.net/mmsdrop/2.0/mmsource-2.0.0-git1247-linux.tar.gz',
-                'Core plugin loader for Source-based servers.',
+                '2.0.0-dev',
+                '',
+                'https://mms.alliedmods.net/mmsdrop/2.0/mmsource-2.0.0-git1282-linux.tar.gz',
+                'Core plugin loader for CS2 (Source 2).',
+                'extract',
+                'game/csgo',
             ),
             $this->plugin(
                 'cs2',
                 'CounterStrikeSharp',
-                '1.0.197',
-                'sha256:3c0a47f2e904d06a6ce7f2ad6a4c2969a9b76f513f3f067d09c8b4b9b9d7a14e',
-                'https://github.com/roflmuffin/CounterStrikeSharp/releases/download/v1.0.197/counterstrikesharp-linux.zip',
-                'Managed plugin framework for CS2.',
+                'latest',
+                '',
+                'https://github.com/roflmuffin/CounterStrikeSharp/releases/latest/download/counterstrikesharp-with-runtime-linux.zip',
+                'Managed .NET plugin framework for CS2.',
+                'extract',
+                'game/csgo',
             ),
+        ];
+    }
+
+    /**
+     * MetaMod:Source + SourceMod entries for all Source 1 (GoldSrc/Source) game servers.
+     * Both plugins use the same archive structure so they extract into the game-specific
+     * subdirectory (e.g. "cstrike" for CSS, "tf" for TF2, …).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function source1Plugins(): array
+    {
+        $mmsUrl = 'https://mms.alliedmods.net/mmsdrop/1.12/mmsource-1.12.0-git1167-linux.tar.gz';
+        $smUrl  = 'https://sm.alliedmods.net/smdrop/1.12/sourcemod-1.12.0-git7195-linux.tar.gz';
+        $mmsVer = '1.12.0-dev';
+        $smVer  = '1.12.0-dev';
+
+        // [template_game_key => extract_subdir]
+        $games = [
+            'csgo_legacy' => 'csgo',
+            'css'         => 'cstrike',
+            'tf2'         => 'tf',
+            'hl2dm'       => 'hl2mp',
+            'dods'        => 'dod',
+            'l4d'         => 'left4dead',
+            'l4d2'        => 'left4dead2',
+            'garrys_mod'  => 'garrysmod',
+        ];
+
+        $entries = [];
+        foreach ($games as $gameKey => $subdir) {
+            $entries[] = $this->plugin(
+                $gameKey,
+                'MetaMod:Source',
+                $mmsVer,
+                '',
+                $mmsUrl,
+                'Core plugin loader for Source engine servers.',
+                'extract',
+                $subdir,
+            );
+            $entries[] = $this->plugin(
+                $gameKey,
+                'SourceMod',
+                $smVer,
+                '',
+                $smUrl,
+                'Server administration and plugin framework for Source engine.',
+                'extract',
+                $subdir,
+            );
+        }
+
+        return $entries;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function minecraftPaperPlugins(): array
+    {
+        return [
+            $this->plugin(
+                'minecraft_paper_all',
+                'EssentialsX',
+                'latest',
+                '',
+                'https://github.com/EssentialsX/Essentials/releases/latest/download/EssentialsX.jar',
+                'Core commands, economy, and moderation suite.',
+                'copy',
+                'plugins',
+            ),
+            $this->plugin(
+                'minecraft_paper_all',
+                'LuckPerms',
+                '5.4.151',
+                '',
+                'https://download.luckperms.net/1567/bukkit/loader/LuckPerms-Bukkit-5.4.151.jar',
+                'Advanced permissions management plugin.',
+                'copy',
+                'plugins',
+            ),
+            $this->plugin(
+                'minecraft_paper_all',
+                'ViaVersion',
+                'latest',
+                '',
+                'https://github.com/ViaVersion/ViaVersion/releases/latest/download/ViaVersion.jar',
+                'Protocol compatibility layer — lets different client versions join.',
+                'copy',
+                'plugins',
+            ),
+            $this->plugin(
+                'minecraft_paper_all',
+                'PlaceholderAPI',
+                'latest',
+                '',
+                'https://github.com/PlaceholderAPI/PlaceholderAPI/releases/latest/download/PlaceholderAPI.jar',
+                'Placeholder expansion support for chat, scoreboards, and more.',
+                'copy',
+                'plugins',
+            ),
+            $this->plugin(
+                'minecraft_paper_all',
+                'WorldEdit',
+                'latest',
+                '',
+                'https://github.com/EngineHub/WorldEdit/releases/latest/download/worldedit-bukkit.jar',
+                'In-game map editor and builder tools.',
+                'copy',
+                'plugins',
+            ),
+            $this->plugin(
+                'minecraft_paper_all',
+                'Vault',
+                '1.7.3',
+                '',
+                'https://github.com/MilkBowl/Vault/releases/download/1.7.3/Vault.jar',
+                'Economy and permissions API bridge.',
+                'copy',
+                'plugins',
+            ),
+            $this->plugin(
+                'minecraft_paper_all',
+                'Geyser',
+                'latest',
+                '',
+                'https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot',
+                'Allows Bedrock Edition clients to connect to Java servers.',
+                'copy',
+                'plugins',
+            ),
+            $this->plugin(
+                'minecraft_paper_all',
+                'Floodgate',
+                'latest',
+                '',
+                'https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot',
+                'Authenticate Bedrock players without a Java account (use with Geyser).',
+                'copy',
+                'plugins',
+            ),
+        ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function rustPlugins(): array
+    {
+        return [
             $this->plugin(
                 'rust',
                 'uMod (Oxide)',
-                '2.0.6334',
-                'sha256:7b6f2c7b81e7a4c6f4868f0b2f3eb8d1a1b9c2b1c9d1a0d5a3e5f9b2e1c7f3a4',
+                'latest',
+                '',
                 'https://umod.org/games/rust/download/develop',
-                'Modding framework for Rust servers.',
+                'Modding and plugin framework for Rust servers.',
+                'extract',
+                null,
             ),
         ];
     }
@@ -1684,6 +1784,8 @@ final class GameTemplateSeedCatalog
         string $checksum,
         string $downloadUrl,
         ?string $description,
+        string $installMode = 'extract',
+        ?string $extractSubdir = null,
     ): array {
         return [
             'template_game_key' => $templateGameKey,
@@ -1692,6 +1794,8 @@ final class GameTemplateSeedCatalog
             'checksum' => $checksum,
             'download_url' => $downloadUrl,
             'description' => $description,
+            'install_mode' => $installMode,
+            'extract_subdir' => $extractSubdir,
         ];
     }
 }

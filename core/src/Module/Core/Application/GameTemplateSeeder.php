@@ -117,6 +117,8 @@ final class GameTemplateSeeder
                 (string) ($pluginData['checksum'] ?? ''),
                 (string) ($pluginData['download_url'] ?? ''),
                 $pluginData['description'] ?? null,
+                (string) ($pluginData['install_mode'] ?? 'extract'),
+                isset($pluginData['extract_subdir']) ? (string) $pluginData['extract_subdir'] : null,
             );
 
             $entityManager->persist($plugin);

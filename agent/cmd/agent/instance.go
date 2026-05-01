@@ -1011,7 +1011,15 @@ func buildSystemdExecStart(serviceName, command string) (string, string) {
 	}
 	socketPath := systemdConsoleSocketPath(instanceID)
 	runtimeDirectory := filepath.Join("easywi/instances", instanceID)
-	return fmt.Sprintf("/usr/local/bin/easywi-wrapper --instance-id %s --command-socket %s -- %s", instanceID, socketPath, command), runtimeDirectory
+
+	// Prefer the agent binary itself (--wrapper mode) so no separate
+	// easywi-wrapper installation is required. Fall back to the legacy path
+	// when the executable path cannot be determined.
+	wrapperBin := "/usr/local/bin/easywi-wrapper"
+	if agentExecutablePath != "" {
+		wrapperBin = agentExecutablePath + " --wrapper"
+	}
+	return fmt.Sprintf("%s --instance-id %s --command-socket %s -- %s", wrapperBin, instanceID, socketPath, command), runtimeDirectory
 }
 
 func buildSystemdLimits(cpuLimit, ramLimit int) string {

@@ -330,22 +330,20 @@ func handleTs6VirtualTokenRotate(job jobs.Job) orchestratorResult {
 }
 
 func handleTs3ServerGroupList(job jobs.Job) orchestratorResult {
-	client, err := newTs3QueryClient(job.Payload)
-	if err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-	defer client.close()
-
 	sid := payloadValue(job.Payload, "sid")
 	if sid == "" {
 		return orchestratorResult{status: "failed", errorText: "missing sid"}
 	}
 
-	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-
-	groups, err := listServerGroups(client)
+	var groups []map[string]string
+	err := withTs3Client(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		var err error
+		groups, err = listServerGroups(client)
+		return err
+	})
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -359,22 +357,20 @@ func handleTs3ServerGroupList(job jobs.Job) orchestratorResult {
 }
 
 func handleTs6ServerGroupList(job jobs.Job) orchestratorResult {
-	client, err := newTs6QueryClient(job.Payload)
-	if err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-	defer client.close()
-
 	sid := payloadValue(job.Payload, "sid")
 	if sid == "" {
 		return orchestratorResult{status: "failed", errorText: "missing sid"}
 	}
 
-	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-
-	groups, err := listServerGroups(client)
+	var groups []map[string]string
+	err := withTs6Client(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		var err error
+		groups, err = listServerGroups(client)
+		return err
+	})
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -388,126 +384,118 @@ func handleTs6ServerGroupList(job jobs.Job) orchestratorResult {
 }
 
 func handleTs3VirtualSummary(job jobs.Job) orchestratorResult {
-	client, err := newTs3QueryClient(job.Payload)
-	if err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-	defer client.close()
-
 	sid := payloadValue(job.Payload, "sid")
 	if sid == "" {
 		return orchestratorResult{status: "failed", errorText: "missing sid"}
 	}
 
-	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-
-	response, err := client.command("serverinfo")
-	if err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-
-	return orchestratorResult{
-		status: "success",
-		resultPayload: map[string]any{
+	var result map[string]any
+	err := withTs3Client(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		response, err := client.command("serverinfo")
+		if err != nil {
+			return err
+		}
+		result = map[string]any{
 			"clients_online":    parseOptionalInt(response["virtualserver_clientsonline"]),
 			"max_clients":       parseOptionalInt(response["virtualserver_maxclients"]),
 			"voice_port":        parseOptionalInt(response["virtualserver_port"]),
 			"filetransfer_port": parseOptionalInt(response["virtualserver_filetransfer_port"]),
-		},
+		}
+		return nil
+	})
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
+	return orchestratorResult{status: "success", resultPayload: result}
 }
 
 func handleTs6VirtualSummary(job jobs.Job) orchestratorResult {
-	client, err := newTs6QueryClient(job.Payload)
-	if err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-	defer client.close()
-
 	sid := payloadValue(job.Payload, "sid")
 	if sid == "" {
 		return orchestratorResult{status: "failed", errorText: "missing sid"}
 	}
 
-	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-
-	response, err := client.command("serverinfo")
-	if err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-
-	return orchestratorResult{
-		status: "success",
-		resultPayload: map[string]any{
+	var result map[string]any
+	err := withTs6Client(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		response, err := client.command("serverinfo")
+		if err != nil {
+			return err
+		}
+		result = map[string]any{
 			"clients_online":    parseOptionalInt(response["virtualserver_clientsonline"]),
 			"max_clients":       parseOptionalInt(response["virtualserver_maxclients"]),
 			"voice_port":        parseOptionalInt(response["virtualserver_port"]),
 			"filetransfer_port": parseOptionalInt(response["virtualserver_filetransfer_port"]),
-		},
-	}
-}
-
-func handleTs3VirtualBanList(job jobs.Job) orchestratorResult {
-	return handleTsQueryList(job, newTs3QueryClient, "banlist", "bans")
-}
-
-func handleTs6VirtualBanList(job jobs.Job) orchestratorResult {
-	return handleTsQueryList(job, newTs6QueryClient, "banlist", "bans")
-}
-
-func handleTs3VirtualChannelList(job jobs.Job) orchestratorResult {
-	return handleTsQueryList(job, newTs3QueryClient, "channellist", "channels")
-}
-
-func handleTs6VirtualChannelList(job jobs.Job) orchestratorResult {
-	return handleTsQueryList(job, newTs6QueryClient, "channellist", "channels")
-}
-
-func handleTs3VirtualClientList(job jobs.Job) orchestratorResult {
-	return handleTsQueryList(job, newTs3QueryClient, "clientlist", "clients")
-}
-
-func handleTs6VirtualClientList(job jobs.Job) orchestratorResult {
-	return handleTsQueryList(job, newTs6QueryClient, "clientlist", "clients")
-}
-
-func handleTs3VirtualLogView(job jobs.Job) orchestratorResult {
-	return handleTsQueryList(job, newTs3QueryClient, "logview", "logs")
-}
-
-func handleTs6VirtualLogView(job jobs.Job) orchestratorResult {
-	return handleTsQueryList(job, newTs6QueryClient, "logview", "logs")
-}
-
-func handleTs3VirtualSnapshot(job jobs.Job) orchestratorResult {
-	return handleTsSnapshot(job, newTs3QueryClient)
-}
-
-func handleTs6VirtualSnapshot(job jobs.Job) orchestratorResult {
-	return handleTsSnapshot(job, newTs6QueryClient)
-}
-
-func handleTsQueryList(job jobs.Job, builder func(map[string]any) (*ts3QueryClient, error), command, key string) orchestratorResult {
-	client, err := builder(job.Payload)
+		}
+		return nil
+	})
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	defer client.close()
+	return orchestratorResult{status: "success", resultPayload: result}
+}
 
+func handleTs3VirtualBanList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, withTs3Client, "banlist", "bans")
+}
+
+func handleTs6VirtualBanList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, withTs6Client, "banlist", "bans")
+}
+
+func handleTs3VirtualChannelList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, withTs3Client, "channellist", "channels")
+}
+
+func handleTs6VirtualChannelList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, withTs6Client, "channellist", "channels")
+}
+
+func handleTs3VirtualClientList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, withTs3Client, "clientlist", "clients")
+}
+
+func handleTs6VirtualClientList(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, withTs6Client, "clientlist", "clients")
+}
+
+func handleTs3VirtualLogView(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, withTs3Client, "logview", "logs")
+}
+
+func handleTs6VirtualLogView(job jobs.Job) orchestratorResult {
+	return handleTsQueryList(job, withTs6Client, "logview", "logs")
+}
+
+func handleTs3VirtualSnapshot(job jobs.Job) orchestratorResult {
+	return handleTsSnapshot(job, withTs3Client)
+}
+
+func handleTs6VirtualSnapshot(job jobs.Job) orchestratorResult {
+	return handleTsSnapshot(job, withTs6Client)
+}
+
+func handleTsQueryList(job jobs.Job, withClient func(map[string]any, func(*ts3QueryClient) error) error, command, key string) orchestratorResult {
 	sid := payloadValue(job.Payload, "sid")
 	if sid == "" {
 		return orchestratorResult{status: "failed", errorText: "missing sid"}
 	}
 
-	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-
-	lines, err := client.commandLines(command)
+	var lines []string
+	err := withClient(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		var err error
+		lines, err = client.commandLines(command)
+		return err
+	})
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -520,23 +508,24 @@ func handleTsQueryList(job jobs.Job, builder func(map[string]any) (*ts3QueryClie
 	}
 }
 
-func handleTsSnapshot(job jobs.Job, builder func(map[string]any) (*ts3QueryClient, error)) orchestratorResult {
-	client, err := builder(job.Payload)
-	if err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-	defer client.close()
-
+func handleTsSnapshot(job jobs.Job, withClient func(map[string]any, func(*ts3QueryClient) error) error) orchestratorResult {
 	sid := payloadValue(job.Payload, "sid")
 	if sid == "" {
 		return orchestratorResult{status: "failed", errorText: "missing sid"}
 	}
 
-	if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
-
-	response, err := client.command("serversnapshotcreate")
+	var snapshot string
+	err := withClient(job.Payload, func(client *ts3QueryClient) error {
+		if _, err := client.command(fmt.Sprintf("use sid=%s", sid)); err != nil {
+			return err
+		}
+		response, err := client.command("serversnapshotcreate")
+		if err != nil {
+			return err
+		}
+		snapshot = response["snapshot"]
+		return nil
+	})
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -544,7 +533,7 @@ func handleTsSnapshot(job jobs.Job, builder func(map[string]any) (*ts3QueryClien
 	return orchestratorResult{
 		status: "success",
 		resultPayload: map[string]any{
-			"snapshot": response["snapshot"],
+			"snapshot": snapshot,
 		},
 	}
 }

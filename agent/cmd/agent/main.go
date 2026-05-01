@@ -28,14 +28,33 @@ var (
 	date    = "unknown"
 )
 
+// agentExecutablePath is set at startup and used by buildSystemdExecStart so that
+// game server units reference the agent binary itself (via --wrapper) instead of
+// requiring a separately-installed easywi-wrapper binary.
+var agentExecutablePath string
+
+func init() {
+	if path, err := os.Executable(); err == nil {
+		agentExecutablePath = path
+	}
+}
+
 func main() {
 	configPath := flag.String("config", "", "path to agent.conf")
 	selfUpdate := flag.Bool("self-update", false, "perform self-update and restart")
 	showVersion := flag.Bool("version", false, "print agent version and exit")
+	wrapperMode := flag.Bool("wrapper", false, "run as game server console wrapper (internal use)")
+	wrapperInstanceID := flag.String("instance-id", "", "instance ID (wrapper mode)")
+	wrapperSocketPath := flag.String("command-socket", "", "unix socket path (wrapper mode)")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("easywi-agent %s (commit=%s date=%s)\n", version, commit, date)
+		return
+	}
+
+	if *wrapperMode {
+		runWrapper(*wrapperInstanceID, *wrapperSocketPath, flag.Args())
 		return
 	}
 

@@ -189,6 +189,8 @@ final class CustomerInstanceAddonsApiController
             'plugin_version' => $addon->getVersion(),
             'plugin_checksum' => $addon->getChecksum(),
             'plugin_download_url' => $addon->getDownloadUrl(),
+            'plugin_install_mode' => $addon->getInstallMode(),
+            'plugin_extract_subdir' => $addon->getExtractSubdir() ?? '',
         ] + $this->buildCs2MetamodGameInfoPatchPayload($instance, $addon, $action);
 
         $message = new InstanceActionMessage(sprintf('instance.addon.%s', $action), $customer->getId(), $instance->getId(), $payload);

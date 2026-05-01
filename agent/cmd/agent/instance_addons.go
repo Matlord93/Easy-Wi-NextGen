@@ -75,6 +75,11 @@ func handleInstanceAddonInstallUpdate(job jobs.Job, isUpdate bool) (jobs.Result,
 	pluginVersion := payloadValue(job.Payload, "plugin_version")
 	downloadURL := payloadValue(job.Payload, "plugin_download_url", "download_url")
 	checksum := payloadValue(job.Payload, "plugin_checksum", "checksum")
+	extractSubdir := payloadValue(job.Payload, "plugin_extract_subdir")
+	installMode := payloadValue(job.Payload, "plugin_install_mode")
+	if installMode == "" {
+		installMode = "extract"
+	}
 
 	missing := missingValues([]requiredValue{
 		{key: "plugin_id", value: pluginID},
@@ -87,6 +92,17 @@ func handleInstanceAddonInstallUpdate(job jobs.Job, isUpdate bool) (jobs.Result,
 			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
 			Completed: time.Now().UTC(),
 		}, nil
+	}
+
+	// Resolve the destination directory (instanceDir or instanceDir/subdir)
+	destDir := instanceDir
+	if extractSubdir != "" {
+		cleanSubdir := filepath.Clean(extractSubdir)
+		// Reject subdirs that try to escape the instance directory
+		if strings.HasPrefix(cleanSubdir, "..") {
+			return failureResult(job.ID, fmt.Errorf("invalid extract_subdir: %q", extractSubdir))
+		}
+		destDir = filepath.Join(instanceDir, cleanSubdir)
 	}
 
 	if isUpdate {
@@ -119,13 +135,45 @@ func handleInstanceAddonInstallUpdate(job jobs.Job, isUpdate bool) (jobs.Result,
 		}
 	}
 
-	entries, err := listArchiveEntries(archivePath, downloadURL)
-	if err != nil {
-		return failureResult(job.ID, err)
-	}
+	var entries []string
 
-	if err := extractArchiveWithoutStrip(archivePath, downloadURL, instanceDir); err != nil {
-		return failureResult(job.ID, err)
+	if installMode == "copy" {
+		// Copy the downloaded file directly into destDir using the URL basename as filename
+		filename := filepath.Base(downloadURL)
+		if filename == "" || filename == "." || filename == "/" {
+			filename = pluginID + ".jar"
+		}
+		if err := os.MkdirAll(destDir, 0o755); err != nil {
+			return failureResult(job.ID, fmt.Errorf("create addon dest dir: %w", err))
+		}
+		destFile := filepath.Join(destDir, filename)
+		if err := copyAddonFile(archivePath, destFile); err != nil {
+			return failureResult(job.ID, err)
+		}
+		relPath := filename
+		if extractSubdir != "" {
+			relPath = filepath.Join(filepath.Clean(extractSubdir), filename)
+		}
+		entries = []string{relPath}
+	} else {
+		entries, err = listArchiveEntries(archivePath, downloadURL)
+		if err != nil {
+			return failureResult(job.ID, err)
+		}
+
+		if err := extractArchiveWithoutStrip(archivePath, downloadURL, destDir); err != nil {
+			return failureResult(job.ID, err)
+		}
+
+		// Prefix entries with extractSubdir so manifests reflect actual paths from instanceDir
+		if extractSubdir != "" {
+			cleanSubdir := filepath.Clean(extractSubdir)
+			prefixed := make([]string, len(entries))
+			for i, e := range entries {
+				prefixed[i] = filepath.Join(cleanSubdir, e)
+			}
+			entries = prefixed
+		}
 	}
 
 	if err := chownAddonEntries(instanceDir, job.Payload, entries); err != nil {
@@ -222,6 +270,10 @@ func listArchiveEntries(archivePath, downloadURL string) ([]string, error) {
 
 func verifyChecksum(path, expected string) (err error) {
 	normalized := strings.ToLower(strings.TrimSpace(expected))
+	// Strip algorithm prefix (e.g. "sha256:", "sha1:", "md5:")
+	if idx := strings.Index(normalized, ":"); idx != -1 {
+		normalized = normalized[idx+1:]
+	}
 	var algo string
 	switch len(normalized) {
 	case 32:
@@ -311,6 +363,31 @@ func removeAddonEntries(instanceDir string, entries []string) error {
 				return fmt.Errorf("remove addon dir %s: %w", dir, err)
 			}
 		}
+	}
+	return nil
+}
+
+func copyAddonFile(src, dst string) (err error) {
+	in, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open addon source: %w", err)
+	}
+	defer func() {
+		if closeErr := in.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close addon source: %w", closeErr)
+		}
+	}()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("create addon dest: %w", err)
+	}
+	defer func() {
+		if closeErr := out.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("close addon dest: %w", closeErr)
+		}
+	}()
+	if _, err := io.Copy(out, in); err != nil {
+		return fmt.Errorf("copy addon file: %w", err)
 	}
 	return nil
 }
