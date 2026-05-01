@@ -64,6 +64,9 @@ jobs:
             exit 1
           fi
 
+      - name: Clear Go build cache
+        run: go clean -cache
+
       - name: Go test
         run: go test ./...
 

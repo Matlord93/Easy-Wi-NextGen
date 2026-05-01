@@ -1298,9 +1298,9 @@ func handleTs6InstanceCreate(job jobs.Job) orchestratorResult {
 	diagnostics["instance_dir"] = instanceDir
 
 	return orchestratorResult{status: "success", resultPayload: map[string]any{
-		"service_name":  serviceName,
-		"instance_dir":  instanceDir,
-		"running":       true,
+		"service_name": serviceName,
+		"instance_dir": instanceDir,
+		"running":      true,
 	}}
 }
 

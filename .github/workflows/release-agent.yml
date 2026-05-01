@@ -47,11 +47,11 @@ jobs:
           cache: true
           cache-dependency-path: agent/go.sum
 
-      - name: Build agent binaries
+      - name: Build agent + wrapper binaries
         run: |
           mkdir -p ../dist
-          targets=("linux amd64" "linux arm64" "windows amd64")
-          for target in "${targets[@]}"; do
+          agent_targets=("linux amd64" "linux arm64" "windows amd64")
+          for target in "${agent_targets[@]}"; do
             read -r goos goarch <<<"$target"
             out="../dist/easywi-agent-${goos}-${goarch}"
             [[ "$goos" == "windows" ]] && out+=".exe"
@@ -62,10 +62,17 @@ jobs:
               -o "$out" ./cmd/agent
           done
 
+          wrapper_targets=("linux amd64" "linux arm64")
+          for target in "${wrapper_targets[@]}"; do
+            read -r goos goarch <<<"$target"
+            out="../dist/easywi-wrapper-${goos}-${goarch}"
+            GOOS="$goos" GOARCH="$goarch" go build -trimpath -ldflags="-s -w" -o "$out" ./cmd/easywi-wrapper
+          done
+
       - name: Package artifacts
         run: |
           cd ../dist
-          for bin in easywi-agent-linux-amd64 easywi-agent-linux-arm64; do
+          for bin in easywi-agent-linux-amd64 easywi-agent-linux-arm64 easywi-wrapper-linux-amd64 easywi-wrapper-linux-arm64; do
             tar -czf "$bin.tar.gz" "$bin"
             zip -q "$bin.zip" "$bin"
           done
@@ -80,7 +87,7 @@ jobs:
             "version": "${{ steps.version.outputs.version }}",
             "commit": "${{ github.sha }}",
             "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "artifacts": ["easywi-agent-linux-amd64.tar.gz","easywi-agent-linux-amd64.zip","easywi-agent-linux-arm64.tar.gz","easywi-agent-linux-arm64.zip","easywi-agent-windows-amd64.zip"]
+            "artifacts": ["easywi-agent-linux-amd64.tar.gz","easywi-agent-linux-amd64.zip","easywi-agent-linux-arm64.tar.gz","easywi-agent-linux-arm64.zip","easywi-agent-windows-amd64.zip","easywi-wrapper-linux-amd64.tar.gz","easywi-wrapper-linux-amd64.zip","easywi-wrapper-linux-arm64.tar.gz","easywi-wrapper-linux-arm64.zip"]
           }
           JSON
 
@@ -94,13 +101,15 @@ jobs:
           gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}"             --armor --detach-sign --output ../dist/checksums.sha256.asc ../dist/checksums.sha256
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Agent ${{ steps.version.outputs.version }}
           files: |
             dist/easywi-agent-*.zip
             dist/easywi-agent-*.tar.gz
+            dist/easywi-wrapper-*.zip
+            dist/easywi-wrapper-*.tar.gz
             dist/checksums.sha256
             dist/checksums.sha256.asc
             dist/manifest.json

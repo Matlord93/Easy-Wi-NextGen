@@ -102,11 +102,11 @@ func (a *PleskAdapter) domainCreate(ctx context.Context, payload map[string]any)
 		return nil, &StandardizedError{Code: ErrValidationFailed, Message: "domain name is required"}
 	}
 	body := map[string]any{
-		"name":                     name,
-		"hosting_type":             "virtual",
-		"php_handler_id":           "fpm",
-		"base_domain_name":         name,
-		"hosting_settings":         map[string]any{},
+		"name":             name,
+		"hosting_type":     "virtual",
+		"php_handler_id":   "fpm",
+		"base_domain_name": name,
+		"hosting_settings": map[string]any{},
 	}
 	resp, err := a.post(ctx, "/api/v2/domains", body)
 	if err != nil {

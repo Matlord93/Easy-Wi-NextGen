@@ -154,9 +154,9 @@ func (a *ISPConfigAdapter) call(ctx context.Context, method string, params map[s
 
 func (a *ISPConfigAdapter) rpc(ctx context.Context, method string, params map[string]any) (map[string]any, *StandardizedError) {
 	reqBody := map[string]any{
-		"method":  method,
-		"params":  params,
-		"id":      1,
+		"method": method,
+		"params": params,
+		"id":     1,
 	}
 
 	b, err := json.Marshal(reqBody)

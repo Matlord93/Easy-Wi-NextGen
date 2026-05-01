@@ -122,7 +122,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         }
 
         try {
-            rreturn rtrim($this->endpointResolver->resolveForAgent($node)->getBaseUrl(), '/');
+            return rtrim($this->endpointResolver->resolveForAgent($node)->getBaseUrl(), '/');
         } catch (AgentConfigurationException) {
             throw new NodeEndpointMissingException('node_endpoint_missing');
         }

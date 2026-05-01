@@ -1,7 +1,7 @@
-# Compiled binaries
-agent
-panel-agent
-gamesvc
+# Compiled binaries (anchored to root so cmd/agent/ is not accidentally ignored)
+/agent
+/panel-agent
+/gamesvc
 *.exe
 
 # Test binaries

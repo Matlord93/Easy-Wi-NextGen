@@ -63,6 +63,9 @@ jobs:
           cache: true
           cache-dependency-path: agent/go.sum
 
+      - name: Clear Go build cache
+        run: go clean -cache
+
       - name: Go test
         run: go test ./...
 
@@ -151,7 +154,7 @@ jobs:
           done
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/easywi-agent*
