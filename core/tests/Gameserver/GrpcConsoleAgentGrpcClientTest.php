@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Gameserver;
 
+use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Gameserver\Application\Console\NodeEndpointMissingException;
@@ -20,10 +21,11 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
             $this->createMock(InstanceRepository::class),
             $this->createMock(HttpClientInterface::class),
             $this->createMock(SecretsCrypto::class),
+            new AgentEndpointResolver(),
         );
 
         $agent = new Agent('agent-1', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
-        $agent->setMetadata(['gamesvc_url' => 'https://node.example.test:9443']);
+        $agent->setMetadata(['grpc_endpoint' => 'https://node.example.test:9443']);
 
         self::assertSame('https://node.example.test:9443', $this->resolveEndpoint($client, $agent));
     }
@@ -34,6 +36,7 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
             $this->createMock(InstanceRepository::class),
             $this->createMock(HttpClientInterface::class),
             $this->createMock(SecretsCrypto::class),
+            new AgentEndpointResolver(),
         );
 
         $agent = new Agent('agent-1', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
@@ -48,6 +51,7 @@ final class GrpcConsoleAgentGrpcClientTest extends TestCase
             $this->createMock(InstanceRepository::class),
             $this->createMock(HttpClientInterface::class),
             $this->createMock(SecretsCrypto::class),
+            new AgentEndpointResolver(),
         );
 
         $agent = new Agent('agent-1', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);

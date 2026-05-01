@@ -16,6 +16,10 @@ final class Version20260429120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        if (!$schema->hasTable('instances')) {
+            return;
+        }
+
         $table = $schema->getTable('instances');
         if (!$table->hasColumn('watchdog_enabled')) {
             $this->addSql("ALTER TABLE instances ADD watchdog_enabled TINYINT(1) NOT NULL DEFAULT 0");
@@ -24,9 +28,14 @@ final class Version20260429120000 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
+        if (!$schema->hasTable('instances')) {
+            return;
+        }
+
         $table = $schema->getTable('instances');
         if ($table->hasColumn('watchdog_enabled')) {
             $this->addSql("ALTER TABLE instances DROP COLUMN watchdog_enabled");
         }
     }
 }
+
