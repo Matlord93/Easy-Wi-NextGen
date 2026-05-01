@@ -26,7 +26,7 @@ final class ConsoleStreamDiagnostics
             'redis_ping_ok' => $this->redisPingOk(),
             'relay_required' => $relayRequired,
             'relay_heartbeat_age_seconds' => $heartbeatAge,
-            'relay_stale' => $relayRequired && ($heartbeatAge === null || $heartbeatAge > $this->relayStaleAfterSeconds),
+            'relay_stale' => $heartbeatAge === null || $heartbeatAge > $this->relayStaleAfterSeconds,
             'sample_node_endpoint_present' => $this->sampleNodeEndpointPresent(),
         ];
     }
