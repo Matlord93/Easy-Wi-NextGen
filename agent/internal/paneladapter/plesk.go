@@ -224,7 +224,7 @@ func (a *PleskAdapter) do(ctx context.Context, method, path string, body map[str
 	if err != nil {
 		return nil, &StandardizedError{Code: ErrAdapterUnavailable, Message: "plesk request failed: " + err.Error(), Retryable: true}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rawBody, _ := io.ReadAll(resp.Body)
 

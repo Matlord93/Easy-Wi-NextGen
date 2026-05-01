@@ -175,7 +175,7 @@ func (a *ISPConfigAdapter) rpc(ctx context.Context, method string, params map[st
 	if err != nil {
 		return nil, &StandardizedError{Code: ErrAdapterUnavailable, Message: "ISPConfig request failed: " + err.Error(), Retryable: true}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rawBody, _ := io.ReadAll(resp.Body)
 
