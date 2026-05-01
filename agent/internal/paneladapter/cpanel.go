@@ -156,7 +156,7 @@ func (a *CPanelAdapter) uapi(ctx context.Context, module, function string, param
 	if err != nil {
 		return nil, &StandardizedError{Code: ErrAdapterUnavailable, Message: "cPanel request failed: " + err.Error(), Retryable: true}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rawBody, _ := io.ReadAll(resp.Body)
 

@@ -473,13 +473,6 @@ func upsertConfigValue(path, key, value string) error {
 	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), instanceFileMode)
 }
 
-func appendShellKeyValueArg(command, key, value string) string {
-	if strings.TrimSpace(value) == "" {
-		return command
-	}
-	return fmt.Sprintf("%s %s=%s", command, key, quotePOSIXShellArg(value))
-}
-
 func quotePOSIXShellArg(value string) string {
 	replacer := strings.NewReplacer("\\", "\\\\", `"`, `\"`, "$", `\$`, "`", "\\`")
 	return `"` + replacer.Replace(value) + `"`

@@ -150,11 +150,9 @@ func (a *AAPanelAdapter) api(ctx context.Context, path string, extraParams url.V
 	params := url.Values{}
 	params.Set("request_time", timestamp)
 	params.Set("request_token", sign)
-	if extraParams != nil {
-		for k, vs := range extraParams {
-			for _, v := range vs {
-				params.Set(k, v)
-			}
+	for k, vs := range extraParams {
+		for _, v := range vs {
+			params.Set(k, v)
 		}
 	}
 
@@ -196,7 +194,7 @@ func (a *AAPanelAdapter) doRequest(req *http.Request) (map[string]any, *Standard
 	if err != nil {
 		return nil, &StandardizedError{Code: ErrAdapterUnavailable, Message: "aaPanel request failed: " + err.Error(), Retryable: true}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rawBody, _ := io.ReadAll(resp.Body)
 

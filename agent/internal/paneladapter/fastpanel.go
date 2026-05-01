@@ -140,7 +140,7 @@ func (a *FastPanelAdapter) ensureToken(ctx context.Context) *StandardizedError {
 	if err != nil {
 		return &StandardizedError{Code: ErrAdapterUnavailable, Message: "FastPanel auth request failed: " + err.Error(), Retryable: true}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rawBody, _ := io.ReadAll(resp.Body)
 
@@ -196,7 +196,7 @@ func (a *FastPanelAdapter) do(ctx context.Context, method, path string, body map
 	if err != nil {
 		return nil, &StandardizedError{Code: ErrAdapterUnavailable, Message: "FastPanel request failed: " + err.Error(), Retryable: true}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	rawBody, _ := io.ReadAll(resp.Body)
 
