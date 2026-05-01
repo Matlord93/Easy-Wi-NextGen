@@ -22,6 +22,11 @@ final class MailDomainRepository extends ServiceEntityRepository
         return $this->findOneBy(['domain' => $domain]);
     }
 
+    public function findOneByDomainName(string $domainName): ?MailDomain
+    {
+        return $this->findOneBy(['domainName' => MailDomain::normalizeDomainName($domainName)]);
+    }
+
     public function findOneForOwnerByDomainName(User $owner, string $domainName): ?MailDomain
     {
         return $this->findOneBy([

@@ -19,8 +19,10 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/webspace')]
+#[RequiresModule('web')]
 final class CustomerWebspaceController
 {
     public function __construct(
@@ -74,7 +76,7 @@ final class CustomerWebspaceController
 
         $webspaceDomains = [];
         if ($webspace !== null) {
-            $webspaceDomains = array_filter($domains, static fn (Domain $domain): bool => $domain->getWebspace()->getId() === $webspace->getId());
+            $webspaceDomains = array_filter($domains, static fn (Domain $domain): bool => $domain->getWebspace()?->getId() === $webspace->getId());
         }
 
         return new Response($this->twig->render('customer/webspace/manage.html.twig', [
@@ -98,7 +100,7 @@ final class CustomerWebspaceController
         }
 
         $webspace = $domain->getWebspace();
-        if ($webspace->getCustomer()->getId() !== $customer->getId()) {
+        if ($webspace === null || $webspace->getCustomer()->getId() !== $customer->getId()) {
             return new Response('Webspace not found.', Response::HTTP_NOT_FOUND);
         }
 
@@ -147,7 +149,7 @@ final class CustomerWebspaceController
         $job = $this->queueDomainUpdateJob($domain);
         $this->auditLogger->log($customer, 'domain.subdomain_added', [
             'domain_id' => $domain->getId(),
-            'webspace_id' => $domain->getWebspace()->getId(),
+            'webspace_id' => $domain->getWebspace()?->getId(),
             'aliases' => $aliases,
             'job_id' => $job->getId(),
         ]);
@@ -184,7 +186,7 @@ final class CustomerWebspaceController
         $job = $this->queueDomainUpdateJob($domain);
         $this->auditLogger->log($customer, 'domain.subdomain_removed', [
             'domain_id' => $domain->getId(),
-            'webspace_id' => $domain->getWebspace()->getId(),
+            'webspace_id' => $domain->getWebspace()?->getId(),
             'alias' => $alias,
             'job_id' => $job->getId(),
         ]);
@@ -390,11 +392,16 @@ final class CustomerWebspaceController
 
         $aliases = trim((string) $request->request->get('server_aliases', ''));
         $email = trim((string) $request->request->get('email', ''));
+        $webspace = $domain->getWebspace();
+        if ($webspace === null) {
+            return new Response('Domain has no webspace.', Response::HTTP_CONFLICT);
+        }
+
         $job = new Job('domain.ssl.issue', [
-            'agent_id' => $domain->getWebspace()->getNode()->getId(),
+            'agent_id' => $webspace->getNode()->getId(),
             'domain_id' => $domain->getId(),
             'domain' => $domain->getName(),
-            'web_root' => $domain->getWebspace()->getDocroot(),
+            'web_root' => $webspace->getDocroot(),
             'server_aliases' => $aliases,
             'email' => $email,
         ]);
@@ -518,7 +525,7 @@ final class CustomerWebspaceController
                 'name' => $domain->getName(),
                 'status' => $domain->getStatus(),
                 'server_aliases' => $domain->getServerAliases(),
-                'webspace_id' => $domain->getWebspace()->getId(),
+                'webspace_id' => $domain->getWebspace()?->getId(),
             ];
         }, $domains);
     }
@@ -610,6 +617,9 @@ final class CustomerWebspaceController
     private function queueDomainUpdateJob(Domain $domain): Job
     {
         $webspace = $domain->getWebspace();
+        if ($webspace === null) {
+            throw new \LogicException('Domain has no associated webspace.');
+        }
 
         $payload = [
             'agent_id' => $webspace->getNode()->getId(),

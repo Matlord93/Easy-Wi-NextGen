@@ -9,7 +9,10 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
 
 #[Route(path: '/admin/modules')]
@@ -19,6 +22,7 @@ final class AdminModuleController
         private readonly ModuleRegistry $moduleRegistry,
         private readonly EntityManagerInterface $entityManager,
         private readonly Environment $twig,
+        private readonly CsrfTokenManagerInterface $csrfTokenManager,
     ) {
     }
 
@@ -42,6 +46,11 @@ final class AdminModuleController
         $actor = $request->attributes->get('current_user');
         if (!$actor instanceof \App\Module\Core\Domain\Entity\User || !$actor->isAdmin()) {
             return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $token = new CsrfToken('module_toggle_' . $key, (string) $request->request->get('_token'));
+        if (!$this->csrfTokenManager->isTokenValid($token)) {
+            throw new BadRequestHttpException('Invalid CSRF token.');
         }
 
         $enabled = filter_var($request->request->get('enabled', 'false'), FILTER_VALIDATE_BOOL);

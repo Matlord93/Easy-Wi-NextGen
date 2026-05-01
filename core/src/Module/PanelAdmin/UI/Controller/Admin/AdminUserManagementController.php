@@ -92,7 +92,7 @@ final class AdminUserManagementController
             ]), Response::HTTP_BAD_REQUEST);
         }
 
-        $type = UserType::from($typeValue);
+        $type = UserType::tryFrom($typeValue) ?? UserType::Customer;
         $user = new User($email, $type);
         if ($type === UserType::Customer) {
             $user->setDatabaseLimit((int) $databaseLimitValue);
@@ -151,7 +151,7 @@ final class AdminUserManagementController
         if ($email !== '') {
             $user->setEmail($email);
         }
-        $newType = UserType::from($typeValue);
+        $newType = UserType::tryFrom($typeValue) ?? UserType::Customer;
         $user->setType($newType);
         if ($newType === UserType::Customer) {
             $user->setDatabaseLimit((int) $databaseLimitValue);

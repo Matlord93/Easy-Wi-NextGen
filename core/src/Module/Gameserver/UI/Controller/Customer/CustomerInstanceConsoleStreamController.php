@@ -14,8 +14,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/instances')]
+#[RequiresModule('game')]
 final class CustomerInstanceConsoleStreamController
 {
     public function __construct(

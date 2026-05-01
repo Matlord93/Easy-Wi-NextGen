@@ -79,6 +79,7 @@ class AppSettingsService implements ConsoleCommandSettings
     public const KEY_METRICS_INSTANCE_RETENTION_DAYS = 'metrics_instance_retention_days';
     public const KEY_VOICE_PROBE_CACHE_SECONDS = 'voice_probe_cache_seconds';
     public const KEY_VOICE_PROBE_COOLDOWN_SECONDS = 'voice_probe_cooldown_seconds';
+    public const KEY_SECURITY_MAX_CONCURRENT_SESSIONS = 'security_max_concurrent_sessions';
 
     private const DEFAULT_INVOICE_LAYOUT = <<<'TWIG'
 <div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
@@ -192,6 +193,7 @@ TWIG;
         self::KEY_METRICS_INSTANCE_RETENTION_DAYS => 30,
         self::KEY_VOICE_PROBE_CACHE_SECONDS => 45,
         self::KEY_VOICE_PROBE_COOLDOWN_SECONDS => 10,
+        self::KEY_SECURITY_MAX_CONCURRENT_SESSIONS => 5,
     ];
 
     private const SECRET_KEYS = [
@@ -673,6 +675,14 @@ TWIG;
         return is_numeric($value) ? max(15, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_SESSION_ABSOLUTE_MINUTES];
     }
 
+    public function getMaxConcurrentSessions(): int
+    {
+        $settings = $this->getSettings();
+        $value = $settings[self::KEY_SECURITY_MAX_CONCURRENT_SESSIONS] ?? self::DEFAULTS[self::KEY_SECURITY_MAX_CONCURRENT_SESSIONS];
+
+        return is_numeric($value) ? max(0, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_MAX_CONCURRENT_SESSIONS];
+    }
+
     /**
      * @param array<string, mixed> $settings
      *
@@ -768,6 +778,10 @@ TWIG;
                 self::KEY_VOICE_PROBE_COOLDOWN_SECONDS,
             ], true)) {
                 $value = is_numeric($value) ? max(1, (int) $value) : self::DEFAULTS[$key];
+            }
+
+            if ($key === self::KEY_SECURITY_MAX_CONCURRENT_SESSIONS) {
+                $value = is_numeric($value) ? max(0, (int) $value) : self::DEFAULTS[self::KEY_SECURITY_MAX_CONCURRENT_SESSIONS];
             }
 
             $normalized[$key] = $value;

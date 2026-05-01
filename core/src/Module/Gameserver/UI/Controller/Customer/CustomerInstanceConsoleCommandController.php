@@ -24,8 +24,10 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/instances')]
+#[RequiresModule('game')]
 final class CustomerInstanceConsoleCommandController
 {
     public function __construct(

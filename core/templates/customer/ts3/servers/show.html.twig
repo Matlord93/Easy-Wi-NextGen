@@ -398,6 +398,10 @@
                                 setTimeout(execute, delayMs);
                                 return;
                             }
+                            if (data.status === 'pending') {
+                                onError('Server antwortet nicht. Bitte Seite neu laden.');
+                                return;
+                            }
                             if (data.status === 'error') {
                                 onError(data.message, data.action_id);
                                 return;

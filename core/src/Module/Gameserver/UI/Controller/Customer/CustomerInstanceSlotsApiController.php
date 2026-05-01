@@ -18,7 +18,9 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use App\Module\Core\Attribute\RequiresModule;
 
+#[RequiresModule('game')]
 final class CustomerInstanceSlotsApiController
 {
     public function __construct(

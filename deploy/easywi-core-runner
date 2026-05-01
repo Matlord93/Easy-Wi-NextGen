@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+JOB_ID=""
+CORE_DIR="${EASYWI_CORE_DIR:-/var/www/easywi/core}"
+LOCK_FILE="${EASYWI_CORE_LOCK_FILE:-$CORE_DIR/srv/update/lock}"
+JOBS_DIR="${EASYWI_CORE_JOBS_DIR:-$CORE_DIR/srv/update/jobs}"
+LOGS_DIR="${EASYWI_CORE_LOGS_DIR:-$CORE_DIR/srv/update/logs}"
+BACKUPS_DIR="${EASYWI_CORE_BACKUPS_DIR:-$CORE_DIR/srv/update/backups}"
+EXCLUDES=(
+  ".env"
+  "config/local*"
+  "var/"
+  "srv/"
+  "storage/"
+  "uploads/"
+)
+
+usage() {
+  echo "Usage: $0 --run-job <job-id>" >&2
+  exit 2
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --run-job)
+      JOB_ID="${2:-}"
+      shift 2
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+if [[ -z "$JOB_ID" ]]; then
+  usage
+fi
+
+JOB_FILE="$JOBS_DIR/$JOB_ID.json"
+if [[ ! -f "$JOB_FILE" ]]; then
+  echo "Job not found: $JOB_FILE" >&2
+  exit 1
+fi
+
+mkdir -p "$LOGS_DIR" "$BACKUPS_DIR"
+LOG_PATH=$(php -r 'echo json_decode(file_get_contents($argv[1]), true)["logPath"] ?? "";' "$JOB_FILE")
+if [[ -z "$LOG_PATH" ]]; then
+  LOG_PATH="$LOGS_DIR/$JOB_ID.log"
+fi
+
+log() {
+  printf '[%s] %s\n' "$(date --iso-8601=seconds)" "$1" | tee -a "$LOG_PATH"
+}
+
+update_job() {
+  local status="$1"
+  local exit_code="${2:-}"
+  php -r '
+    $path = $argv[1];
+    $status = $argv[2];
+    $exitCode = $argv[3] !== "" ? (int) $argv[3] : null;
+    $data = json_decode(file_get_contents($path), true);
+    if (!is_array($data)) { exit(1); }
+    $data["status"] = $status;
+    if ($status === "running" && empty($data["startedAt"])) {
+        $data["startedAt"] = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+    }
+    if (in_array($status, ["failed", "finished"], true)) {
+        $data["finishedAt"] = (new DateTimeImmutable())->format(DateTimeInterface::ATOM);
+        $data["exitCode"] = $exitCode;
+    }
+    file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+  ' "$JOB_FILE" "$status" "${exit_code:-}"
+}
+
+read_job_field() {
+  local field="$1"
+  php -r 'echo json_decode(file_get_contents($argv[1]), true)[$argv[2]] ?? "";' "$JOB_FILE" "$field"
+}
+
+read_job_payload_field() {
+  local field="$1"
+  php -r '
+    $data = json_decode(file_get_contents($argv[1]), true);
+    echo is_array($data) && isset($data["payload"]) ? ($data["payload"][$argv[2]] ?? "") : "";
+  ' "$JOB_FILE" "$field"
+}
+
+download_package() {
+  local url="$1"
+  local dest="$2"
+  if [[ -z "$url" ]]; then
+    return 1
+  fi
+  log "Downloading update package."
+  curl -fsSL "$url" -o "$dest"
+}
+
+extract_package() {
+  local archive="$1"
+  local target="$2"
+  mkdir -p "$target"
+  case "$archive" in
+    *.zip)
+      unzip -q "$archive" -d "$target"
+      ;;
+    *.tar.gz|*.tgz)
+      tar -xzf "$archive" -C "$target"
+      ;;
+    *.tar)
+      tar -xf "$archive" -C "$target"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+perform_backup() {
+  local backup_path="$BACKUPS_DIR/$(date +%Y%m%d%H%M%S)"
+  mkdir -p "$backup_path"
+  log "Creating backup at $backup_path."
+  local rsync_excludes=()
+  for item in "${EXCLUDES[@]}"; do
+    rsync_excludes+=(--exclude "$item")
+  done
+  rsync -a --delete "${rsync_excludes[@]}" "$CORE_DIR/" "$backup_path/"
+  php -r '
+    $path = $argv[1];
+    $data = json_decode(file_get_contents($path), true);
+    $data["payload"]["backup_path"] = $argv[2];
+    file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+  ' "$JOB_FILE" "$backup_path"
+}
+
+perform_update() {
+  local package_url
+  package_url="$(read_job_payload_field package_url)"
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  local archive="$tmp_dir/package"
+  if ! download_package "$package_url" "$archive"; then
+    log "Missing package URL."
+    return 1
+  fi
+  local extract_dir="$tmp_dir/extract"
+  if ! extract_package "$archive" "$extract_dir"; then
+    log "Failed to extract archive."
+    return 1
+  fi
+  local root_dir
+  root_dir="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  if [[ -z "$root_dir" ]]; then
+    root_dir="$extract_dir"
+  fi
+  local rsync_excludes=()
+  for item in "${EXCLUDES[@]}"; do
+    rsync_excludes+=(--exclude "$item")
+  done
+  log "Deploying core update to $CORE_DIR."
+  rsync -a --delete "${rsync_excludes[@]}" "$root_dir/" "$CORE_DIR/"
+  log "Running composer install."
+  (cd "$CORE_DIR" && composer install --no-dev --no-interaction --optimize-autoloader)
+  log "Clearing cache."
+  (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
+  log "Warming cache."
+  (cd "$CORE_DIR" && php bin/console cache:warmup --env=prod)
+}
+
+perform_migrate() {
+  log "Running migrations."
+  (cd "$CORE_DIR" && php bin/console doctrine:migrations:migrate --no-interaction)
+  log "Clearing cache."
+  (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
+}
+
+perform_rollback() {
+  local backup_path
+  backup_path="$(read_job_payload_field backup_path)"
+  if [[ -z "$backup_path" ]]; then
+    backup_path="$(ls -1 "$BACKUPS_DIR" | tail -n 1)"
+    backup_path="$BACKUPS_DIR/$backup_path"
+  fi
+  if [[ ! -d "$backup_path" ]]; then
+    log "Backup not found."
+    return 1
+  fi
+  local rsync_excludes=()
+  for item in "${EXCLUDES[@]}"; do
+    rsync_excludes+=(--exclude "$item")
+  done
+  log "Restoring backup from $backup_path."
+  rsync -a --delete "${rsync_excludes[@]}" "$backup_path/" "$CORE_DIR/"
+  log "Clearing cache."
+  (cd "$CORE_DIR" && php bin/console cache:clear --env=prod)
+}
+
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  log "Another update job is running."
+  exit 1
+fi
+
+update_job "running"
+TYPE="$(read_job_field type)"
+EXIT_CODE=0
+
+log "Starting job $JOB_ID ($TYPE)."
+if [[ "$TYPE" == "update" ]]; then
+  perform_backup
+  perform_update || EXIT_CODE=$?
+elif [[ "$TYPE" == "migrate" ]]; then
+  perform_migrate || EXIT_CODE=$?
+elif [[ "$TYPE" == "both" ]]; then
+  perform_backup
+  perform_update || EXIT_CODE=$?
+  if [[ "$EXIT_CODE" -eq 0 ]]; then
+    perform_migrate || EXIT_CODE=$?
+  fi
+elif [[ "$TYPE" == "rollback" ]]; then
+  perform_rollback || EXIT_CODE=$?
+else
+  log "Unknown job type."
+  EXIT_CODE=2
+fi
+
+if [[ "$EXIT_CODE" -eq 0 ]]; then
+  update_job "finished" "0"
+  log "Job finished successfully."
+else
+  update_job "failed" "$EXIT_CODE"
+  log "Job failed with exit code $EXIT_CODE."
+fi
+
+exit "$EXIT_CODE"

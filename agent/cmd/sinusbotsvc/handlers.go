@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -471,7 +472,9 @@ func decodeJSONBytes(data []byte, out interface{}) error {
 func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("sinusbotsvc: write json response: %v", err)
+	}
 }
 
 func respondError(w http.ResponseWriter, status int, code, message string) {

@@ -102,17 +102,6 @@ final class SinusbotNodeService
         $this->entityManager->flush();
     }
 
-    private function applyDependencyStatus(SinusbotNode $node, mixed $dependencies): void
-    {
-        if (!is_array($dependencies)) {
-            return;
-        }
-
-        $node->setTs3ClientInstalled((bool) ($dependencies['ts3_client_installed'] ?? $node->isTs3ClientInstalled()));
-        $node->setTs3ClientVersion($this->stringOrNull($dependencies['ts3_client_version'] ?? null));
-        $node->setTs3ClientPath($this->stringOrNull($dependencies['ts3_client_path'] ?? null));
-    }
-
     private function stringOrNull(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;

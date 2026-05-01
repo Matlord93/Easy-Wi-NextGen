@@ -247,7 +247,7 @@ final class DbConfigProvider
             throw new \RuntimeException('Unable to persist database configuration file.');
         }
 
-        @chmod($path, 0755);
+        @chmod($path, 0600);
     }
 
     private function isPathWritable(string $path): bool

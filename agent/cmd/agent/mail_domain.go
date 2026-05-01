@@ -119,3 +119,57 @@ func parseDKIMTXT(raw string) string {
 	}
 	return strings.TrimSpace(builder.String())
 }
+
+// handleMailDkimRotate regenerates DKIM keys for an existing domain.
+func handleMailDkimRotate(job jobs.Job) (jobs.Result, func() error) {
+	if out, ok := mailBackendGuard(job); !ok {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+
+	domainName := payloadValue(job.Payload, "domain", "name", "hostname")
+	dkimSelector := payloadValue(job.Payload, "selector", "dkim_selector")
+	dkimDir := payloadValue(job.Payload, "dkim_dir", "dkim_path", "dkim_directory")
+
+	if dkimSelector == "" {
+		dkimSelector = "default"
+	}
+	if dkimDir == "" && domainName != "" {
+		dkimDir = filepath.Join("/etc/opendkim/keys", domainName)
+	}
+
+	missing := missingValues([]requiredValue{
+		{key: "domain", value: domainName},
+	})
+	if len(missing) > 0 {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	if err := ensureDirWithMode(dkimDir, mailDomainDirMode); err != nil {
+		return failureResult(job.ID, err)
+	}
+
+	txtValue, err := generateDKIMKeys(dkimDir, domainName, dkimSelector)
+	if err != nil {
+		return failureResult(job.ID, err)
+	}
+
+	recordName := fmt.Sprintf("%s._domainkey.%s", dkimSelector, strings.TrimSuffix(domainName, "."))
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"domain":           domainName,
+			"dkim_dir":         dkimDir,
+			"dkim_selector":    dkimSelector,
+			"dkim_record_name": recordName,
+			"dkim_txt":         txtValue,
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}

@@ -57,7 +57,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-webinterface}
       POSTGRES_USER: ${DB_USER:-webinterface}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in deploy/shared/env/stage.env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-replace-with-stage-secret}
     volumes:
       - stage_db_data:/var/lib/postgresql/data
     healthcheck:
@@ -76,9 +76,9 @@ services:
       - ../../shared/env/stage.env
     ports:
       - "${QUEUE_PORT:-16379}:6379"
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${QUEUE_PASSWORD:?Set QUEUE_PASSWORD in deploy/shared/env/stage.env}"]
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${QUEUE_PASSWORD:-replace-with-stage-secret}"]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a ${QUEUE_PASSWORD} ping | grep -q PONG"]
+      test: ["CMD-SHELL", "redis-cli -a ${QUEUE_PASSWORD:-replace-with-stage-secret} ping | grep -q PONG"]
       interval: 15s
       timeout: 3s
       retries: 5

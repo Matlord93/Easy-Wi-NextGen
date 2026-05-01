@@ -26,8 +26,10 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/mail')]
+#[RequiresModule('mail')]
 final class CustomerMailController
 {
     private const DEFAULT_IMAP_PORT = 993;
@@ -545,7 +547,7 @@ final class CustomerMailController
             'local_part' => $mailbox->getLocalPart(),
             'address' => $mailbox->getAddress(),
             'customer_id' => (string) $mailbox->getCustomer()->getId(),
-            'agent_id' => $domain->getWebspace()->getNode()->getId(),
+            'agent_id' => $domain->getWebspace()?->getNode()?->getId() ?? '',
         ], $extraPayload);
 
         $job = new Job($type, $payload);
@@ -575,7 +577,7 @@ final class CustomerMailController
             'local_part' => $alias->getLocalPart(),
             'address' => $alias->getAddress(),
             'customer_id' => (string) $alias->getCustomer()->getId(),
-            'agent_id' => $domain->getWebspace()->getNode()->getId(),
+            'agent_id' => $domain->getWebspace()?->getNode()?->getId() ?? '',
         ], $extraPayload);
 
         $job = new Job($type, $payload);
@@ -710,7 +712,11 @@ final class CustomerMailController
         $settings = [];
 
         foreach ($domains as $domain) {
-            $node = $domain->getWebspace()->getNode();
+            $webspace = $domain->getWebspace();
+            if ($webspace === null) {
+                continue;
+            }
+            $node = $webspace->getNode();
             $metadata = $node->getMetadata();
             $metadata = is_array($metadata) ? $metadata : [];
             $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);

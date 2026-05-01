@@ -130,7 +130,11 @@ final class MailboxApiController
             return null;
         }
 
-        $node = $mailbox->getDomain()->getWebspace()->getNode();
+        $webspace = $mailbox->getDomain()->getWebspace();
+        if ($webspace === null) {
+            return null;
+        }
+        $node = $webspace->getNode();
         $firewallJob = new Job('firewall.open_ports', [
             'agent_id' => $node->getId(),
             'mailbox_id' => (string) $mailbox->getId(),
@@ -413,6 +417,8 @@ final class MailboxApiController
     private function queueMailboxJob(string $type, Mailbox $mailbox, array $extraPayload): Job
     {
         $domain = $mailbox->getDomain();
+        $webspace = $domain->getWebspace();
+        $agentId = $webspace !== null ? (string) $webspace->getNode()->getId() : null;
         $payload = array_merge([
             'mailbox_id' => (string) ($mailbox->getId() ?? ''),
             'domain_id' => (string) $domain->getId(),
@@ -420,7 +426,7 @@ final class MailboxApiController
             'local_part' => $mailbox->getLocalPart(),
             'address' => $mailbox->getAddress(),
             'customer_id' => (string) $mailbox->getCustomer()->getId(),
-            'agent_id' => $domain->getWebspace()->getNode()->getId(),
+            'agent_id' => $agentId,
         ], $extraPayload);
 
         $job = new Job($type, $payload);

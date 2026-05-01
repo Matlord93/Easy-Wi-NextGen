@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -361,8 +362,12 @@ func handleInstanceDelete(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if commandExists("systemctl") {
-		_ = runCommand("systemctl", "stop", serviceName)
-		_ = runCommand("systemctl", "disable", serviceName)
+		if err := runCommand("systemctl", "stop", serviceName); err != nil {
+			log.Printf("instance.remove: stop service %s (best-effort): %v", serviceName, err)
+		}
+		if err := runCommand("systemctl", "disable", serviceName); err != nil {
+			log.Printf("instance.remove: disable service %s (best-effort): %v", serviceName, err)
+		}
 	}
 
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
@@ -371,7 +376,9 @@ func handleInstanceDelete(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if commandExists("systemctl") {
-		_ = runCommand("systemctl", "daemon-reload")
+		if err := runCommand("systemctl", "daemon-reload"); err != nil {
+			log.Printf("instance.remove: daemon-reload (best-effort): %v", err)
+		}
 	}
 
 	if err := os.RemoveAll(instanceDir); err != nil {
@@ -380,8 +387,12 @@ func handleInstanceDelete(job jobs.Job) (jobs.Result, func() error) {
 
 	if customerID != "" {
 		osUsername := buildInstanceUsername(customerID, instanceID)
-		_ = runCommand("userdel", "--remove", osUsername)
-		_ = runCommand("groupdel", osUsername)
+		if err := runCommand("userdel", "--remove", osUsername); err != nil {
+			log.Printf("instance.remove: userdel %s (best-effort): %v", osUsername, err)
+		}
+		if err := runCommand("groupdel", osUsername); err != nil {
+			log.Printf("instance.remove: groupdel %s (best-effort): %v", osUsername, err)
+		}
 	}
 
 	return jobs.Result{
@@ -744,7 +755,9 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 
-	_ = runCommand("systemctl", "stop", serviceName)
+	if err := runCommand("systemctl", "stop", serviceName); err != nil {
+		log.Printf("instance.install: stop service %s (best-effort): %v", serviceName, err)
+	}
 
 	if _, err := os.Stat(instanceDir); err == nil {
 		if backupOld {
@@ -841,7 +854,9 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	}
 
 	if autostart {
-		_ = runCommand("systemctl", "enable", serviceName)
+		if err := runCommand("systemctl", "enable", serviceName); err != nil {
+			log.Printf("instance.install: enable service %s (best-effort): %v", serviceName, err)
+		}
 	}
 	if err := runCommand("systemctl", "start", serviceName); err != nil {
 		return failureResult(job.ID, err)

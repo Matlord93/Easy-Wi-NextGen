@@ -101,6 +101,8 @@ final class CustomerVoiceApiController
                 'provider_type' => $instance->getNode()->getProviderType(),
                 'external_id' => $instance->getExternalId(),
                 'node_id' => (string) $instance->getNode()->getId(),
+                'query_host' => $instance->getNode()->getHost(),
+                'query_port' => (string) $instance->getNode()->getQueryPort(),
             ]);
             $this->entityManager->persist($job);
             $this->entityManager->flush();

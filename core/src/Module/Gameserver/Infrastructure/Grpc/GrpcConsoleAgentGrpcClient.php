@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\Gameserver\Infrastructure\Grpc;
 
+use App\Module\Core\Application\AgentConfigurationException;
+use App\Module\Core\Application\AgentEndpointResolver;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
@@ -19,6 +21,7 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
         private readonly InstanceRepository $instanceRepository,
         private readonly HttpClientInterface $httpClient,
         private readonly SecretsCrypto $secretsCrypto,
+        private readonly AgentEndpointResolver $endpointResolver,
     ) {
     }
 
@@ -118,30 +121,11 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
             return rtrim($grpcEndpoint, '/');
         }
 
-        $baseUrl = trim($node->getServiceBaseUrl());
-        if ($baseUrl !== '') {
-            return rtrim($baseUrl, '/');
+        try {
+            return rtrim((string) $this->endpointResolver->resolveForAgent($node), '/');
+        } catch (AgentConfigurationException) {
+            throw new NodeEndpointMissingException('node_endpoint_missing');
         }
-
-        $gameServiceUrl = trim((string) ($metadata['gamesvc_url'] ?? ''));
-        if ($gameServiceUrl !== '') {
-            return rtrim($gameServiceUrl, '/');
-        }
-
-        $heartbeatIp = trim((string) $node->getLastHeartbeatIp());
-        $metadataPort = $metadata['agent_service_port'] ?? null;
-        if ($heartbeatIp !== '' && is_numeric($metadataPort)) {
-            $metadataScheme = $metadata['agent_service_scheme'] ?? null;
-            $scheme = is_string($metadataScheme) && trim($metadataScheme) !== '' ? trim($metadataScheme) : 'https';
-
-            return sprintf('%s://%s:%d', $scheme, $heartbeatIp, (int) $metadataPort);
-        }
-
-        if ($heartbeatIp !== '') {
-            return sprintf('https://%s', $heartbeatIp);
-        }
-
-        throw new NodeEndpointMissingException('node_endpoint_missing');
     }
 
     /** @return array<string,string> */

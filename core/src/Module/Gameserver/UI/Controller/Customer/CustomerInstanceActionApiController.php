@@ -47,7 +47,9 @@ use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Messenger\Stamp\HandledStamp;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
+use App\Module\Core\Attribute\RequiresModule;
 
+#[RequiresModule('game')]
 final class CustomerInstanceActionApiController
 {
     public function __construct(

@@ -6,7 +6,7 @@
 
     {# ── Release channel selector ── #}
     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
-        <p class="text-xs font-semibold uppercase text-slate-500 mb-2">Release-Kanal (Agenten)</p>
+        <p class="text-xs font-semibold uppercase text-slate-500 mb-2">{{ t('update_release_channel_agent', page_locale()) }}</p>
         <form method="post" hx-post="/admin/updates/agents/channel" hx-target="#agent-update-card" hx-swap="outerHTML" class="flex flex-wrap items-center gap-3">
             <input type="hidden" name="csrf_token" value="{{ agentUpdate.csrf.agents_channel }}">
             {% for value, label in agentUpdate.channels %}
@@ -19,24 +19,24 @@
                     >
                     <span class="font-medium text-slate-700">{{ label }}</span>
                     {% if value == 'stable' %}
-                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">Empfohlen</span>
+                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">{{ t('update_channel_stable', page_locale()) }}</span>
                     {% elseif value == 'beta' %}
-                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">Vorschau</span>
+                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">{{ t('update_channel_beta', page_locale()) }}</span>
                     {% elseif value == 'alpha' %}
-                        <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-700">Experimentell</span>
+                        <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-700">{{ t('update_channel_experimental', page_locale()) }}</span>
                     {% endif %}
                 </label>
             {% endfor %}
         </form>
         <p class="mt-2 text-xs text-slate-500">
-            Aktueller Kanal:
+            {{ t('update_channel_current_label', page_locale()) }}
             <span class="font-semibold text-slate-700">{{ agentUpdate.channels[agentUpdate.channel] ?? agentUpdate.channel }}</span>.
             {% if agentUpdate.channel == 'alpha' %}
-                Alpha-Agenten können instabil sein.
+                {{ t('update_channel_experimental_desc', page_locale()) }}
             {% elseif agentUpdate.channel == 'beta' %}
-                Beta-Agenten sind Vorabversionen.
+                {{ t('update_channel_beta_desc', page_locale()) }}
             {% else %}
-                Stabile Agenten-Releases für Produktion.
+                {{ t('update_channel_stable_desc', page_locale()) }}
             {% endif %}
         </p>
     </div>

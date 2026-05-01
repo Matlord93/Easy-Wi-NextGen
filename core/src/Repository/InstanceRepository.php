@@ -40,4 +40,19 @@ class InstanceRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * @return Instance[]
+     */
+    public function findWatchdogEnabledBatchAfterId(int $afterId, int $limit): array
+    {
+        return $this->createQueryBuilder('i')
+            ->andWhere('i.watchdogEnabled = true')
+            ->andWhere('i.id > :afterId')
+            ->setParameter('afterId', $afterId)
+            ->orderBy('i.id', 'ASC')
+            ->setMaxResults(max(1, min($limit, 1000)))
+            ->getQuery()
+            ->getResult();
+    }
 }

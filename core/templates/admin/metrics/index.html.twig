@@ -106,6 +106,89 @@
             </div>
         </div>
 
+        {% if cpuChartLine or memChartLine or netRecvChartLine %}
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 class="text-lg font-semibold mb-5">{{ t('admin_metrics_heading', page_locale()) }} — Charts</h2>
+            <svg class="hidden">
+                <defs>
+                    <linearGradient id="mg-cpu" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#6366f1" stop-opacity="0.25"/>
+                        <stop offset="100%" stop-color="#6366f1" stop-opacity="0.02"/>
+                    </linearGradient>
+                    <linearGradient id="mg-mem" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
+                        <stop offset="100%" stop-color="#10b981" stop-opacity="0.02"/>
+                    </linearGradient>
+                    <linearGradient id="mg-recv" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.2"/>
+                        <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.02"/>
+                    </linearGradient>
+                    <linearGradient id="mg-sent" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.2"/>
+                        <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.02"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+
+            {% if cpuChartLine %}
+            <div class="mb-6">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="inline-block h-2 w-2 rounded-full bg-indigo-500"></span>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">{{ t('admin_metrics_cpu_usage', page_locale()) }}</p>
+                    <span class="ml-auto text-xs text-slate-500">avg {{ aggregate.cpu_avg is not null ? aggregate.cpu_avg|number_format(1, '.', '') ~ '%' : '—' }} · max {{ aggregate.cpu_max is not null ? aggregate.cpu_max|number_format(1, '.', '') ~ '%' : '—' }}</span>
+                </div>
+                <svg viewBox="0 0 1200 120" class="h-40 w-full rounded-lg bg-slate-50" preserveAspectRatio="none">
+                    <line x1="0" y1="30"  x2="1200" y2="30"  stroke="#e2e8f0" stroke-width="1"/>
+                    <line x1="0" y1="60"  x2="1200" y2="60"  stroke="#e2e8f0" stroke-width="1"/>
+                    <line x1="0" y1="90"  x2="1200" y2="90"  stroke="#e2e8f0" stroke-width="1"/>
+                    {% if cpuChartArea %}<polygon points="{{ cpuChartArea }}" fill="url(#mg-cpu)"/>{% endif %}
+                    <polyline fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ cpuChartLine }}"/>
+                </svg>
+            </div>
+            {% endif %}
+
+            {% if memChartLine %}
+            <div class="mb-6">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">{{ t('admin_metrics_memory_usage', page_locale()) }}</p>
+                    <span class="ml-auto text-xs text-slate-500">avg {{ aggregate.memory_avg is not null ? aggregate.memory_avg|number_format(1, '.', '') ~ '%' : '—' }} · max {{ aggregate.memory_max is not null ? aggregate.memory_max|number_format(1, '.', '') ~ '%' : '—' }}</span>
+                </div>
+                <svg viewBox="0 0 1200 120" class="h-40 w-full rounded-lg bg-slate-50" preserveAspectRatio="none">
+                    <line x1="0" y1="30"  x2="1200" y2="30"  stroke="#e2e8f0" stroke-width="1"/>
+                    <line x1="0" y1="60"  x2="1200" y2="60"  stroke="#e2e8f0" stroke-width="1"/>
+                    <line x1="0" y1="90"  x2="1200" y2="90"  stroke="#e2e8f0" stroke-width="1"/>
+                    {% if memChartArea %}<polygon points="{{ memChartArea }}" fill="url(#mg-mem)"/>{% endif %}
+                    <polyline fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ memChartLine }}"/>
+                </svg>
+            </div>
+            {% endif %}
+
+            {% if netRecvChartLine or netSentChartLine %}
+            <div>
+                <div class="flex items-center gap-4 mb-2">
+                    <span class="inline-block h-2 w-2 rounded-full bg-cyan-500"></span>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">{{ t('admin_metrics_network_traffic', page_locale()) }}</p>
+                    <span class="flex items-center gap-2 text-xs text-slate-500">
+                        <span class="inline-block h-1.5 w-4 rounded bg-cyan-400"></span>{{ t('admin_metrics_download', page_locale()) }}
+                        <span class="inline-block h-1.5 w-4 rounded bg-violet-400"></span>{{ t('admin_metrics_upload', page_locale()) }}
+                    </span>
+                    <span class="ml-auto text-xs text-slate-500">{{ t('admin_metrics_bandwidth_unit', page_locale()) }}</span>
+                </div>
+                <svg viewBox="0 0 1200 120" class="h-40 w-full rounded-lg bg-slate-50" preserveAspectRatio="none">
+                    <line x1="0" y1="30"  x2="1200" y2="30"  stroke="#e2e8f0" stroke-width="1"/>
+                    <line x1="0" y1="60"  x2="1200" y2="60"  stroke="#e2e8f0" stroke-width="1"/>
+                    <line x1="0" y1="90"  x2="1200" y2="90"  stroke="#e2e8f0" stroke-width="1"/>
+                    {% if netRecvChartArea %}<polygon points="{{ netRecvChartArea }}" fill="url(#mg-recv)"/>{% endif %}
+                    {% if netSentChartArea %}<polygon points="{{ netSentChartArea }}" fill="url(#mg-sent)"/>{% endif %}
+                    {% if netRecvChartLine %}<polyline fill="none" stroke="#06b6d4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ netRecvChartLine }}"/>{% endif %}
+                    {% if netSentChartLine %}<polyline fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ netSentChartLine }}"/>{% endif %}
+                </svg>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <div class="rounded-xl border border-slate-200 bg-white p-5">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold">{{ t('admin_metrics_recent_samples_host', page_locale()) }}</h2>

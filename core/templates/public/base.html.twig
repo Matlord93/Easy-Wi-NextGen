@@ -52,6 +52,17 @@
                         <p class="text-sm font-semibold text-slate-100">{{ t('hosting_updates_title', page_locale()) }}</p>
                         <p class="text-xs text-slate-400">{{ t('hosting_updates_subtitle', page_locale()) }}</p>
                     </div>
+                    {% set currentLocale = page_locale() %}
+                    {% set requestPath = app.request ? app.request.pathInfo : '/' %}
+                    {% set requestQuery = app.request ? app.request.query.all : {} %}
+                    {% set localeQueryDe = requestQuery|merge({'lang': 'de'}) %}
+                    {% set localeQueryEn = requestQuery|merge({'lang': 'en'}) %}
+                    {% set localeHrefDe = requestPath ~ '?' ~ localeQueryDe|url_encode %}
+                    {% set localeHrefEn = requestPath ~ '?' ~ localeQueryEn|url_encode %}
+                    <div class="ng-language-switcher" role="group" aria-label="{{ t('language', currentLocale) }}">
+                        <a class="ng-language-switcher__link {{ currentLocale == 'de' ? 'is-active' : '' }}" href="{{ localeHrefDe }}">{{ t('language_short_de', currentLocale) }}</a>
+                        <a class="ng-language-switcher__link {{ currentLocale == 'en' ? 'is-active' : '' }}" href="{{ localeHrefEn }}">{{ t('language_short_en', currentLocale) }}</a>
+                    </div>
                     <div class="flex items-center gap-2">
                         {% if currentUser %}
                             {% set displayName = currentUser.name ?? currentUser.email %}

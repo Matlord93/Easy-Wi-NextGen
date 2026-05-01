@@ -25,8 +25,10 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/instances/{id}/files')]
+#[RequiresModule('game')]
 final class CustomerInstanceFileManagerController
 {
     public function __construct(

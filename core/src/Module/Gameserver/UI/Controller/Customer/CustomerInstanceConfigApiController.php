@@ -32,7 +32,9 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use App\Module\Core\Attribute\RequiresModule;
 
+#[RequiresModule('game')]
 final class CustomerInstanceConfigApiController
 {
     private const LINE_FEED = "\n";

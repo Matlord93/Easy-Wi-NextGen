@@ -20,8 +20,10 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/domains')]
+#[RequiresModule('dns')]
 final class CustomerDomainController
 {
     public function __construct(
@@ -150,7 +152,7 @@ final class CustomerDomainController
                 'id' => $domain->getId(),
                 'name' => $domain->getName(),
                 'status' => $domain->getStatus(),
-                'webspace' => $domain->getWebspace()->getDomain(),
+                'webspace' => $domain->getWebspace()?->getDomain(),
                 'ssl_expires_at' => $domain->getSslExpiresAt(),
                 'updated_at' => $domain->getUpdatedAt(),
             ];

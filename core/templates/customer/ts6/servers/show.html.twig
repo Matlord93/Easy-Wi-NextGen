@@ -398,6 +398,10 @@
                                 setTimeout(execute, delayMs);
                                 return;
                             }
+                            if (data.status === 'pending') {
+                                onError('Server antwortet nicht. Bitte Seite neu laden.');
+                                return;
+                            }
                             if (data.status === 'error') {
                                 onError(data.message, data.action_id);
                                 return;
@@ -666,6 +670,10 @@
                                 if (data.status === 'pending' && attempts < maxAttempts) {
                                     attempts += 1;
                                     setTimeout(execute, delayMs);
+                                    return;
+                                }
+                                if (data.status === 'pending') {
+                                    reject({ message: 'Server antwortet nicht. Bitte Seite neu laden.' });
                                     return;
                                 }
                                 if (data.status === 'error') {

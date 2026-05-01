@@ -102,11 +102,12 @@ final class AdminMailPlatformController
             ]);
         }
 
+        $webspace = $domain->getWebspace();
         $job = new Job('roundcube.deploy', [
             'domain' => $domain->getName(),
             'mail_node_id' => (string) $node->getId(),
             'roundcube_url' => $node->getRoundcubeUrl(),
-            'agent_id' => $domain->getWebspace()->getNode()->getId(),
+            'agent_id' => $webspace !== null ? (string) $webspace->getNode()->getId() : null,
         ]);
         $job->setMaxAttempts(5);
         $this->entityManager->persist($job);
@@ -148,11 +149,12 @@ final class AdminMailPlatformController
         $selector = strtolower(trim((string) ($p['selector'] ?? 'default')));
         $mailDomain->rotateDkimKey($selector);
 
+        $webspace = $domain->getWebspace();
         $job = new Job('mail.dkim.rotate', [
             'domain_id' => (string) $domain->getId(),
             'domain' => $domain->getName(),
             'selector' => $mailDomain->getDkimSelector(),
-            'agent_id' => $domain->getWebspace()->getNode()->getId(),
+            'agent_id' => $webspace !== null ? (string) $webspace->getNode()->getId() : null,
         ]);
         $this->entityManager->persist($job);
 

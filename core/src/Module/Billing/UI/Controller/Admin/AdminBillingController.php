@@ -118,6 +118,7 @@ final class AdminBillingController
         );
 
         $this->entityManager->persist($invoice);
+        $this->entityManager->flush();
         $this->auditLogger->log($actor, 'billing.invoice.created', [
             'invoice_id' => $invoice->getId(),
             'number' => $invoice->getNumber(),

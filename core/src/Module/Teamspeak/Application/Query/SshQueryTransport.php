@@ -20,40 +20,65 @@ final class SshQueryTransport implements QueryTransportInterface
         }
 
         $sshConfig = $context->sshConfig();
-        $ssh = new SSH2($sshConfig->host(), $sshConfig->port(), $sshConfig->timeoutSeconds());
-        $authenticated = false;
 
-        if ($sshConfig->privateKey() !== null) {
-            $key = PublicKeyLoader::load($sshConfig->privateKey());
-            $authenticated = $ssh->login($sshConfig->username(), $key);
-        } elseif ($sshConfig->password() !== null) {
-            $authenticated = $ssh->login($sshConfig->username(), $sshConfig->password());
-        }
+        // Use one SFTP session for payload upload, exec, and cleanup to avoid
+        // opening 3 separate SSH connections per query (previous behaviour).
+        $sftp = new SFTP($sshConfig->host(), $sshConfig->port(), $sshConfig->timeoutSeconds());
 
-        if (!$authenticated) {
-            throw new QueryTransportException('SSH authentication failed.');
+        if (!$this->authenticate($sftp, $sshConfig)) {
+            // Single retry after a brief delay for transient SSH failures.
+            usleep(200_000);
+            $sftp = new SFTP($sshConfig->host(), $sshConfig->port(), $sshConfig->timeoutSeconds());
+            if (!$this->authenticate($sftp, $sshConfig)) {
+                throw new QueryTransportException('SSH authentication failed.');
+            }
         }
 
         $payload = $this->buildPayload($commands, $context);
         $payloadJson = json_encode($payload, JSON_THROW_ON_ERROR);
-        $payloadPath = $this->writePayloadFile($sshConfig, $payloadJson);
+        $payloadPath = sprintf('/tmp/ts-query-%s.json', bin2hex(random_bytes(8)));
+
+        if (!$sftp->put($payloadPath, $payloadJson)) {
+            throw new QueryTransportException('Failed to upload payload file.');
+        }
+
         $command = sprintf(
             '%s --payload-file %s',
             escapeshellcmd($context->runnerPath()),
             escapeshellarg($payloadPath)
         );
 
-        $output = $ssh->exec($command);
-        $this->cleanupPayloadFile($sshConfig, $payloadPath);
-        $result = $this->parseResult($output);
+        $output = $sftp->exec($command);
+
+        // Best-effort cleanup — do not throw if this fails.
+        try {
+            $sftp->delete($payloadPath);
+        } catch (\Throwable) {
+        }
+
+        $result = $this->parseResult((string) $output);
 
         return new QueryResponse(
             $result['success'],
-            $output,
+            (string) $output,
             $result['payload'],
             $result['error'],
             $result['actionId']
         );
+    }
+
+    private function authenticate(SFTP $sftp, SshConnectionConfig $sshConfig): bool
+    {
+        if ($sshConfig->privateKey() !== null) {
+            $key = PublicKeyLoader::load($sshConfig->privateKey());
+            return $sftp->login($sshConfig->username(), $key);
+        }
+
+        if ($sshConfig->password() !== null) {
+            return $sftp->login($sshConfig->username(), $sshConfig->password());
+        }
+
+        throw new QueryTransportException('Missing SSH credentials.');
     }
 
     /**
@@ -113,48 +138,5 @@ final class SshQueryTransport implements QueryTransportInterface
             'error' => $error,
             'actionId' => is_string($decoded['actionId'] ?? null) ? $decoded['actionId'] : null,
         ];
-    }
-
-    private function writePayloadFile(SshConnectionConfig $sshConfig, string $payloadJson): string
-    {
-        $path = sprintf('/tmp/ts-query-%s.json', bin2hex(random_bytes(8)));
-        $sftp = new SFTP($sshConfig->host(), $sshConfig->port(), $sshConfig->timeoutSeconds());
-        if ($sshConfig->privateKey() !== null) {
-            $key = PublicKeyLoader::load($sshConfig->privateKey());
-            if (!$sftp->login($sshConfig->username(), $key)) {
-                throw new QueryTransportException('SFTP authentication failed.');
-            }
-        } elseif ($sshConfig->password() !== null) {
-            if (!$sftp->login($sshConfig->username(), $sshConfig->password())) {
-                throw new QueryTransportException('SFTP authentication failed.');
-            }
-        } else {
-            throw new QueryTransportException('Missing SSH credentials for payload upload.');
-        }
-
-        if (!$sftp->put($path, $payloadJson)) {
-            throw new QueryTransportException('Failed to upload payload file.');
-        }
-
-        return $path;
-    }
-
-    private function cleanupPayloadFile(SshConnectionConfig $sshConfig, string $path): void
-    {
-        $sftp = new SFTP($sshConfig->host(), $sshConfig->port(), $sshConfig->timeoutSeconds());
-        if ($sshConfig->privateKey() !== null) {
-            $key = PublicKeyLoader::load($sshConfig->privateKey());
-            if (!$sftp->login($sshConfig->username(), $key)) {
-                return;
-            }
-        } elseif ($sshConfig->password() !== null) {
-            if (!$sftp->login($sshConfig->username(), $sshConfig->password())) {
-                return;
-            }
-        } else {
-            return;
-        }
-
-        $sftp->delete($path);
     }
 }

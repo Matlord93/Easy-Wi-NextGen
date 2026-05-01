@@ -2,6 +2,7 @@ package apienvelope
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -52,5 +53,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, status int, code ErrorCo
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("apienvelope: write error response: %v", err)
+	}
 }

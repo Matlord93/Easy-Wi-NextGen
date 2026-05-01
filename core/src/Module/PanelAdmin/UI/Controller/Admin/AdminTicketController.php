@@ -277,8 +277,8 @@ final class AdminTicketController
             $admin,
             $payload['form']['title'],
             $payload['form']['subject'],
-            TicketCategory::from($payload['form']['category']),
-            TicketPriority::from($payload['form']['priority']),
+            $payload['form']['category'],
+            $payload['form']['priority'],
             $payload['form']['body'],
         );
         $this->entityManager->persist($template);
@@ -315,8 +315,8 @@ final class AdminTicketController
 
         $template->setTitle($payload['form']['title']);
         $template->setSubject($payload['form']['subject']);
-        $template->setCategory(TicketCategory::from($payload['form']['category']));
-        $template->setPriority(TicketPriority::from($payload['form']['priority']));
+        $template->setCategory($payload['form']['category']);
+        $template->setPriority($payload['form']['priority']);
         $template->setBody($payload['form']['body']);
 
         $this->auditLogger->log($admin, 'ticket.template.updated', [

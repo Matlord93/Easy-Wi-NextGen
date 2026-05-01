@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
@@ -20,7 +21,9 @@ func NewServer(checker ReadinessChecker) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+		if err := json.NewEncoder(w).Encode(map[string]any{"ok": true}); err != nil {
+			log.Printf("platform/http: write health response: %v", err)
+		}
 	})
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
 		services := map[string]bool{}
@@ -37,7 +40,9 @@ func (s *Server) Handler() http.Handler {
 		if !ok {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": ok, "services": services})
+		if err := json.NewEncoder(w).Encode(map[string]any{"ok": ok, "services": services}); err != nil {
+			log.Printf("platform/http: write ready response: %v", err)
+		}
 	})
 	return mux
 }

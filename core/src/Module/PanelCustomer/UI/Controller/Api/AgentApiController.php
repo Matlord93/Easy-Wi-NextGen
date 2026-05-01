@@ -1177,7 +1177,7 @@ final class AgentApiController
 
     private function applyWebspaceUpdatesFromJob(\App\Module\Core\Domain\Entity\Job $job, JobResultStatus $resultStatus, string $agentId, array $output, DateTimeImmutable $completedAt): void
     {
-        if (!in_array($job->getType(), ['webspace.provision', 'webspace.apply', 'webspace.domain.apply'], true)) {
+        if (!in_array($job->getType(), ['webspace.create', 'webspace.provision', 'webspace.apply', 'webspace.domain.apply'], true)) {
             return;
         }
 
@@ -1196,7 +1196,7 @@ final class AgentApiController
             $agentApplyStatus = is_string($output['apply_status'] ?? null) ? trim((string) $output['apply_status']) : 'succeeded';
             $normalizedApplyStatus = in_array($agentApplyStatus, ['succeeded', 'success'], true) ? 'succeeded' : $agentApplyStatus;
 
-            if ($job->getType() === 'webspace.provision') {
+            if (in_array($job->getType(), ['webspace.create', 'webspace.provision'], true)) {
                 $webspace->setApplyStatus($normalizedApplyStatus);
                 $webspace->setApplyRequired(true);
                 $webspace->setApplyError(null, null);
@@ -1830,13 +1830,30 @@ final class AgentApiController
             return;
         }
 
+        // Jobs are queued as 'ts3.instance.create' or 'ts3.instance.action' (with action in payload).
+        $jobType = $job->getType();
+        $action = is_string($payload['action'] ?? null) ? strtolower(trim((string) $payload['action'])) : '';
+        $effectiveAction = match ($jobType) {
+            'ts3.instance.create' => 'create',
+            'ts3.instance.action' => $action,
+            default => '',
+        };
+
+        if ($effectiveAction === '') {
+            return;
+        }
+
+        $lifecycleActions = ['create', 'start', 'restart', 'update', 'restore', 'stop'];
+
         $newStatus = null;
         if ($resultStatus === JobResultStatus::Failed) {
-            $newStatus = \App\Module\Core\Domain\Enum\Ts3InstanceStatus::Error;
+            if (in_array($effectiveAction, $lifecycleActions, true)) {
+                $newStatus = \App\Module\Core\Domain\Enum\Ts3InstanceStatus::Error;
+            }
         } elseif ($resultStatus === JobResultStatus::Succeeded) {
-            $newStatus = match ($job->getType()) {
-                'ts3.create', 'ts3.start', 'ts3.restart', 'ts3.update', 'ts3.restore' => \App\Module\Core\Domain\Enum\Ts3InstanceStatus::Running,
-                'ts3.stop' => \App\Module\Core\Domain\Enum\Ts3InstanceStatus::Stopped,
+            $newStatus = match ($effectiveAction) {
+                'create', 'start', 'restart', 'update', 'restore' => \App\Module\Core\Domain\Enum\Ts3InstanceStatus::Running,
+                'stop' => \App\Module\Core\Domain\Enum\Ts3InstanceStatus::Stopped,
                 default => null,
             };
         }
@@ -1871,17 +1888,30 @@ final class AgentApiController
             return;
         }
 
+        // Jobs are queued as 'ts6.instance.create' or 'ts6.instance.action' (with action in payload).
+        $jobType = $job->getType();
+        $action = is_string($payload['action'] ?? null) ? strtolower(trim((string) $payload['action'])) : '';
+        $effectiveAction = match ($jobType) {
+            'ts6.instance.create' => 'create',
+            'ts6.instance.action' => $action,
+            default => '',
+        };
+
+        if ($effectiveAction === '') {
+            return;
+        }
+
+        $lifecycleActions = ['create', 'start', 'restart', 'update', 'restore', 'stop'];
+
         $newStatus = null;
         if ($resultStatus === JobResultStatus::Failed) {
-            $newStatus = \App\Module\Core\Domain\Enum\Ts6InstanceStatus::Error;
+            if (in_array($effectiveAction, $lifecycleActions, true)) {
+                $newStatus = \App\Module\Core\Domain\Enum\Ts6InstanceStatus::Error;
+            }
         } elseif ($resultStatus === JobResultStatus::Succeeded) {
-            $newStatus = match ($job->getType()) {
-                'ts6.instance.create',
-                'ts6.instance.start',
-                'ts6.instance.restart',
-                'ts6.instance.update',
-                'ts6.instance.restore' => \App\Module\Core\Domain\Enum\Ts6InstanceStatus::Running,
-                'ts6.instance.stop' => \App\Module\Core\Domain\Enum\Ts6InstanceStatus::Stopped,
+            $newStatus = match ($effectiveAction) {
+                'create', 'start', 'restart', 'update', 'restore' => \App\Module\Core\Domain\Enum\Ts6InstanceStatus::Running,
+                'stop' => \App\Module\Core\Domain\Enum\Ts6InstanceStatus::Stopped,
                 default => null,
             };
         }

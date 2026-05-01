@@ -8,6 +8,7 @@ use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Entity\UserSession;
+use App\Repository\UserSessionRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -22,11 +23,28 @@ final class LoginFinalizer
         private readonly AuditLogger $auditLogger,
         private readonly AppSettingsService $settingsService,
         private readonly IdentifierHasher $identifierHasher,
+        private readonly UserSessionRepository $sessionRepository,
     ) {
     }
 
     public function finalizeLogin(Request $request, User $user, string $redirectPath, string $context): Response
     {
+        $maxSessions = $this->settingsService->getMaxConcurrentSessions();
+        if ($maxSessions > 0) {
+            $activeSessions = $this->sessionRepository->findActiveByUser($user);
+            $overflow = count($activeSessions) - $maxSessions + 1;
+            for ($i = 0; $i < $overflow; $i++) {
+                $oldest = $activeSessions[$i];
+                $oldest->revoke();
+                $this->entityManager->persist($oldest);
+                $this->auditLogger->log($user, 'session.revoked', [
+                    'session_id' => $oldest->getId(),
+                    'reason' => 'max_concurrent_sessions',
+                    'context' => $context,
+                ]);
+            }
+        }
+
         $token = $this->tokenGenerator->generateToken();
         $session = new UserSession($user, $this->tokenGenerator->hashToken($token));
         $absoluteMinutes = $this->settingsService->getSessionAbsoluteTimeoutMinutes();

@@ -76,7 +76,7 @@ final class AgentJobDispatcher
      */
     private function buildIdempotencyKey(string $nodeId, string $type, array $payload): string
     {
-        $payloadJson = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION);
+        $payloadJson = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
 
         return hash('sha256', $nodeId . ':' . $type . ':' . $payloadJson);
     }

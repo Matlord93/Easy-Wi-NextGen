@@ -67,6 +67,7 @@ final class Ts3ViewerService
                 'node_id' => $server->getNode()->getId(),
                 'sid' => $server->getSid(),
                 'cache_key' => $cacheKey,
+                'cache_ttl_seconds' => $ttlSeconds,
             ];
             $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts3.viewer.snapshot', $payload);
 

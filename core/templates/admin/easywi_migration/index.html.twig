@@ -1,0 +1,174 @@
+{% extends 'admin/layout.html.twig' %}
+
+{% block title %}Easy-Wi Migration{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl space-y-6 px-4 py-8">
+
+    <div>
+        <h1 class="text-2xl font-bold text-slate-900">Easy-Wi 3.x Migration</h1>
+        <p class="mt-1 text-sm text-slate-600">
+            Importiere Daten aus einer bestehenden Easy-Wi 3.x Datenbank.
+            Bereits vorhandene Datensätze werden übersprungen (idempotent).
+        </p>
+    </div>
+
+    {# ── Connection Settings ── #}
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900 mb-4">Datenbankverbindung (Quelle)</h2>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Host</label>
+                <input id="mig-host" type="text" value="127.0.0.1" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Port</label>
+                <input id="mig-port" type="number" value="3306" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Datenbankname</label>
+                <input id="mig-dbname" type="text" placeholder="easywi" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Tabellenprefix</label>
+                <input id="mig-prefix" type="text" value="easywi_" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Benutzer</label>
+                <input id="mig-user" type="text" value="root" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Passwort</label>
+                <input id="mig-password" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+        </div>
+        <div class="mt-4">
+            <button id="btn-probe" class="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 transition">
+                Verbindung prüfen &amp; Tabellen zählen
+            </button>
+        </div>
+        <div id="probe-result" class="mt-3 hidden"></div>
+    </div>
+
+    {# ── Entity Selection ── #}
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900 mb-4">Zu importierende Entitäten</h2>
+        <div class="flex flex-wrap gap-3">
+            {% for entity in entities %}
+                <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 transition has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
+                    <input type="checkbox" name="entity" value="{{ entity }}" checked class="accent-indigo-600">
+                    {{ entity|capitalize }}
+                </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# ── Actions ── #}
+    <div class="flex flex-wrap gap-3">
+        <button id="btn-dryrun" class="inline-flex items-center gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-200 transition">
+            Dry-Run (keine Änderungen)
+        </button>
+        <button id="btn-run" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition">
+            Migration ausführen
+        </button>
+    </div>
+
+    {# ── Results ── #}
+    <div id="run-result" class="hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900 mb-4">Ergebnis</h2>
+        <div id="run-result-content"></div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    function buildPayload(dryRun) {
+        return {
+            host: document.getElementById('mig-host').value,
+            port: parseInt(document.getElementById('mig-port').value, 10) || 3306,
+            dbname: document.getElementById('mig-dbname').value,
+            prefix: document.getElementById('mig-prefix').value,
+            user: document.getElementById('mig-user').value,
+            password: document.getElementById('mig-password').value,
+            entities: [...document.querySelectorAll('input[name=entity]:checked')].map(el => el.value),
+            dry_run: dryRun,
+        };
+    }
+
+    document.getElementById('btn-probe').addEventListener('click', async () => {
+        const btn = document.getElementById('btn-probe');
+        const result = document.getElementById('probe-result');
+        btn.disabled = true;
+        result.innerHTML = '<p class="text-sm text-slate-500">Verbinde…</p>';
+        result.classList.remove('hidden');
+        try {
+            const resp = await fetch('/admin/easywi-migration/probe', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(buildPayload(true)),
+            });
+            const data = await resp.json();
+            if (data.error) {
+                result.innerHTML = `<p class="text-sm text-red-600">Fehler: ${data.error}</p>`;
+            } else {
+                const rows = Object.entries(data.counts || {}).map(([t, c]) =>
+                    `<tr><td class="pr-4 py-0.5 text-sm text-slate-700">${t}</td><td class="text-sm font-mono text-slate-900">${c.toLocaleString()}</td></tr>`
+                ).join('');
+                result.innerHTML = `<table class="mt-1">${rows}</table>`;
+            }
+        } catch (e) {
+            result.innerHTML = `<p class="text-sm text-red-600">${e.message}</p>`;
+        }
+        btn.disabled = false;
+    });
+
+    async function runMigration(dryRun) {
+        const resultBox = document.getElementById('run-result');
+        const content = document.getElementById('run-result-content');
+        resultBox.classList.remove('hidden');
+        content.innerHTML = '<p class="text-sm text-slate-500">Läuft…</p>';
+        try {
+            const resp = await fetch('/admin/easywi-migration/run', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(buildPayload(dryRun)),
+            });
+            const data = await resp.json();
+            if (data.error) {
+                content.innerHTML = `<p class="text-sm text-red-600">Fehler: ${data.error}</p>`;
+                return;
+            }
+            const rows = (data.results || []).map(r => {
+                const errs = r.errors && r.errors.length ? `<ul class="mt-1 ml-4 list-disc text-xs text-red-600">${r.errors.map(e => `<li>${e}</li>`).join('')}</ul>` : '';
+                return `<tr class="border-t border-slate-100">
+                    <td class="py-1.5 pr-4 text-sm font-medium text-slate-800">${r.entity}</td>
+                    <td class="py-1.5 pr-4 text-sm text-emerald-700">${r.imported}</td>
+                    <td class="py-1.5 pr-4 text-sm text-slate-500">${r.skipped}</td>
+                    <td class="py-1.5 pr-4 text-sm text-red-600">${r.failed}</td>
+                    <td class="py-1.5 text-sm text-slate-700">${r.total}</td>
+                </tr>${errs ? `<tr><td colspan="5">${errs}</td></tr>` : ''}`;
+            }).join('');
+            const badge = dryRun ? '<span class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">DRY-RUN</span>' : '<span class="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Ausgeführt</span>';
+            content.innerHTML = `
+                <div class="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-800">Migration abgeschlossen${badge}</div>
+                <table class="w-full">
+                    <thead><tr class="text-xs font-semibold uppercase text-slate-500">
+                        <th class="pb-1 pr-4 text-left">Entität</th>
+                        <th class="pb-1 pr-4 text-left text-emerald-700">Importiert</th>
+                        <th class="pb-1 pr-4 text-left">Übersprungen</th>
+                        <th class="pb-1 pr-4 text-left text-red-600">Fehler</th>
+                        <th class="pb-1 text-left">Gesamt</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        } catch (e) {
+            content.innerHTML = `<p class="text-sm text-red-600">${e.message}</p>`;
+        }
+    }
+
+    document.getElementById('btn-dryrun').addEventListener('click', () => runMigration(true));
+    document.getElementById('btn-run').addEventListener('click', () => runMigration(false));
+})();
+</script>
+{% endblock %}

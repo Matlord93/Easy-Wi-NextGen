@@ -53,6 +53,10 @@ final class InstanceUpdateQueueCommand extends Command
                 continue;
             }
 
+            if ($instance->getStatus() === InstanceStatus::Suspended) {
+                continue;
+            }
+
             $cronExpression = $schedule->getCronExpression();
             if (!CronExpression::isValidExpression($cronExpression)) {
                 continue;
@@ -82,6 +86,8 @@ final class InstanceUpdateQueueCommand extends Command
             $instance->setLastUpdateQueuedAt($now);
             $instance->setStatus(InstanceStatus::Provisioning);
             $this->entityManager->persist($instance);
+            $schedule->setLastQueuedAt($now);
+            $this->entityManager->persist($schedule);
 
             $this->auditLogger->log(null, 'instance.update.queued', [
                 'instance_id' => $instance->getId(),

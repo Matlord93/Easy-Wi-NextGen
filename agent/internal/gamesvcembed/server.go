@@ -371,7 +371,9 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.WriteHeader(status)
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
-	_ = encoder.Encode(payload)
+	if err := encoder.Encode(payload); err != nil {
+		log.Printf("gamesvcembed: write json response: %v", err)
+	}
 }
 
 func fmtPort(port int) string {

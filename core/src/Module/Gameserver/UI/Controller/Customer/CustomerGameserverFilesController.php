@@ -17,7 +17,9 @@ use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Twig\Environment;
+use App\Module\Core\Attribute\RequiresModule;
 
+#[RequiresModule('game')]
 final class CustomerGameserverFilesController
 {
     public function __construct(

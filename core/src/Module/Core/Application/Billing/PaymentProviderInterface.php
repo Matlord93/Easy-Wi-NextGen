@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Module\Core\Application\Billing;
 
 use App\Module\Core\Domain\Entity\Invoice;
+use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+#[AutoconfigureTag]
 interface PaymentProviderInterface
 {
     public function getName(): string;

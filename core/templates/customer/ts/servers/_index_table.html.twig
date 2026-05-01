@@ -82,6 +82,10 @@
                             setTimeout(loadSummary, delayMs);
                             return;
                         }
+                        if (data.status === 'pending') {
+                            slotCell.textContent = '—';
+                            return;
+                        }
                         if (data.status !== 'ok') { return; }
                         slotCell.textContent = `${data.clients_online ?? 0}/${data.max_clients ?? 0}`;
                     })

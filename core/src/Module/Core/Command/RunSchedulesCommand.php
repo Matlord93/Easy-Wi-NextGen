@@ -99,7 +99,7 @@ final class RunSchedulesCommand extends Command
                     continue;
                 }
 
-                if (strtolower($instance->getNode()->getStatus()) !== 'online') {
+                if (!$instance->getNode()->isActive()) {
                     $schedule->markRun($now, 'blocked', 'agent_offline_or_unknown');
                     $schedule->setLastQueuedAt($now);
                     $this->entityManager->persist($schedule);

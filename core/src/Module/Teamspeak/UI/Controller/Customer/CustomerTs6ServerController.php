@@ -33,12 +33,14 @@ use Symfony\Component\Uid\Uuid;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Twig\Environment;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/customer/ts6/servers')]
 /**
  * @deprecated since 2026-02. Unified customer voice SoT is /customer/voice.
  *             Kept for compatibility during migration horizon.
  */
+#[RequiresModule('ts6')]
 final class CustomerTs6ServerController
 {
     public function __construct(

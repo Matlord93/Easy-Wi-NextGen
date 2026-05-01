@@ -55,4 +55,24 @@ final class UserSessionRepository extends ServiceEntityRepository
             ->getQuery()
             ->execute();
     }
+
+    /**
+     * Returns all non-revoked, non-expired sessions for a user, oldest first.
+     *
+     * @return UserSession[]
+     */
+    public function findActiveByUser(User $user): array
+    {
+        $now = new \DateTimeImmutable();
+
+        return $this->createQueryBuilder('session')
+            ->andWhere('session.user = :user')
+            ->andWhere('session.revokedAt IS NULL')
+            ->andWhere('session.expiresAt IS NULL OR session.expiresAt > :now')
+            ->setParameter('user', $user)
+            ->setParameter('now', $now)
+            ->orderBy('session.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

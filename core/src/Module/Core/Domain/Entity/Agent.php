@@ -387,6 +387,11 @@ class Agent
         $this->setStatus(self::STATUS_REGISTERED);
     }
 
+    public function isActive(): bool
+    {
+        return $this->resolveLifecycleStatus() === self::STATUS_ACTIVE;
+    }
+
     public function resolveLifecycleStatus(?\DateTimeImmutable $now = null): string
     {
         if ($this->status === self::STATUS_DECOMMISSIONED) {

@@ -139,6 +139,9 @@ class Instance implements ResourceEventSource
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastUpdateQueuedAt = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $watchdogEnabled = false;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -658,6 +661,17 @@ class Instance implements ResourceEventSource
     public function setLastUpdateQueuedAt(?\DateTimeImmutable $lastUpdateQueuedAt): void
     {
         $this->lastUpdateQueuedAt = $lastUpdateQueuedAt;
+        $this->touch();
+    }
+
+    public function isWatchdogEnabled(): bool
+    {
+        return $this->watchdogEnabled;
+    }
+
+    public function setWatchdogEnabled(bool $watchdogEnabled): void
+    {
+        $this->watchdogEnabled = $watchdogEnabled;
         $this->touch();
     }
 

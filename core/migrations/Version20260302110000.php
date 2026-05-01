@@ -45,9 +45,8 @@ final class Version20260302110000 extends AbstractMigration
 
         $table = $schema->getTable('domains');
 
-        $this->addSql('DELETE FROM domains WHERE webspace_id IS NULL');
-
         if ($table->hasColumn('webspace_id')) {
+            $this->addSql('UPDATE domains SET webspace_id = 0 WHERE webspace_id IS NULL');
             $this->addSql('ALTER TABLE domains CHANGE webspace_id webspace_id INT NOT NULL');
         }
 

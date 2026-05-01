@@ -36,7 +36,7 @@
 
     {# ── Release channel selector ── #}
     <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
-        <p class="text-xs font-semibold uppercase text-slate-500 mb-2">Release-Kanal</p>
+        <p class="text-xs font-semibold uppercase text-slate-500 mb-2">{{ t('update_release_channel', page_locale()) }}</p>
         <form method="post" hx-post="/admin/updates/core/channel" hx-target="#core-update-card" hx-swap="outerHTML" class="flex flex-wrap items-center gap-3">
             <input type="hidden" name="csrf_token" value="{{ coreUpdate.csrf.core_channel }}">
             {% for value, label in coreUpdate.channels %}
@@ -49,24 +49,24 @@
                     >
                     <span class="font-medium text-slate-700">{{ label }}</span>
                     {% if value == 'stable' %}
-                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">Empfohlen</span>
+                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">{{ t('update_channel_stable', page_locale()) }}</span>
                     {% elseif value == 'beta' %}
-                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">Vorschau</span>
+                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">{{ t('update_channel_beta', page_locale()) }}</span>
                     {% elseif value == 'alpha' %}
-                        <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-700">Experimentell</span>
+                        <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-700">{{ t('update_channel_experimental', page_locale()) }}</span>
                     {% endif %}
                 </label>
             {% endfor %}
         </form>
         <p class="mt-2 text-xs text-slate-500">
-            Aktueller Kanal:
+            {{ t('update_channel_current_label', page_locale()) }}
             <span class="font-semibold text-slate-700">{{ coreUpdate.channels[coreUpdate.channel] ?? coreUpdate.channel }}</span>.
             {% if coreUpdate.channel == 'alpha' %}
-                Alpha-Updates können instabil sein und sind nur für Testumgebungen gedacht.
+                {{ t('update_channel_experimental_desc', page_locale()) }}
             {% elseif coreUpdate.channel == 'beta' %}
-                Beta-Updates sind Vorabversionen und können Fehler enthalten.
+                {{ t('update_channel_beta_desc', page_locale()) }}
             {% else %}
-                Stable-Updates sind getestete Produktions-Releases.
+                {{ t('update_channel_stable_desc', page_locale()) }}
             {% endif %}
         </p>
     </div>
@@ -117,7 +117,7 @@
     {# ── Auto-update toggles ── #}
     <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
-            <p class="text-xs font-semibold uppercase text-slate-500 mb-2">Automatische Updates</p>
+            <p class="text-xs font-semibold uppercase text-slate-500 mb-2">{{ t('update_auto_enabled_label', page_locale()) }}</p>
             <form method="post" hx-post="/admin/updates/webinterface/auto" hx-target="#core-update-card" hx-swap="outerHTML" class="flex items-center gap-3">
                 <label class="relative inline-flex cursor-pointer items-center">
                     <input
@@ -128,12 +128,12 @@
                     >
                     <div class="peer h-5 w-9 rounded-full bg-slate-300 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full"></div>
                 </label>
-                <span class="text-sm text-slate-700">{{ coreUpdate.autoEnabled ? 'Aktiviert' : 'Deaktiviert' }}</span>
+                <span class="text-sm text-slate-700">{{ coreUpdate.autoEnabled ? t('update_status_enabled', page_locale()) : t('update_status_disabled', page_locale()) }}</span>
             </form>
             <p class="mt-1 text-xs text-slate-500">Panel über <code class="rounded bg-slate-200 px-1">app:update:auto</code> automatisch aktualisieren.</p>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
-            <p class="text-xs font-semibold uppercase text-slate-500 mb-2">Automatische Migrationen</p>
+            <p class="text-xs font-semibold uppercase text-slate-500 mb-2">{{ t('update_auto_migrate_label', page_locale()) }}</p>
             <form method="post" hx-post="/admin/updates/webinterface/auto-migrate" hx-target="#core-update-card" hx-swap="outerHTML" class="flex items-center gap-3">
                 <label class="relative inline-flex cursor-pointer items-center">
                     <input
@@ -144,7 +144,7 @@
                     >
                     <div class="peer h-5 w-9 rounded-full bg-slate-300 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full"></div>
                 </label>
-                <span class="text-sm text-slate-700">{{ coreUpdate.autoMigrate ? 'Aktiviert' : 'Deaktiviert' }}</span>
+                <span class="text-sm text-slate-700">{{ coreUpdate.autoMigrate ? t('update_status_enabled', page_locale()) : t('update_status_disabled', page_locale()) }}</span>
             </form>
             <p class="mt-1 text-xs text-slate-500">DB-Migrationen nach jedem Auto-Update automatisch ausführen.</p>
         </div>

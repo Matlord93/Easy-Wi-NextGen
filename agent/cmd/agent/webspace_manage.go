@@ -448,3 +448,48 @@ func detectPHPFpmEndpoint() string {
 
 	return "127.0.0.1:9000"
 }
+
+// handleRoundcubeDeploy writes a domain-specific nginx proxy location for Roundcube.
+// The roundcube_url payload field points to the upstream Roundcube server.
+func handleRoundcubeDeploy(job jobs.Job) (jobs.Result, func() error) {
+	domain := payloadValue(job.Payload, "domain")
+	roundcubeURL := payloadValue(job.Payload, "roundcube_url")
+	if domain == "" || roundcubeURL == "" {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing domain or roundcube_url"},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	includePath := fmt.Sprintf("/etc/easywi/web/nginx/includes/%s-roundcube.conf", domain)
+	content := fmt.Sprintf(`# Roundcube proxy for %s - managed by Easy-Wi agent
+location /roundcube {
+    proxy_pass %s/roundcube;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+`, domain, strings.TrimRight(roundcubeURL, "/"))
+	if err := os.MkdirAll(filepath.Dir(includePath), 0o750); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := os.WriteFile(includePath, []byte(content), 0o640); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := reloadNginx(); err != nil {
+		return failureResult(job.ID, err)
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"domain":        domain,
+			"roundcube_url": roundcubeURL,
+			"nginx_include": includePath,
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}

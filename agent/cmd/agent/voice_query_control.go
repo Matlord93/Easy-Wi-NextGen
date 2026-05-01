@@ -130,7 +130,7 @@ func (g *voiceQueryGovernor) executeQuery(ctx context.Context, target voiceTarge
 
 func (g *voiceQueryGovernor) callServer(ctx context.Context, target voiceTarget, correlationID string) (map[string]string, error) {
 	if target.endpoint == "" {
-		return map[string]string{"status": "online", "players_online": "0", "players_max": "0", "provider_type": target.provider, "host": target.host, "port": target.port}, nil
+		return nil, &voiceQueryError{Code: "voice_query_endpoint_missing", Message: "no query endpoint configured for this voice node"}
 	}
 	client := &http.Client{Timeout: g.cfg.queryTimeout}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.endpoint, nil)

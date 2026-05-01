@@ -10,6 +10,7 @@ enum ModuleKey: string
     case Mail = 'mail';
     case Dns = 'dns';
     case Game = 'game';
+    case Sinusbot = 'sinusbot';
     case Ts = 'ts';
     case Ts6 = 'ts6';
     case TsVirtual = 'ts_virtual';

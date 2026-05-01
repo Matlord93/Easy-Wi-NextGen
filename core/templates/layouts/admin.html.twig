@@ -14,6 +14,7 @@
     : []
 %}
 {% set moduleGame = module_enabled('game') %}
+{% set moduleSinusbot = module_enabled('sinusbot') %}
 {% set moduleTs = module_enabled('ts') %}
 {% set moduleTs6 = module_enabled('ts6') %}
 {% set moduleTsCombined = moduleTs or moduleTs6 %}
@@ -37,7 +38,7 @@
     moduleTsCombined ? { key: 'ts-nodes', label: t('admin_nav_ts_nodes', page_locale()), href: path('admin_ts_nodes_index') } : null,
     moduleTs ? { key: 'ts3-servers', label: t('admin_nav_ts3_servers', page_locale()), href: path('admin_ts3_servers_index') } : null,
     moduleTs6 ? { key: 'ts6-servers', label: t('admin_nav_ts6_servers', page_locale()), href: path('admin_ts6_servers_index') } : null,
-    moduleGame ? { key: 'sinusbot', label: t('admin_nav_sinusbot', page_locale()), href: path('admin_sinusbot_nodes_index') } : null
+    moduleSinusbot ? { key: 'sinusbot', label: t('admin_nav_sinusbot', page_locale()), href: path('admin_sinusbot_nodes_index') } : null
 ]|filter(v => v) %}
 
 {% set systemModuleItems = [

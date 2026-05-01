@@ -114,6 +114,10 @@
                             setTimeout(loadSnapshot, delayMs);
                             return;
                         }
+                        if (data.status === 'pending') {
+                            setState('error', 'Server antwortet nicht. Bitte Seite neu laden.');
+                            return;
+                        }
                         if (data.status === 'error') {
                             setState('error', data.message, data.action_id);
                             return;

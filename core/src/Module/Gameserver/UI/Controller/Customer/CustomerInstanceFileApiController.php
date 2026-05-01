@@ -27,7 +27,9 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
+use App\Module\Core\Attribute\RequiresModule;
 
+#[RequiresModule('game')]
 final class CustomerInstanceFileApiController
 {
     private const int EDITOR_MAX_BYTES = 1_048_576;

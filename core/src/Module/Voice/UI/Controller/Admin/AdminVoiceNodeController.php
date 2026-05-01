@@ -108,6 +108,8 @@ final class AdminVoiceNodeController
             'provider_type' => $node->getProviderType(),
             'external_id' => $instance->getExternalId(),
             'node_id' => (string) $node->getId(),
+            'query_host' => $node->getHost(),
+            'query_port' => (string) $node->getQueryPort(),
         ]);
         $this->entityManager->persist($job);
         $this->entityManager->flush();

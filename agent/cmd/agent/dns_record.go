@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -111,7 +112,7 @@ func handleDNSRecordChange(job jobs.Job, changeType string, requireContent bool)
 	}
 
 	endpoint := fmt.Sprintf("%s/api/v1/servers/%s/zones/%s", strings.TrimRight(apiURL, "/"), serverID, zoneName)
-	request, err := http.NewRequest(http.MethodPatch, endpoint, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPatch, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return failureResult(job.ID, fmt.Errorf("build PowerDNS record request: %w", err))
 	}

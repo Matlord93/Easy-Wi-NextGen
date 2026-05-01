@@ -608,7 +608,7 @@ final class WebspaceApiController
         $webspace = $this->webspaceRepository->find($id);
         $domain = $this->domainRepository->find($domainId);
 
-        if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || !$domain instanceof Domain || $webspace->getCustomer()->getId() !== $actor->getId() || $domain->getWebspace()->getId() !== $webspace->getId()) {
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || !$domain instanceof Domain || $webspace->getCustomer()->getId() !== $actor->getId() || $domain->getWebspace()?->getId() !== $webspace->getId()) {
             return $this->responseEnvelopeFactory->error($request, 'Domain not found.', 'domain_not_found', 404);
         }
 

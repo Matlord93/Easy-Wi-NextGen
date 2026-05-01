@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -124,7 +125,7 @@ func createPowerDNSZone(client *http.Client, apiURL, apiKey, serverID, zoneName 
 	}
 
 	endpoint := fmt.Sprintf("%s/api/v1/servers/%s/zones", strings.TrimRight(apiURL, "/"), serverID)
-	request, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("build PowerDNS create zone request: %w", err)
 	}
@@ -187,7 +188,7 @@ func setPowerDNSNSRecords(client *http.Client, apiURL, apiKey, serverID, zoneNam
 	}
 
 	endpoint := fmt.Sprintf("%s/api/v1/servers/%s/zones/%s", strings.TrimRight(apiURL, "/"), serverID, zoneName)
-	request, err := http.NewRequest(http.MethodPatch, endpoint, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPatch, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("build PowerDNS NS patch request: %w", err)
 	}

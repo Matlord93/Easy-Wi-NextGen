@@ -19,7 +19,7 @@
             <p class="text-xs text-slate-500">Theme-Auswahl arbeitet ausschließlich über das neue SiteSettings-Theme-System.</p>
             <label class="block text-sm font-medium text-slate-700" for="active_theme">Aktives Theme</label>
             <select id="active_theme" name="active_theme" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                {% for key in ['esports', 'minimal', 'fantasy', 'nexus-gaming'] %}
+                {% for key in ['esports', 'minimal', 'fantasy', 'clan-nova'] %}
                     <option value="{{ key }}" {% if current_theme == key %}selected{% endif %}>{{ key }}</option>
                 {% endfor %}
             </select>

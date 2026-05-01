@@ -298,13 +298,21 @@
             return payload;
         };
 
-        const scheduleConfigPoll = (configId, jobId) => {
+        const scheduleConfigPoll = (configId, jobId, attempt = 0) => {
+            if (attempt >= 20) {
+                setStatus('{{ t('customer_instance_configs_schema_status_timeout', page_locale()) }}', true);
+                return;
+            }
             window.setTimeout(() => {
-                loadConfig(configId, jobId);
+                loadConfig(configId, jobId, attempt + 1);
             }, 1500);
         };
 
-        const pollJob = async (jobId, onSuccess) => {
+        const pollJob = async (jobId, onSuccess, attempt = 0) => {
+            if (attempt >= 30) {
+                setStatus('{{ t('customer_instance_configs_schema_status_save_failed', page_locale()) }}', true);
+                return;
+            }
             try {
                 const job = await request(jobShowUrlTemplate.replace('__JOB_ID__', jobId));
                 if (job.status === 'succeeded') {
@@ -315,7 +323,7 @@
                     setStatus('{{ t('customer_instance_configs_schema_status_save_failed', page_locale()) }}', true);
                     return;
                 }
-                window.setTimeout(() => pollJob(jobId, onSuccess), 1500);
+                window.setTimeout(() => pollJob(jobId, onSuccess, attempt + 1), 1500);
             } catch (err) {
                 setStatus(err.message, true);
             }
@@ -347,7 +355,7 @@
             }
         };
 
-        const loadConfig = async (configId, jobId = null) => {
+        const loadConfig = async (configId, jobId = null, pollAttempt = 0) => {
             if (!configId) {
                 editor.classList.add('hidden');
                 details.classList.add('hidden');
@@ -375,7 +383,7 @@
                     setStatus('{{ t('customer_instance_configs_schema_status_running', page_locale()) }}');
                 }
                 if (payload.job_id) {
-                    scheduleConfigPoll(configId, payload.job_id);
+                    scheduleConfigPoll(configId, payload.job_id, pollAttempt);
                 }
             } catch (err) {
                 setStatus(err.message, true);

@@ -22,6 +22,7 @@ final class AgentMetricsIngestionService
         private readonly EntityManagerInterface $entityManager,
         private readonly MetricAggregateRepository $aggregateRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
+        private readonly MetricsLiveBuffer $liveBuffer,
         private readonly AuditLogger $auditLogger,
     ) {
     }
@@ -29,7 +30,17 @@ final class AgentMetricsIngestionService
     /** @param list<array<string,mixed>> $metricRows */
     public function ingestBatch(Agent $agent, array $metricRows): int
     {
-        $latestRecordedAt = $this->metricSampleRepository->findLatestRecordedAtForAgent($agent);
+        // Push every row into the live Redis buffer so the dashboard sees real-time data
+        // without hitting the database on every heartbeat.
+        foreach ($metricRows as $row) {
+            $this->liveBuffer->push($agent, $row);
+        }
+
+        // For persistent storage use the last-written timestamp from cache (avoids
+        // a SELECT MAX on every heartbeat). Fall back to DB only when cache is cold.
+        $latestRecordedAt = $this->liveBuffer->getLastWrittenAt($agent)
+            ?? $this->metricSampleRepository->findLatestRecordedAtForAgent($agent);
+
         $ingested = 0;
         foreach ($metricRows as $row) {
             $sample = $this->buildSample($agent, $row);
@@ -44,6 +55,7 @@ final class AgentMetricsIngestionService
             $this->entityManager->persist($sample);
             $this->upsertAggregates($agent, $sample);
             $latestRecordedAt = $sample->getRecordedAt();
+            $this->liveBuffer->markWritten($agent, $sample->getRecordedAt());
             $ingested++;
         }
 

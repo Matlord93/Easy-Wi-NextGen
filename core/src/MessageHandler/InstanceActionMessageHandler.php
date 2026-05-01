@@ -71,7 +71,8 @@ final class InstanceActionMessageHandler
      */
     private function handleSettingsUpdate(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
-        $policy = InstanceUpdatePolicy::from((string) ($payload['update_policy'] ?? InstanceUpdatePolicy::Manual->value));
+        $policyValue = (string) ($payload['update_policy'] ?? InstanceUpdatePolicy::Manual->value);
+        $policy = InstanceUpdatePolicy::tryFrom($policyValue) ?? throw new \InvalidArgumentException(sprintf('Invalid update_policy: %s', $policyValue));
         $lockedBuildId = $this->stringOrNull($payload['locked_build_id'] ?? null);
         $lockedVersion = $this->stringOrNull($payload['locked_version'] ?? null);
         $cronExpression = (string) ($payload['cron_expression'] ?? '');
@@ -133,7 +134,8 @@ final class InstanceActionMessageHandler
      */
     private function handleScheduleUpdate(Instance $instance, ?\App\Module\Core\Domain\Entity\User $actor, array $payload): array
     {
-        $action = InstanceScheduleAction::from((string) $payload['action']);
+        $actionValue = (string) ($payload['action'] ?? '');
+        $action = InstanceScheduleAction::tryFrom($actionValue) ?? throw new \InvalidArgumentException(sprintf('Invalid schedule action: %s', $actionValue));
         $cronExpression = (string) ($payload['cron_expression'] ?? '');
         $timeZone = (string) ($payload['time_zone'] ?? 'UTC');
         $enabled = (bool) ($payload['enabled'] ?? true);

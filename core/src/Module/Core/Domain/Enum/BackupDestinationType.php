@@ -11,4 +11,5 @@ enum BackupDestinationType: string
     case Smb = 'smb';
     case Webdav = 'webdav';
     case Nextcloud = 'nextcloud';
+    case S3 = 's3';
 }

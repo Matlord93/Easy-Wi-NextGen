@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\AgentOrchestrator\UI\Controller\Agent;
 
+use App\Module\AgentOrchestrator\Application\AgentJobResultApplier;
 use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AgentSignatureVerifier;
 use App\Module\Core\Application\EncryptionService;
@@ -30,6 +31,7 @@ final class AgentJobController
         private readonly EncryptionService $encryptionService,
         private readonly EntityManagerInterface $entityManager,
         private readonly CacheInterface $cache,
+        private readonly AgentJobResultApplier $resultApplier,
     ) {
     }
 
@@ -96,14 +98,16 @@ final class AgentJobController
             default => throw new BadRequestHttpException('Invalid status.'),
         };
 
+        $resultPayload = is_array($payload['result_payload'] ?? null) ? $payload['result_payload'] : null;
         $job->setLogText(is_string($payload['log_text'] ?? null) ? $payload['log_text'] : null);
         $job->setErrorText(is_string($payload['error_text'] ?? null) ? $payload['error_text'] : null);
-        $job->setResultPayload(is_array($payload['result_payload'] ?? null) ? $payload['result_payload'] : null);
+        $job->setResultPayload($resultPayload);
         $job->markFinished($status);
-        $this->applyViewerSnapshotCache($job, $payload['result_payload'] ?? null);
-        $this->applyServerGroupCache($job, $payload['result_payload'] ?? null);
-        $this->applyServerSummaryCache($job, $payload['result_payload'] ?? null);
-        $this->applyServerQueryCache($job, $payload['result_payload'] ?? null);
+        $this->resultApplier->apply($job, $status, $resultPayload);
+        $this->applyViewerSnapshotCache($job, $resultPayload);
+        $this->applyServerGroupCache($job, $resultPayload);
+        $this->applyServerSummaryCache($job, $resultPayload);
+        $this->applyServerQueryCache($job, $resultPayload);
         $this->entityManager->flush();
 
         return new JsonResponse(['status' => 'ok']);
@@ -179,8 +183,12 @@ final class AgentJobController
             'generated_at' => $resultPayload['generated_at'] ?? (new \DateTimeImmutable())->format(DATE_ATOM),
         ];
 
+        $ttlSeconds = (int) ($job->getPayload()['cache_ttl_seconds'] ?? 30);
+        $ttlSeconds = max(1, $ttlSeconds);
+
         $this->cache->delete($cacheKey);
-        $this->cache->get($cacheKey, function () use ($snapshot): array {
+        $this->cache->get($cacheKey, function (\Symfony\Contracts\Cache\ItemInterface $item) use ($snapshot, $ttlSeconds): array {
+            $item->expiresAfter($ttlSeconds);
             return $snapshot;
         });
     }
@@ -206,7 +214,8 @@ final class AgentJobController
         ];
 
         $this->cache->delete($cacheKey);
-        $this->cache->get($cacheKey, function () use ($snapshot): array {
+        $this->cache->get($cacheKey, function (\Symfony\Contracts\Cache\ItemInterface $item) use ($snapshot): array {
+            $item->expiresAfter(60);
             return $snapshot;
         });
     }
@@ -235,7 +244,8 @@ final class AgentJobController
         ];
 
         $this->cache->delete($cacheKey);
-        $this->cache->get($cacheKey, function () use ($snapshot): array {
+        $this->cache->get($cacheKey, function (\Symfony\Contracts\Cache\ItemInterface $item) use ($snapshot): array {
+            $item->expiresAfter(30);
             return $snapshot;
         });
     }
@@ -273,7 +283,8 @@ final class AgentJobController
         ];
 
         $this->cache->delete($cacheKey);
-        $this->cache->get($cacheKey, function () use ($snapshot): array {
+        $this->cache->get($cacheKey, function (\Symfony\Contracts\Cache\ItemInterface $item) use ($snapshot): array {
+            $item->expiresAfter(30);
             return $snapshot;
         });
     }

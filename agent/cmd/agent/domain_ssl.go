@@ -5,11 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"easywi/agent/internal/jobs"
 )
+
+var validEmailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 func handleDomainSSLIssue(job jobs.Job) (jobs.Result, func() error) {
 	domainName := payloadValue(job.Payload, "domain", "hostname", "name")
@@ -34,6 +37,10 @@ func handleDomainSSLIssue(job jobs.Job) (jobs.Result, func() error) {
 	domains := sslDomains(domainName, serverAliases)
 	if len(domains) == 0 {
 		return failureResult(job.ID, fmt.Errorf("no valid domains to issue certificate"))
+	}
+
+	if email != "" && !validEmailRegex.MatchString(email) {
+		return failureResult(job.ID, fmt.Errorf("invalid email address: %q", email))
 	}
 
 	args := []string{"certonly", "--webroot", "--non-interactive", "--agree-tos", "--preferred-challenges", "http", "-w", webRoot}

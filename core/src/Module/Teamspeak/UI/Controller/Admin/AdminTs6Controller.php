@@ -12,6 +12,7 @@ use App\Module\Core\Domain\Enum\ModuleKey;
 use App\Module\Core\Domain\Enum\Ts6InstanceStatus;
 use App\Repository\AgentRepository;
 use App\Repository\Ts6InstanceRepository;
+use App\Repository\Ts6NodeRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -26,6 +27,7 @@ final class AdminTs6Controller
     public function __construct(
         private readonly AgentRepository $agentRepository,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
+        private readonly Ts6NodeRepository $ts6NodeRepository,
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
@@ -237,6 +239,13 @@ final class AdminTs6Controller
             'service_name' => sprintf('ts6-%d', $instance->getId() ?? 0),
             'action' => $extraPayload['action'] ?? null,
         ], $extraPayload);
+
+        if ($type === 'ts6.instance.create') {
+            $ts6Node = $this->ts6NodeRepository->findOneBy(['agent' => $instance->getNode()]);
+            if ($ts6Node !== null) {
+                $payload['install_dir'] = $ts6Node->getInstallPath();
+            }
+        }
 
         return $this->jobDispatcher->dispatch($instance->getNode(), $type, $payload);
     }

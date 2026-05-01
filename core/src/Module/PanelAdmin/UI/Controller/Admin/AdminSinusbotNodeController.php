@@ -400,9 +400,6 @@ final class AdminSinusbotNodeController
             $dto->instanceRoot = '/opt/sinusbot/instances';
         }
 
-        if (trim($dto->installPath) === '') {
-            $form->addError(new FormError('Install path is required.'));
-        }
         if (!$this->isValidInstallPath($dto->installPath)) {
             $form->addError(new FormError('Installationspfad muss absolut sein und darf kein "..", "~" oder Nullbytes enthalten.'));
         }

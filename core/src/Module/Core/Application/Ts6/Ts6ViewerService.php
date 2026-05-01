@@ -67,6 +67,7 @@ final class Ts6ViewerService
                 'node_id' => $server->getNode()->getId(),
                 'sid' => $server->getSid(),
                 'cache_key' => $cacheKey,
+                'cache_ttl_seconds' => $ttlSeconds,
             ];
             $this->jobDispatcher->dispatch($server->getNode()->getAgent(), 'ts6.viewer.snapshot', $payload);
 

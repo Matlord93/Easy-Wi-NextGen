@@ -86,6 +86,14 @@
                             setTimeout(loadGroups, delayMs);
                             return;
                         }
+                        if (data.status === 'pending' || data.status === 'error') {
+                            const option = document.createElement('option');
+                            option.value = '6';
+                            option.textContent = `Fehler: ${data.message ?? 'Server antwortet nicht'} (${data.action_id ?? 'n/a'})`;
+                            select.innerHTML = '';
+                            select.appendChild(option);
+                            return;
+                        }
                         if (data.status !== 'ok') { return; }
                         const groups = Array.isArray(data.groups) ? data.groups : [];
                         select.innerHTML = '';

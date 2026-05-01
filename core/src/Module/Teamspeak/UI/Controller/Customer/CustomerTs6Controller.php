@@ -13,6 +13,7 @@ use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\ModuleKey;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\Ts6InstanceRepository;
+use App\Repository\Ts6NodeRepository;
 use App\Repository\TsVirtualServerRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -22,13 +23,16 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/ts6')]
+#[RequiresModule('ts6')]
 final class CustomerTs6Controller
 {
     public function __construct(
         private readonly ModuleRegistry $moduleRegistry,
         private readonly Ts6InstanceRepository $ts6InstanceRepository,
+        private readonly Ts6NodeRepository $ts6NodeRepository,
         private readonly TsVirtualServerRepository $tsVirtualServerRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
@@ -209,6 +213,14 @@ final class CustomerTs6Controller
             'service_name' => sprintf('ts6-%d', $instance->getId() ?? 0),
             'action' => $extraPayload['action'] ?? null,
         ], $extraPayload);
+
+        if ($type === 'ts6.instance.create') {
+            $ts6Node = $this->ts6NodeRepository->findOneBy(['agent' => $instance->getNode()]);
+            if ($ts6Node !== null) {
+                $payload['install_dir'] = $ts6Node->getInstallPath();
+            }
+        }
+
         return $this->jobDispatcher->dispatch($instance->getNode(), $type, $payload);
     }
 

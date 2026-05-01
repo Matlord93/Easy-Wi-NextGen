@@ -64,12 +64,9 @@ func handleOrchestratorJob(job jobs.Job) orchestratorResult {
 	case "ts6.status":
 		return handleServiceStatus(job)
 	case "ts6.instance.create":
-		return orchestratorResult{
-			status:        "success",
-			resultPayload: map[string]any{"message": "ts6 instance create queued"},
-		}
+		return handleTs6InstanceCreate(job)
 	case "ts6.instance.action":
-		return handleServiceAction(job)
+		return handleTs6InstanceAction(job)
 	case "sinusbot.install":
 		return handleSinusbotInstall(job)
 	case "sinusbot.service.action":
@@ -1214,4 +1211,264 @@ func convertJobResult(result jobs.Result, afterSubmit func() error) orchestrator
 
 func writeFile(path string, content string) error {
 	return os.WriteFile(path, []byte(content), instanceFileMode)
+}
+
+func handleTs6InstanceCreate(job jobs.Job) orchestratorResult {
+	instanceID := payloadValue(job.Payload, "instance_id")
+	serviceName := payloadValue(job.Payload, "service_name")
+	installDir := payloadValue(job.Payload, "install_dir")
+
+	if instanceID == "" || serviceName == "" {
+		return orchestratorResult{status: "failed", errorText: "missing instance_id or service_name"}
+	}
+	if installDir == "" {
+		installDir = "/var/lib/ts6"
+	}
+
+	baseDir := payloadValue(job.Payload, "base_dir")
+	if baseDir == "" {
+		baseDir = "/var/lib/ts6/instances"
+	}
+	instanceDir := path.Join(baseDir, instanceID)
+
+	osUsername := fmt.Sprintf("ts6i%s", sanitizeIdentifier(instanceID))
+	if err := ensureGroup(osUsername); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := ensureUser(osUsername, osUsername, instanceDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := ensureInstanceDir(instanceDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	voicePort := parseInt(payloadValue(job.Payload, "voice_port"), 9987)
+	queryHttpsPort := parseInt(payloadValue(job.Payload, "query_https_port"), 10443)
+	filetransferPort := parseInt(payloadValue(job.Payload, "filetransfer_port"), 30033)
+
+	configPath := filepath.Join(instanceDir, "tsserver.yaml")
+	configContent := buildTs6Config(ts6ConfigOptions{
+		licenseAccepted:  true,
+		voiceIP:          []string{"0.0.0.0"},
+		defaultVoicePort: voicePort,
+		filetransferPort: filetransferPort,
+		filetransferIP:   []string{"0.0.0.0"},
+		queryHttpsEnable: true,
+		queryHttpsPort:   queryHttpsPort,
+		workingDirectory: instanceDir,
+	})
+	if err := writeFile(configPath, configContent); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("write config: %v", err)}
+	}
+
+	uid, gid, err := lookupIDs(osUsername, osUsername)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := os.Chown(instanceDir, uid, gid); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("chown instance dir: %v", err)}
+	}
+	if err := os.Chown(configPath, uid, gid); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("chown config: %v", err)}
+	}
+	if err := ensureTs6SshHostKey(instanceDir, uid, gid); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	binaryPath := filepath.Join(installDir, "tsserver")
+	if _, err := os.Stat(binaryPath); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("ts6 binary not found at %s: %v", binaryPath, err)}
+	}
+
+	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
+	unitContent := systemdUnitTemplate(serviceName, osUsername, instanceDir, instanceDir,
+		binaryPath, fmt.Sprintf("--accept-license --config-file %s", configPath), 0, 0)
+	if err := writeFile(unitPath, unitContent); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("write unit: %v", err)}
+	}
+	if err := runCommand("systemctl", "daemon-reload"); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := runCommand("systemctl", "enable", "--now", serviceName); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	diagnostics := collectServiceDiagnostics(serviceName)
+	diagnostics["service_name"] = serviceName
+	diagnostics["instance_dir"] = instanceDir
+
+	return orchestratorResult{status: "success", resultPayload: map[string]any{
+		"service_name":  serviceName,
+		"instance_dir":  instanceDir,
+		"running":       true,
+	}}
+}
+
+func handleTs6InstanceAction(job jobs.Job) orchestratorResult {
+	action := strings.ToLower(payloadValue(job.Payload, "action"))
+	switch action {
+	case "start", "stop", "restart":
+		return handleTs6ServiceControlAction(job, action)
+	case "update":
+		return handleTs6InstanceUpdate(job)
+	case "backup":
+		return handleTs6InstanceBackup(job)
+	case "restore":
+		return handleTs6InstanceRestore(job)
+	default:
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("unsupported ts6 action: %s", action)}
+	}
+}
+
+func handleTs6ServiceControlAction(job jobs.Job, action string) orchestratorResult {
+	serviceName := payloadValue(job.Payload, "service_name")
+	if serviceName == "" {
+		instanceID := payloadValue(job.Payload, "instance_id")
+		if instanceID == "" {
+			return orchestratorResult{status: "failed", errorText: "missing service_name or instance_id"}
+		}
+		serviceName = fmt.Sprintf("ts6-%s", instanceID)
+	}
+
+	if err := runCommand("systemctl", action, serviceName); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	diagnostics := collectServiceDiagnostics(serviceName)
+	diagnostics["service_name"] = serviceName
+	diagnostics["action"] = action
+
+	return orchestratorResult{status: "success", resultPayload: map[string]any{
+		"service_name": serviceName,
+		"action":       action,
+		"running":      action != "stop",
+	}}
+}
+
+func handleTs6InstanceUpdate(job jobs.Job) orchestratorResult {
+	serviceName := payloadValue(job.Payload, "service_name")
+	if serviceName == "" {
+		instanceID := payloadValue(job.Payload, "instance_id")
+		if instanceID != "" {
+			serviceName = fmt.Sprintf("ts6-%s", instanceID)
+		}
+	}
+
+	updateCommand := payloadValue(job.Payload, "update_command")
+	if updateCommand != "" {
+		instanceDir := ts6InstanceDirFromJob(job)
+		if instanceDir != "" {
+			templateValues := buildInstanceTemplateValues(instanceDir, "", []int{}, job.Payload)
+			rendered, err := renderTemplateStrict(updateCommand, templateValues)
+			if err != nil {
+				return orchestratorResult{status: "failed", errorText: err.Error()}
+			}
+			cmd := fmt.Sprintf("cd %s && %s", instanceDir, rendered)
+			if err := runCommandAsUser("ts6", cmd); err != nil {
+				return orchestratorResult{status: "failed", errorText: fmt.Sprintf("update command failed: %v", err)}
+			}
+		}
+	}
+
+	if serviceName == "" {
+		return orchestratorResult{status: "failed", errorText: "missing service_name or instance_id"}
+	}
+	if err := runCommand("systemctl", "restart", serviceName); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	return orchestratorResult{status: "success", resultPayload: map[string]any{
+		"service_name": serviceName,
+		"running":      true,
+	}}
+}
+
+func handleTs6InstanceBackup(job jobs.Job) orchestratorResult {
+	instanceID := payloadValue(job.Payload, "instance_id")
+	instanceDir := ts6InstanceDirFromJob(job)
+	if instanceDir == "" {
+		return orchestratorResult{status: "failed", errorText: "missing instance_dir or could not resolve instance directory"}
+	}
+
+	backupPath := payloadValue(job.Payload, "backup_path")
+	if backupPath == "" {
+		backupDir := filepath.Join(filepath.Dir(instanceDir), "backups")
+		if err := os.MkdirAll(backupDir, instanceDirMode); err != nil {
+			return orchestratorResult{status: "failed", errorText: fmt.Sprintf("create backup dir: %v", err)}
+		}
+		backupPath = filepath.Join(backupDir, fmt.Sprintf("ts6-%s-%d.tar.gz", instanceID, time.Now().UTC().Unix()))
+	}
+
+	if err := runCommand("tar", "-czf", backupPath, "-C", instanceDir, "."); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	return orchestratorResult{status: "success", resultPayload: map[string]any{"backup_path": backupPath}}
+}
+
+func handleTs6InstanceRestore(job jobs.Job) orchestratorResult {
+	instanceDir := ts6InstanceDirFromJob(job)
+	restorePath := payloadValue(job.Payload, "restore_path")
+	serviceName := payloadValue(job.Payload, "service_name")
+
+	if instanceDir == "" {
+		return orchestratorResult{status: "failed", errorText: "missing instance_dir or could not resolve instance directory"}
+	}
+	if restorePath == "" {
+		return orchestratorResult{status: "failed", errorText: "missing restore_path"}
+	}
+
+	if serviceName != "" {
+		_ = runCommand("systemctl", "stop", serviceName)
+	}
+
+	if err := os.RemoveAll(instanceDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("remove instance dir: %v", err)}
+	}
+	if err := os.MkdirAll(instanceDir, instanceDirMode); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("recreate instance dir: %v", err)}
+	}
+	if err := runCommand("tar", "-xzf", restorePath, "-C", instanceDir); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	if serviceName != "" {
+		if err := runCommand("systemctl", "start", serviceName); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
+	}
+
+	return orchestratorResult{status: "success", resultPayload: map[string]any{
+		"restore_path": restorePath,
+		"running":      serviceName != "",
+	}}
+}
+
+// ts6InstanceDirFromJob resolves the TS6 instance working directory from the job payload.
+// It uses 'instance_dir' if present; otherwise reads the WorkingDirectory from the systemd unit.
+func ts6InstanceDirFromJob(job jobs.Job) string {
+	if dir := payloadValue(job.Payload, "instance_dir"); dir != "" {
+		return dir
+	}
+
+	serviceName := payloadValue(job.Payload, "service_name")
+	if serviceName == "" {
+		instanceID := payloadValue(job.Payload, "instance_id")
+		if instanceID == "" {
+			return ""
+		}
+		serviceName = fmt.Sprintf("ts6-%s", instanceID)
+	}
+
+	unitPath := filepath.Join("/etc/systemd/system", serviceName+".service")
+	data, err := os.ReadFile(unitPath)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "WorkingDirectory=") {
+			return strings.TrimPrefix(line, "WorkingDirectory=")
+		}
+	}
+	return ""
 }

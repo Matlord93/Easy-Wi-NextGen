@@ -304,6 +304,73 @@ func setUserPassword(username, password string) error {
 	return nil
 }
 
+func handleWebspaceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error) {
+	username := payloadValue(job.Payload, "username", "sftp_username", "user")
+	password := strings.TrimSpace(payloadValue(job.Payload, "password", "sftp_password"))
+	rootPath := strings.TrimSpace(payloadValue(job.Payload, "root_path", "webspace_path", "web_root"))
+	group := payloadValue(job.Payload, "sftp_group", "group")
+	shell := payloadValue(job.Payload, "shell")
+
+	if password == "" {
+		password = generateSftpPassword()
+	}
+	if group == "" {
+		group = os.Getenv("EASYWI_SFTP_GROUP")
+	}
+	if group == "" {
+		group = defaultSftpGroup
+	}
+	if shell == "" {
+		shell = defaultSftpShell
+	}
+
+	missing := missingValues([]requiredValue{
+		{key: "username", value: username},
+		{key: "root_path", value: rootPath},
+	})
+	if len(missing) > 0 {
+		return jobs.Result{
+			JobID:     job.ID,
+			Status:    "failed",
+			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", "), "error_code": "INVALID_INPUT"},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
+
+	if !filepath.IsAbs(rootPath) || strings.Contains(rootPath, "..") {
+		return failureResultWithCode(job.ID, "ROOT_INVALID", fmt.Errorf("invalid root path: %s", rootPath), "", "")
+	}
+
+	if err := ensureGroup(group); err != nil {
+		return failureResultWithCode(job.ID, "PERMISSION_DENIED", err, "", "")
+	}
+
+	if userExists(username) {
+		if output, err := runCommandLogged("usermod", "--home", rootPath, "--shell", shell, "--gid", group, username); err != nil {
+			return failureResultWithCode(job.ID, "sftp_user_create_failed", err, "", output)
+		}
+	} else {
+		if output, err := runCommandLogged("useradd", "--system", "--home-dir", rootPath, "--shell", shell, "--gid", group, "--no-create-home", username); err != nil {
+			return failureResultWithCode(job.ID, "sftp_user_create_failed", err, "", output)
+		}
+	}
+
+	if err := setUserPassword(username, password); err != nil {
+		return failureResultWithCode(job.ID, "sftp_password_failed", err, "", "")
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"username":  username,
+			"root_path": rootPath,
+			"group":     group,
+		},
+		Completed: time.Now().UTC(),
+	}, nil
+}
+
 func escapePowerShellSingleQuotes(value string) string {
 	return strings.ReplaceAll(value, "'", "''")
 }

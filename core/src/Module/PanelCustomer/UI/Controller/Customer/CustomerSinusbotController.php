@@ -19,12 +19,14 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/customer/infrastructure/sinusbot')]
 /**
  * @deprecated since 2026-02. Unified customer voice SoT is /customer/voice.
  *             Keep legacy SinusBot UI reachable during migration horizon.
  */
+#[RequiresModule('sinusbot')]
 final class CustomerSinusbotController
 {
     public function __construct(

@@ -22,8 +22,10 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Attribute\Route;
+use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/files')]
+#[RequiresModule('web')]
 final class CustomerFileManagerController extends AbstractController
 {
     private const int MAX_EDIT_SIZE_BYTES = 1_048_576;

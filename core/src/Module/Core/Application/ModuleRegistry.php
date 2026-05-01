@@ -36,6 +36,11 @@ final class ModuleRegistry
             'version' => '1.0.0',
             'description' => 'Game server lifecycle management.',
         ],
+        ModuleKey::Sinusbot->value => [
+            'label' => 'Sinusbot',
+            'version' => '1.0.0',
+            'description' => 'Sinusbot music bot instances.',
+        ],
         ModuleKey::Ts->value => [
             'label' => 'Teamspeak',
             'version' => '1.0.0',

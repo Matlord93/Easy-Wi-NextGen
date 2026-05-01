@@ -569,8 +569,12 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleDomainSSLRevoke(job)
 	case "roundcube.install":
 		return handleRoundcubeInstall(job)
+	case "roundcube.deploy":
+		return handleRoundcubeDeploy(job)
 	case "mail.domain.create":
 		return handleMailDomainCreate(job)
+	case "mail.dkim.rotate":
+		return handleMailDkimRotate(job)
 	case "mail.dns.validate":
 		return handleMailDNSValidate(job)
 	case "database.create":
@@ -677,8 +681,12 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleInstanceFileMkdir(job)
 	case "instance.sftp.credentials.reset":
 		return handleInstanceSftpCredentialsReset(job)
+	case "webspace.sftp.credentials.reset":
+		return handleWebspaceSftpCredentialsReset(job)
 	case "instance.config.apply":
 		return handleInstanceConfigApply(job)
+	case "instance.watchdog.check":
+		return handleInstanceWatchdogCheck(job, logSender)
 	case "core.ssh.policy.apply":
 		return handleCoreSshPolicyApply(job)
 	case "instance.query.check":

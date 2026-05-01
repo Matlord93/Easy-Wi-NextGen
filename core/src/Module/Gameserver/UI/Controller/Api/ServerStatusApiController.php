@@ -47,7 +47,8 @@ final class ServerStatusApiController
     #[Route(path: '/servers/status', name: 'api_servers_status', methods: ['GET'])]
     public function listStatus(): JsonResponse
     {
-        $data = $this->cache->get('servers_status_all', function () {
+        $data = $this->cache->get('servers_status_all', function (\Symfony\Contracts\Cache\ItemInterface $item): array {
+            $item->expiresAfter(300);
             return array_map(fn (Instance $instance) => $this->normalizeInstance($instance), $this->instanceRepository->findAll());
         });
 

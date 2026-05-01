@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -83,7 +84,9 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	if payload == nil {
 		return
 	}
-	_ = json.NewEncoder(w).Encode(payload)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("fileapi: write json response: %v", err)
+	}
 }
 
 func respondError(r *http.Request, w http.ResponseWriter, status int, code string, message string) {

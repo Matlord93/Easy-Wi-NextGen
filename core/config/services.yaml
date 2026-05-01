@@ -42,6 +42,10 @@ parameters:
   app.windows_nodes_enabled: '%env(bool:default:app.windows_nodes_enabled_default:APP_WINDOWS_NODES_ENABLED)%'
   app.payment_dummy_enabled_default: '0'
   app.payment_dummy_enabled: '%env(bool:default:app.payment_dummy_enabled_default:APP_PAYMENT_DUMMY_ENABLED)%'
+  app.stripe_secret_key_default: ''
+  app.stripe_webhook_secret_default: ''
+  app.stripe_success_url_default: '/billing'
+  app.stripe_cancel_url_default: '/billing'
   app.admin_authorized_keys_path_default: '/home/easywi/.ssh/authorized_keys'
   app.admin_authorized_keys_path: '%env(default:app.admin_authorized_keys_path_default:APP_ADMIN_AUTHORIZED_KEYS_PATH)%'
   app.sinusbot_quota_min_default: '1'
@@ -162,6 +166,8 @@ services:
 
   App\Module\Setup\Application\WebinterfaceUpdateService:
     arguments:
+      $httpClient: '@http_client'
+      $settingsService: '@App\Module\Setup\Application\WebinterfaceUpdateSettingsService'
       $manifestUrl: '%app.core_update_manifest_url%'
       $installDir: '%app.core_update_install_dir%'
       $releasesDir: '%app.core_update_releases_dir%'
@@ -324,6 +330,9 @@ services:
       $writers:
         - '@App\Module\Core\Application\Backup\Target\LocalBackupTargetWriter'
         - '@App\Module\Core\Application\Backup\Target\WebDavBackupTargetWriter'
+        - '@App\Module\Core\Application\Backup\Target\S3BackupTargetWriter'
+        - '@App\Module\Core\Application\Backup\Target\SmbBackupTargetWriter'
+        - '@App\Module\Core\Application\Backup\Target\NfsBackupTargetWriter'
 
   App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface: '@App\Module\Gameserver\Infrastructure\Grpc\GrpcConsoleAgentGrpcClient'
   App\Module\Gameserver\Application\Console\ConsoleEventBusInterface: '@App\Module\Gameserver\Infrastructure\Console\FallbackConsoleEventBus'

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\PanelAdmin\UI\Controller\Admin;
 
+use App\Module\Core\Application\MetricsLiveBuffer;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\User;
 use App\Repository\AgentRepository;
@@ -11,6 +12,7 @@ use App\Repository\InstanceMetricSampleRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\MetricSampleRepository;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -24,11 +26,56 @@ final class AdminMetricsController
         private readonly InstanceRepository $instanceRepository,
         private readonly MetricSampleRepository $metricSampleRepository,
         private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
+        private readonly MetricsLiveBuffer $liveBuffer,
         private readonly Environment $twig,
         private readonly LoggerInterface $logger,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire('%app.status_stale_grace_seconds%')]
         private readonly int $heartbeatGraceSeconds,
     ) {
+    }
+
+    /**
+     * Live metrics endpoint — reads from Redis buffer, never from DB.
+     * Poll this from the dashboard frontend to get real-time data without
+     * adding read pressure to the metrics_samples table.
+     */
+    #[Route(path: '/live', name: 'admin_metrics_live', methods: ['GET'])]
+    public function live(Request $request): JsonResponse
+    {
+        if (!$this->isAdmin($request)) {
+            return new JsonResponse(['error' => 'Forbidden.'], Response::HTTP_FORBIDDEN);
+        }
+
+        $agentId = trim((string) $request->query->get('agent', ''));
+        if ($agentId === '') {
+            return new JsonResponse(['error' => 'agent parameter required.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $agents = $this->agentRepository->findBy([]);
+        $agent = null;
+        foreach ($agents as $a) {
+            if ((string) $a->getId() === $agentId) {
+                $agent = $a;
+                break;
+            }
+        }
+
+        if ($agent === null) {
+            return new JsonResponse(['error' => 'Agent not found.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $samples = $this->liveBuffer->fetchSamples($agent);
+        $heartbeat = $agent->getLastHeartbeatStats();
+        $lastSeenAt = $agent->getLastHeartbeatAt();
+
+        return new JsonResponse([
+            'agent_id' => (string) $agent->getId(),
+            'agent_name' => $agent->getName(),
+            'last_seen_at' => $lastSeenAt?->format(\DateTimeInterface::ATOM),
+            'online' => $lastSeenAt !== null && (time() - $lastSeenAt->getTimestamp()) <= $this->heartbeatGraceSeconds,
+            'current' => is_array($heartbeat['metrics'] ?? null) ? $heartbeat['metrics'] : null,
+            'samples' => $samples,
+        ]);
     }
 
     #[Route(path: '', name: 'admin_metrics', methods: ['GET'])]
@@ -177,6 +224,18 @@ final class AdminMetricsController
             }
         }
 
+        $cpuLine     = $this->buildSparklinePoints($cpuSeries);
+        $memLine     = $this->buildSparklinePoints($memorySeries);
+        $diskLine    = $this->buildSparklinePoints($diskSeries);
+        $netSentLine = $this->buildSparklinePoints($bandwidth['upload']);
+        $netRecvLine = $this->buildSparklinePoints($bandwidth['download']);
+        $tempLine    = $this->buildSparklinePoints($temperatureSeries);
+
+        $cpuChartLine     = $this->buildSparklinePoints($cpuSeries, 1200, 120);
+        $memChartLine     = $this->buildSparklinePoints($memorySeries, 1200, 120);
+        $netRecvChartLine = $this->buildSparklinePoints($bandwidth['download'], 1200, 120);
+        $netSentChartLine = $this->buildSparklinePoints($bandwidth['upload'], 1200, 120);
+
         return new Response($this->twig->render('admin/metrics/index.html.twig', [
             'activeNav' => 'metrics',
             'tab' => $tab,
@@ -196,17 +255,17 @@ final class AdminMetricsController
             'loadError' => $loadError,
             'recentSamples' => $recentSamples,
             'aggregate' => $aggregate,
-            'cpuPoints' => $this->buildSparklinePoints($cpuSeries),
-            'memoryPoints' => $this->buildSparklinePoints($memorySeries),
-            'diskPoints' => $this->buildSparklinePoints($diskSeries),
-            'netSentPoints' => $this->buildSparklinePoints($bandwidth['upload']),
-            'netRecvPoints' => $this->buildSparklinePoints($bandwidth['download']),
+            'cpuPoints' => $cpuLine,
+            'memoryPoints' => $memLine,
+            'diskPoints' => $diskLine,
+            'netSentPoints' => $netSentLine,
+            'netRecvPoints' => $netRecvLine,
             'latestCpu' => $latest['cpuPercent'] ?? null,
             'latestMemory' => $latest['memoryPercent'] ?? null,
             'latestDisk' => $latest['diskPercent'] ?? null,
             'latestNetSent' => $bandwidth['latestUpload'],
             'latestNetRecv' => $bandwidth['latestDownload'],
-            'temperaturePoints' => $this->buildSparklinePoints($temperatureSeries),
+            'temperaturePoints' => $tempLine,
             'latestTemperature' => $latestTemperature,
             'temperatureAggregate' => $temperatureAggregate,
             'sampleBandwidth' => $sampleBandwidth,
@@ -221,6 +280,14 @@ final class AdminMetricsController
             'nodeHealthStatus' => $nodeHealthStatus,
             'nodeLastSeenAt' => $nodeLastSeenAt,
             'heartbeatGraceSeconds' => $this->heartbeatGraceSeconds,
+            'cpuChartLine' => $cpuChartLine,
+            'cpuChartArea' => $cpuChartLine !== null ? $this->buildAreaPoints($cpuChartLine, 1200, 120) : null,
+            'memChartLine' => $memChartLine,
+            'memChartArea' => $memChartLine !== null ? $this->buildAreaPoints($memChartLine, 1200, 120) : null,
+            'netRecvChartLine' => $netRecvChartLine,
+            'netRecvChartArea' => $netRecvChartLine !== null ? $this->buildAreaPoints($netRecvChartLine, 1200, 120) : null,
+            'netSentChartLine' => $netSentChartLine,
+            'netSentChartArea' => $netSentChartLine !== null ? $this->buildAreaPoints($netSentChartLine, 1200, 120) : null,
         ]));
     }
 
@@ -488,6 +555,11 @@ final class AdminMetricsController
         }
 
         return $values;
+    }
+
+    private function buildAreaPoints(string $linePoints, int $width = 1200, int $height = 120): string
+    {
+        return sprintf('%s %d,%d 0,%d', $linePoints, $width, $height, $height);
     }
 
     private function buildSparklinePoints(array $values, int $width = 240, int $height = 60): ?string
