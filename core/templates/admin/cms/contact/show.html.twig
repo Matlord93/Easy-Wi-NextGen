@@ -1,0 +1,70 @@
+{% extends 'admin/base.html.twig' %}
+{% block content %}
+<div class="max-w-3xl space-y-6">
+
+    <div class="flex items-center gap-3">
+        <a href="/admin/cms/contact" class="text-sm text-slate-500 hover:text-slate-700">← Zurück zum Posteingang</a>
+    </div>
+
+    {% if replied %}
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            Antwort wurde gespeichert.
+        </div>
+    {% endif %}
+
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div>
+                <h1 class="text-lg font-semibold text-slate-800">{{ message.subject }}</h1>
+                <p class="text-sm text-slate-500 mt-0.5">
+                    Von <strong>{{ message.name }}</strong>
+                    &lt;<a href="mailto:{{ message.email }}" class="text-indigo-600">{{ message.email }}</a>&gt;
+                    · {{ message.createdAt|date('d.m.Y H:i') }} Uhr
+                </p>
+            </div>
+            <div>
+                {% if message.status == 'new' %}
+                    <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800">Neu</span>
+                {% elseif message.status == 'replied' %}
+                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Beantwortet</span>
+                {% else %}
+                    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">Gelesen</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="px-6 py-5">
+            <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ message.message }}</p>
+        </div>
+        {% if message.adminReply is not null %}
+            <div class="px-6 py-4 border-t border-slate-100 bg-emerald-50/40">
+                <p class="text-xs font-medium text-emerald-700 uppercase tracking-wide mb-2">Deine Antwort ({{ message.repliedAt|date('d.m.Y H:i') }})</p>
+                <p class="text-sm text-slate-700 whitespace-pre-wrap">{{ message.adminReply }}</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-4">
+        <h2 class="text-base font-semibold text-slate-800">
+            {% if message.adminReply is not null %}Antwort aktualisieren{% else %}Antwort schreiben{% endif %}
+        </h2>
+        <form method="post" action="/admin/cms/contact/{{ message.id }}/reply" class="space-y-4">
+            <label class="block text-sm">
+                <span class="text-slate-700">Antworttext</span>
+                <textarea name="reply_text" rows="6" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400">{{ message.adminReply|default('') }}</textarea>
+            </label>
+            <p class="text-xs text-slate-400">Hinweis: Die Antwort wird nur intern gespeichert und dient als Notiz/Referenz. E-Mail-Versand muss separat über deinen Mail-Client erfolgen.</p>
+            <div class="flex items-center gap-3">
+                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+                    Antwort speichern
+                </button>
+                <form method="post" action="/admin/cms/contact/{{ message.id }}/delete" onsubmit="return confirm('Nachricht wirklich löschen?')">
+                    <button type="submit" class="rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50">
+                        Nachricht löschen
+                    </button>
+                </form>
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

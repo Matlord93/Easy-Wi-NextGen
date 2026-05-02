@@ -40,6 +40,10 @@ framework:
             policy: 'fixed_window'
             limit: 6
             interval: '10 minutes'
+        public_kontakt:
+            policy: 'fixed_window'
+            limit: 3
+            interval: '1 hour'
         public_login_ip:
             policy: 'fixed_window'
             limit: 10

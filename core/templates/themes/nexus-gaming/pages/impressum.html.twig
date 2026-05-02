@@ -1,0 +1,18 @@
+{% extends 'themes/nexus-gaming/base.html.twig' %}
+
+{% block title %}Impressum – {{ app_setting('branding_name', 'Easy-Wi NextGen') }}{% endblock %}
+
+{% block content %}
+<div class="ng-legal-page">
+  <div class="ng-legal-page__header">
+    <h1 class="ng-legal-page__title">Impressum</h1>
+  </div>
+  <div class="ng-legal-page__body">
+    {% if cms_impressum_content|default('') is not empty %}
+      {{ cms_impressum_content|raw }}
+    {% else %}
+      <p class="ng-legal-page__empty">Kein Impressum hinterlegt. Bitte trage den Text unter <strong>Admin → CMS Einstellungen → Impressum</strong> ein.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

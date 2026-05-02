@@ -1,0 +1,18 @@
+{% extends 'themes/nexus-gaming/base.html.twig' %}
+
+{% block title %}Datenschutz – {{ app_setting('branding_name', 'Easy-Wi NextGen') }}{% endblock %}
+
+{% block content %}
+<div class="ng-legal-page">
+  <div class="ng-legal-page__header">
+    <h1 class="ng-legal-page__title">Datenschutzerklärung</h1>
+  </div>
+  <div class="ng-legal-page__body">
+    {% if cms_datenschutz_content|default('') is not empty %}
+      {{ cms_datenschutz_content|raw }}
+    {% else %}
+      <p class="ng-legal-page__empty">Keine Datenschutzerklärung hinterlegt. Bitte trage den Text unter <strong>Admin → CMS Einstellungen → Datenschutz</strong> ein.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

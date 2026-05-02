@@ -889,7 +889,19 @@ final class AdminInstanceController
      */
     private function listDistinctTemplates(): array
     {
-        return $this->templateRepository->findBy([], ['displayName' => 'ASC', 'id' => 'ASC']);
+        $templates = $this->templateRepository->findBy([], ['displayName' => 'ASC', 'id' => 'ASC']);
+        $distinct = [];
+
+        foreach ($templates as $template) {
+            $identity = strtolower(trim($template->getDisplayName())) . '::' . strtolower(trim($template->getGameKey()));
+            if (isset($distinct[$identity])) {
+                continue;
+            }
+
+            $distinct[$identity] = $template;
+        }
+
+        return array_values($distinct);
     }
 
     /**

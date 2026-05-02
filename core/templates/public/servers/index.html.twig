@@ -1,10 +1,277 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
 {% set activeNav = 'servers' %}
+{% set isNexus = (active_theme|default('minimal')) == 'nexus-gaming' %}
 
 {% block title %}{{ t('server_directory_title', page_locale()) }} · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
+
+{% if isNexus %}
+{# ═══════════════════════════════════════════════════════════
+   NEXUS GAMING LAYOUT
+   ═══════════════════════════════════════════════════════════ #}
+<div class="ng-page-hero">
+    <div class="ng-container">
+        <nav class="ng-breadcrumb">
+            <a href="/" class="ng-breadcrumb__link">Home</a>
+            <span class="ng-breadcrumb__sep">/</span>
+            <span>{{ t('server_directory_title', page_locale()) }}</span>
+        </nav>
+        <h1 class="ng-page-hero__title ng-gradient-text">{{ t('server_directory_title', page_locale()) }}</h1>
+        <p class="ng-page-hero__accent">{{ t('server_directory_intro', page_locale()) }}</p>
+    </div>
+</div>
+
+<div class="ng-container" style="padding-bottom:48px;">
+
+    {# ── Filter bar ── #}
+    <form method="get" class="ng-srv-filters">
+        <div class="ng-srv-filters__field">
+            <label class="ng-srv-filters__label">{{ t('search', page_locale()) }}</label>
+            <input type="search" name="search" value="{{ filters.search }}" placeholder="{{ t('server_search_placeholder', page_locale()) }}" class="ng-input">
+        </div>
+        <div class="ng-srv-filters__field">
+            <label class="ng-srv-filters__label">{{ t('game', page_locale()) }}</label>
+            <select name="game" class="ng-input">
+                <option value="">{{ t('all_games', page_locale()) }}</option>
+                {% for game in games %}
+                    <option value="{{ game }}" {% if filters.game == game %}selected{% endif %}>{{ game }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="ng-srv-filters__field">
+            <label class="ng-srv-filters__label">{{ t('status', page_locale()) }}</label>
+            <select name="status" class="ng-input">
+                <option value="">{{ t('all', page_locale()) }}</option>
+                <option value="online"  {% if filters.status == 'online'  %}selected{% endif %}>{{ t('status_online',  page_locale()) }}</option>
+                <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>{{ t('status_offline', page_locale()) }}</option>
+                <option value="unknown" {% if filters.status == 'unknown' %}selected{% endif %}>{{ t('status_unknown', page_locale()) }}</option>
+                <option value="error"   {% if filters.status == 'error'   %}selected{% endif %}>{{ t('status_error',   page_locale()) }}</option>
+            </select>
+        </div>
+        <div class="ng-srv-filters__action">
+            <button type="submit" class="ng-btn" style="height:100%;min-height:42px;">{{ t('filter', page_locale()) }}</button>
+        </div>
+    </form>
+
+    {# ── Server cards ── #}
+    {% if servers|length > 0 %}
+    <div class="ng-srv-grid">
+        {% for server in servers %}
+        {% set isOnline = server.status == 'online' %}
+        <div class="ng-srv-card {% if isOnline %}ng-srv-card--online{% endif %}">
+            <div class="ng-srv-card__head">
+                <div class="ng-srv-card__dot {% if isOnline %}ng-srv-card__dot--online{% elseif server.status == 'error' %}ng-srv-card__dot--error{% else %}ng-srv-card__dot--offline{% endif %}"></div>
+                <div class="ng-srv-card__meta">
+                    <p class="ng-srv-card__name">{{ server.name }}</p>
+                    <p class="ng-srv-card__game">{{ server.game_key }}</p>
+                </div>
+                <span class="ng-srv-card__badge ng-srv-card__badge--{{ server.status == 'online' ? 'online' : (server.status == 'error' ? 'error' : 'offline') }}">
+                    {% if isOnline %}ONLINE{% elseif server.status == 'error' %}ERROR{% else %}OFFLINE{% endif %}
+                </span>
+            </div>
+            <div class="ng-srv-card__body">
+                <div class="ng-srv-card__row">
+                    <span class="ng-srv-card__key">{{ t('address', page_locale()) }}</span>
+                    <span class="ng-srv-card__val ng-srv-card__addr">{{ server.address }}</span>
+                </div>
+                {% if isOnline and server.players is not null %}
+                <div class="ng-srv-card__row">
+                    <span class="ng-srv-card__key">{{ t('players', page_locale()) }}</span>
+                    <span class="ng-srv-card__val">
+                        <span class="ng-srv-card__players">{{ server.players }}</span>
+                        {% if server.max_players is not null %}
+                        <span class="ng-srv-card__players-sep">/</span>
+                        <span class="ng-srv-card__players-max">{{ server.max_players }}</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                {% if isOnline and server.map %}
+                <div class="ng-srv-card__row">
+                    <span class="ng-srv-card__key">{{ t('map', page_locale()) }}</span>
+                    <span class="ng-srv-card__val">{{ server.map }}</span>
+                </div>
+                {% endif %}
+                <div class="ng-srv-card__row ng-srv-card__row--footer">
+                    <span class="ng-srv-card__key">{{ t('last_update', page_locale()) }}</span>
+                    <span class="ng-srv-card__val ng-srv-card__ts">{{ server.last_checked_at ? server.last_checked_at|date('d.m.Y H:i') : '—' }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="ng-srv-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/>
+            <line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
+        </svg>
+        <p>{{ t('no_public_servers', page_locale()) }}</p>
+    </div>
+    {% endif %}
+
+</div>
+
+<style>
+/* Nexus-Gaming server page styles */
+.ng-srv-filters {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+    background: rgba(12,15,23,0.75);
+    border: 1px solid rgba(0,212,255,0.12);
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+}
+@media(max-width:768px){
+    .ng-srv-filters { grid-template-columns: 1fr; }
+    .ng-srv-filters__action .ng-btn { width: 100%; }
+}
+.ng-srv-filters__label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--ng-text-3,#6b7896);
+    margin-bottom: 6px;
+}
+.ng-srv-filters .ng-input { width: 100%; }
+
+/* Server grid */
+.ng-srv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px,1fr));
+    gap: 16px;
+}
+
+/* Card */
+.ng-srv-card {
+    background: rgba(12,15,23,0.80);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: border-color var(--ng-transition), box-shadow var(--ng-transition);
+}
+.ng-srv-card:hover {
+    border-color: rgba(0,212,255,0.20);
+    box-shadow: 0 0 24px rgba(0,212,255,0.07);
+}
+.ng-srv-card--online { border-color: rgba(0,212,255,0.14); }
+
+.ng-srv-card__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    background: rgba(0,212,255,0.02);
+}
+.ng-srv-card__dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ng-srv-card__dot--online  { background:#10b981; box-shadow:0 0 8px rgba(16,185,129,0.65); animation:ng-pulse 2s ease-in-out infinite; }
+.ng-srv-card__dot--offline { background:#374151; }
+.ng-srv-card__dot--error   { background:#ef4444; box-shadow:0 0 6px rgba(239,68,68,0.5); }
+
+.ng-srv-card__meta { flex:1; min-width:0; }
+.ng-srv-card__name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ng-text,#eef0f8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ng-srv-card__game {
+    font-size: 11px;
+    color: var(--ng-text-3,#6b7896);
+    margin-top: 1px;
+}
+.ng-srv-card__badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 3px 9px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+.ng-srv-card__badge--online  { background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.30); }
+.ng-srv-card__badge--offline { background:rgba(55,65,81,0.40);   color:#9ca3af; border:1px solid rgba(75,85,99,0.30); }
+.ng-srv-card__badge--error   { background:rgba(239,68,68,0.12);  color:#f87171; border:1px solid rgba(239,68,68,0.25); }
+
+.ng-srv-card__body {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ng-srv-card__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+.ng-srv-card__row--footer {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+}
+.ng-srv-card__key {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ng-text-3,#6b7896);
+    white-space: nowrap;
+}
+.ng-srv-card__val {
+    color: var(--ng-text-2,#a8b2c4);
+    font-weight: 500;
+    text-align: right;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ng-srv-card__addr {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--ng-cyan,#00d4ff);
+    opacity: 0.85;
+}
+.ng-srv-card__players { color: var(--ng-cyan,#00d4ff); font-weight: 700; }
+.ng-srv-card__players-sep { color: var(--ng-text-3,#6b7896); margin: 0 2px; }
+.ng-srv-card__players-max { color: var(--ng-text-3,#6b7896); }
+.ng-srv-card__ts { font-size: 11px; color: var(--ng-text-3,#6b7896); }
+
+/* Empty state */
+.ng-srv-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 72px 24px;
+    color: var(--ng-text-3,#6b7896);
+    font-size: 14px;
+    text-align: center;
+    background: rgba(12,15,23,0.50);
+    border: 1px dashed rgba(0,212,255,0.12);
+    border-radius: 14px;
+}
+</style>
+
+{% else %}
+{# ═══════════════════════════════════════════════════════════
+   STANDARD THEME LAYOUT
+   ═══════════════════════════════════════════════════════════ #}
 <div class="ng-page-hero">
     <div class="ng-container">
         <nav class="ng-breadcrumb">
@@ -36,10 +303,10 @@
                 <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">{{ t('status', page_locale()) }}</label>
                 <select name="status" class="ng-input w-full">
                     <option value="">{{ t('all', page_locale()) }}</option>
-                    <option value="online" {% if filters.status == 'online' %}selected{% endif %}>{{ t('status_online', page_locale()) }}</option>
+                    <option value="online"  {% if filters.status == 'online'  %}selected{% endif %}>{{ t('status_online',  page_locale()) }}</option>
                     <option value="offline" {% if filters.status == 'offline' %}selected{% endif %}>{{ t('status_offline', page_locale()) }}</option>
                     <option value="unknown" {% if filters.status == 'unknown' %}selected{% endif %}>{{ t('status_unknown', page_locale()) }}</option>
-                    <option value="error" {% if filters.status == 'error' %}selected{% endif %}>{{ t('status_error', page_locale()) }}</option>
+                    <option value="error"   {% if filters.status == 'error'   %}selected{% endif %}>{{ t('status_error',   page_locale()) }}</option>
                 </select>
             </div>
             <div>
@@ -52,4 +319,6 @@
         {% include 'public/servers/_server_list.html.twig' with { servers: servers, show_players: true, show_join_button: false } %}
     </div>
 </div>
+{% endif %}
+
 {% endblock %}

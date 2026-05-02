@@ -378,7 +378,11 @@ final class PublicForumController
             return null;
         }
 
-        if (($user->isAdmin() || in_array('ROLE_MEMBER', $user->getRoles(), true)) && $user->getEmailVerifiedAt() !== null) {
+        if ($user->isAdmin()) {
+            return $user;
+        }
+
+        if (in_array('ROLE_MEMBER', $user->getRoles(), true)) {
             return $user;
         }
 

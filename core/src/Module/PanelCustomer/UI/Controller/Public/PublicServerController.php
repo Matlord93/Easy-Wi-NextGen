@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
 use App\Module\Cms\Application\CmsFeatureToggle;
+use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\PublicServer;
 use App\Repository\PublicServerRepository;
@@ -21,6 +22,7 @@ final class PublicServerController
         private readonly PublicServerRepository $publicServerRepository,
         private readonly SiteResolver $siteResolver,
         private readonly CmsFeatureToggle $featureToggle,
+        private readonly ThemeResolver $themeResolver,
         #[Autowire(service: 'limiter.public_servers')]
         private readonly RateLimiterFactory $publicServersLimiter,
         private readonly Environment $twig,
@@ -69,6 +71,8 @@ final class PublicServerController
             ));
         }
 
+        $templateKey = $this->themeResolver->resolveThemeKey($site);
+
         $response = new Response($this->twig->render('public/servers/index.html.twig', [
             'servers' => $normalizedServers,
             'games' => $this->publicServerRepository->findPublicGamesForSite($site->getId() ?? 0),
@@ -77,6 +81,7 @@ final class PublicServerController
                 'status' => $statusFilter,
                 'search' => $search,
             ],
+            'active_theme' => $templateKey,
         ]));
 
         $response->setPublic();
@@ -114,7 +119,15 @@ final class PublicServerController
     private function normalizeStatus(mixed $statusValue): string
     {
         if (is_string($statusValue) && $statusValue !== '') {
-            return strtolower($statusValue);
+            $normalized = strtolower($statusValue);
+            if (in_array($normalized, ['running', 'up', 'alive', 'ok', 'online', 'success', 'reachable'], true)) {
+                return 'online';
+            }
+            if (in_array($normalized, ['down', 'stopped', 'offline', 'unreachable', 'timeout'], true)) {
+                return 'offline';
+            }
+
+            return $normalized;
         }
 
         if ($statusValue === true) {

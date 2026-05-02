@@ -1,0 +1,55 @@
+{% extends 'themes/nexus-gaming/base.html.twig' %}
+
+{% block title %}Kontakt – {{ app_setting('branding_name', 'Easy-Wi NextGen') }}{% endblock %}
+
+{% block content %}
+<div class="ng-contact-page">
+  <div class="ng-contact-page__header">
+    <h1 class="ng-contact-page__title">Kontakt</h1>
+    <p class="ng-contact-page__subtitle">Hast du Fragen oder Anliegen? Schreib uns – wir melden uns so schnell wie möglich.</p>
+  </div>
+
+  {% if success %}
+    <div class="ng-contact-success">
+      <strong>Nachricht gesendet!</strong> Wir haben deine Anfrage erhalten und melden uns bald bei dir.
+    </div>
+  {% else %}
+    {% if error is not null %}
+      <div class="ng-contact-error" style="margin-bottom:16px">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/kontakt" class="ng-contact-form" novalidate>
+      {# Honeypot – hidden field, must stay empty #}
+      <div style="display:none" aria-hidden="true">
+        <label for="website_url">Website</label>
+        <input type="text" name="website_url" id="website_url" tabindex="-1" autocomplete="off" value="">
+      </div>
+
+      <div class="ng-contact-form__row">
+        <div class="ng-contact-form__field">
+          <label class="ng-contact-form__label" for="contact_name">Name *</label>
+          <input class="ng-contact-form__input" type="text" id="contact_name" name="name" required maxlength="140" placeholder="Dein Name">
+        </div>
+        <div class="ng-contact-form__field">
+          <label class="ng-contact-form__label" for="contact_email">E-Mail *</label>
+          <input class="ng-contact-form__input" type="email" id="contact_email" name="email" required maxlength="180" placeholder="deine@email.de">
+        </div>
+      </div>
+
+      <div class="ng-contact-form__field">
+        <label class="ng-contact-form__label" for="contact_subject">Betreff *</label>
+        <input class="ng-contact-form__input" type="text" id="contact_subject" name="subject" required maxlength="255" placeholder="Worum geht es?">
+      </div>
+
+      <div class="ng-contact-form__field">
+        <label class="ng-contact-form__label" for="contact_message">Nachricht *</label>
+        <textarea class="ng-contact-form__textarea" id="contact_message" name="message" required maxlength="5000" placeholder="Deine Nachricht…"></textarea>
+      </div>
+
+      <div class="ng-contact-form__actions">
+        <button type="submit" class="ng-btn ng-btn--primary">Nachricht senden →</button>
+      </div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

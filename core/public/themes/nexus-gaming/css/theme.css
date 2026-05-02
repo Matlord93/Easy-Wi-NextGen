@@ -403,18 +403,20 @@
 
 .ng-btn--primary {
   background: var(--ng-gradient);
-  color: #050709;
+  color: #ffffff;
   border-color: transparent;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.35);
 }
 .ng-btn--primary:hover {
   box-shadow: 0 0 20px var(--ng-cyan-glow-lg);
   transform: translateY(-1px);
+  color: #ffffff;
 }
 
 .ng-btn--ghost {
   background: transparent;
   color: var(--ng-text-2);
-  border-color: var(--ng-border-strong);
+  border-color: rgba(255,255,255,0.22);
 }
 .ng-btn--ghost:hover {
   border-color: var(--ng-border-cyan);
@@ -2078,3 +2080,123 @@ body:has(.ng-portal-layout) { overflow: hidden; height: 100vh; }
 .ng-portal-content .ng-page-hero h1 { font-size: 1.6rem; }
 
 /* Remove old portal-layout body:has rule (now handled by ng-portal-body) */
+
+/* =================================================================
+   Legal Pages (Impressum, Datenschutz)
+   ================================================================= */
+.ng-legal-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 0 60px;
+}
+.ng-legal-page__header {
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--ng-border);
+}
+.ng-legal-page__title {
+  font-size: 2rem;
+  font-weight: 700;
+  background: var(--ng-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.ng-legal-page__body {
+  color: var(--ng-text-2);
+  line-height: 1.8;
+  font-size: 15px;
+}
+.ng-legal-page__body h1, .ng-legal-page__body h2, .ng-legal-page__body h3 {
+  color: var(--ng-text);
+  margin: 1.5em 0 0.5em;
+}
+.ng-legal-page__body p { margin-bottom: 1em; }
+.ng-legal-page__body a { color: var(--ng-cyan); text-decoration: underline; }
+.ng-legal-page__empty {
+  color: var(--ng-text-3);
+  background: var(--ng-surface);
+  border: 1px dashed var(--ng-border-strong);
+  border-radius: var(--ng-radius);
+  padding: 24px;
+  text-align: center;
+}
+
+/* =================================================================
+   Contact Page
+   ================================================================= */
+.ng-contact-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 0 60px;
+}
+.ng-contact-page__header {
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--ng-border);
+}
+.ng-contact-page__title {
+  font-size: 2rem;
+  font-weight: 700;
+  background: var(--ng-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.ng-contact-page__subtitle {
+  color: var(--ng-text-3);
+  margin-top: 6px;
+  font-size: 14px;
+}
+.ng-contact-form {
+  background: var(--ng-surface);
+  border: 1px solid var(--ng-border);
+  border-radius: var(--ng-radius);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.ng-contact-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 540px) { .ng-contact-form__row { grid-template-columns: 1fr; } }
+.ng-contact-form__field { display: flex; flex-direction: column; gap: 6px; }
+.ng-contact-form__label { font-size: 13px; font-weight: 500; color: var(--ng-text-2); }
+.ng-contact-form__input,
+.ng-contact-form__textarea {
+  background: var(--ng-bg-alt);
+  border: 1px solid var(--ng-border-strong);
+  border-radius: var(--ng-radius-sm);
+  color: var(--ng-text);
+  font-size: 14px;
+  padding: 10px 14px;
+  transition: border-color var(--ng-transition);
+  width: 100%;
+}
+.ng-contact-form__input:focus,
+.ng-contact-form__textarea:focus {
+  outline: none;
+  border-color: var(--ng-border-cyan);
+  box-shadow: 0 0 0 3px var(--ng-cyan-glow);
+}
+.ng-contact-form__textarea { min-height: 140px; resize: vertical; }
+.ng-contact-form__actions { display: flex; justify-content: flex-end; }
+.ng-contact-success {
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.25);
+  border-radius: var(--ng-radius);
+  padding: 20px 24px;
+  color: var(--ng-success);
+  font-size: 15px;
+}
+.ng-contact-error {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: var(--ng-radius-sm);
+  padding: 12px 16px;
+  color: var(--ng-danger);
+  font-size: 13px;
+}

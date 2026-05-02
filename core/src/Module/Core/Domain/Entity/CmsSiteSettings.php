@@ -40,6 +40,12 @@ class CmsSiteSettings
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $footerLinksJson = null;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $impressumContent = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $datenschutzContent = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -118,6 +124,26 @@ class CmsSiteSettings
     public function setFooterLinksJson(?array $footerLinksJson): void
     {
         $this->footerLinksJson = $footerLinksJson;
+        $this->touch();
+    }
+
+    public function getImpressumContent(): ?string
+    {
+        return $this->impressumContent;
+    }
+    public function setImpressumContent(?string $content): void
+    {
+        $this->impressumContent = $content;
+        $this->touch();
+    }
+
+    public function getDatenschutzContent(): ?string
+    {
+        return $this->datenschutzContent;
+    }
+    public function setDatenschutzContent(?string $content): void
+    {
+        $this->datenschutzContent = $content;
         $this->touch();
     }
 

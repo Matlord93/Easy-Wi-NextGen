@@ -130,13 +130,23 @@ final class CmsSettingsProvider
         return $resolved;
     }
 
+    public function getImpressumContent(Site $site): string
+    {
+        return $this->findForSite($site)?->getImpressumContent() ?? '';
+    }
+
+    public function getDatenschutzContent(Site $site): string
+    {
+        return $this->findForSite($site)?->getDatenschutzContent() ?? '';
+    }
+
     /**
      * @param array{logo_path?: string, primary_color?: string, socials?: array<string, string>} $branding
      * @param array<string, bool> $moduleToggles
      * @param list<array{label?: string, url?: string, external?: bool|string|int}> $headerLinks
      * @param list<array{label?: string, url?: string, external?: bool|string|int}> $footerLinks
      */
-    public function save(Site $site, ?string $activeTheme, array $branding, array $moduleToggles, array $headerLinks = [], array $footerLinks = []): CmsSiteSettings
+    public function save(Site $site, ?string $activeTheme, array $branding, array $moduleToggles, array $headerLinks = [], array $footerLinks = [], ?string $impressumContent = null, ?string $datenschutzContent = null): CmsSiteSettings
     {
         $settings = $this->getOrCreate($site);
         $settings->setActiveTheme($activeTheme);
@@ -144,6 +154,13 @@ final class CmsSettingsProvider
         $settings->setModuleTogglesJson($this->normalizeModuleToggles($moduleToggles));
         $settings->setHeaderLinksJson($this->normalizeLinks($headerLinks, []));
         $settings->setFooterLinksJson($this->normalizeLinks($footerLinks, []));
+
+        if ($impressumContent !== null) {
+            $settings->setImpressumContent($impressumContent === '' ? null : $impressumContent);
+        }
+        if ($datenschutzContent !== null) {
+            $settings->setDatenschutzContent($datenschutzContent === '' ? null : $datenschutzContent);
+        }
 
         $this->entityManager->persist($settings);
         $this->entityManager->flush();

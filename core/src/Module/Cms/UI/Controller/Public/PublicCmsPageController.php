@@ -7,11 +7,13 @@ namespace App\Module\Cms\UI\Controller\Public;
 use App\Module\Cms\Application\BlockRenderer\BlockRendererRegistry;
 use App\Module\Cms\Application\CmsRenderingFlowResolver;
 use App\Module\Cms\Application\CmsSettingsProvider;
+use App\Module\Cms\Application\HomepageStatsProvider;
 use App\Module\Cms\Application\PageResolver;
 use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Cms\UI\Http\MaintenancePageResponseFactory;
 use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\CmsBlock;
+use App\Module\Core\Domain\Entity\Site;
 use App\Module\Setup\Application\InstallerService;
 use App\Repository\CmsBlockRepository;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -32,6 +34,7 @@ final class PublicCmsPageController
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly BlockRendererRegistry $blockRendererRegistry,
         private readonly MaintenancePageResponseFactory $maintenancePageResponseFactory,
+        private readonly HomepageStatsProvider $homepageStatsProvider,
         private readonly Environment $twig,
     ) {
     }
@@ -114,7 +117,9 @@ final class PublicCmsPageController
         $templateKey = $this->themeResolver->resolveThemeKey($site);
         $slug = $page->getSlug();
 
-        return new Response($this->twig->render($this->resolveTemplate($templateKey, $slug), [
+        $extraVars = $this->resolveSlugExtras($site, $slug);
+
+        return new Response($this->twig->render($this->resolveTemplate($templateKey, $slug), array_merge([
             'page' => [
                 'title' => $page->getTitle(),
                 'slug' => $slug,
@@ -125,7 +130,7 @@ final class PublicCmsPageController
             'cms_navigation' => $this->settingsProvider->getNavigationLinks($site),
             'cms_footer_links' => $this->settingsProvider->getFooterLinks($site),
             'cms_branding' => $this->settingsProvider->getBranding($site),
-        ]));
+        ], $extraVars)));
     }
 
     /** @param CmsBlock[] $blocks */
@@ -152,6 +157,17 @@ final class PublicCmsPageController
         }
 
         return 'themes/minimal/pages/default.html.twig';
+    }
+
+    /** @return array<string, mixed> */
+    private function resolveSlugExtras(Site $site, string $slug): array
+    {
+        return match ($slug) {
+            'startseite' => $this->homepageStatsProvider->getTemplateVars($site),
+            'impressum' => ['cms_impressum_content' => $this->settingsProvider->getImpressumContent($site)],
+            'datenschutz' => ['cms_datenschutz_content' => $this->settingsProvider->getDatenschutzContent($site)],
+            default => [],
+        };
     }
 
     private function templateExists(string $template): bool

@@ -1,0 +1,1094 @@
+/* =================================================================
+   NEXUS GAMING PANEL THEME — Admin & Customer Area
+   Scoped under body.theme-nexus-gaming
+   Load order: after ui.css, admin-customer.css, theme.css
+   ================================================================= */
+
+/* ═══════════════════════════════════════════════════════════════
+   0. Layout Conflict Resets
+   theme.css defines .ng-sidebar and .ng-topbar for the public portal.
+   These overrides restore the correct panel layout dimensions.
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ng-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+body.theme-nexus-gaming .ng-sidebar {
+  width: 260px !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  position: relative !important;
+  padding: 24px 16px !important;
+  gap: 16px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+body.theme-nexus-gaming .ng-sidebar__nav {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 0 !important;
+}
+
+body.theme-nexus-gaming .ng-sidebar__group {
+  padding: 10px 12px !important;
+  border-radius: 12px !important;
+}
+
+body.theme-nexus-gaming .ng-sidebar__items {
+  margin-top: 8px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+}
+
+body.theme-nexus-gaming .ng-sidebar__item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 9px 12px !important;
+  min-height: 40px !important;
+  font-size: 13.5px !important;
+  text-decoration: none !important;
+}
+
+body.theme-nexus-gaming .ng-topbar {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  height: auto !important;
+  min-height: 68px !important;
+  padding: 16px 28px !important;
+  flex-shrink: 0 !important;
+}
+
+body.theme-nexus-gaming .ng-topbar__title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+body.theme-nexus-gaming .ng-topbar__actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+body.theme-nexus-gaming .ng-main {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: unset !important;
+  background: transparent !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+body.theme-nexus-gaming.ng-shell.is-sidebar-collapsed .ng-sidebar {
+  width: 0 !important;
+  padding: 0 !important;
+  border-right: none !important;
+  overflow: hidden !important;
+}
+
+@media (max-width: 768px) {
+  body.theme-nexus-gaming .ng-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    z-index: 40 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.25s ease !important;
+    width: 260px !important;
+  }
+
+  body.theme-nexus-gaming.ng-shell.is-sidebar-open .ng-sidebar {
+    transform: translateX(0) !important;
+  }
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────── */
+@keyframes ng-panel-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@keyframes ng-panel-glow-in {
+  from { box-shadow: none; }
+  to   { box-shadow: 0 0 0 1px rgba(0,212,255,0.25), 0 0 20px rgba(0,212,255,0.12); }
+}
+@keyframes ng-scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   1. CSS Variable Overrides
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming {
+  /* ng- variables */
+  --ng-bg:              #050709;
+  --ng-bg-alt:          #060810;
+  --ng-surface:         rgba(12,15,23,0.82);
+  --ng-surface-soft:    rgba(10,13,20,0.70);
+  --ng-elevated:        rgba(14,18,28,0.90);
+  --ng-border:          rgba(0,212,255,0.10);
+  --ng-border-strong:   rgba(0,212,255,0.22);
+  --ng-text:            #eef0f8;
+  --ng-text-muted:      #8a96b0;
+  --ng-primary:         #00d4ff;
+  --ng-primary-soft:    rgba(0,212,255,0.12);
+  --ng-success:         #10b981;
+  --ng-warning:         #f59e0b;
+  --ng-danger:          #ef4444;
+  --ng-info:            #00d4ff;
+  --ng-sidebar-bg:      linear-gradient(180deg, #070a12 0%, #050709 100%);
+  --ng-sidebar-surface: rgba(0,212,255,0.03);
+  --ng-topbar-bg:       rgba(5,7,9,0.88);
+
+  /* ui- tokens */
+  --ui-bg:              #050709;
+  --ui-bg-deep:         #030507;
+  --ui-bg-soft:         #0c0f17;
+  --ui-surface:         rgba(12,15,23,0.75);
+  --ui-surface-strong:  rgba(12,15,23,0.90);
+  --ui-border:          rgba(0,212,255,0.10);
+  --ui-border-strong:   rgba(0,212,255,0.22);
+  --ui-text:            #eef0f8;
+  --ui-muted:           #8a96b0;
+  --ui-accent:          #00d4ff;
+  --ui-accent-strong:   #7c3aed;
+  --ui-success:         #10b981;
+  --ui-warning:         #f59e0b;
+  --ui-danger:          #ef4444;
+  --ui-info:            #00d4ff;
+  --ui-indigo:          #7c3aed;
+  --ui-card-shadow:     0 12px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,212,255,0.07);
+  --ui-glow:            0 0 0 1px rgba(0,212,255,0.25), 0 0 22px rgba(0,212,255,0.15);
+  --ui-radius-lg:       16px;
+  --ui-radius-md:       12px;
+  --ui-radius-sm:       8px;
+
+  background: var(--ng-bg);
+  color: var(--ng-text);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   2. Shell & Background
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming.ng-shell {
+  background: #050709;
+}
+
+/* Main atmospheric gradient mesh */
+body.theme-nexus-gaming.ng-shell::before {
+  background:
+    radial-gradient(ellipse at 8%  10%, rgba(0,212,255,0.09)  0%, transparent 45%),
+    radial-gradient(ellipse at 90%  8%, rgba(124,58,237,0.11) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 90%, rgba(124,58,237,0.07) 0%, transparent 50%),
+    radial-gradient(ellipse at 30% 55%, rgba(0,212,255,0.04)  0%, transparent 40%);
+  opacity: 1;
+}
+
+/* Subtle scan-line overlay on the whole shell */
+body.theme-nexus-gaming.ng-shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,212,255,0.012) 2px,
+    rgba(0,212,255,0.012) 4px
+  );
+}
+
+/* ui-shell background override */
+body.theme-nexus-gaming.ui-shell {
+  background:
+    radial-gradient(ellipse at 8%  10%, rgba(0,212,255,0.09)  0%, transparent 45%),
+    radial-gradient(ellipse at 90%  8%, rgba(124,58,237,0.10) 0%, transparent 45%),
+    #050709 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   3. Sidebar
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ng-sidebar {
+  background: linear-gradient(180deg, #080b14 0%, #050709 100%);
+  border-right: 1px solid rgba(0,212,255,0.12);
+  box-shadow: inset -1px 0 0 rgba(0,212,255,0.07), 4px 0 32px rgba(0,0,0,0.5);
+}
+
+/* Logo / brand area */
+body.theme-nexus-gaming .ng-sidebar__title {
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(0,212,255,0.10);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, #00d4ff, #7c3aed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body.theme-nexus-gaming .ng-sidebar__title img {
+  filter: drop-shadow(0 0 8px rgba(0,212,255,0.5)) brightness(1.1);
+}
+
+/* Nav groups */
+body.theme-nexus-gaming .ng-sidebar__group {
+  background: rgba(0,212,255,0.025);
+  border: 1px solid rgba(0,212,255,0.07);
+  border-radius: 12px;
+  transition: border-color 0.2s;
+}
+
+body.theme-nexus-gaming .ng-sidebar__group:has(.ng-sidebar__item.is-active) {
+  border-color: rgba(0,212,255,0.14);
+}
+
+body.theme-nexus-gaming .ng-sidebar__group-label {
+  color: rgba(0,212,255,0.55);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+body.theme-nexus-gaming .ng-sidebar__chevron {
+  border-color: rgba(0,212,255,0.4);
+}
+
+/* Nav items */
+body.theme-nexus-gaming .ng-sidebar__item {
+  color: #8a96b0;
+  border-radius: 9px;
+  font-size: 13.5px;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  border: 1px solid transparent;
+}
+
+body.theme-nexus-gaming .ng-sidebar__item:hover {
+  background: rgba(0,212,255,0.07);
+  color: #d0e4f0;
+  border-color: rgba(0,212,255,0.08);
+}
+
+body.theme-nexus-gaming .ng-sidebar__item.is-active {
+  background: linear-gradient(90deg, rgba(0,212,255,0.14) 0%, rgba(124,58,237,0.08) 100%);
+  color: #00d4ff;
+  border-color: rgba(0,212,255,0.18);
+  border-left: 2px solid #00d4ff;
+  box-shadow: inset 0 0 16px rgba(0,212,255,0.06), 0 0 12px rgba(0,212,255,0.08);
+  font-weight: 600;
+}
+
+body.theme-nexus-gaming .ng-sidebar__item.is-active .ng-sidebar__icon,
+body.theme-nexus-gaming .ng-sidebar__item.is-active .ng-sidebar__text {
+  color: #00d4ff;
+}
+
+/* Sidebar footer */
+body.theme-nexus-gaming .ng-sidebar__footer {
+  color: rgba(0,212,255,0.35);
+  font-size: 11px;
+  border-top: 1px solid rgba(0,212,255,0.08);
+  padding-top: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   4. Topbar
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ng-topbar {
+  background: rgba(5,7,9,0.90);
+  border-bottom: 1px solid rgba(0,212,255,0.12);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow: 0 1px 0 rgba(0,212,255,0.07), 0 4px 24px rgba(0,0,0,0.35);
+}
+
+body.theme-nexus-gaming .ng-topbar__title h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #eef0f8;
+  letter-spacing: -0.01em;
+}
+
+body.theme-nexus-gaming .ng-topbar__title p {
+  color: #8a96b0;
+}
+
+/* Profile button in topbar */
+body.theme-nexus-gaming .ng-topbar__profile {
+  background: rgba(0,212,255,0.06);
+  border: 1px solid rgba(0,212,255,0.14);
+  transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+
+body.theme-nexus-gaming .ng-topbar__profile:hover {
+  background: rgba(0,212,255,0.10);
+  border-color: rgba(0,212,255,0.28);
+  box-shadow: 0 0 18px rgba(0,212,255,0.10);
+}
+
+body.theme-nexus-gaming .ng-topbar__profile-avatar--initial {
+  background: linear-gradient(135deg, #00d4ff 0%, #7c3aed 100%);
+  color: #050709;
+  font-weight: 800;
+  font-size: 15px;
+  box-shadow: 0 0 10px rgba(0,212,255,0.35);
+}
+
+body.theme-nexus-gaming .ng-topbar__profile-name {
+  color: #eef0f8;
+  font-weight: 600;
+}
+
+body.theme-nexus-gaming .ng-topbar__profile-email {
+  color: #8a96b0;
+}
+
+/* Sidebar toggle */
+body.theme-nexus-gaming .ng-sidebar-toggle {
+  color: #8a96b0;
+  background: rgba(0,212,255,0.04);
+  border-color: rgba(0,212,255,0.10);
+}
+
+body.theme-nexus-gaming .ng-sidebar-toggle:hover {
+  color: #00d4ff;
+  background: rgba(0,212,255,0.09);
+  border-color: rgba(0,212,255,0.25);
+}
+
+/* Icon buttons */
+body.theme-nexus-gaming .ng-icon-button {
+  color: #8a96b0;
+  background: rgba(0,212,255,0.04);
+  border: 1px solid rgba(0,212,255,0.10);
+  border-radius: 10px;
+  transition: all 0.18s;
+}
+
+body.theme-nexus-gaming .ng-icon-button:hover {
+  color: #00d4ff;
+  background: rgba(0,212,255,0.09);
+  border-color: rgba(0,212,255,0.28);
+  box-shadow: 0 0 14px rgba(0,212,255,0.12);
+}
+
+body.theme-nexus-gaming .ng-icon-button__dot {
+  background: #00d4ff;
+  box-shadow: 0 0 6px rgba(0,212,255,0.8);
+  animation: ng-panel-pulse 2s ease-in-out infinite;
+}
+
+/* Language switcher */
+body.theme-nexus-gaming .ng-language-switcher {
+  background: rgba(0,212,255,0.04);
+  border-color: rgba(0,212,255,0.10);
+}
+
+body.theme-nexus-gaming .ng-language-switcher__link {
+  color: #8a96b0;
+  font-weight: 600;
+}
+
+body.theme-nexus-gaming .ng-language-switcher__link.is-active {
+  background: rgba(0,212,255,0.14);
+  color: #00d4ff;
+  box-shadow: 0 0 8px rgba(0,212,255,0.15);
+}
+
+body.theme-nexus-gaming .ng-language-switcher__link:hover:not(.is-active) {
+  color: #c0d8e8;
+}
+
+/* Update pill */
+body.theme-nexus-gaming .ng-update-pill {
+  background: linear-gradient(90deg, rgba(0,212,255,0.12), rgba(124,58,237,0.12));
+  border: 1px solid rgba(0,212,255,0.28);
+  color: #00d4ff;
+  box-shadow: 0 0 12px rgba(0,212,255,0.08);
+}
+
+body.theme-nexus-gaming .ng-update-pill__count {
+  background: rgba(0,212,255,0.2);
+  color: #00d4ff;
+}
+
+/* User button & dropdown */
+body.theme-nexus-gaming .ng-user-button {
+  background: rgba(0,212,255,0.05);
+  border: 1px solid rgba(0,212,255,0.12);
+  color: #eef0f8;
+  transition: all 0.18s;
+}
+
+body.theme-nexus-gaming .ng-user-button:hover,
+body.theme-nexus-gaming .ng-user-menu[open] .ng-user-button {
+  background: rgba(0,212,255,0.10);
+  border-color: rgba(0,212,255,0.25);
+}
+
+body.theme-nexus-gaming .ng-user-button__avatar {
+  background: linear-gradient(135deg, #00d4ff, #7c3aed);
+  color: #050709;
+  font-weight: 800;
+  box-shadow: 0 0 8px rgba(0,212,255,0.3);
+}
+
+body.theme-nexus-gaming .ng-user-menu__dropdown {
+  background: rgba(8,11,18,0.98);
+  border: 1px solid rgba(0,212,255,0.16);
+  box-shadow:
+    0 20px 48px rgba(0,0,0,0.65),
+    0 0 0 1px rgba(0,212,255,0.06),
+    0 0 32px rgba(0,212,255,0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+body.theme-nexus-gaming .ng-user-menu__label {
+  color: rgba(0,212,255,0.50);
+  letter-spacing: 0.12em;
+}
+
+body.theme-nexus-gaming .ng-user-menu__item {
+  color: #b8c4d8;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
+}
+
+body.theme-nexus-gaming .ng-user-menu__item:hover {
+  background: rgba(0,212,255,0.09);
+  color: #00d4ff;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   5. Main Content Area
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ng-main {
+  background: transparent;
+  position: relative;
+}
+
+body.theme-nexus-gaming .ng-content {
+  color: #eef0f8;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   6. Cards — ui-card, ng-card, .rounded-xl cards
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ui-card,
+body.theme-nexus-gaming .ng-card {
+  background: rgba(10,14,22,0.80);
+  border: 1px solid rgba(0,212,255,0.10);
+  border-radius: 16px;
+  box-shadow:
+    0 12px 40px rgba(0,0,0,0.45),
+    0 0 0 1px rgba(0,212,255,0.06);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transition: border-color 0.22s, box-shadow 0.22s;
+}
+
+body.theme-nexus-gaming .ui-card:hover,
+body.theme-nexus-gaming .ng-card:hover {
+  border-color: rgba(0,212,255,0.20);
+  box-shadow:
+    0 16px 48px rgba(0,0,0,0.50),
+    0 0 0 1px rgba(0,212,255,0.10),
+    0 0 32px rgba(0,212,255,0.07);
+}
+
+body.theme-nexus-gaming .ui-card--soft {
+  background: rgba(12,16,25,0.92);
+}
+
+body.theme-nexus-gaming .ui-card__title,
+body.theme-nexus-gaming .ng-card__title {
+  color: #eef0f8;
+  font-weight: 700;
+}
+
+body.theme-nexus-gaming .ui-card__subtitle,
+body.theme-nexus-gaming .ng-card__subtitle {
+  color: #8a96b0;
+}
+
+/* Tailwind-style card panels */
+body.theme-nexus-gaming .rounded-xl,
+body.theme-nexus-gaming .rounded-lg {
+  border-color: rgba(0,212,255,0.10) !important;
+}
+
+body.theme-nexus-gaming .bg-slate-900\/60,
+body.theme-nexus-gaming .bg-slate-900\/70,
+body.theme-nexus-gaming .bg-slate-900 {
+  background-color: rgba(10,14,22,0.80) !important;
+}
+
+body.theme-nexus-gaming .bg-slate-950,
+body.theme-nexus-gaming .bg-slate-950\/80 {
+  background-color: #050709 !important;
+}
+
+body.theme-nexus-gaming .border-slate-800,
+body.theme-nexus-gaming .border-slate-800\/60 {
+  border-color: rgba(0,212,255,0.10) !important;
+}
+
+body.theme-nexus-gaming .border-slate-700 {
+  border-color: rgba(0,212,255,0.16) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   7. KPI Cards
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ui-kpi {
+  background: rgba(10,14,22,0.85);
+  border: 1px solid rgba(0,212,255,0.10);
+  border-radius: 14px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.40), 0 0 0 1px rgba(0,212,255,0.05);
+  transition: border-color 0.22s, box-shadow 0.22s, transform 0.22s;
+}
+
+body.theme-nexus-gaming .ui-kpi:hover {
+  border-color: rgba(0,212,255,0.22);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.50), 0 0 24px rgba(0,212,255,0.09);
+  transform: translateY(-2px);
+}
+
+body.theme-nexus-gaming .ui-kpi__label {
+  color: #8a96b0;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+
+body.theme-nexus-gaming .ui-kpi__value {
+  color: #eef0f8;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #eef0f8, #a8b8d0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body.theme-nexus-gaming .ui-kpi__icon {
+  background: rgba(0,212,255,0.10);
+  color: #00d4ff;
+  border-radius: 12px;
+  box-shadow: 0 0 14px rgba(0,212,255,0.15);
+}
+
+body.theme-nexus-gaming .ui-kpi__icon--primary {
+  background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(124,58,237,0.12));
+  color: #00d4ff;
+  box-shadow: 0 0 14px rgba(0,212,255,0.15);
+}
+
+body.theme-nexus-gaming .ui-kpi__icon--success {
+  background: rgba(16,185,129,0.15);
+  color: #34d399;
+  box-shadow: 0 0 12px rgba(16,185,129,0.15);
+}
+
+body.theme-nexus-gaming .ui-kpi__icon--warning {
+  background: rgba(245,158,11,0.14);
+  color: #fbbf24;
+  box-shadow: 0 0 12px rgba(245,158,11,0.12);
+}
+
+body.theme-nexus-gaming .ui-kpi__icon--danger {
+  background: rgba(239,68,68,0.14);
+  color: #f87171;
+  box-shadow: 0 0 12px rgba(239,68,68,0.12);
+}
+
+body.theme-nexus-gaming .ui-kpi__icon--info {
+  background: rgba(0,212,255,0.12);
+  color: #00d4ff;
+  box-shadow: 0 0 12px rgba(0,212,255,0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   8. Buttons
+   ═══════════════════════════════════════════════════════════════ */
+/* Primary — cyan/purple gradient */
+body.theme-nexus-gaming .ui-button--primary,
+body.theme-nexus-gaming .ng-button--primary,
+body.theme-nexus-gaming .btn--primary {
+  background: linear-gradient(135deg, #00d4ff 0%, #7c3aed 100%) !important;
+  color: #050709 !important;
+  font-weight: 700 !important;
+  border: none !important;
+  box-shadow: 0 0 0 1px rgba(0,212,255,0.30), 0 4px 18px rgba(0,212,255,0.22) !important;
+  text-shadow: none !important;
+}
+
+body.theme-nexus-gaming .ui-button--primary:hover,
+body.theme-nexus-gaming .ng-button--primary:hover,
+body.theme-nexus-gaming .btn--primary:hover {
+  box-shadow: 0 0 0 1px rgba(0,212,255,0.45), 0 6px 24px rgba(0,212,255,0.35) !important;
+  filter: brightness(1.07) !important;
+}
+
+/* Ghost */
+body.theme-nexus-gaming .ui-button--ghost,
+body.theme-nexus-gaming .ng-button--ghost,
+body.theme-nexus-gaming .btn--secondary {
+  background: rgba(0,212,255,0.05) !important;
+  color: #b8c4d8 !important;
+  border: 1px solid rgba(0,212,255,0.16) !important;
+}
+
+body.theme-nexus-gaming .ui-button--ghost:hover,
+body.theme-nexus-gaming .ng-button--ghost:hover,
+body.theme-nexus-gaming .btn--secondary:hover {
+  background: rgba(0,212,255,0.10) !important;
+  color: #00d4ff !important;
+  border-color: rgba(0,212,255,0.32) !important;
+}
+
+/* Danger */
+body.theme-nexus-gaming .ui-button--danger,
+body.theme-nexus-gaming .ng-button--danger,
+body.theme-nexus-gaming .btn--danger {
+  background: rgba(239,68,68,0.12) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239,68,68,0.28) !important;
+}
+
+body.theme-nexus-gaming .ui-button--danger:hover,
+body.theme-nexus-gaming .ng-button--danger:hover {
+  background: rgba(239,68,68,0.22) !important;
+}
+
+/* Legacy ng-btn */
+body.theme-nexus-gaming .ng-btn {
+  background: linear-gradient(135deg, #00d4ff, #7c3aed);
+  color: #050709;
+  font-weight: 700;
+  border: none;
+  box-shadow: 0 0 0 1px rgba(0,212,255,0.30), 0 4px 16px rgba(0,212,255,0.20);
+}
+
+body.theme-nexus-gaming .ng-btn:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 0 0 1px rgba(0,212,255,0.45), 0 6px 22px rgba(0,212,255,0.30);
+}
+
+/* admin/customer-interface button override */
+body.theme-nexus-gaming .customer-interface-modern .ng-content .ui-button--primary,
+body.theme-nexus-gaming .admin-interface .ng-content .ui-button--primary {
+  background: linear-gradient(135deg, #00d4ff, #7c3aed) !important;
+  color: #050709 !important;
+  box-shadow: 0 0 0 1px rgba(0,212,255,0.25), 0 4px 18px rgba(0,212,255,0.20) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   9. Badges
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ui-badge--success,
+body.theme-nexus-gaming .ng-badge--success {
+  background: rgba(16,185,129,0.14);
+  color: #34d399;
+  border-color: rgba(16,185,129,0.30);
+}
+
+body.theme-nexus-gaming .ui-badge--warning,
+body.theme-nexus-gaming .ng-badge--warning {
+  background: rgba(245,158,11,0.14);
+  color: #fbbf24;
+  border-color: rgba(245,158,11,0.30);
+}
+
+body.theme-nexus-gaming .ui-badge--danger,
+body.theme-nexus-gaming .ng-badge--danger {
+  background: rgba(239,68,68,0.14);
+  color: #f87171;
+  border-color: rgba(239,68,68,0.28);
+}
+
+body.theme-nexus-gaming .ui-badge--info,
+body.theme-nexus-gaming .ng-badge--info {
+  background: rgba(0,212,255,0.12);
+  color: #00d4ff;
+  border-color: rgba(0,212,255,0.28);
+}
+
+body.theme-nexus-gaming .ng-badge--neutral {
+  background: rgba(255,255,255,0.06);
+  color: #8a96b0;
+  border-color: rgba(255,255,255,0.10);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   10. Inputs, Selects, Textareas
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]),
+body.theme-nexus-gaming select,
+body.theme-nexus-gaming textarea,
+body.theme-nexus-gaming .ng-input {
+  background: rgba(8,11,18,0.92) !important;
+  border: 1px solid rgba(0,212,255,0.16) !important;
+  color: #eef0f8 !important;
+  border-radius: 10px !important;
+  transition: border-color 0.18s, box-shadow 0.18s !important;
+}
+
+body.theme-nexus-gaming input::placeholder,
+body.theme-nexus-gaming textarea::placeholder {
+  color: rgba(138,150,176,0.55) !important;
+}
+
+body.theme-nexus-gaming input:focus,
+body.theme-nexus-gaming select:focus,
+body.theme-nexus-gaming textarea:focus,
+body.theme-nexus-gaming .ng-input:focus {
+  border-color: rgba(0,212,255,0.42) !important;
+  box-shadow: 0 0 0 3px rgba(0,212,255,0.10), 0 0 12px rgba(0,212,255,0.08) !important;
+  outline: none !important;
+}
+
+body.theme-nexus-gaming label {
+  color: #8a96b0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   11. Tables
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ui-table thead th {
+  color: rgba(0,212,255,0.60);
+  border-color: rgba(0,212,255,0.10) !important;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+
+body.theme-nexus-gaming .ui-table tbody tr {
+  border-top: 1px solid rgba(0,212,255,0.07);
+  transition: background 0.15s;
+}
+
+body.theme-nexus-gaming .ui-table tbody tr:hover {
+  background: rgba(0,212,255,0.04);
+}
+
+body.theme-nexus-gaming .ui-table tbody td {
+  color: #b8c4d8;
+}
+
+/* Tailwind-style divide */
+body.theme-nexus-gaming .divide-slate-800 > * + * {
+  border-color: rgba(0,212,255,0.08) !important;
+}
+
+body.theme-nexus-gaming th {
+  color: rgba(0,212,255,0.60) !important;
+  border-bottom-color: rgba(0,212,255,0.10) !important;
+}
+
+body.theme-nexus-gaming tr:hover {
+  background: rgba(0,212,255,0.035) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   12. Progress Bars & Charts
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ui-progress {
+  background: rgba(0,212,255,0.10);
+}
+
+body.theme-nexus-gaming .ui-progress__bar {
+  background: linear-gradient(90deg, #00d4ff 0%, #7c3aed 100%);
+  box-shadow: 0 0 10px rgba(0,212,255,0.35);
+}
+
+/* Chart colors */
+body.theme-nexus-gaming .ui-chart {
+  background: linear-gradient(180deg, rgba(0,212,255,0.10), transparent);
+}
+
+body.theme-nexus-gaming .ui-chart__line { stroke: #00d4ff; }
+body.theme-nexus-gaming .ui-chart__fill { fill: rgba(0,212,255,0.15); }
+
+/* Ring */
+body.theme-nexus-gaming .ui-ring {
+  background: conic-gradient(#00d4ff var(--ring-value), rgba(0,212,255,0.10) 0);
+}
+
+body.theme-nexus-gaming .ui-ring::after {
+  background: #070a12;
+}
+
+body.theme-nexus-gaming .ui-ring__value {
+  color: #eef0f8;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   13. Server row cards (ng-server-row)
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ng-server-row {
+  background: rgba(10,14,22,0.80);
+  border: 1px solid rgba(0,212,255,0.10);
+  border-radius: 14px;
+  transition: border-color 0.20s, box-shadow 0.20s;
+}
+
+body.theme-nexus-gaming .ng-server-row:hover {
+  border-color: rgba(0,212,255,0.22);
+  box-shadow: 0 0 22px rgba(0,212,255,0.08);
+}
+
+body.theme-nexus-gaming .ng-server-row__title {
+  color: #eef0f8;
+}
+
+body.theme-nexus-gaming .ng-server-row__subtitle,
+body.theme-nexus-gaming .ng-server-row__meta-item {
+  color: #8a96b0;
+}
+
+body.theme-nexus-gaming .ng-server-row__meta-value {
+  color: #00d4ff;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   14. System Messages
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ui-system-message {
+  border-top-color: rgba(0,212,255,0.08);
+}
+
+body.theme-nexus-gaming .ui-system-message__icon {
+  background: rgba(0,212,255,0.10);
+  color: #00d4ff;
+}
+
+body.theme-nexus-gaming .ui-system-message__title {
+  color: #eef0f8;
+}
+
+body.theme-nexus-gaming .ui-system-message__time,
+body.theme-nexus-gaming .ui-system-message__description {
+  color: #8a96b0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   15. Text Utilities
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .text-slate-100,
+body.theme-nexus-gaming .text-slate-200 { color: #eef0f8 !important; }
+body.theme-nexus-gaming .text-slate-300 { color: #b8c4d8 !important; }
+body.theme-nexus-gaming .text-slate-400 { color: #8a96b0 !important; }
+body.theme-nexus-gaming .text-slate-500 { color: #6b7896 !important; }
+
+body.theme-nexus-gaming .text-indigo-400,
+body.theme-nexus-gaming .text-indigo-300,
+body.theme-nexus-gaming .text-cyan-400,
+body.theme-nexus-gaming .text-cyan-300 { color: #00d4ff !important; }
+
+body.theme-nexus-gaming .text-indigo-500,
+body.theme-nexus-gaming .text-purple-400 { color: #a78bfa !important; }
+
+body.theme-nexus-gaming .ng-gradient-text {
+  background: linear-gradient(135deg, #00d4ff 0%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body.theme-nexus-gaming h1,
+body.theme-nexus-gaming h2,
+body.theme-nexus-gaming h3 {
+  color: #eef0f8;
+}
+
+body.theme-nexus-gaming .text-2xl.font-semibold,
+body.theme-nexus-gaming .text-3xl.font-semibold,
+body.theme-nexus-gaming .text-2xl.font-bold {
+  color: #eef0f8 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   16. Tailwind Color Utilities (backgrounds)
+   ═══════════════════════════════════════════════════════════════ */
+/* Success tones */
+body.theme-nexus-gaming .bg-green-500\/10 { background-color: rgba(16,185,129,0.10) !important; }
+body.theme-nexus-gaming .border-green-500\/30 { border-color: rgba(16,185,129,0.30) !important; }
+body.theme-nexus-gaming .text-green-400 { color: #34d399 !important; }
+body.theme-nexus-gaming .bg-green-400 { background-color: #34d399 !important; }
+
+/* Warning tones */
+body.theme-nexus-gaming .bg-amber-500\/10 { background-color: rgba(245,158,11,0.10) !important; }
+body.theme-nexus-gaming .border-amber-500\/30 { border-color: rgba(245,158,11,0.30) !important; }
+body.theme-nexus-gaming .text-amber-400 { color: #fbbf24 !important; }
+
+/* Danger tones */
+body.theme-nexus-gaming .bg-rose-500\/10 { background-color: rgba(239,68,68,0.10) !important; }
+body.theme-nexus-gaming .border-rose-500\/30 { border-color: rgba(239,68,68,0.28) !important; }
+body.theme-nexus-gaming .text-rose-400 { color: #f87171 !important; }
+
+/* Primary / indigo tones → cyan */
+body.theme-nexus-gaming .bg-indigo-600,
+body.theme-nexus-gaming .bg-indigo-500 {
+  background: linear-gradient(135deg, #00d4ff, #7c3aed) !important;
+  color: #050709 !important;
+}
+
+body.theme-nexus-gaming .bg-indigo-500\/10,
+body.theme-nexus-gaming .bg-indigo-600\/10 {
+  background-color: rgba(0,212,255,0.10) !important;
+}
+
+body.theme-nexus-gaming .border-indigo-500\/30,
+body.theme-nexus-gaming .border-indigo-600\/30 {
+  border-color: rgba(0,212,255,0.25) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   17. Scrollbar
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+body.theme-nexus-gaming ::-webkit-scrollbar-track {
+  background: rgba(5,7,9,0.80);
+}
+
+body.theme-nexus-gaming ::-webkit-scrollbar-thumb {
+  background: rgba(0,212,255,0.22);
+  border-radius: 3px;
+}
+
+body.theme-nexus-gaming ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,212,255,0.42);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   18. Sidebar Mobile / Collapse States
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming.ng-shell.is-sidebar-open .ng-sidebar-backdrop {
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(3px);
+}
+
+body.theme-nexus-gaming.ng-shell.is-sidebar-collapsed .ng-sidebar {
+  box-shadow: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   19. Instance / Game Server tabs & panels
+   ═══════════════════════════════════════════════════════════════ */
+/* Tab navigation */
+body.theme-nexus-gaming [role="tablist"],
+body.theme-nexus-gaming .tab-list {
+  border-bottom-color: rgba(0,212,255,0.10) !important;
+}
+
+body.theme-nexus-gaming [role="tab"].is-active,
+body.theme-nexus-gaming .tab--active {
+  color: #00d4ff !important;
+  border-bottom-color: #00d4ff !important;
+}
+
+/* Console / terminal areas */
+body.theme-nexus-gaming .console-output,
+body.theme-nexus-gaming [class*="console"],
+body.theme-nexus-gaming pre {
+  background: rgba(3,5,8,0.95) !important;
+  border: 1px solid rgba(0,212,255,0.12) !important;
+  color: #a0f0b8 !important;
+  border-radius: 10px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   20. Stat Cards & Metric Widgets
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ng-stat-card,
+body.theme-nexus-gaming .ng-panel {
+  background: rgba(10,14,22,0.82);
+  border: 1px solid rgba(0,212,255,0.10);
+  border-radius: 14px;
+  backdrop-filter: blur(14px);
+}
+
+body.theme-nexus-gaming .ng-stat-card:hover {
+  border-color: rgba(0,212,255,0.22);
+  box-shadow: 0 0 20px rgba(0,212,255,0.07);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   21. Notification dot on topbar
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ng-icon-button__dot {
+  background: #00d4ff;
+  box-shadow: 0 0 8px rgba(0,212,255,0.9);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   22. Dividers & Separators
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming hr,
+body.theme-nexus-gaming .border-t,
+body.theme-nexus-gaming .border-b {
+  border-color: rgba(0,212,255,0.08) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   23. Focus Ring (accessibility)
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming *:focus-visible {
+  outline: 2px solid rgba(0,212,255,0.55) !important;
+  outline-offset: 2px !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   24. Sidebar accent line (top of sidebar)
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ng-sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #00d4ff, #7c3aed, transparent);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   25. Topbar accent line (bottom edge glow)
+   ═══════════════════════════════════════════════════════════════ */
+body.theme-nexus-gaming .ng-topbar::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,212,255,0.35) 30%, rgba(124,58,237,0.25) 70%, transparent 100%);
+  pointer-events: none;
+}
+
+body.theme-nexus-gaming .ng-topbar {
+  position: relative;
+}

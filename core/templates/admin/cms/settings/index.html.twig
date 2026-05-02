@@ -71,6 +71,19 @@
 
 
         <section class="space-y-3">
+            <h2 class="text-lg font-semibold">Impressum & Datenschutz</h2>
+            <p class="text-xs text-slate-500">Diese Texte werden auf den Seiten /impressum und /datenschutz angezeigt. HTML ist erlaubt.</p>
+            <label class="block text-sm">
+                <span class="text-slate-700 font-medium">Impressum</span>
+                <textarea name="impressum_content" rows="10" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono">{{ impressum_content|default('') }}</textarea>
+            </label>
+            <label class="block text-sm">
+                <span class="text-slate-700 font-medium">Datenschutzerklärung</span>
+                <textarea name="datenschutz_content" rows="10" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono">{{ datenschutz_content|default('') }}</textarea>
+            </label>
+        </section>
+
+        <section class="space-y-3">
             <h2 class="text-lg font-semibold">Wartungsmodus</h2>
             <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
                 <input type="checkbox" name="maintenance_enabled" value="1" {% if maintenance.enabled %}checked{% endif %} />

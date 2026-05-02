@@ -1,0 +1,74 @@
+{% extends 'admin/base.html.twig' %}
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold">Kontakt-Eingang</h1>
+            {% if new_count > 0 %}
+                <p class="text-sm text-indigo-600 font-medium">{{ new_count }} neue Nachricht{{ new_count != 1 ? 'en' : '' }}</p>
+            {% else %}
+                <p class="text-sm text-slate-500">Alle Nachrichten gelesen.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="rounded-2xl border bg-white overflow-hidden">
+        <table class="min-w-full text-sm">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">Status</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">Name</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">E-Mail</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">Betreff</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">Datum</th>
+                    <th class="px-4 py-3 text-right font-medium text-slate-600">Aktionen</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+            {% for msg in messages %}
+                <tr class="{% if msg.status == 'new' %}bg-indigo-50/40{% endif %} hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3">
+                        {% if msg.status == 'new' %}
+                            <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800">Neu</span>
+                        {% elseif msg.status == 'replied' %}
+                            <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Beantwortet</span>
+                        {% else %}
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">Gelesen</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 font-medium text-slate-800">{{ msg.name }}</td>
+                    <td class="px-4 py-3 text-slate-600">{{ msg.email }}</td>
+                    <td class="px-4 py-3 text-slate-700">{{ msg.subject|slice(0, 60) }}{% if msg.subject|length > 60 %}…{% endif %}</td>
+                    <td class="px-4 py-3 text-slate-500 whitespace-nowrap">{{ msg.createdAt|date('d.m.Y H:i') }}</td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="/admin/cms/contact/{{ msg.id }}" class="text-indigo-600 hover:text-indigo-800 font-medium mr-3">Öffnen</a>
+                        <form method="post" action="/admin/cms/contact/{{ msg.id }}/delete" class="inline" onsubmit="return confirm('Nachricht wirklich löschen?')">
+                            <button type="submit" class="text-rose-500 hover:text-rose-700">Löschen</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="6" class="px-4 py-10 text-center text-slate-400">Noch keine Kontaktanfragen eingegangen.</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <div class="flex items-center justify-between text-sm text-slate-500">
+        <span>{{ total }} Nachrichten gesamt</span>
+        <div class="flex gap-2">
+            {% if page > 1 %}
+                <a href="?page={{ page - 1 }}" class="rounded border border-slate-200 px-3 py-1 hover:bg-slate-50">← Zurück</a>
+            {% endif %}
+            <span class="px-3 py-1">Seite {{ page }} / {{ total_pages }}</span>
+            {% if page < total_pages %}
+                <a href="?page={{ page + 1 }}" class="rounded border border-slate-200 px-3 py-1 hover:bg-slate-50">Weiter →</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

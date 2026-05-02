@@ -50,6 +50,8 @@ final class AdminCmsSettingsController
             'module_toggles' => $this->settingsProvider->getModuleToggles($site),
             'header_links_json' => json_encode($this->settingsProvider->getNavigationLinks($site), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
             'footer_links_json' => json_encode($this->settingsProvider->getFooterLinks($site), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+            'impressum_content' => $this->settingsProvider->getImpressumContent($site),
+            'datenschutz_content' => $this->settingsProvider->getDatenschutzContent($site),
             'maintenance' => [
                 'enabled' => $site->isMaintenanceEnabled(),
                 'message' => $site->getMaintenanceMessage(),
@@ -95,6 +97,8 @@ final class AdminCmsSettingsController
 
         $headerLinks = $this->decodeLinks((string) $request->request->get('header_links_json', '[]'));
         $footerLinks = $this->decodeLinks((string) $request->request->get('footer_links_json', '[]'));
+        $impressumContent = (string) $request->request->get('impressum_content', '');
+        $datenschutzContent = (string) $request->request->get('datenschutz_content', '');
 
         $site->setMaintenanceEnabled($request->request->get('maintenance_enabled') === '1');
         $site->setMaintenanceMessage((string) $request->request->get('maintenance_message', ''));
@@ -103,7 +107,7 @@ final class AdminCmsSettingsController
         $site->setMaintenanceStartsAt($this->parseDateTime((string) $request->request->get('maintenance_starts_at', '')));
         $site->setMaintenanceEndsAt($this->parseDateTime((string) $request->request->get('maintenance_ends_at', '')));
 
-        $this->settingsProvider->save($site, $theme, $branding, $toggles, $headerLinks, $footerLinks);
+        $this->settingsProvider->save($site, $theme, $branding, $toggles, $headerLinks, $footerLinks, $impressumContent, $datenschutzContent);
         $this->ensureRequiredPagesExist($site);
         $this->entityManager->flush();
 
@@ -116,6 +120,9 @@ final class AdminCmsSettingsController
             'startseite' => 'Startseite',
             'ueber-uns' => 'Über uns',
             'agb' => 'AGB',
+            'impressum' => 'Impressum',
+            'datenschutz' => 'Datenschutz',
+            'kontakt' => 'Kontakt',
         ];
 
         $pageRepository = $this->entityManager->getRepository(CmsPage::class);

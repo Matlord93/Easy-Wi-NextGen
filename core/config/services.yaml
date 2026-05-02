@@ -256,6 +256,10 @@ services:
     arguments:
       $contactLimiter: '@limiter.public_contact'
 
+  App\Module\Cms\UI\Controller\Public\PublicKontaktController:
+    arguments:
+      $kontaktLimiter: '@limiter.public_kontakt'
+
   App\Module\PanelCustomer\UI\Controller\Customer\CustomerMailController:
     arguments:
       $mailboxRepository: '@App\Repository\MailboxRepository'

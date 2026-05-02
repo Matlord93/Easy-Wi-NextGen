@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\NotificationRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
@@ -59,6 +60,22 @@ final class CustomerNotificationController
             'notification' => $this->normalizeNotification($notification),
             'unreadCount' => $this->notificationRepository->findUnreadCount($customer),
         ]));
+    }
+
+    #[Route(path: '/read-all', name: 'customer_notifications_read_all', methods: ['POST'])]
+    public function markAllRead(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $updated = $this->notificationRepository->markAllReadForRecipient($customer);
+
+        if ($updated > 0) {
+            $this->auditLogger->log($customer, 'notification.read_all', [
+                'recipient_id' => $customer->getId(),
+                'updated' => $updated,
+            ]);
+        }
+
+        return new RedirectResponse('/notifications');
     }
 
     private function requireCustomer(Request $request): User

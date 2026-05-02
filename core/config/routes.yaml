@@ -1,5 +1,107 @@
-module_controllers:
+module_teamspeak_controllers:
   resource:
-    path: ../src/Module/
-    namespace: App\Module
+    path: ../src/Module/Teamspeak/UI/Controller/
+    namespace: App\Module\Teamspeak\UI\Controller
+  type: attribute
+
+module_easywi_migration_controllers:
+  resource:
+    path: ../src/Module/EasyWiMigration/UI/Controller/
+    namespace: App\Module\EasyWiMigration\UI\Controller
+  type: attribute
+
+module_setup_controllers:
+  resource:
+    path: ../src/Module/Setup/UI/Controller/
+    namespace: App\Module\Setup\UI\Controller
+  type: attribute
+
+module_voice_controllers:
+  resource:
+    path: ../src/Module/Voice/UI/Controller/
+    namespace: App\Module\Voice\UI\Controller
+  type: attribute
+
+module_sftp_controllers:
+  resource:
+    path: ../src/Module/Sftp/UI/Controller/
+    namespace: App\Module\Sftp\UI\Controller
+  type: attribute
+
+module_ports_controllers:
+  resource:
+    path: ../src/Module/Ports/UI/Controller/
+    namespace: App\Module\Ports\UI\Controller
+  type: attribute
+
+module_nodes_controllers:
+  resource:
+    path: ../src/Module/Nodes/UI/Controller/
+    namespace: App\Module\Nodes\UI\Controller
+  type: attribute
+
+module_agent_orchestrator_controllers:
+  resource:
+    path: ../src/Module/AgentOrchestrator/UI/Controller/
+    namespace: App\Module\AgentOrchestrator\UI\Controller
+  type: attribute
+
+module_billing_controllers:
+  resource:
+    path: ../src/Module/Billing/UI/Controller/
+    namespace: App\Module\Billing\UI\Controller
+  type: attribute
+
+module_files_controllers:
+  resource:
+    path: ../src/Module/Files/UI/Controller/
+    namespace: App\Module\Files\UI\Controller
+  type: attribute
+
+module_unifi_controllers:
+  resource:
+    path: ../src/Module/Unifi/UI/Controller/
+    namespace: App\Module\Unifi\UI\Controller
+  type: attribute
+
+module_core_controllers:
+  resource:
+    path: ../src/Module/Core/UI/Controller/
+    namespace: App\Module\Core\UI\Controller
+  type: attribute
+
+module_panel_customer_controllers:
+  resource:
+    path: ../src/Module/PanelCustomer/UI/Controller/
+    namespace: App\Module\PanelCustomer\UI\Controller
+  type: attribute
+
+module_cms_controllers:
+  resource:
+    path: ../src/Module/Cms/UI/Controller/
+    namespace: App\Module\Cms\UI\Controller
+  type: attribute
+
+module_template_catalog_controllers:
+  resource:
+    path: ../src/Module/TemplateCatalog/UI/Controller/
+    namespace: App\Module\TemplateCatalog\UI\Controller
+  type: attribute
+
+module_provisioning_controllers:
+  resource:
+    path: ../src/Module/Provisioning/UI/Controller/
+    namespace: App\Module\Provisioning\UI\Controller
+  type: attribute
+
+module_gameserver_controllers:
+  resource:
+    path: ../src/Module/Gameserver/UI/Controller/
+    namespace: App\Module\Gameserver\UI\Controller
+  type: attribute
+
+module_panel_admin_controllers:
+  resource:
+    path: ../src/Module/PanelAdmin/UI/Controller/
+    namespace: App\Module\PanelAdmin\UI\Controller
   type: attribute

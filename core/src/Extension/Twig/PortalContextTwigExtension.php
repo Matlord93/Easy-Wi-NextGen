@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Extension\Twig;
 
+use App\Module\Cms\Application\ThemeResolver;
 use App\Module\Core\Application\AgentReleaseChecker;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\CookieConsentService;
 use App\Module\Core\Application\PortalLocale;
+use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Setup\Application\WebinterfaceUpdateService;
 use App\Repository\AgentRepository;
@@ -28,6 +30,8 @@ final class PortalContextTwigExtension extends AbstractExtension
         private readonly AppSettingsService $appSettingsService,
         private readonly TranslatorInterface $translator,
         private readonly CookieConsentService $cookieConsentService,
+        private readonly ThemeResolver $themeResolver,
+        private readonly SiteResolver $siteResolver,
     ) {
     }
 
@@ -45,7 +49,23 @@ final class PortalContextTwigExtension extends AbstractExtension
             new TwigFunction('cookie_has_consent', [$this, 'cookieHasConsent']),
             new TwigFunction('cookie_consent_cookie_name', [$this, 'cookieConsentCookieName']),
             new TwigFunction('cookie_consent_version', [$this, 'cookieConsentVersion']),
+            new TwigFunction('active_theme', [$this, 'activeTheme']),
         ];
+    }
+
+    public function activeTheme(): string
+    {
+        $request = $this->requestStack->getCurrentRequest();
+        if ($request === null) {
+            return 'minimal';
+        }
+
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return 'minimal';
+        }
+
+        return $this->themeResolver->resolveThemeKey($site);
     }
 
     public function currentUser(): ?User

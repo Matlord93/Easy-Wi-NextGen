@@ -2,10 +2,13 @@
 {% set siteTitle = app_setting('site_title', 'Easy-Wi NextGen') %}
 {% set brandingName = app_setting('branding_name', siteTitle) %}
 {% set brandingLogo = app_setting('branding_logo_url') %}
-<html lang="{{ pageLocale|default(page_locale()) }}">
+{% set _activeTheme = active_theme() %}
+{% set _isNexus = (_activeTheme == 'nexus-gaming') %}
+<html lang="{{ pageLocale|default(page_locale()) }}" class="dark{% if _isNexus %} nexus-gaming-active{% endif %}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if not _isNexus %}
     <script>
         (function () {
             const storedTheme = localStorage.getItem('theme');
@@ -16,14 +19,19 @@
             }
         })();
     </script>
+    {% endif %}
     <title>{{ siteTitle }}</title>
     <link rel="stylesheet" href="{{ asset('ui.css') }}">
     <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
     <link rel="stylesheet" href="{{ asset('ts6.css') }}">
     <link rel="stylesheet" href="{{ asset('ts3.css') }}">
+    {% if _isNexus %}
+    <link rel="stylesheet" href="{{ asset('themes/nexus-gaming/css/theme.css') }}">
+    <link rel="stylesheet" href="{{ asset('themes/nexus-gaming/css/panel.css') }}">
+    {% endif %}
     <script src="{{ asset('htmx.min.js') }}"></script>
 </head>
-<body class="customer-interface customer-interface-modern ng-shell">
+<body class="customer-interface customer-interface-modern ng-shell{% if _isNexus %} theme-nexus-gaming ng-body{% endif %}">
 {% set activeNav = activeNav|default('') %}
 {% set voiceserverUrl = module_enabled('ts6')
     ? path('customer_ts6_servers_index')
