@@ -618,10 +618,10 @@ func ensureTemurinRepo(output *strings.Builder) error {
 // codenames; newer or unsupported codenames fall back to the latest known one.
 func adoptiumDebianCodename(codename string) string {
 	supported := map[string]bool{
-		"bionic": true, // Ubuntu 18.04
-		"focal":  true, // Ubuntu 20.04
-		"jammy":  true, // Ubuntu 22.04
-		"noble":  true, // Ubuntu 24.04
+		"bionic":   true, // Ubuntu 18.04
+		"focal":    true, // Ubuntu 20.04
+		"jammy":    true, // Ubuntu 22.04
+		"noble":    true, // Ubuntu 24.04
 		"buster":   true, // Debian 10
 		"bullseye": true, // Debian 11
 		"bookworm": true, // Debian 12
