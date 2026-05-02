@@ -109,6 +109,11 @@ func ensureBaseForRole(role string) (string, error) {
 			return output.String(), err
 		}
 	}
+	if role == "web" || role == "core" {
+		if err := ensureWebServerDefaults(&output); err != nil {
+			return output.String(), err
+		}
+	}
 
 	if role == "game" {
 		if err := installSteamCmd(&output); err != nil {
@@ -835,8 +840,8 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 
 	dovecotConfDir := "/etc/dovecot/conf.d"
 	if _, err := os.Stat(dovecotConfDir); err == nil {
-		confPath := filepath.Join(dovecotConfDir, "99-easywi-auth.conf")
-		conf := "## Managed by Easy-Wi agent\n" +
+		authConfPath := filepath.Join(dovecotConfDir, "99-easywi-auth.conf")
+		authConf := "## Managed by Easy-Wi agent\n" +
 			"auth_mechanisms = plain login\n" +
 			"service auth {\n" +
 			"  unix_listener /var/spool/postfix/private/auth {\n" +
@@ -845,10 +850,25 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 			"    group = postfix\n" +
 			"  }\n" +
 			"}\n"
-		if err := os.WriteFile(confPath, []byte(conf), 0o640); err != nil {
+		if err := os.WriteFile(authConfPath, []byte(authConf), 0o640); err != nil {
 			return fmt.Errorf("write dovecot auth config: %w", err)
 		}
-		appendOutput(output, "dovecot_auth_written="+confPath)
+		appendOutput(output, "dovecot_auth_written="+authConfPath)
+
+		usersConfPath := filepath.Join(dovecotConfDir, "99-easywi-users.conf")
+		usersConf := "## Managed by Easy-Wi agent\n" +
+			"passdb {\n" +
+			"  driver = passwd-file\n" +
+			"  args = scheme=SHA512-CRYPT username_format=%u /etc/dovecot/users\n" +
+			"}\n" +
+			"userdb {\n" +
+			"  driver = static\n" +
+			"  args = uid=vmail gid=vmail home=/var/mail/vhosts/%d/%n\n" +
+			"}\n"
+		if err := os.WriteFile(usersConfPath, []byte(usersConf), 0o640); err != nil {
+			return fmt.Errorf("write dovecot users config: %w", err)
+		}
+		appendOutput(output, "dovecot_users_written="+usersConfPath)
 	} else {
 		appendOutput(output, "dovecot_conf_missing=true")
 	}
@@ -856,6 +876,48 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 	if commandExists("systemctl") {
 		_ = runCommandWithOutput("systemctl", []string{"reload", "postfix"}, output)
 		_ = runCommandWithOutput("systemctl", []string{"reload", "dovecot"}, output)
+	}
+
+	return nil
+}
+
+func ensureWebServerDefaults(output *strings.Builder) error {
+	dirs := []string{
+		"/etc/easywi/web/nginx/vhosts",
+		"/etc/easywi/web/apache/vhosts",
+	}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			return fmt.Errorf("create webserver dir %s: %w", dir, err)
+		}
+		appendOutput(output, "webserver_dir_ready="+dir)
+	}
+
+	if _, err := os.Stat("/etc/nginx"); err == nil {
+		nginxIncludePath := "/etc/nginx/conf.d/99-easywi-vhosts.conf"
+		nginxInclude := "## Managed by Easy-Wi agent\ninclude /etc/easywi/web/nginx/vhosts/*.conf;\n"
+		if err := os.WriteFile(nginxIncludePath, []byte(nginxInclude), 0o640); err != nil {
+			return fmt.Errorf("write nginx include config: %w", err)
+		}
+		appendOutput(output, "nginx_include_written="+nginxIncludePath)
+	}
+
+	if _, err := os.Stat("/etc/apache2"); err == nil {
+		apacheConfPath := "/etc/apache2/conf-available/easywi-vhosts.conf"
+		apacheConf := "## Managed by Easy-Wi agent\nIncludeOptional /etc/easywi/web/apache/vhosts/*.conf\n"
+		if err := os.WriteFile(apacheConfPath, []byte(apacheConf), 0o640); err != nil {
+			return fmt.Errorf("write apache include config: %w", err)
+		}
+		appendOutput(output, "apache_include_written="+apacheConfPath)
+
+		if commandExists("a2enconf") {
+			_ = runCommandWithOutput("a2enconf", []string{"easywi-vhosts"}, output)
+		}
+	}
+
+	if commandExists("systemctl") {
+		_ = runCommandWithOutput("systemctl", []string{"reload", "nginx"}, output)
+		_ = runCommandWithOutput("systemctl", []string{"reload", "apache2"}, output)
 	}
 
 	return nil
