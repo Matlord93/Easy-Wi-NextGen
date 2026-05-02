@@ -28,10 +28,10 @@ class Domain implements ResourceEventSource
     #[ORM\JoinColumn(nullable: true)]
     private ?Webspace $webspace;
 
-    #[ORM\Column(options: ['default' => true])]
+    #[ORM\Column(name: 'capability_webspace', options: ['default' => true])]
     private bool $hasWebspaceCapability = true;
 
-    #[ORM\Column(options: ['default' => false])]
+    #[ORM\Column(name: 'capability_mail', options: ['default' => false])]
     private bool $hasMailCapability = false;
 
     #[ORM\Column(length: 255)]
