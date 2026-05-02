@@ -25,14 +25,15 @@ final class InstanceAddonResolver
     {
         $plugins = $this->gamePluginRepository->findByTemplateGameKey($instance->getTemplate());
         $installedVersions = $this->resolveInstalledVersions($instance);
+        $addonJobStates = $this->resolveAddonJobStates($instance);
 
-        return array_map(function (GamePlugin $plugin) use ($instance, $installedVersions): array {
+        return array_map(function (GamePlugin $plugin) use ($instance, $installedVersions, $addonJobStates): array {
             $pluginName = strtolower(trim($plugin->getName()));
             $installedVersion = $installedVersions[$pluginName] ?? null;
             $installedVersion = is_string($installedVersion) && trim($installedVersion) !== '' ? trim($installedVersion) : null;
 
             $compatibility = $this->resolveCompatibility($instance);
-            $jobStatus = $this->resolveAddonJobStatus($instance, $plugin);
+            $jobStatus = $addonJobStates[(int) ($plugin->getId() ?? 0)] ?? null;
 
             $installed = $installedVersion !== null;
             if ($jobStatus === 'removed') {
@@ -139,37 +140,47 @@ final class InstanceAddonResolver
         return ['compatible' => true, 'incompatible_reason' => null];
     }
 
-    private function resolveAddonJobStatus(Instance $instance, GamePlugin $plugin): ?string
+    /**
+     * @return array<int, string>
+     */
+    private function resolveAddonJobStates(Instance $instance): array
     {
-        $jobs = [
-            $this->jobRepository->findLatestByTypeAndInstanceId('instance.addon.install', $instance->getId() ?? 0),
-            $this->jobRepository->findLatestByTypeAndInstanceId('instance.addon.update', $instance->getId() ?? 0),
-            $this->jobRepository->findLatestByTypeAndInstanceId('instance.addon.remove', $instance->getId() ?? 0),
+        $instanceId = $instance->getId() ?? 0;
+        if ($instanceId <= 0) {
+            return [];
+        }
+
+        $statesByPluginId = [];
+        $latestByPluginId = [];
+        $typeToState = [
+            'instance.addon.install' => 'installed',
+            'instance.addon.update' => 'installed',
+            'instance.addon.remove' => 'removed',
         ];
 
-        $latest = null;
-        foreach ($jobs as $job) {
-            if ($job === null) {
-                continue;
-            }
-            $payload = $job->getPayload();
-            if ((int) ($payload['plugin_id'] ?? 0) !== (int) ($plugin->getId() ?? 0)) {
-                continue;
-            }
-            if ($latest === null || $job->getCreatedAt() > $latest->getCreatedAt()) {
-                $latest = $job;
+        foreach ($typeToState as $type => $state) {
+            foreach ($this->jobRepository->findLatestByType($type, 200) as $job) {
+                $payload = $job->getPayload();
+                if ((int) ($payload['instance_id'] ?? 0) !== $instanceId) {
+                    continue;
+                }
+
+                $pluginId = (int) ($payload['plugin_id'] ?? 0);
+                if ($pluginId <= 0 || $job->getStatus() !== JobStatus::Succeeded) {
+                    continue;
+                }
+
+                $currentLatest = $latestByPluginId[$pluginId] ?? null;
+                if ($currentLatest !== null && $currentLatest >= $job->getCreatedAt()) {
+                    continue;
+                }
+
+                $latestByPluginId[$pluginId] = $job->getCreatedAt();
+                $statesByPluginId[$pluginId] = $state;
             }
         }
 
-        if ($latest === null || $latest->getStatus() !== JobStatus::Succeeded) {
-            return null;
-        }
-
-        return match ($latest->getType()) {
-            'instance.addon.install', 'instance.addon.update' => 'installed',
-            'instance.addon.remove' => 'removed',
-            default => null,
-        };
+        return $statesByPluginId;
     }
 
     private function slugify(string $value): string

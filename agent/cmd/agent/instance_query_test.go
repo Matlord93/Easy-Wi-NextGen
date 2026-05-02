@@ -142,6 +142,31 @@ func TestOrderQueryIPsReturnsOnlyIPv4(t *testing.T) {
 	}
 }
 
+func TestQueryDialCandidatesFiltersLoopbackFromDNS(t *testing.T) {
+	// Loopback IPs (127.0.0.0/8 and ::1) resolved via DNS must be dropped
+	// so the query always uses the server's real public IP.
+	for _, loopback := range []string{"127.0.0.1", "127.0.1.1", "127.255.255.255"} {
+		ip := net.ParseIP(loopback)
+		if ip == nil {
+			t.Fatalf("ParseIP(%q) returned nil", loopback)
+		}
+		if !ip.IsLoopback() {
+			t.Fatalf("expected %s to be loopback", loopback)
+		}
+	}
+
+	// Directly-supplied IPs (already resolved by resolveQueryDialHost) pass through.
+	for _, addr := range []string{"127.0.0.1", "127.0.1.1", "192.0.2.10"} {
+		candidates := queryDialCandidates(addr, "27015")
+		if len(candidates) != 1 {
+			t.Fatalf("queryDialCandidates(%s) candidates=%v, want exactly 1", addr, candidates)
+		}
+		if candidates[0] != addr+":27015" {
+			t.Errorf("queryDialCandidates(%s) candidate=%q, want %q", addr, candidates[0], addr+":27015")
+		}
+	}
+}
+
 func TestDialNetworkForAddressUsesIPFamily(t *testing.T) {
 	if got := dialNetworkForAddress("udp", "[2001:db8::42]:27015"); got != "udp6" {
 		t.Fatalf("udp ipv6 network=%q", got)

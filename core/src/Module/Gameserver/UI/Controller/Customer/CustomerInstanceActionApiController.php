@@ -1060,8 +1060,8 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $runtimeStatus = strtolower((string) ($instance->getQueryStatusCache()['status'] ?? ''));
-        if ($instance->getStatus() !== InstanceStatus::Running && $runtimeStatus !== 'online') {
+        $runtimeProbe = $this->resolveConsoleRuntimeProbe($instance);
+        if (!$runtimeProbe['running']) {
             return $this->responseEnvelopeFactory->error(
                 $request,
                 'Instance must be running to send commands.',
@@ -1272,9 +1272,9 @@ final class CustomerInstanceActionApiController
             );
         }
 
-        $runtimeStatus = strtolower((string) ($instance->getQueryStatusCache()['status'] ?? 'unknown'));
-
-        $running = $instance->getStatus() === InstanceStatus::Running || $runtimeStatus === 'online';
+        $runtimeProbe = $this->resolveConsoleRuntimeProbe($instance);
+        $runtimeStatus = $runtimeProbe['runtime_status'];
+        $running = $runtimeProbe['running'];
 
         $supportsLiveOutput = true;
         $liveOutputStatus = 'ok';
@@ -1920,6 +1920,37 @@ final class CustomerInstanceActionApiController
             'FILES_UNAUTHORIZED' => 'UNAUTHORIZED',
             default => $code,
         };
+    }
+
+
+    /**
+     * @return array{runtime_status: string, running: bool}
+     */
+    private function resolveConsoleRuntimeProbe(Instance $instance): array
+    {
+        $queryRuntime = strtolower((string) ($instance->getQueryStatusCache()['status'] ?? 'unknown'));
+
+        try {
+            $runtimePayload = $this->agentGameServerClient->getInstanceStatus($instance);
+            $runtimeStatus = $this->normalizeAgentRuntimeStatus(
+                $runtimePayload['status'] ?? null,
+                $runtimePayload['running'] ?? null,
+                $runtimePayload['online'] ?? null,
+            );
+            if ($runtimeStatus instanceof InstanceStatus) {
+                return [
+                    'runtime_status' => strtolower($runtimeStatus->value),
+                    'running' => $runtimeStatus === InstanceStatus::Running,
+                ];
+            }
+        } catch (\Throwable) {
+            // Fall back to cached query runtime status when live probe is unavailable.
+        }
+
+        return [
+            'runtime_status' => $queryRuntime,
+            'running' => $queryRuntime === 'online' || $queryRuntime === 'running' || $queryRuntime === 'up',
+        ];
     }
 
     private function normalizeAgentRuntimeStatus(mixed $status, mixed $running, mixed $online): ?InstanceStatus

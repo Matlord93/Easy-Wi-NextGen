@@ -342,7 +342,7 @@ func queryDialCandidates(host, port string) []string {
 	candidates := make([]string, 0, len(ordered))
 	seen := map[string]struct{}{}
 	for _, ip := range ordered {
-		if ip == nil {
+		if ip == nil || ip.IsLoopback() {
 			continue
 		}
 		addr := net.JoinHostPort(ip.String(), port)

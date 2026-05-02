@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -895,19 +896,11 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 		appendOutput(output, "dovecot_auth_written="+authConfPath)
 
 		usersConfPath := filepath.Join(dovecotConfDir, "99-easywi-users.conf")
-		usersConf := "## Managed by Easy-Wi agent\n" +
-			"passdb {\n" +
-			"  driver = passwd-file\n" +
-			"  args = scheme=SHA512-CRYPT username_format=%u /etc/dovecot/users\n" +
-			"}\n" +
-			"userdb {\n" +
-			"  driver = static\n" +
-			"  args = uid=vmail gid=vmail home=/var/mail/vhosts/%d/%n\n" +
-			"}\n"
-		if err := os.WriteFile(usersConfPath, []byte(usersConf), 0o640); err != nil {
-			return fmt.Errorf("write dovecot users config: %w", err)
+		if err := os.Remove(usersConfPath); err == nil {
+			appendOutput(output, "dovecot_users_removed="+usersConfPath)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove legacy dovecot users config: %w", err)
 		}
-		appendOutput(output, "dovecot_users_written="+usersConfPath)
 	} else {
 		appendOutput(output, "dovecot_conf_missing=true")
 	}

@@ -17,7 +17,7 @@ import (
 
 const (
 	wrapperMaxCommandBytes = 512
-	wrapperSocketFileMode  = 0o660
+	wrapperSocketFileMode  = 0o666
 )
 
 // runWrapper is the entry point when the agent is invoked with --wrapper.
@@ -34,10 +34,13 @@ func runWrapper(instanceID, socketPath string, childArgs []string) {
 		log.Fatal("wrapper: missing child command after --")
 	}
 
-	if err := os.MkdirAll(filepath.Dir(socketPath), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(socketPath), 0o755); err != nil {
 		log.Fatalf("wrapper: create socket directory: %v", err)
 	}
 	_ = os.Remove(socketPath)
+	if err := os.Chmod(filepath.Dir(socketPath), 0o755); err != nil {
+		log.Fatalf("wrapper: chmod socket directory: %v", err)
+	}
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {

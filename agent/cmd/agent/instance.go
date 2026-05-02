@@ -1086,7 +1086,7 @@ func buildInstanceTemplateValues(instanceDir, requiredPortsRaw string, allocated
 
 func allowEmptyTemplateValue(key string) bool {
 	switch strings.ToUpper(strings.TrimSpace(key)) {
-	case "SERVER_PASSWORD", "STEAM_GSLT", "RCON_PASSWORD":
+	case "SERVER_PASSWORD", "STEAM_GSLT", "RCON_PASSWORD", "AUTHKEY", "WORKSHOP_MAP":
 		return true
 	default:
 		return false

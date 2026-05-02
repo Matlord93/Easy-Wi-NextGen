@@ -36,6 +36,15 @@
     const clearEl = document.getElementById('gs-console-clear');
     const healthEl = document.getElementById('gs-console-health');
 
+    if (!logEl || !commandEl || !sendEl || !pauseEl || !autoScrollEl || !clearEl) {
+        errors.showAll(inlineError, {
+            message: 'Console UI is not fully available. Please reload the page.',
+            error_code: 'MOUNT_DOM_MISSING',
+            request_id: '',
+        });
+        return;
+    }
+
     let paused = false;
     let autoScroll = true;
     let source = null;
