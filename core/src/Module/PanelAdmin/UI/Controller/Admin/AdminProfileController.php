@@ -163,6 +163,12 @@ final class AdminProfileController
         ]);
     }
 
+    #[Route(path: '/2fa/enable', name: 'admin_profile_2fa_enable_get', methods: ['GET'])]
+    public function enableTwoFactorGet(): Response
+    {
+        return new \Symfony\Component\HttpFoundation\RedirectResponse('/admin/profile');
+    }
+
     #[Route(path: '/2fa/enable', name: 'admin_profile_2fa_enable', methods: ['POST'])]
     public function enableTwoFactor(Request $request): Response
     {

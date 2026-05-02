@@ -130,6 +130,12 @@ final class CustomerSecurityController
         return $this->renderPage($request, $user, [], Response::HTTP_OK, ['success' => 'password_changed_success']);
     }
 
+    #[Route(path: '/2fa/enable', name: 'customer_security_2fa_enable_get', methods: ['GET'])]
+    public function enableTwoFactorGet(): Response
+    {
+        return new \Symfony\Component\HttpFoundation\RedirectResponse('/account/security');
+    }
+
     #[Route(path: '/2fa/enable', name: 'customer_security_2fa_enable', methods: ['POST'])]
     public function enableTwoFactor(Request $request): Response
     {

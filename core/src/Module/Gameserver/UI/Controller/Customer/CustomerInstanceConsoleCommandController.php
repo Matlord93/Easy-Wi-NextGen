@@ -104,10 +104,22 @@ final class CustomerInstanceConsoleCommandController
         try {
             $result = $this->grpcClient->sendCommand(new ConsoleCommandRequest($id, $command, $idempotency, (int) floor(microtime(true) * 1000), (string) ($actor->getId() ?? '0')));
         } catch (\Throwable $e) {
-            $this->audit($actor, 'command_failed', $id, $command, 'grpc_failed');
+            $job = $this->queueConsoleFallbackJob($instance, $actor, $command, $idempotency);
+            $this->audit($actor, 'command_sent', $id, $command, 'queued_fallback');
             $this->entityManager->flush();
 
-            return $this->responseEnvelopeFactory->error($request, 'Command dispatch failed.', 'DISPATCH_FAILED', JsonResponse::HTTP_BAD_GATEWAY);
+            return new JsonResponse([
+                'status' => 'queued',
+                'message' => 'Command queued (fallback).',
+                'request_id' => (string) ($request->headers->get('X-Request-ID') ?? ''),
+                'accepted' => true,
+                'applied' => false,
+                'duplicate' => false,
+                'seq' => null,
+                'idempotency_key' => $idempotency,
+                'fallback' => true,
+                'job_id' => $job->getId(),
+            ], JsonResponse::HTTP_ACCEPTED);
         }
 
         $this->audit($actor, 'command_sent', $id, $command, 'ok');
@@ -195,5 +207,20 @@ final class CustomerInstanceConsoleCommandController
             'instance.addon.update',
             'instance.addon.remove',
         ], $instanceId);
+    }
+
+    private function queueConsoleFallbackJob(\App\Module\Core\Domain\Entity\Instance $instance, User $actor, string $command, string $idempotency): Job
+    {
+        $job = new Job('instance.console.command', [
+            'instance_id' => (string) ($instance->getId() ?? 0),
+            'customer_id' => (string) ($actor->getId() ?? 0),
+            'node_id' => (string) $instance->getNode()->getId(),
+            'agent_id' => (string) $instance->getNode()->getId(),
+            'command' => $command,
+            'idempotency_key' => $idempotency,
+        ]);
+        $this->entityManager->persist($job);
+
+        return $job;
     }
 }

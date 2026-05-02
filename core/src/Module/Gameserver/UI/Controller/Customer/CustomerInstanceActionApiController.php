@@ -1190,6 +1190,12 @@ final class CustomerInstanceActionApiController
 
                 $meta = is_array($data['meta'] ?? null) ? $data['meta'] : [];
                 $connected = strtolower((string) ($meta['state'] ?? '')) === 'connected';
+                $journalAvailable = (bool) ($meta['journal_available'] ?? true);
+                $agentUnavailable = !$journalAvailable || strtolower((string) ($meta['state'] ?? '')) === 'unavailable';
+
+                if ($agentUnavailable && $mapped === []) {
+                    throw new \RuntimeException('agent console stream unavailable');
+                }
 
                 return $this->apiOk($request, [
                     'cursor' => (string) ($data['cursor'] ?? $cursorRaw),

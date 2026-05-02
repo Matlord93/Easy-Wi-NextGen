@@ -613,14 +613,35 @@ func ensureTemurinRepo(output *strings.Builder) error {
 	}
 }
 
+// adoptiumDebianCodename maps an OS codename to the nearest Adoptium-supported
+// Debian/Ubuntu codename. Adoptium publishes releases for specific LTS
+// codenames; newer or unsupported codenames fall back to the latest known one.
+func adoptiumDebianCodename(codename string) string {
+	supported := map[string]bool{
+		"bionic": true, // Ubuntu 18.04
+		"focal":  true, // Ubuntu 20.04
+		"jammy":  true, // Ubuntu 22.04
+		"noble":  true, // Ubuntu 24.04
+		"buster":   true, // Debian 10
+		"bullseye": true, // Debian 11
+		"bookworm": true, // Debian 12
+	}
+	if supported[codename] {
+		return codename
+	}
+	// Ordered newest-to-oldest so we pick the highest supported version.
+	fallbackOrder := []string{"noble", "jammy", "focal", "bionic"}
+	for _, fb := range fallbackOrder {
+		if supported[fb] {
+			return fb
+		}
+	}
+	return codename
+}
+
 func ensureTemurinRepoDebian(output *strings.Builder) error {
 	const keyringPath = "/etc/apt/keyrings/adoptium.gpg"
 	const listPath = "/etc/apt/sources.list.d/adoptium.list"
-
-	if _, err := os.Stat(listPath); err == nil {
-		appendOutput(output, "adoptium_repo=already_configured")
-		return nil
-	}
 
 	codename, err := debianCodename()
 	if err != nil {
@@ -629,6 +650,24 @@ func ensureTemurinRepoDebian(output *strings.Builder) error {
 	if codename == "" {
 		return fmt.Errorf("unable to resolve debian codename for adoptium repo")
 	}
+	targetCodename := adoptiumDebianCodename(codename)
+
+	if existing, err := os.ReadFile(listPath); err == nil {
+		if strings.Contains(string(existing), " "+targetCodename+" ") {
+			appendOutput(output, "adoptium_repo=already_configured")
+			return nil
+		}
+		// File exists but uses a codename that Adoptium doesn't support
+		// (e.g. "resolute"). Overwrite it with the correct codename.
+		newLine := fmt.Sprintf("deb [signed-by=%s] https://packages.adoptium.net/artifactory/deb %s main\n", keyringPath, targetCodename)
+		if err := os.WriteFile(listPath, []byte(newLine), 0o644); err != nil {
+			return fmt.Errorf("update adoptium list: %w", err)
+		}
+		appendOutput(output, "adoptium_repo=migrated_codename")
+		return nil
+	}
+
+	codename = targetCodename
 
 	if err := runCommandWithOutput("mkdir", []string{"-p", "/etc/apt/keyrings"}, output); err != nil {
 		return err

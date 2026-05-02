@@ -77,7 +77,7 @@ final class LoginFinalizer
         $response->headers->setCookie(
             Cookie::create($cookieName, $token)
                 ->withPath('/')
-                ->withSecure(true)
+                ->withSecure($request->isSecure())
                 ->withHttpOnly(true)
                 ->withSameSite('strict')
                 ->withExpires((new \DateTimeImmutable())->modify(sprintf('+%d minutes', $absoluteMinutes)))
