@@ -104,6 +104,23 @@ apt_update_once() {
   fi
 }
 
+get_os_release_value() {
+  local key="$1"
+  if [[ -r /etc/os-release ]]; then
+    awk -F= -v target="${key}" '$1==target {gsub(/"/,"",$2); print $2}' /etc/os-release | head -n1
+  fi
+}
+
+is_ubuntu_2604_or_newer() {
+  local distro version_id
+  distro="$(get_os_release_value ID)"
+  version_id="$(get_os_release_value VERSION_ID)"
+  if [[ "${distro}" != "ubuntu" || -z "${version_id}" ]]; then
+    return 1
+  fi
+  awk -v v="${version_id}" 'BEGIN { split(v,a,"."); major=a[1]+0; minor=a[2]+0; exit !((major>26) || (major==26 && minor>=4)) }'
+}
+
 package_exists_apt() {
   local package="$1"
   apt-cache show "${package}" >/dev/null 2>&1
@@ -328,10 +345,14 @@ enable_universe_repo() {
     return
   fi
 
-  step "Aktiviere Universe-Repository und PHP-PPA für PHP 8.4."
+  step "Aktiviere Universe-Repository und optionales PHP-PPA."
   DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common 1>&2
   add-apt-repository -y universe 1>&2
-  add-apt-repository -y ppa:ondrej/php 1>&2
+  if is_ubuntu_2604_or_newer; then
+    log "Ubuntu 26.04+ erkannt: nutze primär offizielle Ubuntu-Pakete."
+  else
+    add-apt-repository -y ppa:ondrej/php 1>&2
+  fi
   APT_UPDATED=0
   apt_update_once
 }
@@ -765,14 +786,21 @@ install_agent_release_binaries() {
   tmp_dir="$(mktemp -d)"
 
   local downloaded_agent_asset
+  local downloaded_wrapper_asset
 
   step "Lade Agent-Releaseassets."
   downloaded_agent_asset="$(download_release_asset_from_candidates "${tmp_dir}/agent-asset" "${agent_version}" \
     "easywi-agent-${release_arch}.tar.gz" \
     "easywi-agent-${release_arch}.zip" \
     "easywi-agent-${release_arch}")"
+  downloaded_wrapper_asset="$(download_release_asset_from_candidates "${tmp_dir}/wrapper-asset" "${agent_version}" \
+    "easywi-wrapper-${release_arch}.tar.gz" \
+    "easywi-wrapper-${release_arch}.zip" \
+    "easywi-wrapper-${release_arch}" \
+    "easywi-wrapper-linux-${release_arch#linux-}")"
 
   local extracted_agent="${tmp_dir}/easywi-agent-${release_arch}"
+  local extracted_wrapper="${tmp_dir}/easywi-wrapper-${release_arch}"
   case "${downloaded_agent_asset}" in
     *.tar.gz)
       tar -xzf "${tmp_dir}/agent-asset" -C "${tmp_dir}"
@@ -784,16 +812,34 @@ install_agent_release_binaries() {
       mv "${tmp_dir}/agent-asset" "${extracted_agent}"
       ;;
   esac
+  case "${downloaded_wrapper_asset}" in
+    *.tar.gz)
+      tar -xzf "${tmp_dir}/wrapper-asset" -C "${tmp_dir}"
+      ;;
+    *.zip)
+      unzip -oq "${tmp_dir}/wrapper-asset" -d "${tmp_dir}"
+      ;;
+    *)
+      mv "${tmp_dir}/wrapper-asset" "${extracted_wrapper}"
+      ;;
+  esac
 
   if [[ ! -f "${extracted_agent}" ]]; then
     fatal "Agent-Binary nicht gefunden nach Entpacken: ${extracted_agent}"
   fi
+  if [[ ! -f "${extracted_wrapper}" ]]; then
+    fatal "Wrapper-Binary nicht gefunden nach Entpacken: ${extracted_wrapper}"
+  fi
 
   install -m 0755 "${extracted_agent}" /usr/local/bin/easywi-agent
-  chmod +x /usr/local/bin/easywi-agent
+  install -m 0755 "${extracted_wrapper}" /usr/local/bin/easywi-wrapper
+  chmod +x /usr/local/bin/easywi-agent /usr/local/bin/easywi-wrapper
 
   if ! command -v easywi-agent >/dev/null 2>&1; then
     fatal "easywi-agent wurde nicht korrekt installiert."
+  fi
+  if ! command -v easywi-wrapper >/dev/null 2>&1; then
+    fatal "easywi-wrapper wurde nicht korrekt installiert."
   fi
   rm -rf "${tmp_dir}"
 }
