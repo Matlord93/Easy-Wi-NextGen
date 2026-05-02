@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/creack/pty"
 )
 
 const (
@@ -20,9 +22,6 @@ const (
 	wrapperSocketFileMode  = 0o666
 )
 
-// runWrapper is the entry point when the agent is invoked with --wrapper.
-// It starts the child process identified by childArgs, listens on socketPath
-// for console commands and forwards them to the child's stdin.
 func runWrapper(instanceID, socketPath string, childArgs []string) {
 	if instanceID == "" {
 		log.Fatal("wrapper: missing --instance-id")
@@ -33,7 +32,6 @@ func runWrapper(instanceID, socketPath string, childArgs []string) {
 	if len(childArgs) == 0 {
 		log.Fatal("wrapper: missing child command after --")
 	}
-
 	if err := os.MkdirAll(filepath.Dir(socketPath), 0o755); err != nil {
 		log.Fatalf("wrapper: create socket directory: %v", err)
 	}
@@ -41,47 +39,23 @@ func runWrapper(instanceID, socketPath string, childArgs []string) {
 	if err := os.Chmod(filepath.Dir(socketPath), 0o755); err != nil {
 		log.Fatalf("wrapper: chmod socket directory: %v", err)
 	}
-
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		log.Fatalf("wrapper: listen on command socket: %v", err)
 	}
-	defer func() {
-		_ = listener.Close()
-		_ = os.Remove(socketPath)
-	}()
+	defer func() { _ = listener.Close(); _ = os.Remove(socketPath) }()
 	if err := os.Chmod(socketPath, wrapperSocketFileMode); err != nil {
 		log.Fatalf("wrapper: chmod command socket: %v", err)
 	}
 
 	cmd := exec.Command(childArgs[0], childArgs[1:]...)
-	stdin, err := cmd.StdinPipe()
+	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		log.Fatalf("wrapper: open child stdin: %v", err)
+		log.Fatalf("wrapper: start child pty: %v", err)
 	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Fatalf("wrapper: open child stdout: %v", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		log.Fatalf("wrapper: open child stderr: %v", err)
-	}
+	defer func() { _ = ptmx.Close() }()
 
-	if err := cmd.Start(); err != nil {
-		log.Fatalf("wrapper: start child: %v", err)
-	}
-
-	var copyWG sync.WaitGroup
-	copyWG.Add(2)
-	go func() {
-		defer copyWG.Done()
-		_, _ = io.Copy(os.Stdout, stdout)
-	}()
-	go func() {
-		defer copyWG.Done()
-		_, _ = io.Copy(os.Stderr, stderr)
-	}()
+	go func() { _, _ = io.Copy(os.Stdout, ptmx) }()
 
 	commands := make(chan string, 64)
 	var connWG sync.WaitGroup
@@ -91,10 +65,7 @@ func runWrapper(instanceID, socketPath string, childArgs []string) {
 		for {
 			conn, acceptErr := listener.Accept()
 			if acceptErr != nil {
-				if errors.Is(acceptErr, net.ErrClosed) {
-					return
-				}
-				if strings.Contains(strings.ToLower(acceptErr.Error()), "closed") {
+				if errors.Is(acceptErr, net.ErrClosed) || strings.Contains(strings.ToLower(acceptErr.Error()), "closed") {
 					return
 				}
 				log.Printf("wrapper: command socket accept error: %v", acceptErr)
@@ -123,7 +94,6 @@ func runWrapper(instanceID, socketPath string, childArgs []string) {
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
-
 	childDone := make(chan error, 1)
 	go func() { childDone <- cmd.Wait() }()
 
@@ -133,8 +103,8 @@ func runWrapper(instanceID, socketPath string, childArgs []string) {
 			if line == "" {
 				continue
 			}
-			if _, err := io.WriteString(stdin, line+"\n"); err != nil {
-				log.Printf("wrapper: write child stdin: %v", err)
+			if _, err := io.WriteString(ptmx, line+"\n"); err != nil {
+				log.Printf("wrapper: write child pty: %v", err)
 			}
 		case sig := <-sigCh:
 			if cmd.Process != nil {
@@ -143,8 +113,6 @@ func runWrapper(instanceID, socketPath string, childArgs []string) {
 		case err := <-childDone:
 			_ = listener.Close()
 			connWG.Wait()
-			_ = stdin.Close()
-			copyWG.Wait()
 			<-acceptDone
 			if err != nil {
 				if exitErr, ok := err.(*exec.ExitError); ok {

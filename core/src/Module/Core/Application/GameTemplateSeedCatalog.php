@@ -1599,10 +1599,10 @@ final class GameTemplateSeedCatalog
      */
     private function source1Plugins(): array
     {
-        $mmsUrl = 'https://mms.alliedmods.net/mmsdrop/1.12/mmsource-1.12.0-git1167-linux.tar.gz';
-        $smUrl  = 'https://sm.alliedmods.net/smdrop/1.12/sourcemod-1.12.0-git7195-linux.tar.gz';
-        $mmsVer = '1.12.0-dev';
-        $smVer  = '1.12.0-dev';
+        $mmsUrl = 'https://mms.alliedmods.net/mmsdrop/2.0/mmsource-2.0.0-git1399-linux.tar.gz';
+        $smUrl  = 'https://sm.alliedmods.net/smdrop/1.13/sourcemod-1.13.0-git7344-linux.tar.gz';
+        $mmsVer = '2.0.0-dev';
+        $smVer  = '1.13.0-dev';
 
         // [template_game_key => extract_subdir]
         $games = [
