@@ -16,6 +16,8 @@ import (
 
 var consoleAllowedChars = regexp.MustCompile(`^[\p{L}\p{N}\p{P}\p{S}\p{Zs}]+$`)
 
+var instanceRuntimeDir = "/run/easywi/instances"
+
 type tokenBucketLimiter struct {
 	mu      sync.Mutex
 	rate    int
@@ -84,7 +86,7 @@ func systemdConsoleSocketPath(instanceID string) string {
 	if instanceID == "" {
 		return ""
 	}
-	return filepath.Join("/run/easywi/instances", instanceID, "console.sock")
+	return filepath.Join(instanceRuntimeDir, instanceID, "console.sock")
 }
 
 func writeConsoleCommandToSocket(socketPath, command string) error {

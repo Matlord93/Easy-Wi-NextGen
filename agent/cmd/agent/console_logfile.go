@@ -27,7 +27,7 @@ func consoleLogFilePath(instanceID string) string {
 	if instanceID == "" {
 		return ""
 	}
-	return filepath.Join("/run/easywi/instances", instanceID, "console.log")
+	return filepath.Join(instanceRuntimeDir, instanceID, "console.log")
 }
 
 // stripANSI removes ANSI/VT100 escape sequences from raw PTY output so that

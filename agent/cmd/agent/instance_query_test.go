@@ -667,6 +667,8 @@ func TestQueryMinecraftBedrockParsesPong(t *testing.T) {
 }
 
 func TestConsoleLogsViaInstanceRouterReturnsLinesWithoutQueryPort(t *testing.T) {
+	instanceRuntimeDir = t.TempDir()
+	t.Cleanup(func() { instanceRuntimeDir = "/run/easywi/instances" })
 	instanceID := "9301"
 	logPath := consoleLogFilePath(instanceID)
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
@@ -698,6 +700,8 @@ func TestConsoleLogsViaInstanceRouterReturnsLinesWithoutQueryPort(t *testing.T) 
 }
 
 func TestConsoleLogsViaInstanceRouterMissingFileReturnsEmptyLinesWithoutQueryPort(t *testing.T) {
+	instanceRuntimeDir = t.TempDir()
+	t.Cleanup(func() { instanceRuntimeDir = "/run/easywi/instances" })
 	instanceID := "9302"
 	_ = os.RemoveAll(filepath.Dir(consoleLogFilePath(instanceID)))
 	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
