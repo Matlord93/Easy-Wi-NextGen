@@ -62,4 +62,18 @@ final class ForumThreadRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /** @return list<ForumThread> */
+    public function findLatestActiveBySite(Site $site, int $limit = 3): array
+    {
+        return $this->createQueryBuilder('thread')
+            ->leftJoin('thread.board', 'board')->addSelect('board')
+            ->leftJoin('thread.authorUser', 'authorUser')->addSelect('authorUser')
+            ->andWhere('thread.site = :site')
+            ->setParameter('site', $site)
+            ->orderBy('thread.lastActivityAt', 'DESC')
+            ->setMaxResults(max(1, $limit))
+            ->getQuery()
+            ->getResult();
+    }
 }

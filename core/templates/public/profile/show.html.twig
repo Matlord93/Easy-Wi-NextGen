@@ -16,7 +16,7 @@
 <div class="ng-container ng-section">
     <div class="grid gap-6 lg:grid-cols-[200px,1fr]">
         {% include 'public/account/_nav.html.twig' %}
-        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-6 {% if active_theme|default('minimal') == 'nexus-gaming' %}ng-glow{% endif %}">
             <h2 class="text-lg font-semibold text-slate-100">Profil-Informationen</h2>
             <div class="mt-4 space-y-3 text-sm">
                 <div class="flex gap-4">

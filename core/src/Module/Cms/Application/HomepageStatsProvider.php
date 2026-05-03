@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Cms\Application;
 
 use App\Module\Core\Domain\Entity\CmsEvent;
+use App\Module\Core\Domain\Entity\ForumThread;
 use App\Module\Core\Domain\Entity\PublicServer;
 use App\Module\Core\Domain\Entity\Site;
 use App\Repository\CmsEventRepository;
@@ -34,6 +35,7 @@ final class HomepageStatsProvider
         $upcomingEvents = array_values(array_slice($upcomingEvents, 0, 3));
 
         $forumThreadCount = $this->countForumThreads($site);
+        $latestForumThreads = $this->forumThreadRepository->findLatestActiveBySite($site, 3);
         $publicServers = $this->publicServerRepository->findVisiblePublicBySite($site->getId() ?? 0, null, null, 8);
         $normalizedServers = $this->normalizeServers($publicServers);
         $onlineServers = array_filter(
@@ -64,7 +66,13 @@ final class HomepageStatsProvider
                 'cover_image_path' => $e->getCoverImagePath(),
             ], $upcomingEvents),
             'cms_server_status' => $normalizedServers,
-            'cms_activity' => [],
+            'cms_activity' => array_map(fn (ForumThread $thread): array => [
+                'title' => $thread->getTitle(),
+                'thread_id' => $thread->getId(),
+                'board_title' => $thread->getBoard()->getTitle(),
+                'author_name' => $thread->getAuthorUser()?->getName() ?? 'Unbekannt',
+                'last_activity_at' => $thread->getLastActivityAt(),
+            ], $latestForumThreads),
             'cms_top_members' => array_map(fn ($m): array => [
                 'name' => $m->getName(),
                 'role_title' => $m->getRoleTitle(),

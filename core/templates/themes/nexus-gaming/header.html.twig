@@ -2,6 +2,7 @@
 {% set lang = app.request ? app.request.query.get('lang') : null %}
 {% set langSuffix = lang in ['de', 'en'] ? '?lang=' ~ lang : '' %}
 {% set currentUser = current_user() %}
+{% set currentUserLabel = currentUser and currentUser.name ? currentUser.name : (currentUser ? currentUser.email : '') %}
 {% set currentSlug = page.slug|default('') %}
 
 <header class="ng-header" id="ng-header">
@@ -74,8 +75,8 @@
                 {% endif %}
                 <div class="ng-user-menu">
                     <button class="ng-user-menu__toggle" aria-expanded="false" aria-haspopup="true">
-                        <span class="ng-user-avatar">{{ currentUser.email|slice(0,1)|upper }}</span>
-                        <span class="ng-user-email">{{ currentUser.email }}</span>
+                        <span class="ng-user-avatar">{{ currentUserLabel|slice(0,1)|upper }}</span>
+                        <span class="ng-user-email">{{ currentUserLabel }}</span>
                         <svg class="ng-user-menu__arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
                             <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>

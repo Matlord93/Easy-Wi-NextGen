@@ -204,9 +204,18 @@
       <div class="ng-panel__body">
         {% for item in cms_activity|default([]) %}
           <div class="ng-activity-item">
-            <div class="ng-activity-item__avatar">{{ item.user_name|default('?')|first|upper }}</div>
-            <p class="ng-activity-item__text"><strong>{{ item.user_name|default('Unbekannt') }}</strong> {{ item.action|default('') }}</p>
-            <span class="ng-activity-item__time">{{ item.time|default('') }}</span>
+            <div class="ng-activity-item__avatar">{{ item.author_name|default('?')|first|upper }}</div>
+            <p class="ng-activity-item__text">
+              <strong>{{ item.author_name|default('Unbekannt') }}</strong> hat im Forum gepostet:
+              {% if item.thread_id|default(null) %}
+                <a href="/forum/thread/{{ item.thread_id }}" class="ng-link">{{ item.title|default('Beitrag') }}</a>
+              {% else %}
+                {{ item.title|default('Beitrag') }}
+              {% endif %}
+            </p>
+            <span class="ng-activity-item__time">
+              {{ item.board_title|default('Forum') }} · {{ item.last_activity_at|default(null) ? item.last_activity_at|date('d.m.Y H:i') : '' }}
+            </span>
           </div>
         {% else %}
           <div class="ng-panel__empty"><p>Keine aktuellen Aktivitäten.</p></div>

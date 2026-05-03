@@ -12,6 +12,7 @@
 
 {% set clanName = app_setting('branding_name', 'Easy-Wi NextGen') %}
 {% set currentUser = current_user() %}
+{% set currentUserLabel = currentUser and currentUser.name ? currentUser.name : (currentUser ? currentUser.email : '') %}
 {% set socials = cms_branding.socials|default({}) %}
 {% set reqPath = app.request ? app.request.pathInfo : '/' %}
 
@@ -131,8 +132,8 @@
       {% if currentUser %}
         <div class="ng-user-menu" id="ng-user-menu">
           <button class="ng-user-menu__toggle" id="ng-user-toggle" aria-expanded="false" aria-haspopup="true">
-            <span class="ng-user-avatar">{{ currentUser.email|first|upper }}</span>
-            <span class="ng-user-email">{{ currentUser.email }}</span>
+            <span class="ng-user-avatar">{{ currentUserLabel|first|upper }}</span>
+            <span class="ng-user-email">{{ currentUserLabel }}</span>
             <svg class="ng-user-menu__arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
           </button>
           <div class="ng-user-menu__dropdown" id="ng-user-dropdown">

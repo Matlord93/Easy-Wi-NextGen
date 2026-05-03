@@ -105,6 +105,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             || $path === '/register'
             || $path === '/register/verify'
             || $path === '/contact'
+            || $path === '/kontakt'
             || $path === '/status'
             || $path === '/changelog'
             || $path === '/downloads'
@@ -132,6 +133,7 @@ final class SessionGuardSubscriber implements EventSubscriberInterface
             || str_starts_with($routeName, 'public_robots')
             || str_starts_with($routeName, 'public_sitemap')
             || $routeName === 'public_theme_preview'
+            || $routeName === 'public_kontakt'
             || $routeName === 'customer_files_health';
     }
 
