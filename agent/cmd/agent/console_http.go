@@ -147,6 +147,19 @@ func (m *consoleSessionManager) getOrCreate(instanceID, unitName string) *consol
 	return s
 }
 
+func (m *consoleSessionManager) stopAll() {
+	m.mu.Lock()
+	sessions := make([]*consoleSession, 0, len(m.sessions))
+	for key, s := range m.sessions {
+		sessions = append(sessions, s)
+		delete(m.sessions, key)
+	}
+	m.mu.Unlock()
+	for _, s := range sessions {
+		s.cancel()
+	}
+}
+
 func (m *consoleSessionManager) cleanupLoop(key string, s *consoleSession) {
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()

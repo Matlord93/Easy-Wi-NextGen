@@ -680,6 +680,7 @@ func TestConsoleLogsViaInstanceRouterReturnsLinesWithoutQueryPort(t *testing.T) 
 	t.Cleanup(func() { _ = os.RemoveAll(filepath.Dir(logPath)) })
 
 	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	t.Cleanup(func() { globalConsoleSessions.stopAll() })
 	lookupCommand = func(file string) (string, error) { return "", errors.New("missing") }
 	t.Cleanup(func() { lookupCommand = exec.LookPath })
 
@@ -705,6 +706,7 @@ func TestConsoleLogsViaInstanceRouterMissingFileReturnsEmptyLinesWithoutQueryPor
 	instanceID := "9302"
 	_ = os.RemoveAll(filepath.Dir(consoleLogFilePath(instanceID)))
 	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	t.Cleanup(func() { globalConsoleSessions.stopAll() })
 	lookupCommand = func(file string) (string, error) { return "", errors.New("missing") }
 	t.Cleanup(func() { lookupCommand = exec.LookPath })
 
@@ -732,6 +734,7 @@ func TestConsoleLogsViaInstanceRouterMissingFileReturnsEmptyLinesWithoutQueryPor
 func TestConsoleLogsViaInstanceRouterDoesNotReturnInvalidPort(t *testing.T) {
 	instanceID := "9303"
 	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	t.Cleanup(func() { globalConsoleSessions.stopAll() })
 	lookupCommand = func(file string) (string, error) { return "", errors.New("missing") }
 	t.Cleanup(func() { lookupCommand = exec.LookPath })
 

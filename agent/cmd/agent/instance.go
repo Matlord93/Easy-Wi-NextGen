@@ -502,7 +502,7 @@ func handleInstanceConsoleCommand(job jobs.Job, logSender JobLogSender) (jobs.Re
 		return failedResultWithErrorCode(job.ID, "RATE_LIMITED", "console command rate limit exceeded")
 	}
 
-	socketPath := systemdConsoleSocketPath(instanceID)
+	socketPath := filepath.ToSlash(systemdConsoleSocketPath(instanceID))
 	if socketPath == "" {
 		return failedResultWithErrorCode(job.ID, "CONSOLE_UNAVAILABLE", "console socket is not configured")
 	}
@@ -1008,7 +1008,7 @@ func buildSystemdExecStart(serviceName, command string) (string, string) {
 	if !strings.HasPrefix(serviceName, "gs-") || instanceID == "" {
 		return command, ""
 	}
-	socketPath := systemdConsoleSocketPath(instanceID)
+	socketPath := filepath.ToSlash(systemdConsoleSocketPath(instanceID))
 	runtimeDirectory := filepath.Join("easywi/instances", instanceID)
 
 	// Prefer the agent binary itself (--wrapper mode) so no separate
