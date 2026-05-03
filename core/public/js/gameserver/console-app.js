@@ -221,16 +221,19 @@
                 healthEl.textContent = 'Live stream connected';
             }
         };
-        source.onmessage = (event) => {
+        const handleStreamEvent = (event) => {
             let payload = {};
             try {
-                payload = JSON.parse(event.data || '{}');
+                payload = JSON.parse((event && event.data) || '{}');
             } catch (e) {
                 return;
             }
 
             if (payload.chunk_base64) {
-                appendLine(decodeBase64(payload.chunk_base64));
+                const decoded = decodeBase64(payload.chunk_base64);
+                if (decoded) {
+                    appendLine(decoded);
+                }
             }
             if (payload.type === 'status' && payload.status) {
                 const degradedStatuses = ['backend_not_configured', 'redis_unavailable', 'relay_stale', 'stream_unavailable', 'node_endpoint_missing'];
@@ -246,8 +249,14 @@
             if (payload.cpu !== undefined && healthEl) {
                 healthEl.textContent = `CPU: ${payload.cpu}% · RAM: ${payload.ram_mb || 0} MB`;
             }
-            errors.clearInline(inlineError);
+            if ((payload.type || '') !== 'ping') {
+                errors.clearInline(inlineError);
+            }
         };
+        source.onmessage = handleStreamEvent;
+        source.addEventListener('chunk', handleStreamEvent);
+        source.addEventListener('status', handleStreamEvent);
+        source.addEventListener('ping', handleStreamEvent);
 
         source.onerror = () => {
             reconnectFailures += 1;
@@ -316,7 +325,7 @@
             await apiClient.request(root.dataset.urlCommand, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': root.dataset.csrfToken || '' },
-                body: JSON.stringify({ command, idempotency_key: crypto.randomUUID(), csrf_token: root.dataset.csrfToken || '' }),
+                body: JSON.stringify({ command, idempotency_key: apiClient.buildRequestId(), csrf_token: root.dataset.csrfToken || '' }),
             });
             appendLine(`> ${command}`, 'meta');
             commandEl.value = '';

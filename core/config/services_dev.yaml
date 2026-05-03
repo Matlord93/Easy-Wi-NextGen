@@ -1,2 +1,2 @@
 services:
-  App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface: '@App\Module\Gameserver\Infrastructure\Mercure\NullConsoleAgentGrpcClient'
+  App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface: '@App\Module\Gameserver\Infrastructure\Grpc\GrpcConsoleAgentGrpcClient'

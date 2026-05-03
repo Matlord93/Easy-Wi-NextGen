@@ -50,12 +50,13 @@ type queryHTTPData struct {
 }
 
 func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
-	instanceID := strings.TrimPrefix(r.URL.Path, "/v1/instances/")
-	instanceID = strings.TrimSuffix(instanceID, "/query")
-	if idx := strings.Index(instanceID, "/access/"); idx > 0 {
-		instanceID = instanceID[:idx]
+	instancePath := strings.TrimPrefix(r.URL.Path, "/v1/instances/")
+	instancePath = strings.Trim(instancePath, "/ ")
+	instanceID := instancePath
+	if idx := strings.Index(instancePath, "/"); idx >= 0 {
+		instanceID = instancePath[:idx]
 	}
-	instanceID = strings.Trim(instanceID, "/ ")
+	instanceID = strings.TrimSpace(instanceID)
 	if instanceID == "" {
 		writeJSONError(w, http.StatusBadRequest, "INVALID_INSTANCE_ID", "instance id is required")
 		return

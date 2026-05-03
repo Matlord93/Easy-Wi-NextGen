@@ -1275,6 +1275,7 @@ final class CustomerInstanceActionApiController
         $runtimeProbe = $this->resolveConsoleRuntimeProbe($instance);
         $runtimeStatus = $runtimeProbe['runtime_status'];
         $running = $runtimeProbe['running'];
+        $queryStatus = $runtimeProbe['query_status'];
 
         $supportsLiveOutput = true;
         $liveOutputStatus = 'ok';
@@ -1305,13 +1306,14 @@ final class CustomerInstanceActionApiController
             'runtime_status' => $runtimeStatus,
             'can_send_command' => $running,
             'unit_name' => sprintf('gs-%d', $instance->getId()),
-            'running_state' => $running ? 'running' : 'offline',
+            'running_state' => $running ? 'running' : (($queryStatus === 'invalid_port' || $queryStatus === 'unknown') ? 'query_unavailable' : 'offline'),
             'supports_live_output' => $supportsLiveOutput,
             'live_output_status' => $liveOutputStatus,
             'live_output_message' => $liveOutputMessage,
             'supports_command_injection' => true,
             'injection_mechanism' => 'unix_socket',
             'session_active' => $running,
+            'query_status' => $queryStatus,
         ]);
     }
 
@@ -1924,7 +1926,7 @@ final class CustomerInstanceActionApiController
 
 
     /**
-     * @return array{runtime_status: string, running: bool}
+     * @return array{runtime_status: string, running: bool, query_status: string}
      */
     private function resolveConsoleRuntimeProbe(Instance $instance): array
     {
@@ -1947,9 +1949,26 @@ final class CustomerInstanceActionApiController
             // Fall back to cached query runtime status when live probe is unavailable.
         }
 
+        try {
+            $consoleHealth = $this->agentGameServerClient->getConsoleHealth($instance);
+            $data = is_array($consoleHealth['data'] ?? null) ? $consoleHealth['data'] : [];
+            $session = is_array($data['journal_session'] ?? null) ? $data['journal_session'] : [];
+            $socketExists = (bool) ($data['socket_exists'] ?? false);
+            $sessionConnected = (bool) ($session['connected'] ?? false);
+            if ($socketExists || $sessionConnected) {
+                return [
+                    'runtime_status' => 'running',
+                    'running' => true,
+                    'query_status' => $queryRuntime === '' ? 'unknown' : $queryRuntime,
+                ];
+            }
+        } catch (\Throwable) {
+        }
+
         return [
             'runtime_status' => $queryRuntime,
             'running' => $queryRuntime === 'online' || $queryRuntime === 'running' || $queryRuntime === 'up',
+            'query_status' => $queryRuntime === '' ? 'unknown' : $queryRuntime,
         ];
     }
 

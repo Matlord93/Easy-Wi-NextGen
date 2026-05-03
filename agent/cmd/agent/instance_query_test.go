@@ -10,6 +10,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -660,5 +663,78 @@ func TestQueryMinecraftBedrockParsesPong(t *testing.T) {
 	}
 	if payload["version"] == "" || payload["motd"] != "EasyWi" {
 		t.Fatalf("payload=%v", payload)
+	}
+}
+
+func TestConsoleLogsViaInstanceRouterReturnsLinesWithoutQueryPort(t *testing.T) {
+	instanceID := "9301"
+	logPath := consoleLogFilePath(instanceID)
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		t.Fatalf("mkdir log dir: %v", err)
+	}
+	if err := os.WriteFile(logPath, []byte("Connection to Steam servers successful.\n"), 0o644); err != nil {
+		t.Fatalf("write log file: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Dir(logPath)) })
+
+	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	lookupCommand = func(file string) (string, error) { return "", errors.New("missing") }
+	t.Cleanup(func() { lookupCommand = exec.LookPath })
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/instances/"+instanceID+"/console/logs?query_port=0", nil)
+	w := httptest.NewRecorder()
+	handleInstanceQueryHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if ok, _ := resp["ok"].(bool); !ok {
+		t.Fatalf("expected ok=true, got %v", resp)
+	}
+}
+
+func TestConsoleLogsViaInstanceRouterMissingFileReturnsEmptyLinesWithoutQueryPort(t *testing.T) {
+	instanceID := "9302"
+	_ = os.RemoveAll(filepath.Dir(consoleLogFilePath(instanceID)))
+	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	lookupCommand = func(file string) (string, error) { return "", errors.New("missing") }
+	t.Cleanup(func() { lookupCommand = exec.LookPath })
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/instances/"+instanceID+"/console/logs?query_port=0", nil)
+	w := httptest.NewRecorder()
+	handleInstanceQueryHTTP(w, req)
+
+	var resp struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Lines []any `json:"lines"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !resp.OK {
+		t.Fatalf("expected ok=true body=%s", w.Body.String())
+	}
+	if len(resp.Data.Lines) != 0 {
+		t.Fatalf("expected empty lines, got %d", len(resp.Data.Lines))
+	}
+}
+
+func TestConsoleLogsViaInstanceRouterDoesNotReturnInvalidPort(t *testing.T) {
+	instanceID := "9303"
+	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	lookupCommand = func(file string) (string, error) { return "", errors.New("missing") }
+	t.Cleanup(func() { lookupCommand = exec.LookPath })
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/instances/"+instanceID+"/console/logs?query_port=invalid", nil)
+	w := httptest.NewRecorder()
+	handleInstanceQueryHTTP(w, req)
+	if strings.Contains(w.Body.String(), "INVALID_PORT") {
+		t.Fatalf("console logs endpoint returned INVALID_PORT: %s", w.Body.String())
 	}
 }

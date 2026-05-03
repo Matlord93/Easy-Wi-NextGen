@@ -17,3 +17,11 @@ const fs = require('fs');
 })();
 
 console.log('gameserver-console-app smoke test passed');
+
+(() => {
+    const source = fs.readFileSync(require.resolve('../../public/js/gameserver/console-app.js'), 'utf8');
+    assert.ok(source.includes('apiClient.buildRequestId()'), 'console command idempotency key should use apiClient.buildRequestId');
+    assert.ok(source.includes("source.addEventListener('chunk', handleStreamEvent)"), 'console app should handle named chunk events');
+    assert.ok(source.includes("source.addEventListener('status', handleStreamEvent)"), 'console app should handle named status events');
+    assert.ok(source.includes("source.addEventListener('ping', handleStreamEvent)"), 'console app should handle named ping events');
+})();

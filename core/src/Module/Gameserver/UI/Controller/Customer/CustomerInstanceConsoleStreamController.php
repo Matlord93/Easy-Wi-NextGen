@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
+use Psr\Log\LoggerInterface;
 use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/instances')]
@@ -26,6 +27,8 @@ final class CustomerInstanceConsoleStreamController
         private readonly int $maxDurationSeconds = 1800,
         private readonly int $pingIntervalSeconds = 15,
         private readonly ?ConsoleStreamDiagnostics $diagnostics = null,
+        private readonly ?LoggerInterface $logger = null,
+        private readonly bool $debug = false,
     ) {
     }
 
@@ -84,11 +87,16 @@ final class CustomerInstanceConsoleStreamController
                     }
                     usleep(200000);
                 }
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                $this->logger?->warning('console stream unavailable', ['instance_id' => $id, 'exception' => $e]);
+                $message = 'Console stream unavailable';
+                if ($this->debug) {
+                    $message .= ' : ' . $e->getMessage() . sprintf(' (%s:%d)', $e->getFile(), $e->getLine());
+                }
                 $this->writeEvent([
                     'type' => 'status',
                     'status' => 'stream_unavailable',
-                    'message' => 'Console stream unavailable',
+                    'message' => $message,
                     'ts' => (new \DateTimeImmutable())->format(DATE_ATOM),
                 ], 'status', null);
             } finally {
