@@ -11,6 +11,26 @@ use PHPUnit\Framework\TestCase;
 
 final class CustomerInstanceConsoleHealthProbeTest extends TestCase
 {
+    private string $runtimeDir;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->runtimeDir = sys_get_temp_dir() . '/easywi-runtime-' . bin2hex(random_bytes(8));
+        putenv('EASYWI_RUNTIME_DIR=' . $this->runtimeDir);
+    }
+
+    protected function tearDown(): void
+    {
+        putenv('EASYWI_RUNTIME_DIR');
+        @unlink(sprintf('%s/instances/%d/console.sock', $this->runtimeDir, 1));
+        @rmdir(sprintf('%s/instances/%d', $this->runtimeDir, 1));
+        @rmdir(sprintf('%s/instances', $this->runtimeDir));
+        @rmdir($this->runtimeDir);
+
+        parent::tearDown();
+    }
     public function testSocketEvidenceKeepsCommandChannelActiveWithoutQueryStatus(): void
     {
         $server = $this->createSocket(1);
@@ -66,14 +86,13 @@ final class CustomerInstanceConsoleHealthProbeTest extends TestCase
 
     private function createSocket(int $instanceId)
     {
-        $dir = sprintf('/run/easywi/instances/%d', $instanceId);
+        $dir = sprintf('%s/instances/%d', $this->runtimeDir, $instanceId);
         @mkdir($dir, 0777, true);
         $path = $dir . '/console.sock';
-        
+
         $handle = @fopen($path, 'wb');
         self::assertNotFalse($handle, sprintf('Failed creating socket marker file at %s', $path));
 
         return $handle;
-
     }
 }
