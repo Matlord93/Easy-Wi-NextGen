@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\UI\Api\ResponseEnvelopeFactory;
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
+use App\Module\Gameserver\Application\Console\ConsoleUnavailableException;
 use App\Module\Gameserver\Application\Console\ConsoleCommandLimiterInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandRequest;
 use App\Repository\InstanceRepository;
@@ -103,7 +104,21 @@ final class CustomerInstanceConsoleCommandController
 
         try {
             $result = $this->grpcClient->sendCommand(new ConsoleCommandRequest($id, $command, $idempotency, (int) floor(microtime(true) * 1000), (string) ($actor->getId() ?? '0')));
+        } catch (ConsoleUnavailableException $e) {
+            // The agent is reachable but the console socket is definitively missing
+            // (game server not running via agent wrapper). Return an actionable error
+            // instead of queuing a fallback job that would also fail.
+            $this->audit($actor, 'command_blocked', $id, $command, 'console_unavailable');
+            $this->entityManager->flush();
+
+            return $this->responseEnvelopeFactory->error(
+                $request,
+                $e->getMessage(),
+                $e->agentErrorCode,
+                JsonResponse::HTTP_CONFLICT,
+            );
         } catch (\Throwable $e) {
+            // Agent temporarily unreachable – queue for later delivery.
             $job = $this->queueConsoleFallbackJob($instance, $actor, $command, $idempotency);
             $this->audit($actor, 'command_sent', $id, $command, 'queued_fallback');
             $this->entityManager->flush();

@@ -11,6 +11,7 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Gameserver\Application\Console\ConsoleAgentGrpcClientInterface;
 use App\Module\Gameserver\Application\Console\ConsoleCommandRequest;
 use App\Module\Gameserver\Application\Console\ConsoleCommandResult;
+use App\Module\Gameserver\Application\Console\ConsoleUnavailableException;
 use App\Module\Gameserver\Application\Console\NodeEndpointMissingException;
 use App\Repository\InstanceRepository;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -44,7 +45,16 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
 
         $payload = $response->toArray(false);
         if ($response->getStatusCode() >= 400) {
-            throw new \RuntimeException((string) ($payload['message'] ?? 'Command dispatch failed.'));
+            $message = (string) ($payload['message'] ?? 'Command dispatch failed.');
+            $errorCode = (string) ($payload['error_code'] ?? '');
+            // 409 means the agent is reachable but the console is definitively
+            // unavailable (socket missing, permission denied, …). Raise a typed
+            // exception so the controller can return an error to the user instead
+            // of silently queueing a fallback job that would also fail.
+            if ($response->getStatusCode() === 409) {
+                throw new ConsoleUnavailableException($message, $errorCode !== '' ? $errorCode : 'CONSOLE_UNAVAILABLE');
+            }
+            throw new \RuntimeException($message);
         }
 
         return new ConsoleCommandResult(
@@ -101,6 +111,40 @@ final class GrpcConsoleAgentGrpcClient implements ConsoleAgentGrpcClientInterfac
                 usleep(50_000);
             }
         }
+    }
+
+    /** @return array<string,mixed> */
+    public function getConsoleHealth(int $instanceId): array
+    {
+        $node = $this->resolveNode($instanceId);
+        $endpoint = $this->resolveEndpoint($node);
+
+        $response = $this->httpClient->request(
+            'GET',
+            rtrim($endpoint, '/') . '/v1/instances/' . $instanceId . '/console/health',
+            ['headers' => $this->buildHeaders($node), 'timeout' => 8],
+        );
+
+        return $response->toArray(false);
+    }
+
+    /**
+     * @return array<string,mixed>  Raw agent response (data.cursor, data.lines, data.meta)
+     */
+    public function getConsoleLogs(int $instanceId, string $cursor = ''): array
+    {
+        $node = $this->resolveNode($instanceId);
+        $endpoint = $this->resolveEndpoint($node);
+
+        $query = $cursor !== '' ? ['cursor' => $cursor] : [];
+
+        $response = $this->httpClient->request(
+            'GET',
+            rtrim($endpoint, '/') . '/v1/instances/' . $instanceId . '/console/logs',
+            ['headers' => $this->buildHeaders($node), 'query' => $query, 'timeout' => 8],
+        );
+
+        return $response->toArray(false);
     }
 
     private function resolveNode(int $instanceId): Agent

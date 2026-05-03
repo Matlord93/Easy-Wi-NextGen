@@ -72,6 +72,19 @@ var httpConsoleRateLimiter = newTokenBucketLimiter(5, 3*time.Second)
 var lookupCommand = exec.LookPath
 var writeConsoleCommand = writeConsoleCommandToSocket
 var startJournalStream = func(ctx context.Context, unitName string) (*startedJournalStream, error) {
+	// Prefer the per-instance console log file written by the agent wrapper.
+	// This works on every environment (Plesk, Fastpanel, AApanel, Standalone)
+	// as long as game servers are started through the agent wrapper binary.
+	// journalctl is used as a fallback only when no log file is present.
+	instanceID := strings.TrimPrefix(unitName, "gs-")
+	logPath := consoleLogFilePath(instanceID)
+	if logPath != "" {
+		if _, err := os.Stat(logPath); err == nil {
+			return startLogFileStream(ctx, logPath)
+		}
+	}
+
+	// Fallback: systemd journal (requires the game server to run as a systemd unit).
 	cmd := exec.CommandContext(ctx, "journalctl", "-u", unitName, "-f", "-n", "200", "-o", "short-iso", "--no-pager")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -348,19 +361,31 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 			writeAccessEnvelope(w, 405, accessEnvelope{OK: false, ErrorCode: "INVALID_INPUT", Message: "method not allowed", RequestID: requestID})
 			return true
 		}
-		journalAvailable := true
-		if _, err := lookupCommand("journalctl"); err != nil {
-			journalAvailable = false
+		// Determine which console source is available:
+		//   1. Per-instance log file (created by the agent wrapper – works everywhere)
+		//   2. journalctl (systemd environments only)
+		// Only return "unavailable" when neither source is accessible.
+		logFilePath := consoleLogFilePath(instanceID)
+		logFileAvail := logFilePath != ""
+		if logFileAvail {
+			if _, err := os.Stat(logFilePath); err != nil {
+				logFileAvail = false
+			}
 		}
-		if !journalAvailable {
+		journalAvail := true
+		if _, err := lookupCommand("journalctl"); err != nil {
+			journalAvail = false
+		}
+		if !logFileAvail && !journalAvail {
 			writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{
 				"cursor": "",
 				"lines":  []any{},
 				"meta": map[string]any{
-					"unit":              unit,
-					"state":             "unavailable",
-					"journal_available": false,
-					"correlation_id":    correlationID,
+					"unit":               unit,
+					"state":              "unavailable",
+					"journal_available":  false,
+					"log_file_available": false,
+					"correlation_id":     correlationID,
 				},
 			}})
 			return true
@@ -375,13 +400,16 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 			"cursor": snapshot.cursor,
 			"lines":  snapshot.lines,
 			"meta": map[string]any{
-				"unit":           unit,
-				"state":          map[bool]string{true: "connected", false: "restarting"}[snapshot.running],
-				"restarted":      snapshot.restarted,
-				"correlation_id": correlationID,
-				"dropped_lines":  snapshot.droppedLines,
-				"bytes_per_sec":  snapshot.bytesPerSec,
-				"last_offset":    snapshot.lastOffset,
+				"unit":               unit,
+				"state":              map[bool]string{true: "connected", false: "restarting"}[snapshot.running],
+				"restarted":          snapshot.restarted,
+				"correlation_id":     correlationID,
+				"dropped_lines":      snapshot.droppedLines,
+				"bytes_per_sec":      snapshot.bytesPerSec,
+				"last_offset":        snapshot.lastOffset,
+				"journal_available":  journalAvail || logFileAvail,
+				"log_file_available": logFileAvail,
+				"log_file_path":      logFilePath,
 			},
 		}})
 		return true
@@ -390,31 +418,17 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 			writeAccessEnvelope(w, 405, accessEnvelope{OK: false, ErrorCode: "INVALID_INPUT", Message: "method not allowed", RequestID: requestID})
 			return true
 		}
-		journalAvailable := true
-		if _, err := lookupCommand("journalctl"); err != nil {
-			journalAvailable = false
-		}
-		if !journalAvailable {
-			socketPath := systemdConsoleSocketPath(instanceID)
-			sockExists := false
-			if socketPath != "" {
-				if st, err := os.Stat(socketPath); err == nil {
-					sockExists = st.Mode()&os.ModeSocket != 0
-				}
+		logFilePath := consoleLogFilePath(instanceID)
+		logFileAvail := logFilePath != ""
+		if logFileAvail {
+			if _, err := os.Stat(logFilePath); err != nil {
+				logFileAvail = false
 			}
-			writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{
-				"unit_name":         unit,
-				"unit_active_state": "inactive",
-				"socket_path":       socketPath,
-				"socket_exists":     sockExists,
-				"journal_available": false,
-				"journal_session":   map[string]any{"connected": false, "restarts": 0, "session_id": ""},
-				"correlation_id":    correlationID,
-			}})
-			return true
 		}
-		s := globalConsoleSessions.getOrCreate(instanceID, unit)
-		snapshot := s.snapshotAfterCursor("")
+		journalAvail := true
+		if _, err := lookupCommand("journalctl"); err != nil {
+			journalAvail = false
+		}
 		socketPath := systemdConsoleSocketPath(instanceID)
 		sockExists := false
 		if socketPath != "" {
@@ -422,13 +436,31 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 				sockExists = st.Mode()&os.ModeSocket != 0
 			}
 		}
+		if !logFileAvail && !journalAvail {
+			writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{
+				"unit_name":          unit,
+				"unit_active_state":  "inactive",
+				"socket_path":        socketPath,
+				"socket_exists":      sockExists,
+				"journal_available":  false,
+				"log_file_available": false,
+				"journal_session":    map[string]any{"connected": false, "restarts": 0, "session_id": ""},
+				"correlation_id":     correlationID,
+			}})
+			return true
+		}
+		s := globalConsoleSessions.getOrCreate(instanceID, unit)
+		snapshot := s.snapshotAfterCursor("")
 		writeAccessEnvelope(w, 200, accessEnvelope{OK: true, RequestID: requestID, Data: map[string]any{
-			"unit_name":         unit,
-			"unit_active_state": map[bool]string{true: "active", false: "inactive"}[snapshot.running],
-			"socket_path":       socketPath,
-			"socket_exists":     sockExists,
-			"journal_session":   map[string]any{"connected": snapshot.running, "restarts": snapshot.restarts, "session_id": snapshot.sessionID, "dropped_lines": snapshot.droppedLines, "bytes_per_sec": snapshot.bytesPerSec, "last_offset": snapshot.lastOffset},
-			"correlation_id":    correlationID,
+			"unit_name":          unit,
+			"unit_active_state":  map[bool]string{true: "active", false: "inactive"}[snapshot.running],
+			"socket_path":        socketPath,
+			"socket_exists":      sockExists,
+			"journal_available":  journalAvail || logFileAvail,
+			"log_file_available": logFileAvail,
+			"log_file_path":      logFilePath,
+			"journal_session":    map[string]any{"connected": snapshot.running, "restarts": snapshot.restarts, "session_id": snapshot.sessionID, "dropped_lines": snapshot.droppedLines, "bytes_per_sec": snapshot.bytesPerSec, "last_offset": snapshot.lastOffset},
+			"correlation_id":     correlationID,
 		}})
 		return true
 	case "command":
@@ -457,10 +489,14 @@ func handleInstanceConsoleHTTP(w http.ResponseWriter, r *http.Request, instanceI
 		}
 		if err := writeConsoleCommand(socketPath, command); err != nil {
 			code := "CONSOLE_UNAVAILABLE"
-			if strings.Contains(strings.ToLower(err.Error()), "permission") {
+			msg := err.Error()
+			lower := strings.ToLower(msg)
+			if strings.Contains(lower, "permission") {
 				code = "PERMISSION_DENIED"
+			} else if strings.Contains(lower, "no such file") || strings.Contains(lower, "unavailable") {
+				msg = "Console socket not found. Make sure the game server is running via the agent wrapper (agent --wrapper)."
 			}
-			writeAccessEnvelope(w, 409, accessEnvelope{OK: false, ErrorCode: code, Message: err.Error(), RequestID: requestID})
+			writeAccessEnvelope(w, 409, accessEnvelope{OK: false, ErrorCode: code, Message: msg, RequestID: requestID})
 			return true
 		}
 		s := globalConsoleSessions.getOrCreate(instanceID, unit)

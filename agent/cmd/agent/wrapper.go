@@ -55,7 +55,34 @@ func runWrapper(instanceID, socketPath string, childArgs []string) {
 	}
 	defer func() { _ = ptmx.Close() }()
 
-	go func() { _, _ = io.Copy(os.Stdout, ptmx) }()
+	go func() {
+		// Always copy raw PTY output to stdout so systemd/journalctl still works
+		// on environments that use it. In parallel write ANSI-stripped plain text
+		// to the per-instance console log file so the agent HTTP handler can serve
+		// it without requiring journalctl (works on Plesk, Fastpanel, AApanel, …).
+		logFile, logErr := openConsoleLogForWriting(instanceID)
+		if logErr != nil {
+			log.Printf("wrapper: console log unavailable (instance=%s): %v", instanceID, logErr)
+			_, _ = io.Copy(os.Stdout, ptmx)
+			return
+		}
+		defer logFile.Close()
+
+		buf := make([]byte, 4096)
+		for {
+			n, err := ptmx.Read(buf)
+			if n > 0 {
+				data := buf[:n]
+				_, _ = os.Stdout.Write(data)
+				if stripped := stripANSI(data); len(stripped) > 0 {
+					_, _ = logFile.Write(stripped)
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+	}()
 
 	commands := make(chan string, 64)
 	var connWG sync.WaitGroup
