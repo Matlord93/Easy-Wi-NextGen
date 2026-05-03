@@ -73,7 +73,7 @@ func startLogFileStream(ctx context.Context, logFilePath string) (*startedJourna
 
 	go func() {
 		defer close(doneCh)
-		defer pw.Close()
+		defer func() { _ = pw.Close() }()
 
 		// currentF tracks the open file; reassigned when a truncation is detected.
 		currentF := f

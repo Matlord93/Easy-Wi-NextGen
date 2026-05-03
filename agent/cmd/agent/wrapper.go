@@ -66,7 +66,7 @@ func runWrapper(instanceID, socketPath string, childArgs []string) {
 			_, _ = io.Copy(os.Stdout, ptmx)
 			return
 		}
-		defer logFile.Close()
+		defer func() { _ = logFile.Close() }()
 
 		buf := make([]byte, 4096)
 		for {
