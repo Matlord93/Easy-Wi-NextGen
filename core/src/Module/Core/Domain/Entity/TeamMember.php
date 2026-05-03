@@ -27,6 +27,9 @@ class TeamMember
     #[ORM\Column(length: 140)]
     private string $roleTitle;
 
+    #[ORM\Column(length: 140, nullable: true)]
+    private ?string $teamName = null;
+
     #[ORM\Column(type: 'text')]
     private string $bio = '';
 
@@ -81,6 +84,16 @@ class TeamMember
     public function setRoleTitle(string $roleTitle): void
     {
         $this->roleTitle = trim($roleTitle);
+        $this->touch();
+    }
+    public function getTeamName(): ?string
+    {
+        return $this->teamName;
+    }
+    public function setTeamName(?string $teamName): void
+    {
+        $value = $teamName === null ? null : trim($teamName);
+        $this->teamName = $value !== '' ? $value : null;
         $this->touch();
     }
     public function getBio(): string

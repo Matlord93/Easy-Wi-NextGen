@@ -17,7 +17,7 @@ final class ThemeResolver
         'theme4' => 'nexus-gaming',
     ];
 
-    private const SUPPORTED_THEMES = ['esports', 'minimal', 'fantasy', 'clan-nova', 'neon-arena', 'titan-squad', 'nexus-gaming'];
+    private const SUPPORTED_THEMES = ['esports', 'minimal', 'fantasy', 'clan-nova', 'neon-arena', 'titan-squad', 'nexus-gaming', 'xenal'];
 
     public function __construct(private readonly CmsSettingsProvider $settingsProvider)
     {

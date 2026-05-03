@@ -5,6 +5,12 @@
     <h1 class="text-xl font-semibold">{{ member ? 'Edit Team Member' : 'New Team Member' }}</h1>
     <input name="name" value="{{ member ? member.name : '' }}" placeholder="Name" class="w-full rounded border px-3 py-2" />
     <input name="role_title" value="{{ member ? member.roleTitle : '' }}" placeholder="Role title" class="w-full rounded border px-3 py-2" />
+    <select name="team_name" class="w-full rounded border px-3 py-2">
+        <option value="">Allgemein</option>
+        {% for group in teamGroups|default([]) %}
+            <option value="{{ group.name }}" {% if member and member.teamName == group.name %}selected{% endif %}>{{ group.name }}</option>
+        {% endfor %}
+    </select>
     <textarea name="bio" rows="5" placeholder="Bio" class="w-full rounded border px-3 py-2">{{ member ? member.bio : '' }}</textarea>
     <input name="avatar_path" value="{{ member ? member.avatarPath : '' }}" placeholder="Avatar path" class="w-full rounded border px-3 py-2" />
     <textarea name="socials_json" rows="3" placeholder='{"x":"https://x.com/..."}' class="w-full rounded border px-3 py-2">{{ member and member.socialsJson ? member.socialsJson|json_encode : '' }}</textarea>

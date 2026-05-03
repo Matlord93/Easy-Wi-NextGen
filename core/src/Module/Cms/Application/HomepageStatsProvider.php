@@ -77,8 +77,38 @@ final class HomepageStatsProvider
                 'name' => $m->getName(),
                 'role_title' => $m->getRoleTitle(),
                 'avatar_path' => $m->getAvatarPath(),
+		'team_name' => $m->getTeamName(),
             ], array_slice($members, 0, 5)),
+            'cms_team_groups' => $this->buildTeamGroups($members),
         ];
+    }
+
+    /**
+     * @param array<int, \App\Module\Core\Domain\Entity\TeamMember> $members
+     * @return array<int, array{game: string, team_name: string, members_count: int}>
+     */
+    private function buildTeamGroups(array $members): array
+    {
+        $grouped = [];
+        foreach ($members as $member) {
+            $group = trim($member->getRoleTitle());
+            if ($group == '') {
+                $group = 'Allgemein';
+            }
+
+            if (!isset($grouped[$group])) {
+                $grouped[$group] = [
+                    'game' => $group,
+                    'team_name' => $group . ' Team',
+                    'members_count' => 0,
+                ];
+            }
+            $grouped[$group]['members_count']++;
+        }
+
+        uasort($grouped, static fn (array $a, array $b): int => $b['members_count'] <=> $a['members_count']);
+
+        return array_values(array_slice($grouped, 0, 6));
     }
 
     private function countForumThreads(Site $site): int

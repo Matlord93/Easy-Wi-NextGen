@@ -1,28 +1,43 @@
 {% extends 'admin/base.html.twig' %}
 {% block content %}
-<div class="space-y-4">
+<div class="space-y-6">
     <div class="flex items-center justify-between">
         <h1 class="text-2xl font-semibold">Team</h1>
         <a href="/admin/cms/team/new" class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">New Member</a>
     </div>
+
+    <div class="rounded-2xl border bg-white p-4 space-y-3">
+        <h2 class="font-semibold">Team Gruppen</h2>
+        <form method="post" action="/admin/cms/team/groups" class="grid grid-cols-5 gap-2">
+            <input name="name" placeholder="Anzeigename" class="rounded border px-3 py-2" required>
+            <input name="game" placeholder="Spiel (z.B. Valorant)" class="rounded border px-3 py-2" required>
+            <input name="slug" placeholder="Slug (optional)" class="rounded border px-3 py-2">
+            <input name="image_path" placeholder="Bild URL/Pfad" class="rounded border px-3 py-2">
+            <div class="flex gap-2"><input type="number" name="sort_order" value="0" class="rounded border px-3 py-2 w-24"><button class="rounded bg-indigo-600 px-3 text-white">Erstellen</button></div>
+        </form>
+        <ul class="space-y-2">
+            {% for group in teamGroups %}
+                <li class="border rounded px-3 py-2 space-y-2">
+                    <form method="post" action="/admin/cms/team/groups/{{ group.id }}" class="grid grid-cols-5 gap-2 items-center">
+                        <input name="name" value="{{ group.name }}" class="rounded border px-3 py-2" required>
+                        <input name="game" value="{{ group.game }}" class="rounded border px-3 py-2" required>
+                        <input name="slug" value="{{ group.slug }}" class="rounded border px-3 py-2">
+                        <input name="image_path" value="{{ group.imagePath }}" class="rounded border px-3 py-2">
+                        <div class="flex gap-2">
+                            <input type="number" name="sort_order" value="{{ group.sortOrder }}" class="rounded border px-3 py-2 w-24">
+                            <button class="rounded bg-indigo-600 px-3 text-white">Speichern</button>
+                        </div>
+                    </form>
+                    <form method="post" action="/admin/cms/team/groups/{{ group.id }}/delete"><button class="text-rose-600">Delete</button></form>
+                </li>
+            {% else %}<li class="text-slate-500">Keine Team Gruppen vorhanden.</li>{% endfor %}
+        </ul>
+    </div>
+
     <div class="rounded-2xl border bg-white">
         <table class="min-w-full text-sm">
-            <thead><tr><th class="px-4 py-2 text-left">Name</th><th class="px-4 py-2 text-left">Role</th><th class="px-4 py-2 text-left">Order</th><th class="px-4 py-2 text-right">Actions</th></tr></thead>
-            <tbody>
-            {% for member in members %}
-                <tr class="border-t">
-                    <td class="px-4 py-2">{{ member.name }}</td>
-                    <td class="px-4 py-2">{{ member.roleTitle }}</td>
-                    <td class="px-4 py-2">{{ member.sortOrder }} {% if not member.isActive %}(inactive){% endif %}</td>
-                    <td class="px-4 py-2 text-right">
-                        <a class="text-indigo-600" href="/admin/cms/team/{{ member.id }}/edit">Edit</a>
-                        <form method="post" action="/admin/cms/team/{{ member.id }}/delete" class="inline"><button class="ml-3 text-rose-600">Delete</button></form>
-                    </td>
-                </tr>
-            {% else %}
-                <tr><td colspan="4" class="px-4 py-6 text-center text-slate-500">No team members yet.</td></tr>
-            {% endfor %}
-            </tbody>
+            <thead><tr><th class="px-4 py-2 text-left">Team</th><th class="px-4 py-2 text-left">Name</th><th class="px-4 py-2 text-left">Role</th><th class="px-4 py-2 text-left">Order</th><th class="px-4 py-2 text-right">Actions</th></tr></thead>
+            <tbody>{% for member in members %}<tr class="border-t"><td class="px-4 py-2">{{ member.teamName ?: "Allgemein" }}</td><td class="px-4 py-2">{{ member.name }}</td><td class="px-4 py-2">{{ member.roleTitle }}</td><td class="px-4 py-2">{{ member.sortOrder }}</td><td class="px-4 py-2 text-right"><a class="text-indigo-600" href="/admin/cms/team/{{ member.id }}/edit">Edit</a></td></tr>{% else %}<tr><td colspan="5" class="px-4 py-6 text-center text-slate-500">No team members yet.</td></tr>{% endfor %}</tbody>
         </table>
     </div>
 </div>

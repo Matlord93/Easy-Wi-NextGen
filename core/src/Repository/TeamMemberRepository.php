@@ -23,7 +23,7 @@ final class TeamMemberRepository extends ServiceEntityRepository
     public function findActiveBySite(Site $site): array
     {
         /** @var list<TeamMember> $rows */
-        $rows = $this->findBy(['site' => $site, 'isActive' => true], ['sortOrder' => 'ASC', 'name' => 'ASC']);
+        $rows = $this->findBy(['site' => $site, 'isActive' => true], ['teamName' => 'ASC', 'sortOrder' => 'ASC', 'name' => 'ASC']);
 
         return $rows;
     }
@@ -32,8 +32,23 @@ final class TeamMemberRepository extends ServiceEntityRepository
     public function findBySite(Site $site): array
     {
         /** @var list<TeamMember> $rows */
-        $rows = $this->findBy(['site' => $site], ['sortOrder' => 'ASC', 'name' => 'ASC']);
+        $rows = $this->findBy(['site' => $site], ['teamName' => 'ASC', 'sortOrder' => 'ASC', 'name' => 'ASC']);
 
         return $rows;
+    }
+
+    /** @return list<string> */
+    public function findTeamNamesBySite(Site $site): array
+    {
+        $rows = $this->createQueryBuilder('m')
+            ->select('DISTINCT m.teamName AS teamName')
+            ->andWhere('m.site = :site')
+            ->andWhere('m.teamName IS NOT NULL')
+            ->setParameter('site', $site)
+            ->orderBy('m.teamName', 'ASC')
+            ->getQuery()
+            ->getArrayResult();
+
+        return array_values(array_filter(array_map(static fn (array $row): string => (string) ($row['teamName'] ?? ''), $rows), static fn (string $name): bool => $name !== ''));
     }
 }
