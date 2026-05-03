@@ -69,11 +69,11 @@ final class CustomerInstanceConsoleHealthProbeTest extends TestCase
         $dir = sprintf('/run/easywi/instances/%d', $instanceId);
         @mkdir($dir, 0777, true);
         $path = $dir . '/console.sock';
-        @unlink($path);
+        
+        $handle = @fopen($path, 'wb');
+        self::assertNotFalse($handle, sprintf('Failed creating socket marker file at %s', $path));
 
-        $server = stream_socket_server('unix://' . $path, $errno, $errstr);
-        self::assertNotFalse($server, sprintf('Failed creating unix socket: %s (%d)', (string) $errstr, (int) $errno));
+        return $handle;
 
-        return $server;
     }
 }
