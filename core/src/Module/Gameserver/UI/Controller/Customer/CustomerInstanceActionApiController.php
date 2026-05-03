@@ -2011,9 +2011,16 @@ final class CustomerInstanceActionApiController
 
     protected function isCommandSocketActive(int $instanceId): bool
     {
-        $socketPath = sprintf('/run/easywi/instances/%d/console.sock', $instanceId);
+        $socketPath = sprintf('%s/instances/%d/console.sock', $this->resolveRuntimeDirectory(), $instanceId);
 
         return file_exists($socketPath) && (is_writable($socketPath) || is_readable($socketPath));
+    }
+
+    private function resolveRuntimeDirectory(): string
+    {
+        $configuredRuntimeDirectory = trim((string) getenv('EASYWI_RUNTIME_DIR'));
+
+        return $configuredRuntimeDirectory !== '' ? rtrim($configuredRuntimeDirectory, '/') : '/run/easywi';
     }
 
     private function normalizeAgentRuntimeStatus(mixed $status, mixed $running, mixed $online): ?InstanceStatus
