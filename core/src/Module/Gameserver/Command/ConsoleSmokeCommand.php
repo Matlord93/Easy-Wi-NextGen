@@ -68,8 +68,15 @@ final class ConsoleSmokeCommand extends Command
             $io->error(sprintf('Instance #%d not found in the database.', $instanceId));
             return Command::FAILURE;
         }
-        $io->writeln(sprintf('  Instance : <info>%s</info> (ID %d)', $instance->getName() ?? 'unnamed', $instanceId));
+        $io->writeln(sprintf('  Instance : <info>%s</info> (ID %d)', $instance->getServerName() ?? 'unnamed', $instanceId));
         $io->writeln(sprintf('  Node     : <info>%s</info>', $instance->getNode()->getName() ?? 'unknown'));
+        $legacyWrapper = sprintf('/etc/systemd/system/gs-%d.service', $instanceId);
+        if (is_file($legacyWrapper)) {
+            $unitContent = (string) @file_get_contents($legacyWrapper);
+            if ($unitContent !== '' && str_contains($unitContent, '/usr/local/bin/easywi-wrapper')) {
+                $io->warning('Legacy systemd unit detected (/usr/local/bin/easywi-wrapper). Migrate to easywi-agent --wrapper with --command-socket.');
+            }
+        }
 
         // ── 1. Agent health ───────────────────────────────────────────────────
         $io->section('1 · Agent console health');

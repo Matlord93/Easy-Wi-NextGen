@@ -8,6 +8,7 @@ use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\UserType;
+use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiController;
 use App\Repository\InstanceRepository;
 use PHPUnit\Framework\TestCase;
@@ -120,7 +121,39 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         self::assertTrue((bool) $payload['data']['can_send_command']);
     }
 
-    private function newControllerWithRepo(InstanceRepository $repo): CustomerInstanceActionApiController
+    public function testHealthNormalizesRunningQueryEvenWhenRuntimeProbeSaysStopped(): void
+    {
+        $customer = new User('customer@example.test', UserType::Customer);
+        $this->setEntityId($customer, 10);
+
+        $instance = $this->createMock(Instance::class);
+        $instance->method('getId')->willReturn(7);
+        $instance->method('getCustomer')->willReturn($customer);
+        $instance->method('getStatus')->willReturn(InstanceStatus::Running);
+        $instance->method('getQueryStatusCache')->willReturn(['status' => 'running']);
+
+        $repo = $this->createMock(InstanceRepository::class);
+        $repo->method('find')->with(7)->willReturn($instance);
+
+        $agentClient = $this->createMock(AgentGameServerClient::class);
+        $agentClient->method('getInstanceStatus')->willReturn(['status' => 'stopped', 'running' => false]);
+        $agentClient->method('getConsoleLogs')->willReturn(['data' => ['session' => ['connected' => false]]]);
+
+        $controller = $this->newControllerWithRepo($repo, $agentClient);
+
+        $request = Request::create('/api/instances/7/console/health', 'GET');
+        $request->attributes->set('current_user', $customer);
+
+        $response = $controller->healthEnvelope($request, 7);
+        $payload = json_decode((string) $response->getContent(), true);
+
+        self::assertSame('running', $payload['data']['query_status']);
+        self::assertSame('running', $payload['data']['runtime_status']);
+        self::assertSame('running', $payload['data']['running_state']);
+        self::assertTrue((bool) $payload['data']['can_send_command']);
+    }
+
+    private function newControllerWithRepo(InstanceRepository $repo, ?AgentGameServerClient $agentClient = null): CustomerInstanceActionApiController
     {
         $reflection = new \ReflectionClass(CustomerInstanceActionApiController::class);
         /** @var CustomerInstanceActionApiController $controller */
@@ -129,6 +162,10 @@ final class CustomerInstanceConsoleApiControllerTest extends TestCase
         $prop = $reflection->getProperty('instanceRepository');
         $prop->setAccessible(true);
         $prop->setValue($controller, $repo);
+
+        $agentProp = $reflection->getProperty('agentGameServerClient');
+        $agentProp->setAccessible(true);
+        $agentProp->setValue($controller, $agentClient);
 
         return $controller;
     }

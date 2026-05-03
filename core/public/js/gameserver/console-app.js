@@ -57,8 +57,25 @@
     let fallbackActive = false;
     let lines = [];
     let relayDisconnectNoticeShown = false;
+    let lastHealthyEventAt = 0;
+    let lastSeqSeen = -1;
+    const seenChunkFingerprints = new Set();
 
     const MAX_STREAM_FAILURES = 5;
+    const HEALTHY_EVENT_GRACE_MS = 30000;
+
+    const markStreamHealthy = () => {
+        lastHealthyEventAt = Date.now();
+        fallbackActive = false;
+        if (pollTimer) {
+            window.clearInterval(pollTimer);
+            pollTimer = null;
+        }
+        errors.clearInline(inlineError);
+        if (healthEl) {
+            healthEl.textContent = 'Live stream connected';
+        }
+    };
 
     const renderLines = () => {
         logEl.textContent = lines.join('\n');
@@ -101,7 +118,7 @@
         }, delay);
     };
 
-    const activatePollingFallback = async (reason = streamUnavailableMessage) => {
+    const activatePollingFallback = async (reason = streamUnavailableMessage, softFallback = false) => {
         if (fallbackActive) {
             return;
         }
@@ -115,7 +132,11 @@
             source.close();
             source = null;
         }
-        errors.showInline(inlineError, { message: reason, error_code: 'STREAM_FALLBACK', request_id: '' });
+        if (softFallback) {
+            errors.clearInline(inlineError);
+        } else {
+            errors.showInline(inlineError, { message: reason, error_code: 'STREAM_FALLBACK', request_id: '' });
+        }
         await startPollingFallback();
 
         if (fallbackRetryTimer) {
@@ -149,6 +170,18 @@
     const relayTimestampLinePattern = /^ts\s+"\d{4}-\d{2}-\d{2}t\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:z|[+-]\d{2}:\d{2})"$/i;
 
     const normalizeRelayLine = (line) => String(line || '').replace(/\s+/g, ' ').trim();
+    const isConsoleAvailableFromHealth = (health) => {
+        if (!health || typeof health !== 'object') {
+            return false;
+        }
+        if (health.running_state === 'running') return true;
+        if (health.runtime_status === 'running') return true;
+        if (health.query_status === 'running') return true;
+        if (health.session_active === true) return true;
+        if (health.command_session_active === true) return true;
+        if (health.can_send_command === true) return true;
+        return health.supports_live_output === true && health.live_output_status === 'ok';
+    };
 
     const loadLogs = async () => {
         if (!root.dataset.urlLogs) {
@@ -207,19 +240,11 @@
             reconnectAttempt = 0;
             reconnectFailures = 0;
             relayDisconnectNoticeShown = false;
-            fallbackActive = false;
-            if (pollTimer) {
-                window.clearInterval(pollTimer);
-                pollTimer = null;
-            }
             if (fallbackRetryTimer) {
                 window.clearInterval(fallbackRetryTimer);
                 fallbackRetryTimer = null;
             }
-            errors.clearInline(inlineError);
-            if (healthEl) {
-                healthEl.textContent = 'Live stream connected';
-            }
+            markStreamHealthy();
         };
         const handleStreamEvent = (event) => {
             let payload = {};
@@ -229,7 +254,26 @@
                 return;
             }
 
+            if (payload.type === 'ping' || payload.type === 'status' || payload.type === 'chunk' || payload.chunk_base64) {
+                markStreamHealthy();
+            }
+
             if (payload.chunk_base64) {
+                const seq = Number(payload.seq ?? -1);
+                if (Number.isFinite(seq) && seq >= 0) {
+                    if (seq < lastSeqSeen) {
+                        return;
+                    }
+                    lastSeqSeen = Math.max(lastSeqSeen, seq);
+                }
+                const fp = `${payload.instance_id || ''}:${payload.seq || ''}:${payload.ts || ''}:${payload.chunk_base64}`;
+                if (seenChunkFingerprints.has(fp)) {
+                    return;
+                }
+                seenChunkFingerprints.add(fp);
+                if (seenChunkFingerprints.size > 4096) {
+                    seenChunkFingerprints.clear();
+                }
                 const decoded = decodeBase64(payload.chunk_base64);
                 if (decoded) {
                     appendLine(decoded);
@@ -239,7 +283,7 @@
                 const degradedStatuses = ['backend_not_configured', 'redis_unavailable', 'relay_stale', 'stream_unavailable', 'node_endpoint_missing'];
                 if (degradedStatuses.includes(payload.status)) {
                     const message = payload.message || streamUnavailableMessage;
-                    void activatePollingFallback(message);
+                    void activatePollingFallback(message, payload.status === 'relay_stale');
                     return;
                 }
             }
@@ -258,14 +302,22 @@
         source.addEventListener('status', handleStreamEvent);
         source.addEventListener('ping', handleStreamEvent);
 
-        source.onerror = () => {
+        source.onerror = async () => {
             reconnectFailures += 1;
+            const healthyRecently = (Date.now() - lastHealthyEventAt) <= HEALTHY_EVENT_GRACE_MS;
+            const health = await loadHealth().catch(() => null);
+            const healthLiveOk = !!(health && health.supports_live_output === true && health.live_output_status === 'ok');
+            const shouldFallback = !healthyRecently && !healthLiveOk;
             if (source && source.readyState === EventSource.CLOSED) {
-                void activatePollingFallback(streamUnavailableMessage);
+                if (shouldFallback) {
+                    void activatePollingFallback(streamUnavailableMessage);
+                }
                 return;
             }
             if (reconnectFailures >= MAX_STREAM_FAILURES) {
-                void activatePollingFallback(streamUnavailableMessage);
+                if (shouldFallback) {
+                    void activatePollingFallback(streamUnavailableMessage);
+                }
                 return;
             }
             scheduleReconnect();
@@ -287,10 +339,14 @@
                 const health = await loadHealth();
                 await loadLogs();
                 errors.clearInline(inlineError);
-                if (healthEl && health && health.running_state) {
-                    healthEl.textContent = health.running_state === 'running'
-                        ? pollingActiveMessage
-                        : 'Server is offline.';
+                if (healthEl) {
+                    if (source && source.readyState === EventSource.OPEN) {
+                        healthEl.textContent = 'Live stream connected';
+                    } else if (isConsoleAvailableFromHealth(health)) {
+                        healthEl.textContent = pollingActiveMessage;
+                    } else {
+                        healthEl.textContent = 'Server is offline.';
+                    }
                 }
             } catch (error) {
                 if (healthEl) {

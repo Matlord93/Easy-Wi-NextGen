@@ -1276,6 +1276,8 @@ final class CustomerInstanceActionApiController
         $runtimeStatus = $runtimeProbe['runtime_status'];
         $running = $runtimeProbe['running'];
         $queryStatus = $runtimeProbe['query_status'];
+        $commandSocketActive = (bool) ($runtimeProbe['command_socket_active'] ?? false);
+        $logsSessionConnected = false;
 
         $supportsLiveOutput = true;
         $liveOutputStatus = 'ok';
@@ -1300,19 +1302,42 @@ final class CustomerInstanceActionApiController
             }
         }
 
+        if ($this->agentGameServerClient !== null) {
+            try {
+                $logsPayload = $this->agentGameServerClient->getConsoleLogs($instance);
+                $logsData = is_array($logsPayload['data'] ?? null) ? $logsPayload['data'] : [];
+                $session = is_array($logsData['session'] ?? null) ? $logsData['session'] : [];
+                $logsSessionConnected = (bool) ($session['connected'] ?? false);
+            } catch (\Throwable) {
+            }
+        }
+
+        $queryIndicatesRunning = in_array($queryStatus, ['running', 'online', 'up'], true);
+        $liveOutputConnected = $supportsLiveOutput && $liveOutputStatus === 'ok';
+        $sessionActive = $running || $logsSessionConnected || $liveOutputConnected || $queryIndicatesRunning;
+        $canSendCommand = $commandSocketActive || $running || $queryIndicatesRunning;
+        $commandSessionActive = $canSendCommand;
+        if ($queryIndicatesRunning && $runtimeStatus === 'stopped') {
+            $runtimeStatus = 'running';
+        }
+        $runningState = ($sessionActive || $commandSessionActive || $queryIndicatesRunning || $runtimeStatus === 'running')
+            ? 'running'
+            : (($queryStatus === 'invalid_port' || $queryStatus === 'unknown') ? 'query_unavailable' : 'offline');
+
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
             'instance_status' => strtolower($instance->getStatus()->value),
             'runtime_status' => $runtimeStatus,
-            'can_send_command' => $running,
+            'can_send_command' => $canSendCommand,
             'unit_name' => sprintf('gs-%d', $instance->getId()),
-            'running_state' => $running ? 'running' : (($queryStatus === 'invalid_port' || $queryStatus === 'unknown') ? 'query_unavailable' : 'offline'),
+            'running_state' => $runningState,
             'supports_live_output' => $supportsLiveOutput,
             'live_output_status' => $liveOutputStatus,
             'live_output_message' => $liveOutputMessage,
             'supports_command_injection' => true,
             'injection_mechanism' => 'unix_socket',
-            'session_active' => $running,
+            'session_active' => $sessionActive,
+            'command_session_active' => $commandSessionActive,
             'query_status' => $queryStatus,
         ]);
     }
@@ -1926,50 +1951,69 @@ final class CustomerInstanceActionApiController
 
 
     /**
-     * @return array{runtime_status: string, running: bool, query_status: string}
+     * @return array{runtime_status: string, running: bool, query_status: string, command_socket_active: bool}
      */
     private function resolveConsoleRuntimeProbe(Instance $instance): array
     {
         $queryRuntime = strtolower((string) ($instance->getQueryStatusCache()['status'] ?? 'unknown'));
+        $queryRuntime = $queryRuntime === '' ? 'unknown' : $queryRuntime;
 
-        try {
-            $runtimePayload = $this->agentGameServerClient->getInstanceStatus($instance);
-            $runtimeStatus = $this->normalizeAgentRuntimeStatus(
-                $runtimePayload['status'] ?? null,
-                $runtimePayload['running'] ?? null,
-                $runtimePayload['online'] ?? null,
-            );
-            if ($runtimeStatus instanceof InstanceStatus) {
-                return [
-                    'runtime_status' => strtolower($runtimeStatus->value),
-                    'running' => $runtimeStatus === InstanceStatus::Running,
-                ];
+        $commandSocketActive = $this->isCommandSocketActive((int) $instance->getId());
+
+        if ($this->agentGameServerClient !== null) {
+            try {
+                $runtimePayload = $this->agentGameServerClient->getInstanceStatus($instance);
+                $runtimeStatus = $this->normalizeAgentRuntimeStatus(
+                    $runtimePayload['status'] ?? null,
+                    $runtimePayload['running'] ?? null,
+                    $runtimePayload['online'] ?? null,
+                );
+                if ($runtimeStatus instanceof InstanceStatus) {
+                    $running = $runtimeStatus === InstanceStatus::Running;
+                    if ($running || !$commandSocketActive) {
+                        return [
+                            'runtime_status' => strtolower($runtimeStatus->value),
+                            'running' => $running,
+                            'query_status' => $queryRuntime,
+                            'command_socket_active' => $commandSocketActive,
+                        ];
+                    }
+
+                    return [
+                        'runtime_status' => 'degraded_query_unavailable',
+                        'running' => true,
+                        'query_status' => $queryRuntime,
+                        'command_socket_active' => $commandSocketActive,
+                    ];
+                }
+            } catch (\Throwable) {
+                // Fall back to query status and local socket probe when live runtime probe is unavailable.
             }
-        } catch (\Throwable) {
-            // Fall back to cached query runtime status when live probe is unavailable.
         }
 
-        try {
-            $consoleHealth = $this->agentGameServerClient->getConsoleHealth($instance);
-            $data = is_array($consoleHealth['data'] ?? null) ? $consoleHealth['data'] : [];
-            $session = is_array($data['journal_session'] ?? null) ? $data['journal_session'] : [];
-            $socketExists = (bool) ($data['socket_exists'] ?? false);
-            $sessionConnected = (bool) ($session['connected'] ?? false);
-            if ($socketExists || $sessionConnected) {
-                return [
-                    'runtime_status' => 'running',
-                    'running' => true,
-                    'query_status' => $queryRuntime === '' ? 'unknown' : $queryRuntime,
-                ];
-            }
-        } catch (\Throwable) {
+        if ($commandSocketActive) {
+            return [
+                'runtime_status' => 'degraded_query_unavailable',
+                'running' => true,
+                'query_status' => $queryRuntime,
+                'command_socket_active' => $commandSocketActive,
+            ];
         }
 
         return [
             'runtime_status' => $queryRuntime,
             'running' => $queryRuntime === 'online' || $queryRuntime === 'running' || $queryRuntime === 'up',
-            'query_status' => $queryRuntime === '' ? 'unknown' : $queryRuntime,
+            'query_status' => $queryRuntime,
+            'command_socket_active' => false,
         ];
+    }
+
+
+    protected function isCommandSocketActive(int $instanceId): bool
+    {
+        $socketPath = sprintf('/run/easywi/instances/%d/console.sock', $instanceId);
+
+        return file_exists($socketPath) && (is_writable($socketPath) || is_readable($socketPath));
     }
 
     private function normalizeAgentRuntimeStatus(mixed $status, mixed $running, mixed $online): ?InstanceStatus
