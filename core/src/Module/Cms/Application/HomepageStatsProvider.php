@@ -11,12 +11,14 @@ use App\Module\Core\Domain\Entity\Site;
 use App\Repository\CmsEventRepository;
 use App\Repository\ForumThreadRepository;
 use App\Repository\PublicServerRepository;
+use App\Repository\TeamGroupRepository;
 use App\Repository\TeamMemberRepository;
 
 final class HomepageStatsProvider
 {
     public function __construct(
         private readonly TeamMemberRepository $teamMemberRepository,
+        private readonly TeamGroupRepository $teamGroupRepository,
         private readonly CmsEventRepository $eventRepository,
         private readonly ForumThreadRepository $forumThreadRepository,
         private readonly PublicServerRepository $publicServerRepository,
@@ -27,8 +29,17 @@ final class HomepageStatsProvider
     public function getTemplateVars(Site $site): array
     {
         $members = $this->teamMemberRepository->findActiveBySite($site);
+        $teamGroups = $this->teamGroupRepository->findBySite($site);
         $events = $this->eventRepository->findPublishedBySite($site);
         $now = new \DateTimeImmutable();
+        $memberCountsByTeam = [];
+        foreach ($members as $member) {
+            $teamName = trim((string) $member->getTeamName());
+            if ($teamName === '') {
+                continue;
+            }
+            $memberCountsByTeam[$teamName] = ($memberCountsByTeam[$teamName] ?? 0) + 1;
+        }
 
         $upcomingEvents = array_filter($events, fn (CmsEvent $e): bool => $e->getStartAt() >= $now);
         usort($upcomingEvents, fn (CmsEvent $a, CmsEvent $b): int => $a->getStartAt() <=> $b->getStartAt());
@@ -77,38 +88,16 @@ final class HomepageStatsProvider
                 'name' => $m->getName(),
                 'role_title' => $m->getRoleTitle(),
                 'avatar_path' => $m->getAvatarPath(),
-		'team_name' => $m->getTeamName(),
+                'team_name' => $m->getTeamName(),
             ], array_slice($members, 0, 5)),
-            'cms_team_groups' => $this->buildTeamGroups($members),
+            'cms_team_groups' => array_map(fn ($group): array => [
+                'name' => $group->getName(),
+                'game' => $group->getGame(),
+                'slug' => $group->getSlug(),
+                'image_path' => $group->getImagePath(),
+                'member_count' => $memberCountsByTeam[$group->getName()] ?? 0,
+            ], $teamGroups),
         ];
-    }
-
-    /**
-     * @param array<int, \App\Module\Core\Domain\Entity\TeamMember> $members
-     * @return array<int, array{game: string, team_name: string, members_count: int}>
-     */
-    private function buildTeamGroups(array $members): array
-    {
-        $grouped = [];
-        foreach ($members as $member) {
-            $group = trim($member->getRoleTitle());
-            if ($group == '') {
-                $group = 'Allgemein';
-            }
-
-            if (!isset($grouped[$group])) {
-                $grouped[$group] = [
-                    'game' => $group,
-                    'team_name' => $group . ' Team',
-                    'members_count' => 0,
-                ];
-            }
-            $grouped[$group]['members_count']++;
-        }
-
-        uasort($grouped, static fn (array $a, array $b): int => $b['members_count'] <=> $a['members_count']);
-
-        return array_values(array_slice($grouped, 0, 6));
     }
 
     private function countForumThreads(Site $site): int

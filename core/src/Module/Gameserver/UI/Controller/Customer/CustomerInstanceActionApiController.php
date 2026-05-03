@@ -2011,7 +2011,8 @@ final class CustomerInstanceActionApiController
 
     protected function isCommandSocketActive(int $instanceId): bool
     {
-        $socketPath = sprintf('/run/easywi/instances/%d/console.sock', $instanceId);
+        $runtimeBase = rtrim((string) (getenv('EASYWI_RUNTIME_DIR') ?: '/run/easywi'), '/');
+        $socketPath = sprintf('%s/instances/%d/console.sock', $runtimeBase, $instanceId);
 
         return file_exists($socketPath) && (is_writable($socketPath) || is_readable($socketPath));
     }

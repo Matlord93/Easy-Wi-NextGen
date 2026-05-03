@@ -29,7 +29,9 @@ final class PublicCmsTeamController
         $site = $this->siteResolver->resolve($request);
         if ($site === null || !$this->featureToggle->isEnabled($site, 'team')) return new Response('Not found.', 404);
         $groups = $this->teamGroupRepository->findBySite($site);
-        return new Response($this->twig->render('public/team/index.html.twig', ['team_groups' => $groups] + $this->themeContext($site, 'teams', 'Team')));
+        $members = $this->memberRepository->findActiveBySite($site);
+
+        return new Response($this->twig->render('public/team/index.html.twig', ['team_groups' => $groups, 'team_members' => $members] + $this->themeContext($site, 'teams', 'Team')));
     }
 
     #[Route(path: '/{slug}', name: 'public_cms_team_show', methods: ['GET'])]
