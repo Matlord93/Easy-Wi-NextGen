@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Teamspeak\UI\Controller\Customer;
 
+use App\Module\AgentOrchestrator\Domain\Enum\AgentJobStatus;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\SecretsCrypto;
 use App\Module\Core\Application\Ts3\Ts3ViewerService;
@@ -15,6 +16,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\Core\Dto\Ts3\ViewerDto;
 use App\Module\Core\Form\Ts3ViewerType;
 use App\Module\Teamspeak\Application\Query\ServerQueryLimiterInterface;
+use App\Repository\AgentJobRepository;
 use App\Repository\Ts3TokenRepository;
 use App\Repository\Ts3ViewerRepository;
 use App\Repository\Ts3VirtualServerRepository;
@@ -58,6 +60,7 @@ final class CustomerTs3ServerController
         private readonly Environment $twig,
         private readonly CacheInterface $cache,
         private readonly ServerQueryLimiterInterface $queryLimiter,
+        private readonly AgentJobRepository $agentJobRepository,
     ) {
     }
 
@@ -127,6 +130,7 @@ final class CustomerTs3ServerController
             'viewer' => $viewer,
             'form' => $form->createView(),
             'csrf' => $this->csrfTokens($server),
+            'statusErrorDetail' => $this->resolveStatusErrorDetail($server),
         ]));
     }
 
@@ -154,6 +158,7 @@ final class CustomerTs3ServerController
             'server' => $server,
             'externalHost' => $this->resolveExternalHost($server),
             'csrf' => $this->csrfTokens($server),
+            'statusErrorDetail' => $this->resolveStatusErrorDetail($server),
         ]));
     }
 
@@ -302,6 +307,7 @@ final class CustomerTs3ServerController
             'token' => $token instanceof Ts3Token ? $token->getToken($this->crypto) : null,
             'tokens' => $tokenRows,
             'csrf' => $this->csrfTokens($server),
+            'statusErrorDetail' => $this->resolveStatusErrorDetail($server),
         ]));
     }
 
@@ -678,6 +684,43 @@ final class CustomerTs3ServerController
         }
 
         return null;
+    }
+
+    private function resolveStatusErrorDetail(Ts3VirtualServer $server): ?string
+    {
+        if (strtolower($server->getStatus()) !== 'error') {
+            return null;
+        }
+
+        $jobs = $this->agentJobRepository->findLatestForNodeAndTypes(
+            $server->getNode()->getAgent()->getId(),
+            ['ts3.virtual.summary', 'ts3.virtual.action', 'ts3.virtual.create', 'ts3.virtual.channel.list', 'ts3.virtual.servergroup.list', 'ts3.virtual.ban.list', 'ts3.virtual.client.list', 'ts3.virtual.log.view'],
+            50,
+        );
+        foreach ($jobs as $job) {
+            if ($job->getStatus() !== AgentJobStatus::Failed) {
+                continue;
+            }
+
+            $payload = $job->getPayload();
+            $sid = (int) ($payload['virtual_server_sid'] ?? $payload['sid'] ?? 0);
+            if ($sid > 0 && $sid !== $server->getSid()) {
+                continue;
+            }
+
+            $errorText = trim((string) ($job->getErrorText() ?? ''));
+            if ($errorText !== '') {
+                return $errorText;
+            }
+
+            $resultPayload = $job->getResultPayload() ?? [];
+            $message = trim((string) ($resultPayload['error'] ?? $resultPayload['message'] ?? ''));
+            if ($message !== '') {
+                return $message;
+            }
+        }
+
+        return 'Kein konkreter Fehlertext vorhanden. Bitte Logs öffnen und nach der letzten Action-ID suchen.';
     }
 
     private function createActionId(): string

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Module\PanelCustomer\UI\Controller\Public;
 
+use App\Module\Cms\Application\ThemeResolver;
+use App\Module\Core\Application\SiteResolver;
 use App\Module\Core\Domain\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -19,6 +21,8 @@ final class PublicProfileController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
+        private readonly SiteResolver $siteResolver,
+        private readonly ThemeResolver $themeResolver,
         private readonly Environment $twig,
     ) {
     }
@@ -31,8 +35,12 @@ final class PublicProfileController
             return new RedirectResponse('/login');
         }
 
+        $templateKey = $this->resolveTemplateKey($request);
+
         return new Response($this->twig->render('public/profile/show.html.twig', [
             'user' => $user,
+            'template_key' => $templateKey,
+            'active_theme' => $templateKey,
         ]));
     }
 
@@ -43,6 +51,8 @@ final class PublicProfileController
         if (!$user instanceof User) {
             return new RedirectResponse('/login');
         }
+
+        $templateKey = $this->resolveTemplateKey($request);
 
         $errors = [];
         $success = false;
@@ -84,6 +94,18 @@ final class PublicProfileController
             'errors' => $errors,
             'success' => $success,
             'user' => $user,
+            'template_key' => $templateKey,
+            'active_theme' => $templateKey,
         ]), $errors !== [] ? Response::HTTP_BAD_REQUEST : Response::HTTP_OK);
+    }
+
+    private function resolveTemplateKey(Request $request): string
+    {
+        $site = $this->siteResolver->resolve($request);
+        if ($site === null) {
+            return 'minimal';
+        }
+
+        return $this->themeResolver->resolveThemeKey($site);
     }
 }

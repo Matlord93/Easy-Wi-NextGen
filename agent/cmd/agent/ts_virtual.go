@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -567,6 +568,10 @@ func newTs3QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 
 func newTs6QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 	protocol := strings.ToLower(strings.TrimSpace(payloadValue(payload, "query_protocol", "query_transport")))
+	queryIP := normalizeQueryConnectIP(payloadValue(payload, "query_bind_ip", "query_ip"))
+	if queryIP == "" {
+		queryIP = "127.0.0.1"
+	}
 	switch protocol {
 	case "ssh":
 		return newTs6QueryClientSSH(payload)
@@ -579,6 +584,13 @@ func newTs6QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 	if err == nil {
 		return client, nil
 	}
+	log.Printf(
+		"ts6.query.ssh_failed protocol=%s target=%s:%s err=%v",
+		protocol,
+		queryIP,
+		resolveValueOrDefault(payloadValue(payload, "query_ssh_port"), "10022"),
+		err,
+	)
 	if protocol == "ssh" {
 		return nil, err
 	}
@@ -587,7 +599,25 @@ func newTs6QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 	if tcpErr == nil {
 		return tcpClient, nil
 	}
+	log.Printf(
+		"ts6.query.tcp_fallback_failed protocol=%s target_primary=%s:%s target_fallback=%s:%s err=%v",
+		protocol,
+		queryIP,
+		resolveValueOrDefault(payloadValue(payload, "query_port", "query_https_port"), "10443"),
+		queryIP,
+		resolveValueOrDefault(payloadValue(payload, "query_http_port"), "10080"),
+		tcpErr,
+	)
 	return nil, fmt.Errorf("connect serverquery: ssh failed: %v; tcp fallback failed: %v", err, tcpErr)
+}
+
+func resolveValueOrDefault(value string, fallback string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fallback
+	}
+
+	return trimmed
 }
 
 func newTs6QueryClientTCP(payload map[string]any) (*ts3QueryClient, error) {

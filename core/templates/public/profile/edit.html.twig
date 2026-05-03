@@ -17,7 +17,8 @@
 <div class="ng-container ng-section">
     <div class="grid gap-6 lg:grid-cols-[200px,1fr]">
         {% include 'public/account/_nav.html.twig' %}
-        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-6 {% if active_theme|default('minimal') == 'nexus-gaming' %}ng-glow{% endif %}">
+        {% set isNexus = (active_theme|default('minimal')) == 'nexus-gaming' %}
+        <div class="rounded-xl border p-6 {% if isNexus %}border-cyan-500/30 bg-slate-950/70 ng-glow{% else %}border-slate-800 bg-slate-900/60{% endif %}">
             {% if success %}
                 <div class="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">Profil gespeichert.</div>
             {% endif %}
@@ -29,11 +30,11 @@
             <form method="post" class="space-y-4">
                 <input type="hidden" name="_token" value="{{ csrf_token('public_profile_edit') }}">
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-400">Anzeigename</label>
+                    <label class="mb-1 block text-sm font-medium {% if isNexus %}text-cyan-200/90{% else %}text-slate-400{% endif %}">Anzeigename</label>
                     <input name="name" value="{{ form.name }}" maxlength="120" class="ng-input w-full" placeholder="Dein Name">
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-400">E-Mail</label>
+                    <label class="mb-1 block text-sm font-medium {% if isNexus %}text-cyan-200/90{% else %}text-slate-400{% endif %}">E-Mail</label>
                     <input name="email" type="email" value="{{ form.email }}" required class="ng-input w-full">
                 </div>
                 <div class="flex gap-3 pt-2">

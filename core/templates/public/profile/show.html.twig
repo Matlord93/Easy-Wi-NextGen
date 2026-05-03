@@ -16,15 +16,16 @@
 <div class="ng-container ng-section">
     <div class="grid gap-6 lg:grid-cols-[200px,1fr]">
         {% include 'public/account/_nav.html.twig' %}
-        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-6 {% if active_theme|default('minimal') == 'nexus-gaming' %}ng-glow{% endif %}">
+        {% set isNexus = (active_theme|default('minimal')) == 'nexus-gaming' %}
+        <div class="rounded-xl border p-6 {% if isNexus %}border-cyan-500/30 bg-slate-950/70 ng-glow{% else %}border-slate-800 bg-slate-900/60{% endif %}">
             <h2 class="text-lg font-semibold text-slate-100">Profil-Informationen</h2>
             <div class="mt-4 space-y-3 text-sm">
                 <div class="flex gap-4">
-                    <span class="w-20 text-slate-500">Name</span>
+                    <span class="w-20 {% if isNexus %}text-cyan-200/70{% else %}text-slate-500{% endif %}">Name</span>
                     <span class="font-medium text-slate-200">{{ user.name ?? user.email }}</span>
                 </div>
                 <div class="flex gap-4">
-                    <span class="w-20 text-slate-500">E-Mail</span>
+                    <span class="w-20 {% if isNexus %}text-cyan-200/70{% else %}text-slate-500{% endif %}">E-Mail</span>
                     <span class="font-medium text-slate-200">{{ user.email }}</span>
                 </div>
             </div>
