@@ -1,5 +1,12 @@
 ## Unreleased
 
+## 4.0.2 (2026-04-02)
+
+* Fix `TaggedIteratorArgument` deprecation warning when using `symfony/dependency-injection` 8.1
+* Import `Extension` from the `DependencyInjection` component rather than `HttpKernel`
+* Add missing target to named autowiring alias
+* Add info to the `monolog.channels` config
+
 # 4.0.1 (2025-12-09)
 
 * Fix `rollbar` handler to use `RollbarLogger`
@@ -19,6 +26,10 @@
 * Remove `sentry` and `raven` types, use a `service` type with [`sentry/sentry-symfony`](https://docs.sentry.io/platforms/php/guides/symfony/logs/) instead
 * Remove `DebugHandlerPass`
 * Remove support for the `DebugHandler`
+
+## 3.11.2 (2026-04-02)
+
+* Add missing target to named autowiring alias
 
 ## 3.11.1 (2025-12-09)
 

@@ -12,6 +12,8 @@
 namespace League\FlysystemBundle\Adapter\Builder;
 
 use League\Flysystem\InMemory\InMemoryFilesystemAdapter;
+use Symfony\Component\Config\Definition\Builder\NodeDefinition;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
@@ -20,26 +22,44 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  *
  * @internal
  */
-final class MemoryAdapterDefinitionBuilder extends AbstractAdapterDefinitionBuilder
+final class MemoryAdapterDefinitionBuilder implements AdapterDefinitionBuilderInterface
 {
     public function getName(): string
     {
         return 'memory';
     }
 
-    protected function getRequiredPackages(): array
+    public function getRequiredPackages(): array
     {
         return [
             InMemoryFilesystemAdapter::class => 'league/flysystem-memory',
         ];
     }
 
-    protected function configureOptions(OptionsResolver $resolver)
+    /**
+     * @deprecated since 3.5, use addConfiguration() with the new config format instead
+     */
+    public function configureOptions(OptionsResolver $resolver): void
     {
+        // Memory adapter has no configurable options
     }
 
-    protected function configureDefinition(Definition $definition, array $options, ?string $defaultVisibilityForDirectories): void
+    public function addConfiguration(NodeDefinition $node): void
     {
-        $definition->setClass(InMemoryFilesystemAdapter::class);
+        // Memory adapter has no configurable options
+        $node
+            ->children()
+            ->end()
+            ->info('In-memory adapter for testing (no configuration options)')
+        ;
+    }
+
+    public function createAdapter(ContainerBuilder $container, string $storageName, array $options, ?string $defaultVisibilityForDirectories): ?string
+    {
+        $adapterId = 'flysystem.adapter.'.$storageName;
+
+        $container->setDefinition($adapterId, new Definition(InMemoryFilesystemAdapter::class));
+
+        return $adapterId;
     }
 }

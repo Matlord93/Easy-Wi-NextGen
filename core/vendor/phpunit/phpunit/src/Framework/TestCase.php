@@ -94,6 +94,7 @@ use PHPUnit\Util\Exporter;
 use PHPUnit\Util\Test as TestUtil;
 use ReflectionClass;
 use ReflectionException;
+use ReflectionMethod;
 use ReflectionObject;
 use SebastianBergmann\CodeCoverage\UnintentionallyCoveredCodeException;
 use SebastianBergmann\Comparator\Comparator;
@@ -364,7 +365,7 @@ abstract class TestCase extends Assert implements Reorderable, SelfDescribing, T
             return;
         }
 
-        IsolatedTestRunnerRegistry::run(
+        (new SeparateProcessTestRunner)->run(
             $this,
             $this->runClassInSeparateProcess && !$this->runTestInSeparateProcess,
             $this->preserveGlobalState,
@@ -599,7 +600,10 @@ abstract class TestCase extends Assert implements Reorderable, SelfDescribing, T
             $this->stopOutputBuffering()) {
             $outputBufferingStopped = true;
 
-            $this->performAssertionsOnOutput();
+            try {
+                $this->performAssertionsOnOutput();
+            } catch (ExpectationFailedException $e) {
+            }
         }
 
         try {
@@ -1298,6 +1302,15 @@ abstract class TestCase extends Assert implements Reorderable, SelfDescribing, T
     }
 
     /**
+     * @param array<mixed> $testArguments
+     */
+    protected function invokeTestMethod(string $methodName, array $testArguments): mixed
+    {
+        /** @phpstan-ignore method.dynamicName */
+        return $this->{$methodName}(...$testArguments);
+    }
+
+    /**
      * Returns the data set as a string compatible with the --filter CLI option.
      *
      * @internal This method is not covered by the backward compatibility promise for PHPUnit
@@ -1328,8 +1341,7 @@ abstract class TestCase extends Assert implements Reorderable, SelfDescribing, T
         $this->startErrorLogCapture();
 
         try {
-            /** @phpstan-ignore method.dynamicName */
-            $testResult = $this->{$this->methodName}(...$testArguments);
+            $testResult = $this->invokeTestMethod($this->methodName, $testArguments);
 
             $this->verifyErrorLogExpectation();
         } catch (Throwable $exception) {
@@ -1346,6 +1358,7 @@ abstract class TestCase extends Assert implements Reorderable, SelfDescribing, T
             $this->stopErrorLogCapture();
         }
 
+        $this->emitEventForCustomTestMethodInvocation();
         $this->expectedExceptionWasNotRaised();
 
         return $testResult;
@@ -1803,6 +1816,13 @@ abstract class TestCase extends Assert implements Reorderable, SelfDescribing, T
             $excludeList->addClassNamePrefix('SebastianBergmann\Invoker');
             $excludeList->addClassNamePrefix('SebastianBergmann\Template');
             $excludeList->addClassNamePrefix('SebastianBergmann\Timer');
+
+            foreach (array_keys($GLOBALS) as $key) {
+                if (str_starts_with($key, '__phpunit_')) {
+                    $excludeList->addGlobalVariable($key);
+                }
+            }
+
             $excludeList->addStaticProperty(ComparatorFactory::class, 'instance');
 
             foreach ($this->backupStaticPropertiesExcludeList as $class => $properties) {
@@ -2467,6 +2487,23 @@ abstract class TestCase extends Assert implements Reorderable, SelfDescribing, T
     private function allowsMockObjectsWithoutExpectations(): bool
     {
         return MetadataRegistry::parser()->forClassAndMethod(static::class, $this->methodName)->isAllowMockObjectsWithoutExpectations()->isNotEmpty();
+    }
+
+    private function emitEventForCustomTestMethodInvocation(): void
+    {
+        $reflector = new ReflectionMethod($this, 'invokeTestMethod');
+
+        if (self::class === $reflector->getDeclaringClass()->getName()) {
+            return;
+        }
+
+        Event\Facade::emitter()->testUsedCustomMethodInvocation(
+            $this->valueObjectForEvents(),
+            new Event\Code\ClassMethod(
+                $reflector->getDeclaringClass()->getName(),
+                'invokeTestMethod',
+            ),
+        );
     }
 
     /**

@@ -2,6 +2,106 @@
 
 All notable changes of the PHPUnit 12.5 release series are documented in this file using the [Keep a CHANGELOG](https://keepachangelog.com/) principles.
 
+## [12.5.24] - 2026-05-01
+
+### Added
+
+* [#6596](https://github.com/sebastianbergmann/phpunit/issues/6596): Backport `TestCase::invokeTestMethod()` method for customizing test method invocation from PHPUnit 13
+
+### Fixed
+
+* [#6595](https://github.com/sebastianbergmann/phpunit/issues/6595): Crash when before-class or after-class method fails with assertion failure
+* [#6599](https://github.com/sebastianbergmann/phpunit/issues/6599): TeamCity logger does not wrap failures in before-test methods with `testStarted` and `testFinished`
+* [#6601](https://github.com/sebastianbergmann/phpunit/issues/6601): Anonymous classes are not rejected with a clear error when creating a test double
+* `MockBuilder::setMockClassName()` and `TestStubBuilder::setStubClassName()` now reject values that are not valid unqualified PHP class identifiers, throwing the new `InvalidClassNameException`
+* The regular expression used by `Generator::ensureValidMethods()` to validate method names passed to `MockBuilder::onlyMethods()` and `addMethods()` was not anchored, so any string containing a valid identifier substring (including strings with parentheses, braces, comments, or newlines) was accepted
+
+## [12.5.23] - 2026-04-18
+
+### Changed
+
+* Pass `LIBXML_NONET` when parsing/validating XML configuration files to make explicit that no network I/O is performed
+* Verify the result file written by an isolated child process with a random nonce before deserializing it
+
+## [12.5.22] - 2026-04-17
+
+### Fixed
+
+* [#6590](https://github.com/sebastianbergmann/phpunit/issues/6590): Silent failure when configuration file is invalid
+* [#6592](https://github.com/sebastianbergmann/phpunit/pull/6592): INI metacharacters `;` and `"` are not preserved when forwarding settings to child processes
+
+## [12.5.21] - 2026-04-16
+
+### Fixed
+
+* [#5860](https://github.com/sebastianbergmann/phpunit/issues/5860): PHP CLI `-d` settings are not forwarded to child processes for process isolation
+* [#6451](https://github.com/sebastianbergmann/phpunit/issues/6451): Incomplete version in `RequiresPhp` (e.g. `<=8.5`) is compared against full PHP version, causing unexpected skips
+
+## [12.5.20] - 2026-04-15
+
+### Fixed
+
+* [#5993](https://github.com/sebastianbergmann/phpunit/issues/5993): `DefaultJobRunner` deadlocks on child processes that write large amounts of stderr output
+* [#6465](https://github.com/sebastianbergmann/phpunit/issues/6465): SAPI-populated `$_SERVER` entries leak from parent into child process
+* [#6587](https://github.com/sebastianbergmann/phpunit/issues/6587): `failOnEmptyTestSuite="false"` in `phpunit.xml` is ignored when `--group`/`--filter`/`--testsuite` matches no tests
+* [#6588](https://github.com/sebastianbergmann/phpunit/issues/6588): Order of issue baseline entries is not canonicalized
+
+## [12.5.19] - 2026-04-13
+
+### Fixed
+
+* Regression in XML configuration migration introduced in PHPUnit 12.5.8
+
+## [12.5.18] - 2026-04-13
+
+### Fixed
+
+* [#4571](https://github.com/sebastianbergmann/phpunit/issues/4571): No warning when `--random-order-seed` is used when test execution order is not random
+* [#4975](https://github.com/sebastianbergmann/phpunit/issues/4975): `--filter` does not work when filter string starts with `#`
+* [#5354](https://github.com/sebastianbergmann/phpunit/issues/5354): JUnit XML logger does not handle `TestSuiteSkipped` event
+* [#6276](https://github.com/sebastianbergmann/phpunit/issues/6276): Exit with non-zero exit code when explicit test selection (`--filter`, `--group`, `--testsuite`) yields no tests
+* [#6583](https://github.com/sebastianbergmann/phpunit/issues/6583): Failing output expectation skips `tearDown()` and handler restoration, causing subsequent tests to be marked as risky
+
+## [12.5.17] - 2026-04-08
+
+### Changed
+ 
+* [#4793](https://github.com/sebastianbergmann/phpunit/issues/4793): Exit with non-zero exit code when `exit` was called from some test
+
+### Fixed
+
+* [#5881](https://github.com/sebastianbergmann/phpunit/issues/5881): `colors="true"` in XML configuration file does not unconditionally enable colored output
+* [#6019](https://github.com/sebastianbergmann/phpunit/issues/6019): `--migrate-configuration` does not update schema location when XML content already validates against current schema
+* [#6372](https://github.com/sebastianbergmann/phpunit/issues/6372): Assertion failure inside `willReturnCallback()` is silently swallowed when code under test catches exceptions
+* [#6464](https://github.com/sebastianbergmann/phpunit/issues/6464): Process isolation template unconditionally calls `set_include_path()`
+* [#6571](https://github.com/sebastianbergmann/phpunit/issues/6571): Static analysis errors for `TestDoubleBuilder` method chaining
+
+## [12.5.16] - 2026-04-03
+
+### Added
+
+* [#6547](https://github.com/sebastianbergmann/phpunit/pull/6547): Support for `%r...%r` in `EXPECTF` section
+
+### Fixed
+
+* [#6025](https://github.com/sebastianbergmann/phpunit/issues/6025): `FILE_EXTERNAL` breaks `__DIR__`
+* [#6351](https://github.com/sebastianbergmann/phpunit/issues/6351): No warning when the same test runner extension is configured more than once
+* [#6433](https://github.com/sebastianbergmann/phpunit/issues/6433): Logic in `TestSuiteLoader` is brittle and causes "Class FooTest not found" even for valid tests in valid filenames
+* [#6463](https://github.com/sebastianbergmann/phpunit/issues/6463): Process Isolation fails on non-serializable globals and quietly ignore closures
+
+## [12.5.15] - 2026-03-31
+
+### Changed
+
+* [#4440](https://github.com/sebastianbergmann/phpunit/issues/4440): Improve error when configured code coverage file list is empty
+* [#6549](https://github.com/sebastianbergmann/phpunit/pull/6549): Allow to stub both hooks of non-virtual properties
+
+### Fixed
+
+* [#6529](https://github.com/sebastianbergmann/phpunit/pull/6529): Git "detached HEAD state" in Open Test Reporting (OTR) XML logger not handled properly
+* [#6545](https://github.com/sebastianbergmann/phpunit/issues/6545): Stubbing a class with set property hook leaves property uninitialized by default
+* The `RegularExpression` and `StringMatchesFormatDescription` did not handle `preg_match()` errors such as `Compilation failed: regular expression is too large`
+
 ## [12.5.14] - 2026-02-18
 
 ### Fixed
@@ -122,6 +222,16 @@ All notable changes of the PHPUnit 12.5 release series are documented in this fi
 * [#6380](https://github.com/sebastianbergmann/phpunit/pull/6380): Allow `Throwable` in `expectExceptionObject()`
 * A PHPUnit notice is now emitted for test methods that create a mock object but do not configure an expectation for it
 
+[12.5.24]: https://github.com/sebastianbergmann/phpunit/compare/12.5.23...12.5.24
+[12.5.23]: https://github.com/sebastianbergmann/phpunit/compare/12.5.22...12.5.23
+[12.5.22]: https://github.com/sebastianbergmann/phpunit/compare/12.5.21...12.5.22
+[12.5.21]: https://github.com/sebastianbergmann/phpunit/compare/12.5.20...12.5.21
+[12.5.20]: https://github.com/sebastianbergmann/phpunit/compare/12.5.19...12.5.20
+[12.5.19]: https://github.com/sebastianbergmann/phpunit/compare/12.5.18...12.5.19
+[12.5.18]: https://github.com/sebastianbergmann/phpunit/compare/12.5.17...12.5.18
+[12.5.17]: https://github.com/sebastianbergmann/phpunit/compare/12.5.16...12.5.17
+[12.5.16]: https://github.com/sebastianbergmann/phpunit/compare/12.5.15...12.5.16
+[12.5.15]: https://github.com/sebastianbergmann/phpunit/compare/12.5.14...12.5.15
 [12.5.14]: https://github.com/sebastianbergmann/phpunit/compare/12.5.13...12.5.14
 [12.5.13]: https://github.com/sebastianbergmann/phpunit/compare/12.5.12...12.5.13
 [12.5.12]: https://github.com/sebastianbergmann/phpunit/compare/12.5.11...12.5.12
