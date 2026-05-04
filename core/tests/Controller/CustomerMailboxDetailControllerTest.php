@@ -10,6 +10,7 @@ use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Application\MailDnsCheckService;
 use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Application\MailPasswordHasher;
+use App\Module\Core\Application\MailboxStatsProviderInterface;
 use App\Module\Core\Domain\Entity\Mailbox;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\UserType;
@@ -252,7 +253,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
 
         $hasher = new MailPasswordHasher('bcrypt');
         $encryption = $this->createMock(EncryptionService::class);
-        $encryption->method('encrypt')->willReturn('secret-value');
+        $encryption->method('encrypt')->willReturn(['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
 
         $controller = $this->buildController(
             $mailboxRepo,
@@ -294,12 +295,20 @@ final class CustomerMailboxDetailControllerTest extends TestCase
             $this->createMock(AuditLogger::class),
             $encryptionService ?? $this->createMock(EncryptionService::class),
             $mailPasswordHasher ?? new MailPasswordHasher(),
-            $this->createMock(MailLimitEnforcer::class),
-            $this->createMock(MailAliasLoopGuard::class),
+            $this->createMailLimitEnforcer(),
+            new MailAliasLoopGuard(),
             $this->createMock(MailDnsCheckService::class),
             $csrfManager,
             $twig,
         );
+    }
+
+    private function createMailLimitEnforcer(): MailLimitEnforcer
+    {
+        $mailboxStatsProvider = $this->createMock(MailboxStatsProviderInterface::class);
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+
+        return new MailLimitEnforcer($mailboxStatsProvider, $entityManager);
     }
 
     private function createDomainRepository(): DomainRepository
