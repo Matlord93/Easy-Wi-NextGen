@@ -7,6 +7,7 @@ namespace App\Tests\Controller;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\MailAliasLoopGuard;
+use App\Module\Core\Application\MailDnsCheckService;
 use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Application\MailPasswordHasher;
 use App\Module\Core\Domain\Entity\Mailbox;
@@ -20,6 +21,8 @@ use App\Repository\MailDomainRepository;
 use App\Repository\MailPolicyRepository;
 use App\Repository\MailboxRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Csrf\CsrfToken;
@@ -225,8 +228,8 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $customer->setId(1);
         $domain = new \App\Module\Core\Domain\Entity\Domain($customer, null, 'example.com');
         $domain->setId(20);
-        $node = new \App\Module\Core\Domain\Entity\MailNode('Mail Node', 'imap.example.com', 993, 'smtp.example.com', 587, null);
-        $node->setId(99);
+        $node = $this->createMock(\App\Module\Core\Domain\Entity\MailNode::class);
+        $node->method('getId')->willReturn(99);
         $mailDomain = new \App\Module\Core\Domain\Entity\MailDomain($domain, $node);
 
         $mailbox = $this->createMock(Mailbox::class);
@@ -284,7 +287,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         return new CustomerMailController(
             $mailboxRepository,
             $this->createMock(MailAliasRepository::class),
-            $this->createMock(DomainRepository::class),
+            $this->createDomainRepository(),
             $mailDomainRepository ?? $this->createMock(MailDomainRepository::class),
             $this->createMock(JobRepository::class),
             $this->createMock(MailPolicyRepository::class),
@@ -294,8 +297,21 @@ final class CustomerMailboxDetailControllerTest extends TestCase
             $mailPasswordHasher ?? $this->createMock(MailPasswordHasher::class),
             $this->createMock(MailLimitEnforcer::class),
             $this->createMock(MailAliasLoopGuard::class),
+            $this->createMock(MailDnsCheckService::class),
             $csrfManager,
             $twig,
         );
     }
+
+    private function createDomainRepository(): DomainRepository
+    {
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->method('getClassMetadata')->willReturn(new ClassMetadata(\App\Module\Core\Domain\Entity\Domain::class));
+
+        $registry = $this->createMock(ManagerRegistry::class);
+        $registry->method('getManagerForClass')->with(\App\Module\Core\Domain\Entity\Domain::class)->willReturn($entityManager);
+
+        return new DomainRepository($registry);
+    }
+
 }
