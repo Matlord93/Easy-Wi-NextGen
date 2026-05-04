@@ -25,6 +25,11 @@ final class Version20260503195720 extends AbstractMigration
     public function up(Schema $schema): void
     {
         // this up() migration is auto-generated, please modify it to your needs
+        if (!$this->isMySql()) {
+            $this->write('Skipping migration on non-MySQL platform.');
+
+            return;
+        }
         if ($this->hasTable('contact_messages')) {
             $this->addSql('ALTER TABLE contact_messages CHANGE ip_address ip_address VARCHAR(45) NOT NULL, CHANGE status status VARCHAR(20) NOT NULL, CHANGE created_at created_at DATETIME NOT NULL, CHANGE replied_at replied_at DATETIME DEFAULT NULL');
             if ($this->canCreateContactMessageSiteForeignKey()) {
@@ -51,6 +56,11 @@ final class Version20260503195720 extends AbstractMigration
     public function down(Schema $schema): void
     {
         // this down() migration is auto-generated, please modify it to your needs
+        if (!$this->isMySql()) {
+            $this->write('Skipping rollback on non-MySQL platform.');
+
+            return;
+        }
         if ($this->hasTable('contact_messages')) {
             if ($this->hasForeignKey('contact_messages', 'FK_41278201F6BD1646')) {
                 $this->addSql('ALTER TABLE contact_messages DROP FOREIGN KEY FK_41278201F6BD1646');
@@ -75,6 +85,11 @@ final class Version20260503195720 extends AbstractMigration
     }
 
 
+
+    private function isMySql(): bool
+    {
+        return $this->connection->getDatabasePlatform()->getName() == 'mysql';
+    }
 
     private function hasTable(string $table): bool
     {
