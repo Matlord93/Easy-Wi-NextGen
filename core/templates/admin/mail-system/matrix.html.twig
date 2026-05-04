@@ -1,6 +1,6 @@
-{% extends 'layouts/admin.html.twig' %}
+{% extends 'admin/base.html.twig' %}
 {% block title %}{{ t('admin_mail_matrix_title', page_locale()) }}{% endblock %}
-{% block body %}
+{% block content %}
 <section class="space-y-4" data-mail-matrix data-health-endpoint="{{ healthEndpoint }}" data-metrics-endpoint="{{ metricsEndpoint }}" data-repair-endpoint-base="{{ repairEndpointBase }}">
   <header class="flex items-center justify-between">
     <div>

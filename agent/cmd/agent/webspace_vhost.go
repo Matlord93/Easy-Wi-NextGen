@@ -122,7 +122,7 @@ server {
         fastcgi_pass %s;
     }
 }
-`, serverNames, filepath.Clean(docroot), httpsRedirect, extra, phpFpmListen)
+`, serverNames, filepath.Clean(docroot), httpsRedirect, extra, nginxFastcgiPass(phpFpmListen))
 }
 
 func uniqueNames(values []string) []string {

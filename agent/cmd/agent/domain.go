@@ -36,7 +36,6 @@ func handleDomainAdd(job jobs.Job) (jobs.Result, func() error) {
 	missing := missingValues([]requiredValue{
 		{key: "domain", value: domainName},
 		{key: "docroot", value: docroot},
-		{key: "source_dir", value: sourceDir},
 		{key: "nginx_vhost_path", value: nginxVhostPath},
 		{key: "php_fpm_listen", value: phpFpmListen},
 	})
@@ -61,18 +60,20 @@ func handleDomainAdd(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
-	if _, err := os.Stat(sourceDir); err != nil {
-		return failureResult(job.ID, fmt.Errorf("source dir %s: %w", sourceDir, err))
-	}
-
-	if filepath.Clean(sourceDir) != filepath.Clean(docroot) {
-		mounted, err := isBindMounted(sourceDir, docroot)
-		if err != nil {
-			return failureResult(job.ID, err)
+	if sourceDir != "" {
+		if _, err := os.Stat(sourceDir); err != nil {
+			return failureResult(job.ID, fmt.Errorf("source dir %s: %w", sourceDir, err))
 		}
-		if !mounted {
-			if err := runCommand("mount", "--bind", sourceDir, docroot); err != nil {
+
+		if filepath.Clean(sourceDir) != filepath.Clean(docroot) {
+			mounted, err := isBindMounted(sourceDir, docroot)
+			if err != nil {
 				return failureResult(job.ID, err)
+			}
+			if !mounted {
+				if err := runCommand("mount", "--bind", sourceDir, docroot); err != nil {
+					return failureResult(job.ID, err)
+				}
 			}
 		}
 	}
@@ -180,7 +181,7 @@ server {
         fastcgi_pass %s;
     }
 }
-`, serverNames, docroot, logBlock, includeBlock, phpFpmListen)
+`, serverNames, docroot, logBlock, includeBlock, nginxFastcgiPass(phpFpmListen))
 }
 
 func buildServerNames(domainName, serverAliases string) string {

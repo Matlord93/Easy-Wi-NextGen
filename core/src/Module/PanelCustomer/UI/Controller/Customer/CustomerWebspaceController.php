@@ -135,6 +135,8 @@ final class CustomerWebspaceController
 
         return new Response($this->twig->render('customer/webspace/manage.html.twig', [
             'activeNav' => 'webspaces',
+            'flashSuccess' => $this->decodeFlashCookie($request, 'flash_success'),
+            'flashError' => $this->decodeFlashCookie($request, 'flash_error'),
             'domains' => $this->normalizeDomains($domains),
             'selectedDomain' => $this->normalizeDomain($selectedDomain),
             'webspace' => $webspace ? $this->normalizeWebspaceDetail($webspace) : null,
@@ -142,6 +144,16 @@ final class CustomerWebspaceController
             'webspaceDomains' => $this->normalizeDomains($webspaceDomains),
             'hasActiveWebspaceJob' => $webspace ? $this->hasActiveWebspaceJob($webspace) : false,
         ]));
+    }
+
+    private function decodeFlashCookie(Request $request, string $name): ?string
+    {
+        $raw = $request->cookies->get($name);
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+
+        return rawurldecode($raw);
     }
 
     #[Route(path: '/manage/homepage', name: 'customer_webspace_homepage_update', methods: ['POST'])]

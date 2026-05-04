@@ -3,8 +3,6 @@
 
 {% block content %}
 <div class="customer-webspace-modern customer-webspace-manage-modern flex flex-col gap-6">
-    {% set flashSuccess = app.request.cookies.get('flash_success') %}
-    {% set flashError = app.request.cookies.get('flash_error') %}
     {% if flashSuccess %}
         <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ flashSuccess }}</div>
     {% endif %}
