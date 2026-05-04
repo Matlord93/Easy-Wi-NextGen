@@ -8,7 +8,7 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\MailDomain;
 use App\Module\Core\Domain\Entity\MailNode;
 
-final class MailNodeMetricsAggregator
+class MailNodeMetricsAggregator
 {
     /** @var string[] */
     private const PORT_KEYS = ['25', '465', '587', '110', '143', '993', '995'];

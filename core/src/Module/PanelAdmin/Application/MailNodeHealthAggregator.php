@@ -13,7 +13,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class MailNodeHealthAggregator
+class MailNodeHealthAggregator
 {
     /** @var string[] */
     private const REQUIRED_KEYS = [

@@ -10,7 +10,7 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class MailPolicyRepository extends ServiceEntityRepository
+class MailPolicyRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {

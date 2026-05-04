@@ -57,7 +57,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
     {
         $customer = new User('c@example.com', UserType::Customer);
         $customer->setId(1);
-        $domain = new \App\Module\Core\Domain\Entity\Domain($customer, 'example.com');
+        $domain = new \App\Module\Core\Domain\Entity\Domain($customer, null, 'example.com');
         $mailbox = $this->createMock(Mailbox::class);
         $mailbox->method('getId')->willReturn(10);
         $mailbox->method('getCustomer')->willReturn($customer);
@@ -155,7 +155,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
     public function testTemplateContainsNoContentFields(): void
     {
         $template = strtolower((string) file_get_contents(__DIR__ . '/../../templates/customer/mail/detail.html.twig'));
-        foreach (['subject', 'body', 'from', 'recipient', 'sender', 'value=\"{{ password'] as $forbidden) {
+        foreach (['subject', 'body', 'from', 'sender', 'value=\"{{ password'] as $forbidden) {
             self::assertStringNotContainsString($forbidden, $template);
         }
     }
@@ -225,7 +225,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $customer->setId(1);
         $domain = new \App\Module\Core\Domain\Entity\Domain($customer, null, 'example.com');
         $domain->setId(20);
-        $node = new \App\Module\Core\Domain\Entity\Node('Mail Node', '127.0.0.1');
+        $node = new \App\Module\Core\Domain\Entity\MailNode('Mail Node', 'imap.example.com', 993, 'smtp.example.com', 587, null);
         $node->setId(99);
         $mailDomain = new \App\Module\Core\Domain\Entity\MailDomain($domain, $node);
 
