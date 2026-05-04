@@ -21,7 +21,9 @@ use App\Repository\MailAliasRepository;
 use App\Repository\MailDomainRepository;
 use App\Repository\MailPolicyRepository;
 use App\Repository\MailboxRepository;
+use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
@@ -142,7 +144,9 @@ final class CustomerMailboxDetailControllerTest extends TestCase
     public function testWrongCustomerGetsForbidden(): void
     {
         $owner = new User('o@example.com', UserType::Customer);
+        $owner->setId(1);
         $actor = new User('a@example.com', UserType::Customer);
+        $actor->setId(2);
         $mailbox = $this->createMock(Mailbox::class);
         $mailbox->method('getCustomer')->willReturn($owner);
 
@@ -313,8 +317,19 @@ final class CustomerMailboxDetailControllerTest extends TestCase
 
     private function createDomainRepository(): DomainRepository
     {
+        $query = $this->createMock(AbstractQuery::class);
+        $query->method('getResult')->willReturn([]);
+
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+        $queryBuilder->method('andWhere')->willReturnSelf();
+        $queryBuilder->method('setParameter')->willReturnSelf();
+        $queryBuilder->method('orderBy')->willReturnSelf();
+        $queryBuilder->method('setMaxResults')->willReturnSelf();
+        $queryBuilder->method('getQuery')->willReturn($query);
+
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->method('getClassMetadata')->willReturn(new ClassMetadata(\App\Module\Core\Domain\Entity\Domain::class));
+        $entityManager->method('createQueryBuilder')->willReturn($queryBuilder);
 
         $registry = $this->createMock(ManagerRegistry::class);
         $registry->method('getManagerForClass')->with(\App\Module\Core\Domain\Entity\Domain::class)->willReturn($entityManager);
