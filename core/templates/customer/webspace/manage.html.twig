@@ -6,10 +6,10 @@
     {% set flashSuccess = app.request.cookies.get('flash_success') %}
     {% set flashError = app.request.cookies.get('flash_error') %}
     {% if flashSuccess %}
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ flashSuccess|url_decode }}</div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ flashSuccess }}</div>
     {% endif %}
     {% if flashError %}
-        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ flashError|url_decode }}</div>
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ flashError }}</div>
     {% endif %}
     <div>
         <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_webspace_manage_title', page_locale()) }}</h1>
