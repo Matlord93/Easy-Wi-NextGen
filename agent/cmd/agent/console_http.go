@@ -147,7 +147,6 @@ func (m *consoleSessionManager) getOrCreate(instanceID, unitName string) *consol
 	return s
 }
 
-
 func (m *consoleSessionManager) stopAll() {
 	m.mu.Lock()
 	sessions := make([]*consoleSession, 0, len(m.sessions))

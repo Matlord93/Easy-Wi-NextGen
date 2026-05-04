@@ -880,10 +880,10 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 	}
 
 	settings := []string{
-			"virtual_mailbox_base=/var/mail/vhosts",
-			"virtual_mailbox_domains=hash:/etc/postfix/virtual_domains",
-			"virtual_mailbox_maps=hash:/etc/postfix/virtual_mailboxes",
-			"virtual_alias_maps=hash:/etc/postfix/virtual_aliases",
+		"virtual_mailbox_base=/var/mail/vhosts",
+		"virtual_mailbox_domains=hash:/etc/postfix/virtual_domains",
+		"virtual_mailbox_maps=hash:/etc/postfix/virtual_mailboxes",
+		"virtual_alias_maps=hash:/etc/postfix/virtual_aliases",
 		"smtpd_sasl_auth_enable=yes",
 		"smtpd_sasl_type=dovecot",
 		"smtpd_sasl_path=private/auth",

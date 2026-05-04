@@ -19,8 +19,8 @@ const (
 	defaultDovecotPassPath = "/etc/dovecot/users"
 	defaultMailDir         = "/var/mail/vhosts"
 
-	mailboxDirMode  = 0o750
-	mailboxFileMode = 0o640
+	mailboxDirMode           = 0o750
+	mailboxFileMode          = 0o640
 	defaultMailboxPolicyPath = "/etc/easywi/mailbox_policies.json"
 )
 
@@ -83,13 +83,13 @@ func handleMailboxCreate(job jobs.Job) (jobs.Result, func() error) {
 				JobID:  job.ID,
 				Status: "failed",
 				Output: map[string]string{
-					"address":      address,
-					"quota_mb":     strconv.Itoa(quotaMB),
-					"enabled":      fmt.Sprintf("%t", enabled),
-					"password_set": "hash",
-					"mail_dir":     absMailPath,
+					"address":         address,
+					"quota_mb":        strconv.Itoa(quotaMB),
+					"enabled":         fmt.Sprintf("%t", enabled),
+					"password_set":    "hash",
+					"mail_dir":        absMailPath,
 					"partial_success": "true",
-					"warning":      "mail_dir could not be created: " + mkErr.Error(),
+					"warning":         "mail_dir could not be created: " + mkErr.Error(),
 				},
 				Completed: time.Now().UTC(),
 			}, nil
@@ -297,9 +297,13 @@ func handleMailboxPolicyUpdate(job jobs.Job) (jobs.Result, func() error) {
 		"recipient_limit":      recipientLimit,
 		"abuse_policy_enabled": normalizeMailboxEnabled(payloadValue(job.Payload, "abuse_policy_enabled"), false),
 	}
-	if err := ensureDirWithMode(filepath.Dir(policyPath), mailboxDirMode); err != nil { return failureResult(job.ID, err) }
+	if err := ensureDirWithMode(filepath.Dir(policyPath), mailboxDirMode); err != nil {
+		return failureResult(job.ID, err)
+	}
 	encoded, _ := json.MarshalIndent(policies, "", "  ")
-	if err := os.WriteFile(policyPath, append(encoded, '\n'), mailboxFileMode); err != nil { return failureResult(job.ID, err) }
+	if err := os.WriteFile(policyPath, append(encoded, '\n'), mailboxFileMode); err != nil {
+		return failureResult(job.ID, err)
+	}
 	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"address": address, "policy_path": policyPath, "message": "Policy stored", "enforcement": "Enforcement backend not yet active"}, Completed: time.Now().UTC()}, nil
 }
 
