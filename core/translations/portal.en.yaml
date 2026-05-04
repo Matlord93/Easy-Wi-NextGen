@@ -3100,7 +3100,6 @@ customer_mailbox_detail_username: "Username"
 customer_mailbox_detail_copy_host: "Copy host"
 customer_mailbox_detail_copy_username: "Copy username"
 customer_mailbox_detail_copy_all: "Copy config"
-customer_mailbox_detail_change_password: "Change password"
 
 customer_mailbox_detail_server: "Server"
 customer_mailbox_detail_port: "Port"
