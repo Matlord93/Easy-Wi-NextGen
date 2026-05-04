@@ -43,3 +43,39 @@ func TestWebspaceCompatHandlerRejectsTraversalId(t *testing.T) {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
 }
+
+func TestCollectMailHealthChecksContainsExpectedKeys(t *testing.T) {
+	checks := collectMailHealthChecks()
+	required := []string{
+		"postfix_installed",
+		"dovecot_installed",
+		"postmap_available",
+		"postfix_map_file",
+		"postfix_domain_map",
+		"postfix_alias_map",
+		"dovecot_users_file",
+		"maildir_writable",
+		"postfix_active",
+		"dovecot_active",
+		"port_listen_25",
+		"port_listen_587",
+		"port_listen_993",
+	}
+	for _, key := range required {
+		if _, ok := checks[key]; !ok {
+			t.Fatalf("missing check key %s", key)
+		}
+	}
+}
+
+func TestCollectMailHealthChecksDoesNotExposeMailContentFields(t *testing.T) {
+	checks := collectMailHealthChecks()
+	for key, check := range checks {
+		if key == "" {
+			t.Fatal("empty key not allowed")
+		}
+		if check.Message == "subject" || check.Message == "body" {
+			t.Fatalf("unexpected sensitive content marker in %s", key)
+		}
+	}
+}

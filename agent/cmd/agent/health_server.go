@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -69,14 +72,23 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 		})
 	})
 	mux.HandleFunc("/v1/mail/health", func(w http.ResponseWriter, _ *http.Request) {
+		checks := collectMailHealthChecks()
+		ok := true
+		for _, value := range checks {
+			if !value.Ok {
+				ok = false
+				break
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"ok": true,
+			"ok": ok,
 			"capabilities": map[string]bool{
 				"mail_domain": true,
 				"mailbox":     true,
 				"mail_alias":  true,
 			},
+			"checks": checks,
 		})
 	})
 	mux.Handle("/ports/check-free", gameServer.Handler())
@@ -116,6 +128,76 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 			log.Printf("agent service failed: %v", err)
 		}
 	}()
+}
+
+type mailHealthCheck struct {
+	Ok      bool   `json:"ok"`
+	Message string `json:"message,omitempty"`
+}
+
+func collectMailHealthChecks() map[string]mailHealthCheck {
+	checks := map[string]mailHealthCheck{
+		"postfix_installed":  commandHealthCheck("postfix"),
+		"dovecot_installed":  commandHealthCheck("dovecot"),
+		"postmap_available":  commandHealthCheck("postmap"),
+		"postfix_map_file":   fileHealthCheck("/etc/postfix/virtual_mailboxes"),
+		"postfix_domain_map": fileHealthCheck("/etc/postfix/virtual_domains"),
+		"postfix_alias_map":  fileHealthCheck("/etc/postfix/virtual_aliases"),
+		"dovecot_users_file": fileHealthCheck("/etc/dovecot/users"),
+		"maildir_writable":   writableDirCheck("/var/mail/vhosts"),
+		"postfix_active":     serviceActiveCheck("postfix"),
+		"dovecot_active":     serviceActiveCheck("dovecot"),
+	}
+	for _, port := range []string{"25", "465", "587", "110", "143", "993", "995"} {
+		key := "port_listen_" + port
+		checks[key] = listeningPortCheck(port)
+	}
+	return checks
+}
+
+func commandHealthCheck(name string) mailHealthCheck {
+	if _, err := exec.LookPath(name); err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	return mailHealthCheck{Ok: true}
+}
+
+func fileHealthCheck(path string) mailHealthCheck {
+	if _, err := os.Stat(path); err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	return mailHealthCheck{Ok: true}
+}
+
+func writableDirCheck(path string) mailHealthCheck {
+	if err := os.MkdirAll(path, 0o750); err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	testFile := filepath.Join(path, ".easywi-healthcheck")
+	if err := os.WriteFile(testFile, []byte("ok"), 0o600); err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	_ = os.Remove(testFile)
+	return mailHealthCheck{Ok: true}
+}
+
+func serviceActiveCheck(name string) mailHealthCheck {
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return mailHealthCheck{Ok: false, Message: "systemctl not available"}
+	}
+	if _, err := runCommandOutput("systemctl", "is-active", name); err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	return mailHealthCheck{Ok: true}
+}
+
+func listeningPortCheck(port string) mailHealthCheck {
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:"+port, 300*time.Millisecond)
+	if err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	_ = conn.Close()
+	return mailHealthCheck{Ok: true}
 }
 
 func makeWebspaceCompatHandler(delegate http.Handler, agentRoot string) http.HandlerFunc {

@@ -22,3 +22,20 @@ func TestMailBackendGuardAllowsLocalBackend(t *testing.T) {
 		t.Fatal("expected local backend to pass")
 	}
 }
+
+func TestMailBackendGuardDefaultsToEnabledLocal(t *testing.T) {
+	_, ok := mailBackendGuard(jobs.Job{Payload: map[string]any{}})
+	if !ok {
+		t.Fatal("expected defaults to pass")
+	}
+}
+
+func TestMailBackendGuardRejectsInvalidBackend(t *testing.T) {
+	out, ok := mailBackendGuard(jobs.Job{Payload: map[string]any{"mail_backend": "invalid"}})
+	if ok {
+		t.Fatal("expected invalid backend to fail")
+	}
+	if out["error_code"] != "MAIL_BACKEND_INVALID" {
+		t.Fatalf("expected MAIL_BACKEND_INVALID, got %q", out["error_code"])
+	}
+}

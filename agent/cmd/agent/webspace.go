@@ -34,6 +34,7 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 	phpVersion := payloadValue(job.Payload, "php_version")
 	poolName := payloadValue(job.Payload, "pool_name", "php_fpm_pool_name")
 	phpSettings := payloadPhpSettings(job.Payload)
+	nginxSocketUser, nginxSocketGroup := detectNginxSocketIdentity()
 
 	var cleanupPaths []string
 	rollback := func() error {
@@ -123,7 +124,10 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 	if phpFpmPoolPath != "" && !pathExists(phpFpmPoolPath) {
 		cleanupPaths = append(cleanupPaths, phpFpmPoolPath)
 	}
-	if err := writePhpFpmPoolWithSettings(phpFpmPoolPath, poolName, ownerUser, ownerGroup, phpFpmListen, webRoot, logsDir, tmpDir, phpVersion, phpSettings); err != nil {
+	if err := writePhpFpmPoolWithSettings(phpFpmPoolPath, poolName, ownerUser, ownerGroup, nginxSocketUser, nginxSocketGroup, phpFpmListen, webRoot, logsDir, tmpDir, phpVersion, phpSettings); err != nil {
+		return failWithRollback(err)
+	}
+	if err := activatePhpFpmPool(phpVersion, phpFpmPoolPath); err != nil {
 		return failWithRollback(err)
 	}
 	if nginxIncludePath != "" && !pathExists(nginxIncludePath) {
@@ -287,11 +291,11 @@ func lookupGID(groupName string) (int, error) {
 	return gid, nil
 }
 
-func writePhpFpmPoolWithSettings(path, pool, user, group, listen, webRoot, logsDir, tmpDir, phpVersion string, phpSettings map[string]string) error {
+func writePhpFpmPoolWithSettings(path, pool, user, group, listenUser, listenGroup, listen, webRoot, logsDir, tmpDir, phpVersion string, phpSettings map[string]string) error {
 	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
-	content := phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, phpVersion, phpSettings)
+	content := phpFpmPoolTemplate(pool, user, group, listenUser, listenGroup, listen, webRoot, logsDir, tmpDir, phpVersion, phpSettings)
 	if err := os.WriteFile(path, []byte(content), webspaceFileMode); err != nil {
 		return fmt.Errorf("write php-fpm pool %s: %w", path, err)
 	}
@@ -309,7 +313,7 @@ func writeNginxInclude(path, docroot, logsDir, phpFpmListen string) error {
 	return nil
 }
 
-func phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, phpVersion string, phpSettings map[string]string) string {
+func phpFpmPoolTemplate(pool, user, group, listenUser, listenGroup, listen, webRoot, logsDir, tmpDir, phpVersion string, phpSettings map[string]string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString("; Managed by Easy-Wi agent\n")
 	if phpVersion != "" {
@@ -319,8 +323,8 @@ func phpFpmPoolTemplate(pool, user, group, listen, webRoot, logsDir, tmpDir, php
 	_, _ = fmt.Fprintf(&buffer, "user = %s\n", user)
 	_, _ = fmt.Fprintf(&buffer, "group = %s\n", group)
 	_, _ = fmt.Fprintf(&buffer, "listen = %s\n", listen)
-	_, _ = fmt.Fprintf(&buffer, "listen.owner = %s\n", user)
-	_, _ = fmt.Fprintf(&buffer, "listen.group = %s\n", group)
+	_, _ = fmt.Fprintf(&buffer, "listen.owner = %s\n", listenUser)
+	_, _ = fmt.Fprintf(&buffer, "listen.group = %s\n", listenGroup)
 	buffer.WriteString("listen.mode = 0660\n")
 	buffer.WriteString("pm = ondemand\n")
 	buffer.WriteString("pm.max_children = 10\n")
@@ -362,7 +366,59 @@ location ~ \.php$ {
     fastcgi_pass %s;
 }
 include /etc/easywi/web/nginx/includes/roundcube.conf;
-`, docroot, logsDir, logsDir, phpFpmListen)
+`, docroot, logsDir, logsDir, nginxFastcgiPass(phpFpmListen))
+}
+
+func nginxFastcgiPass(listen string) string {
+	listen = strings.TrimSpace(listen)
+	if strings.HasPrefix(listen, "/") {
+		return "unix:" + listen
+	}
+	return listen
+}
+
+func detectNginxSocketIdentity() (string, string) {
+	candidates := [][2]string{{"www-data", "www-data"}, {"nginx", "nginx"}, {"http", "http"}}
+	for _, candidate := range candidates {
+		if lookupUIDErr(candidate[0]) == nil && lookupGIDErr(candidate[1]) == nil {
+			return candidate[0], candidate[1]
+		}
+	}
+	return "www-data", "www-data"
+}
+
+func lookupUIDErr(userName string) error {
+	_, err := lookupUID(userName)
+	return err
+}
+
+func lookupGIDErr(groupName string) error {
+	_, err := lookupGID(groupName)
+	return err
+}
+
+func activatePhpFpmPool(phpVersion, poolPath string) error {
+	version := strings.TrimPrefix(strings.TrimSpace(phpVersion), "php")
+	if version == "" {
+		return nil
+	}
+	poolName := filepath.Base(poolPath)
+	poolDir := filepath.Join("/etc/php", version, "fpm", "pool.d")
+	if err := ensureDir(poolDir); err != nil {
+		return err
+	}
+	target := filepath.Join(poolDir, poolName)
+	_ = os.Remove(target)
+	if err := os.Symlink(poolPath, target); err != nil {
+		return fmt.Errorf("activate php-fpm pool symlink %s: %w", target, err)
+	}
+	service := "php" + version + "-fpm"
+	if err := runCommand("systemctl", "reload", service); err != nil {
+		if restartErr := runCommand("systemctl", "restart", service); restartErr != nil {
+			return fmt.Errorf("reload/restart %s failed: %w", service, err)
+		}
+	}
+	return nil
 }
 
 func runCommand(name string, args ...string) error {

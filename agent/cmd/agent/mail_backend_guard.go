@@ -10,6 +10,9 @@ import (
 func mailBackendGuard(job jobs.Job) (map[string]string, bool) {
 	enabled := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "mail_enabled")))
 	backend := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "mail_backend")))
+	if enabled == "" {
+		enabled = "true"
+	}
 	if backend == "" {
 		backend = "local"
 	}
@@ -25,7 +28,8 @@ func mailBackendGuard(job jobs.Job) (map[string]string, bool) {
 
 	if backend != "local" && backend != "panel" && backend != "external" {
 		return map[string]string{
-			"message": fmt.Sprintf("unsupported mail backend %q", backend),
+			"message":    fmt.Sprintf("unsupported mail backend %q", backend),
+			"error_code": "MAIL_BACKEND_INVALID",
 		}, false
 	}
 

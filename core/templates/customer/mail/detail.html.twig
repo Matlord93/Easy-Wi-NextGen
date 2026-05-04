@@ -1,0 +1,159 @@
+{% extends 'customer/base.html.twig' %}
+{% block content %}
+<section class="space-y-4">
+  <h1 class="text-2xl font-semibold">{{ t('customer_mailbox_detail_title', page_locale()) }}</h1>
+  {% if last_job and last_job.status == 'failed' %}
+    <div class="rounded border border-rose-200 bg-rose-50 p-3 text-rose-700">{{ t('customer_mailbox_detail_last_job_failed', page_locale()) }}: {{ last_job.error ?: 'unknown' }}</div>
+  {% endif %}
+  {% if password_scheduled %}
+    <div class="rounded border border-emerald-200 bg-emerald-50 p-3 text-emerald-700">{{ t('customer_mailbox_detail_password_scheduled', page_locale()) }}</div>
+  {% endif %}
+  <div class="rounded border bg-white p-4 text-sm space-y-1">
+    <div><strong>{{ t('customer_mailbox_detail_address', page_locale()) }}:</strong> {{ mailbox.address }}</div>
+    <div><strong>{{ t('customer_mailbox_detail_domain', page_locale()) }}:</strong> {{ mailbox.domain.name }}</div>
+    <div><strong>{{ t('customer_mailbox_detail_status', page_locale()) }}:</strong> {{ mailbox.enabled ? 'enabled' : 'disabled' }}</div>
+    <div><strong>{{ t('customer_mailbox_detail_quota', page_locale()) }}:</strong> {{ mailbox.quota }} MB</div>
+    <div><strong>{{ t('customer_mailbox_detail_node', page_locale()) }}:</strong> {{ mail_node_name ?: '—' }}</div>
+  </div>
+
+  <div class="rounded border bg-white p-4 text-sm space-y-2">
+    <h2 class="font-semibold">{{ t('customer_mailbox_detail_storage_title', page_locale()) }}</h2>
+    {% if quota_usage.available %}
+      {% if quota_usage.quota_mb > 0 %}
+        <p>{{ quota_usage.used_mb|number_format(1, ',', '.') }} MB {{ t('customer_mailbox_detail_storage_used_of', page_locale()) }} {{ quota_usage.quota_mb }} MB</p>
+        <div class="h-2 w-full overflow-hidden rounded bg-slate-200">
+          <div class="h-full bg-sky-600" style="width: {{ quota_usage.percent_bar|number_format(1, '.', '') }}%"></div>
+        </div>
+        <p class="text-xs text-slate-600">{{ quota_usage.percent|number_format(1, ',', '.') }} % {{ t('customer_mailbox_detail_storage_percent', page_locale()) }}</p>
+      {% else %}
+        <p>{{ quota_usage.used_mb|number_format(1, ',', '.') }} MB {{ t('customer_mailbox_detail_storage_used_unlimited', page_locale()) }}</p>
+      {% endif %}
+      {% if quota_usage.truncated %}
+        <p class="text-xs text-amber-700">{{ t('customer_mailbox_detail_storage_truncated', page_locale()) }}</p>
+      {% endif %}
+    {% else %}
+      <p class="text-slate-600">{{ t('customer_mailbox_detail_storage_missing', page_locale()) }}</p>
+    {% endif %}
+  </div>
+
+  <div class="rounded border bg-white p-4 text-sm">
+    <h2 class="font-semibold mb-2">{{ t('customer_mailbox_detail_job_title', page_locale()) }}</h2>
+    {% if last_job %}
+      <div>{{ last_job.type }} · {{ last_job.status }}{% if last_job.error %} · {{ last_job.error }}{% endif %}</div>
+    {% else %}
+      <div>{{ t('customer_mailbox_detail_job_empty', page_locale()) }}</div>
+    {% endif %}
+  </div>
+  {% set email_address = mailbox.address %}
+  {% set setup_text %}{{ t('customer_mailbox_detail_address', page_locale()) }}: {{ email_address }}
+{{ t('customer_mailbox_detail_username', page_locale()) }}: {{ username }}
+
+IMAP:
+{{ t('customer_mailbox_detail_server', page_locale()) }}: {{ imap.host }}
+{{ t('customer_mailbox_detail_port', page_locale()) }}: {{ imap.port }}
+{{ t('customer_mailbox_detail_encryption', page_locale()) }}: {{ imap.encryption }}
+
+POP3:
+{{ t('customer_mailbox_detail_server', page_locale()) }}: {{ pop3.host }}
+{{ t('customer_mailbox_detail_port', page_locale()) }}: {{ pop3.port }}
+{{ t('customer_mailbox_detail_encryption', page_locale()) }}: {{ pop3.encryption }}
+
+SMTP:
+{{ t('customer_mailbox_detail_server', page_locale()) }}: {{ smtp.host }}
+{{ t('customer_mailbox_detail_port', page_locale()) }}: {{ smtp.port }}
+{{ t('customer_mailbox_detail_encryption', page_locale()) }}: {{ smtp.encryption }}
+{{ t('customer_mailbox_detail_smtp_auth_required', page_locale()) }}
+{{ t('customer_mailbox_detail_username', page_locale()) }}: {{ username }}{% endset %}
+  <div class="rounded border bg-white p-4 text-sm space-y-4">
+    <h2 class="font-semibold">{{ t('customer_mailbox_detail_connection_title', page_locale()) }}</h2>
+    <div class="grid gap-4 md:grid-cols-3">
+      <div class="rounded border border-slate-200 p-3 space-y-1">
+        <h3 class="font-semibold">IMAP</h3>
+        <div><strong>{{ t('customer_mailbox_detail_server', page_locale()) }}:</strong> {{ imap.host }}</div>
+        <div><strong>{{ t('customer_mailbox_detail_port', page_locale()) }}:</strong> {{ imap.port }}</div>
+        <div><strong>{{ t('customer_mailbox_detail_encryption', page_locale()) }}:</strong> {{ imap.encryption }}</div>
+        <div><strong>{{ t('customer_mailbox_detail_username', page_locale()) }}:</strong> {{ username }}</div>
+      </div>
+      <div class="rounded border border-slate-200 p-3 space-y-1">
+        <h3 class="font-semibold">POP3</h3>
+        <div><strong>{{ t('customer_mailbox_detail_server', page_locale()) }}:</strong> {{ pop3.host }}</div>
+        <div><strong>{{ t('customer_mailbox_detail_port', page_locale()) }}:</strong> {{ pop3.port }}</div>
+        <div><strong>{{ t('customer_mailbox_detail_encryption', page_locale()) }}:</strong> {{ pop3.encryption }}</div>
+        <div><strong>{{ t('customer_mailbox_detail_username', page_locale()) }}:</strong> {{ username }}</div>
+      </div>
+      <div class="rounded border border-slate-200 p-3 space-y-1">
+        <h3 class="font-semibold">SMTP</h3>
+        <div><strong>{{ t('customer_mailbox_detail_server', page_locale()) }}:</strong> {{ smtp.host }}</div>
+        <div><strong>{{ t('customer_mailbox_detail_port', page_locale()) }}:</strong> {{ smtp.port }}</div>
+        <div><strong>{{ t('customer_mailbox_detail_encryption', page_locale()) }}:</strong> {{ smtp.encryption }}</div>
+        <div><strong>{{ t('customer_mailbox_detail_smtp_auth_required', page_locale()) }}</strong></div>
+        <div><strong>{{ t('customer_mailbox_detail_username', page_locale()) }}:</strong> {{ username }}</div>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50" onclick="navigator.clipboard.writeText('{{ imap.host|e('js') }}')">{{ t('customer_mailbox_detail_copy_imap', page_locale()) }}</button>
+      <button type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50" onclick="navigator.clipboard.writeText('{{ pop3.host|e('js') }}')">{{ t('customer_mailbox_detail_copy_pop3', page_locale()) }}</button>
+      <button type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50" onclick="navigator.clipboard.writeText('{{ smtp.host|e('js') }}')">{{ t('customer_mailbox_detail_copy_smtp', page_locale()) }}</button>
+      <button type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50" onclick="navigator.clipboard.writeText('{{ username|e('js') }}')">{{ t('customer_mailbox_detail_copy_username', page_locale()) }}</button>
+      <button type="button" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50" onclick="navigator.clipboard.writeText('{{ setup_text|trim|e('js') }}')">{{ t('customer_mailbox_detail_copy_config', page_locale()) }}</button>
+    </div>
+    <div class="space-y-2 rounded border border-sky-200 bg-sky-50 p-3">
+      <h3 class="font-semibold">{{ t('customer_mailbox_detail_setup_title', page_locale()) }}</h3>
+      <ul class="list-disc pl-5 text-xs text-slate-700 space-y-1">
+        <li>{{ t('customer_mailbox_detail_setup_imap_recommended', page_locale()) }}</li>
+        <li>{{ t('customer_mailbox_detail_setup_intro', page_locale()) }}</li>
+        <li>{{ t('customer_mailbox_detail_setup_smtp_auth_enabled', page_locale()) }}</li>
+        <li>{{ t('customer_mailbox_detail_setup_password_hint', page_locale()) }}</li>
+      </ul>
+    </div>
+    {% if webmail_url %}
+      <div class="space-y-2">
+        <a href="{{ webmail_url }}" target="_blank" rel="noopener" class="inline-flex rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-700">{{ t('customer_mailbox_detail_webmail_open', page_locale()) }}</a>
+        <p class="text-xs text-slate-600">{{ t('customer_mailbox_detail_webmail_hint', page_locale()) }}</p>
+      </div>
+    {% else %}
+      <p class="text-xs text-slate-500">{{ t('customer_mailbox_detail_webmail_missing', page_locale()) }}</p>
+    {% endif %}
+
+    <div class="space-y-2">
+      <a href="/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={{ mailbox.address|url_encode }}" target="_blank" rel="noopener" class="inline-flex rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50">{{ t('customer_mailbox_detail_thunderbird_autoconfig', page_locale()) }}</a>
+      <p class="text-xs text-slate-600">{{ t('customer_mailbox_detail_thunderbird_hint', page_locale()) }}</p>
+    </div>
+
+    {% if dns_check is defined and dns_check.checks is defined %}
+    <div class="rounded border bg-white p-4 text-sm space-y-2">
+      <h3 class="font-semibold">{{ t('customer_mail_dns_title', page_locale()) }}</h3>
+      <p class="text-xs">{{ dns_check.overall_ok ? t('customer_mail_dns_ok', page_locale()) : t('customer_mail_dns_warning', page_locale()) }}</p>
+      <ul class="list-disc pl-5 text-xs">
+        <li>MX: {{ dns_check.checks.mx.ok ? 'OK' : 'Missing' }}</li>
+        <li>SPF: {{ dns_check.checks.spf.ok ? 'OK' : 'Missing' }}</li>
+        <li>DMARC: {{ dns_check.checks.dmarc.ok ? 'OK' : 'Missing' }}</li>
+        <li>DKIM: {{ dns_check.checks.dkim.message }}</li>
+      </ul>
+    </div>
+    {% endif %}
+    {% if smtp_policy is defined %}
+    <div class="rounded border bg-white p-4 text-sm space-y-1">
+      <h3 class="font-semibold">{{ t('customer_mail_policy_title', page_locale()) }}</h3>
+      <div>{{ t('mail_policy_title', page_locale()) }}</div>
+      <div>{{ t('customer_mail_policy_status', page_locale()) }}: {{ smtp_policy.smtp_enabled ? t('mail_policy_smtp_enabled', page_locale()) : t('mail_policy_smtp_disabled', page_locale()) }}</div>
+      {% if smtp_policy.send_limit_hour is not null %}<div>{{ t('customer_mail_policy_send_limit', page_locale()) }}: {{ smtp_policy.send_limit_hour }}</div>{% endif %}
+      {% if smtp_policy.recipient_limit is not null %}<div>{{ t('customer_mail_policy_recipient_limit', page_locale()) }}: {{ smtp_policy.recipient_limit }}</div>{% endif %}
+      <div>{{ t('mail_policy_abuse_enabled', page_locale()) }}: {{ smtp_policy.abuse_policy_enabled ? t('mail_policy_status_enabled', page_locale()) : t('mail_policy_status_disabled', page_locale()) }}</div>
+      <p class="text-xs text-slate-600">{{ t('mail_policy_enforcement_notice', page_locale()) }}</p>
+    </div>
+    {% endif %}
+    <div class="mt-2 space-y-2 rounded border border-slate-200 bg-slate-50 p-3">
+      <h3 class="font-semibold">{{ t('customer_mailbox_detail_password_title', page_locale()) }}</h3>
+      <p class="text-xs text-slate-600">{{ t('customer_mailbox_detail_password_provisioning_hint', page_locale()) }}</p>
+      <form method="post" action="{{ path('customer_mail_password_reset', { id: mailbox.id }) }}" class="flex flex-col gap-2">
+        <input type="hidden" name="_csrf_token" value="{{ password_csrf }}">
+        <label for="mailbox-password" class="text-xs font-medium text-slate-700">{{ t('customer_mailbox_detail_new_password', page_locale()) }}</label>
+        <input id="mailbox-password" name="password" type="password" autocomplete="new-password" required minlength="8" class="rounded border border-slate-300 px-3 py-2">
+        <p class="text-xs text-slate-500">{{ t('customer_mailbox_detail_password_hint', page_locale()) }}</p>
+        <button type="submit" class="w-fit rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white">{{ t('customer_mailbox_detail_password_submit', page_locale()) }}</button>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

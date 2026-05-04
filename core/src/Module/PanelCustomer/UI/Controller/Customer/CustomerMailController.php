@@ -9,6 +9,7 @@ use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\MailAliasLoopGuard;
 use App\Module\Core\Application\MailLimitEnforcer;
 use App\Module\Core\Application\MailPasswordHasher;
+use App\Module\Core\Application\MailDnsCheckService;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\MailAlias;
 use App\Module\Core\Domain\Entity\Mailbox;
@@ -19,6 +20,7 @@ use App\Repository\MailAliasRepository;
 use App\Repository\MailPolicyRepository;
 use App\Repository\MailboxRepository;
 use App\Repository\MailDomainRepository;
+use App\Repository\JobRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -50,6 +52,7 @@ final class CustomerMailController
         private readonly MailAliasRepository $mailAliasRepository,
         private readonly DomainRepository $domainRepository,
         private readonly MailDomainRepository $mailDomainRepository,
+        private readonly JobRepository $jobRepository,
         private readonly MailPolicyRepository $mailPolicyRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
@@ -57,6 +60,7 @@ final class CustomerMailController
         private readonly MailPasswordHasher $mailPasswordHasher,
         private readonly MailLimitEnforcer $mailLimitEnforcer,
         private readonly MailAliasLoopGuard $mailAliasLoopGuard,
+        private readonly MailDnsCheckService $mailDnsCheckService,
         private readonly CsrfTokenManagerInterface $csrfTokenManager,
         private readonly Environment $twig,
     ) {
@@ -151,11 +155,15 @@ final class CustomerMailController
             return $this->renderWithErrors($customer, ['Mailbox creation failed.']);
         }
 
-        $job = $this->queueMailboxJob('mailbox.create', $mailbox, [
-            'password_hash' => $passwordHash,
-            'quota_mb' => (string) $mailbox->getQuota(),
-            'enabled' => $mailbox->isEnabled() ? 'true' : 'false',
-        ]);
+        try {
+            $job = $this->queueMailboxJob('mailbox.create', $mailbox, [
+                'password_hash' => $passwordHash,
+                'quota_mb' => (string) $mailbox->getQuota(),
+                'enabled' => $mailbox->isEnabled() ? 'true' : 'false',
+            ]);
+        } catch (\DomainException $exception) {
+            return $this->renderWithErrors($customer, [$exception->getMessage()]);
+        }
 
         $this->auditLogger->log($customer, 'mailbox.created', [
             'mailbox_id' => $mailbox->getId(),
@@ -196,9 +204,13 @@ final class CustomerMailController
         if ($quota !== $mailbox->getQuota()) {
             $previousQuota = $mailbox->getQuota();
             $mailbox->setQuota($quota);
-            $job = $this->queueMailboxJob('mailbox.quota.update', $mailbox, [
-                'quota_mb' => (string) $quota,
-            ]);
+            try {
+                $job = $this->queueMailboxJob('mailbox.quota.update', $mailbox, [
+                    'quota_mb' => (string) $quota,
+                ]);
+            } catch (\DomainException $exception) {
+                return $this->renderWithErrors($customer, [$exception->getMessage()]);
+            }
 
             $this->auditLogger->log($customer, 'mailbox.quota_updated', [
                 'mailbox_id' => $mailbox->getId(),
@@ -231,9 +243,13 @@ final class CustomerMailController
             $previousEnabled = $mailbox->isEnabled();
             $mailbox->setEnabled($enabled);
             $jobType = $enabled ? 'mailbox.enable' : 'mailbox.disable';
-            $job = $this->queueMailboxJob($jobType, $mailbox, [
-                'enabled' => $enabled ? 'true' : 'false',
-            ]);
+            try {
+                $job = $this->queueMailboxJob($jobType, $mailbox, [
+                    'enabled' => $enabled ? 'true' : 'false',
+                ]);
+            } catch (\DomainException $exception) {
+                return $this->renderWithErrors($customer, [$exception->getMessage()]);
+            }
 
             $this->auditLogger->log($customer, $enabled ? 'mailbox.enabled' : 'mailbox.disabled', [
                 'mailbox_id' => $mailbox->getId(),
@@ -272,9 +288,13 @@ final class CustomerMailController
         $passwordHash = $this->mailPasswordHasher->hash($password);
         $secretPayload = $this->encryptionService->encrypt($password);
         $mailbox->setPassword($passwordHash, $secretPayload);
-        $job = $this->queueMailboxJob('mailbox.password.reset', $mailbox, [
-            'password_hash' => $passwordHash,
-        ]);
+        try {
+            $job = $this->queueMailboxJob('mailbox.password.reset', $mailbox, [
+                'password_hash' => $passwordHash,
+            ]);
+        } catch (\DomainException $exception) {
+            return $this->renderWithErrors($customer, [$exception->getMessage()]);
+        }
 
         $this->auditLogger->log($customer, 'mailbox.password_reset', [
             'mailbox_id' => $mailbox->getId(),
@@ -284,7 +304,7 @@ final class CustomerMailController
 
         $this->entityManager->flush();
 
-        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+        return new Response('', Response::HTTP_SEE_OTHER, ['Location' => sprintf('/mail/mailboxes/%d?password_scheduled=1', $mailbox->getId())]);
     }
 
     #[Route(path: '/{id}/delete', name: 'customer_mail_delete', methods: ['POST'])]
@@ -311,6 +331,47 @@ final class CustomerMailController
         $this->entityManager->flush();
 
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/mail']);
+    }
+
+    #[Route(path: '/mailboxes/{id}', name: 'customer_mailbox_detail', methods: ['GET'])]
+    public function mailboxDetail(Request $request, int $id): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $mailbox = $this->loadMailbox($customer, $id);
+        if ($mailbox === null) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $mailDomain = $this->mailDomainRepository->findOneByDomain($mailbox->getDomain());
+        $mailNode = $mailDomain?->getNode();
+        $clientHost = $mailNode?->getImapHost() ?: sprintf('mail.%s', $mailbox->getDomain()->getName());
+        $smtpHost = $mailNode?->getSmtpHost() ?: $clientHost;
+        $lastJob = $this->findLastMailboxProvisioningJob($mailbox->getAddress());
+
+        $policy = $this->mailPolicyRepository->findOneByDomain($mailbox->getDomain());
+        $dnsCheck = $this->mailDnsCheckService->check($mailbox->getDomain()->getName(), $clientHost);
+
+        return new Response($this->twig->render('customer/mail/detail.html.twig', [
+            'activeNav' => 'mail',
+            'mailbox' => $mailbox,
+            'mail_node_name' => $mailNode?->getName(),
+            'webmail_url' => $mailNode?->getRoundcubeUrl(),
+            'username' => $mailbox->getAddress(),
+            'imap' => ['host' => $clientHost, 'port' => 993, 'encryption' => 'SSL'],
+            'pop3' => ['host' => $clientHost, 'port' => 995, 'encryption' => 'SSL'],
+            'smtp' => ['host' => $smtpHost, 'port' => 587, 'encryption' => 'STARTTLS'],
+            'last_job' => $lastJob,
+            'password_csrf' => $this->csrfTokenManager->getToken('mailbox_password_' . $mailbox->getId())->getValue(),
+            'password_scheduled' => $request->query->get('password_scheduled') === '1',
+            'quota_usage' => $this->buildQuotaUsage($mailDomain?->getDomain()?->getWebspace()?->getNode()?->getLastHeartbeatStats(), $mailbox->getAddress(), $mailbox->getQuota()),
+            'dns_check' => $dnsCheck,
+            'smtp_policy' => [
+                'smtp_enabled' => $policy?->isSmtpEnabled() ?? true,
+                'send_limit_hour' => $policy?->getMaxHourlyEmails(),
+                'recipient_limit' => $policy?->getMaxRecipients(),
+                'abuse_policy_enabled' => $policy?->isAbusePolicyEnabled() ?? false,
+            ],
+        ]));
     }
 
 
@@ -365,10 +426,14 @@ final class CustomerMailController
         $alias = new MailAlias($domain, $localPart, $destinations, $enabled);
         $this->entityManager->persist($alias);
 
-        $job = $this->queueAliasJob('mail.alias.create', $alias, [
-            'destinations' => implode(', ', $alias->getDestinations()),
-            'enabled' => $alias->isEnabled() ? 'true' : 'false',
-        ]);
+        try {
+            $job = $this->queueAliasJob('mail.alias.create', $alias, [
+                'destinations' => implode(', ', $alias->getDestinations()),
+                'enabled' => $alias->isEnabled() ? 'true' : 'false',
+            ]);
+        } catch (\DomainException $exception) {
+            return $this->renderWithErrors($customer, [$exception->getMessage()]);
+        }
 
         $this->auditLogger->log($customer, 'mail.alias_created', [
             'alias_id' => $alias->getId(),
@@ -418,10 +483,14 @@ final class CustomerMailController
         $previousDestinations = $alias->getDestinations();
         $alias->setDestinations($destinations);
 
-        $job = $this->queueAliasJob('mail.alias.update', $alias, [
-            'destinations' => implode(', ', $alias->getDestinations()),
-            'enabled' => $alias->isEnabled() ? 'true' : 'false',
-        ]);
+        try {
+            $job = $this->queueAliasJob('mail.alias.update', $alias, [
+                'destinations' => implode(', ', $alias->getDestinations()),
+                'enabled' => $alias->isEnabled() ? 'true' : 'false',
+            ]);
+        } catch (\DomainException $exception) {
+            return $this->renderWithErrors($customer, [$exception->getMessage()]);
+        }
 
         $this->auditLogger->log($customer, 'mail.alias_updated', [
             'alias_id' => $alias->getId(),
@@ -453,10 +522,14 @@ final class CustomerMailController
             $previousEnabled = $alias->isEnabled();
             $alias->setEnabled($enabled);
             $jobType = $enabled ? 'mail.alias.enable' : 'mail.alias.disable';
-            $job = $this->queueAliasJob($jobType, $alias, [
-                'destinations' => implode(', ', $alias->getDestinations()),
-                'enabled' => $enabled ? 'true' : 'false',
-            ]);
+            try {
+                $job = $this->queueAliasJob($jobType, $alias, [
+                    'destinations' => implode(', ', $alias->getDestinations()),
+                    'enabled' => $enabled ? 'true' : 'false',
+                ]);
+            } catch (\DomainException $exception) {
+                return $this->renderWithErrors($customer, [$exception->getMessage()]);
+            }
 
             $this->auditLogger->log($customer, $enabled ? 'mail.alias_enabled' : 'mail.alias_disabled', [
                 'alias_id' => $alias->getId(),
@@ -484,7 +557,11 @@ final class CustomerMailController
             return $this->renderWithErrors($customer, ['Alias not found.']);
         }
 
-        $job = $this->queueAliasJob('mail.alias.delete', $alias, []);
+        try {
+            $job = $this->queueAliasJob('mail.alias.delete', $alias, []);
+        } catch (\DomainException $exception) {
+            return $this->renderWithErrors($customer, [$exception->getMessage()]);
+        }
 
         $this->auditLogger->log($customer, 'mail.alias_deleted', [
             'alias_id' => $alias->getId(),
@@ -540,6 +617,14 @@ final class CustomerMailController
     private function queueMailboxJob(string $type, Mailbox $mailbox, array $extraPayload): Job
     {
         $domain = $mailbox->getDomain();
+        $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
+        $agentId = $mailDomain?->getNode()->getId();
+        if ($agentId === null) {
+            $agentId = $domain->getWebspace()?->getNode()?->getId();
+        }
+        if ($agentId === null) {
+            throw new \DomainException('No mail agent/node assigned to this domain.');
+        }
         $payload = array_merge([
             'mailbox_id' => (string) ($mailbox->getId() ?? ''),
             'domain_id' => (string) $domain->getId(),
@@ -547,7 +632,13 @@ final class CustomerMailController
             'local_part' => $mailbox->getLocalPart(),
             'address' => $mailbox->getAddress(),
             'customer_id' => (string) $mailbox->getCustomer()->getId(),
-            'agent_id' => $domain->getWebspace()?->getNode()?->getId() ?? '',
+            'agent_id' => (string) $agentId,
+            'mail_enabled' => 'true',
+            'mail_backend' => 'local',
+            'smtp_enabled' => $this->resolveSmtpEnabled($domain),
+            'send_limit_hour' => (string) $this->resolveSendLimitHour($domain),
+            'recipient_limit' => (string) $this->resolveRecipientLimit($domain),
+            'abuse_policy_enabled' => $this->resolveAbusePolicyEnabled($domain),
         ], $extraPayload);
 
         $job = new Job($type, $payload);
@@ -570,6 +661,14 @@ final class CustomerMailController
     private function queueAliasJob(string $type, MailAlias $alias, array $extraPayload): Job
     {
         $domain = $alias->getDomain();
+        $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
+        $agentId = $mailDomain?->getNode()->getId();
+        if ($agentId === null) {
+            $agentId = $domain->getWebspace()?->getNode()?->getId();
+        }
+        if ($agentId === null) {
+            throw new \DomainException('No mail agent/node assigned to this domain.');
+        }
         $payload = array_merge([
             'mail_alias_id' => (string) ($alias->getId() ?? ''),
             'domain_id' => (string) $domain->getId(),
@@ -577,7 +676,13 @@ final class CustomerMailController
             'local_part' => $alias->getLocalPart(),
             'address' => $alias->getAddress(),
             'customer_id' => (string) $alias->getCustomer()->getId(),
-            'agent_id' => $domain->getWebspace()?->getNode()?->getId() ?? '',
+            'agent_id' => (string) $agentId,
+            'mail_enabled' => 'true',
+            'mail_backend' => 'local',
+            'smtp_enabled' => $this->resolveSmtpEnabled($domain),
+            'send_limit_hour' => (string) $this->resolveSendLimitHour($domain),
+            'recipient_limit' => (string) $this->resolveRecipientLimit($domain),
+            'abuse_policy_enabled' => $this->resolveAbusePolicyEnabled($domain),
         ], $extraPayload);
 
         $job = new Job($type, $payload);
@@ -622,6 +727,12 @@ final class CustomerMailController
 
         return null;
     }
+
+
+    private function resolveSmtpEnabled(\App\Module\Core\Domain\Entity\Domain $domain): string { $p=$this->mailPolicyRepository->findOneByDomain($domain); return ($p?->isSmtpEnabled() ?? true) ? 'true':'false'; }
+    private function resolveSendLimitHour(\App\Module\Core\Domain\Entity\Domain $domain): int { return $this->mailPolicyRepository->findOneByDomain($domain)?->getMaxHourlyEmails() ?? 0; }
+    private function resolveRecipientLimit(\App\Module\Core\Domain\Entity\Domain $domain): int { return $this->mailPolicyRepository->findOneByDomain($domain)?->getMaxRecipients() ?? 0; }
+    private function resolveAbusePolicyEnabled(\App\Module\Core\Domain\Entity\Domain $domain): string { return ($this->mailPolicyRepository->findOneByDomain($domain)?->isAbusePolicyEnabled() ?? false) ? 'true' : 'false'; }
 
     /**
      * @param MailAlias[] $aliases
@@ -734,6 +845,11 @@ final class CustomerMailController
                         'port' => $mailNode->getSmtpPort(),
                         'encryption' => self::ENCRYPTION_LABELS[self::DEFAULT_SMTP_ENCRYPTION],
                     ],
+                    'pop3' => [
+                        'host' => $this->normalizeClientHost($mailNode->getImapHost(), sprintf('mail.%s', $domain->getName())),
+                        'port' => 995,
+                        'encryption' => 'SSL/TLS',
+                    ],
                     'dns' => [
                         'spf' => sprintf('v=spf1 mx include:%s -all', $mailNode->getSmtpHost()),
                         'dkim' => sprintf('%s._domainkey.%s', $mailDomain->getDkimSelector(), $domain->getName()),
@@ -764,6 +880,11 @@ final class CustomerMailController
                     'host' => $this->normalizeClientHost($smtpHost, $defaultHost),
                     'port' => $smtpPort,
                     'encryption' => self::ENCRYPTION_LABELS[$smtpEncryption] ?? $smtpEncryption,
+                ],
+                'pop3' => [
+                    'host' => $this->normalizeClientHost($imapHost, $defaultHost),
+                    'port' => 995,
+                    'encryption' => 'SSL/TLS',
                 ],
                 'dns' => [
                     'spf' => sprintf('v=spf1 mx a:mail.%s -all', $domain->getName()),
@@ -803,6 +924,53 @@ final class CustomerMailController
         }
 
         return $default;
+    }
+
+    /** @param array<string,mixed>|null $stats */
+    private function buildQuotaUsage(?array $stats, string $address, int $quotaMb): array
+    {
+        $mail = is_array($stats['mail'] ?? null) ? $stats['mail'] : [];
+        $usageMap = is_array($mail['mailbox_usage'] ?? null) ? $mail['mailbox_usage'] : [];
+        $lookupAddress = strtolower($address);
+        $entry = is_array($usageMap[$lookupAddress] ?? null) ? $usageMap[$lookupAddress] : (is_array($usageMap[$address] ?? null) ? $usageMap[$address] : null);
+        if ($entry === null) {
+            return ['available' => false, 'used_bytes' => 0, 'used_mb' => 0.0, 'quota_mb' => max(0, $quotaMb), 'percent' => 0.0, 'percent_bar' => 0.0, 'truncated' => (bool) ($mail['mailbox_usage_truncated'] ?? false)];
+        }
+
+        $usedBytes = max(0, is_numeric($entry['used_bytes'] ?? null) ? (int) $entry['used_bytes'] : 0);
+        $usedMb = round($usedBytes / 1024 / 1024, 1);
+        $quota = max(0, $quotaMb);
+        $percent = $quota > 0 ? round(($usedMb / $quota) * 100, 1) : 0.0;
+
+        return ['available' => true, 'used_bytes' => $usedBytes, 'used_mb' => $usedMb, 'quota_mb' => $quota, 'percent' => $percent, 'percent_bar' => min(100.0, $percent), 'truncated' => (bool) ($mail['mailbox_usage_truncated'] ?? false)];
+    }
+
+
+    private function findLastMailboxProvisioningJob(string $address): ?array
+    {
+        $types = ['mailbox.create', 'mailbox.password.reset', 'mailbox.quota.update', 'mailbox.enable', 'mailbox.disable', 'mailbox.delete'];
+        $latest = null;
+        foreach ($types as $type) {
+            $jobs = $this->jobRepository->findLatestByType($type, 25);
+            foreach ($jobs as $job) {
+                if ((string) ($job->getPayload()['address'] ?? '') !== $address) {
+                    continue;
+                }
+                if ($latest === null || $job->getCreatedAt() > $latest->getCreatedAt()) {
+                    $latest = $job;
+                }
+                break;
+            }
+        }
+        if (!$latest instanceof Job) {
+            return null;
+        }
+
+        return [
+            'type' => $latest->getType(),
+            'status' => $latest->getStatus()->value,
+            'error' => $latest->getResult()?->getErrorMessage(),
+        ];
     }
 
     private function resolvePort(mixed $value, int $default): int

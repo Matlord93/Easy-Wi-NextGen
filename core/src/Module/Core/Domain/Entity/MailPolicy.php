@@ -33,6 +33,8 @@ class MailPolicy
 
     #[ORM\Column(options: ['default' => false])]
     private bool $requireTls = false;
+    #[ORM\Column(options: ['default' => true])]
+    private bool $smtpEnabled = true;
 
     #[Assert\Positive]
     #[ORM\Column(options: ['default' => 100])]
@@ -51,6 +53,8 @@ class MailPolicy
 
     #[ORM\Column(options: ['default' => true])]
     private bool $greylistingEnabled = true;
+    #[ORM\Column(options: ['default' => true])]
+    private bool $abusePolicyEnabled = true;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -106,17 +110,31 @@ class MailPolicy
         return $this->greylistingEnabled;
     }
 
+    public function isSmtpEnabled(): bool
+    {
+        return $this->smtpEnabled;
+    }
+
+    public function isAbusePolicyEnabled(): bool
+    {
+        return $this->abusePolicyEnabled;
+    }
+
     public function apply(
         bool $requireTls,
+        bool $smtpEnabled,
         int $maxRecipients,
         int $maxHourlyEmails,
+        bool $abusePolicyEnabled,
         bool $allowExternalForwarding,
         string $spamProtectionLevel,
         bool $greylistingEnabled,
     ): void {
         $this->requireTls = $requireTls;
-        $this->maxRecipients = max(1, $maxRecipients);
-        $this->maxHourlyEmails = max(1, $maxHourlyEmails);
+        $this->smtpEnabled = $smtpEnabled;
+        $this->maxRecipients = max(0, $maxRecipients);
+        $this->maxHourlyEmails = max(0, $maxHourlyEmails);
+        $this->abusePolicyEnabled = $abusePolicyEnabled;
         $this->allowExternalForwarding = $allowExternalForwarding;
         $this->spamProtectionLevel = in_array($spamProtectionLevel, [self::SPAM_LOW, self::SPAM_MED, self::SPAM_HIGH], true) ? $spamProtectionLevel : self::SPAM_MED;
         $this->greylistingEnabled = $greylistingEnabled;
@@ -127,8 +145,10 @@ class MailPolicy
     {
         return [
             'require_tls' => $this->requireTls,
+            'smtp_enabled' => $this->smtpEnabled,
             'max_recipients' => $this->maxRecipients,
             'max_hourly_emails' => $this->maxHourlyEmails,
+            'abuse_policy_enabled' => $this->abusePolicyEnabled,
             'allow_external_forwarding' => $this->allowExternalForwarding,
             'spam_protection_level' => $this->spamProtectionLevel,
             'greylisting_enabled' => $this->greylistingEnabled,

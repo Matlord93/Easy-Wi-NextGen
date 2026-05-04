@@ -97,11 +97,15 @@ final class MailboxApiController
             return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_CONFLICT);
         }
 
-        $job = $this->queueMailboxJob('mailbox.create', $mailbox, [
-            'password_hash' => $passwordHash,
-            'quota_mb' => (string) $mailbox->getQuota(),
-            'enabled' => $mailbox->isEnabled() ? 'true' : 'false',
-        ]);
+        try {
+            $job = $this->queueMailboxJob('mailbox.create', $mailbox, [
+                'password_hash' => $passwordHash,
+                'quota_mb' => (string) $mailbox->getQuota(),
+                'enabled' => $mailbox->isEnabled() ? 'true' : 'false',
+            ]);
+        } catch (\DomainException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
         $firewallJob = $this->queueMailboxFirewall($mailbox);
 
         $this->auditLogger->log($actor, 'mailbox.created', [
@@ -176,9 +180,13 @@ final class MailboxApiController
 
         $previousQuota = $mailbox->getQuota();
         $mailbox->setQuota($quota);
-        $job = $this->queueMailboxJob('mailbox.quota.update', $mailbox, [
-            'quota_mb' => (string) $quota,
-        ]);
+        try {
+            $job = $this->queueMailboxJob('mailbox.quota.update', $mailbox, [
+                'quota_mb' => (string) $quota,
+            ]);
+        } catch (\DomainException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         $this->auditLogger->log($actor, 'mailbox.quota_updated', [
             'mailbox_id' => $mailbox->getId(),
@@ -228,9 +236,13 @@ final class MailboxApiController
         $previousEnabled = $mailbox->isEnabled();
         $mailbox->setEnabled($enabled);
         $jobType = $enabled ? 'mailbox.enable' : 'mailbox.disable';
-        $job = $this->queueMailboxJob($jobType, $mailbox, [
-            'enabled' => $enabled ? 'true' : 'false',
-        ]);
+        try {
+            $job = $this->queueMailboxJob($jobType, $mailbox, [
+                'enabled' => $enabled ? 'true' : 'false',
+            ]);
+        } catch (\DomainException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         $this->auditLogger->log($actor, $enabled ? 'mailbox.enabled' : 'mailbox.disabled', [
             'mailbox_id' => $mailbox->getId(),
@@ -275,9 +287,13 @@ final class MailboxApiController
         $secretPayload = $this->encryptionService->encrypt($password);
         $mailbox->setPassword($passwordHash, $secretPayload);
 
-        $job = $this->queueMailboxJob('mailbox.password.reset', $mailbox, [
-            'password_hash' => $passwordHash,
-        ]);
+        try {
+            $job = $this->queueMailboxJob('mailbox.password.reset', $mailbox, [
+                'password_hash' => $passwordHash,
+            ]);
+        } catch (\DomainException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         $this->auditLogger->log($actor, 'mailbox.password_reset', [
             'mailbox_id' => $mailbox->getId(),
@@ -307,7 +323,11 @@ final class MailboxApiController
             return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
         }
 
-        $job = $this->queueMailboxJob('mailbox.delete', $mailbox, []);
+        try {
+            $job = $this->queueMailboxJob('mailbox.delete', $mailbox, []);
+        } catch (\DomainException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         $this->auditLogger->log($actor, 'mailbox.deleted', [
             'mailbox_id' => $mailbox->getId(),
@@ -417,8 +437,10 @@ final class MailboxApiController
     private function queueMailboxJob(string $type, Mailbox $mailbox, array $extraPayload): Job
     {
         $domain = $mailbox->getDomain();
-        $webspace = $domain->getWebspace();
-        $agentId = $webspace !== null ? (string) $webspace->getNode()->getId() : null;
+        $agentId = $this->resolveMailAgentId($domain);
+        if ($agentId === null) {
+            throw new \DomainException('No mail agent/node assigned to this domain.');
+        }
         $payload = array_merge([
             'mailbox_id' => (string) ($mailbox->getId() ?? ''),
             'domain_id' => (string) $domain->getId(),
@@ -427,12 +449,26 @@ final class MailboxApiController
             'address' => $mailbox->getAddress(),
             'customer_id' => (string) $mailbox->getCustomer()->getId(),
             'agent_id' => $agentId,
+            'mail_enabled' => 'true',
+            'mail_backend' => 'local',
         ], $extraPayload);
 
         $job = new Job($type, $payload);
         $this->entityManager->persist($job);
 
         return $job;
+    }
+
+    private function resolveMailAgentId(\App\Module\Core\Domain\Entity\Domain $domain): ?string
+    {
+        $mailDomain = $this->mailDomainRepository->findOneByDomain($domain);
+        if ($mailDomain !== null) {
+            return (string) $mailDomain->getNode()->getId();
+        }
+
+        $webspace = $domain->getWebspace();
+
+        return $webspace !== null ? (string) $webspace->getNode()->getId() : null;
     }
 
     private function normalizeMailbox(Mailbox $mailbox): array

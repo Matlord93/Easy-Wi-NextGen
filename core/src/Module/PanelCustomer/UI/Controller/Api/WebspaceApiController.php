@@ -601,6 +601,60 @@ final class WebspaceApiController
         return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Domain apply queued.', 202);
     }
 
+    #[Route(path: '/api/v1/customer/webspaces/{id}/domains', name: 'customer_webspaces_domain_list_v1', methods: ['GET'])]
+    public function listDomains(Request $request, int $id): JsonResponse
+    {
+        $actor = $request->attributes->get('current_user');
+        $webspace = $this->webspaceRepository->find($id);
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || $webspace->getCustomer()->getId() !== $actor->getId()) {
+            return $this->responseEnvelopeFactory->error($request, 'Webspace not found.', 'webspace_not_found', 404);
+        }
+
+        $domains = $this->domainRepository->findBy(['webspace' => $webspace], ['id' => 'ASC']);
+        $rows = [];
+        foreach ($domains as $domain) {
+            $certificate = $this->entityManager->getRepository(Certificate::class)->findOneBy(['domain' => $domain], ['id' => 'DESC']);
+            $rows[] = $this->domainApiPayload($domain, $certificate);
+        }
+
+        return $this->responseEnvelopeFactory->success($request, null, 'Domains loaded.', 200, ['domains' => $rows]);
+    }
+
+    #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}', name: 'customer_webspaces_domain_patch_v1', methods: ['PATCH'])]
+    public function patchDomain(Request $request, int $id, int $domainId): JsonResponse
+    {
+        $actor = $request->attributes->get('current_user');
+        $webspace = $this->webspaceRepository->find($id);
+        $domain = $this->domainRepository->find($domainId);
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || !$domain instanceof Domain || $webspace->getCustomer()->getId() !== $actor->getId() || $domain->getWebspace()?->getId() !== $webspace->getId()) {
+            return $this->responseEnvelopeFactory->error($request, 'Domain not found.', 'domain_not_found', 404);
+        }
+
+        $active = $this->findActiveWebspaceActionJob((string) $webspace->getId());
+        if ($active !== null) {
+            return $this->responseEnvelopeFactory->error($request, 'Another webspace action is already running.', 'webspace_action_in_progress', 409, 10, ['job_id' => $active->getId()]);
+        }
+
+        $payload = $request->toArray();
+        $targetPath = array_key_exists('target_path', $payload) ? (string) $payload['target_path'] : (string) ($domain->getTargetPath() ?? '');
+        $redirectHttps = array_key_exists('redirect_https', $payload) ? (bool) $payload['redirect_https'] : $domain->isRedirectHttps();
+        $redirectWww = array_key_exists('redirect_www', $payload) ? (bool) $payload['redirect_www'] : $domain->isRedirectWww();
+        $targetPath = $this->pathSanitizer->sanitizeRelativePath($targetPath);
+
+        $domain->setTargetPath($targetPath === '' ? null : $targetPath);
+        $domain->setRedirectHttps($redirectHttps);
+        $domain->setRedirectWww($redirectWww);
+        $domain->setApplyStatus('pending');
+
+        $job = $this->createDomainApplyJob($webspace, $domain, 'add');
+        $this->entityManager->persist($job);
+        $webspace->setApplyRequired(true);
+        $webspace->setApplyStatus('running');
+        $this->entityManager->flush();
+
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Domain update queued.', 202);
+    }
+
     #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}', name: 'customer_webspaces_domain_remove_v1', methods: ['DELETE'])]
     public function removeDomain(Request $request, int $id, int $domainId): JsonResponse
     {
@@ -638,6 +692,82 @@ final class WebspaceApiController
         $this->entityManager->flush();
 
         return $this->responseEnvelopeFactory->success($request, $job->getId(), 'Domain removal queued.', 202);
+    }
+
+    #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}/ssl', name: 'customer_webspaces_domain_ssl_status_v1', methods: ['GET'])]
+    public function sslStatus(Request $request, int $id, int $domainId): JsonResponse
+    {
+        [$error, $webspace, $domain] = $this->resolveOwnedDomain($request, $id, $domainId);
+        if ($error instanceof JsonResponse) {
+            return $error;
+        }
+        $certificate = $this->entityManager->getRepository(Certificate::class)->findOneBy(['domain' => $domain], ['id' => 'DESC']);
+        return $this->responseEnvelopeFactory->success($request, null, 'SSL status loaded.', 200, [
+            'ssl' => $this->certificatePayload($certificate),
+        ]);
+    }
+
+    #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}/ssl/issue', name: 'customer_webspaces_domain_ssl_issue_v1', methods: ['POST'])]
+    public function sslIssue(Request $request, int $id, int $domainId): JsonResponse
+    {
+        [$error, $webspace, $domain] = $this->resolveOwnedDomain($request, $id, $domainId);
+        if ($error instanceof JsonResponse) {
+            return $error;
+        }
+        $certificate = $this->entityManager->getRepository(Certificate::class)->findOneBy(['domain' => $domain], ['id' => 'DESC']) ?? new Certificate($domain);
+        $certificate->setStatus('pending');
+        $certificate->setLastError(null);
+        $this->entityManager->persist($certificate);
+        $job = new Job('domain.ssl.issue', $this->buildSslJobPayload($webspace, $domain));
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'SSL issue queued.', 202);
+    }
+
+    #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}/ssl/disable', name: 'customer_webspaces_domain_ssl_disable_v1', methods: ['POST'])]
+    public function sslDisable(Request $request, int $id, int $domainId): JsonResponse
+    {
+        [$error, $webspace, $domain] = $this->resolveOwnedDomain($request, $id, $domainId);
+        if ($error instanceof JsonResponse) {
+            return $error;
+        }
+        $active = $this->findActiveWebspaceActionJob((string) $webspace->getId());
+        if ($active !== null) {
+            return $this->responseEnvelopeFactory->error($request, 'Another webspace action is already running.', 'webspace_action_in_progress', 409, 10, ['job_id' => $active->getId()]);
+        }
+
+        $domain->setRedirectHttps(false);
+        $domain->setApplyStatus('pending');
+        $job = new Job('webspace.domain.apply', array_merge(
+            $this->createDomainApplyJob($webspace, $domain, 'add')->getPayload(),
+            ['ssl_enabled' => '0']
+        ));
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'SSL disabled and apply queued.', 202, [
+            'domain' => ['id' => $domain->getId(), 'redirect_https' => $domain->isRedirectHttps(), 'apply_status' => $domain->getApplyStatus()],
+        ]);
+    }
+
+    #[Route(path: '/api/v1/customer/webspaces/{id}/domains/{domainId}/ssl/renew', name: 'customer_webspaces_domain_ssl_renew_v1', methods: ['POST'])]
+    public function sslRenew(Request $request, int $id, int $domainId): JsonResponse
+    {
+        [$error, $webspace, $domain] = $this->resolveOwnedDomain($request, $id, $domainId);
+        if ($error instanceof JsonResponse) {
+            return $error;
+        }
+        $certificate = $this->entityManager->getRepository(Certificate::class)->findOneBy(['domain' => $domain], ['id' => 'DESC']);
+        if (!$certificate instanceof Certificate) {
+            return $this->responseEnvelopeFactory->error($request, 'No certificate found for domain.', 'certificate_not_found', 404);
+        }
+        $certificate->setStatus('renewing');
+        $this->entityManager->persist($certificate);
+        $job = new Job('domain.ssl.renew', $this->buildSslJobPayload($webspace, $domain));
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+
+        return $this->responseEnvelopeFactory->success($request, $job->getId(), 'SSL renew queued.', 202);
     }
 
     #[Route(path: '/api/v1/customer/webspaces/{id}/apply', name: 'customer_webspaces_apply_v1', methods: ['POST'])]
@@ -765,6 +895,92 @@ final class WebspaceApiController
         }
 
         return true;
+    }
+
+    private function createDomainApplyJob(Webspace $webspace, Domain $domain, string $action): Job
+    {
+        return new Job('webspace.domain.apply', [
+            'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => (string) $webspace->getId(),
+            'domain_id' => (string) $domain->getId(),
+            'domain' => $domain->getName(),
+            'aliases' => implode(',', $domain->getServerAliases()),
+            'action' => $action,
+            'runtime' => $webspace->getRuntime(),
+            'web_root' => $webspace->getPath(),
+            'docroot' => $webspace->getDocroot(),
+            'target_path' => (string) ($domain->getTargetPath() ?? ''),
+            'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
+            'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
+            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $webspace->getSystemUsername()),
+            'redirect_https' => $domain->isRedirectHttps() ? '1' : '0',
+            'redirect_www' => $domain->isRedirectWww() ? '1' : '0',
+        ]);
+    }
+
+    private function buildSslJobPayload(Webspace $webspace, Domain $domain): array
+    {
+        return [
+            'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => (string) $webspace->getId(),
+            'domain_id' => (string) $domain->getId(),
+            'domain' => $domain->getName(),
+            'web_root' => $webspace->getPath(),
+            'docroot' => $webspace->getDocroot(),
+            'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
+            'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
+            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $webspace->getSystemUsername()),
+            'cert_dir' => sprintf('/etc/easywi/web/certs/%s', $domain->getName()),
+            'redirect_https' => $domain->isRedirectHttps() ? '1' : '0',
+            'runtime' => $webspace->getRuntime(),
+        ];
+    }
+
+    private function domainApiPayload(Domain $domain, ?Certificate $certificate): array
+    {
+        return [
+            'id' => $domain->getId(),
+            'fqdn' => $domain->getName(),
+            'type' => $domain->getType(),
+            'target_path' => $domain->getTargetPath(),
+            'status' => $domain->getStatus(),
+            'apply_status' => $domain->getApplyStatus(),
+            'ssl_enabled' => $certificate?->getStatus() === 'active',
+            'certificate_status' => $certificate?->getStatus(),
+            'certificate_expires_at' => null,
+            'redirect_https' => $domain->isRedirectHttps(),
+            'redirect_www' => $domain->isRedirectWww(),
+            'last_apply_error_code' => $domain->getLastErrorCode(),
+            'last_apply_error_message' => $domain->getLastErrorMessage(),
+        ];
+    }
+
+    private function certificatePayload(?Certificate $certificate): array
+    {
+        if (!$certificate instanceof Certificate) {
+            return ['status' => 'none'];
+        }
+        return [
+            'status' => $certificate->getStatus(),
+            'issuer' => 'acme',
+            'fullchain_path' => null,
+            'privkey_path' => null,
+            'issued_at' => null,
+            'expires_at' => null,
+            'last_error_code' => null,
+            'last_error_message' => null,
+        ];
+    }
+
+    private function resolveOwnedDomain(Request $request, int $webspaceId, int $domainId): array
+    {
+        $actor = $request->attributes->get('current_user');
+        $webspace = $this->webspaceRepository->find($webspaceId);
+        $domain = $this->domainRepository->find($domainId);
+        if (!$actor instanceof User || $actor->getType() !== UserType::Customer || !$webspace instanceof Webspace || !$domain instanceof Domain || $webspace->getCustomer()->getId() !== $actor->getId() || $domain->getWebspace()?->getId() !== $webspace->getId()) {
+            return [$this->responseEnvelopeFactory->error($request, 'Domain not found.', 'domain_not_found', 404), null, null];
+        }
+        return [null, $webspace, $domain];
     }
 
     /**

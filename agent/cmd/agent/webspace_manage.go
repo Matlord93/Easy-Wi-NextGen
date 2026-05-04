@@ -61,6 +61,7 @@ func handleWebspaceUpdate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	phpSettings := payloadPhpSettings(job.Payload)
+	nginxSocketUser, nginxSocketGroup := detectNginxSocketIdentity()
 
 	if err := ensureDir(docroot); err != nil {
 		return failureResult(job.ID, err)
@@ -72,7 +73,10 @@ func handleWebspaceUpdate(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 
-	if err := writePhpFpmPoolWithSettings(phpFpmPoolPath, poolName, ownerUser, ownerGroup, phpFpmListen, webRoot, logsDir, tmpDir, phpVersion, phpSettings); err != nil {
+	if err := writePhpFpmPoolWithSettings(phpFpmPoolPath, poolName, ownerUser, ownerGroup, nginxSocketUser, nginxSocketGroup, phpFpmListen, webRoot, logsDir, tmpDir, phpVersion, phpSettings); err != nil {
+		return failureResult(job.ID, err)
+	}
+	if err := activatePhpFpmPool(phpVersion, phpFpmPoolPath); err != nil {
 		return failureResult(job.ID, err)
 	}
 	if err := writeNginxInclude(nginxIncludePath, docroot, logsDir, phpFpmListen); err != nil {

@@ -55,16 +55,18 @@ final class MailAutodiscoverController
     {
         $email = (string) $request->query->get('emailaddress', '');
         $node  = $this->resolveNodeForEmail($email);
+        $domain = $this->domainFromEmail($email);
+        if ($domain === null || $node === null) {
+            return new Response('', Response::HTTP_NOT_FOUND);
+        }
 
-        $imapHost = $node?->getImapHost() ?? '';
+        $imapHost = $node->getImapHost() !== '' ? $node->getImapHost() : sprintf('mail.%s', $domain);
         $imapPort = $node?->getImapPort() ?? 993;
-        $smtpHost = $node?->getSmtpHost() ?? '';
+        $smtpHost = $node->getSmtpHost() !== '' ? $node->getSmtpHost() : sprintf('mail.%s', $domain);
         $smtpPort = $node?->getSmtpPort() ?? 587;
 
         $imapSocketType = $imapPort === 993 ? 'SSL' : 'STARTTLS';
         $smtpSocketType = $smtpPort === 465 ? 'SSL' : 'STARTTLS';
-
-        $domain = $this->domainFromEmail($email) ?? '';
 
         $xml = $this->buildAutoconfigXml($domain, $imapHost, $imapPort, $imapSocketType, $smtpHost, $smtpPort, $smtpSocketType);
 
@@ -197,6 +199,13 @@ XML;
       <hostname>{$imapHost}</hostname>
       <port>{$imapPort}</port>
       <socketType>{$imapSocketType}</socketType>
+      <authentication>password-cleartext</authentication>
+      <username>%EMAILADDRESS%</username>
+    </incomingServer>
+    <incomingServer type="pop3">
+      <hostname>{$imapHost}</hostname>
+      <port>995</port>
+      <socketType>SSL</socketType>
       <authentication>password-cleartext</authentication>
       <username>%EMAILADDRESS%</username>
     </incomingServer>

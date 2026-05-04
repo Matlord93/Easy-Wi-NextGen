@@ -499,19 +499,19 @@ func roleBasePackages(family string) []string {
 
 func mailDovecotPackages(family string) []string {
 	if family != "debian" {
-		return []string{"dovecot"}
+		return []string{"dovecot", "dovecot-pigeonhole", "cyrus-sasl", "cyrus-sasl-plain"}
 	}
 
 	if commandExists("apt-cache") {
 		if err := exec.Command("apt-cache", "show", "dovecot-core").Run(); err == nil {
-			return []string{"dovecot-core", "dovecot-imapd"}
+			return []string{"dovecot-core", "dovecot-imapd", "dovecot-pop3d", "dovecot-lmtpd", "libsasl2-modules"}
 		}
 		if err := exec.Command("apt-cache", "show", "dovecot").Run(); err == nil {
 			return []string{"dovecot"}
 		}
 	}
 
-	return []string{"dovecot-core", "dovecot-imapd"}
+	return []string{"dovecot-core", "dovecot-imapd", "dovecot-pop3d", "dovecot-lmtpd", "libsasl2-modules"}
 }
 
 func installPackages(family string, packages []string, output *strings.Builder) error {
@@ -849,6 +849,26 @@ func ensureRoleFiles(role string, output *strings.Builder) error {
 			}
 		}
 	}
+	if role == "mail" {
+		for _, dir := range []string{"/etc/postfix", "/etc/dovecot", "/var/mail/vhosts"} {
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				return fmt.Errorf("create mail dir %s: %w", dir, err)
+			}
+		}
+		if err := ensureManagedMailFile("/etc/postfix/virtual_mailboxes", ""); err != nil {
+			return fmt.Errorf("write postfix virtual mailboxes: %w", err)
+		}
+		if err := ensureManagedMailFile("/etc/postfix/virtual_domains", ""); err != nil {
+			return fmt.Errorf("write postfix virtual domains: %w", err)
+		}
+		if err := ensureManagedMailFile("/etc/postfix/virtual_aliases", ""); err != nil {
+			return fmt.Errorf("write postfix virtual aliases: %w", err)
+		}
+		if err := ensureManagedMailFile("/etc/dovecot/users", ""); err != nil {
+			return fmt.Errorf("write dovecot users: %w", err)
+		}
+		appendOutput(output, "mail_files_ready=true")
+	}
 
 	return nil
 }
@@ -860,6 +880,10 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 	}
 
 	settings := []string{
+			"virtual_mailbox_base=/var/mail/vhosts",
+			"virtual_mailbox_domains=hash:/etc/postfix/virtual_domains",
+			"virtual_mailbox_maps=hash:/etc/postfix/virtual_mailboxes",
+			"virtual_alias_maps=hash:/etc/postfix/virtual_aliases",
 		"smtpd_sasl_auth_enable=yes",
 		"smtpd_sasl_type=dovecot",
 		"smtpd_sasl_path=private/auth",
@@ -896,11 +920,15 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 		appendOutput(output, "dovecot_auth_written="+authConfPath)
 
 		usersConfPath := filepath.Join(dovecotConfDir, "99-easywi-users.conf")
-		if err := os.Remove(usersConfPath); err == nil {
-			appendOutput(output, "dovecot_users_removed="+usersConfPath)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("remove legacy dovecot users config: %w", err)
+		usersConf := "## Managed by Easy-Wi agent\n" +
+			"disable_plaintext_auth = yes\n" +
+			"protocols = imap pop3 lmtp\n" +
+			"passdb {\n  driver = passwd-file\n  args = /etc/dovecot/users\n}\n" +
+			"userdb {\n  driver = static\n  args = uid=vmail gid=vmail home=/var/mail/vhosts/%d/%n\n}\n"
+		if err := os.WriteFile(usersConfPath, []byte(usersConf), 0o640); err != nil {
+			return fmt.Errorf("write dovecot users config: %w", err)
 		}
+		appendOutput(output, "dovecot_users_written="+usersConfPath)
 	} else {
 		appendOutput(output, "dovecot_conf_missing=true")
 	}
@@ -911,6 +939,21 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 	}
 
 	return nil
+}
+
+func ensureManagedMailFile(path, body string) error {
+	content := "## Managed by Easy-Wi agent\n# BEGIN EASYWI MANAGED MAIL\n" + body + "# END EASYWI MANAGED MAIL\n"
+	existing, err := os.ReadFile(path)
+	if err == nil {
+		if strings.Contains(string(existing), "# BEGIN EASYWI MANAGED MAIL") {
+			return nil
+		}
+		return os.WriteFile(path, []byte(string(existing)+"\n"+content), 0o640)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return os.WriteFile(path, []byte(content), 0o640)
 }
 
 func ensureWebServerDefaults(output *strings.Builder) error {

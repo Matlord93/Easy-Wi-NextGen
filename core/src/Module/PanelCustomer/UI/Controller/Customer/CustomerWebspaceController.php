@@ -17,11 +17,13 @@ use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/webspace')]
+#[Route(path: '/customer/webspaces')]
 #[RequiresModule('web')]
 final class CustomerWebspaceController
 {
@@ -34,6 +36,48 @@ final class CustomerWebspaceController
         private readonly AuditLogger $auditLogger,
         private readonly Environment $twig,
     ) {
+    }
+
+    #[Route(path: '/manage/domain/add', name: 'customer_webspace_domain_add', methods: ['POST'])]
+    public function addDomainManage(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $webspace = $this->findCustomerWebspace($customer, $request->request->get('webspace_id'));
+        if ($webspace === null) {
+            return $this->redirectWithFlash('/customer/webspaces', 'error', 'Webspace nicht gefunden.');
+        }
+        if ($this->hasActiveWebspaceJob($webspace)) {
+            return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'error', 'Es läuft bereits eine Aktion für diesen Webspace.');
+        }
+        $fqdn = strtolower(trim((string) $request->request->get('fqdn', '')));
+        if (!$this->isValidDomainName($fqdn)) {
+            return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'error', 'Ungültige Domain.');
+        }
+        $domain = new Domain($customer, $webspace, $fqdn, 'pending');
+        $domain->setType((string) $request->request->get('type', 'domain') === 'subdomain' ? 'subdomain' : 'domain');
+        $domain->setTargetPath(trim((string) $request->request->get('target_path', '')) ?: null);
+        $domain->setRedirectHttps($request->request->getBoolean('redirect_https'));
+        $domain->setRedirectWww($request->request->getBoolean('redirect_www'));
+        $domain->setApplyStatus('pending');
+        $this->entityManager->persist($domain);
+        $this->entityManager->persist($this->queueDomainUpdateJob($domain));
+        if ($request->request->getBoolean('request_tls')) {
+            $this->entityManager->persist(new Job('domain.ssl.issue', [
+                'agent_id' => $webspace->getNode()->getId(),
+                'webspace_id' => (string) $webspace->getId(),
+                'domain_id' => (string) $domain->getId(),
+                'domain' => $domain->getName(),
+                'web_root' => $webspace->getPath(),
+                'docroot' => $webspace->getDocroot(),
+                'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
+                'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
+                'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $webspace->getSystemUsername()),
+                'cert_dir' => sprintf('/etc/easywi/web/certs/%s', $domain->getName()),
+                'runtime' => $webspace->getRuntime(),
+            ]));
+        }
+        $this->entityManager->flush();
+        return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'success', 'Domain wurde hinzugefügt.');
     }
 
     #[Route(path: '', name: 'customer_webspace', methods: ['GET'])]
@@ -60,11 +104,21 @@ final class CustomerWebspaceController
     }
 
     #[Route(path: '/manage', name: 'customer_webspace_manage', methods: ['GET'])]
+    #[Route(path: '/{id}', name: 'customer_webspace_detail', methods: ['GET'])]
     public function manage(Request $request): Response
     {
         $customer = $this->requireCustomer($request);
         $domains = $this->domainRepository->findByCustomer($customer);
         $selectedDomainId = (int) $request->query->get('domain_id', 0);
+        $webspaceId = (int) $request->attributes->get('id', 0);
+        if ($selectedDomainId <= 0 && $webspaceId > 0) {
+            foreach ($domains as $domain) {
+                if ($domain->getWebspace()?->getId() === $webspaceId) {
+                    $selectedDomainId = (int) $domain->getId();
+                    break;
+                }
+            }
+        }
 
         $selectedDomain = null;
         if ($selectedDomainId > 0) {
@@ -86,6 +140,7 @@ final class CustomerWebspaceController
             'webspace' => $webspace ? $this->normalizeWebspaceDetail($webspace) : null,
             'webspaces' => $this->normalizeWebspaces($webspaces),
             'webspaceDomains' => $this->normalizeDomains($webspaceDomains),
+            'hasActiveWebspaceJob' => $webspace ? $this->hasActiveWebspaceJob($webspace) : false,
         ]));
     }
 
@@ -124,7 +179,7 @@ final class CustomerWebspaceController
         $customer = $this->requireCustomer($request);
         $domain = $this->findCustomerDomainByRequest($customer, $request);
         if ($domain === null) {
-            return new Response('Domain not found.', Response::HTTP_NOT_FOUND);
+            return $this->redirectWithFlash('/customer/webspaces', 'error', 'Domain nicht gefunden.');
         }
 
         $input = (string) $request->request->get('subdomain', '');
@@ -416,6 +471,87 @@ final class CustomerWebspaceController
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/webspace/manage?domain_id=' . $domain->getId()]);
     }
 
+    #[Route(path: '/manage/ssl/disable', name: 'customer_webspace_ssl_disable', methods: ['POST'])]
+    public function disableSsl(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $domain = $this->findCustomerDomainByRequest($customer, $request);
+        if ($domain === null) {
+            return new Response('Domain not found.', Response::HTTP_NOT_FOUND);
+        }
+        $webspace = $domain->getWebspace();
+        if ($webspace !== null && $this->hasActiveWebspaceJob($webspace)) {
+            return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'error', 'Es läuft bereits eine Aktion für diesen Webspace.');
+        }
+        $domain->setRedirectHttps(false);
+        $domain->setStatus('pending');
+        $job = $this->queueDomainUpdateJob($domain, ['ssl_enabled' => '0']);
+        $this->auditLogger->log($customer, 'domain.ssl_disabled', ['domain_id' => $domain->getId(), 'job_id' => $job->getId()]);
+        $this->entityManager->flush();
+        return $this->redirectWithFlash('/customer/webspaces/' . $webspace?->getId(), 'success', 'SSL wurde deaktiviert.');
+    }
+
+    #[Route(path: '/manage/ssl/renew', name: 'customer_webspace_ssl_renew', methods: ['POST'])]
+    public function renewSsl(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $domain = $this->findCustomerDomainByRequest($customer, $request);
+        if ($domain === null) {
+            return $this->redirectWithFlash('/customer/webspaces', 'error', 'Domain nicht gefunden.');
+        }
+        $webspace = $domain->getWebspace();
+        if ($webspace === null) {
+            return $this->redirectWithFlash('/customer/webspaces', 'error', 'Webspace nicht gefunden.');
+        }
+        if ($this->hasActiveWebspaceJob($webspace)) {
+            return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'error', 'Es läuft bereits eine Aktion für diesen Webspace.');
+        }
+        if ($domain->getSslExpiresAt() === null) {
+            return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'error', 'SSL ist nicht aktiv.');
+        }
+        $job = new Job('domain.ssl.renew', [
+            'agent_id' => $webspace->getNode()->getId(),
+            'webspace_id' => (string) $webspace->getId(),
+            'domain_id' => (string) $domain->getId(),
+            'domain' => $domain->getName(),
+            'web_root' => $webspace->getPath(),
+            'docroot' => $webspace->getDocroot(),
+            'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
+            'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
+            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $webspace->getSystemUsername()),
+            'cert_dir' => sprintf('/etc/easywi/web/certs/%s', $domain->getName()),
+            'runtime' => $webspace->getRuntime(),
+        ]);
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+        return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'success', 'SSL-Erneuerung wurde gestartet.');
+    }
+
+    #[Route(path: '/manage/domain/update', name: 'customer_webspace_domain_update', methods: ['POST'])]
+    public function updateDomainManage(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $domain = $this->findCustomerDomainByRequest($customer, $request);
+        if ($domain === null) {
+            return $this->redirectWithFlash('/customer/webspaces', 'error', 'Domain nicht gefunden.');
+        }
+        $webspace = $domain->getWebspace();
+        if ($webspace === null || $this->hasActiveWebspaceJob($webspace)) {
+            return $this->redirectWithFlash('/customer/webspaces/' . ($webspace?->getId() ?? ''), 'error', 'Es läuft bereits eine Aktion für diesen Webspace.');
+        }
+        $domain->setTargetPath(trim((string) $request->request->get('target_path', '')) ?: null);
+        $redirectHttps = $request->request->getBoolean('redirect_https');
+        if ($redirectHttps && !in_array(self::calculateSslStatus($domain->getSslExpiresAt(), $domain->getStatus()), ['active', 'pending', 'renewing', 'expires_soon'], true)) {
+            return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'error', 'HTTPS-Redirect benötigt ein aktives oder angefordertes SSL-Zertifikat.');
+        }
+        $domain->setRedirectHttps($redirectHttps);
+        $domain->setRedirectWww($request->request->getBoolean('redirect_www'));
+        $domain->setApplyStatus('pending');
+        $this->entityManager->persist($this->queueDomainUpdateJob($domain));
+        $this->entityManager->flush();
+        return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'success', 'Domain-Einstellungen wurden gespeichert.');
+    }
+
     #[Route(path: '/manage/roundcube', name: 'customer_roundcube_install', methods: ['POST'])]
     public function installRoundcube(Request $request): Response
     {
@@ -443,6 +579,44 @@ final class CustomerWebspaceController
         $this->entityManager->flush();
 
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/webspace/manage?domain_id=' . $this->primaryDomainId($webspace)]);
+    }
+
+    #[Route(path: '/manage/domain/delete', name: 'customer_webspace_domain_delete', methods: ['POST'])]
+    public function deleteDomainManage(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $domain = $this->findCustomerDomainByRequest($customer, $request);
+        if ($domain === null) {
+            return $this->redirectWithFlash('/customer/webspaces', 'error', 'Domain nicht gefunden.');
+        }
+        $webspace = $domain->getWebspace();
+        if ($webspace === null || $this->hasActiveWebspaceJob($webspace)) {
+            return $this->redirectWithFlash('/customer/webspaces/' . ($webspace?->getId() ?? ''), 'error', 'Es läuft bereits eine Aktion für diesen Webspace.');
+        }
+        $job = $this->queueDomainUpdateJob($domain, ['action' => 'remove']);
+        $domain->setStatus('pending');
+        $domain->setApplyStatus('pending');
+        $this->entityManager->persist($job);
+        $this->entityManager->flush();
+        return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'success', 'Domain-Entfernung wurde gestartet.');
+    }
+
+    #[Route(path: '/manage/domain/apply', name: 'customer_webspace_domain_apply', methods: ['POST'])]
+    public function applyDomainManage(Request $request): Response
+    {
+        $customer = $this->requireCustomer($request);
+        $domain = $this->findCustomerDomainByRequest($customer, $request);
+        if ($domain === null) {
+            return $this->redirectWithFlash('/customer/webspaces', 'error', 'Domain nicht gefunden.');
+        }
+        $webspace = $domain->getWebspace();
+        if ($webspace === null || $this->hasActiveWebspaceJob($webspace)) {
+            return $this->redirectWithFlash('/customer/webspaces/' . ($webspace?->getId() ?? ''), 'error', 'Es läuft bereits eine Aktion für diesen Webspace.');
+        }
+        $this->entityManager->persist($this->queueDomainUpdateJob($domain));
+        $domain->setApplyStatus('pending');
+        $this->entityManager->flush();
+        return $this->redirectWithFlash('/customer/webspaces/' . $webspace->getId(), 'success', 'Domain wird erneut angewendet.');
     }
 
     private function requireCustomer(Request $request): User
@@ -523,11 +697,71 @@ final class CustomerWebspaceController
             return [
                 'id' => $domain->getId(),
                 'name' => $domain->getName(),
+                'type' => $domain->getType(),
                 'status' => $domain->getStatus(),
+                'apply_status' => $domain->getApplyStatus(),
+                'target_path' => $domain->getTargetPath(),
+                'redirect_https' => $domain->isRedirectHttps(),
+                'redirect_www' => $domain->isRedirectWww(),
+                'ssl_expires_at' => $domain->getSslExpiresAt(),
+                'ssl_status' => self::calculateSslStatus($domain->getSslExpiresAt(), $domain->getStatus()),
+                'last_error_code' => $domain->getLastErrorCode(),
+                'last_error_message' => $domain->getLastErrorMessage(),
                 'server_aliases' => $domain->getServerAliases(),
                 'webspace_id' => $domain->getWebspace()?->getId(),
             ];
         }, $domains);
+    }
+
+    private function hasActiveWebspaceJob(Webspace $webspace): bool
+    {
+        foreach (['webspace.apply', 'webspace.domain.apply', 'webspace.provision', 'domain.ssl.issue', 'domain.ssl.renew'] as $type) {
+            if ($this->jobRepository->findActiveByTypeAndPayloadField($type, 'webspace_id', (string) $webspace->getId()) !== null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function calculateSslStatus(?\DateTimeImmutable $expiresAt, string $domainStatus): string
+    {
+        if ($domainStatus === 'failed') {
+            return 'failed';
+        }
+        if ($domainStatus === 'pending') {
+            return 'pending';
+        }
+        if (!$expiresAt instanceof \DateTimeImmutable) {
+            return 'inactive';
+        }
+        if ($expiresAt <= (new \DateTimeImmutable('+30 days'))) {
+            return 'expires_soon';
+        }
+        return 'active';
+    }
+
+    private function isValidDomainName(string $domain): bool
+    {
+        if ($domain === '' || strlen($domain) > 253 || str_contains($domain, '..')) {
+            return false;
+        }
+        $labels = explode('.', $domain);
+        if (count($labels) < 2) {
+            return false;
+        }
+        foreach ($labels as $label) {
+            if ($label === '' || strlen($label) > 63 || !preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/', $label)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private function redirectWithFlash(string $url, string $type, string $message): RedirectResponse
+    {
+        $response = new RedirectResponse($url === '' ? '/customer/webspaces' : $url);
+        $response->headers->setCookie(new \Symfony\Component\HttpFoundation\Cookie('flash_'.$type, rawurlencode($message), strtotime('+30 seconds')));
+        return $response;
     }
 
     private function normalizeDomain(?Domain $domain): ?array
@@ -614,7 +848,7 @@ final class CustomerWebspaceController
         return $job;
     }
 
-    private function queueDomainUpdateJob(Domain $domain): Job
+    private function queueDomainUpdateJob(Domain $domain, array $extra = []): Job
     {
         $webspace = $domain->getWebspace();
         if ($webspace === null) {
@@ -626,17 +860,20 @@ final class CustomerWebspaceController
             'webspace_id' => (string) $webspace->getId(),
             'domain_id' => (string) $domain->getId(),
             'domain' => $domain->getName(),
-            'target_path' => '',
+            'target_path' => (string) ($domain->getTargetPath() ?? ''),
             'runtime' => $webspace->getRuntime(),
             'web_root' => $webspace->getPath(),
             'docroot' => $webspace->getDocroot(),
             'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
+            'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $webspace->getSystemUsername()),
             'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
-            'redirect_https' => '0',
-            'redirect_www' => '0',
+            'redirect_https' => $domain->isRedirectHttps() ? '1' : '0',
+            'redirect_www' => $domain->isRedirectWww() ? '1' : '0',
+            'ssl_enabled' => $domain->getSslExpiresAt() !== null ? '1' : '0',
             'extra_directives' => '',
             'server_aliases' => implode(' ', $domain->getServerAliases()),
         ];
+        $payload = array_merge($payload, $extra);
 
         $job = new Job('webspace.domain.apply', $payload);
         $this->entityManager->persist($job);

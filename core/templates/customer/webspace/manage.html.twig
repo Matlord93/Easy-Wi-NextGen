@@ -3,6 +3,14 @@
 
 {% block content %}
 <div class="customer-webspace-modern customer-webspace-manage-modern flex flex-col gap-6">
+    {% set flashSuccess = app.request.cookies.get('flash_success') %}
+    {% set flashError = app.request.cookies.get('flash_error') %}
+    {% if flashSuccess %}
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ flashSuccess|url_decode }}</div>
+    {% endif %}
+    {% if flashError %}
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ flashError|url_decode }}</div>
+    {% endif %}
     <div>
         <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_webspace_manage_title', page_locale()) }}</h1>
         <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_description', page_locale()) }}</p>
@@ -54,6 +62,64 @@
                     <p class="mt-2 font-semibold text-slate-900">{{ webspace.php_version }}</p>
                     <p class="mt-1 text-xs text-slate-500">{{ t('customer_webspace_manage_subdomain_hint', page_locale()) }}</p>
                 </div>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-5 py-4">
+                <h2 class="text-lg font-semibold text-slate-900">Domains & SSL</h2>
+            </div>
+            <form method="post" action="/webspace/manage/domain/add" class="grid gap-2 border-b border-slate-200 px-5 py-4 md:grid-cols-6">
+                <input type="hidden" name="webspace_id" value="{{ webspace.id }}">
+                <input class="rounded border border-slate-300 px-2 py-1" name="fqdn" placeholder="new.example.com" required>
+                <select class="rounded border border-slate-300 px-2 py-1" name="type"><option value="domain">domain</option><option value="subdomain">subdomain</option></select>
+                <input class="rounded border border-slate-300 px-2 py-1" name="target_path" placeholder="public">
+                <label class="text-xs"><input type="checkbox" name="redirect_https" value="1"> HTTPS</label>
+                <label class="text-xs"><input type="checkbox" name="redirect_www" value="1"> WWW</label>
+                <button {{ hasActiveWebspaceJob ? 'disabled' : '' }} class="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40">Domain hinzufügen</button>
+                <label class="text-xs md:col-span-6"><input type="checkbox" name="request_tls" value="1"> SSL direkt anfordern</label>
+            </form>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left">FQDN</th><th class="px-4 py-2 text-left">Status</th><th class="px-4 py-2 text-left">Apply</th><th class="px-4 py-2 text-left">SSL</th><th class="px-4 py-2 text-left">Redirects</th><th class="px-4 py-2 text-left">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                    {% for domain in webspaceDomains %}
+                        {% set running = hasActiveWebspaceJob or domain.apply_status == 'running' %}
+                        {% set sslPending = domain.ssl_status in ['pending', 'renewing'] %}
+                        {% set sslActive = domain.ssl_status in ['active', 'expires_soon'] %}
+                        <tr>
+                            <td class="px-4 py-2">{{ domain.name }}<div class="text-xs text-slate-500">{{ domain.type }}</div></td>
+                            <td class="px-4 py-2"><span class="rounded-full px-2 py-1 text-xs {{ domain.status == 'failed' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700' }}">{{ domain.status }}</span></td>
+                            <td class="px-4 py-2"><span class="rounded-full px-2 py-1 text-xs {{ domain.apply_status == 'failed' ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700' }}">{{ domain.apply_status }}</span></td>
+                            <td class="px-4 py-2"><span class="rounded-full px-2 py-1 text-xs {{ sslActive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }}">{{ domain.ssl_status|replace({'_':' '}) }}</span></td>
+                            <td class="px-4 py-2 text-xs">{{ domain.redirect_https ? 'HTTPS on' : 'HTTPS off' }} · {{ domain.redirect_www ? 'WWW on' : 'WWW off' }}</td>
+                            <td class="px-4 py-2">
+                                <div class="flex flex-wrap gap-2">
+                                    <form method="post" action="/webspace/manage/domain/apply"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ running ? 'disabled' : '' }} class="rounded bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-40">Erneut anwenden</button></form>
+                                    <form method="post" action="/webspace/manage/ssl"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ (running or sslPending or sslActive) ? 'disabled' : '' }} class="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40">SSL aktivieren</button></form>
+                                    <form method="post" action="/webspace/manage/ssl/disable"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ (running or (not sslActive)) ? 'disabled' : '' }} class="rounded bg-slate-700 px-2 py-1 text-xs text-white disabled:opacity-40">SSL aus</button></form>
+                                    <form method="post" action="/webspace/manage/ssl/renew"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ (running or (not sslActive)) ? 'disabled' : '' }} class="rounded bg-emerald-600 px-2 py-1 text-xs text-white disabled:opacity-40">SSL renew</button></form>
+                                    <form method="post" action="/webspace/manage/domain/delete" onsubmit="return confirm('Domain wirklich entfernen?');"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ running ? 'disabled' : '' }} class="rounded bg-rose-600 px-2 py-1 text-xs text-white disabled:opacity-40">Löschen</button></form>
+                                </div>
+                                <form method="post" action="/webspace/manage/domain/update" class="mt-2 flex flex-wrap gap-2">
+                                    <input type="hidden" name="domain_id" value="{{ domain.id }}">
+                                    <input class="rounded border border-slate-300 px-2 py-1 text-xs" name="target_path" value="{{ domain.target_path }}" placeholder="target_path">
+                                    <label class="text-xs"><input type="checkbox" name="redirect_https" value="1" {{ domain.redirect_https ? 'checked' : '' }}> HTTPS</label>
+                                    <label class="text-xs"><input type="checkbox" name="redirect_www" value="1" {{ domain.redirect_www ? 'checked' : '' }}> WWW</label>
+                                    <button {{ running ? 'disabled' : '' }} class="rounded bg-indigo-500 px-2 py-1 text-xs text-white disabled:opacity-40">Speichern</button>
+                                </form>
+                                {% if domain.last_error_code or domain.last_error_message %}
+                                    <div class="mt-1 text-xs text-rose-700">{{ domain.last_error_code }} {{ domain.last_error_message }}</div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -261,6 +327,20 @@
                         {{ t('customer_webspace_manage_ssl_action', page_locale()) }}
                     </button>
                 </form>
+                <div class="border-t border-slate-200 px-5 py-4 flex flex-wrap gap-2">
+                    <form method="post" action="/webspace/manage/ssl/disable">
+                        <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
+                        <button type="submit" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600">
+                            SSL deaktivieren
+                        </button>
+                    </form>
+                    <form method="post" action="/webspace/manage/ssl/renew">
+                        <input type="hidden" name="domain_id" value="{{ selectedDomain.id }}">
+                        <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500">
+                            SSL erneuern
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
 

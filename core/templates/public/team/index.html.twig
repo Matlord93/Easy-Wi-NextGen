@@ -14,7 +14,7 @@
       {% for member in team_members|default([]) %}
         <article class="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
           <h2 class="text-lg font-semibold">{{ member.name }}</h2>
-          {% if member.roleTitle %}<p class="text-sm text-slate-300">{{ member.roleTitle }}</p>{% endif %}
+          {% if member.role %}<p class="text-sm text-slate-300">{{ member.role }}</p>{% endif %}
           {% if member.teamName %}<p class="text-xs text-slate-400">{{ member.teamName }}</p>{% endif %}
         </article>
       {% else %}<p>Keine Teams vorhanden.</p>{% endfor %}

@@ -1773,7 +1773,7 @@ final class AgentApiController
             return;
         }
 
-        if ($job->getType() !== 'domain.ssl.issue') {
+        if (!in_array($job->getType(), ['domain.ssl.issue', 'domain.ssl.renew'], true)) {
             return;
         }
 
@@ -1798,7 +1798,7 @@ final class AgentApiController
         if (!$certificate instanceof Certificate) {
             $certificate = new Certificate($domain);
         }
-        $certificate->setStatus('success');
+        $certificate->setStatus('active');
         $certificate->setExpiresAt($expiresAt);
         $certificate->setLastError(null);
         $this->entityManager->persist($certificate);
@@ -1806,6 +1806,30 @@ final class AgentApiController
         $previousExpiry = $domain->getSslExpiresAt();
         $domain->setSslExpiresAt($expiresAt);
         $this->entityManager->persist($domain);
+
+        $webspace = $domain->getWebspace();
+        if ($webspace !== null) {
+            $applyJob = new Job('webspace.domain.apply', [
+                'agent_id' => $webspace->getNode()->getId(),
+                'webspace_id' => (string) $webspace->getId(),
+                'domain_id' => (string) $domain->getId(),
+                'domain' => $domain->getName(),
+                'action' => 'add',
+                'runtime' => $webspace->getRuntime(),
+                'web_root' => $webspace->getPath(),
+                'docroot' => $webspace->getDocroot(),
+                'target_path' => (string) ($domain->getTargetPath() ?? ''),
+                'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $webspace->getSystemUsername()),
+                'nginx_vhost_path' => sprintf('/etc/easywi/web/nginx/vhosts/%s.conf', $domain->getName()),
+                'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $webspace->getSystemUsername()),
+                'ssl_enabled' => '1',
+                'redirect_https' => $domain->isRedirectHttps() ? '1' : '0',
+                'redirect_www' => $domain->isRedirectWww() ? '1' : '0',
+                'ssl_certificate' => is_string($output['fullchain_path'] ?? null) ? (string) $output['fullchain_path'] : '',
+                'ssl_certificate_key' => is_string($output['privkey_path'] ?? null) ? (string) $output['privkey_path'] : '',
+            ]);
+            $this->entityManager->persist($applyJob);
+        }
         $this->auditLogger->log(null, 'domain.ssl_issued', [
             'domain_id' => $domain->getId(),
             'job_id' => $job->getId(),

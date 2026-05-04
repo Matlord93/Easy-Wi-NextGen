@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ const (
 
 	mailboxDirMode  = 0o750
 	mailboxFileMode = 0o640
+	defaultMailboxPolicyPath = "/etc/easywi/mailbox_policies.json"
 )
 
 func handleMailboxCreate(job jobs.Job) (jobs.Result, func() error) {
@@ -57,6 +59,9 @@ func handleMailboxCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	relPath := mailboxRelPath(address, mailDir)
+	if err := ensureDirWithMode(mailDir, mailboxDirMode); err != nil {
+		return failureResult(job.ID, err)
+	}
 	if err := updateMailboxVirtualMap(mapPath, address, relPath, enabled); err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -76,13 +81,14 @@ func handleMailboxCreate(job jobs.Job) (jobs.Result, func() error) {
 		if mkErr := os.MkdirAll(absMailPath, mailboxDirMode); mkErr != nil {
 			return jobs.Result{
 				JobID:  job.ID,
-				Status: "success",
+				Status: "failed",
 				Output: map[string]string{
 					"address":      address,
 					"quota_mb":     strconv.Itoa(quotaMB),
 					"enabled":      fmt.Sprintf("%t", enabled),
 					"password_set": "hash",
 					"mail_dir":     absMailPath,
+					"partial_success": "true",
 					"warning":      "mail_dir could not be created: " + mkErr.Error(),
 				},
 				Completed: time.Now().UTC(),
@@ -266,6 +272,33 @@ func handleMailboxStatus(job jobs.Job, enabled bool) (jobs.Result, func() error)
 		},
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func handleMailboxPolicyUpdate(job jobs.Job) (jobs.Result, func() error) {
+	address := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "address", "email")))
+	if address == "" || !strings.Contains(address, "@") {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"message": "missing or invalid address"}, Completed: time.Now().UTC()}, nil
+	}
+	sendLimit := normalizeMailboxQuota(payloadValue(job.Payload, "send_limit_hour"))
+	recipientLimit := normalizeMailboxQuota(payloadValue(job.Payload, "recipient_limit"))
+	policyPath := payloadValue(job.Payload, "policy_path")
+	if policyPath == "" {
+		policyPath = defaultMailboxPolicyPath
+	}
+	policies := map[string]map[string]any{}
+	if b, err := os.ReadFile(policyPath); err == nil && len(b) > 0 {
+		_ = json.Unmarshal(b, &policies)
+	}
+	policies[address] = map[string]any{
+		"smtp_enabled":         normalizeMailboxEnabled(payloadValue(job.Payload, "smtp_enabled"), false),
+		"send_limit_hour":      sendLimit,
+		"recipient_limit":      recipientLimit,
+		"abuse_policy_enabled": normalizeMailboxEnabled(payloadValue(job.Payload, "abuse_policy_enabled"), false),
+	}
+	if err := ensureDirWithMode(filepath.Dir(policyPath), mailboxDirMode); err != nil { return failureResult(job.ID, err) }
+	encoded, _ := json.MarshalIndent(policies, "", "  ")
+	if err := os.WriteFile(policyPath, append(encoded, '\n'), mailboxFileMode); err != nil { return failureResult(job.ID, err) }
+	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"address": address, "policy_path": policyPath, "message": "Policy stored", "enforcement": "Enforcement backend not yet active"}, Completed: time.Now().UTC()}, nil
 }
 
 // ── path helpers ──────────────────────────────────────────────────────────────

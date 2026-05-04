@@ -31,3 +31,15 @@ func TestWindowsRoleInstallPlanGameIncludesSSHService(t *testing.T) {
 		t.Fatalf("expected windows game plan to start sshd, got %v", plan.services)
 	}
 }
+
+func TestRolePackagesMailIncludeDovecotAndSasl(t *testing.T) {
+	debianMail := rolePackages("mail", "debian")
+	if !containsString(debianMail, "postfix") || !containsString(debianMail, "dovecot-imapd") || !containsString(debianMail, "libsasl2-modules") {
+		t.Fatalf("expected debian mail packages to include postfix + dovecot-imapd + libsasl2-modules, got %v", debianMail)
+	}
+
+	rhelMail := rolePackages("mail", "rhel")
+	if !containsString(rhelMail, "dovecot") || !containsString(rhelMail, "cyrus-sasl-plain") {
+		t.Fatalf("expected rhel mail packages to include dovecot + cyrus-sasl-plain, got %v", rhelMail)
+	}
+}

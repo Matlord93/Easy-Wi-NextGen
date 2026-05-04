@@ -191,7 +191,9 @@ func ensureWebBaseFiles(output *strings.Builder) error {
 	baseDir := "/etc/easywi/web"
 	paths := []string{
 		filepath.Join(baseDir, "nginx", "includes"),
+		filepath.Join(baseDir, "nginx", "vhosts"),
 		filepath.Join(baseDir, "nginx", "templates"),
+		filepath.Join(baseDir, "certs"),
 		filepath.Join(baseDir, "hooks"),
 		"/var/lib/easywi/web",
 		"/var/log/easywi/web",
@@ -215,6 +217,13 @@ func ensureWebBaseFiles(output *strings.Builder) error {
 		return fmt.Errorf("write roundcube include: %w", err)
 	}
 	appendOutput(output, "roundcube_include="+roundcubeInclude)
+
+	nginxConfdInclude := "/etc/nginx/conf.d/99-easywi-vhosts.conf"
+	nginxConfdContent := "## Managed by Easy-Wi agent\ninclude /etc/easywi/web/nginx/vhosts/*.conf;\n"
+	if err := os.WriteFile(nginxConfdInclude, []byte(nginxConfdContent), 0o644); err != nil {
+		return fmt.Errorf("write nginx conf.d include: %w", err)
+	}
+	appendOutput(output, "nginx_confd_include="+nginxConfdInclude)
 
 	hookPath := filepath.Join(baseDir, "hooks", "reload.sh")
 	hookContent := "#!/bin/sh\nsystemctl reload nginx || true\n"

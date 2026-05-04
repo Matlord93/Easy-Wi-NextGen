@@ -37,7 +37,7 @@ final class AdminNavigationPlan
         'nodes' => ['nodes', 'bootstrap-tokens', 'port-pools', 'unifi'],
         'instances' => ['game-instances', 'templates', 'plugins', 'databases', 'webspaces'],
         'webspace' => ['dns-records', 'public-servers', 'cms-pages', 'cms-media'],
-        'mail' => ['mail-system', 'mailboxes', 'mail-aliases'],
+        'mail' => ['mail-system', 'mailboxes', 'mail-aliases', 'mail-health', 'mail-matrix'],
         'voice' => ['ts-nodes', 'ts3-servers', 'ts6-servers', 'sinusbot'],
         'security' => ['security', 'audit-logs', 'gdpr-overview', 'gdpr-retention'],
         'billing' => ['billing', 'shop-categories', 'shop-products'],

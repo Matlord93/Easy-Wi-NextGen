@@ -508,7 +508,7 @@ func normalizeJobType(jobType string) (string, bool) {
 }
 
 func collectStats(version string, roles []string) map[string]any {
-	return map[string]any{
+	stats := map[string]any{
 		"version":         version,
 		"go_version":      runtime.Version(),
 		"os":              runtime.GOOS,
@@ -519,6 +519,17 @@ func collectStats(version string, roles []string) map[string]any {
 		"reboot_required": isRebootRequired(),
 		"metrics":         metrics.Collect(),
 	}
+	if snapshot, err := mailMetricsCollector.Collect(context.Background()); err == nil {
+		if snapshot.Meta != nil {
+			if mail, ok := snapshot.Meta["mail"]; ok {
+				stats["mail"] = mail
+			}
+			if warnings, ok := snapshot.Meta["warnings"]; ok {
+				stats["mail_warnings"] = warnings
+			}
+		}
+	}
+	return stats
 }
 
 func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error) {
@@ -638,6 +649,8 @@ func handleJob(job jobs.Job, logSender JobLogSender) (jobs.Result, func() error)
 		return handleMailboxDisable(job)
 	case "mailbox.delete":
 		return handleMailboxDelete(job)
+	case "mailbox.policy.update":
+		return handleMailboxPolicyUpdate(job)
 	case "dns.zone.create":
 		return handleDNSZoneCreate(job)
 	case "dns.record.create":
