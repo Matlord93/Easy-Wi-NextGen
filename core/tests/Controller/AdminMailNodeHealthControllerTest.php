@@ -26,7 +26,7 @@ final class AdminMailNodeHealthControllerTest extends TestCase
     public function testRoundcubeDeployReturns400WithoutAgent(): void { [$c,$nodeRepo,$domainRepo]=$this->controllerWithRepos(); $nodeRepo->method('find')->willReturn(new MailNode('n','i',993,'s',587,'https://webmail')); $domainRepo->method('findBy')->willReturn([]); $r=$this->adminReq(); self::assertSame(400,$c->roundcubeAction(1,'deploy',$r)->getStatusCode()); }
     public function testRoundcubeActionRejectsNonAdmin(): void { $c=$this->controller(); $r=new Request(); $r->attributes->set('current_user', new User('c@x', UserType::Customer)); self::assertSame(403,$c->roundcubeAction(1,'install',$r)->getStatusCode()); }
 
-    private function adminReq(): Request { $r=new Request(); $r->attributes->set('current_user', new User('a@x', UserType::Superadmin)); return $r; }
+    private function adminReq(): Request { $r=new Request(); $r->headers->set('X-Admin-Request', '1'); $r->attributes->set('current_user', new User('a@x', UserType::Superadmin)); return $r; }
     private function controller(): AdminMailNodeHealthController { return $this->controllerWithRepos()[0]; }
     private function controllerWithRepos(): array {
         $nodeRepo=$this->createMock(MailNodeRepository::class); $domainRepo=$this->createMock(MailDomainRepository::class);

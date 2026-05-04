@@ -22,6 +22,7 @@ final class AdminMailboxPolicyController
     public function update(Request $request, int $id): JsonResponse
     {
         $actor=$request->attributes->get('current_user'); if(!$actor instanceof User || !$actor->isAdmin()) return new JsonResponse(['error'=>'Forbidden'],403);
+        if($request->headers->get('X-Admin-Request') !== '1') return new JsonResponse(['error'=>'Invalid request origin.'],403);
         $mailbox=$this->mailboxRepository->find($id); if($mailbox===null) return new JsonResponse(['error'=>'Mailbox not found'],404);
         try { $p=$request->toArray(); } catch (\Throwable) { return new JsonResponse(['error'=>'Invalid JSON payload'],400); }
         $send=(int)($p['send_limit_hour'] ?? 0); $rec=(int)($p['recipient_limit'] ?? 0);

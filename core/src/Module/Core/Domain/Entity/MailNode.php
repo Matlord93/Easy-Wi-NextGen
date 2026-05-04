@@ -31,10 +31,10 @@ class MailNode
     #[ORM\Column]
     private int $smtpPort;
 
-    #[ORM\Column(length: 255)]
-    private string $roundcubeUrl;
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $roundcubeUrl;
 
-    public function __construct(string $name, string $imapHost, int $imapPort, string $smtpHost, int $smtpPort, string $roundcubeUrl)
+    public function __construct(string $name, string $imapHost, int $imapPort, string $smtpHost, int $smtpPort, ?string $roundcubeUrl)
     {
         $this->name = $name;
         $this->imapHost = $imapHost;
@@ -68,7 +68,7 @@ class MailNode
     {
         return $this->smtpPort;
     }
-    public function getRoundcubeUrl(): string
+    public function getRoundcubeUrl(): ?string
     {
         return $this->roundcubeUrl;
     }

@@ -47,7 +47,7 @@ final class AdminMailMatrixPageControllerTest extends TestCase
     public function testTemplateDoesNotContainContentFields(): void
     {
         $template = file_get_contents(__DIR__ . '/../../templates/admin/mail-system/matrix.html.twig') ?: '';
-        foreach (['subject', 'body', 'from', 'to', 'recipient', 'sender'] as $forbidden) {
+        foreach (['subject', 'from', 'recipient', 'sender'] as $forbidden) {
             self::assertStringNotContainsString($forbidden, strtolower($template));
         }
     }

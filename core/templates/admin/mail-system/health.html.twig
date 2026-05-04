@@ -101,7 +101,7 @@
             if (!nodeId) return;
             if (!confirm('{{ t('admin_mail_repair_confirm', page_locale()) }}')) return;
             target.setAttribute('disabled', 'disabled');
-            fetch(`${repairEndpointBase}/${nodeId}/repair`, {method: 'POST', headers: {'Accept': 'application/json'}})
+            fetch(`${repairEndpointBase}/${nodeId}/repair`, {method: 'POST', headers: {'Accept': 'application/json', 'X-Admin-Request': '1'}})
                 .then(async (response) => ({ok: response.ok, payload: await response.json().catch(() => ({}))}))
                 .then(({ok, payload}) => {
                     if (!ok) throw new Error(payload.error || 'failed');

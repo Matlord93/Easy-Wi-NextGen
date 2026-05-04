@@ -287,7 +287,9 @@ func handleMailboxPolicyUpdate(job jobs.Job) (jobs.Result, func() error) {
 	}
 	policies := map[string]map[string]any{}
 	if b, err := os.ReadFile(policyPath); err == nil && len(b) > 0 {
-		_ = json.Unmarshal(b, &policies)
+		if unmarshalErr := json.Unmarshal(b, &policies); unmarshalErr != nil {
+			return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"message": "policy file corrupt: " + unmarshalErr.Error()}, Completed: time.Now().UTC()}, nil
+		}
 	}
 	policies[address] = map[string]any{
 		"smtp_enabled":         normalizeMailboxEnabled(payloadValue(job.Payload, "smtp_enabled"), false),
@@ -367,6 +369,17 @@ func readMailboxVirtualMap(path string) (entries map[string]string, order []stri
 	return entries, order, nil
 }
 
+// stripNewlines removes CR and LF so a crafted address or path cannot inject
+// additional lines into a Postfix map file.
+func stripNewlines(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' {
+			return -1
+		}
+		return r
+	}, s)
+}
+
 func writeMailboxVirtualMap(path string, entries map[string]string, order []string) error {
 	if err := ensureDirWithMode(filepath.Dir(path), mailboxDirMode); err != nil {
 		return err
@@ -379,7 +392,7 @@ func writeMailboxVirtualMap(path string, entries map[string]string, order []stri
 		if !ok {
 			continue
 		}
-		_, _ = fmt.Fprintf(&b, "%s %s\n", addr, dest)
+		_, _ = fmt.Fprintf(&b, "%s %s\n", stripNewlines(addr), stripNewlines(dest))
 		used[addr] = struct{}{}
 	}
 	var remaining []string
@@ -390,7 +403,7 @@ func writeMailboxVirtualMap(path string, entries map[string]string, order []stri
 	}
 	sort.Strings(remaining)
 	for _, addr := range remaining {
-		_, _ = fmt.Fprintf(&b, "%s %s\n", addr, entries[addr])
+		_, _ = fmt.Fprintf(&b, "%s %s\n", stripNewlines(addr), stripNewlines(entries[addr]))
 	}
 	if err := os.WriteFile(path, []byte(b.String()), mailboxFileMode); err != nil {
 		return fmt.Errorf("write mailbox map %s: %w", path, err)
@@ -520,7 +533,20 @@ func writeDovecotUsers(path string, entries map[string]*dovecotUserEntry, order 
 }
 
 func writeDovecotLine(b *strings.Builder, e *dovecotUserEntry) {
-	_, _ = fmt.Fprintf(b, "%s:%s", e.address, e.hash)
+	// Strip any newlines that would corrupt the passwd-file format.
+	addr := strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' {
+			return -1
+		}
+		return r
+	}, e.address)
+	hash := strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' {
+			return -1
+		}
+		return r
+	}, e.hash)
+	_, _ = fmt.Fprintf(b, "%s:%s", addr, hash)
 	if e.hasQuota && e.quotaMB > 0 {
 		_, _ = fmt.Fprintf(b, " quota_rule=*:bytes=%dM", e.quotaMB)
 	}

@@ -26,7 +26,7 @@ final class MailAutodiscoverControllerTest extends TestCase
     public function testAutoconfigContainsImapPop3AndSmtp(): void
     {
         $customer = new User('c@example.com', UserType::Customer);
-        $domain = new Domain($customer, 'example.com');
+        $domain = new Domain($customer, null, 'example.com');
         $node = new MailNode('n', 'imap.example.com', 993, 'smtp.example.com', 587, 'https://webmail.example.com');
         $mailDomain = new MailDomain($domain, $node);
 

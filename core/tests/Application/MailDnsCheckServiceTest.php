@@ -37,7 +37,7 @@ final class MailDnsCheckServiceTest extends TestCase
         $service = new MailDnsCheckService(new class implements DnsResolverInterface { public function query(string $host, int $type): array { return []; } });
         $result = $service->check('example.com');
         self::assertFalse($result['checks']['dkim']['ok']);
-        self::assertSame('No DKIM selector configured', $result['checks']['dkim']['message']);
+        self::assertSame('No DKIM key configured', $result['checks']['dkim']['message']);
     }
 
     public function testDkimOkWhenSelectorRecordPresent(): void

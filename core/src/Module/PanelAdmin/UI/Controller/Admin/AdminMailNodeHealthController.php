@@ -63,6 +63,9 @@ final class AdminMailNodeHealthController
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Forbidden'], JsonResponse::HTTP_FORBIDDEN);
         }
+        if (!$this->isCsrfSafePost($request)) {
+            return new JsonResponse(['error' => 'Invalid request origin.'], JsonResponse::HTTP_FORBIDDEN);
+        }
 
         $mailNode = $this->mailNodeRepository->find($id);
         if (!$mailNode instanceof MailNode) {
@@ -111,6 +114,9 @@ final class AdminMailNodeHealthController
         if (!$actor instanceof User || !$actor->isAdmin()) {
             return new JsonResponse(['error' => 'Forbidden'], JsonResponse::HTTP_FORBIDDEN);
         }
+        if (!$this->isCsrfSafePost($request)) {
+            return new JsonResponse(['error' => 'Invalid request origin.'], JsonResponse::HTTP_FORBIDDEN);
+        }
 
         if (!in_array($action, ['install', 'deploy'], true)) {
             return new JsonResponse(['error' => 'Unknown action.'], JsonResponse::HTTP_BAD_REQUEST);
@@ -153,6 +159,13 @@ final class AdminMailNodeHealthController
         $actor = $request->attributes->get('current_user');
 
         return $actor instanceof User && $actor->isAdmin();
+    }
+
+    private function isCsrfSafePost(Request $request): bool
+    {
+        // Browsers cannot send X-Admin-Request in a cross-origin form POST,
+        // so this provides CSRF protection on top of SameSite=Lax cookies.
+        return $request->headers->get('X-Admin-Request') === '1';
     }
 
     private function resolveAgentIdForMailNode(MailNode $mailNode): ?string

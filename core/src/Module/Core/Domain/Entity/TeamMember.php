@@ -72,6 +72,10 @@ class TeamMember
     {
         return $this->name;
     }
+    public function getRole(): string
+    {
+        return $this->roleTitle;
+    }
     public function setName(string $name): void
     {
         $this->name = trim($name);

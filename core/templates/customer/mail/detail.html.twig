@@ -120,7 +120,7 @@ SMTP:
       <p class="text-xs text-slate-600">{{ t('customer_mailbox_detail_thunderbird_hint', page_locale()) }}</p>
     </div>
 
-    {% if dns_check is defined and dns_check.checks is defined %}
+    {% if dns_check is not null and dns_check.checks is defined %}
     <div class="rounded border bg-white p-4 text-sm space-y-2">
       <h3 class="font-semibold">{{ t('customer_mail_dns_title', page_locale()) }}</h3>
       <p class="text-xs">{{ dns_check.overall_ok ? t('customer_mail_dns_ok', page_locale()) : t('customer_mail_dns_warning', page_locale()) }}</p>
@@ -130,6 +130,11 @@ SMTP:
         <li>DMARC: {{ dns_check.checks.dmarc.ok ? 'OK' : 'Missing' }}</li>
         <li>DKIM: {{ dns_check.checks.dkim.message }}</li>
       </ul>
+    </div>
+    {% else %}
+    <div class="rounded border bg-white p-4 text-sm space-y-2">
+      <h3 class="font-semibold">{{ t('customer_mail_dns_title', page_locale()) }}</h3>
+      <a href="?dns_check=1" class="inline-block rounded border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50">{{ t('customer_mail_dns_run_check', page_locale()) }}</a>
     </div>
     {% endif %}
     {% if smtp_policy is defined %}

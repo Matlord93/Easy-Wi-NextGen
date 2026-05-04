@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Core\Domain\Entity;
 
 use App\Module\Core\Application\SecretsCrypto;
+use App\Module\Core\Domain\Entity\Concerns\TestSettableIdTrait;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Repository\UserRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -18,6 +19,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 #[ORM\Index(name: 'idx_users_reseller', columns: ['reseller_id'])]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
+    use TestSettableIdTrait;
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]

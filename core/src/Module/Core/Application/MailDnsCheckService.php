@@ -23,7 +23,7 @@ final class MailDnsCheckService
             if (str_contains($v, 'v=dmarc1')) { $dmarcOk = true; break; }
         }
 
-        $dkimMessage = 'No DKIM selector configured'; $dkimOk = false;
+        $dkimMessage = 'No DKIM key configured'; $dkimOk = false;
         if ($dkimSelector !== null && $dkimSelector !== '') {
             $dkimRecords = $this->resolver->query($dkimSelector . '._domainkey.' . $domain, DNS_TXT);
             $dkimOk = $dkimRecords !== [];

@@ -132,8 +132,8 @@ class MailPolicy
     ): void {
         $this->requireTls = $requireTls;
         $this->smtpEnabled = $smtpEnabled;
-        $this->maxRecipients = max(0, $maxRecipients);
-        $this->maxHourlyEmails = max(0, $maxHourlyEmails);
+        $this->maxRecipients = max(1, $maxRecipients);
+        $this->maxHourlyEmails = max(1, $maxHourlyEmails);
         $this->abusePolicyEnabled = $abusePolicyEnabled;
         $this->allowExternalForwarding = $allowExternalForwarding;
         $this->spamProtectionLevel = in_array($spamProtectionLevel, [self::SPAM_LOW, self::SPAM_MED, self::SPAM_HIGH], true) ? $spamProtectionLevel : self::SPAM_MED;

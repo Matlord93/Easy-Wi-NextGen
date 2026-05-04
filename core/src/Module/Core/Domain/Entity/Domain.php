@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Core\Domain\Entity;
 
+use App\Module\Core\Domain\Entity\Concerns\TestSettableIdTrait;
 use App\Module\Core\Domain\Event\ResourceEventSource;
 use App\Module\Core\Domain\Event\ResourceEventSourceTrait;
 use App\Repository\DomainRepository;
@@ -14,6 +15,7 @@ use Doctrine\ORM\Mapping as ORM;
 class Domain implements ResourceEventSource
 {
     use ResourceEventSourceTrait;
+    use TestSettableIdTrait;
 
     #[ORM\Id]
     #[ORM\GeneratedValue]

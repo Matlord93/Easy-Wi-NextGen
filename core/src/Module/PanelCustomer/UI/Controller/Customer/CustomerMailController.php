@@ -110,6 +110,9 @@ final class CustomerMailController
         if ($password === '' || mb_strlen($password) < 8) {
             $errors[] = 'Password must be at least 8 characters.';
         }
+        if (mb_strlen($password) > 72) {
+            $errors[] = 'Password must not exceed 72 characters.';
+        }
         if ($quotaValue === '' || !is_numeric($quotaValue)) {
             $errors[] = 'Quota must be numeric.';
         }
@@ -284,6 +287,9 @@ final class CustomerMailController
         if (mb_strlen($password) < 8) {
             return $this->renderWithErrors($customer, ['Password must be at least 8 characters.']);
         }
+        if (mb_strlen($password) > 72) {
+            return $this->renderWithErrors($customer, ['Password must not exceed 72 characters.']);
+        }
 
         $passwordHash = $this->mailPasswordHasher->hash($password);
         $secretPayload = $this->encryptionService->encrypt($password);
@@ -349,7 +355,11 @@ final class CustomerMailController
         $lastJob = $this->findLastMailboxProvisioningJob($mailbox->getAddress());
 
         $policy = $this->mailPolicyRepository->findOneByDomain($mailbox->getDomain());
-        $dnsCheck = $this->mailDnsCheckService->check($mailbox->getDomain()->getName(), $clientHost);
+        // DNS check is deferred: only run when the user explicitly requests it
+        // via ?dns_check=1 to avoid blocking every page load with external lookups.
+        $dnsCheck = $request->query->get('dns_check') === '1'
+            ? $this->mailDnsCheckService->check($mailbox->getDomain()->getName(), $clientHost)
+            : null;
 
         return new Response($this->twig->render('customer/mail/detail.html.twig', [
             'activeNav' => 'mail',

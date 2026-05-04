@@ -18,7 +18,7 @@ final class MailPolicyTest extends TestCase
     {
         $policy = new MailPolicy($this->createDomain());
 
-        $policy->apply(true, 0, -4, false, 'invalid', true);
+        $policy->apply(true, true, -4, -1, false, false, 'invalid', true);
 
         self::assertTrue($policy->isRequireTls());
         self::assertSame(1, $policy->getMaxRecipients());

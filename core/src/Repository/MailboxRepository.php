@@ -11,7 +11,7 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class MailboxRepository extends ServiceEntityRepository implements MailboxStatsProviderInterface
+class MailboxRepository extends ServiceEntityRepository implements MailboxStatsProviderInterface
 {
     public function __construct(ManagerRegistry $registry)
     {

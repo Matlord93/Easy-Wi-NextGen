@@ -7,7 +7,7 @@ namespace App\Module\Core\Application;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\SinusbotNode;
 
-final class AgentEndpointResolver
+class AgentEndpointResolver
 {
     /** Loopback addresses that indicate a co-located (same-server) agent. */
     private const LOOPBACK = ['127.0.0.1', '::1', 'localhost'];

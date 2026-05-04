@@ -126,7 +126,13 @@ func collectMailMetrics() (map[string]any, []string) {
 	ports := mail["ports"].(map[string]bool)
 	if out, err := runCommandOutput("ss", "-ltnH"); err == nil {
 		for _, p := range []string{"25", "465", "587", "110", "143", "993", "995"} {
-			ports[p] = strings.Contains(out, ":"+p+" ") || strings.HasSuffix(out, ":"+p)
+			// Match ":PORT " (space-terminated) or ":PORT" at end of line to
+			// avoid false positives (e.g. :2587 matching :587). Also match
+			// the IPv6 bracket form "]:PORT " used by some ss versions.
+			ports[p] = strings.Contains(out, ":"+p+" ") ||
+				strings.HasSuffix(out, ":"+p) ||
+				strings.Contains(out, "]:"+p+" ") ||
+				strings.HasSuffix(out, "]:"+p)
 		}
 	} else {
 		appendWarning("port summary unavailable", err)
