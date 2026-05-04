@@ -250,8 +250,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
         $mailDomainRepo = $this->createMock(MailDomainRepository::class);
         $mailDomainRepo->method('findOneByDomain')->willReturn($mailDomain);
 
-        $hasher = $this->createMock(MailPasswordHasher::class);
-        $hasher->method('hash')->willReturn('hashed-value');
+        $hasher = new MailPasswordHasher('bcrypt');
         $encryption = $this->createMock(EncryptionService::class);
         $encryption->method('encrypt')->willReturn('secret-value');
 
@@ -294,7 +293,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
             $entityManager ?? $this->createMock(EntityManagerInterface::class),
             $this->createMock(AuditLogger::class),
             $encryptionService ?? $this->createMock(EncryptionService::class),
-            $mailPasswordHasher ?? $this->createMock(MailPasswordHasher::class),
+            $mailPasswordHasher ?? new MailPasswordHasher(),
             $this->createMock(MailLimitEnforcer::class),
             $this->createMock(MailAliasLoopGuard::class),
             $this->createMock(MailDnsCheckService::class),
