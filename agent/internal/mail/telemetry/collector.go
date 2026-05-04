@@ -139,7 +139,9 @@ func parseVirtualMailboxes(path string) ([]mailboxEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 	out := make([]mailboxEntry, 0)
 	s := bufio.NewScanner(f)
 	for s.Scan() {
