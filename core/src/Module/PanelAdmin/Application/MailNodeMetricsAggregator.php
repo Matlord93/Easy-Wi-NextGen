@@ -19,7 +19,7 @@ class MailNodeMetricsAggregator
         $agentsByMailNode = $this->mapAgentsByMailNode($mailDomains);
         $nodes = [];
         foreach ($mailNodes as $mailNode) {
-            $agent = $agentsByMailNode[$mailNode->getId() ?? -1] ?? null;
+            $agent = $agentsByMailNode[spl_object_id($mailNode)] ?? null;
             $nodes[] = $this->buildNodeMetrics($mailNode, $agent);
         }
 
@@ -101,12 +101,12 @@ class MailNodeMetricsAggregator
     {
         $map = [];
         foreach ($mailDomains as $mailDomain) {
-            $mailNodeId = $mailDomain->getNode()->getId();
+            $mailNode = $mailDomain->getNode();
             $webspace = $mailDomain->getDomain()->getWebspace();
-            if ($mailNodeId === null || $webspace === null) {
+            if ($webspace === null) {
                 continue;
             }
-            $map[$mailNodeId] = $webspace->getNode();
+            $map[spl_object_id($mailNode)] = $webspace->getNode();
         }
         return $map;
     }

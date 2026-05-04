@@ -21,7 +21,6 @@ use App\Repository\MailAliasRepository;
 use App\Repository\MailDomainRepository;
 use App\Repository\MailPolicyRepository;
 use App\Repository\MailboxRepository;
-use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\ORM\Mapping\ClassMetadata;
@@ -317,7 +316,7 @@ final class CustomerMailboxDetailControllerTest extends TestCase
 
     private function createDomainRepository(): DomainRepository
     {
-        $query = $this->createMock(AbstractQuery::class);
+        $query = $this->createMock(\Doctrine\ORM\Query::class);
         $query->method('getResult')->willReturn([]);
 
         $queryBuilder = $this->createMock(QueryBuilder::class);
