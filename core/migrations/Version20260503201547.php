@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DoctrineMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
@@ -25,6 +26,11 @@ final class Version20260503201547 extends AbstractMigration
     public function up(Schema $schema): void
     {
         // this up() migration is auto-generated, please modify it to your needs
+        if (!$this->isMySql()) {
+            $this->write('Skipping migration on non-MySQL platform.');
+
+            return;
+        }
         if (!$this->hasTable('team_groups')) {
             $this->addSql('CREATE TABLE team_groups (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(140) NOT NULL, game VARCHAR(140) NOT NULL, slug VARCHAR(180) NOT NULL, image_path VARCHAR(255) DEFAULT NULL, sort_order INT NOT NULL, site_id INT NOT NULL, INDEX IDX_86767EA9F6BD1646 (site_id), INDEX idx_team_groups_site_sort (site_id, sort_order), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');
         }
@@ -37,12 +43,23 @@ final class Version20260503201547 extends AbstractMigration
     public function down(Schema $schema): void
     {
         // this down() migration is auto-generated, please modify it to your needs
+        if (!$this->isMySql()) {
+            $this->write('Skipping rollback on non-MySQL platform.');
+
+            return;
+        }
         if ($this->hasTable('team_groups') && $this->hasForeignKey('team_groups', 'FK_86767EA9F6BD1646')) {
             $this->addSql('ALTER TABLE team_groups DROP FOREIGN KEY FK_86767EA9F6BD1646');
         }
         if ($this->hasTable('team_groups')) {
             $this->addSql('DROP TABLE team_groups');
         }
+    }
+
+
+    private function isMySql(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof MySQLPlatform;
     }
 
     private function hasTable(string $table): bool
