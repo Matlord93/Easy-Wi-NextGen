@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DoctrineMigrations;
 
+use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
@@ -88,7 +89,7 @@ final class Version20260503195720 extends AbstractMigration
 
     private function isMySql(): bool
     {
-        return $this->connection->getDatabasePlatform()->getName() == 'mysql';
+        return $this->connection->getDatabasePlatform() instanceof MySQLPlatform;
     }
 
     private function hasTable(string $table): bool
