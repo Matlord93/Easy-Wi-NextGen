@@ -22,9 +22,6 @@ use App\Repository\MailDomainRepository;
 use App\Repository\MailPolicyRepository;
 use App\Repository\MailboxRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\QueryBuilder;
-use Doctrine\ORM\Mapping\ClassMetadata;
-use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Csrf\CsrfToken;
@@ -316,24 +313,9 @@ final class CustomerMailboxDetailControllerTest extends TestCase
 
     private function createDomainRepository(): DomainRepository
     {
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
-        $query->method('getResult')->willReturn([]);
-
-        $queryBuilder = $this->createMock(QueryBuilder::class);
-        $queryBuilder->method('andWhere')->willReturnSelf();
-        $queryBuilder->method('setParameter')->willReturnSelf();
-        $queryBuilder->method('orderBy')->willReturnSelf();
-        $queryBuilder->method('setMaxResults')->willReturnSelf();
-        $queryBuilder->method('getQuery')->willReturn($query);
-
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->method('getClassMetadata')->willReturn(new ClassMetadata(\App\Module\Core\Domain\Entity\Domain::class));
-        $entityManager->method('createQueryBuilder')->willReturn($queryBuilder);
-
-        $registry = $this->createMock(ManagerRegistry::class);
-        $registry->method('getManagerForClass')->with(\App\Module\Core\Domain\Entity\Domain::class)->willReturn($entityManager);
-
-        return new DomainRepository($registry);
+        $repo = $this->createMock(DomainRepository::class);
+        $repo->method('findByCustomer')->willReturn([]);
+        return $repo;
     }
 
 }

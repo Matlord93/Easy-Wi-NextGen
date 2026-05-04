@@ -9,7 +9,7 @@ use App\Module\Core\Domain\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-final class DomainRepository extends ServiceEntityRepository
+class DomainRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
     {
