@@ -40,6 +40,9 @@ func init() {
 }
 
 func main() {
+	if handled := handleMailCLI(os.Args[1:]); handled {
+		return
+	}
 	configPath := flag.String("config", "", "path to agent.conf")
 	selfUpdate := flag.Bool("self-update", false, "perform self-update and restart")
 	showVersion := flag.Bool("version", false, "print agent version and exit")
@@ -84,6 +87,66 @@ func main() {
 	defer stop()
 
 	run(ctx, client, cfg, *configPath, logger)
+}
+
+func handleMailCLI(args []string) bool {
+	if len(args) == 0 || strings.ToLower(strings.TrimSpace(args[0])) != "mail" {
+		return false
+	}
+	if len(args) < 2 {
+		fmt.Println("usage: agent mail <install|healthcheck> [--dry-run]")
+		os.Exit(2)
+	}
+	cmd := strings.ToLower(strings.TrimSpace(args[1]))
+	switch cmd {
+	case "install":
+		dryRun := false
+		for _, arg := range args[2:] {
+			if strings.TrimSpace(arg) == "--dry-run" {
+				dryRun = true
+			}
+		}
+		if dryRun {
+			fmt.Println("mail install dry-run:")
+			fmt.Println("- install packages: postfix + dovecot stack")
+			fmt.Println("- create role files + map files")
+			fmt.Println("- ensure vmail uid/gid + permissions")
+			fmt.Println("- write postfix/dovecot managed config")
+			fmt.Println("- build postmap databases")
+			fmt.Println("- reload/restart services")
+			fmt.Println("- run mail healthcheck report")
+			return true
+		}
+		out, err := ensureBaseForRole("mail")
+		if err != nil {
+			fmt.Printf("mail install failed: %v\n%s\n", err, out)
+			os.Exit(1)
+		}
+		fmt.Println(out)
+		printMailInstallReport()
+		return true
+	case "healthcheck":
+		printMailInstallReport()
+		return true
+	default:
+		fmt.Println("usage: agent mail <install|healthcheck> [--dry-run]")
+		os.Exit(2)
+	}
+	return true
+}
+
+func printMailInstallReport() {
+	snapshot := getMailHealthSnapshot(true)
+	fmt.Println("mail installation report:")
+	fmt.Printf("- overall: %s\n", strings.ToUpper(snapshot.Overall))
+	for _, c := range snapshot.Checks {
+		state := strings.ToUpper(c.Status)
+		if strings.TrimSpace(c.Message) != "" {
+			fmt.Printf("- %s: %s (%s)\n", c.Key, state, c.Message)
+		} else {
+			fmt.Printf("- %s: %s\n", c.Key, state)
+		}
+	}
 }
 
 func run(ctx context.Context, client *api.Client, cfg config.Config, configPath string, logger *logging.JSONLogger) {

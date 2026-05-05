@@ -24,7 +24,7 @@ func TestDomainSSLRenewAndRevokeFlow(t *testing.T) {
 	}
 	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
 
-	renew, _ := handleDomainSSLRenew(jobs.Job{ID: "1", Payload: map[string]any{"domain": "example.com"}})
+	renew, _ := handleDomainSSLRenew(jobs.Job{ID: "1", Payload: map[string]any{}})
 	if renew.Status != "success" {
 		t.Fatalf("renew failed: %#v", renew.Output)
 	}
@@ -38,7 +38,7 @@ func TestDomainSSLRenewAndRevokeFlow(t *testing.T) {
 		t.Fatalf("read certbot log: %v", err)
 	}
 	payload := string(calls)
-	if !strings.Contains(payload, "--cert-name example.com") || !strings.Contains(payload, "revoke --non-interactive") {
+	if !strings.Contains(payload, "renew --non-interactive") || !strings.Contains(payload, "revoke --non-interactive") {
 		t.Fatalf("unexpected certbot flow: %s", payload)
 	}
 }

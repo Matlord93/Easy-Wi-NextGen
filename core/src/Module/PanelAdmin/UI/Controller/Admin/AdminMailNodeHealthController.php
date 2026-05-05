@@ -106,6 +106,37 @@ final class AdminMailNodeHealthController
         }
     }
 
+    #[Route(path: '/{id}/health-report', methods: ['GET'])]
+    public function healthReport(int $id, Request $request): JsonResponse
+    {
+        if (!$this->isAdmin($request)) {
+            return new JsonResponse(['error' => 'Forbidden'], JsonResponse::HTTP_FORBIDDEN);
+        }
+        $mailNode = $this->mailNodeRepository->find($id);
+        if (!$mailNode instanceof MailNode) {
+            return new JsonResponse(['error' => 'Mail node not found.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+        $agentId = $this->resolveAgentIdForMailNode($mailNode);
+        if ($agentId === null) {
+            return new JsonResponse(['error' => 'No agent/node mapped to this mail node.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+        $domains = $this->mailDomainRepository->findBy(['node' => $mailNode]);
+        $agent = null;
+        foreach ($domains as $domain) {
+            $agent = $domain->getDomain()->getWebspace()?->getNode();
+            if ($agent !== null) break;
+        }
+        if ($agent === null) {
+            return new JsonResponse(['error' => 'Agent not reachable for this node.'], JsonResponse::HTTP_BAD_REQUEST);
+        }
+        $refresh = $request->query->get('refresh') === '1';
+        $report = $this->healthAggregator->fetchAgentMailReport($agent, $refresh);
+        if ($report === null) {
+            return new JsonResponse(['error' => 'Mail-Healthcheck konnte nicht geladen werden.'], JsonResponse::HTTP_BAD_GATEWAY);
+        }
+        return new JsonResponse(['ok' => true, 'report' => $report]);
+    }
+
 
     #[Route(path: '/{id}/roundcube/{action}', methods: ['POST'])]
     public function roundcubeAction(int $id, string $action, Request $request): JsonResponse

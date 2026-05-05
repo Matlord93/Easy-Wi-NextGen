@@ -18,6 +18,26 @@ import (
 	"easywi/agent/internal/sinusbotsvcembed"
 )
 
+type mailCheckResult struct {
+	Key            string         `json:"key"`
+	Title          string         `json:"title"`
+	Category       string         `json:"category"`
+	Status         string         `json:"status"`
+	Message        string         `json:"message,omitempty"`
+	Details        map[string]any `json:"details,omitempty"`
+	Recommendation string         `json:"recommendation,omitempty"`
+	Probe          string         `json:"probe,omitempty"`
+	Timestamp      time.Time      `json:"timestamp"`
+}
+
+type mailHealthSnapshot struct {
+	GeneratedAt time.Time         `json:"generated_at"`
+	Overall     string            `json:"overall"`
+	Checks      []mailCheckResult `json:"checks"`
+}
+
+var lastMailHealthSnapshot = mailHealthSnapshot{}
+
 func startServiceServer(ctx context.Context, cfg config.Config) {
 	listen := strings.TrimSpace(cfg.ServiceListen)
 	if listen == "" || strings.EqualFold(listen, "off") || strings.EqualFold(listen, "disabled") {
@@ -91,6 +111,12 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 			"checks": checks,
 		})
 	})
+	mux.HandleFunc("/v1/mail/health/report", func(w http.ResponseWriter, r *http.Request) {
+		runNow := r.URL.Query().Get("refresh") == "1"
+		snapshot := getMailHealthSnapshot(runNow)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(snapshot)
+	})
 	mux.Handle("/ports/check-free", gameServer.Handler())
 	mux.Handle("/instance/render-config", gameServer.Handler())
 	mux.Handle("/instance/start", gameServer.Handler())
@@ -130,9 +156,65 @@ func startServiceServer(ctx context.Context, cfg config.Config) {
 	}()
 }
 
+func getMailHealthSnapshot(force bool) mailHealthSnapshot {
+	if !force && !lastMailHealthSnapshot.GeneratedAt.IsZero() && time.Since(lastMailHealthSnapshot.GeneratedAt) < 15*time.Minute {
+		return lastMailHealthSnapshot
+	}
+	snapshot := runStructuredMailHealthChecks()
+	lastMailHealthSnapshot = snapshot
+	return snapshot
+}
+
+func runStructuredMailHealthChecks() mailHealthSnapshot {
+	now := time.Now().UTC()
+	checks := []mailCheckResult{
+		checkFromLegacy("dovecot_active", "Dovecot service aktiv", "dovecot", serviceActiveCheck("dovecot"), "systemctl is-active dovecot"),
+		checkFromLegacy("postfix_active", "Postfix service aktiv", "postfix", serviceActiveCheck("postfix"), "systemctl is-active postfix"),
+		checkFromLegacy("smtp_587_starttls", "SMTP 587 STARTTLS", "tls", commandExpectationCheck("openssl", []string{"s_client", "-starttls", "smtp", "-connect", "127.0.0.1:587", "-servername", readMailHostname()}, "BEGIN CERTIFICATE"), "openssl s_client -starttls smtp -connect 127.0.0.1:587"),
+		checkFromLegacy("smtp_587_auth_advertised", "SMTP 587 AUTH", "auth", commandExpectationCheck("openssl", []string{"s_client", "-starttls", "smtp", "-connect", "127.0.0.1:587", "-crlf", "-quiet"}, "AUTH PLAIN LOGIN"), "openssl s_client -starttls smtp -connect 127.0.0.1:587"),
+		checkFromLegacy("imap_993_tls", "IMAPS 993 TLS", "tls", commandExpectationCheck("openssl", []string{"s_client", "-connect", "127.0.0.1:993", "-servername", readMailHostname()}, "BEGIN CERTIFICATE"), "openssl s_client -connect 127.0.0.1:993"),
+		checkFromLegacy("imap_login_probe", "Dovecot IMAP/Auth probe", "auth", imapLoginProbeCheck(), "doveconf -n"),
+		checkFromLegacy("local_virtual_delivery", "Virtuelle Zustellung aktiv", "delivery", lmtpOrVirtualDeliveryCheck(), "postconf -h virtual_transport"),
+		checkFromLegacy("outbound_port_25_google", "Outbound Port 25 (Gmail)", "relay", outboundPort25Check("gmail-smtp-in.l.google.com:25"), "nc -4 -vz gmail-smtp-in.l.google.com 25"),
+		checkFromLegacy("outbound_port_25_webde", "Outbound Port 25 (web.de)", "relay", outboundPort25Check("mx-ha02.web.de:25"), "nc -4 -vz mx-ha02.web.de 25"),
+		checkFromLegacy("dkim_status", "DKIM Status", "security", dkimStatusCheck(), "test -d /etc/opendkim/keys"),
+	}
+	overall := "ok"
+	for _, c := range checks {
+		if c.Status == "error" {
+			overall = "error"
+			break
+		}
+		if c.Status == "warning" && overall != "error" {
+			overall = "warning"
+		}
+	}
+	return mailHealthSnapshot{GeneratedAt: now, Overall: overall, Checks: checks}
+}
+
+func checkFromLegacy(key, title, category string, legacy mailHealthCheck, probe string) mailCheckResult {
+	status := "ok"
+	if !legacy.Ok {
+		status = "error"
+	}
+	if strings.EqualFold(legacy.Level, "warning") {
+		status = "warning"
+	}
+	return mailCheckResult{
+		Key:       key,
+		Title:     title,
+		Category:  category,
+		Status:    status,
+		Message:   legacy.Message,
+		Probe:     probe,
+		Timestamp: time.Now().UTC(),
+	}
+}
+
 type mailHealthCheck struct {
 	Ok      bool   `json:"ok"`
 	Message string `json:"message,omitempty"`
+	Level   string `json:"level,omitempty"`
 }
 
 func collectMailHealthChecks() map[string]mailHealthCheck {
@@ -152,7 +234,87 @@ func collectMailHealthChecks() map[string]mailHealthCheck {
 		key := "port_listen_" + port
 		checks[key] = listeningPortCheck(port)
 	}
+	checks["smtp_587_starttls"] = commandExpectationCheck("openssl", []string{"s_client", "-starttls", "smtp", "-connect", "127.0.0.1:587", "-servername", readMailHostname()}, "BEGIN CERTIFICATE")
+	checks["smtp_587_auth_advertised"] = commandExpectationCheck("openssl", []string{"s_client", "-starttls", "smtp", "-connect", "127.0.0.1:587", "-crlf", "-quiet"}, "AUTH PLAIN LOGIN")
+	checks["imap_993_tls"] = commandExpectationCheck("openssl", []string{"s_client", "-connect", "127.0.0.1:993", "-servername", readMailHostname()}, "BEGIN CERTIFICATE")
+	checks["imap_login_probe"] = imapLoginProbeCheck()
+	checks["postfix_virtual_recipient_config"] = postfixVirtualRecipientConfigCheck()
+	checks["local_virtual_delivery"] = lmtpOrVirtualDeliveryCheck()
+	checks["outbound_port_25_google"] = outboundPort25Check("gmail-smtp-in.l.google.com:25")
+	checks["outbound_port_25_webde"] = outboundPort25Check("mx-ha02.web.de:25")
+	checks["dkim_status"] = dkimStatusCheck()
 	return checks
+}
+
+func readMailHostname() string {
+	v := strings.TrimSpace(commandOutput("postconf", "-h", "myhostname"))
+	if v == "" {
+		return "localhost"
+	}
+	return v
+}
+
+func commandExpectationCheck(name string, args []string, expected string) mailHealthCheck {
+	out, err := runCommandOutput(name, args...)
+	if err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	if expected != "" && !strings.Contains(strings.ToUpper(out), strings.ToUpper(expected)) {
+		return mailHealthCheck{Ok: false, Message: "expected token missing: " + expected}
+	}
+	return mailHealthCheck{Ok: true}
+}
+
+func postfixVirtualRecipientConfigCheck() mailHealthCheck {
+	out, err := runCommandOutput("postconf", "-n")
+	if err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	required := []string{"virtual_mailbox_domains", "virtual_mailbox_maps", "virtual_alias_maps"}
+	for _, token := range required {
+		if !strings.Contains(out, token) {
+			return mailHealthCheck{Ok: false, Message: "missing " + token}
+		}
+	}
+	return mailHealthCheck{Ok: true}
+}
+
+func lmtpOrVirtualDeliveryCheck() mailHealthCheck {
+	out, err := runCommandOutput("postconf", "-h", "virtual_transport")
+	if err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	v := strings.TrimSpace(out)
+	if v == "" {
+		return mailHealthCheck{Ok: false, Message: "virtual_transport is empty"}
+	}
+	return mailHealthCheck{Ok: true, Message: v}
+}
+
+func imapLoginProbeCheck() mailHealthCheck {
+	if _, err := os.Stat("/etc/dovecot/users"); err != nil {
+		return mailHealthCheck{Ok: false, Message: err.Error()}
+	}
+	if out, err := runCommandOutput("doveconf", "-n"); err != nil || (!strings.Contains(out, "uid =") || !strings.Contains(out, "gid =")) {
+		return mailHealthCheck{Ok: false, Message: "dovecot uid/gid mapping invalid"}
+	}
+	return mailHealthCheck{Ok: true}
+}
+
+func outboundPort25Check(target string) mailHealthCheck {
+	conn, err := net.DialTimeout("tcp4", target, 1500*time.Millisecond)
+	if err != nil {
+		return mailHealthCheck{Ok: true, Level: "warning", Message: "outbound tcp/25 blocked or filtered: " + err.Error()}
+	}
+	_ = conn.Close()
+	return mailHealthCheck{Ok: true}
+}
+
+func dkimStatusCheck() mailHealthCheck {
+	if _, err := os.Stat("/etc/opendkim/keys"); err == nil {
+		return mailHealthCheck{Ok: true}
+	}
+	return mailHealthCheck{Ok: true, Level: "warning", Message: "DKIM not configured yet"}
 }
 
 func commandHealthCheck(name string) mailHealthCheck {

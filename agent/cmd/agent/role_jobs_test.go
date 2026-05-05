@@ -20,6 +20,14 @@ func TestRolePackagesIncludeSFTPStackForGameAndWeb(t *testing.T) {
 	if !containsString(debianWeb, "proftpd-basic") {
 		t.Fatalf("expected debian web packages to include proftpd-basic, got %v", debianWeb)
 	}
+	if !containsString(debianWeb, "certbot") {
+		t.Fatalf("expected debian web packages to include certbot, got %v", debianWeb)
+	}
+
+	rhelWeb := rolePackages("web", "rhel")
+	if !containsString(rhelWeb, "certbot") {
+		t.Fatalf("expected rhel web packages to include certbot, got %v", rhelWeb)
+	}
 }
 
 func TestWindowsRoleInstallPlanGameIncludesSSHService(t *testing.T) {

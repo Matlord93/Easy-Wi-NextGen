@@ -66,6 +66,7 @@ class MailNodeHealthAggregator
 
         $online = $agent->getStatus() === Agent::STATUS_ACTIVE;
         $agentChecks = $this->fetchAgentChecks($agent);
+        $mailReport = $this->fetchAgentMailReport($agent, false);
         foreach (self::REQUIRED_KEYS as $key) {
             $checks[$key] = $agentChecks[$key] ?? ['ok' => false, 'message' => 'missing check from agent'];
         }
@@ -84,10 +85,10 @@ class MailNodeHealthAggregator
 
         $overallOk = $online && $criticalFailures === [];
 
-        return $this->nodePayload($mailNode, $agent, $online, $overallOk, $agent->getLastSeenAt(), $checks, $criticalFailures, $warnings);
+        return $this->nodePayload($mailNode, $agent, $online, $overallOk, $agent->getLastSeenAt(), $checks, $criticalFailures, $warnings, $mailReport);
     }
 
-    private function nodePayload(MailNode $mailNode, ?Agent $agent, bool $online, bool $overallOk, ?\DateTimeImmutable $lastSeenAt, array $checks, array $criticalFailures, array $warnings): array
+    private function nodePayload(MailNode $mailNode, ?Agent $agent, bool $online, bool $overallOk, ?\DateTimeImmutable $lastSeenAt, array $checks, array $criticalFailures, array $warnings, ?array $mailReport = null): array
     {
         return [
             'id' => $mailNode->getId(),
@@ -99,6 +100,7 @@ class MailNodeHealthAggregator
             'checks' => $checks,
             'critical_failures' => $criticalFailures,
             'warnings' => $warnings,
+            'mail_report' => $mailReport,
         ];
     }
 
@@ -121,6 +123,25 @@ class MailNodeHealthAggregator
         } catch (\Throwable|ExceptionInterface $exception) {
             $this->logger->warning('Failed to fetch mail health from agent.', ['agent_id' => $agent->getId(), 'error' => $exception->getMessage()]);
             return [];
+        }
+    }
+
+    public function fetchAgentMailReport(Agent $agent, bool $refresh): ?array
+    {
+        try {
+            $endpoint = $this->endpointResolver->resolveForAgent($agent)->getBaseUrl();
+            $token = $agent->getServiceApiToken($this->secretsCrypto);
+            $headers = ['Accept' => 'application/json'];
+            if ($token !== '') {
+                $headers['Authorization'] = 'Bearer ' . $token;
+            }
+            $url = rtrim($endpoint, '/') . '/v1/mail/health/report' . ($refresh ? '?refresh=1' : '');
+            $response = $this->httpClient->request('GET', $url, ['headers' => $headers, 'timeout' => 12]);
+            $payload = json_decode($response->getContent(false), true);
+            return is_array($payload) ? $payload : null;
+        } catch (\Throwable|ExceptionInterface $exception) {
+            $this->logger->warning('Failed to fetch mail health report from agent.', ['agent_id' => $agent->getId(), 'error' => $exception->getMessage()]);
+            return null;
         }
     }
 
@@ -148,4 +169,3 @@ class MailNodeHealthAggregator
         return $map;
     }
 }
-

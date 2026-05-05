@@ -296,22 +296,47 @@ func handleRoundcubeInstall(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, fmt.Errorf("roundcube install is only supported on linux agents"))
 	}
 
-	family, err := detectOSFamily()
-	if err != nil {
-		return failureResult(job.ID, err)
-	}
-
-	packages := roundcubePackages(family)
-	if len(packages) == 0 {
-		return failureResult(job.ID, fmt.Errorf("roundcube packages not available for %s", family))
-	}
-
 	var output strings.Builder
-	if err := installPackages(family, packages, &output); err != nil {
-		return failureResult(job.ID, err)
+	roundcubeRoot, detectErr := detectSystemRoundcubePath(job.Payload)
+	if detectErr != nil {
+		if err := ensureSystemRoundcubeInstalled(&output); err != nil {
+			return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"success": "false", "step": "detect_system_roundcube", "message": "Roundcube is not installed system-wide"}, Completed: time.Now().UTC()}, nil
+		}
+		roundcubeRoot, detectErr = detectSystemRoundcubePath(job.Payload)
+		if detectErr != nil {
+			return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"success": "false", "step": "detect_system_roundcube", "message": detectErr.Error()}, Completed: time.Now().UTC()}, nil
+		}
 	}
-
-	roundcubeRoot := detectRoundcubeRoot()
+	domain := payloadValue(job.Payload, "domain", "hostname", "name")
+	route := payloadValue(job.Payload, "route", "path", "webmail_path")
+	if route == "" {
+		route = "/roundcube"
+	}
+	if domain != "" {
+		updated, reloaded, alreadyEnabled, routeErr := enableRoundcubeForWebspace(domain, route, roundcubeRoot)
+		if routeErr != nil {
+			return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"success": "false", "domain": domain, "step": "roundcube_nginx_route", "message": routeErr.Error(), "roundcube_route": route, "roundcube_path": roundcubeRoot}, Completed: time.Now().UTC()}, nil
+		}
+		scheme := "https"
+		return jobs.Result{
+			JobID:  job.ID,
+			Status: "success",
+			Output: map[string]string{
+				"success":              "true",
+				"action":               "enable_roundcube_for_webspace",
+				"domain":               domain,
+				"roundcube_scope":      "system",
+				"roundcube_route":      normalizeRoute(route),
+				"roundcube_path":       roundcubeRoot,
+				"nginx_config_updated": fmt.Sprintf("%t", updated),
+				"nginx_reloaded":       fmt.Sprintf("%t", reloaded),
+				"already_enabled":      fmt.Sprintf("%t", alreadyEnabled),
+				"url":                  fmt.Sprintf("%s://%s%s/", scheme, domain, strings.TrimRight(normalizeRoute(route), "/")),
+				"details":              output.String(),
+			},
+			Completed: time.Now().UTC(),
+		}, nil
+	}
 	includePath := "/etc/easywi/web/nginx/includes/roundcube.conf"
 	if err := writeRoundcubeInclude(includePath, roundcubeRoot); err != nil {
 		return failureResult(job.ID, err)
@@ -351,6 +376,45 @@ func detectRoundcubeRoot() string {
 		}
 	}
 	return "/var/lib/roundcube"
+}
+
+func detectSystemRoundcubePath(payload map[string]any) (string, error) {
+	candidates := []string{}
+	if p := payloadValue(payload, "roundcube_path"); p != "" {
+		candidates = append(candidates, p)
+	}
+	candidates = append(candidates, "/usr/share/roundcube", "/var/lib/roundcube", "/var/www/roundcube")
+	for _, candidate := range candidates {
+		if isRoundcubeSystemPath(candidate) {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("Roundcube is not installed system-wide")
+}
+
+func isRoundcubeSystemPath(path string) bool {
+	if info, err := os.Stat(path); err != nil || !info.IsDir() {
+		return false
+	}
+	checks := []string{"index.php", "program/include/iniset.php", "config/config.inc.php", "config/defaults.inc.php"}
+	for _, rel := range checks {
+		if _, err := os.Stat(filepath.Join(path, rel)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func ensureSystemRoundcubeInstalled(output *strings.Builder) error {
+	family, err := detectOSFamily()
+	if err != nil {
+		return err
+	}
+	packages := roundcubePackages(family)
+	if len(packages) == 0 {
+		return fmt.Errorf("roundcube packages not available for %s", family)
+	}
+	return installPackages(family, packages, output)
 }
 
 func writeRoundcubeInclude(path, root string) error {

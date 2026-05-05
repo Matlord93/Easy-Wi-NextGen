@@ -60,6 +60,12 @@ func TestCollectMailHealthChecksContainsExpectedKeys(t *testing.T) {
 		"port_listen_25",
 		"port_listen_587",
 		"port_listen_993",
+		"smtp_587_starttls",
+		"smtp_587_auth_advertised",
+		"imap_login_probe",
+		"local_virtual_delivery",
+		"outbound_port_25_google",
+		"dkim_status",
 	}
 	for _, key := range required {
 		if _, ok := checks[key]; !ok {
@@ -76,6 +82,21 @@ func TestCollectMailHealthChecksDoesNotExposeMailContentFields(t *testing.T) {
 		}
 		if check.Message == "subject" || check.Message == "body" {
 			t.Fatalf("unexpected sensitive content marker in %s", key)
+		}
+	}
+}
+
+func TestRunStructuredMailHealthChecksHasSchema(t *testing.T) {
+	s := runStructuredMailHealthChecks()
+	if s.Overall == "" {
+		t.Fatal("expected overall status")
+	}
+	if len(s.Checks) == 0 {
+		t.Fatal("expected checks")
+	}
+	for _, c := range s.Checks {
+		if c.Key == "" || c.Title == "" || c.Category == "" || c.Status == "" {
+			t.Fatalf("incomplete structured check: %#v", c)
 		}
 	}
 }

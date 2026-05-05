@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -458,10 +459,10 @@ func rolePackages(role, family string) []string {
 		}
 	case "web":
 		if family == "debian" {
-			return []string{"nginx", "php-fpm", "proftpd-basic", "proftpd-mod-crypto"}
+			return []string{"nginx", "php-fpm", "certbot", "proftpd-basic", "proftpd-mod-crypto"}
 		}
 		if family == "rhel" {
-			return []string{"nginx", "php-fpm", "proftpd", "proftpd-utils", "proftpd-mod_sftp"}
+			return []string{"nginx", "php-fpm", "certbot", "proftpd", "proftpd-utils", "proftpd-mod_sftp"}
 		}
 	case "core":
 		return []string{"nginx", "php-fpm"}
@@ -884,11 +885,14 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 		"virtual_mailbox_domains=hash:/etc/postfix/virtual_domains",
 		"virtual_mailbox_maps=hash:/etc/postfix/virtual_mailboxes",
 		"virtual_alias_maps=hash:/etc/postfix/virtual_aliases",
+		"mydestination=localhost.$mydomain, localhost",
 		"smtpd_sasl_auth_enable=yes",
 		"smtpd_sasl_type=dovecot",
 		"smtpd_sasl_path=private/auth",
 		"smtpd_tls_security_level=may",
 		"smtpd_tls_auth_only=yes",
+		"smtpd_banner=$myhostname ESMTP $mail_name (Ubuntu)",
+		"virtual_transport=lmtp:unix:private/dovecot-lmtp",
 		"smtpd_helo_required=yes",
 		"smtpd_helo_restrictions=reject_invalid_helo_hostname,reject_non_fqdn_helo_hostname",
 		"smtpd_sender_restrictions=reject_non_fqdn_sender,reject_unknown_sender_domain",
@@ -901,9 +905,33 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 			return err
 		}
 	}
+	_ = runCommandWithOutput("postmap", []string{"/etc/postfix/virtual_mailboxes"}, output)
+	_ = runCommandWithOutput("postmap", []string{"/etc/postfix/virtual_domains"}, output)
+	_ = runCommandWithOutput("postmap", []string{"/etc/postfix/virtual_aliases"}, output)
+
+	ensurePostfixSubmissionBlock(output)
 
 	dovecotConfDir := "/etc/dovecot/conf.d"
 	if _, err := os.Stat(dovecotConfDir); err == nil {
+		auth10 := filepath.Join(dovecotConfDir, "10-auth.conf")
+		if raw, readErr := os.ReadFile(auth10); readErr == nil {
+			updated := strings.ReplaceAll(string(raw), "!include auth-system.conf.ext", "#!include auth-system.conf.ext")
+			if updated != string(raw) {
+				_ = writeManagedWithBackup(auth10, updated, 0o644)
+				appendOutput(output, "dovecot_auth_system_include_disabled=true")
+			}
+		}
+		uid, gid, idErr := ensureVmailIdentity(output)
+		if idErr != nil {
+			return idErr
+		}
+		_ = os.Chown("/var/mail/vhosts", uid, gid)
+		_ = os.Chmod("/var/mail/vhosts", 0o750)
+		_ = runCommandWithOutput("chgrp", []string{"dovecot", "/etc/dovecot"}, output)
+		_ = os.Chmod("/etc/dovecot", 0o750)
+		_ = runCommandWithOutput("chgrp", []string{"dovecot", "/etc/dovecot/users"}, output)
+		_ = os.Chmod("/etc/dovecot/users", 0o640)
+
 		authConfPath := filepath.Join(dovecotConfDir, "99-easywi-auth.conf")
 		authConf := "## Managed by Easy-Wi agent\n" +
 			"auth_mechanisms = plain login\n" +
@@ -914,21 +942,42 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 			"    group = postfix\n" +
 			"  }\n" +
 			"}\n"
-		if err := os.WriteFile(authConfPath, []byte(authConf), 0o640); err != nil {
+		if err := writeManagedWithBackup(authConfPath, authConf, 0o640); err != nil {
 			return fmt.Errorf("write dovecot auth config: %w", err)
 		}
 		appendOutput(output, "dovecot_auth_written="+authConfPath)
 
 		usersConfPath := filepath.Join(dovecotConfDir, "99-easywi-users.conf")
 		usersConf := "## Managed by Easy-Wi agent\n" +
-			"disable_plaintext_auth = yes\n" +
-			"protocols = imap pop3 lmtp\n" +
-			"passdb {\n  driver = passwd-file\n  args = /etc/dovecot/users\n}\n" +
-			"userdb {\n  driver = static\n  args = uid=vmail gid=vmail home=/var/mail/vhosts/%d/%n\n}\n"
-		if err := os.WriteFile(usersConfPath, []byte(usersConf), 0o640); err != nil {
+			"passdb passwd-file {\n  driver = passwd-file\n  passwd_file_path = /etc/dovecot/users\n}\n\n" +
+			"userdb static {\n  driver = static\n  fields {\n" +
+			fmt.Sprintf("    uid = %d\n    gid = %d\n", uid, gid) +
+			"    home = /var/mail/vhosts/%d/%n\n  }\n}\n"
+		if err := writeManagedWithBackup(usersConfPath, usersConf, 0o640); err != nil {
 			return fmt.Errorf("write dovecot users config: %w", err)
 		}
 		appendOutput(output, "dovecot_users_written="+usersConfPath)
+
+		tlsPath := filepath.Join(dovecotConfDir, "99-ssl-letsencrypt.conf")
+		if mh := strings.TrimSpace(postconfReadValue("myhostname")); mh != "" {
+			fullchain := filepath.Join("/etc/letsencrypt/live", mh, "fullchain.pem")
+			privkey := filepath.Join("/etc/letsencrypt/live", mh, "privkey.pem")
+			if fileExists(fullchain) && fileExists(privkey) {
+				tlsConf := "## Managed by Easy-Wi agent\nssl_server {\n" +
+					"  cert_file = " + fullchain + "\n" +
+					"  key_file = " + privkey + "\n}\n"
+				if err := writeManagedWithBackup(tlsPath, tlsConf, 0o640); err != nil {
+					return fmt.Errorf("write dovecot tls config: %w", err)
+				}
+				_ = runCommandWithOutput("postconf", []string{"-e", "smtpd_tls_cert_file=" + fullchain}, output)
+				_ = runCommandWithOutput("postconf", []string{"-e", "smtpd_tls_key_file=" + privkey}, output)
+			} else {
+				appendOutput(output, "letsencrypt_missing_for="+mh)
+			}
+		}
+		if err := runCommandWithOutput("doveconf", []string{"-n"}, output); err != nil {
+			return fmt.Errorf("dovecot config validation failed: %w", err)
+		}
 	} else {
 		appendOutput(output, "dovecot_conf_missing=true")
 	}
@@ -939,6 +988,67 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 	}
 
 	return nil
+}
+
+func ensureVmailIdentity(output *strings.Builder) (int, int, error) {
+	_ = runCommandWithOutput("groupadd", []string{"-f", "-g", "5000", "vmail"}, output)
+	_ = runCommandWithOutput("id", []string{"-u", "vmail"}, output)
+	uid, _ := strconv.Atoi(strings.TrimSpace(commandOutput("id", "-u", "vmail")))
+	if uid == 0 {
+		_ = runCommandWithOutput("useradd", []string{"-r", "-u", "5000", "-g", "vmail", "-d", "/var/mail/vhosts", "-s", "/usr/sbin/nologin", "vmail"}, output)
+		uid, _ = strconv.Atoi(strings.TrimSpace(commandOutput("id", "-u", "vmail")))
+	}
+	gid, _ := strconv.Atoi(strings.TrimSpace(commandOutput("id", "-g", "vmail")))
+	if uid <= 0 || gid <= 0 {
+		return 5000, 5000, nil
+	}
+	return uid, gid, nil
+}
+
+func commandOutput(name string, args ...string) string {
+	out, err := exec.Command(name, args...).Output()
+	if err != nil {
+		return ""
+	}
+	return string(out)
+}
+
+func postconfReadValue(key string) string {
+	return strings.TrimSpace(commandOutput("postconf", "-h", key))
+}
+
+func fileExists(path string) bool { _, err := os.Stat(path); return err == nil }
+
+func ensurePostfixSubmissionBlock(output *strings.Builder) {
+	path := "/etc/postfix/master.cf"
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	block := "submission inet n       -       y       -       -       smtpd\n" +
+		"  -o syslog_name=postfix/submission\n" +
+		"  -o smtpd_tls_security_level=encrypt\n" +
+		"  -o smtpd_sasl_auth_enable=yes\n" +
+		"  -o smtpd_sasl_type=dovecot\n" +
+		"  -o smtpd_sasl_path=private/auth\n" +
+		"  -o smtpd_recipient_restrictions=permit_sasl_authenticated,reject\n"
+	if strings.Contains(string(raw), "postfix/submission") {
+		return
+	}
+	if err := writeManagedWithBackup(path, string(raw)+"\n"+block, 0o644); err == nil {
+		appendOutput(output, "postfix_submission_enabled=true")
+	}
+}
+
+func writeManagedWithBackup(path, body string, perm os.FileMode) error {
+	if existing, err := os.ReadFile(path); err == nil {
+		ts := time.Now().UTC().Format("20060102T150405Z")
+		_ = os.WriteFile(path+"."+ts+".bak", existing, perm)
+		if string(existing) == body {
+			return nil
+		}
+	}
+	return os.WriteFile(path, []byte(body), perm)
 }
 
 func ensureManagedMailFile(path, body string) error {
