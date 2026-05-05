@@ -949,8 +949,10 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 
 		usersConfPath := filepath.Join(dovecotConfDir, "99-easywi-users.conf")
 		usersConf := "## Managed by Easy-Wi agent\n" +
-			"passdb passwd-file {\n  driver = passwd-file\n  passwd_file_path = /etc/dovecot/users\n}\n\n" +
-			"userdb static {\n  driver = static\n  fields {\n" +
+			"passdb {\n  driver = passwd-file\n  args = /etc/dovecot/users\n}\n\n" +
+			"userdb {\n  driver = static\n" +
+			fmt.Sprintf("  args = uid=%d gid=%d home=/var/mail/vhosts/%d/%n\n", uid, gid) +
+			"}\n"
 			fmt.Sprintf("    uid = %d\n    gid = %d\n", uid, gid) +
 			"    home = /var/mail/vhosts/%d/%n\n  }\n}\n"
 		if err := writeManagedWithBackup(usersConfPath, usersConf, 0o640); err != nil {
