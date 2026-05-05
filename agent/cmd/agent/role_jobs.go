@@ -953,8 +953,6 @@ func ensureMailSecurityDefaults(output *strings.Builder) error {
 			"userdb {\n  driver = static\n" +
 			fmt.Sprintf("  args = uid=%d gid=%d home=/var/mail/vhosts/%d/%n\n", uid, gid) +
 			"}\n"
-			fmt.Sprintf("    uid = %d\n    gid = %d\n", uid, gid) +
-			"    home = /var/mail/vhosts/%d/%n\n  }\n}\n"
 		if err := writeManagedWithBackup(usersConfPath, usersConf, 0o640); err != nil {
 			return fmt.Errorf("write dovecot users config: %w", err)
 		}
