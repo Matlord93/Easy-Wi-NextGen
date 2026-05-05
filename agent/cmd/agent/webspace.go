@@ -295,6 +295,12 @@ func writePhpFpmPoolWithSettings(path, pool, user, group, listenUser, listenGrou
 	if err := ensureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
+	listen = strings.TrimSpace(listen)
+	if strings.HasPrefix(listen, "/") {
+		if err := ensureDir(filepath.Dir(listen)); err != nil {
+			return err
+		}
+	}
 	content := phpFpmPoolTemplate(pool, user, group, listenUser, listenGroup, listen, webRoot, logsDir, tmpDir, phpVersion, phpSettings)
 	if err := os.WriteFile(path, []byte(content), webspaceFileMode); err != nil {
 		return fmt.Errorf("write php-fpm pool %s: %w", path, err)
