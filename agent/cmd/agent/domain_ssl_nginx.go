@@ -19,7 +19,7 @@ func bestWebrootForDomain(domain, payloadWebRoot string) (string, string, error)
 	}
 	if payloadWebRoot != "" {
 		candidate := filepath.Join(payloadWebRoot, "public")
-		if fileExists(filepath.Join(candidate, "index.php")) || fileExists(filepath.Join(candidate, "index.html")) {
+		if nginxFileExists(filepath.Join(candidate, "index.php")) || nginxFileExists(filepath.Join(candidate, "index.html")) {
 			return candidate, config, nil
 		}
 		return payloadWebRoot, config, nil
@@ -98,4 +98,4 @@ server {
 	return true, nil
 }
 
-func fileExists(path string) bool { _, err := os.Stat(path); return err == nil }
+func nginxFileExists(path string) bool { _, err := os.Stat(path); return err == nil }
