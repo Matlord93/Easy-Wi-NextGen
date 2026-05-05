@@ -368,16 +368,6 @@ func roundcubePackages(family string) []string {
 	}
 }
 
-func detectRoundcubeRoot() string {
-	candidates := []string{"/var/lib/roundcube", "/usr/share/roundcube"}
-	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-			return candidate
-		}
-	}
-	return "/var/lib/roundcube"
-}
-
 func detectSystemRoundcubePath(payload map[string]any) (string, error) {
 	candidates := []string{}
 	if p := payloadValue(payload, "roundcube_path"); p != "" {
@@ -389,7 +379,7 @@ func detectSystemRoundcubePath(payload map[string]any) (string, error) {
 			return candidate, nil
 		}
 	}
-	return "", fmt.Errorf("Roundcube is not installed system-wide")
+	return "", fmt.Errorf("roundcube is not installed system-wide")
 }
 
 func isRoundcubeSystemPath(path string) bool {
