@@ -515,7 +515,11 @@ func chmodModeSupported(t *testing.T, dir string, isDir bool, mode os.FileMode) 
 			t.Fatalf("create chmod probe file: %v", err)
 		}
 	}
-	defer os.RemoveAll(probePath)
+	defer func() {
+		if err := os.RemoveAll(probePath); err != nil {
+			t.Errorf("remove chmod probe: %v", err)
+		}
+	}()
 	if err := os.Chmod(probePath, mode); err != nil {
 		t.Logf("skipping exact chmod(%o) assertion because chmod probe failed: %v", mode, err)
 		return false
