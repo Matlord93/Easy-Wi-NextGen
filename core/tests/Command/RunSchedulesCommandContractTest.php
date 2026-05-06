@@ -19,5 +19,13 @@ final class RunSchedulesCommandContractTest extends TestCase
         self::assertStringContainsString('instance.schedule.skipped', $source);
         self::assertStringContainsString('instance.backup.schedule_skipped', $source);
     }
+
+    public function testSchedulerSignalHandlerMatchesSymfonyConsoleSignature(): void
+    {
+        $source = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Command/RunSchedulesCommand.php');
+
+        self::assertStringContainsString('handleSignal(int $signal, int|false $previousExitCode = 0): int|false', $source);
+        self::assertStringContainsString('return $previousExitCode;', $source);
+    }
 }
 

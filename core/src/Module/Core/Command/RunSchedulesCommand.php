@@ -78,9 +78,11 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         ], static fn (?int $signal): bool => $signal !== null));
     }
 
-    public function handleSignal(int $signal): void
+    public function handleSignal(int $signal, int|false $previousExitCode = 0): int|false
     {
         $this->shouldStop = true;
+
+        return $previousExitCode;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int

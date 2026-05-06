@@ -208,10 +208,6 @@ func handleWebspaceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 	}, nil
 }
 
-func escapePowerShellSingleQuotes(value string) string {
-	return strings.ReplaceAll(value, "'", "''")
-}
-
 func runCommandLogged(name string, args ...string) (string, error) {
 	output, err := runCommandOutput(name, args...)
 	trimmed := strings.TrimSpace(output)
