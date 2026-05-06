@@ -64,7 +64,7 @@ final class GameserverBackupSchedulesCommandContractTest extends TestCase
     {
         self::assertStringContainsString("'instance.backup.create'", $this->agentApiSource);
         self::assertStringContainsString("'instance.backup.restore'", $this->agentApiSource);
-        self::assertStringContainsString("private readonly bool $windowsNodesEnabled", $this->runnerSource);
+        self::assertStringContainsString("private readonly bool \$windowsNodesEnabled", $this->runnerSource);
         self::assertStringContainsString('windows_nodes_disabled', $this->runnerSource);
         self::assertStringContainsString('isWindowsInstance', $this->runnerSource);
     }

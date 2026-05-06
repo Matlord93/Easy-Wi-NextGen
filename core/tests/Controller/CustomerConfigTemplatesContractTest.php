@@ -21,8 +21,8 @@ final class CustomerConfigTemplatesContractTest extends TestCase
         self::assertStringContainsString("'instance.backup.restore'", $controller);
         self::assertStringContainsString("'instance.reinstall'", $controller);
         self::assertStringContainsString('Config apply blocked while lifecycle operation is running.', $controller);
-        self::assertStringContainsString("'files' => $payloadFiles", $controller);
-        self::assertStringContainsString("'variables' => $variables", $controller);
+        self::assertStringContainsString("'files' => \$payloadFiles", $controller);
+        self::assertStringContainsString("'variables' => \$variables", $controller);
         self::assertStringContainsString('MISSING_VARIABLE', $controller);
     }
 }

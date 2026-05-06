@@ -62,7 +62,7 @@ final class GameserverInstanceSchedulesCommandContractTest extends TestCase
 
     public function testWindowsNodeIsBlockedWhenWindowsNodesAreDisabled(): void
     {
-        self::assertStringContainsString("private readonly bool $windowsNodesEnabled", $this->runnerSource);
+        self::assertStringContainsString("private readonly bool \$windowsNodesEnabled", $this->runnerSource);
         self::assertStringContainsString('windows_nodes_disabled', $this->runnerSource);
         self::assertStringContainsString('isWindowsInstance', $this->runnerSource);
     }
