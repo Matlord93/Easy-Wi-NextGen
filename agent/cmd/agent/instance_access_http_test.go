@@ -466,7 +466,10 @@ func TestEnableProFTPDSFTPModuleMissingSOReportsDiagnostics(t *testing.T) {
 func TestEnsureProFTPDAuthFileIsIdempotent(t *testing.T) {
 	origAuth := proFTPDAuthUserFilePath
 	t.Cleanup(func() { proFTPDAuthUserFilePath = origAuth })
-	proFTPDAuthUserFilePath = filepath.Join(t.TempDir(), "proftpd", "passwd")
+	tmpDir := t.TempDir()
+	proFTPDAuthUserFilePath = filepath.Join(tmpDir, "proftpd", "passwd")
+	fileModeAssertionsSupported := chmodModeSupported(t, tmpDir, false, 0o600)
+	dirModeAssertionsSupported := chmodModeSupported(t, tmpDir, true, 0o700)
 
 	if err := ensureProFTPDAuthFile(); err != nil {
 		t.Fatal(err)
@@ -481,14 +484,14 @@ func TestEnsureProFTPDAuthFileIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if fileModeAssertionsSupported && info.Mode().Perm() != 0o600 {
 		t.Fatalf("expected auth file mode 0600, got %o", info.Mode().Perm())
 	}
 	dirInfo, err := os.Stat(filepath.Dir(proFTPDAuthUserFilePath))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dirInfo.Mode().Perm() != 0o700 {
+	if dirModeAssertionsSupported && dirInfo.Mode().Perm() != 0o700 {
 		t.Fatalf("expected auth dir mode 0700, got %o", dirInfo.Mode().Perm())
 	}
 	raw, err := os.ReadFile(proFTPDAuthUserFilePath)
@@ -498,6 +501,34 @@ func TestEnsureProFTPDAuthFileIsIdempotent(t *testing.T) {
 	if string(raw) != "existing\n" {
 		t.Fatalf("expected existing auth content to be preserved, got %q", string(raw))
 	}
+}
+
+func chmodModeSupported(t *testing.T, dir string, isDir bool, mode os.FileMode) bool {
+	t.Helper()
+	probePath := filepath.Join(dir, "chmod-probe")
+	if isDir {
+		if err := os.Mkdir(probePath, 0o777); err != nil {
+			t.Fatalf("create chmod probe dir: %v", err)
+		}
+	} else {
+		if err := os.WriteFile(probePath, []byte("probe"), 0o666); err != nil {
+			t.Fatalf("create chmod probe file: %v", err)
+		}
+	}
+	defer os.RemoveAll(probePath)
+	if err := os.Chmod(probePath, mode); err != nil {
+		t.Logf("skipping exact chmod(%o) assertion because chmod probe failed: %v", mode, err)
+		return false
+	}
+	info, err := os.Stat(probePath)
+	if err != nil {
+		t.Fatalf("stat chmod probe: %v", err)
+	}
+	if info.Mode().Perm() != mode {
+		t.Logf("skipping exact chmod(%o) assertion because this filesystem reports %o after chmod", mode, info.Mode().Perm())
+		return false
+	}
+	return true
 }
 
 func TestAuthUserFileConfigErrorDoesNotMapToMissingSFTPModule(t *testing.T) {

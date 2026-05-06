@@ -477,11 +477,6 @@ func ensureProFTPDSFTPModuleInstalled() error {
 	return nil
 }
 
-func enableProFTPDSFTPModule() (bool, error) {
-	repaired, _, err := enableProFTPDSFTPModuleWithDiagnostics()
-	return repaired, err
-}
-
 func enableProFTPDSFTPModuleWithDiagnostics() (bool, proFTPDModuleRepairDiagnostics, error) {
 	diag := proFTPDModuleRepairDiagnostics{}
 	modulePath, searched := findProFTPDSFTPModuleSO()
@@ -664,7 +659,7 @@ func proFTPDSharedModuleDirFromVersion() string {
 	}
 	for _, line := range strings.Split(out, "\n") {
 		lower := strings.ToLower(line)
-		if !strings.Contains(lower, "module") || !(strings.Contains(lower, "directory") || strings.Contains(lower, "path")) {
+		if !strings.Contains(lower, "module") || (!strings.Contains(lower, "directory") && !strings.Contains(lower, "path")) {
 			continue
 		}
 		fields := strings.Fields(strings.TrimSpace(line))
