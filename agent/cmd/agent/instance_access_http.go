@@ -48,15 +48,63 @@ type accessCapabilities struct {
 	Exclusions        map[string]string `json:"exclusions,omitempty"`
 }
 
+type proFTPDModuleRepairDiagnostics struct {
+	ModuleConfigPath     string
+	ModuleConfigRepaired bool
+	ModuleSOFound        bool
+	ModuleSOPath         string
+	ModuleConfigError    string
+	ProFTPDTestOutput    string
+	ServiceRestartOutput string
+	PackageInstallOutput string
+	DistroID             string
+	DistroLike           string
+	PackageManager       string
+	AttemptedPackages    []string
+	SearchedModulePaths  []string
+}
+
+func (d proFTPDModuleRepairDiagnostics) String() string {
+	parts := []string{
+		fmt.Sprintf("module_config_path=%s", d.ModuleConfigPath),
+		fmt.Sprintf("module_config_repaired=%t", d.ModuleConfigRepaired),
+		fmt.Sprintf("module_so_found=%t", d.ModuleSOFound),
+		fmt.Sprintf("module_so_path=%s", d.ModuleSOPath),
+		fmt.Sprintf("module_config_error=%s", sanitizeDiagnosticValue(d.ModuleConfigError)),
+		fmt.Sprintf("proftpd_test_output=%s", sanitizeDiagnosticValue(d.ProFTPDTestOutput)),
+		fmt.Sprintf("service_restart_output=%s", sanitizeDiagnosticValue(d.ServiceRestartOutput)),
+		fmt.Sprintf("package_install_output=%s", sanitizeDiagnosticValue(d.PackageInstallOutput)),
+		fmt.Sprintf("distro_id=%s", d.DistroID),
+		fmt.Sprintf("distro_like=%s", d.DistroLike),
+		fmt.Sprintf("package_manager=%s", d.PackageManager),
+		fmt.Sprintf("attempted_packages=%s", strings.Join(d.AttemptedPackages, ",")),
+		fmt.Sprintf("searched_module_paths=%s", strings.Join(d.SearchedModulePaths, ",")),
+	}
+	return strings.Join(parts, " ")
+}
+
+func sanitizeDiagnosticValue(value string) string {
+	value = strings.ReplaceAll(value, "\n", " ")
+	value = strings.ReplaceAll(value, "\r", " ")
+	return strings.TrimSpace(value)
+}
+
 var (
 	accessLookPath                  = exec.LookPath
 	accessRunCommandLogged          = runCommandLogged
 	accessRunCommandOutput          = runCommandOutput
+	proFTPDAuthUserFilePath         = linuxAuthUserFile
+	proFTPDHostKeyPath              = linuxHostKey
+	detectProFTPDConfDirFunc        = detectProFTPDConfDir
+	proFTPDModuleConfigCandidates   = defaultProFTPDModuleConfigCandidates
+	proFTPDModuleSearchPatterns     = defaultProFTPDModuleSearchPatterns
+	proFTPDManagedModulesPath       = defaultProFTPDManagedModulesPath
 	ensureLinuxProFTPDSFTPReadyFunc = ensureLinuxProFTPDSFTPReady
 	ensureProFTPDUserFunc           = ensureProFTPDUser
 	checkLinuxProFTPDHealthFunc     = checkLinuxProFTPDHealth
 	detectProFTPDServiceNameFunc    = detectProFTPDServiceName
 	ensureServiceRunningFunc        = ensureServiceRunning
+	checkTCPListeningFunc           = checkTCPListening
 )
 
 func handleAccessCapabilitiesHTTP(w http.ResponseWriter, r *http.Request) bool {
@@ -269,9 +317,6 @@ func ensureLinuxProFTPDSFTPReady() error {
 	if err := installLinuxPackages(pkgs); err != nil {
 		return fmt.Errorf("%w (distro_id=%s distro_like=%s packages=%s)", err, osID, osLike, strings.Join(pkgs, ","))
 	}
-	if err := ensureProFTPDSFTPModuleInstalled(); err != nil {
-		return fmt.Errorf("%w (distro_id=%s distro_like=%s packages=%s)", err, osID, osLike, strings.Join(pkgs, ","))
-	}
 	if err := ensureEasyWIUser(); err != nil {
 		return err
 	}
@@ -281,12 +326,21 @@ func ensureLinuxProFTPDSFTPReady() error {
 	if err := ensureProFTPDKeys(); err != nil {
 		return err
 	}
-	confDir, err := detectProFTPDConfDir()
+	confDir, err := detectProFTPDConfDirFunc()
 	if err != nil {
 		return err
 	}
 	if err := ensureProFTPDConfig(confDir); err != nil {
 		return err
+	}
+	if err := ensureProFTPDSFTPModuleInstalled(); err != nil {
+		return fmt.Errorf("%w (distro_id=%s distro_like=%s packages=%s)", err, osID, osLike, strings.Join(pkgs, ","))
+	}
+	if out, err := runProFTPDConfigTestWithAuthRepair(); err != nil {
+		if proFTPDTestOutputHasSFTPModuleError(out) {
+			return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD configuration cannot load mod_sftp: %s", strings.TrimSpace(out))
+		}
+		return fmt.Errorf("CONFIG_INVALID: ProFTPD configuration test failed: %s", strings.TrimSpace(out))
 	}
 	if err := ensureLinuxSFTPFirewall(defaultAccessListenPort); err != nil {
 		return err
@@ -386,58 +440,145 @@ func ensureProFTPDSFTPModuleInstalled() error {
 	if proFTPDModuleListHasSFTP(out) {
 		return nil
 	}
-	repaired, repairErr := enableProFTPDSFTPModule()
+	repaired, diag, repairErr := enableProFTPDSFTPModuleWithDiagnostics()
 	if repairErr != nil {
-		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD mod_sftp is not installed or enabled; module_output=%q modules_conf_repaired=%t repair_error=%v; install proftpd-mod-crypto on Debian/Ubuntu or proftpd-mod_sftp on RHEL-compatible systems", strings.TrimSpace(out), repaired, repairErr)
+		if strings.Contains(strings.ToUpper(repairErr.Error()), "CONFIG_INVALID") {
+			return repairErr
+		}
+		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD mod_sftp is not installed or enabled; before=%q %s repair_error=%v; install proftpd-mod-crypto on Debian/Ubuntu or proftpd-mod_sftp on RHEL-compatible systems", strings.TrimSpace(out), diag.String(), repairErr)
+	}
+	testOut, testErr := runProFTPDConfigTestWithAuthRepair()
+	diag.ProFTPDTestOutput = testOut
+	if testErr != nil {
+		if proFTPDTestOutputHasSFTPModuleError(testOut) {
+			return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD configuration cannot load mod_sftp after repair; before=%q modules_conf_repaired=%t %s", strings.TrimSpace(out), repaired, diag.String())
+		}
+		return fmt.Errorf("CONFIG_INVALID: ProFTPD configuration test failed after SFTP module repair; %s", diag.String())
 	}
 	service, serviceErr := detectProFTPDServiceNameFunc()
 	if serviceErr == nil {
-		_ = ensureServiceRunningFunc(service)
+		if err := ensureServiceRunningFunc(service); err != nil {
+			diag.ServiceRestartOutput = err.Error()
+			return fmt.Errorf("SERVICE_START_FAILED: ProFTPD restart failed after SFTP module repair; %s", diag.String())
+		}
+	} else {
+		diag.ServiceRestartOutput = serviceErr.Error()
 	}
 	after, afterErr := accessRunCommandLogged("proftpd", "-l")
-	if afterErr != nil || !proFTPDModuleListHasSFTP(after) {
-		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD mod_sftp is not installed or enabled after repair; before=%q after=%q modules_conf_repaired=%t service_error=%v; install proftpd-mod-crypto on Debian/Ubuntu or proftpd-mod_sftp on RHEL-compatible systems", strings.TrimSpace(out), strings.TrimSpace(after), repaired, serviceErr)
+	debugOut, _ := accessRunCommandLogged("proftpd", "-td10")
+	activePath, active := findActiveProFTPDSFTPModuleConfig()
+	if active && diag.ModuleSOFound && (testErr == nil || proFTPDDebugOutputHasSFTP(testOut) || proFTPDDebugOutputHasSFTP(debugOut)) {
+		return nil
+	}
+	if afterErr != nil || (!proFTPDModuleListHasSFTP(after) && !proFTPDDebugOutputHasSFTP(debugOut)) {
+		diag.ModuleConfigPath = firstNonEmptyProFTPD(diag.ModuleConfigPath, activePath)
+		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD mod_sftp is not installed or enabled after repair; before=%q after=%q modules_conf_repaired=%t %s; install proftpd-mod-crypto on Debian/Ubuntu or proftpd-mod_sftp on RHEL-compatible systems", strings.TrimSpace(out), strings.TrimSpace(after), repaired, diag.String())
 	}
 	return nil
 }
 
 func enableProFTPDSFTPModule() (bool, error) {
-	modulesPath := "/etc/proftpd/modules.conf"
-	if _, err := os.Stat(modulesPath); err != nil {
-		return false, fmt.Errorf("modules.conf unavailable at %s: %w", modulesPath, err)
+	repaired, _, err := enableProFTPDSFTPModuleWithDiagnostics()
+	return repaired, err
+}
+
+func enableProFTPDSFTPModuleWithDiagnostics() (bool, proFTPDModuleRepairDiagnostics, error) {
+	diag := proFTPDModuleRepairDiagnostics{}
+	modulePath, searched := findProFTPDSFTPModuleSO()
+	diag.SearchedModulePaths = searched
+	diag.ModuleSOPath = modulePath
+	diag.ModuleSOFound = modulePath != ""
+	if modulePath == "" {
+		out, manager, packages, err := installProFTPDSFTPPackage()
+		diag.PackageInstallOutput = out
+		diag.PackageManager = manager
+		diag.AttemptedPackages = packages
+		modulePath, searched = findProFTPDSFTPModuleSO()
+		diag.SearchedModulePaths = append(diag.SearchedModulePaths, searched...)
+		diag.ModuleSOPath = modulePath
+		diag.ModuleSOFound = modulePath != ""
+		if err != nil {
+			diag.ModuleConfigError = err.Error()
+			return false, diag, err
+		}
+		if modulePath == "" {
+			id, like := detectLinuxDistribution()
+			diag.DistroID, diag.DistroLike = id, like
+			return false, diag, fmt.Errorf("mod_sftp.so not found after package install")
+		}
 	}
-	return enableProFTPDSFTPModuleInFile(modulesPath)
+	moduleConfigPath, confDir, err := chooseProFTPDModuleConfigPath()
+	if err != nil {
+		diag.ModuleConfigError = err.Error()
+		return false, diag, err
+	}
+	diag.ModuleConfigPath = moduleConfigPath
+	if confDir != "" {
+		if _, err := ensureProFTPDManagedConfigIncluded(confDir); err != nil {
+			diag.ModuleConfigError = err.Error()
+			return false, diag, err
+		}
+	}
+	repaired, err := enableProFTPDSFTPModuleInFile(moduleConfigPath)
+	diag.ModuleConfigRepaired = repaired
+	if err != nil {
+		diag.ModuleConfigError = err.Error()
+		return repaired, diag, err
+	}
+	return repaired, diag, nil
 }
 
 func enableProFTPDSFTPModuleInFile(path string) (bool, error) {
+	return enableProFTPDSFTPModuleInFileWithLine(path, "LoadModule mod_sftp.c mod_sftp.so")
+}
+
+func enableProFTPDSFTPModuleInFileWithLine(path, moduleLine string) (bool, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return false, err
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				return false, err
+			}
+			raw = nil
+		} else {
+			return false, err
+		}
 	}
 	lines := strings.Split(string(raw), "\n")
 	repaired := false
 	found := false
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.EqualFold(trimmed, "LoadModule mod_sftp.c") {
-			found = true
+		uncommented := strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
+		if isProFTPDSFTPModuleLine(trimmed) && !strings.HasPrefix(trimmed, "#") {
+			if !found {
+				found = true
+				if !strings.EqualFold(trimmed, moduleLine) && len(strings.Fields(trimmed)) < 3 {
+					lines[i] = moduleLine
+					repaired = true
+				}
+			} else {
+				lines[i] = "#" + strings.TrimLeft(trimmed, " \t")
+				repaired = true
+			}
 			continue
 		}
-		if strings.EqualFold(strings.TrimSpace(strings.TrimPrefix(trimmed, "#")), "LoadModule mod_sftp.c") {
+		if isProFTPDSFTPModuleLine(uncommented) {
 			if !found {
-				lines[i] = "LoadModule mod_sftp.c"
+				lines[i] = moduleLine
 				found = true
 				repaired = true
-			} else {
-				lines[i] = "#" + strings.TrimLeft(strings.TrimPrefix(trimmed, "#"), " \t")
+			} else if !strings.HasPrefix(trimmed, "#") {
+				lines[i] = "#" + strings.TrimLeft(trimmed, " \t")
+				repaired = true
 			}
 		}
 	}
 	if !found {
 		if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
-			lines[len(lines)-1] = "LoadModule mod_sftp.c"
+			lines[len(lines)-1] = moduleLine
 		} else {
-			lines = append(lines, "LoadModule mod_sftp.c")
+			lines = append(lines, moduleLine)
 		}
 		repaired = true
 	}
@@ -452,6 +593,264 @@ func enableProFTPDSFTPModuleInFile(path string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+func defaultProFTPDModuleConfigCandidates() []string {
+	candidates := []string{"/etc/proftpd/modules.conf"}
+	for _, pattern := range []string{"/etc/proftpd/conf.modules.d/*.conf", "/etc/proftpd.d/*.conf", "/etc/proftpd/conf.d/*.conf"} {
+		matches, _ := filepath.Glob(pattern)
+		sort.Strings(matches)
+		candidates = append(candidates, matches...)
+	}
+	candidates = append(candidates, "/etc/proftpd/proftpd.conf", "/etc/proftpd.conf")
+	return uniqueProFTPDStrings(candidates)
+}
+
+func defaultProFTPDModuleSearchPatterns() []string {
+	return []string{
+		"/usr/lib/proftpd/mod_sftp.so",
+		"/usr/lib64/proftpd/mod_sftp.so",
+		"/usr/lib/*/proftpd/mod_sftp.so",
+		"/usr/lib/proftpd/*.so",
+		"/usr/lib64/proftpd/*.so",
+	}
+}
+
+func uniqueProFTPDStrings(values []string) []string {
+	seen := map[string]bool{}
+	unique := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		unique = append(unique, value)
+	}
+	return unique
+}
+
+func findProFTPDSFTPModuleSO() (string, []string) {
+	searched := []string{}
+	patterns := proFTPDModuleSearchPatterns()
+	if sharedDir := proFTPDSharedModuleDirFromVersion(); sharedDir != "" {
+		patterns = append([]string{filepath.Join(sharedDir, "mod_sftp.so")}, patterns...)
+	}
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil || len(matches) == 0 {
+			searched = append(searched, pattern)
+			continue
+		}
+		sort.Strings(matches)
+		for _, match := range matches {
+			searched = append(searched, match)
+			if filepath.Base(match) == "mod_sftp.so" {
+				if st, err := os.Stat(match); err == nil && !st.IsDir() {
+					return match, uniqueProFTPDStrings(searched)
+				}
+			}
+		}
+	}
+	return "", uniqueProFTPDStrings(searched)
+}
+
+func proFTPDSharedModuleDirFromVersion() string {
+	if _, err := accessLookPath("proftpd"); err != nil {
+		return ""
+	}
+	out, err := accessRunCommandLogged("proftpd", "-V")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(out, "\n") {
+		lower := strings.ToLower(line)
+		if !strings.Contains(lower, "module") || !(strings.Contains(lower, "directory") || strings.Contains(lower, "path")) {
+			continue
+		}
+		fields := strings.Fields(strings.TrimSpace(line))
+		for i := len(fields) - 1; i >= 0; i-- {
+			candidate := strings.Trim(fields[i], "'\"")
+			if filepath.IsAbs(candidate) {
+				return candidate
+			}
+		}
+	}
+	return ""
+}
+
+func chooseProFTPDModuleConfigPath() (string, string, error) {
+	candidates := proFTPDModuleConfigCandidates()
+	fallback := ""
+	for _, path := range candidates {
+		st, err := os.Stat(path)
+		if err != nil || st.IsDir() {
+			continue
+		}
+		if fallback == "" && isProFTPDModuleConfigFile(path) {
+			fallback = path
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if hasActiveProFTPDLoadModule(string(raw)) {
+			return path, "", nil
+		}
+	}
+	if fallback != "" {
+		return fallback, "", nil
+	}
+	managedPath, confDir, err := proFTPDManagedModulesPath()
+	if err != nil {
+		return "", "", err
+	}
+	return managedPath, confDir, nil
+}
+
+func isProFTPDModuleConfigFile(path string) bool {
+	clean := filepath.ToSlash(filepath.Clean(path))
+	base := filepath.Base(clean)
+	return base == "modules.conf" || strings.Contains(clean, "/conf.modules.d/") || strings.Contains(clean, "/proftpd.d/") || strings.Contains(clean, "/conf.d/")
+}
+
+func defaultProFTPDManagedModulesPath() (string, string, error) {
+	if st, err := os.Stat("/etc/proftpd.d"); err == nil && st.IsDir() {
+		return "/etc/proftpd.d/easywi-modules.conf", "/etc/proftpd.d", nil
+	}
+	confDir := "/etc/proftpd/conf.d"
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		return "", "", fmt.Errorf("CONFIG_INVALID: could not create modules include dir: %w", err)
+	}
+	return filepath.Join(confDir, "easywi-modules.conf"), confDir, nil
+}
+
+func hasActiveProFTPDLoadModule(content string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) > 0 && strings.EqualFold(fields[0], "LoadModule") {
+			return true
+		}
+	}
+	return false
+}
+
+func isProFTPDSFTPModuleLine(line string) bool {
+	fields := strings.Fields(line)
+	return len(fields) >= 2 && strings.EqualFold(fields[0], "LoadModule") && strings.EqualFold(fields[1], "mod_sftp.c")
+}
+
+func proFTPDDebugOutputHasSFTP(output string) bool {
+	lower := strings.ToLower(output)
+	return strings.Contains(lower, "mod_sftp.c") || strings.Contains(lower, "mod_sftp.so")
+}
+
+func runProFTPDConfigTestWithAuthRepair() (string, error) {
+	if err := ensureProFTPDAuthFile(); err != nil {
+		return "", err
+	}
+	out, err := accessRunCommandLogged("proftpd", "-t")
+	if err == nil || !proFTPDTestOutputHasAuthUserFileError(out) {
+		return out, err
+	}
+	if repairErr := ensureProFTPDAuthFile(); repairErr != nil {
+		return out, repairErr
+	}
+	retryOut, retryErr := accessRunCommandLogged("proftpd", "-t")
+	if strings.TrimSpace(retryOut) == "" {
+		return out, retryErr
+	}
+	if strings.TrimSpace(out) == "" {
+		return retryOut, retryErr
+	}
+	return strings.TrimSpace(out) + "\n" + retryOut, retryErr
+}
+
+func proFTPDTestOutputHasAuthUserFileError(output string) bool {
+	lower := strings.ToLower(output)
+	return strings.Contains(lower, "authuserfile") && (strings.Contains(lower, "no such file") || strings.Contains(lower, "unable to use") || strings.Contains(lower, "permission denied"))
+}
+
+func proFTPDTestOutputHasSFTPModuleError(output string) bool {
+	lower := strings.ToLower(output)
+	return strings.Contains(lower, "mod_sftp") && (strings.Contains(lower, "unknown module") || strings.Contains(lower, "unable to load") || strings.Contains(lower, "cannot load") || strings.Contains(lower, "no such file"))
+}
+
+func findActiveProFTPDSFTPModuleConfig() (string, bool) {
+	for _, path := range proFTPDModuleConfigCandidates() {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(raw), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "#") {
+				continue
+			}
+			if isProFTPDSFTPModuleLine(trimmed) {
+				return path, true
+			}
+		}
+	}
+	return "", false
+}
+
+func firstNonEmptyProFTPD(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func installProFTPDSFTPPackage() (string, string, []string, error) {
+	id, like := detectLinuxDistribution()
+	joined := id + " " + like
+	if _, err := accessLookPath("apt-get"); err == nil && (strings.Contains(joined, "debian") || strings.Contains(joined, "ubuntu") || joined == " ") {
+		packages := []string{"proftpd-mod-crypto"}
+		updateOut, updateErr := accessRunCommandLogged("apt-get", "update")
+		installOut := ""
+		var installErr error
+		if updateErr == nil {
+			installOut, installErr = accessRunCommandLogged("apt-get", "install", "-y", packages[0])
+		}
+		out := strings.TrimSpace(updateOut + "\n" + installOut)
+		if updateErr != nil {
+			return out, "apt-get", packages, fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=apt-get packages=%s output=%s", strings.Join(packages, ","), strings.TrimSpace(updateOut))
+		}
+		if installErr != nil {
+			return out, "apt-get", packages, fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=apt-get packages=%s output=%s", strings.Join(packages, ","), strings.TrimSpace(installOut))
+		}
+		return out, "apt-get", packages, nil
+	}
+	packages := []string{"proftpd-mod_sftp"}
+	if _, err := accessLookPath("dnf"); err == nil {
+		out, installErr := accessRunCommandLogged("dnf", "install", "-y", packages[0])
+		if installErr == nil {
+			return out, "dnf", packages, nil
+		}
+		if _, yumErr := accessLookPath("yum"); yumErr != nil {
+			return out, "dnf", packages, fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=dnf packages=%s output=%s", strings.Join(packages, ","), strings.TrimSpace(out))
+		}
+		yumOut, yumErr := accessRunCommandLogged("yum", "install", "-y", packages[0])
+		combined := strings.TrimSpace(out + "\n" + yumOut)
+		if yumErr != nil {
+			return combined, "dnf,yum", packages, fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=dnf,yum packages=%s output=%s", strings.Join(packages, ","), combined)
+		}
+		return combined, "dnf,yum", packages, nil
+	}
+	if _, err := accessLookPath("yum"); err == nil {
+		out, installErr := accessRunCommandLogged("yum", "install", "-y", packages[0])
+		if installErr != nil {
+			return out, "yum", packages, fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=yum packages=%s output=%s", strings.Join(packages, ","), strings.TrimSpace(out))
+		}
+		return out, "yum", packages, nil
+	}
+	return "", "", packages, fmt.Errorf("BACKEND_UNSUPPORTED: no package manager for packages=%s", strings.Join(packages, ","))
 }
 
 func proFTPDModuleListHasSFTP(output string) bool {
@@ -479,6 +878,9 @@ func detectProFTPDConfDir() (string, error) {
 }
 
 func ensureProFTPDConfig(confDir string) error {
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		return fmt.Errorf("CONFIG_INVALID: create config dir: %w", err)
+	}
 	content := buildProFTPDManagedConfig(defaultAccessListenPort)
 	path := filepath.Join(confDir, "easywi-sftp.conf")
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -535,15 +937,16 @@ func buildProFTPDManagedConfig(port int) string {
 	return strings.Join([]string{
 		"# BEGIN EASYWI MANAGED",
 		"<IfModule mod_sftp.c>",
-		"  SFTPEngine on",
-		fmt.Sprintf("  Port %d", port),
-		"  SFTPLog /var/log/proftpd/easywi-sftp.log",
-		fmt.Sprintf("  SFTPHostKey %s", linuxHostKey),
-		fmt.Sprintf("  AuthUserFile %s", linuxAuthUserFile),
-		"  RequireValidShell off",
-		"  DefaultRoot ~",
-		"  MaxInstances 30",
-		"  TimeoutIdle 600",
+		"  <VirtualHost 0.0.0.0>",
+		fmt.Sprintf("    Port %d", port),
+		"    SFTPEngine on",
+		"    SFTPLog /var/log/proftpd/easywi-sftp.log",
+		fmt.Sprintf("    SFTPHostKey %s", proFTPDHostKeyPath),
+		fmt.Sprintf("    AuthUserFile %s", proFTPDAuthUserFilePath),
+		"    RequireValidShell off",
+		"    DefaultRoot ~",
+		"    TimeoutIdle 600",
+		"  </VirtualHost>",
 		"</IfModule>",
 		"# END EASYWI MANAGED",
 	}, "\n") + "\n"
@@ -584,40 +987,52 @@ func ensureEasyWIUser() error {
 }
 
 func ensureProFTPDAuthFile() error {
-	if err := os.MkdirAll(filepath.Dir(linuxAuthUserFile), 0o700); err != nil {
+	dir := filepath.Dir(proFTPDAuthUserFilePath)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: create auth file dir: %w", err)
 	}
-	if _, err := os.Stat(linuxAuthUserFile); err == nil {
-		_ = os.Chmod(linuxAuthUserFile, 0o600)
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return fmt.Errorf("PERMISSION_DENIED: chmod auth file dir: %w", err)
+	}
+	_ = os.Chown(dir, 0, 0)
+	if _, err := os.Stat(proFTPDAuthUserFilePath); err == nil {
+		_ = os.Chown(proFTPDAuthUserFilePath, 0, 0)
+		if err := os.Chmod(proFTPDAuthUserFilePath, 0o600); err != nil {
+			return fmt.Errorf("PERMISSION_DENIED: chmod auth file: %w", err)
+		}
 		return nil
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("PERMISSION_DENIED: stat auth file: %w", err)
 	}
-	if err := os.WriteFile(linuxAuthUserFile, []byte{}, 0o600); err != nil {
+	if err := os.WriteFile(proFTPDAuthUserFilePath, []byte{}, 0o600); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: create auth file: %w", err)
+	}
+	_ = os.Chown(proFTPDAuthUserFilePath, 0, 0)
+	if err := os.Chmod(proFTPDAuthUserFilePath, 0o600); err != nil {
+		return fmt.Errorf("PERMISSION_DENIED: chmod auth file: %w", err)
 	}
 	return nil
 }
 
 func ensureProFTPDKeys() error {
-	if err := os.MkdirAll(linuxKeyDir, 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(proFTPDHostKeyPath), 0o700); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: create key dir: %w", err)
 	}
-	if _, err := os.Stat(linuxHostKey); err == nil {
-		_ = os.Chmod(linuxHostKey, 0o600)
+	if _, err := os.Stat(proFTPDHostKeyPath); err == nil {
+		_ = os.Chmod(proFTPDHostKeyPath, 0o600)
 		return nil
 	}
-	if out, err := accessRunCommandLogged("ssh-keygen", "-q", "-t", "rsa", "-b", "3072", "-N", "", "-f", linuxHostKey); err != nil {
+	if out, err := accessRunCommandLogged("ssh-keygen", "-q", "-t", "rsa", "-b", "3072", "-N", "", "-f", proFTPDHostKeyPath); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: %s", strings.TrimSpace(out))
 	}
-	if err := os.Chmod(linuxHostKey, 0o600); err != nil {
+	if err := os.Chmod(proFTPDHostKeyPath, 0o600); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: chmod key: %w", err)
 	}
 	return nil
 }
 
 func ensureProFTPDUser(username, password, rootPath string) error {
-	if err := os.MkdirAll(filepath.Dir(linuxAuthUserFile), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(proFTPDAuthUserFilePath), 0o700); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: %w", err)
 	}
 	if err := os.MkdirAll(rootPath, 0o750); err != nil {
@@ -645,7 +1060,7 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 		hash = "$easywi$" + hex.EncodeToString(h[:])
 	}
 	entry := fmt.Sprintf("%s:%s:%s:%s::%s:/usr/sbin/nologin", username, strings.TrimSpace(hash), uid, gid, rootPath)
-	existing, readErr := os.ReadFile(linuxAuthUserFile)
+	existing, readErr := os.ReadFile(proFTPDAuthUserFilePath)
 	if readErr != nil && !os.IsNotExist(readErr) {
 		return fmt.Errorf("PERMISSION_DENIED: read auth file: %w", readErr)
 	}
@@ -667,7 +1082,7 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 	if !replaced {
 		updated = append(updated, entry)
 	}
-	if err := os.WriteFile(linuxAuthUserFile, []byte(strings.Join(updated, "\n")+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(proFTPDAuthUserFilePath, []byte(strings.Join(updated, "\n")+"\n"), 0o600); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: write auth file: %w", err)
 	}
 	return nil
@@ -692,6 +1107,72 @@ func ensureLinuxSFTPFirewall(port int) error {
 	return nil
 }
 
+type proFTPDPortHealthDiagnostics struct {
+	ConfigPath        string
+	ConfigContent     string
+	IncludeRepaired   bool
+	ProFTPDTestOutput string
+	SSOutput          string
+	ListenError       string
+	ServiceName       string
+	ServiceActive     string
+	PortConflictHint  string
+}
+
+func (d proFTPDPortHealthDiagnostics) String() string {
+	return strings.Join([]string{
+		fmt.Sprintf("config_path=%s", d.ConfigPath),
+		fmt.Sprintf("config_content=%q", sanitizeDiagnosticValue(d.ConfigContent)),
+		fmt.Sprintf("include_repaired=%t", d.IncludeRepaired),
+		fmt.Sprintf("proftpd_test_output=%s", sanitizeDiagnosticValue(d.ProFTPDTestOutput)),
+		fmt.Sprintf("ss_output=%s", sanitizeDiagnosticValue(d.SSOutput)),
+		fmt.Sprintf("listen_error=%s", sanitizeDiagnosticValue(d.ListenError)),
+		fmt.Sprintf("service_name=%s", d.ServiceName),
+		fmt.Sprintf("systemctl_is_active=%s", sanitizeDiagnosticValue(d.ServiceActive)),
+		fmt.Sprintf("port_conflict_hint=%s", sanitizeDiagnosticValue(d.PortConflictHint)),
+	}, " ")
+}
+
+func proFTPDPortDiagnostics(configPath string, includeRepaired bool, testOut, serviceName, serviceActive string, listenErr error) proFTPDPortHealthDiagnostics {
+	cfg, _ := os.ReadFile(configPath)
+	ssOut := ""
+	if _, err := accessLookPath("ss"); err == nil {
+		ssOut, _ = accessRunCommandLogged("ss", "-tulpn")
+	} else if _, err := accessLookPath("netstat"); err == nil {
+		ssOut, _ = accessRunCommandLogged("netstat", "-tulpn")
+	}
+	hint := ""
+	if strings.Contains(ssOut, ":21") && !strings.Contains(ssOut, fmt.Sprintf(":%d", defaultAccessListenPort)) {
+		hint = fmt.Sprintf("proftpd appears to listen on port 21 but not %d; verify EasyWI VirtualHost include and Port directive", defaultAccessListenPort)
+	}
+	listenMsg := ""
+	if listenErr != nil {
+		listenMsg = listenErr.Error()
+	}
+	return proFTPDPortHealthDiagnostics{
+		ConfigPath:        configPath,
+		ConfigContent:     string(cfg),
+		IncludeRepaired:   includeRepaired,
+		ProFTPDTestOutput: testOut,
+		SSOutput:          ssOut,
+		ListenError:       listenMsg,
+		ServiceName:       serviceName,
+		ServiceActive:     serviceActive,
+		PortConflictHint:  hint,
+	}
+}
+
+func proFTPDSystemctlIsActive(service string) string {
+	if _, err := accessLookPath("systemctl"); err != nil {
+		return ""
+	}
+	out, err := accessRunCommandOutput("systemctl", "is-active", service)
+	if err != nil {
+		return strings.TrimSpace(out + " " + err.Error())
+	}
+	return strings.TrimSpace(out)
+}
+
 func ensureServiceRunning(service string) error {
 	if _, err := accessLookPath("systemctl"); err == nil {
 		if out, err := accessRunCommandLogged("systemctl", "daemon-reload"); err != nil {
@@ -713,11 +1194,15 @@ func ensureServiceRunning(service string) error {
 }
 
 func checkLinuxProFTPDHealth() error {
-	confDir, err := detectProFTPDConfDir()
+	confDir, err := detectProFTPDConfDirFunc()
 	if err != nil {
 		return err
 	}
 	managedConfig := filepath.Join(confDir, "easywi-sftp.conf")
+	includeRepaired := false
+	if err := ensureProFTPDAuthFile(); err != nil {
+		return fmt.Errorf("CONFIG_INVALID: auth file missing: %w", err)
+	}
 	cfg, err := os.ReadFile(managedConfig)
 	if err != nil {
 		if err := ensureProFTPDConfig(confDir); err != nil {
@@ -729,15 +1214,17 @@ func checkLinuxProFTPDHealth() error {
 		}
 	}
 	cfgStr := string(cfg)
-	if !strings.Contains(cfgStr, "# BEGIN EASYWI MANAGED") || !strings.Contains(cfgStr, "# END EASYWI MANAGED") {
+	if !strings.Contains(cfgStr, "# BEGIN EASYWI MANAGED") || !strings.Contains(cfgStr, "# END EASYWI MANAGED") || !strings.Contains(cfgStr, "<VirtualHost 0.0.0.0>") || !strings.Contains(cfgStr, fmt.Sprintf("Port %d", defaultAccessListenPort)) || strings.Contains(cfgStr, "MaxInstances") {
 		if err := ensureProFTPDConfig(confDir); err != nil {
 			return fmt.Errorf("CONFIG_INVALID: managed markers missing")
 		}
 	}
-	if _, err := ensureProFTPDManagedConfigIncluded(confDir); err != nil {
+	repaired, err := ensureProFTPDManagedConfigIncluded(confDir)
+	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(linuxHostKey); err != nil {
+	includeRepaired = includeRepaired || repaired
+	if _, err := os.Stat(proFTPDHostKeyPath); err != nil {
 		if err := ensureProFTPDKeys(); err != nil {
 			return fmt.Errorf("CONFIG_INVALID: host key missing")
 		}
@@ -745,23 +1232,54 @@ func checkLinuxProFTPDHealth() error {
 	if err := ensureProFTPDSFTPModuleInstalled(); err != nil {
 		return err
 	}
-	if _, err := os.Stat(linuxAuthUserFile); err != nil {
-		return fmt.Errorf("CONFIG_INVALID: auth file missing")
+	testOut, err := runProFTPDConfigTestWithAuthRepair()
+	if err != nil {
+		if proFTPDTestOutputHasSFTPModuleError(testOut) {
+			return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD configuration cannot load mod_sftp: %s", strings.TrimSpace(testOut))
+		}
+		return fmt.Errorf("CONFIG_INVALID: ProFTPD configuration test failed: %s", strings.TrimSpace(testOut))
 	}
-	service, err := detectProFTPDServiceName()
+	service, err := detectProFTPDServiceNameFunc()
 	if err != nil {
 		return err
 	}
-	if _, err := accessLookPath("systemctl"); err == nil {
-		out, err := accessRunCommandOutput("systemctl", "is-active", service)
-		if err != nil || strings.TrimSpace(out) != "active" {
-			if err := ensureServiceRunning(service); err != nil {
-				return err
-			}
+	activeOut := proFTPDSystemctlIsActive(service)
+	if activeOut != "" && activeOut != "active" {
+		if err := ensureServiceRunningFunc(service); err != nil {
+			return err
 		}
+		activeOut = proFTPDSystemctlIsActive(service)
 	}
-	if err := checkTCPListening(defaultAccessListenPort); err != nil {
-		return fmt.Errorf("PORT_IN_USE: port %d not reachable: %w", defaultAccessListenPort, err)
+	if listenErr := checkTCPListeningFunc(defaultAccessListenPort); listenErr == nil {
+		return nil
+	} else {
+		if err := ensureProFTPDAuthFile(); err != nil {
+			return fmt.Errorf("CONFIG_INVALID: auth file missing before port repair: %w", err)
+		}
+		if err := ensureProFTPDConfig(confDir); err != nil {
+			return err
+		}
+		repaired, err := ensureProFTPDManagedConfigIncluded(confDir)
+		if err != nil {
+			return err
+		}
+		includeRepaired = includeRepaired || repaired
+		testOut, err = runProFTPDConfigTestWithAuthRepair()
+		if err != nil {
+			if proFTPDTestOutputHasSFTPModuleError(testOut) {
+				return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD configuration cannot load mod_sftp during port repair: %s", strings.TrimSpace(testOut))
+			}
+			return fmt.Errorf("CONFIG_INVALID: ProFTPD configuration test failed during port repair: %s", strings.TrimSpace(testOut))
+		}
+		if err := ensureServiceRunningFunc(service); err != nil {
+			diag := proFTPDPortDiagnostics(managedConfig, includeRepaired, testOut, service, activeOut, listenErr)
+			return fmt.Errorf("SERVICE_START_FAILED: ProFTPD restart after SFTP port repair failed: %v %s", err, diag.String())
+		}
+		activeOut = proFTPDSystemctlIsActive(service)
+		if retryErr := checkTCPListeningFunc(defaultAccessListenPort); retryErr != nil {
+			diag := proFTPDPortDiagnostics(managedConfig, includeRepaired, testOut, service, activeOut, retryErr)
+			return fmt.Errorf("PORT_NOT_LISTENING: ProFTPD is active but SFTP port %d is not reachable after config repair and restart; %s", defaultAccessListenPort, diag.String())
+		}
 	}
 	return nil
 }
@@ -866,7 +1384,7 @@ func checkWindowsEmbeddedSFTPHealth() error {
 	if err != nil || !strings.Contains(strings.ToLower(strings.TrimSpace(out)), "running") {
 		return fmt.Errorf("SERVICE_START_FAILED: embedded service not running")
 	}
-	if err := checkTCPListening(defaultAccessListenPort); err != nil {
+	if err := checkTCPListeningFunc(defaultAccessListenPort); err != nil {
 		return fmt.Errorf("PORT_IN_USE: %w", err)
 	}
 	return nil
@@ -914,7 +1432,7 @@ func checkWindowsOpenSSHHealth() error {
 	if err != nil || strings.TrimSpace(out) == "" {
 		return fmt.Errorf("SERVICE_START_FAILED: sshd service unavailable")
 	}
-	if err := checkTCPListening(defaultAccessListenPort); err != nil {
+	if err := checkTCPListeningFunc(defaultAccessListenPort); err != nil {
 		return fmt.Errorf("PORT_IN_USE: %w", err)
 	}
 	return nil
@@ -944,6 +1462,8 @@ func mapAccessErr(err error) string {
 		return "PROFTPD_SFTP_MODULE_MISSING"
 	case strings.Contains(msg, "FIREWALL_CONFIG_FAILED"):
 		return "FIREWALL_CONFIG_FAILED"
+	case strings.Contains(msg, "PORT_NOT_LISTENING"):
+		return "PORT_NOT_LISTENING"
 	case strings.Contains(msg, "PORT_IN_USE"):
 		return "PORT_IN_USE"
 	case strings.Contains(msg, "ROOT_INVALID"):

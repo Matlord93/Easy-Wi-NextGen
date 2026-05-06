@@ -14,13 +14,56 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func TestBuildProFTPDManagedConfigMatchesConfirmedVirtualHostTemplate(t *testing.T) {
+	origAuth := proFTPDAuthUserFilePath
+	origHostKey := proFTPDHostKeyPath
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		proFTPDHostKeyPath = origHostKey
+	})
+	proFTPDAuthUserFilePath = linuxAuthUserFile
+	proFTPDHostKeyPath = linuxHostKey
+
+	want := strings.Join([]string{
+		"# BEGIN EASYWI MANAGED",
+		"<IfModule mod_sftp.c>",
+		"  <VirtualHost 0.0.0.0>",
+		"    Port 2222",
+		"    SFTPEngine on",
+		"    SFTPLog /var/log/proftpd/easywi-sftp.log",
+		"    SFTPHostKey /etc/proftpd/keys/easywi_rsa_key",
+		"    AuthUserFile /var/lib/easywi/proftpd/passwd",
+		"    RequireValidShell off",
+		"    DefaultRoot ~",
+		"    TimeoutIdle 600",
+		"  </VirtualHost>",
+		"</IfModule>",
+		"# END EASYWI MANAGED",
+	}, "\n") + "\n"
+	if got := buildProFTPDManagedConfig(2222); got != want {
+		t.Fatalf("managed config mismatch\nwant:\n%s\ngot:\n%s", want, got)
+	}
+}
+
 func TestBuildProFTPDManagedConfigContainsMarkers(t *testing.T) {
 	cfg := buildProFTPDManagedConfig(2222)
 	if !strings.Contains(cfg, "# BEGIN EASYWI MANAGED") || !strings.Contains(cfg, "# END EASYWI MANAGED") {
 		t.Fatalf("managed markers missing")
 	}
+	if !strings.Contains(cfg, "<VirtualHost 0.0.0.0>") {
+		t.Fatalf("VirtualHost listener missing from config: %s", cfg)
+	}
 	if !strings.Contains(cfg, "Port 2222") {
 		t.Fatalf("port missing from config")
+	}
+	if !strings.Contains(cfg, "SFTPEngine on") {
+		t.Fatalf("SFTPEngine missing from config")
+	}
+	if strings.Index(cfg, "<VirtualHost 0.0.0.0>") > strings.Index(cfg, "SFTPEngine on") {
+		t.Fatalf("expected SFTPEngine inside the VirtualHost block")
+	}
+	if strings.Contains(cfg, "MaxInstances") {
+		t.Fatalf("MaxInstances must not be emitted in the VirtualHost block: %s", cfg)
 	}
 }
 
@@ -188,7 +231,7 @@ func TestInstallLinuxPackagesInstallsModulePackagesEvenWhenProftpdExists(t *test
 
 func TestEnableProFTPDSFTPModuleInFileIsIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "modules.conf")
-	if err := os.WriteFile(path, []byte("LoadModule mod_sftp.c\nLoadModule mod_tls.c\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("LoadModule mod_sftp.c mod_sftp.so\nLoadModule mod_tls.c\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	repaired, err := enableProFTPDSFTPModuleInFile(path)
@@ -217,11 +260,580 @@ func TestEnableProFTPDSFTPModuleInFileUncommentsModule(t *testing.T) {
 		t.Fatal("expected commented module line to be repaired")
 	}
 	raw, _ := os.ReadFile(path)
-	if !strings.Contains(string(raw), "LoadModule mod_sftp.c\n") {
+	if !strings.Contains(string(raw), "LoadModule mod_sftp.c mod_sftp.so\n") {
 		t.Fatalf("expected uncommented module line, got %q", string(raw))
 	}
 	if strings.Contains(string(raw), "#LoadModule mod_sftp.c") {
 		t.Fatalf("expected commented module line to be removed, got %q", string(raw))
+	}
+}
+
+func TestChooseProFTPDModuleConfigPathPrefersAlternativeLoadModuleFile(t *testing.T) {
+	origCandidates := proFTPDModuleConfigCandidates
+	origManaged := proFTPDManagedModulesPath
+	t.Cleanup(func() {
+		proFTPDModuleConfigCandidates = origCandidates
+		proFTPDManagedModulesPath = origManaged
+	})
+	dir := t.TempDir()
+	plain := filepath.Join(dir, "modules.conf")
+	alt := filepath.Join(dir, "conf.modules.d", "00-base.conf")
+	if err := os.MkdirAll(filepath.Dir(alt), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plain, []byte("# no modules here\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(alt, []byte("LoadModule mod_tls.c mod_tls.so\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	proFTPDModuleConfigCandidates = func() []string { return []string{plain, alt} }
+	proFTPDManagedModulesPath = func() (string, string, error) { return filepath.Join(dir, "managed.conf"), dir, nil }
+
+	got, confDir, err := chooseProFTPDModuleConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != alt || confDir != "" {
+		t.Fatalf("chooseProFTPDModuleConfigPath()=(%q,%q), want (%q,%q)", got, confDir, alt, "")
+	}
+}
+
+func TestChooseProFTPDModuleConfigPathUsesManagedFileWhenOnlyMainConfigExists(t *testing.T) {
+	origCandidates := proFTPDModuleConfigCandidates
+	origManaged := proFTPDManagedModulesPath
+	t.Cleanup(func() {
+		proFTPDModuleConfigCandidates = origCandidates
+		proFTPDManagedModulesPath = origManaged
+	})
+	dir := t.TempDir()
+	mainConfig := filepath.Join(dir, "proftpd.conf")
+	managed := filepath.Join(dir, "conf.d", "easywi-modules.conf")
+	if err := os.WriteFile(mainConfig, []byte("ServerName test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	proFTPDModuleConfigCandidates = func() []string { return []string{mainConfig} }
+	proFTPDManagedModulesPath = func() (string, string, error) { return managed, filepath.Dir(managed), nil }
+
+	got, confDir, err := chooseProFTPDModuleConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != managed || confDir != filepath.Dir(managed) {
+		t.Fatalf("chooseProFTPDModuleConfigPath()=(%q,%q), want managed (%q,%q)", got, confDir, managed, filepath.Dir(managed))
+	}
+}
+
+func TestEnableProFTPDSFTPModuleWritesManagedFileWhenModulesConfMissing(t *testing.T) {
+	origCandidates := proFTPDModuleConfigCandidates
+	origPatterns := proFTPDModuleSearchPatterns
+	origManaged := proFTPDManagedModulesPath
+	t.Cleanup(func() {
+		proFTPDModuleConfigCandidates = origCandidates
+		proFTPDModuleSearchPatterns = origPatterns
+		proFTPDManagedModulesPath = origManaged
+	})
+	dir := t.TempDir()
+	moduleSO := filepath.Join(dir, "usr", "lib64", "proftpd", "mod_sftp.so")
+	if err := os.MkdirAll(filepath.Dir(moduleSO), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(moduleSO, []byte("so"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	managed := filepath.Join(dir, "etc", "proftpd", "conf.d", "easywi-modules.conf")
+	proFTPDModuleConfigCandidates = func() []string { return nil }
+	proFTPDModuleSearchPatterns = func() []string { return []string{filepath.Join(dir, "usr", "lib64", "proftpd", "*.so")} }
+	proFTPDManagedModulesPath = func() (string, string, error) { return managed, filepath.Dir(managed), nil }
+
+	repaired, diag, err := enableProFTPDSFTPModuleWithDiagnostics()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repaired || diag.ModuleConfigPath != managed || !diag.ModuleSOFound || diag.ModuleSOPath != moduleSO {
+		t.Fatalf("unexpected repair result repaired=%t diag=%+v", repaired, diag)
+	}
+	raw, err := os.ReadFile(managed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(raw), "LoadModule mod_sftp.c mod_sftp.so"); got != 1 {
+		t.Fatalf("expected one managed SFTP LoadModule line, got %d in %q", got, string(raw))
+	}
+}
+
+func TestFindProFTPDSFTPModuleSOUsesProFTPDSharedModuleDirectory(t *testing.T) {
+	origPatterns := proFTPDModuleSearchPatterns
+	origLookPath := accessLookPath
+	origRun := accessRunCommandLogged
+	t.Cleanup(func() {
+		proFTPDModuleSearchPatterns = origPatterns
+		accessLookPath = origLookPath
+		accessRunCommandLogged = origRun
+	})
+	dir := t.TempDir()
+	sharedDir := filepath.Join(dir, "custom", "proftpd")
+	moduleSO := filepath.Join(sharedDir, "mod_sftp.so")
+	if err := os.MkdirAll(sharedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(moduleSO, []byte("so"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	proFTPDModuleSearchPatterns = func() []string { return []string{filepath.Join(dir, "fallback", "mod_sftp.so")} }
+	accessLookPath = func(file string) (string, error) {
+		if file == "proftpd" {
+			return "/usr/sbin/proftpd", nil
+		}
+		return "", errors.New("missing")
+	}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		if name == "proftpd" && strings.Join(args, " ") == "-V" {
+			return "Shared Module Directory: " + sharedDir + "\n", nil
+		}
+		return "", nil
+	}
+
+	got, searched := findProFTPDSFTPModuleSO()
+	if got != moduleSO {
+		t.Fatalf("expected proftpd -V shared module dir path %q, got %q (searched=%v)", moduleSO, got, searched)
+	}
+}
+
+func TestFindProFTPDSFTPModuleSOChecksDebianAndRHELPaths(t *testing.T) {
+	origPatterns := proFTPDModuleSearchPatterns
+	t.Cleanup(func() { proFTPDModuleSearchPatterns = origPatterns })
+	dir := t.TempDir()
+	debian := filepath.Join(dir, "usr", "lib", "x86_64-linux-gnu", "proftpd", "mod_sftp.so")
+	rhel := filepath.Join(dir, "usr", "lib64", "proftpd", "mod_sftp.so")
+	for _, path := range []string{debian, rhel} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("so"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	proFTPDModuleSearchPatterns = func() []string {
+		return []string{
+			filepath.Join(dir, "usr", "lib", "proftpd", "mod_sftp.so"),
+			filepath.Join(dir, "usr", "lib64", "proftpd", "mod_sftp.so"),
+			filepath.Join(dir, "usr", "lib", "*", "proftpd", "mod_sftp.so"),
+		}
+	}
+	got, searched := findProFTPDSFTPModuleSO()
+	if got != rhel {
+		t.Fatalf("expected first existing RHEL-style path %q, got %q (searched=%v)", rhel, got, searched)
+	}
+}
+
+func TestEnableProFTPDSFTPModuleMissingSOReportsDiagnostics(t *testing.T) {
+	origCandidates := proFTPDModuleConfigCandidates
+	origPatterns := proFTPDModuleSearchPatterns
+	origLookPath := accessLookPath
+	origRun := accessRunCommandLogged
+	t.Cleanup(func() {
+		proFTPDModuleConfigCandidates = origCandidates
+		proFTPDModuleSearchPatterns = origPatterns
+		accessLookPath = origLookPath
+		accessRunCommandLogged = origRun
+	})
+	dir := t.TempDir()
+	proFTPDModuleConfigCandidates = func() []string { return []string{filepath.Join(dir, "modules.conf")} }
+	proFTPDModuleSearchPatterns = func() []string { return []string{filepath.Join(dir, "missing", "mod_sftp.so")} }
+	accessLookPath = func(file string) (string, error) {
+		if file == "apt-get" {
+			return "/usr/bin/apt-get", nil
+		}
+		return "", errors.New("missing")
+	}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		return name + " " + strings.Join(args, " ") + " failed", errors.New("install failed")
+	}
+
+	_, diag, err := enableProFTPDSFTPModuleWithDiagnostics()
+	if err == nil {
+		t.Fatal("expected missing module error")
+	}
+	msg := diag.String()
+	for _, want := range []string{"module_so_found=false", "package_manager=apt-get", "attempted_packages=proftpd-mod-crypto", "searched_module_paths="} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("expected diagnostic %q in %q", want, msg)
+		}
+	}
+}
+
+func TestEnsureProFTPDAuthFileIsIdempotent(t *testing.T) {
+	origAuth := proFTPDAuthUserFilePath
+	t.Cleanup(func() { proFTPDAuthUserFilePath = origAuth })
+	proFTPDAuthUserFilePath = filepath.Join(t.TempDir(), "proftpd", "passwd")
+
+	if err := ensureProFTPDAuthFile(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(proFTPDAuthUserFilePath, []byte("existing\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureProFTPDAuthFile(); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(proFTPDAuthUserFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("expected auth file mode 0600, got %o", info.Mode().Perm())
+	}
+	dirInfo, err := os.Stat(filepath.Dir(proFTPDAuthUserFilePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dirInfo.Mode().Perm() != 0o700 {
+		t.Fatalf("expected auth dir mode 0700, got %o", dirInfo.Mode().Perm())
+	}
+	raw, err := os.ReadFile(proFTPDAuthUserFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "existing\n" {
+		t.Fatalf("expected existing auth content to be preserved, got %q", string(raw))
+	}
+}
+
+func TestAuthUserFileConfigErrorDoesNotMapToMissingSFTPModule(t *testing.T) {
+	output := "fatal: AuthUserFile '/var/lib/easywi/proftpd/passwd': No such file or directory on line 7 of '/etc/proftpd/conf.d/easywi-sftp.conf'"
+	if !proFTPDTestOutputHasAuthUserFileError(output) {
+		t.Fatalf("expected AuthUserFile error to be detected")
+	}
+	if proFTPDTestOutputHasSFTPModuleError(output) {
+		t.Fatalf("AuthUserFile error in easywi-sftp.conf must not be treated as a mod_sftp load error")
+	}
+	if got := mapAccessErr(assertErr("CONFIG_INVALID: ProFTPD configuration test failed: " + output)); got != "CONFIG_INVALID" {
+		t.Fatalf("expected CONFIG_INVALID, got %s", got)
+	}
+}
+
+func TestEnsureProFTPDSFTPModuleInstalledAcceptsLoadedDSOConfig(t *testing.T) {
+	origAuth := proFTPDAuthUserFilePath
+	origCandidates := proFTPDModuleConfigCandidates
+	origPatterns := proFTPDModuleSearchPatterns
+	origLookPath := accessLookPath
+	origRun := accessRunCommandLogged
+	origDetectService := detectProFTPDServiceNameFunc
+	origEnsureService := ensureServiceRunningFunc
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		proFTPDModuleConfigCandidates = origCandidates
+		proFTPDModuleSearchPatterns = origPatterns
+		accessLookPath = origLookPath
+		accessRunCommandLogged = origRun
+		detectProFTPDServiceNameFunc = origDetectService
+		ensureServiceRunningFunc = origEnsureService
+	})
+	dir := t.TempDir()
+	proFTPDAuthUserFilePath = filepath.Join(dir, "var", "lib", "easywi", "proftpd", "passwd")
+	moduleSO := filepath.Join(dir, "usr", "lib", "proftpd", "mod_sftp.so")
+	if err := os.MkdirAll(filepath.Dir(moduleSO), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(moduleSO, []byte("so"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	modulesConf := filepath.Join(dir, "etc", "proftpd", "modules.conf")
+	if err := os.MkdirAll(filepath.Dir(modulesConf), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(modulesConf, []byte("LoadModule mod_sftp.c\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	proFTPDModuleConfigCandidates = func() []string { return []string{modulesConf} }
+	proFTPDModuleSearchPatterns = func() []string { return []string{moduleSO} }
+	accessLookPath = func(file string) (string, error) {
+		if file == "proftpd" {
+			return "/usr/sbin/proftpd", nil
+		}
+		return "", errors.New("missing")
+	}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		cmd := name + " " + strings.Join(args, " ")
+		switch cmd {
+		case "proftpd -l":
+			return "Compiled-in modules:\n mod_core.c\n mod_dso.c\n", nil
+		case "proftpd -t":
+			return "Checking syntax\nmod_sftp/1.1.1\nSyntax check complete\n", nil
+		case "proftpd -td10":
+			return "dispatching auth request to mod_sftp/1.1.1\n", nil
+		default:
+			return "", nil
+		}
+	}
+	detectProFTPDServiceNameFunc = func() (string, error) { return "proftpd", nil }
+	ensureServiceRunningFunc = func(service string) error { return nil }
+
+	if err := ensureProFTPDSFTPModuleInstalled(); err != nil {
+		t.Fatalf("expected DSO-backed mod_sftp config to be accepted, got %v", err)
+	}
+	if _, err := os.Stat(proFTPDAuthUserFilePath); err != nil {
+		t.Fatalf("expected auth file to be created before proftpd -t: %v", err)
+	}
+}
+
+func TestCheckLinuxProFTPDHealthRepairsMissingAuthUserFile(t *testing.T) {
+	origAuth := proFTPDAuthUserFilePath
+	origHostKey := proFTPDHostKeyPath
+	origConfDir := detectProFTPDConfDirFunc
+	origCandidates := proFTPDModuleConfigCandidates
+	origPatterns := proFTPDModuleSearchPatterns
+	origLookPath := accessLookPath
+	origRun := accessRunCommandLogged
+	origRunOutput := accessRunCommandOutput
+	origDetectService := detectProFTPDServiceNameFunc
+	origEnsureService := ensureServiceRunningFunc
+	origCheckTCP := checkTCPListeningFunc
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		proFTPDHostKeyPath = origHostKey
+		detectProFTPDConfDirFunc = origConfDir
+		proFTPDModuleConfigCandidates = origCandidates
+		proFTPDModuleSearchPatterns = origPatterns
+		accessLookPath = origLookPath
+		accessRunCommandLogged = origRun
+		accessRunCommandOutput = origRunOutput
+		detectProFTPDServiceNameFunc = origDetectService
+		ensureServiceRunningFunc = origEnsureService
+		checkTCPListeningFunc = origCheckTCP
+	})
+	dir := t.TempDir()
+	confDir := filepath.Join(dir, "etc", "proftpd", "conf.d")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	proFTPDAuthUserFilePath = filepath.Join(dir, "var", "lib", "easywi", "proftpd", "passwd")
+	proFTPDHostKeyPath = filepath.Join(dir, "etc", "proftpd", "keys", "easywi_rsa_key")
+	if err := os.MkdirAll(filepath.Dir(proFTPDHostKeyPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(proFTPDHostKeyPath, []byte("key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "easywi-sftp.conf"), []byte(buildProFTPDManagedConfig(defaultAccessListenPort)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	moduleSO := filepath.Join(dir, "usr", "lib", "proftpd", "mod_sftp.so")
+	if err := os.MkdirAll(filepath.Dir(moduleSO), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(moduleSO, []byte("so"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	modulesConf := filepath.Join(dir, "etc", "proftpd", "modules.conf")
+	if err := os.WriteFile(modulesConf, []byte("LoadModule mod_sftp.c mod_sftp.so\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	detectProFTPDConfDirFunc = func() (string, error) { return confDir, nil }
+	proFTPDModuleConfigCandidates = func() []string { return []string{modulesConf} }
+	proFTPDModuleSearchPatterns = func() []string { return []string{moduleSO} }
+	accessLookPath = func(file string) (string, error) {
+		if file == "proftpd" || file == "systemctl" {
+			return "/usr/bin/" + file, nil
+		}
+		return "", errors.New("missing")
+	}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		cmd := name + " " + strings.Join(args, " ")
+		switch cmd {
+		case "proftpd -l":
+			return "Compiled-in modules:\n mod_core.c\n mod_dso.c\n", nil
+		case "proftpd -t":
+			return "mod_sftp/1.1.1\nSyntax check complete\n", nil
+		case "proftpd -td10":
+			return "mod_sftp/1.1.1\n", nil
+		default:
+			return "", nil
+		}
+	}
+	accessRunCommandOutput = func(name string, args ...string) (string, error) { return "active\n", nil }
+	detectProFTPDServiceNameFunc = func() (string, error) { return "proftpd", nil }
+	ensureServiceRunningFunc = func(service string) error { return nil }
+	checkTCPListeningFunc = func(port int) error { return nil }
+
+	if err := checkLinuxProFTPDHealth(); err != nil {
+		t.Fatalf("expected healthcheck to repair missing auth file, got %v", err)
+	}
+	if _, err := os.Stat(proFTPDAuthUserFilePath); err != nil {
+		t.Fatalf("expected auth file repair, got %v", err)
+	}
+}
+
+func TestEnsureProFTPDConfigWritesManagedConfigIdempotently(t *testing.T) {
+	origAuth := proFTPDAuthUserFilePath
+	origHostKey := proFTPDHostKeyPath
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		proFTPDHostKeyPath = origHostKey
+	})
+	dir := t.TempDir()
+	confDir := filepath.Join(dir, "conf.d")
+	proFTPDAuthUserFilePath = filepath.Join(dir, "var", "lib", "easywi", "proftpd", "passwd")
+	proFTPDHostKeyPath = filepath.Join(dir, "etc", "proftpd", "keys", "easywi_rsa_key")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldConfig := strings.Join([]string{
+		"# BEGIN EASYWI MANAGED",
+		"<IfModule mod_sftp.c>",
+		"  <VirtualHost 0.0.0.0>",
+		"    Port 2222",
+		"    SFTPEngine on",
+		"    MaxInstances 30",
+		"  </VirtualHost>",
+		"</IfModule>",
+		"# END EASYWI MANAGED",
+	}, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(confDir, "easywi-sftp.conf"), []byte(oldConfig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ensureProFTPDConfig(confDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureProFTPDConfig(confDir); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(confDir, "easywi-sftp.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := string(raw)
+	if strings.Count(cfg, "# BEGIN EASYWI MANAGED") != 1 || strings.Count(cfg, "<VirtualHost 0.0.0.0>") != 1 {
+		t.Fatalf("expected one managed VirtualHost config, got %q", cfg)
+	}
+	if strings.Contains(cfg, "MaxInstances") {
+		t.Fatalf("expected managed config without MaxInstances, got %q", cfg)
+	}
+	if !strings.Contains(cfg, "AuthUserFile "+proFTPDAuthUserFilePath) || !strings.Contains(cfg, "SFTPHostKey "+proFTPDHostKeyPath) {
+		t.Fatalf("expected overridden paths in managed config, got %q", cfg)
+	}
+}
+
+func TestCheckLinuxProFTPDHealthRewritesConfigAndRestartsWhenPortNotListening(t *testing.T) {
+	origAuth := proFTPDAuthUserFilePath
+	origHostKey := proFTPDHostKeyPath
+	origConfDir := detectProFTPDConfDirFunc
+	origCandidates := proFTPDModuleConfigCandidates
+	origPatterns := proFTPDModuleSearchPatterns
+	origLookPath := accessLookPath
+	origRun := accessRunCommandLogged
+	origRunOutput := accessRunCommandOutput
+	origDetectService := detectProFTPDServiceNameFunc
+	origEnsureService := ensureServiceRunningFunc
+	origCheckTCP := checkTCPListeningFunc
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		proFTPDHostKeyPath = origHostKey
+		detectProFTPDConfDirFunc = origConfDir
+		proFTPDModuleConfigCandidates = origCandidates
+		proFTPDModuleSearchPatterns = origPatterns
+		accessLookPath = origLookPath
+		accessRunCommandLogged = origRun
+		accessRunCommandOutput = origRunOutput
+		detectProFTPDServiceNameFunc = origDetectService
+		ensureServiceRunningFunc = origEnsureService
+		checkTCPListeningFunc = origCheckTCP
+	})
+	dir := t.TempDir()
+	confDir := filepath.Join(dir, "etc", "proftpd", "conf.d")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	proFTPDAuthUserFilePath = filepath.Join(dir, "var", "lib", "easywi", "proftpd", "passwd")
+	proFTPDHostKeyPath = filepath.Join(dir, "etc", "proftpd", "keys", "easywi_rsa_key")
+	if err := os.MkdirAll(filepath.Dir(proFTPDHostKeyPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(proFTPDHostKeyPath, []byte("key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	legacyConfig := strings.Join([]string{
+		"# BEGIN EASYWI MANAGED",
+		"<IfModule mod_sftp.c>",
+		"  SFTPEngine on",
+		"  Port 2222",
+		"</IfModule>",
+		"# END EASYWI MANAGED",
+	}, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(confDir, "easywi-sftp.conf"), []byte(legacyConfig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	moduleSO := filepath.Join(dir, "usr", "lib", "proftpd", "mod_sftp.so")
+	if err := os.MkdirAll(filepath.Dir(moduleSO), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(moduleSO, []byte("so"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	modulesConf := filepath.Join(dir, "etc", "proftpd", "modules.conf")
+	if err := os.WriteFile(modulesConf, []byte("LoadModule mod_sftp.c mod_sftp.so\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	detectProFTPDConfDirFunc = func() (string, error) { return confDir, nil }
+	proFTPDModuleConfigCandidates = func() []string { return []string{modulesConf} }
+	proFTPDModuleSearchPatterns = func() []string { return []string{moduleSO} }
+	accessLookPath = func(file string) (string, error) {
+		if file == "proftpd" || file == "systemctl" || file == "ss" {
+			return "/usr/bin/" + file, nil
+		}
+		return "", errors.New("missing")
+	}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		cmd := name + " " + strings.Join(args, " ")
+		switch cmd {
+		case "proftpd -l":
+			return "Compiled-in modules:\n mod_core.c\n mod_dso.c\n", nil
+		case "proftpd -t":
+			return "mod_sftp/1.1.1\nSyntax check complete\n", nil
+		case "proftpd -td10":
+			return "mod_sftp/1.1.1\n", nil
+		case "ss -tulpn":
+			return "tcp LISTEN 0 128 0.0.0.0:21 0.0.0.0:* users:((\"proftpd\",pid=1,fd=3))\n", nil
+		default:
+			return "", nil
+		}
+	}
+	accessRunCommandOutput = func(name string, args ...string) (string, error) { return "active\n", nil }
+	detectProFTPDServiceNameFunc = func() (string, error) { return "proftpd", nil }
+	restarts := 0
+	ensureServiceRunningFunc = func(service string) error { restarts++; return nil }
+	checks := 0
+	checkTCPListeningFunc = func(port int) error {
+		checks++
+		if checks == 1 {
+			return errors.New("connection refused")
+		}
+		return nil
+	}
+
+	if err := checkLinuxProFTPDHealth(); err != nil {
+		t.Fatalf("expected healthcheck to repair config/restart when port is closed, got %v", err)
+	}
+	if restarts == 0 {
+		t.Fatal("expected ProFTPD restart during port repair")
+	}
+	raw, err := os.ReadFile(filepath.Join(confDir, "easywi-sftp.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "<VirtualHost 0.0.0.0>") {
+		t.Fatalf("expected config rewrite to VirtualHost listener, got %q", string(raw))
+	}
+	if strings.Contains(string(raw), "MaxInstances") {
+		t.Fatalf("expected config rewrite to remove MaxInstances, got %q", string(raw))
+	}
+}
+
+func TestPortNotListeningErrorDoesNotMapToMissingSFTPModule(t *testing.T) {
+	if got := mapAccessErr(assertErr("PORT_NOT_LISTENING: ProFTPD is active but SFTP port 2222 is not reachable")); got != "PORT_NOT_LISTENING" {
+		t.Fatalf("expected PORT_NOT_LISTENING, got %s", got)
 	}
 }
 
