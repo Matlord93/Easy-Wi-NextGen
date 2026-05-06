@@ -8,10 +8,24 @@ use PHPUnit\Framework\TestCase;
 
 final class CentralSchedulerContractTest extends TestCase
 {
+    private static function readCentralSchedulerDocs(): string
+    {
+        foreach ([
+            __DIR__.'/../../docs/architecture/central-scheduler.md',
+            __DIR__.'/../../../docs/architecture/central-scheduler.md',
+        ] as $path) {
+            if (is_readable($path)) {
+                return (string) file_get_contents($path);
+            }
+        }
+
+        self::fail('Central scheduler architecture documentation is missing.');
+    }
+
     public function testRunSchedulesIsCentralProductionSchedulerEntryPoint(): void
     {
         $command = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Command/RunSchedulesCommand.php');
-        $docs = (string) file_get_contents(__DIR__.'/../../../docs/architecture/central-scheduler.md');
+        $docs = self::readCentralSchedulerDocs();
 
         self::assertStringContainsString('app:run-schedules', $command);
         self::assertStringContainsString('CentralSchedulerRunner', $command);
@@ -50,7 +64,7 @@ final class CentralSchedulerContractTest extends TestCase
 
     public function testFeatureSpecificCommandsAreOptionalDebugHelpers(): void
     {
-        $docs = (string) file_get_contents(__DIR__.'/../../../docs/architecture/central-scheduler.md');
+        $docs = self::readCentralSchedulerDocs();
 
         self::assertStringContainsString('debug/development helpers only', $docs);
         self::assertStringContainsString('must not be required as separate production cronjobs', $docs);
