@@ -43,6 +43,7 @@ use App\Repository\DomainRepository;
 use App\Repository\GdprDeletionRequestRepository;
 use App\Repository\InstanceMetricSampleRepository;
 use App\Repository\InstanceRepository;
+use App\Repository\InstanceScheduleRepository;
 use App\Repository\InstanceSftpCredentialRepository;
 use App\Repository\JobRepository;
 use App\Repository\PublicServerRepository;
@@ -92,6 +93,7 @@ final class AgentApiController
         private readonly DomainRepository $domainRepository,
         private readonly DatabaseRepository $databaseRepository,
         private readonly InstanceRepository $instanceRepository,
+        private readonly InstanceScheduleRepository $instanceScheduleRepository,
         private readonly InstanceMetricSampleRepository $instanceMetricSampleRepository,
         private readonly InstanceSftpCredentialRepository $instanceSftpCredentialRepository,
         private readonly PublicServerRepository $publicServerRepository,
@@ -396,6 +398,7 @@ final class AgentApiController
             }
 
             $payload = $job->getPayload();
+            $payload = $this->resolveDispatchPayload($job);
             $payload = $this->resolveBackupTargetPayload($job->getType(), $payload);
             $targetAgentId = is_string($payload['agent_id'] ?? null) ? $payload['agent_id'] : '';
             if ($targetAgentId !== '' && $targetAgentId !== $agent->getId()) {
@@ -595,6 +598,8 @@ final class AgentApiController
         $this->applyTs3UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->applyTs6UpdatesFromJob($job, $resultStatus, $agent->getId(), $output);
         $this->applyInstanceUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
+        $this->applyInstanceConfigApplyResult($job, $resultStatus, $agent->getId(), $output, $completedAt);
+        $this->applyScheduledRestartScheduleResult($job, $resultStatus, $completedAt);
         $this->applyDiskUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyPublicServerUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
         $this->applyInstanceQueryUpdatesFromJob($job, $resultStatus, $agent->getId(), $output, $completedAt);
@@ -956,6 +961,43 @@ final class AgentApiController
         }
 
         return in_array($jobType, $normalizedCapabilities, true);
+    }
+
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveDispatchPayload(Job $job): array
+    {
+        $payload = $job->getPayload();
+        if ($job->getType() !== 'instance.sftp.credentials.reset') {
+            return $payload;
+        }
+
+        $secret = $this->decryptJobSecret($payload['one_time_password_secret'] ?? null);
+        if ($secret !== null && $secret !== '') {
+            $payload['one_time_password'] = $secret;
+        }
+        unset($payload['one_time_password_secret'], $payload['password'], $payload['sftp_password']);
+
+        return $payload;
+    }
+
+    private function decryptJobSecret(mixed $secretPayload): ?string
+    {
+        if (!is_array($secretPayload)) {
+            return null;
+        }
+
+        try {
+            $secret = $this->encryptionService->decrypt($secretPayload);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $secret = trim($secret);
+
+        return $secret !== '' ? $secret : null;
     }
 
     private function isDecommissionedAgent(Agent $agent): bool
@@ -1957,6 +1999,47 @@ final class AgentApiController
         ]);
     }
 
+
+    private function applyScheduledRestartScheduleResult(
+        \App\Module\Core\Domain\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'instance.restart') {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        if ((string) ($payload['reason'] ?? '') !== 'scheduled_restart') {
+            return;
+        }
+
+        $scheduleId = $payload['schedule_id'] ?? null;
+        if (!is_int($scheduleId) && !is_string($scheduleId)) {
+            return;
+        }
+
+        $schedule = $this->instanceScheduleRepository->find((int) $scheduleId);
+        if (!$schedule instanceof \App\Module\Core\Domain\Entity\InstanceSchedule) {
+            return;
+        }
+
+        if ($resultStatus === JobResultStatus::Succeeded) {
+            $schedule->markRun($completedAt, 'succeeded');
+        } else {
+            $schedule->markScheduleResult($resultStatus->value, $job->getLastErrorCode());
+        }
+
+        $this->entityManager->persist($schedule);
+        $this->auditLogger->log(null, 'instance.restart.schedule_completed', [
+            'schedule_id' => $schedule->getId(),
+            'instance_id' => $schedule->getInstance()->getId(),
+            'customer_id' => $schedule->getCustomer()->getId(),
+            'job_id' => $job->getId(),
+            'status' => $resultStatus->value,
+        ]);
+    }
+
     private function applyInstanceUpdatesFromJob(
         \App\Module\Core\Domain\Entity\Job $job,
         JobResultStatus $resultStatus,
@@ -2050,6 +2133,64 @@ final class AgentApiController
         ]);
     }
 
+
+    private function applyInstanceConfigApplyResult(
+        \App\Module\Core\Domain\Entity\Job $job,
+        JobResultStatus $resultStatus,
+        string $agentId,
+        array $output,
+        DateTimeImmutable $completedAt,
+    ): void {
+        if ($job->getType() !== 'instance.config.apply') {
+            return;
+        }
+
+        $payload = $job->getPayload();
+        $instanceId = $payload['instance_id'] ?? null;
+        if (!is_int($instanceId) && !is_string($instanceId)) {
+            return;
+        }
+
+        $instance = $this->instanceRepository->find((int) $instanceId);
+        if (!$instance instanceof Instance || $instance->getNode()->getId() !== $agentId) {
+            return;
+        }
+
+        $paths = [];
+        $files = is_array($payload['files'] ?? null) ? $payload['files'] : [];
+        foreach ($files as $file) {
+            if (is_array($file) && is_string($file['path'] ?? null) && trim((string) $file['path']) !== '') {
+                $paths[] = trim((string) $file['path']);
+            }
+        }
+        if ($paths === [] && is_string($payload['file_path'] ?? null)) {
+            $paths[] = trim((string) $payload['file_path']);
+        }
+
+        $overrides = $instance->getConfigOverrides();
+        $errorCode = is_string($output['error_code'] ?? null) ? (string) $output['error_code'] : $job->getLastErrorCode();
+        $errorMessage = is_string($output['message'] ?? null) ? (string) $output['message'] : ($job->getLastError() ?? null);
+        foreach ($paths as $path) {
+            if ($path === '') {
+                continue;
+            }
+            $entry = is_array($overrides[$path] ?? null) ? $overrides[$path] : [];
+            $entry['last_apply_status'] = $resultStatus === JobResultStatus::Succeeded ? 'succeeded' : 'failed';
+            $entry['last_applied_at'] = $completedAt->format(DATE_RFC3339);
+            if ($resultStatus === JobResultStatus::Succeeded) {
+                $entry['last_apply_error_code'] = null;
+                $entry['last_apply_error_message'] = null;
+            } else {
+                $entry['last_apply_error_code'] = $errorCode;
+                $entry['last_apply_error_message'] = $errorMessage;
+            }
+            $overrides[$path] = $entry;
+        }
+
+        $instance->setConfigOverrides($overrides);
+        $this->entityManager->persist($instance);
+    }
+
     private function applyInstanceSftpCredentialUpdatesFromJob(
         \App\Module\Core\Domain\Entity\Job $job,
         JobResultStatus $resultStatus,
@@ -2057,7 +2198,7 @@ final class AgentApiController
         array &$output,
         DateTimeImmutable $completedAt,
     ): void {
-        if ($job->getType() !== 'instance.sftp.credentials.reset' || $resultStatus !== JobResultStatus::Succeeded) {
+        if ($job->getType() !== 'instance.sftp.credentials.reset') {
             return;
         }
 
@@ -2072,20 +2213,27 @@ final class AgentApiController
             return;
         }
 
-        $password = is_string($payload['password'] ?? null) ? trim((string) $payload['password']) : '';
-        if ($password === '') {
-            $password = bin2hex(random_bytes(18));
-        }
+        $password = $this->decryptJobSecret($payload['one_time_password_secret'] ?? null) ?? '';
 
         $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
         if ($credential === null) {
             $credential = new \App\Module\Core\Domain\Entity\InstanceSftpCredential(
                 $instance,
                 (string) ($output['username'] ?? sprintf('sftp%d', $instance->getId())),
-                $this->encryptionService->encrypt($password),
+                $this->encryptionService->encrypt($password !== '' ? $password : bin2hex(random_bytes(18))),
             );
-        } else {
+        } elseif ($password !== '') {
             $credential->setEncryptedPassword($this->encryptionService->encrypt($password));
+        }
+
+        if ($resultStatus !== JobResultStatus::Succeeded) {
+            $credential->markProvisioningFailed(
+                is_string($output['error_code'] ?? null) ? (string) $output['error_code'] : $job->getLastErrorCode(),
+                is_string($output['message'] ?? null) ? (string) $output['message'] : ($job->getLastError() ?? 'SFTP provisioning failed.'),
+            );
+            $this->entityManager->persist($credential);
+
+            return;
         }
 
         $backend = is_string($output['backend'] ?? null) ? (string) $output['backend'] : 'NONE';
@@ -2108,7 +2256,7 @@ final class AgentApiController
             }
         }
 
-        $credential->setRotatedAt($completedAt);
+        $credential->markProvisioned($completedAt);
         $credential->setExpiresAt($expiresAt);
         $credential->setRevealedAt(null);
         $this->entityManager->persist($credential);
@@ -2160,6 +2308,33 @@ final class AgentApiController
         ]);
     }
 
+
+    private function resolveInstanceBaseDir(Instance $instance): string
+    {
+        $baseDir = trim((string) ($instance->getInstanceBaseDir() ?? ''));
+        if ($baseDir !== '') {
+            return rtrim($baseDir, '/\\');
+        }
+
+        $resolved = dirname($this->resolveInstanceDir($instance));
+
+        return $resolved !== '' ? $resolved : '/srv';
+    }
+
+    private function resolveAgentOsType(Instance $instance): string
+    {
+        $stats = $instance->getNode()->getLastHeartbeatStats();
+        $os = is_array($stats) && is_string($stats['os'] ?? null) ? strtolower((string) $stats['os']) : '';
+        if ($os === 'windows') {
+            return 'windows';
+        }
+
+        $metadata = $instance->getNode()->getMetadata();
+        $metaOs = is_array($metadata) && is_string($metadata['os_type'] ?? null) ? strtolower((string) $metadata['os_type']) : '';
+
+        return $metaOs !== '' ? $metaOs : 'linux';
+    }
+
     private function queueAutoAccessProvisionIfNeeded(Instance $instance, Job $sourceJob): void
     {
         $existingCredential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
@@ -2183,6 +2358,7 @@ final class AgentApiController
         $credential->setRevealedAt(null);
         $credential->setBackend('NONE');
         $credential->setRootPath($this->resolveInstanceDir($instance));
+        $credential->markProvisioningPending();
         $this->entityManager->persist($credential);
         $this->entityManager->flush();
 
@@ -2190,13 +2366,17 @@ final class AgentApiController
             'instance_id' => (string) $instance->getId(),
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'agent_id' => $instance->getNode()->getId(),
+            'node_id' => $instance->getNode()->getId(),
             'credential_id' => $credential->getId(),
             'username' => $credential->getUsername(),
-            'password' => $password,
+            'one_time_password_secret' => $this->encryptionService->encrypt($password),
+            'install_path' => $this->resolveInstanceDir($instance),
+            'base_dir' => $this->resolveInstanceBaseDir($instance),
             'root_path' => $this->resolveInstanceDir($instance),
-            'preferred_backend' => strtoupper(PHP_OS_FAMILY) === 'WINDOWS' ? 'WINDOWS_OPENSSH_SFTP' : 'PROFTPD_SFTP',
+            'preferred_backend' => $this->resolveAgentOsType($instance) === 'windows' ? 'WINDOWS_OPENSSH_SFTP' : 'PROFTPD_SFTP',
             'rotate' => true,
             'expires_at' => $expiresAt->format(DATE_RFC3339),
+            'os_type' => $this->resolveAgentOsType($instance),
         ]);
         $this->entityManager->persist($job);
 

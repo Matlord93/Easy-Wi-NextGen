@@ -73,6 +73,7 @@ final class InstanceSftpCredentialApiController
                 $credential->setRotatedAt(null);
                 $credential->setExpiresAt($expiresAt);
                 $credential->setRevealedAt(null);
+                $credential->markProvisioningPending();
                 $this->entityManager->persist($credential);
 
                 $backendPreference = $this->resolvePreferredBackend($instance);
@@ -85,7 +86,7 @@ final class InstanceSftpCredentialApiController
                 ]);
                 if (($response['ok'] ?? false) !== true) {
                     $credential->setBackend('NONE');
-                    $credential->setLastError(
+                    $credential->markProvisioningFailed(
                         is_string($response['error_code'] ?? null) ? (string) $response['error_code'] : 'INTERNAL_ERROR',
                         is_string($response['message'] ?? null) ? (string) $response['message'] : 'Provision failed.',
                     );
@@ -96,7 +97,7 @@ final class InstanceSftpCredentialApiController
                     $credential->setHost(is_string($data['host'] ?? null) ? (string) $data['host'] : null);
                     $credential->setPort(is_numeric($data['port'] ?? null) ? (int) $data['port'] : null);
                     $credential->setRootPath(is_string($data['root_path'] ?? null) ? (string) $data['root_path'] : $this->resolveInstanceRootPath($instance));
-                    $credential->setLastError(null, null);
+                    $credential->markProvisioned(new \DateTimeImmutable());
                 }
                 $this->entityManager->flush();
 
@@ -189,11 +190,13 @@ final class InstanceSftpCredentialApiController
                 $credential->setRotatedAt(null);
                 $credential->setExpiresAt($expiresAt);
                 $credential->setRevealedAt(null);
+                $credential->markProvisioningPending();
                 $this->entityManager->persist($credential);
             } else {
                 $credential->setEncryptedPassword($encryptedPassword);
                 $credential->setRevealedAt(null);
                 $credential->setExpiresAt($expiresAt);
+                $credential->markProvisioningPending();
             }
 
             $job = $this->queueResetJob($request, $actor, $instance, $credential, $username, $newPassword, $expiresAt);
@@ -329,6 +332,31 @@ final class InstanceSftpCredentialApiController
         return ($baseDir !== '' ? $baseDir : '/srv') . '/gs' . preg_replace('/[^a-z0-9]/i', '', $instanceId);
     }
 
+
+    private function resolveInstanceBaseDir(Instance $instance): string
+    {
+        $baseDir = trim((string) ($instance->getInstanceBaseDir() ?? ''));
+        if ($baseDir !== '') {
+            return rtrim($baseDir, '/\\');
+        }
+
+        return rtrim((string) $this->settingsService->getInstanceBaseDir(), '/\\') ?: '/srv';
+    }
+
+    private function resolveAgentOsType(Instance $instance): string
+    {
+        $stats = $instance->getNode()->getLastHeartbeatStats();
+        $os = is_array($stats) && is_string($stats['os'] ?? null) ? strtolower((string) $stats['os']) : '';
+        if ($os === 'windows') {
+            return 'windows';
+        }
+
+        $metadata = $instance->getNode()->getMetadata();
+        $metaOs = is_array($metadata) && is_string($metadata['os_type'] ?? null) ? strtolower((string) $metadata['os_type']) : '';
+
+        return $metaOs !== '' ? $metaOs : 'linux';
+    }
+
     private function normalizeCredential(InstanceSftpCredential $credential): array
     {
         $instance = $credential->getInstance();
@@ -345,6 +373,11 @@ final class InstanceSftpCredentialApiController
             'expires_at' => $credential->getExpiresAt()?->format(DATE_RFC3339),
             'updated_at' => $credential->getUpdatedAt()->format(DATE_RFC3339),
             'last_error_code' => $credential->getLastErrorCode(),
+            'status' => $credential->getStatus(),
+            'provisioned' => $credential->isProvisioned(),
+            'protocol' => 'SFTP',
+            'ftp_supported' => false,
+            'ftp_message' => 'FTP is not enabled for gameserver instances; use SFTP.',
             'last_error_message' => $credential->getLastErrorMessage(),
         ];
 
@@ -359,9 +392,12 @@ final class InstanceSftpCredentialApiController
             'agent_id' => $instance->getNode()->getId(),
             'credential_id' => $credential->getId(),
             'username' => $username,
-            'password' => $password,
+            'one_time_password_secret' => $this->encryptionService->encrypt($password),
+            'install_path' => $this->resolveInstanceRootPath($instance),
+            'base_dir' => $this->resolveInstanceBaseDir($instance),
             'root_path' => $this->resolveInstanceRootPath($instance),
-            'preferred_backend' => strtoupper(PHP_OS_FAMILY) === 'WINDOWS' ? 'WINDOWS_OPENSSH_SFTP' : 'PROFTPD_SFTP',
+            'preferred_backend' => $this->resolvePreferredBackend($instance),
+            'os_type' => $this->resolveAgentOsType($instance),
             'rotate' => true,
             'expires_at' => $expiresAt->format(DATE_RFC3339),
             'request_id' => $this->getRequestId($request),
@@ -395,7 +431,7 @@ final class InstanceSftpCredentialApiController
 
         if (($health['ok'] ?? false) !== true) {
             $credential->setBackend('NONE');
-            $credential->setLastError(
+            $credential->markProvisioningFailed(
                 is_string($health['error_code'] ?? null) ? (string) $health['error_code'] : 'INTERNAL_ERROR',
                 is_string($health['message'] ?? null) ? (string) $health['message'] : 'Access backend unavailable.',
             );
@@ -411,7 +447,7 @@ final class InstanceSftpCredentialApiController
         $credential->setHost(is_string($data['host'] ?? null) ? (string) $data['host'] : $credential->getHost());
         $credential->setPort(is_numeric($data['port'] ?? null) ? (int) $data['port'] : $credential->getPort());
         $credential->setRootPath(is_string($data['root_path'] ?? null) ? (string) $data['root_path'] : $credential->getRootPath());
-        $credential->setLastError(null, null);
+        $credential->markProvisioned($credential->getRotatedAt() ?? new \DateTimeImmutable());
         $this->entityManager->persist($credential);
         $this->entityManager->flush();
     }

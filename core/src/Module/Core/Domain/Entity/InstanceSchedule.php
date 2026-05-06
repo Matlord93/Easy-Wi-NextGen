@@ -133,6 +133,22 @@ class InstanceSchedule implements ResourceEventSource
         $this->touch();
     }
 
+
+    public function markQueued(\DateTimeImmutable $queuedAt): void
+    {
+        $this->lastQueuedAt = $queuedAt;
+        $this->lastStatus = 'queued';
+        $this->lastErrorCode = null;
+        $this->touch();
+    }
+
+    public function markScheduleResult(string $status, ?string $errorCode = null): void
+    {
+        $this->lastStatus = $status;
+        $this->lastErrorCode = $errorCode;
+        $this->touch();
+    }
+
     public function update(
         InstanceScheduleAction $action,
         string $cronExpression,

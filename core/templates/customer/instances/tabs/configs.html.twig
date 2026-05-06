@@ -51,6 +51,10 @@
                     <dt class="font-semibold text-slate-700">{{ t('customer_instance_configs_schema_details_format', page_locale()) }}</dt>
                     <dd id="config-schema-details-format" class="text-slate-600"></dd>
                 </div>
+                <div class="sm:col-span-2">
+                    <dt class="font-semibold text-slate-700">Config-Status</dt>
+                    <dd id="config-schema-details-apply-status" class="text-slate-600"></dd>
+                </div>
             </dl>
         </div>
         <div id="config-schema-warnings" class="mt-4 hidden rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -113,6 +117,7 @@
         const detailsDescription = document.getElementById('config-schema-details-description');
         const detailsFile = document.getElementById('config-schema-details-file');
         const detailsFormat = document.getElementById('config-schema-details-format');
+        const detailsApplyStatus = document.getElementById('config-schema-details-apply-status');
         const warnings = document.getElementById('config-schema-warnings');
         const warningsList = warnings.querySelector('ul');
         const editor = document.getElementById('config-schema-editor');
@@ -258,6 +263,11 @@
             detailsDescription.textContent = payload.schema.description || '{{ t('customer_instance_configs_description_empty', page_locale()) }}';
             detailsFile.textContent = payload.config.file_path || '-';
             detailsFormat.textContent = payload.config.format || '-';
+            const snapshot = payload.snapshot || {};
+            const applyStatus = snapshot.last_apply_status || (payload.apply_required ? 'pending' : 'clean');
+            const applyError = snapshot.last_apply_error_message || snapshot.last_apply_error_code || '';
+            detailsApplyStatus.textContent = applyError ? `${applyStatus}: ${applyError}` : applyStatus;
+            detailsApplyStatus.className = applyError ? 'text-rose-700' : 'text-slate-600';
             details.classList.remove('hidden');
             renderWarnings(payload.warnings || []);
             editor.classList.remove('hidden');
@@ -320,7 +330,11 @@
                     return;
                 }
                 if (job.status === 'failed' || job.status === 'cancelled') {
-                    setStatus('{{ t('customer_instance_configs_schema_status_save_failed', page_locale()) }}', true);
+                    const output = job.result && job.result.output ? job.result.output : {};
+                    setStatus(output.message || job.last_error || '{{ t('customer_instance_configs_schema_status_save_failed', page_locale()) }}', true);
+                    if (currentConfig) {
+                        loadConfig(currentConfig.key || currentConfig.id);
+                    }
                     return;
                 }
                 window.setTimeout(() => pollJob(jobId, onSuccess, attempt + 1), 1500);
@@ -461,6 +475,7 @@
                     feedback.textContent = payload.message || 'Apply queued.';
                     pollJob(payload.job_id, () => {
                         feedback.textContent = 'Config apply completed.';
+                        loadConfig(currentConfig.key || currentConfig.id);
                     });
                     return;
                 }

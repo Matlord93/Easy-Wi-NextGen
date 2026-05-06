@@ -29,6 +29,12 @@
                 <td class="px-4 py-4">
                     <div class="font-medium text-slate-900">{{ instance.customer_email }}</div>
                     <div class="mt-1 text-xs text-slate-700">{{ instance.template_name }} ({{ instance.game_key }})</div>
+                    <div class="mt-2 space-y-1 text-xs text-slate-500">
+                        <div>SFTP: {{ instance.sftp_username ?: '—' }} · {{ instance.sftp_host ?: '—' }}:{{ instance.sftp_port ?: '—' }} · {{ instance.sftp_status }}</div>
+                        <div>FTP: {{ instance.ftp_supported ? 'Aktiv' : 'Nicht verfügbar (nur SFTP)' }}</div>
+                        {% if instance.sftp_expires_at %}<div>Passwort-Ablauf: {{ instance.sftp_expires_at|date('Y-m-d H:i') }}</div>{% endif %}
+                        {% if instance.sftp_last_error %}<div class="text-rose-600">SFTP-Fehler: {{ instance.sftp_last_error }}</div>{% endif %}
+                    </div>
                 </td>
                 <td class="px-4 py-4">
                     {% include 'components/ui/_status_badge.html.twig' with {

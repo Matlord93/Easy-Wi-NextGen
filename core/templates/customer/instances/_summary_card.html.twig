@@ -67,8 +67,8 @@
                 <div>{{ t('customer_instances_game_address', page_locale()) }}: <strong>{{ connection.address ?? '—' }}</strong></div>
                 <div>{{ t('customer_instances_query_address', page_locale()) }}: <strong data-query-map>{{ query.map ?? '—' }}</strong></div>
                 <div>{{ t('customer_instances_data_path_label', page_locale()) }}: <strong>{{ instance.data_path ?? t('customer_instances_data_path_unknown', page_locale()) }}</strong></div>
-                <div>{{ t('customer_instances_sftp_access', page_locale()) }}: <strong>{{ t('customer_instance_files_sftp_title', page_locale()) }}</strong></div>
-                <div>{{ t('customer_instances_ftp_access', page_locale()) }}: <strong>{{ t('customer_instances_access_in_filemanager', page_locale()) }}</strong></div>
+                <div>{{ t('customer_instances_sftp_access', page_locale()) }}: <strong>{{ t('customer_instance_files_sftp_title', page_locale()) }}</strong> <span class="text-xs text-slate-500">(Host/Port/User im Datei-Manager, Passwort nur einmal nach Reset)</span></div>
+                <div>{{ t('customer_instances_ftp_access', page_locale()) }}: <strong>Nicht verfügbar – Gameserver nutzen SFTP.</strong></div>
                 <div>{{ t('customer_instances_latency', page_locale()) }}: <strong data-query-latency>{{ query.result.latency_ms is not null ? query.result.latency_ms ~ ' ms' : '—' }}</strong></div>
                 <div>{{ t('customer_instances_last_query', page_locale()) }}: <strong data-query-checked>{{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}</strong></div>
             </div>

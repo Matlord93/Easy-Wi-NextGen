@@ -489,9 +489,12 @@ final class AdminInstanceController
         $credential = $this->instanceSftpCredentialRepository->findOneByInstance($instance);
         if ($credential === null) {
             $username = $this->buildSftpUsername($instance);
-            $credential = new InstanceSftpCredential($instance, $username, $this->encryptionService->encrypt(bin2hex(random_bytes(24))));
+            $oneTimePassword = bin2hex(random_bytes(18));
+            $credential = new InstanceSftpCredential($instance, $username, $this->encryptionService->encrypt($oneTimePassword));
             $credential->setRotatedAt(null);
-            $credential->setExpiresAt((new \DateTimeImmutable('+30 days'))->setTimezone(new \DateTimeZone('UTC')));
+            $credential->setExpiresAt((new \DateTimeImmutable('+15 minutes'))->setTimezone(new \DateTimeZone('UTC')));
+            $credential->setRootPath($this->resolveSftpInstallPath($instance));
+            $credential->markProvisioningPending();
             $this->entityManager->persist($credential);
             $this->entityManager->flush();
 
@@ -499,10 +502,17 @@ final class AdminInstanceController
                 'instance_id' => (string) $instance->getId(),
                 'customer_id' => (string) $instance->getCustomer()->getId(),
                 'agent_id' => $instance->getNode()->getId(),
+                'node_id' => $instance->getNode()->getId(),
                 'credential_id' => $credential->getId(),
                 'username' => $username,
-                'rotate' => true,
+                'one_time_password_secret' => $this->encryptionService->encrypt($oneTimePassword),
+                'install_path' => $this->resolveSftpInstallPath($instance),
+                'base_dir' => $this->resolveSftpBaseDir($instance),
+                'root_path' => $this->resolveSftpInstallPath($instance),
                 'expires_at' => $credential->getExpiresAt()?->format(DATE_RFC3339),
+                'os_type' => $this->resolveAgentOsType($instance),
+                'preferred_backend' => $this->resolveAgentOsType($instance) === 'windows' ? 'WINDOWS_OPENSSH_SFTP' : 'PROFTPD_SFTP',
+                'rotate' => true,
             ]);
             $this->entityManager->persist($job);
 
@@ -1173,7 +1183,13 @@ final class AdminInstanceController
                 'created_at' => $instance->getCreatedAt(),
                 'updated_at' => $instance->getUpdatedAt(),
                 'sftp_username' => $credential?->getUsername(),
-                'sftp_ready' => $credential !== null,
+                'sftp_host' => $credential?->getHost() ?? $this->resolveSftpHost($instance),
+                'sftp_port' => $credential?->getPort() ?? $this->appSettingsService->getSftpPort(),
+                'sftp_expires_at' => $credential?->getExpiresAt(),
+                'sftp_status' => $credential?->getStatus() ?? 'not_provisioned',
+                'sftp_last_error' => $credential?->getLastErrorMessage() ?? $credential?->getLastErrorCode(),
+                'sftp_ready' => $credential?->isProvisioned() ?? false,
+                'ftp_supported' => false,
                 'install_ready' => $installStatus['is_ready'] ?? false,
                 'install_error_code' => $installStatus['error_code'] ?? null,
             ];
@@ -1409,6 +1425,52 @@ final class AdminInstanceController
         }
 
         return $map;
+    }
+
+
+    private function resolveSftpBaseDir(Instance $instance): string
+    {
+        $baseDir = trim((string) ($instance->getInstanceBaseDir() ?? ''));
+        if ($baseDir !== '') {
+            return rtrim($baseDir, '/\\');
+        }
+
+        return rtrim($this->appSettingsService->getInstanceBaseDir(), '/\\') ?: '/srv';
+    }
+
+    private function resolveSftpInstallPath(Instance $instance): string
+    {
+        $installPath = trim((string) $instance->getInstallPath());
+        if ($installPath !== '') {
+            return $installPath;
+        }
+
+        return $this->resolveSftpBaseDir($instance) . '/gs' . preg_replace('/[^a-z0-9]/i', '', (string) ($instance->getId() ?? 'instance'));
+    }
+
+    private function resolveAgentOsType(Instance $instance): string
+    {
+        $stats = $instance->getNode()->getLastHeartbeatStats();
+        $os = is_array($stats) && is_string($stats['os'] ?? null) ? strtolower((string) $stats['os']) : '';
+        if ($os === 'windows') {
+            return 'windows';
+        }
+
+        $metadata = $instance->getNode()->getMetadata();
+        $metaOs = is_array($metadata) && is_string($metadata['os_type'] ?? null) ? strtolower((string) $metadata['os_type']) : '';
+
+        return $metaOs !== '' ? $metaOs : 'linux';
+    }
+
+    private function resolveSftpHost(Instance $instance): ?string
+    {
+        $metadata = $instance->getNode()->getMetadata();
+        $host = is_array($metadata) && is_string($metadata['sftp_host'] ?? null) ? trim((string) $metadata['sftp_host']) : '';
+        if ($host !== '') {
+            return $host;
+        }
+
+        return $this->appSettingsService->getSftpHost() ?: $instance->getNode()->getLastHeartbeatIp();
     }
 
     private function buildSftpUsername(Instance $instance): string

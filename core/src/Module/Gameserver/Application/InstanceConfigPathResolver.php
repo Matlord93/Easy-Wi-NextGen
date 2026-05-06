@@ -25,9 +25,15 @@ final class InstanceConfigPathResolver
         }
 
         $os = $this->resolveOs($instance);
-        $relativePath = trim(str_replace('\\', '/', $relativePath), '/ ');
-        if ($relativePath === '' || str_contains($relativePath, '..')) {
+        $relativePath = trim(str_replace('\\', '/', $relativePath));
+        if ($relativePath === '' || $this->isAbsolutePath($relativePath, $os)) {
             throw new \RuntimeException('PATH_TRAVERSAL');
+        }
+        $relativePath = trim($relativePath, '/');
+        foreach (explode('/', $relativePath) as $segment) {
+            if ($segment === '..') {
+                throw new \RuntimeException('PATH_TRAVERSAL');
+            }
         }
 
         $rootNormalized = $this->normalizeAbsolute($root, $os);
@@ -53,6 +59,16 @@ final class InstanceConfigPathResolver
         $os = strtolower(trim((string) ($metadata['os'] ?? $heartbeat['os'] ?? 'linux')));
 
         return str_contains($os, 'win') ? 'windows' : 'linux';
+    }
+
+    private function isAbsolutePath(string $path, string $os): bool
+    {
+        $normalized = str_replace('\\', '/', trim($path));
+        if ($os === 'windows') {
+            return preg_match('/^[a-zA-Z]:\//', $normalized) === 1 || str_starts_with($normalized, '//');
+        }
+
+        return str_starts_with($normalized, '/');
     }
 
     private function normalizeAbsolute(string $path, string $os): string

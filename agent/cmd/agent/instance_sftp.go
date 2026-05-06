@@ -27,42 +27,18 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 		return handleInstanceSftpCredentialsResetWindows(job)
 	}
 
-	username := payloadValue(job.Payload, "username", "sftp_username", "user")
-	password := strings.TrimSpace(payloadValue(job.Payload, "password", "sftp_password"))
-	preferredBackend := strings.ToUpper(strings.TrimSpace(payloadValue(job.Payload, "preferred_backend", "backend")))
-	if password == "" {
-		password = generateSftpPassword()
-	}
 	requestID := payloadValue(job.Payload, "request_id")
-	group := payloadValue(job.Payload, "sftp_group", "group")
-	shell := payloadValue(job.Payload, "shell", "sftp_shell")
-	sftpBaseDir := payloadValue(job.Payload, "sftp_base_dir", "sftp_root")
-	instanceDir, instanceErr := resolveInstanceDir(job.Payload)
-	rootPath := strings.TrimSpace(payloadValue(job.Payload, "root_path", "instance_root", "install_path"))
-	instanceUser := ""
-	if instanceErr == nil {
-		instanceUser = buildInstanceUsername(payloadValue(job.Payload, "customer_id"), payloadValue(job.Payload, "instance_id"))
-	}
-	if group == "" {
-		group = os.Getenv("EASYWI_SFTP_GROUP")
-	}
-	if group == "" {
-		group = defaultSftpGroup
-	}
-	if shell == "" {
-		shell = defaultSftpShell
-	}
-	if sftpBaseDir == "" {
-		sftpBaseDir = os.Getenv("EASYWI_SFTP_BASE_DIR")
-	}
-	if sftpBaseDir == "" {
-		sftpBaseDir = defaultSftpBaseDir
-	}
+	username := payloadValue(job.Payload, "username", "sftp_username", "user")
+	password := strings.TrimSpace(payloadValue(job.Payload, "one_time_password", "password", "sftp_password"))
+	preferredBackend := strings.ToUpper(strings.TrimSpace(payloadValue(job.Payload, "preferred_backend", "backend")))
+	rootPath := strings.TrimSpace(payloadValue(job.Payload, "install_path", "root_path", "instance_root"))
 
-	log.Printf("sftp credentials reset start job_id=%s request_id=%s instance_id=%s customer_id=%s username=%s base_dir=%s", job.ID, requestID, payloadValue(job.Payload, "instance_id"), payloadValue(job.Payload, "customer_id"), username, sftpBaseDir)
+	log.Printf("sftp credentials reset start job_id=%s request_id=%s instance_id=%s customer_id=%s username=%s base_dir=%s", job.ID, requestID, payloadValue(job.Payload, "instance_id"), payloadValue(job.Payload, "customer_id"), username, payloadValue(job.Payload, "base_dir"))
 
 	missing := missingValues([]requiredValue{
 		{key: "username", value: username},
+		{key: "one_time_password", value: password},
+		{key: "install_path", value: rootPath},
 	})
 	if len(missing) > 0 {
 		return jobs.Result{
@@ -77,192 +53,53 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 		}, nil
 	}
 
-	if preferredBackend != "" && preferredBackend != "PROFTPD_SFTP" && preferredBackend != "FTP_ONLY" {
+	if preferredBackend != "" && preferredBackend != "PROFTPD_SFTP" {
 		return failureResultWithCode(job.ID, "BACKEND_UNSUPPORTED", fmt.Errorf("unsupported backend %s on linux", preferredBackend), requestID, "")
 	}
 
-	if err := ensureGroup(group); err != nil {
-		return failureResultWithCode(job.ID, "PERMISSION_DENIED", err, requestID, "")
-	}
-
-	useInstanceDir := instanceErr == nil
-	var chrootPath string
-	var homePath string
-	if useInstanceDir {
-		homePath = instanceDir
-		if _, err := os.Stat(homePath); err != nil {
-			return failureResultWithCode(job.ID, "sftp_instance_dir_missing", fmt.Errorf("instance directory unavailable: %w", err), requestID, "")
-		}
-	} else {
-		if err := ensureBaseDir(sftpBaseDir); err != nil {
-			return failureResultWithCode(job.ID, "sftp_chroot_failed", err, requestID, "")
-		}
-		chrootPath = filepath.Join(sftpBaseDir, username)
-		if err := ensureSftpChroot(chrootPath); err != nil {
-			return failureResultWithCode(job.ID, "sftp_chroot_failed", err, requestID, "")
-		}
-		homePath = filepath.Join(chrootPath, "data")
-		if err := ensureInstanceDir(homePath); err != nil {
-			return failureResultWithCode(job.ID, "sftp_chroot_failed", err, requestID, "")
-		}
-	}
-
-	if rootPath != "" {
-		homePath = rootPath
+	homePath, err := resolveInstanceDir(map[string]any{"install_path": rootPath, "base_dir": payloadValue(job.Payload, "base_dir")})
+	if err != nil {
+		return failureResultWithCode(job.ID, "ROOT_INVALID", err, requestID, "")
 	}
 	if !filepath.IsAbs(homePath) || strings.Contains(homePath, "..") {
 		return failureResultWithCode(job.ID, "ROOT_INVALID", fmt.Errorf("invalid root path: %s", homePath), requestID, "")
 	}
-
-	if userExists(username) {
-		if output, err := runCommandLogged("usermod", "--home", homePath, "--shell", shell, "--gid", group, username); err != nil {
-			return failureResultWithCode(job.ID, "sftp_user_create_failed", err, requestID, output)
+	if st, err := os.Stat(homePath); err != nil || !st.IsDir() {
+		if err == nil {
+			err = fmt.Errorf("not a directory")
 		}
-	} else {
-		if output, err := runCommandLogged("useradd", "--system", "--home-dir", homePath, "--shell", shell, "--gid", group, "--no-create-home", username); err != nil {
-			return failureResultWithCode(job.ID, "sftp_user_create_failed", err, requestID, output)
-		}
+		return failureResultWithCode(job.ID, "sftp_instance_dir_missing", fmt.Errorf("instance directory unavailable: %w", err), requestID, "")
 	}
 
-	if useInstanceDir && instanceUser != "" {
-		if err := ensureGroup(instanceUser); err != nil {
-			return failureResultWithCode(job.ID, "sftp_group_failed", err, requestID, "")
-		}
-		if output, err := runCommandLogged("usermod", "-aG", instanceUser, username); err != nil {
-			return failureResultWithCode(job.ID, "sftp_user_create_failed", err, requestID, output)
-		}
+	if err := provisionLinuxProFTPD(username, password, homePath); err != nil {
+		return failureResultWithCode(job.ID, mapAccessErr(err), err, requestID, "")
+	}
+	if err := checkLinuxProFTPDHealth(); err != nil {
+		return failureResultWithCode(job.ID, mapAccessErr(err), err, requestID, "")
 	}
 
-	uid, gid, err := lookupIDs(username, group)
-	if err != nil {
-		return failureResultWithCode(job.ID, "sftp_permissions_failed", err, requestID, "")
-	}
-	if !useInstanceDir {
-		if err := os.Chown(homePath, uid, gid); err != nil {
-			return failureResultWithCode(job.ID, "sftp_permissions_failed", fmt.Errorf("chown %s: %w", homePath, err), requestID, "")
-		}
-		if err := os.Chmod(homePath, instanceDirMode); err != nil {
-			return failureResultWithCode(job.ID, "sftp_permissions_failed", fmt.Errorf("chmod %s: %w", homePath, err), requestID, "")
-		}
-	}
-
-	if err := setUserPassword(username, password); err != nil {
-		return failureResultWithCode(job.ID, "sftp_password_failed", err, requestID, "")
-	}
-
-	log.Printf("sftp credentials reset complete job_id=%s request_id=%s username=%s chroot_path=%s home_path=%s group=%s", job.ID, requestID, username, chrootPath, homePath, group)
+	log.Printf("sftp credentials reset complete job_id=%s request_id=%s username=%s home_path=%s backend=PROFTPD_SFTP", job.ID, requestID, username, homePath)
 
 	return jobs.Result{
 		JobID:  job.ID,
 		Status: "success",
 		Output: map[string]string{
-			"username":    username,
-			"backend":     "PROFTPD_SFTP",
-			"host":        payloadValue(job.Payload, "host", "node_ip", "bind_ip"),
-			"port":        "2222",
-			"root_path":   homePath,
-			"chroot_path": chrootPath,
-			"home_path":   homePath,
-			"group":       group,
-			"request_id":  requestID,
+			"username":   username,
+			"backend":    "PROFTPD_SFTP",
+			"host":       payloadValue(job.Payload, "host", "node_ip", "bind_ip"),
+			"port":       "2222",
+			"root_path":  homePath,
+			"home_path":  homePath,
+			"request_id": requestID,
 		},
 		Completed: time.Now().UTC(),
 	}, nil
 }
 
 func handleInstanceSftpCredentialsResetWindows(job jobs.Job) (jobs.Result, func() error) {
-	username := payloadValue(job.Payload, "username", "sftp_username", "user")
-	password := strings.TrimSpace(payloadValue(job.Payload, "password", "sftp_password"))
-	if password == "" {
-		password = generateSftpPassword()
-	}
-	group := payloadValue(job.Payload, "sftp_group", "group")
-	sftpBaseDir := payloadValue(job.Payload, "sftp_base_dir", "sftp_root")
-	if group == "" {
-		group = os.Getenv("EASYWI_SFTP_GROUP")
-	}
-	if group == "" {
-		group = defaultSftpGroup
-	}
-	if sftpBaseDir == "" {
-		sftpBaseDir = os.Getenv("EASYWI_SFTP_BASE_DIR")
-	}
-	if sftpBaseDir == "" {
-		sftpBaseDir = filepath.Join(windowsEasyWiBaseDir(), "sftp")
-	}
+	requestID := payloadValue(job.Payload, "request_id")
 
-	missing := missingValues([]requiredValue{
-		{key: "username", value: username},
-	})
-	if len(missing) > 0 {
-		return jobs.Result{
-			JobID:     job.ID,
-			Status:    "failed",
-			Output:    map[string]string{"message": "missing required values: " + strings.Join(missing, ", "), "error_code": "INVALID_INPUT"},
-			Completed: time.Now().UTC(),
-		}, nil
-	}
-
-	shell := windowsPowerShellBinary()
-	if shell == "" {
-		return failureResult(job.ID, fmt.Errorf("powershell is required to create sftp users on windows"))
-	}
-
-	escapedUser := escapePowerShellSingleQuotes(username)
-	escapedPass := escapePowerShellSingleQuotes(password)
-	escapedGroup := escapePowerShellSingleQuotes(group)
-	escapedBase := escapePowerShellSingleQuotes(sftpBaseDir)
-	script := strings.Join([]string{
-		`$ErrorActionPreference = 'Stop'`,
-		fmt.Sprintf(`$username = '%s'`, escapedUser),
-		fmt.Sprintf(`$password = '%s'`, escapedPass),
-		fmt.Sprintf(`$group = '%s'`, escapedGroup),
-		fmt.Sprintf(`$base = '%s'`, escapedBase),
-		`if (-not (Get-Command New-LocalUser -ErrorAction SilentlyContinue)) { throw 'New-LocalUser cmdlet not available' }`,
-		`if (-not (Get-LocalGroup -Name $group -ErrorAction SilentlyContinue)) { New-LocalGroup -Name $group | Out-Null }`,
-		`$secure = ConvertTo-SecureString $password -AsPlainText -Force`,
-		`if (-not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {`,
-		`  New-LocalUser -Name $username -Password $secure -PasswordNeverExpires:$true -UserMayNotChangePassword:$true | Out-Null`,
-		`} else {`,
-		`  Set-LocalUser -Name $username -Password $secure | Out-Null`,
-		`}`,
-		`Add-LocalGroupMember -Group $group -Member $username -ErrorAction SilentlyContinue`,
-		`$chroot = Join-Path $base $username`,
-		`$home = Join-Path $chroot 'data'`,
-		`New-Item -ItemType Directory -Force -Path $home | Out-Null`,
-		`icacls $chroot /inheritance:r | Out-Null`,
-		`icacls $chroot /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)F" | Out-Null`,
-		`icacls $home /grant:r "$username:(OI)(CI)M" | Out-Null`,
-	}, "; ")
-
-	var output strings.Builder
-	if err := runCommandWithOutput(shell, []string{"-NoProfile", "-NonInteractive", "-Command", script}, &output); err != nil {
-		return jobs.Result{
-			JobID:     job.ID,
-			Status:    "failed",
-			Output:    map[string]string{"message": err.Error(), "details": output.String()},
-			Completed: time.Now().UTC(),
-		}, nil
-	}
-
-	chrootPath := filepath.Join(sftpBaseDir, username)
-	homePath := filepath.Join(chrootPath, "data")
-
-	return jobs.Result{
-		JobID:  job.ID,
-		Status: "success",
-		Output: map[string]string{
-			"username":    username,
-			"backend":     "WINDOWS_OPENSSH_SFTP",
-			"port":        "2222",
-			"root_path":   homePath,
-			"chroot_path": chrootPath,
-			"home_path":   homePath,
-			"group":       group,
-			"details":     output.String(),
-		},
-		Completed: time.Now().UTC(),
-	}, nil
+	return failureResultWithCode(job.ID, "WINDOWS_SFTP_UNSUPPORTED", fmt.Errorf("SFTP provisioning for Windows gameserver instances is not enabled; configure the embedded EasyWI SFTP service or use a Linux node"), requestID, "")
 }
 
 func generateSftpPassword() string {

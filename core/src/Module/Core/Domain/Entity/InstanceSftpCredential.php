@@ -41,6 +41,12 @@ class InstanceSftpCredential
     #[ORM\Column(length: 32, options: ['default' => 'NONE'])]
     private string $backend = 'NONE';
 
+    #[ORM\Column(length: 32, options: ['default' => 'pending'])]
+    private string $status = 'pending';
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $provisioned = false;
+
     #[ORM\Column(length: 190, nullable: true)]
     private ?string $host = null;
 
@@ -151,6 +157,55 @@ class InstanceSftpCredential
     public function getBackend(): string
     {
         return $this->backend;
+    }
+
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+
+    public function setStatus(string $status): void
+    {
+        $normalized = strtolower(trim($status));
+        $this->status = $normalized !== '' ? $normalized : 'pending';
+        $this->touch();
+    }
+
+    public function isProvisioned(): bool
+    {
+        return $this->provisioned;
+    }
+
+    public function setProvisioned(bool $provisioned): void
+    {
+        $this->provisioned = $provisioned;
+        $this->touch();
+    }
+
+    public function markProvisioningPending(): void
+    {
+        $this->provisioned = false;
+        $this->status = 'pending';
+        $this->lastErrorCode = null;
+        $this->lastErrorMessage = null;
+        $this->touch();
+    }
+
+    public function markProvisioned(\DateTimeImmutable $rotatedAt): void
+    {
+        $this->provisioned = true;
+        $this->status = 'provisioned';
+        $this->rotatedAt = $rotatedAt;
+        $this->lastErrorCode = null;
+        $this->lastErrorMessage = null;
+        $this->touch();
+    }
+
+    public function markProvisioningFailed(?string $code, ?string $message): void
+    {
+        $this->provisioned = false;
+        $this->status = 'failed';
+        $this->setLastError($code, $message);
     }
 
     public function setBackend(string $backend): void

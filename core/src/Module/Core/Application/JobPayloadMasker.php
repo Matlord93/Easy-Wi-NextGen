@@ -22,6 +22,12 @@ final class JobPayloadMasker
         'authorizedkey',
         'authorizedkeys',
         'sftpkeys',
+        'content',
+        'contentbase64',
+        'rconpassword',
+        'serverpassword',
+        'steamgslt',
+        'steampassword',
     ];
 
     /**
@@ -92,7 +98,7 @@ final class JobPayloadMasker
             }
         }
 
-        $pattern = '/(?P<key>"?(?:password|pass|token|secret|api[_-]?key|private[_-]?key|authorization|cookie|dkim|smtp[_-]?pass|ssh[_-]?key)"?)\s*[:=]\s*(?P<value>"[^"]*"|\'[^\']*\'|[^,\s;]+)/i';
+        $pattern = '/(?P<key>"?(?:password|pass|token|secret|api[_-]?key|private[_-]?key|authorization|cookie|dkim|smtp[_-]?pass|ssh[_-]?key|content(?:_base64)?|rcon[_-]?password|server[_-]?password|steam[_-]?gslt|steam[_-]?password)"?)\s*[:=]\s*(?P<value>"[^"]*"|\'[^\']*\'|[^,\s;]+)/i';
 
         return preg_replace_callback($pattern, function (array $matches): string {
             $value = $matches['value'] ?? '';

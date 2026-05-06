@@ -42,6 +42,35 @@ final class JobPayloadMaskerTest extends TestCase
         self::assertSame('plain', $masked['regular']);
     }
 
+    public function testMasksRenderedConfigContentsAndSensitiveVariables(): void
+    {
+        $masker = new JobPayloadMasker();
+
+        $payload = [
+            'type' => 'instance.config.apply',
+            'files' => [
+                [
+                    'path' => 'server.cfg',
+                    'content' => 'rcon_password super-secret',
+                    'content_base64' => base64_encode('server_password secret'),
+                ],
+            ],
+            'variables' => [
+                'hostname' => 'Example',
+                'steam_gslt' => 'gslt-token',
+                'rcon_password' => 'rcon-secret',
+            ],
+        ];
+
+        $masked = $masker->maskPayload($payload);
+
+        self::assertSame('[redacted]', $masked['files'][0]['content']);
+        self::assertSame('[redacted]', $masked['files'][0]['content_base64']);
+        self::assertSame('[redacted]', $masked['variables']['steam_gslt']);
+        self::assertSame('[redacted]', $masked['variables']['rcon_password']);
+        self::assertSame('Example', $masked['variables']['hostname']);
+    }
+
     public function testMasksJsonStrings(): void
     {
         $masker = new JobPayloadMasker();

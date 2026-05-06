@@ -243,6 +243,9 @@ func provisionLinuxProFTPD(username, password, rootPath string) error {
 	if err := installLinuxPackages(pkgs); err != nil {
 		return err
 	}
+	if err := ensureProFTPDSFTPModuleInstalled(); err != nil {
+		return err
+	}
 	if err := ensureEasyWIUser(); err != nil {
 		return err
 	}
@@ -257,6 +260,9 @@ func provisionLinuxProFTPD(username, password, rootPath string) error {
 		return err
 	}
 	if err := ensureProFTPDUser(username, password, rootPath); err != nil {
+		return err
+	}
+	if err := ensureLinuxSFTPFirewall(defaultAccessListenPort); err != nil {
 		return err
 	}
 	serviceName, err := detectProFTPDServiceName()
@@ -345,6 +351,32 @@ func installLinuxPackages(packages []string) error {
 		}
 	}
 	return nil
+}
+
+func ensureProFTPDSFTPModuleInstalled() error {
+	if _, err := exec.LookPath("proftpd"); err != nil {
+		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: proftpd binary is missing after package installation")
+	}
+	out, err := runCommandLogged("proftpd", "-l")
+	if err != nil {
+		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: unable to verify ProFTPD modules: %s", strings.TrimSpace(out))
+	}
+	if !proFTPDModuleListHasSFTP(out) {
+		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD mod_sftp is not installed or enabled; install proftpd-mod-crypto on Debian/Ubuntu or proftpd-mod_sftp on RHEL-compatible systems")
+	}
+
+	return nil
+}
+
+func proFTPDModuleListHasSFTP(output string) bool {
+	for _, line := range strings.Split(strings.ToLower(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "mod_sftp.c" || strings.Contains(line, " mod_sftp.c") || strings.Contains(line, "mod_sftp.c ") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func detectProFTPDConfDir() (string, error) {
@@ -453,12 +485,20 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 	if err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: easywi gid missing")
 	}
+	uid := strings.TrimSpace(uidOut)
+	gid := strings.TrimSpace(gidOut)
+	if out, err := runCommandLogged("chown", "-R", uid+":"+gid, rootPath); err != nil {
+		return fmt.Errorf("PERMISSION_DENIED: chown root path failed: %s", strings.TrimSpace(out))
+	}
+	if err := os.Chmod(rootPath, 0o750); err != nil {
+		return fmt.Errorf("PERMISSION_DENIED: chmod root path failed: %w", err)
+	}
 	hash, err := runCommandOutput("openssl", "passwd", "-6", password)
 	if err != nil {
 		h := sha256.Sum256([]byte(password))
 		hash = "$easywi$" + hex.EncodeToString(h[:])
 	}
-	entry := fmt.Sprintf("%s:%s:%s:%s::%s:/usr/sbin/nologin", username, strings.TrimSpace(hash), strings.TrimSpace(uidOut), strings.TrimSpace(gidOut), rootPath)
+	entry := fmt.Sprintf("%s:%s:%s:%s::%s:/usr/sbin/nologin", username, strings.TrimSpace(hash), uid, gid, rootPath)
 	existing, readErr := os.ReadFile(linuxAuthUserFile)
 	if readErr != nil && !os.IsNotExist(readErr) {
 		return fmt.Errorf("PERMISSION_DENIED: read auth file: %w", readErr)
@@ -484,6 +524,25 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 	if err := os.WriteFile(linuxAuthUserFile, []byte(strings.Join(updated, "\n")+"\n"), 0o600); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: write auth file: %w", err)
 	}
+	return nil
+}
+
+func ensureLinuxSFTPFirewall(port int) error {
+	portSpec := fmt.Sprintf("%d/tcp", port)
+	if _, err := exec.LookPath("ufw"); err == nil {
+		if out, err := runCommandLogged("ufw", "allow", portSpec); err != nil {
+			return fmt.Errorf("FIREWALL_CONFIG_FAILED: ufw allow %s failed: %s", portSpec, strings.TrimSpace(out))
+		}
+	}
+	if _, err := exec.LookPath("firewall-cmd"); err == nil {
+		if out, err := runCommandLogged("firewall-cmd", "--permanent", "--add-port="+portSpec); err != nil {
+			return fmt.Errorf("FIREWALL_CONFIG_FAILED: firewall-cmd add-port %s failed: %s", portSpec, strings.TrimSpace(out))
+		}
+		if out, err := runCommandLogged("firewall-cmd", "--reload"); err != nil {
+			return fmt.Errorf("FIREWALL_CONFIG_FAILED: firewall-cmd reload failed: %s", strings.TrimSpace(out))
+		}
+	}
+
 	return nil
 }
 
@@ -533,6 +592,9 @@ func checkLinuxProFTPDHealth() error {
 		if err := ensureProFTPDKeys(); err != nil {
 			return fmt.Errorf("CONFIG_INVALID: host key missing")
 		}
+	}
+	if err := ensureProFTPDSFTPModuleInstalled(); err != nil {
+		return err
 	}
 	if _, err := os.Stat(linuxAuthUserFile); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: auth file missing")
@@ -729,6 +791,10 @@ func mapAccessErr(err error) string {
 		return "SERVICE_START_FAILED"
 	case strings.Contains(msg, "CONFIG_INVALID"):
 		return "CONFIG_INVALID"
+	case strings.Contains(msg, "PROFTPD_SFTP_MODULE_MISSING"):
+		return "PROFTPD_SFTP_MODULE_MISSING"
+	case strings.Contains(msg, "FIREWALL_CONFIG_FAILED"):
+		return "FIREWALL_CONFIG_FAILED"
 	case strings.Contains(msg, "PORT_IN_USE"):
 		return "PORT_IN_USE"
 	case strings.Contains(msg, "ROOT_INVALID"):

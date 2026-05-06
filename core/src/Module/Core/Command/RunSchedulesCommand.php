@@ -8,10 +8,12 @@ use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\JobLogger;
+use App\Module\Core\Application\Scheduler\CentralSchedulerRunner;
 use App\Module\Core\Domain\Entity\Backup;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
+use App\Module\Core\Domain\Entity\ScheduledTaskRun;
 use App\Module\Core\Domain\Enum\BackupStatus;
 use App\Module\Core\Domain\Enum\BackupTargetType;
 use App\Module\Core\Domain\Enum\InstanceScheduleAction;
@@ -27,16 +29,20 @@ use Cron\CronExpression;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Command\SignalableCommandInterface;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(
     name: 'app:run-schedules',
     description: 'Queue instance and backup schedules.',
 )]
-final class RunSchedulesCommand extends Command
+final class RunSchedulesCommand extends Command implements SignalableCommandInterface
 {
     private const DEFAULT_BATCH_SIZE = 250;
+
+    private bool $shouldStop = false;
 
     public function __construct(
         private readonly InstanceScheduleRepository $instanceScheduleRepository,
@@ -50,8 +56,31 @@ final class RunSchedulesCommand extends Command
         private readonly JobRepository $jobRepository,
         private readonly BackupTargetRepository $backupTargetRepository,
         private readonly AppSettingsService $appSettingsService,
+        private readonly CentralSchedulerRunner $centralSchedulerRunner,
     ) {
         parent::__construct();
+    }
+
+    protected function configure(): void
+    {
+        $this
+            ->addOption('loop', null, InputOption::VALUE_NONE, 'Run continuously until SIGTERM/SIGINT or max-runtime is reached.')
+            ->addOption('once', null, InputOption::VALUE_NONE, 'Run exactly one scheduler pass (default).')
+            ->addOption('sleep', null, InputOption::VALUE_REQUIRED, 'Seconds to sleep between loop passes.', '30')
+            ->addOption('max-runtime', null, InputOption::VALUE_REQUIRED, 'Optional maximum runtime in seconds for loop mode.');
+    }
+
+    public function getSubscribedSignals(): array
+    {
+        return array_values(array_filter([
+            defined('SIGTERM') ? SIGTERM : null,
+            defined('SIGINT') ? SIGINT : null,
+        ], static fn (?int $signal): bool => $signal !== null));
+    }
+
+    public function handleSignal(int $signal): void
+    {
+        $this->shouldStop = true;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -62,304 +91,377 @@ final class RunSchedulesCommand extends Command
             return Command::SUCCESS;
         }
 
-        $now = new \DateTimeImmutable();
-        $queued = 0;
+        $loop = (bool) $input->getOption('loop') && !(bool) $input->getOption('once');
+        $sleepSeconds = max(1, (int) $input->getOption('sleep'));
+        $maxRuntimeValue = $input->getOption('max-runtime');
+        $maxRuntimeSeconds = is_numeric($maxRuntimeValue) ? max(1, (int) $maxRuntimeValue) : null;
+        $startedAt = new \DateTimeImmutable();
+        $this->shouldStop = false;
 
         try {
-            $lastInstanceScheduleId = 0;
             do {
-                $instanceSchedules = $this->instanceScheduleRepository->findEnabledBatchAfterId($lastInstanceScheduleId, self::DEFAULT_BATCH_SIZE);
-                foreach ($instanceSchedules as $schedule) {
-                    $lastInstanceScheduleId = max($lastInstanceScheduleId, (int) ($schedule->getId() ?? 0));
-                    $instance = $schedule->getInstance();
-                    $action = $schedule->getAction();
+                $this->writeSchedulerHeartbeat('running');
+                $this->runSchedulePass($output);
+                $this->writeSchedulerHeartbeat('success');
+                $this->entityManager->clear();
 
-                if ($action === InstanceScheduleAction::Update && $instance->getUpdatePolicy() !== InstanceUpdatePolicy::Auto) {
-                    continue;
+                if (!$loop || $this->shouldStop || $this->maxRuntimeReached($startedAt, $maxRuntimeSeconds)) {
+                    break;
                 }
 
-                $cronExpression = $schedule->getCronExpression();
-                if (!CronExpression::isValidExpression($cronExpression)) {
-                    continue;
-                }
+                $this->sleepInterruptibly($sleepSeconds);
+            } while (!$this->shouldStop);
 
-                $timeZone = $schedule->getTimeZone() ?? 'UTC';
-                try {
-                    $timeZoneObj = new \DateTimeZone($timeZone);
-                } catch (\Exception) {
-                    continue;
-                }
-
-                $nowLocal = $now->setTimezone($timeZoneObj);
-                $cron = CronExpression::factory($cronExpression);
-                $previousRun = $cron->getPreviousRunDate($nowLocal, 0, true);
-
-                $lastQueuedAt = $schedule->getLastQueuedAt();
-                if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZoneObj) >= $previousRun) {
-                    continue;
-                }
-
-                if (!$instance->getNode()->isActive()) {
-                    $schedule->markRun($now, 'blocked', 'agent_offline_or_unknown');
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.schedule.skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'action' => $action->value,
-                        'reason' => 'agent_offline_or_unknown',
-                    ]);
-                    continue;
-                }
-
-                if ($this->diskEnforcementService->guardInstanceAction($instance, $now) !== null) {
-                    $schedule->markRun($now, 'blocked', 'disk_quota_exceeded');
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.schedule.skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'action' => $action->value,
-                        'reason' => 'disk_quota_exceeded',
-                    ]);
-                    continue;
-                }
-
-                $job = null;
-                $activeJob = $this->findActiveAutomationJob($instance, $action);
-                if ($activeJob instanceof Job) {
-                    $errorCode = match ($action) {
-                        InstanceScheduleAction::Start => 'start_action_in_progress',
-                        InstanceScheduleAction::Stop => 'stop_action_in_progress',
-                        InstanceScheduleAction::Restart => 'restart_action_in_progress',
-                        InstanceScheduleAction::Update => 'update_action_in_progress',
-                    };
-                    $schedule->markRun($now, 'skipped', $errorCode);
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.schedule.skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'action' => $action->value,
-                        'reason' => $errorCode,
-                        'blocking_job_id' => $activeJob->getId(),
-                        'blocking_job_type' => $activeJob->getType(),
-                    ]);
-                    continue;
-                }
-
-                $lifecycleConflict = $this->findLifecycleConflictJob($instance, $action);
-                if ($lifecycleConflict instanceof Job) {
-                    $schedule->markRun($now, 'skipped', 'lifecycle_action_in_progress');
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.schedule.skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'action' => $action->value,
-                        'reason' => 'lifecycle_action_in_progress',
-                        'blocking_job_id' => $lifecycleConflict->getId(),
-                        'blocking_job_type' => $lifecycleConflict->getType(),
-                    ]);
-                    continue;
-                }
-
-                if ($action === InstanceScheduleAction::Update && ($instance->getLockedBuildId() !== null || $instance->getLockedVersion() !== null)) {
-                    $schedule->markRun($now, 'skipped', 'update_locked_by_pin');
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.schedule.skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'action' => $action->value,
-                        'reason' => 'update_locked_by_pin',
-                    ]);
-                    continue;
-                }
-
-                if ($action === InstanceScheduleAction::Start && $instance->getStatus() === InstanceStatus::Running) {
-                    $schedule->markRun($now, 'skipped', 'start_already_running');
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.schedule.skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'action' => $action->value,
-                        'reason' => 'start_already_running',
-                    ]);
-                    continue;
-                }
-                if ($action === InstanceScheduleAction::Stop && $instance->getStatus() === InstanceStatus::Stopped) {
-                    $schedule->markRun($now, 'skipped', 'stop_already_stopped');
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.schedule.skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'action' => $action->value,
-                        'reason' => 'stop_already_stopped',
-                    ]);
-                    continue;
-                }
-                if ($action === InstanceScheduleAction::Restart && $instance->getStatus() === InstanceStatus::Stopped) {
-                    $schedule->markRun($now, 'skipped', 'restart_requires_running');
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.schedule.skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'action' => $action->value,
-                        'reason' => 'restart_requires_running',
-                    ]);
-                    continue;
-                }
-
-                $job = match ($action) {
-                    InstanceScheduleAction::Update => $this->queueUpdateJob($instance, $now),
-                    InstanceScheduleAction::Start => $this->queueInstanceJob('instance.start', $instance),
-                    InstanceScheduleAction::Stop => $this->queueInstanceJob('instance.stop', $instance),
-                    InstanceScheduleAction::Restart => $this->queueInstanceJob('instance.restart', $instance),
-                };
-
-                $schedule->setLastQueuedAt($now);
-                $schedule->markRun($now, 'queued');
-                $this->entityManager->persist($schedule);
-                $this->jobLogger->log($job, sprintf('Scheduled %s job queued.', $action->value), 0);
-                $this->auditLogger->log(null, 'instance.schedule.queued', [
-                    'instance_id' => $instance->getId(),
-                    'customer_id' => $instance->getCustomer()->getId(),
-                    'action' => $action->value,
-                    'cron_expression' => $cronExpression,
-                    'time_zone' => $timeZone,
-                    'job_id' => $job->getId(),
-                ]);
-                    $queued++;
-                }
-            } while (count($instanceSchedules) === self::DEFAULT_BATCH_SIZE);
-
-            $lastBackupScheduleId = 0;
-            do {
-                $backupSchedules = $this->backupScheduleRepository->findEnabledBatchAfterId($lastBackupScheduleId, self::DEFAULT_BATCH_SIZE);
-                foreach ($backupSchedules as $schedule) {
-                    $lastBackupScheduleId = max($lastBackupScheduleId, (int) ($schedule->getId() ?? 0));
-                    $definition = $schedule->getDefinition();
-                    if ($definition->getTargetType() !== BackupTargetType::Game) {
-                        continue;
-                    }
-
-                $instanceId = (int) $definition->getTargetId();
-                $instance = $this->instanceRepository->find($instanceId);
-                if ($instance === null) {
-                    $schedule->markRun($now, 'skipped', 'instance_not_found');
-                    $this->entityManager->persist($schedule);
-                    continue;
-                }
-
-                $cronExpression = $schedule->getCronExpression();
-                if (!CronExpression::isValidExpression($cronExpression)) {
-                    $schedule->markRun($now, 'skipped', 'backup_schedule_invalid');
-                    $this->entityManager->persist($schedule);
-                    continue;
-                }
-
-                $scheduleTz = $schedule->getTimeZone() !== '' ? $schedule->getTimeZone() : 'UTC';
-                try {
-                    $timeZone = new \DateTimeZone($scheduleTz);
-                } catch (\Throwable) {
-                    $schedule->markRun($now, 'skipped', 'backup_schedule_invalid_timezone');
-                    $this->entityManager->persist($schedule);
-                    continue;
-                }
-
-                $cron = CronExpression::factory($cronExpression);
-                $previousRun = $cron->getPreviousRunDate($now->setTimezone($timeZone), 0, true);
-                $lastQueuedAt = $schedule->getLastQueuedAt();
-                if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZone) >= $previousRun) {
-                    continue;
-                }
-
-                if ($this->jobRepository->findLatestActiveByTypesAndInstanceId([
-                    'instance.backup.create',
-                    'instance.backup.restore',
-                    'instance.reinstall',
-                    'instance.start',
-                    'instance.stop',
-                    'instance.restart',
-                    'sniper.update',
-                    'instance.config.apply',
-                    'instance.settings.update',
-                    'instance.addon.install',
-                    'instance.addon.update',
-                    'instance.addon.remove',
-                ], $instance->getId() ?? 0) instanceof Job) {
-                    $schedule->markRun($now, 'skipped', 'backup_action_in_progress');
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.backup.schedule_skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'definition_id' => $definition->getId(),
-                        'reason' => 'backup_action_in_progress',
-                    ]);
-                    continue;
-                }
-
-                if ($this->diskEnforcementService->guardInstanceAction($instance, $now) !== null) {
-                    $schedule->markRun($now, 'blocked', 'disk_quota_exceeded');
-                    $schedule->setLastQueuedAt($now);
-                    $this->entityManager->persist($schedule);
-                    $this->auditLogger->log(null, 'instance.backup.schedule_skipped', [
-                        'instance_id' => $instance->getId(),
-                        'customer_id' => $instance->getCustomer()->getId(),
-                        'definition_id' => $definition->getId(),
-                        'reason' => 'disk_quota_exceeded',
-                    ]);
-                    continue;
-                }
-
-                $backup = new Backup($definition, BackupStatus::Queued);
-                $this->entityManager->persist($backup);
-                $this->entityManager->flush();
-
-                $targetId = $this->resolveBackupTargetId($definition, $schedule);
-                $job = $this->queueInstanceJob('instance.backup.create', $instance, [
-                    'definition_id' => $definition->getId(),
-                    'backup_id' => $backup->getId(),
-                    'retention_days' => (string) $schedule->getRetentionDays(),
-                    'retention_count' => (string) $schedule->getRetentionCount(),
-                    'compression' => $schedule->getCompression(),
-                    'stop_before' => $schedule->isStopBefore() ? 'true' : 'false',
-                    'backup_target_id' => $targetId,
-                ]);
-                $backup->setJob($job);
-                $this->entityManager->persist($backup);
-                $schedule->setLastQueuedAt($now);
-                $schedule->markRun($now, 'queued');
-                $this->entityManager->persist($schedule);
-                $this->jobLogger->log($job, 'Scheduled backup queued.', 0);
-
-                $this->auditLogger->log(null, 'instance.backup.schedule_queued', [
-                    'instance_id' => $instance->getId(),
-                    'customer_id' => $instance->getCustomer()->getId(),
-                    'definition_id' => $definition->getId(),
-                    'backup_id' => $backup->getId(),
-                    'cron_expression' => $cronExpression,
-                    'time_zone' => $scheduleTz,
-                    'job_id' => $job->getId(),
-                    'backup_target_id' => $targetId,
-                ]);
-                    $queued++;
-                }
-            } while (count($backupSchedules) === self::DEFAULT_BATCH_SIZE);
-
-            $this->entityManager->flush();
-
-            $output->writeln(sprintf('Queued %d scheduled job(s).', $queued));
+            $this->writeSchedulerHeartbeat($this->shouldStop ? 'stopped' : 'success');
 
             return Command::SUCCESS;
         } finally {
             $this->releaseProcessLock($lockHandle);
         }
+    }
+
+    private function runSchedulePass(OutputInterface $output): int
+    {
+        $now = new \DateTimeImmutable();
+        $queued = 0;
+        $queued += $this->centralSchedulerRunner->runDue($now);
+
+        $lastInstanceScheduleId = 0;
+        do {
+            $instanceSchedules = $this->instanceScheduleRepository->findEnabledBatchAfterId($lastInstanceScheduleId, self::DEFAULT_BATCH_SIZE);
+            foreach ($instanceSchedules as $schedule) {
+                $lastInstanceScheduleId = max($lastInstanceScheduleId, (int) ($schedule->getId() ?? 0));
+                $instance = $schedule->getInstance();
+                $action = $schedule->getAction();
+
+            if ($action === InstanceScheduleAction::Update && $instance->getUpdatePolicy() !== InstanceUpdatePolicy::Auto) {
+                continue;
+            }
+
+            $cronExpression = $schedule->getCronExpression();
+            if (!CronExpression::isValidExpression($cronExpression)) {
+                continue;
+            }
+
+            $timeZone = $schedule->getTimeZone() ?? 'UTC';
+            try {
+                $timeZoneObj = new \DateTimeZone($timeZone);
+            } catch (\Exception) {
+                continue;
+            }
+
+            $nowLocal = $now->setTimezone($timeZoneObj);
+            $cron = CronExpression::factory($cronExpression);
+            $previousRun = $cron->getPreviousRunDate($nowLocal, 0, true);
+
+            $lastQueuedAt = $schedule->getLastQueuedAt();
+            if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZoneObj) >= $previousRun) {
+                continue;
+            }
+
+            if (!$instance->getNode()->isActive()) {
+                $schedule->markRun($now, 'blocked', 'agent_offline_or_unknown');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.schedule.skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'reason' => 'agent_offline_or_unknown',
+                ]);
+                continue;
+            }
+
+            if ($this->diskEnforcementService->guardInstanceAction($instance, $now) !== null) {
+                $schedule->markRun($now, 'blocked', 'disk_quota_exceeded');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.schedule.skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'reason' => 'disk_quota_exceeded',
+                ]);
+                continue;
+            }
+
+            $job = null;
+            $activeJob = $this->findActiveAutomationJob($instance, $action);
+            if ($activeJob instanceof Job) {
+                $errorCode = match ($action) {
+                    InstanceScheduleAction::Start => 'start_action_in_progress',
+                    InstanceScheduleAction::Stop => 'stop_action_in_progress',
+                    InstanceScheduleAction::Restart => 'restart_action_in_progress',
+                    InstanceScheduleAction::Update => 'update_action_in_progress',
+                };
+                $schedule->markRun($now, 'skipped', $errorCode);
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.schedule.skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'reason' => $errorCode,
+                    'blocking_job_id' => $activeJob->getId(),
+                    'blocking_job_type' => $activeJob->getType(),
+                ]);
+                continue;
+            }
+
+            $lifecycleConflict = $this->findLifecycleConflictJob($instance, $action);
+            if ($lifecycleConflict instanceof Job) {
+                $schedule->markRun($now, 'skipped', 'lifecycle_action_in_progress');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.schedule.skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'reason' => 'lifecycle_action_in_progress',
+                    'blocking_job_id' => $lifecycleConflict->getId(),
+                    'blocking_job_type' => $lifecycleConflict->getType(),
+                ]);
+                continue;
+            }
+
+            if ($action === InstanceScheduleAction::Update && ($instance->getLockedBuildId() !== null || $instance->getLockedVersion() !== null)) {
+                $schedule->markRun($now, 'skipped', 'update_locked_by_pin');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.schedule.skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'reason' => 'update_locked_by_pin',
+                ]);
+                continue;
+            }
+
+            if ($action === InstanceScheduleAction::Start && $instance->getStatus() === InstanceStatus::Running) {
+                $schedule->markRun($now, 'skipped', 'start_already_running');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.schedule.skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'reason' => 'start_already_running',
+                ]);
+                continue;
+            }
+            if ($action === InstanceScheduleAction::Stop && $instance->getStatus() === InstanceStatus::Stopped) {
+                $schedule->markRun($now, 'skipped', 'stop_already_stopped');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.schedule.skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'reason' => 'stop_already_stopped',
+                ]);
+                continue;
+            }
+            if ($action === InstanceScheduleAction::Restart && $instance->getStatus() === InstanceStatus::Stopped) {
+                $schedule->markRun($now, 'skipped', 'restart_requires_running');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.schedule.skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'reason' => 'restart_requires_running',
+                ]);
+                continue;
+            }
+
+            if ($action === InstanceScheduleAction::Restart && ($instance->getInstallPath() === null || $instance->getInstallPath() === '')) {
+                $schedule->markScheduleResult('skipped', 'install_path_missing');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.schedule.skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'action' => $action->value,
+                    'reason' => 'install_path_missing',
+                ]);
+                continue;
+            }
+
+            $job = match ($action) {
+                InstanceScheduleAction::Update => $this->queueUpdateJob($instance, $now),
+                InstanceScheduleAction::Start => $this->queueInstanceJob('instance.start', $instance),
+                InstanceScheduleAction::Stop => $this->queueInstanceJob('instance.stop', $instance),
+                InstanceScheduleAction::Restart => $this->queueInstanceJob('instance.restart', $instance, [
+                    'reason' => 'scheduled_restart',
+                    'schedule_id' => (string) ($schedule->getId() ?? ''),
+                ]),
+            };
+
+            if ($action === InstanceScheduleAction::Restart) {
+                $schedule->markQueued($now);
+            } else {
+                $schedule->setLastQueuedAt($now);
+                $schedule->markRun($now, 'queued');
+            }
+            $this->entityManager->persist($schedule);
+            $this->jobLogger->log($job, sprintf('Scheduled %s job queued.', $action->value), 0);
+            $this->auditLogger->log(null, 'instance.schedule.queued', [
+                'instance_id' => $instance->getId(),
+                'customer_id' => $instance->getCustomer()->getId(),
+                'action' => $action->value,
+                'cron_expression' => $cronExpression,
+                'time_zone' => $timeZone,
+                'job_id' => $job->getId(),
+            ]);
+                $queued++;
+            }
+        } while (count($instanceSchedules) === self::DEFAULT_BATCH_SIZE);
+
+        $lastBackupScheduleId = 0;
+        do {
+            $backupSchedules = $this->backupScheduleRepository->findEnabledBatchAfterId($lastBackupScheduleId, self::DEFAULT_BATCH_SIZE);
+            foreach ($backupSchedules as $schedule) {
+                $lastBackupScheduleId = max($lastBackupScheduleId, (int) ($schedule->getId() ?? 0));
+                $definition = $schedule->getDefinition();
+                if ($definition->getTargetType() !== BackupTargetType::Game) {
+                    continue;
+                }
+
+            $instanceId = (int) $definition->getTargetId();
+            $instance = $this->instanceRepository->find($instanceId);
+            if ($instance === null) {
+                $schedule->markRun($now, 'skipped', 'instance_not_found');
+                $this->entityManager->persist($schedule);
+                continue;
+            }
+
+            $cronExpression = $schedule->getCronExpression();
+            if (!CronExpression::isValidExpression($cronExpression)) {
+                $schedule->markRun($now, 'skipped', 'backup_schedule_invalid');
+                $this->entityManager->persist($schedule);
+                continue;
+            }
+
+            $scheduleTz = $schedule->getTimeZone() !== '' ? $schedule->getTimeZone() : 'UTC';
+            try {
+                $timeZone = new \DateTimeZone($scheduleTz);
+            } catch (\Throwable) {
+                $schedule->markRun($now, 'skipped', 'backup_schedule_invalid_timezone');
+                $this->entityManager->persist($schedule);
+                continue;
+            }
+
+            $cron = CronExpression::factory($cronExpression);
+            $previousRun = $cron->getPreviousRunDate($now->setTimezone($timeZone), 0, true);
+            $lastQueuedAt = $schedule->getLastQueuedAt();
+            if ($lastQueuedAt !== null && $lastQueuedAt->setTimezone($timeZone) >= $previousRun) {
+                continue;
+            }
+
+            if ($this->jobRepository->findLatestActiveByTypesAndInstanceId([
+                'instance.backup.create',
+                'instance.backup.restore',
+                'instance.reinstall',
+                'instance.start',
+                'instance.stop',
+                'instance.restart',
+                'sniper.update',
+                'instance.config.apply',
+                'instance.settings.update',
+                'instance.addon.install',
+                'instance.addon.update',
+                'instance.addon.remove',
+            ], $instance->getId() ?? 0) instanceof Job) {
+                $schedule->markRun($now, 'skipped', 'backup_action_in_progress');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.backup.schedule_skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'definition_id' => $definition->getId(),
+                    'reason' => 'backup_action_in_progress',
+                ]);
+                continue;
+            }
+
+            if ($this->diskEnforcementService->guardInstanceAction($instance, $now) !== null) {
+                $schedule->markRun($now, 'blocked', 'disk_quota_exceeded');
+                $schedule->setLastQueuedAt($now);
+                $this->entityManager->persist($schedule);
+                $this->auditLogger->log(null, 'instance.backup.schedule_skipped', [
+                    'instance_id' => $instance->getId(),
+                    'customer_id' => $instance->getCustomer()->getId(),
+                    'definition_id' => $definition->getId(),
+                    'reason' => 'disk_quota_exceeded',
+                ]);
+                continue;
+            }
+
+            $backup = new Backup($definition, BackupStatus::Queued);
+            $this->entityManager->persist($backup);
+            $this->entityManager->flush();
+
+            $targetId = $this->resolveBackupTargetId($definition, $schedule);
+            $job = $this->queueInstanceJob('instance.backup.create', $instance, [
+                'definition_id' => $definition->getId(),
+                'backup_id' => $backup->getId(),
+                'retention_days' => (string) $schedule->getRetentionDays(),
+                'retention_count' => (string) $schedule->getRetentionCount(),
+                'compression' => $schedule->getCompression(),
+                'stop_before' => $schedule->isStopBefore() ? 'true' : 'false',
+                'backup_target_id' => $targetId,
+            ]);
+            $backup->setJob($job);
+            $this->entityManager->persist($backup);
+            $schedule->setLastQueuedAt($now);
+            $schedule->markRun($now, 'queued');
+            $this->entityManager->persist($schedule);
+            $this->jobLogger->log($job, 'Scheduled backup queued.', 0);
+
+            $this->auditLogger->log(null, 'instance.backup.schedule_queued', [
+                'instance_id' => $instance->getId(),
+                'customer_id' => $instance->getCustomer()->getId(),
+                'definition_id' => $definition->getId(),
+                'backup_id' => $backup->getId(),
+                'cron_expression' => $cronExpression,
+                'time_zone' => $scheduleTz,
+                'job_id' => $job->getId(),
+                'backup_target_id' => $targetId,
+            ]);
+                $queued++;
+            }
+        } while (count($backupSchedules) === self::DEFAULT_BATCH_SIZE);
+
+        $this->entityManager->flush();
+
+        $output->writeln(sprintf('Queued %d scheduled job(s).', $queued));
+
+        return $queued;
+    }
+
+    private function maxRuntimeReached(\DateTimeImmutable $startedAt, ?int $maxRuntimeSeconds): bool
+    {
+        if ($maxRuntimeSeconds === null) {
+            return false;
+        }
+
+        return (new \DateTimeImmutable())->getTimestamp() - $startedAt->getTimestamp() >= $maxRuntimeSeconds;
+    }
+
+    private function sleepInterruptibly(int $sleepSeconds): void
+    {
+        for ($remaining = $sleepSeconds; $remaining > 0 && !$this->shouldStop; $remaining--) {
+            sleep(1);
+        }
+    }
+
+    private function writeSchedulerHeartbeat(string $status): void
+    {
+        $now = new \DateTimeImmutable();
+        $run = new ScheduledTaskRun('system', 'app:run-schedules', 'Scheduler heartbeat', 'scheduler.heartbeat', 'core', $now, $status, 'app:run-schedules heartbeat');
+        $run->finish($status, 'app:run-schedules heartbeat', [], $now);
+        $this->entityManager->persist($run);
+        $this->entityManager->flush();
     }
 
     /**
@@ -404,6 +506,8 @@ final class RunSchedulesCommand extends Command
             'customer_id' => (string) $instance->getCustomer()->getId(),
             'node_id' => $instance->getNode()->getId(),
             'agent_id' => $instance->getNode()->getId(),
+            'install_path' => (string) ($instance->getInstallPath() ?? ''),
+            'base_dir' => (string) ($instance->getInstanceBaseDir() ?? ''),
         ], $extraPayload);
 
         $job = new Job($type, $payload);

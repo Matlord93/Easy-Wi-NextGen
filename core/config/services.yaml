@@ -76,6 +76,16 @@ services:
     bind:
       string $projectDir: '%kernel.project_dir%'
 
+
+
+  _instanceof:
+    App\Module\Core\Application\Scheduler\ScheduleHandlerInterface:
+      tags: ['app.schedule_handler']
+
+  App\Module\Core\Application\Scheduler\ScheduleHandlerRegistry:
+    arguments:
+      $handlers: !tagged_iterator app.schedule_handler
+
   App\:
     resource: '../src/'
     exclude:

@@ -223,6 +223,7 @@
         accessMetaEl.innerHTML = `
             <div>Host: <span class="font-semibold">${credential.host || '—'}</span></div>
             <div>Port: <span class="font-semibold">${credential.port || '—'}</span></div>
+            <div>Backend: <span class="font-semibold">${credential.backend || '—'}</span></div>
             <div>User: <span class="font-semibold">${credential.username || '—'}</span></div>
             <div>Root: <span class="font-semibold">${credential.root_path || '—'}</span></div>
             <div>Status: <span class="font-semibold">${credential.last_error_code ? 'Needs attention' : 'Ready'}</span></div>

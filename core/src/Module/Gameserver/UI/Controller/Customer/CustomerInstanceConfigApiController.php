@@ -25,6 +25,7 @@ use App\Repository\GameDefinitionRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobRepository;
 use App\Repository\TemplateRepository;
+use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -54,6 +55,7 @@ final class CustomerInstanceConfigApiController
         private readonly InstanceConfigPathResolver $instanceConfigPathResolver,
         private readonly AgentGameServerClient $agentGameServerClient,
         private readonly TemplateRepository $templateRepository,
+        private readonly PortBlockRepository $portBlockRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
     ) {
@@ -189,35 +191,38 @@ final class CustomerInstanceConfigApiController
             }
 
             $existingContent = is_file($absolutePath) ? (string) @file_get_contents($absolutePath) : '';
-            $content = $this->renderTemplateContent($target, $payload, $existingContent);
+            $variables = $this->buildConfigVariables($instance, is_array($payload['values'] ?? null) ? $payload['values'] : []);
+            $content = $this->renderTemplateContent($target, $payload, $existingContent, $variables);
             if (strlen($content) > 256 * 1024) {
                 return $this->envelopeError($request, 'TOO_LARGE', 'Config content exceeds 256KB limit.', JsonResponse::HTTP_BAD_REQUEST);
             }
             if ($this->containsDisallowedControlBytes($content)) {
                 return $this->envelopeError($request, 'BINARY_NOT_ALLOWED', 'Binary payload is not allowed.', JsonResponse::HTTP_BAD_REQUEST);
             }
-            $agentResult = $this->agentGameServerClient->applyInstanceConfig($instance, [
-                'instance_root' => $resolved['root'],
-                'path' => $absolutePath,
-                'content' => $content,
-                'mode' => $target['apply_mode'] ?? 'render_text',
-                'backup' => true,
-            ]);
+            $instance->setConfigOverride((string) $target['relative_path'], $content);
+            $this->entityManager->persist($instance);
+            $job = $this->queueConfigApplyJob(
+                $instance,
+                $customer,
+                [[
+                    'relative_path' => (string) $target['relative_path'],
+                    'content' => $content,
+                    'backup' => true,
+                ]],
+                $variables,
+                (string) ($target['apply_mode'] ?? 'render_text'),
+                null,
+                (string) $target['id'],
+            );
+            $this->entityManager->flush();
 
-            if (($agentResult['ok'] ?? false) !== true) {
-                return $this->envelopeError(
-                    $request,
-                    (string) ($agentResult['error_code'] ?? 'INTERNAL_ERROR'),
-                    (string) ($agentResult['message'] ?? 'Config apply failed.'),
-                    JsonResponse::HTTP_OK,
-                    ['agent' => $agentResult]
-                );
-            }
             return $this->envelopeOk($request, [
                 'target_id' => $target['id'],
-                'written' => true,
-                'agent' => $agentResult['data'] ?? [],
-            ]);
+                'written' => false,
+                'status' => 'queued',
+                'job_id' => $job->getId(),
+                'message' => 'Config apply job queued.',
+            ], JsonResponse::HTTP_ACCEPTED);
         } catch (\RuntimeException $e) {
             return $this->envelopeError($request, $e->getMessage(), 'Config apply failed.', JsonResponse::HTTP_BAD_REQUEST);
         } catch (\Throwable $e) {
@@ -243,16 +248,21 @@ final class CustomerInstanceConfigApiController
      * @param array<string, mixed> $target
      * @param array<string, mixed> $payload
      */
-    private function renderTemplateContent(array $target, array $payload, string $existing): string
+    private function renderTemplateContent(array $target, array $payload, string $existing, array $variables): string
     {
         $mode = (string) ($target['apply_mode'] ?? 'render_text');
         $raw = trim((string) ($payload['content'] ?? ''));
         $values = is_array($payload['values'] ?? null) ? $payload['values'] : [];
+        $template = (string) ($target['template_content'] ?? '');
 
         foreach ($values as $value) {
             if (is_string($value) && str_contains($value, self::LINE_FEED)) {
                 throw new \RuntimeException('INVALID_INPUT');
             }
+        }
+
+        if ($existing === '' && $template !== '') {
+            $existing = $this->renderTemplateString($template, $variables);
         }
 
         if ($mode === 'merge_kv') {
@@ -263,7 +273,9 @@ final class CustomerInstanceConfigApiController
             return $this->renderProperties($existing, $values);
         }
 
-        return $raw !== '' ? $raw : $existing;
+        $content = $raw !== '' ? $raw : ($template !== '' ? $template : $existing);
+
+        return $this->renderTemplateString($content, $variables);
     }
 
     /**
@@ -337,9 +349,6 @@ final class CustomerInstanceConfigApiController
     private function containsDisallowedControlBytes(string $content): bool
     {
         return preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $content) === 1;
-        return trim(implode('
-', $out)) . '
-';
     }
 
     /**
@@ -552,41 +561,32 @@ final class CustomerInstanceConfigApiController
             ], $statusCode);
         }
 
-        if ($applyMode === 'restart') {
-            $job = new Job('instance.restart', [
-                'instance_id' => (string) $instance->getId(),
-                'customer_id' => (string) $customer->getId(),
-                'agent_id' => $instance->getNode()->getId(),
-                'action' => 'config_apply_restart',
-                'config_id' => (string) $configSchema->getId(),
-            ]);
-            $this->entityManager->persist($job);
-            $this->entityManager->flush();
-
-            return new JsonResponse([
-                'status' => 'queued',
-                'job_id' => $job->getId(),
-                'message' => 'Config apply requires restart. Restart job queued.',
-                'apply_mode' => 'restart',
-            ], JsonResponse::HTTP_ACCEPTED);
+        $overrides = $instance->getConfigOverrides();
+        $override = $overrides[$configSchema->getFilePath()] ?? null;
+        if (!is_array($override) || !is_string($override['content'] ?? null)) {
+            throw new BadRequestHttpException('Config content has not been generated or saved yet.');
         }
 
-        $job = new Job('instance.config.apply', [
-            'instance_id' => (string) $instance->getId(),
-            'customer_id' => (string) $customer->getId(),
-            'agent_id' => $instance->getNode()->getId(),
-            'config_id' => (string) $configSchema->getId(),
-            'config_key' => $configSchema->getConfigKey(),
-            'file_path' => $configSchema->getFilePath(),
-            'apply_mode' => $applyMode,
-        ]);
-        $this->entityManager->persist($job);
+        $variables = $this->buildConfigVariables($instance, []);
+        $job = $this->queueConfigApplyJob(
+            $instance,
+            $customer,
+            [[
+                'relative_path' => $configSchema->getFilePath(),
+                'content' => (string) $override['content'],
+                'backup' => true,
+            ]],
+            $variables,
+            $applyMode,
+            $configSchema,
+            null,
+        );
         $this->entityManager->flush();
 
         return new JsonResponse([
             'status' => 'queued',
             'job_id' => $job->getId(),
-            'message' => 'Config apply job queued.',
+            'message' => $applyMode === 'restart' ? 'Config apply job queued. Restart may be required.' : 'Config apply job queued.',
             'apply_mode' => $applyMode,
         ], JsonResponse::HTTP_ACCEPTED);
     }
@@ -866,6 +866,136 @@ final class CustomerInstanceConfigApiController
         ]);
     }
 
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, string>
+     */
+    private function buildConfigVariables(Instance $instance, array $values): array
+    {
+        $variables = [];
+        $put = static function (string $key, mixed $value) use (&$variables): void {
+            $normalized = strtolower(trim($key));
+            if ($normalized === '') {
+                return;
+            }
+            if (is_array($value)) {
+                $value = implode(',', array_map('strval', $value));
+            }
+            $variables[$normalized] = (string) ($value ?? '');
+        };
+
+        $ports = $this->portBlockRepository->findByInstance($instance)?->getPorts() ?? [];
+        $put('server_name', $instance->getServerName() ?: $instance->getTemplate()->getDisplayName());
+        $put('slots', $instance->getSlots());
+        $put('max_slots', $instance->getMaxSlots());
+        $put('ports', $ports);
+        $put('port_game', $ports[0] ?? '');
+        $put('rcon_password', '');
+        $put('server_password', '');
+        $put('steam_gslt', $instance->getGslKey() ?? '');
+        $put('steam_account', $instance->getSteamAccount() ?? '');
+
+        foreach ($instance->getTemplate()->getEnvVars() as $entry) {
+            if (is_array($entry)) {
+                $put((string) ($entry['key'] ?? ''), $entry['value'] ?? '');
+            }
+        }
+        foreach ($instance->getSetupVars() as $key => $value) {
+            $put((string) $key, $value);
+        }
+        foreach ($values as $key => $value) {
+            $put((string) $key, $value);
+        }
+
+        // Common aliases used by existing template catalog rows.
+        foreach ($variables as $key => $value) {
+            $variables[strtoupper($key)] = $value;
+        }
+
+        return $variables;
+    }
+
+    /**
+     * @param array<string, string> $variables
+     */
+    private function renderTemplateString(string $template, array $variables): string
+    {
+        $missing = [];
+        $rendered = preg_replace_callback('/{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}/', static function (array $matches) use ($variables, &$missing): string {
+            $key = (string) $matches[1];
+            $lookup = array_key_exists($key, $variables) ? $key : strtolower($key);
+            if (!array_key_exists($lookup, $variables)) {
+                $missing[] = $key;
+                return $matches[0];
+            }
+
+            return $variables[$lookup];
+        }, $template);
+
+        if ($missing !== []) {
+            throw new \RuntimeException('MISSING_VARIABLE: ' . implode(', ', array_values(array_unique($missing))));
+        }
+
+        return (string) $rendered;
+    }
+
+    /**
+     * @param array<int, array{relative_path:string,content:string,backup?:bool}> $files
+     * @param array<string, string> $variables
+     */
+    private function queueConfigApplyJob(Instance $instance, User $customer, array $files, array $variables, string $applyMode, ?ConfigSchema $schema, ?string $targetId): Job
+    {
+        $resolvedRoot = $this->instanceConfigPathResolver->resolve($instance, $files[0]['relative_path']);
+        $payloadFiles = [];
+        foreach ($files as $file) {
+            $resolved = $this->instanceConfigPathResolver->resolve($instance, $file['relative_path']);
+            $payloadFiles[] = [
+                'path' => $resolved['relative'],
+                'content_base64' => base64_encode($file['content']),
+                'backup' => (bool) ($file['backup'] ?? true),
+            ];
+        }
+
+        $job = new Job('instance.config.apply', [
+            'instance_id' => (string) $instance->getId(),
+            'customer_id' => (string) $customer->getId(),
+            'agent_id' => $instance->getNode()->getId(),
+            'node_id' => $instance->getNode()->getId(),
+            'install_path' => $resolvedRoot['root'],
+            'base_dir' => $this->resolveBaseDir($instance, $resolvedRoot['root']),
+            'os_type' => $resolvedRoot['os'],
+            'config_id' => $schema !== null ? (string) $schema->getId() : '',
+            'config_key' => $schema?->getConfigKey() ?? $targetId ?? '',
+            'apply_mode' => $applyMode,
+            'files' => $payloadFiles,
+            'variables' => $variables,
+        ]);
+        $this->entityManager->persist($job);
+
+        $this->auditLogger->log($customer, 'instance.config.apply_requested', [
+            'instance_id' => $instance->getId(),
+            'config_id' => $schema?->getId(),
+            'config_key' => $schema?->getConfigKey() ?? $targetId,
+            'job_id' => $job->getId(),
+            'file_count' => count($payloadFiles),
+        ]);
+
+        return $job;
+    }
+
+    private function resolveBaseDir(Instance $instance, string $installPath): string
+    {
+        $baseDir = trim((string) ($instance->getInstanceBaseDir() ?? ''));
+        if ($baseDir !== '') {
+            return rtrim($baseDir, '/\\');
+        }
+
+        $dirname = dirname($installPath);
+
+        return $dirname !== '' && $dirname !== '.' ? $dirname : $installPath;
+    }
+
     /**
      * @return array{0: string, 1: string}
      */
@@ -955,6 +1085,10 @@ final class CustomerInstanceConfigApiController
             'last_updated_at' => (string) ($entry['last_updated_at'] ?? $entry['updated_at'] ?? ''),
             'last_hash' => (string) ($entry['last_hash'] ?? ''),
             'previous_hash' => (string) ($entry['previous_hash'] ?? ''),
+            'last_apply_status' => (string) ($entry['last_apply_status'] ?? ''),
+            'last_apply_error_code' => (string) ($entry['last_apply_error_code'] ?? ''),
+            'last_apply_error_message' => (string) ($entry['last_apply_error_message'] ?? ''),
+            'last_applied_at' => (string) ($entry['last_applied_at'] ?? ''),
         ];
     }
 

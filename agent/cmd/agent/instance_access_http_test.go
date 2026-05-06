@@ -77,6 +77,23 @@ func TestLinuxPackagesForDistro(t *testing.T) {
 	}
 }
 
+func TestProFTPDModuleDetectionRequiresModSFTP(t *testing.T) {
+	withModule := "Compiled-in modules:\n  mod_core.c\n  mod_sftp.c\n  mod_auth_file.c\n"
+	if !proFTPDModuleListHasSFTP(withModule) {
+		t.Fatal("expected module list with mod_sftp.c to be accepted")
+	}
+
+	withoutModule := "Compiled-in modules:\n  mod_core.c\n  mod_auth_file.c\n"
+	if proFTPDModuleListHasSFTP(withoutModule) {
+		t.Fatal("expected module list without mod_sftp.c to be rejected")
+	}
+
+	err := assertErr("PROFTPD_SFTP_MODULE_MISSING: ProFTPD mod_sftp is not installed or enabled")
+	if got := mapAccessErr(err); got != "PROFTPD_SFTP_MODULE_MISSING" {
+		t.Fatalf("expected PROFTPD_SFTP_MODULE_MISSING, got %s", got)
+	}
+}
+
 func TestCapabilitiesEndpoint(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/v1/access/capabilities", nil)
 	w := httptest.NewRecorder()

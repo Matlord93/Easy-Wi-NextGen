@@ -86,12 +86,17 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         $jobRepository = $this->createMock(JobRepository::class);
         $jobRepository->method('findLatestByTypeAndInstanceId')->willReturn(null);
 
+        $persistedJobs = [];
         $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->expects($this->exactly(2))->method('persist');
+        $entityManager->expects($this->exactly(2))->method('persist')->willReturnCallback(function (object $entity) use (&$persistedJobs): void {
+            if ($entity instanceof \App\Module\Core\Domain\Entity\Job) {
+                $persistedJobs[] = $entity;
+            }
+        });
         $entityManager->expects($this->once())->method('flush');
 
         $encryption = $this->createMock(EncryptionService::class);
-        $encryption->expects($this->once())->method('encrypt')->willReturn([
+        $encryption->expects($this->exactly(2))->method('encrypt')->willReturn([
             'key_id' => 'k',
             'nonce' => 'n',
             'ciphertext' => 'c',
@@ -138,6 +143,12 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
         self::assertArrayHasKey('job', $payload);
         self::assertSame('queued', $payload['job']['status']);
         self::assertSame('req-reset', $payload['request_id']);
+        self::assertCount(1, $persistedJobs);
+        $jobPayload = $persistedJobs[0]->getPayload();
+        foreach (['agent_id', 'base_dir', 'credential_id', 'customer_id', 'expires_at', 'install_path', 'instance_id', 'one_time_password_secret', 'os_type', 'username'] as $key) {
+            self::assertArrayHasKey($key, $jobPayload);
+        }
+        self::assertArrayNotHasKey('password', $jobPayload);
     }
 
     private function setEntityId(object $entity, int $id): void

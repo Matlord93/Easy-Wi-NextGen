@@ -110,7 +110,6 @@ func ensureSecurityConfigLinux(output *strings.Builder) error {
 		}
 		configPath := "/etc/ssh/sshd_config.d/99-easywi-security.conf"
 		configContent := `Port 22
-Port 2222
 PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
@@ -120,14 +119,6 @@ Subsystem sftp internal-sftp
 Match LocalPort 22
   PasswordAuthentication no
   KbdInteractiveAuthentication no
-  PubkeyAuthentication yes
-
-Match LocalPort 2222
-  ChrootDirectory /var/lib/easywi/sftp/%u
-  ForceCommand internal-sftp
-  AllowTcpForwarding no
-  X11Forwarding no
-  PasswordAuthentication yes
   PubkeyAuthentication yes
 `
 		if err := os.WriteFile(configPath, []byte(configContent), 0o640); err != nil {
@@ -147,6 +138,7 @@ Match LocalPort 2222
 		return fmt.Errorf("chown sftp base: %w", err)
 	}
 	appendOutput(output, "sftp_base="+sftpBase)
+	appendOutput(output, "linux_sftp_backend=proftpd_sftp_port_2222")
 
 	if commandExists("systemctl") {
 		if err := runCommandWithOutput("systemctl", []string{"restart", "sshd"}, output); err != nil {
@@ -213,6 +205,7 @@ func ensureSecurityConfigWindows(output *strings.Builder) error {
 		return fmt.Errorf("create windows sftp base: %w", err)
 	}
 	appendOutput(output, "sftp_base="+sftpBase)
+	appendOutput(output, "linux_sftp_backend=proftpd_sftp_port_2222")
 
 	return nil
 }

@@ -29,6 +29,8 @@ final class ConfigTemplateRegistryTest extends TestCase
         self::assertNotEmpty($targets);
         self::assertSame('merge_kv', $targets[0]['apply_mode']);
         self::assertSame('source', $targets[0]['engine_family']);
+        self::assertStringContainsString('{{server_name}}', $targets[0]['template_content']);
+        self::assertContains('server_name', $targets[0]['variables']);
     }
 
     public function testMinecraftTemplateIncludesServerPropertiesTarget(): void
@@ -49,5 +51,6 @@ final class ConfigTemplateRegistryTest extends TestCase
         self::assertNotEmpty($targets);
         self::assertSame('properties', $targets[0]['apply_mode']);
         self::assertSame('minecraft_java', $targets[0]['engine_family']);
+        self::assertStringContainsString('{{port_game}}', $targets[0]['template_content']);
     }
 }

@@ -94,13 +94,13 @@ func handleInstanceAddonInstallUpdate(job jobs.Job, isUpdate bool) (jobs.Result,
 		}, nil
 	}
 
-	// Resolve the destination directory (instanceDir or instanceDir/subdir)
+	// Resolve the destination directory (instanceDir or instanceDir/subdir).
 	destDir := instanceDir
+	cleanSubdir := ""
 	if extractSubdir != "" {
-		cleanSubdir := filepath.Clean(extractSubdir)
-		// Reject subdirs that try to escape the instance directory
-		if strings.HasPrefix(cleanSubdir, "..") {
-			return failureResult(job.ID, fmt.Errorf("invalid extract_subdir: %q", extractSubdir))
+		cleanSubdir, err = normalizeAddonExtractSubdir(extractSubdir)
+		if err != nil {
+			return failureResult(job.ID, err)
 		}
 		destDir = filepath.Join(instanceDir, cleanSubdir)
 	}
@@ -143,16 +143,16 @@ func handleInstanceAddonInstallUpdate(job jobs.Job, isUpdate bool) (jobs.Result,
 		if filename == "" || filename == "." || filename == "/" {
 			filename = pluginID + ".jar"
 		}
-		if err := os.MkdirAll(destDir, 0o755); err != nil {
-			return failureResult(job.ID, fmt.Errorf("create addon dest dir: %w", err))
+		if err := ensureAddonDestDir(destDir); err != nil {
+			return failureResult(job.ID, err)
 		}
 		destFile := filepath.Join(destDir, filename)
 		if err := copyAddonFile(archivePath, destFile); err != nil {
 			return failureResult(job.ID, err)
 		}
 		relPath := filename
-		if extractSubdir != "" {
-			relPath = filepath.Join(filepath.Clean(extractSubdir), filename)
+		if cleanSubdir != "" {
+			relPath = filepath.Join(cleanSubdir, filename)
 		}
 		entries = []string{relPath}
 	} else {
@@ -161,13 +161,16 @@ func handleInstanceAddonInstallUpdate(job jobs.Job, isUpdate bool) (jobs.Result,
 			return failureResult(job.ID, err)
 		}
 
+		if err := ensureAddonDestDir(destDir); err != nil {
+			return failureResult(job.ID, err)
+		}
+
 		if err := extractArchiveWithoutStrip(archivePath, downloadURL, destDir); err != nil {
 			return failureResult(job.ID, err)
 		}
 
 		// Prefix entries with extractSubdir so manifests reflect actual paths from instanceDir
-		if extractSubdir != "" {
-			cleanSubdir := filepath.Clean(extractSubdir)
+		if cleanSubdir != "" {
 			prefixed := make([]string, len(entries))
 			for i, e := range entries {
 				prefixed[i] = filepath.Join(cleanSubdir, e)
@@ -207,6 +210,21 @@ func handleInstanceAddonInstallUpdate(job jobs.Job, isUpdate bool) (jobs.Result,
 		},
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func normalizeAddonExtractSubdir(extractSubdir string) (string, error) {
+	cleanSubdir := filepath.Clean(strings.TrimSpace(extractSubdir))
+	if cleanSubdir == "." || cleanSubdir == string(filepath.Separator) || filepath.IsAbs(cleanSubdir) || cleanSubdir == ".." || strings.HasPrefix(cleanSubdir, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("invalid extract_subdir: %q", extractSubdir)
+	}
+	return cleanSubdir, nil
+}
+
+func ensureAddonDestDir(destDir string) error {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return fmt.Errorf("create addon dest dir: %w", err)
+	}
+	return nil
 }
 
 func addonManifestPath(instanceDir, pluginID string) string {

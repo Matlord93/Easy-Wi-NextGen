@@ -31,6 +31,7 @@ final class ConfigTemplateRegistry
             $targetId = sprintf('%s.%d', $gameKey, $index + 1);
             $name = basename(str_replace('\\', '/', $relativePath));
             $schema = $this->schemaForPath($family, $relativePath);
+            $templateContent = $this->templateContent($cfg, $schema);
             $targets[] = [
                 'id' => $targetId,
                 'game_key' => $gameKey,
@@ -40,6 +41,8 @@ final class ConfigTemplateRegistry
                 'platform' => $supportedOs !== [] ? $supportedOs : ['linux'],
                 'relative_path' => $relativePath,
                 'apply_mode' => (string) ($schema['apply_mode'] ?? 'render_text'),
+                'template_content' => $templateContent,
+                'variables' => $this->extractVariables($templateContent),
                 'restart_hint' => 'recommended',
                 'capabilities' => [
                     'supports_create' => true,
@@ -75,6 +78,35 @@ final class ConfigTemplateRegistry
         return $targets;
     }
 
+    /**
+     * @param array<string, mixed> $cfg
+     * @param array<string, mixed> $schema
+     */
+    private function templateContent(array $cfg, array $schema): string
+    {
+        foreach (['contents', 'content', 'template', 'template_content'] as $key) {
+            if (is_string($cfg[$key] ?? null) && trim((string) $cfg[$key]) !== '') {
+                return (string) $cfg[$key];
+            }
+        }
+
+        return is_string($schema['template_content'] ?? null) ? (string) $schema['template_content'] : '';
+    }
+
+    /**
+     * @return string[]
+     */
+    private function extractVariables(string $content): array
+    {
+        if ($content === '') {
+            return [];
+        }
+
+        preg_match_all('/{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}/', $content, $matches);
+
+        return array_values(array_unique(array_map(static fn (string $value): string => strtolower($value), $matches[1] ?? [])));
+    }
+
     private function engineFamily(string $gameKey): string
     {
         $g = strtolower($gameKey);
@@ -100,6 +132,7 @@ final class ConfigTemplateRegistry
         if ($family === 'source' && str_ends_with($normalized, 'server.cfg')) {
             return [
                 'apply_mode' => 'merge_kv',
+                'template_content' => "hostname \"{{server_name}}\"\nsv_password \"{{server_password}}\"\nrcon_password \"{{rcon_password}}\"\nsv_maxplayers {{max_slots}}\n",
                 'fields' => [
                     ['key' => 'hostname', 'label' => 'Hostname', 'type' => 'string', 'min' => 3, 'max' => 64],
                     ['key' => 'sv_password', 'label' => 'Server Password', 'type' => 'string', 'secret' => true],
@@ -118,6 +151,7 @@ final class ConfigTemplateRegistry
         if ($family === 'minecraft_java' && str_ends_with($normalized, 'server.properties')) {
             return [
                 'apply_mode' => 'properties',
+                'template_content' => "server-port={{port_game}}\nmotd={{server_name}}\nmax-players={{max_slots}}\nenable-rcon=true\nrcon.password={{rcon_password}}\n",
                 'fields' => [
                     ['key' => 'server-port', 'label' => 'Server Port', 'type' => 'int', 'min' => 1, 'max' => 65535, 'readonly' => true],
                     ['key' => 'motd', 'label' => 'MOTD', 'type' => 'string'],
