@@ -77,6 +77,8 @@ final class AgentApiController
         'agent.update',
         'agent.self_update',
         'agent.diagnostics',
+        'instance.backup.create',
+        'instance.backup.restore',
         'role.ensure_base',
         'security.ensure_base',
         'web.ensure_base',

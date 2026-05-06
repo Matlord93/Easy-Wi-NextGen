@@ -23,10 +23,6 @@ const (
 )
 
 func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error) {
-	if runtime.GOOS == "windows" {
-		return handleInstanceSftpCredentialsResetWindows(job)
-	}
-
 	requestID := payloadValue(job.Payload, "request_id")
 	username := payloadValue(job.Payload, "username", "sftp_username", "user")
 	password := strings.TrimSpace(payloadValue(job.Payload, "one_time_password", "password", "sftp_password"))
@@ -51,6 +47,10 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 			},
 			Completed: time.Now().UTC(),
 		}, nil
+	}
+
+	if runtime.GOOS == "windows" {
+		return handleInstanceSftpCredentialsResetWindows(job)
 	}
 
 	if preferredBackend != "" && preferredBackend != "PROFTPD_SFTP" {

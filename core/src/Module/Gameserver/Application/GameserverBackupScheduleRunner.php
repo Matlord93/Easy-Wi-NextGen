@@ -26,6 +26,7 @@ use Cron\CronExpression;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class GameserverBackupScheduleRunner
 {
@@ -60,6 +61,8 @@ final class GameserverBackupScheduleRunner
         private readonly BackupTargetRepository $backupTargetRepository,
         private readonly AppSettingsService $appSettingsService,
         private readonly LoggerInterface $logger,
+        #[Autowire('%app.windows_nodes_enabled%')]
+        private readonly bool $windowsNodesEnabled,
     ) {
     }
 
@@ -134,8 +137,8 @@ final class GameserverBackupScheduleRunner
             return 0;
         }
 
-        if ($this->isWindowsInstance($instance)) {
-            $this->markSkippedForInstance($schedule, $instance, $now, 'backup_unsupported_windows');
+        if ($this->isWindowsInstance($instance) && !$this->windowsNodesEnabled) {
+            $this->markSkippedForInstance($schedule, $instance, $now, 'windows_nodes_disabled');
             return 0;
         }
 

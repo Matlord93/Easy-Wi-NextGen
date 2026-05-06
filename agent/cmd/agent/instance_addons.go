@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -213,11 +214,17 @@ func handleInstanceAddonInstallUpdate(job jobs.Job, isUpdate bool) (jobs.Result,
 }
 
 func normalizeAddonExtractSubdir(extractSubdir string) (string, error) {
-	cleanSubdir := filepath.Clean(strings.TrimSpace(extractSubdir))
-	if cleanSubdir == "." || cleanSubdir == string(filepath.Separator) || filepath.IsAbs(cleanSubdir) || cleanSubdir == ".." || strings.HasPrefix(cleanSubdir, ".."+string(filepath.Separator)) {
+	trimmedSubdir := strings.TrimSpace(extractSubdir)
+	if trimmedSubdir == "" || strings.HasPrefix(trimmedSubdir, "/") || strings.HasPrefix(trimmedSubdir, "\\") || filepath.VolumeName(trimmedSubdir) != "" {
 		return "", fmt.Errorf("invalid extract_subdir: %q", extractSubdir)
 	}
-	return cleanSubdir, nil
+
+	slashSubdir := strings.ReplaceAll(trimmedSubdir, "\\", "/")
+	cleanSubdir := path.Clean(slashSubdir)
+	if cleanSubdir == "." || cleanSubdir == "/" || path.IsAbs(cleanSubdir) || cleanSubdir == ".." || strings.HasPrefix(cleanSubdir, "../") {
+		return "", fmt.Errorf("invalid extract_subdir: %q", extractSubdir)
+	}
+	return filepath.FromSlash(cleanSubdir), nil
 }
 
 func ensureAddonDestDir(destDir string) error {
