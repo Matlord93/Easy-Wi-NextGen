@@ -1,6 +1,7 @@
 package main
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -23,6 +24,9 @@ func TestHandleInstanceSftpCredentialsResetMissingValues(t *testing.T) {
 }
 
 func TestHandleWebspaceSftpCredentialsResetUsesSharedLinuxProFTPDReadyPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Linux ProFTPD SFTP provisioning path uses POSIX roots and is not exercised on Windows")
+	}
 	origReady := ensureLinuxProFTPDSFTPReadyFunc
 	origUser := ensureProFTPDUserFunc
 	origHealth := checkLinuxProFTPDHealthFunc
