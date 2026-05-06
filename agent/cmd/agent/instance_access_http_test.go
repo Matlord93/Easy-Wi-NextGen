@@ -153,3 +153,126 @@ func TestHealthReachabilityCheck(t *testing.T) {
 type assertErr string
 
 func (e assertErr) Error() string { return string(e) }
+
+func TestInstallLinuxPackagesInstallsModulePackagesEvenWhenProftpdExists(t *testing.T) {
+	origLookPath := accessLookPath
+	origRun := accessRunCommandLogged
+	t.Cleanup(func() {
+		accessLookPath = origLookPath
+		accessRunCommandLogged = origRun
+	})
+
+	accessLookPath = func(file string) (string, error) {
+		switch file {
+		case "proftpd", "apt-get":
+			return "/usr/bin/" + file, nil
+		default:
+			return "", errors.New("missing")
+		}
+	}
+	commands := []string{}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		commands = append(commands, name+" "+strings.Join(args, " "))
+		return "", nil
+	}
+
+	packages := []string{"proftpd-basic", "proftpd-mod-crypto"}
+	if err := installLinuxPackages(packages); err != nil {
+		t.Fatalf("installLinuxPackages failed: %v", err)
+	}
+	joined := strings.Join(commands, "\n")
+	if !strings.Contains(joined, "apt-get install -y proftpd-basic proftpd-mod-crypto") {
+		t.Fatalf("expected apt-get install with module package despite proftpd binary, got:\n%s", joined)
+	}
+}
+
+func TestEnableProFTPDSFTPModuleInFileIsIdempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "modules.conf")
+	if err := os.WriteFile(path, []byte("LoadModule mod_sftp.c\nLoadModule mod_tls.c\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repaired, err := enableProFTPDSFTPModuleInFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repaired {
+		t.Fatal("expected already-enabled module file not to be repaired")
+	}
+	raw, _ := os.ReadFile(path)
+	if got := strings.Count(string(raw), "LoadModule mod_sftp.c"); got != 1 {
+		t.Fatalf("expected exactly one active module line, got %d in %q", got, string(raw))
+	}
+}
+
+func TestEnableProFTPDSFTPModuleInFileUncommentsModule(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "modules.conf")
+	if err := os.WriteFile(path, []byte("#LoadModule mod_sftp.c\nLoadModule mod_tls.c\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repaired, err := enableProFTPDSFTPModuleInFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repaired {
+		t.Fatal("expected commented module line to be repaired")
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "LoadModule mod_sftp.c\n") {
+		t.Fatalf("expected uncommented module line, got %q", string(raw))
+	}
+	if strings.Contains(string(raw), "#LoadModule mod_sftp.c") {
+		t.Fatalf("expected commented module line to be removed, got %q", string(raw))
+	}
+}
+
+func TestEnsureProFTPDIncludeInFileIsIdempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "proftpd.conf")
+	confDir := filepath.Join(t.TempDir(), "conf.d")
+	if err := os.WriteFile(path, []byte("ServerName test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repaired, err := ensureProFTPDIncludeInFile(path, confDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repaired {
+		t.Fatal("expected missing include to be repaired")
+	}
+	repaired, err = ensureProFTPDIncludeInFile(path, confDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repaired {
+		t.Fatal("expected second include repair to be idempotent")
+	}
+	raw, _ := os.ReadFile(path)
+	include := "Include " + confDir + "/*.conf"
+	if got := strings.Count(string(raw), include); got != 1 {
+		t.Fatalf("expected exactly one include line, got %d in %q", got, string(raw))
+	}
+}
+
+func TestProvisionLinuxProFTPDUsesSharedReadyPath(t *testing.T) {
+	origReady := ensureLinuxProFTPDSFTPReadyFunc
+	origUser := ensureProFTPDUserFunc
+	origHealth := checkLinuxProFTPDHealthFunc
+	t.Cleanup(func() {
+		ensureLinuxProFTPDSFTPReadyFunc = origReady
+		ensureProFTPDUserFunc = origUser
+		checkLinuxProFTPDHealthFunc = origHealth
+	})
+	calls := []string{}
+	ensureLinuxProFTPDSFTPReadyFunc = func() error { calls = append(calls, "ready"); return nil }
+	ensureProFTPDUserFunc = func(username, password, rootPath string) error {
+		calls = append(calls, "user:"+username+":"+rootPath)
+		return nil
+	}
+	checkLinuxProFTPDHealthFunc = func() error { calls = append(calls, "health"); return nil }
+
+	if err := provisionLinuxProFTPD("gs_1", "secret", "/srv/game"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(calls, ","); got != "ready,user:gs_1:/srv/game,health" {
+		t.Fatalf("unexpected calls %s", got)
+	}
+}

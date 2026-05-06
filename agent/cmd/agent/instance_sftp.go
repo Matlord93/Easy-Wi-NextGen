@@ -178,22 +178,34 @@ func handleWebspaceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 		return failureResultWithCode(job.ID, "ROOT_INVALID", fmt.Errorf("invalid root path: %s", rootPath), "", "")
 	}
 
-	if err := ensureGroup(group); err != nil {
-		return failureResultWithCode(job.ID, "PERMISSION_DENIED", err, "", "")
-	}
-
-	if userExists(username) {
-		if output, err := runCommandLogged("usermod", "--home", rootPath, "--shell", shell, "--gid", group, username); err != nil {
-			return failureResultWithCode(job.ID, "sftp_user_create_failed", err, "", output)
+	if runtime.GOOS != "windows" {
+		if err := ensureLinuxProFTPDSFTPReadyFunc(); err != nil {
+			return failureResultWithCode(job.ID, mapAccessErr(err), err, "", "")
+		}
+		if err := ensureProFTPDUserFunc(username, password, rootPath); err != nil {
+			return failureResultWithCode(job.ID, mapAccessErr(err), err, "", "")
+		}
+		if err := checkLinuxProFTPDHealthFunc(); err != nil {
+			return failureResultWithCode(job.ID, mapAccessErr(err), err, "", "")
 		}
 	} else {
-		if output, err := runCommandLogged("useradd", "--system", "--home-dir", rootPath, "--shell", shell, "--gid", group, "--no-create-home", username); err != nil {
-			return failureResultWithCode(job.ID, "sftp_user_create_failed", err, "", output)
+		if err := ensureGroup(group); err != nil {
+			return failureResultWithCode(job.ID, "PERMISSION_DENIED", err, "", "")
 		}
-	}
 
-	if err := setUserPassword(username, password); err != nil {
-		return failureResultWithCode(job.ID, "sftp_password_failed", err, "", "")
+		if userExists(username) {
+			if output, err := runCommandLogged("usermod", "--home", rootPath, "--shell", shell, "--gid", group, username); err != nil {
+				return failureResultWithCode(job.ID, "sftp_user_create_failed", err, "", output)
+			}
+		} else {
+			if output, err := runCommandLogged("useradd", "--system", "--home-dir", rootPath, "--shell", shell, "--gid", group, "--no-create-home", username); err != nil {
+				return failureResultWithCode(job.ID, "sftp_user_create_failed", err, "", output)
+			}
+		}
+
+		if err := setUserPassword(username, password); err != nil {
+			return failureResultWithCode(job.ID, "sftp_password_failed", err, "", "")
+		}
 	}
 
 	return jobs.Result{

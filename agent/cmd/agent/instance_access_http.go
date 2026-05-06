@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -46,6 +47,17 @@ type accessCapabilities struct {
 	DefaultBackend    string            `json:"default_backend"`
 	Exclusions        map[string]string `json:"exclusions,omitempty"`
 }
+
+var (
+	accessLookPath                  = exec.LookPath
+	accessRunCommandLogged          = runCommandLogged
+	accessRunCommandOutput          = runCommandOutput
+	ensureLinuxProFTPDSFTPReadyFunc = ensureLinuxProFTPDSFTPReady
+	ensureProFTPDUserFunc           = ensureProFTPDUser
+	checkLinuxProFTPDHealthFunc     = checkLinuxProFTPDHealth
+	detectProFTPDServiceNameFunc    = detectProFTPDServiceName
+	ensureServiceRunningFunc        = ensureServiceRunning
+)
 
 func handleAccessCapabilitiesHTTP(w http.ResponseWriter, r *http.Request) bool {
 	if r.URL.Path != "/v1/access/capabilities" {
@@ -235,18 +247,35 @@ func provisionAccessBackend(username, password, rootPath, preferred string) (str
 }
 
 func provisionLinuxProFTPD(username, password, rootPath string) error {
+	if err := ensureLinuxProFTPDSFTPReadyFunc(); err != nil {
+		return err
+	}
+	if err := ensureProFTPDUserFunc(username, password, rootPath); err != nil {
+		return err
+	}
+	if err := checkLinuxProFTPDHealthFunc(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ensureLinuxProFTPDSFTPReady() error {
 	osID, osLike := detectLinuxDistribution()
 	pkgs := linuxPackagesForDistro(osID, osLike)
 	if len(pkgs) == 0 {
-		return fmt.Errorf("BACKEND_UNSUPPORTED: unsupported linux distro %s/%s", osID, osLike)
+		return fmt.Errorf("BACKEND_UNSUPPORTED: unsupported linux distro id=%s like=%s", osID, osLike)
 	}
+	log.Printf("proftpd sftp provisioning start distro_id=%s distro_like=%s packages=%s", osID, osLike, strings.Join(pkgs, ","))
 	if err := installLinuxPackages(pkgs); err != nil {
-		return err
+		return fmt.Errorf("%w (distro_id=%s distro_like=%s packages=%s)", err, osID, osLike, strings.Join(pkgs, ","))
 	}
 	if err := ensureProFTPDSFTPModuleInstalled(); err != nil {
-		return err
+		return fmt.Errorf("%w (distro_id=%s distro_like=%s packages=%s)", err, osID, osLike, strings.Join(pkgs, ","))
 	}
 	if err := ensureEasyWIUser(); err != nil {
+		return err
+	}
+	if err := ensureProFTPDAuthFile(); err != nil {
 		return err
 	}
 	if err := ensureProFTPDKeys(); err != nil {
@@ -259,17 +288,17 @@ func provisionLinuxProFTPD(username, password, rootPath string) error {
 	if err := ensureProFTPDConfig(confDir); err != nil {
 		return err
 	}
-	if err := ensureProFTPDUser(username, password, rootPath); err != nil {
-		return err
-	}
 	if err := ensureLinuxSFTPFirewall(defaultAccessListenPort); err != nil {
 		return err
 	}
-	serviceName, err := detectProFTPDServiceName()
+	serviceName, err := detectProFTPDServiceNameFunc()
 	if err != nil {
 		return err
 	}
-	if err := ensureServiceRunning(serviceName); err != nil {
+	if err := ensureServiceRunningFunc(serviceName); err != nil {
+		return err
+	}
+	if err := checkLinuxProFTPDHealthFunc(); err != nil {
 		return err
 	}
 	return nil
@@ -310,62 +339,119 @@ func linuxPackagesForDistro(osID, like string) []string {
 }
 
 func hasLinuxPackageManager() bool {
-	_, aptErr := exec.LookPath("apt-get")
-	_, dnfErr := exec.LookPath("dnf")
-	_, yumErr := exec.LookPath("yum")
+	_, aptErr := accessLookPath("apt-get")
+	_, dnfErr := accessLookPath("dnf")
+	_, yumErr := accessLookPath("yum")
 	return aptErr == nil || dnfErr == nil || yumErr == nil
 }
 
 func installLinuxPackages(packages []string) error {
-	if _, err := exec.LookPath("proftpd"); err == nil {
+	if len(packages) == 0 {
 		return nil
 	}
-	if _, err := exec.LookPath("apt-get"); err == nil {
-		if out, err := runCommandLogged("apt-get", "update"); err != nil {
-			return fmt.Errorf("PACKAGE_INSTALL_FAILED: %s", strings.TrimSpace(out))
+	if _, err := accessLookPath("apt-get"); err == nil {
+		if out, err := accessRunCommandLogged("apt-get", "update"); err != nil {
+			return fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=apt-get packages=%s output=%s", strings.Join(packages, ","), strings.TrimSpace(out))
 		}
 		args := append([]string{"install", "-y"}, packages...)
-		if out, err := runCommandLogged("apt-get", args...); err != nil {
-			fallback := []string{"install", "-y", "proftpd-basic"}
-			if out2, err2 := runCommandLogged("apt-get", fallback...); err2 != nil {
-				return fmt.Errorf("PACKAGE_INSTALL_FAILED: %s | %s", strings.TrimSpace(out), strings.TrimSpace(out2))
-			}
+		if out, err := accessRunCommandLogged("apt-get", args...); err != nil {
+			return fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=apt-get packages=%s output=%s", strings.Join(packages, ","), strings.TrimSpace(out))
 		}
 		return nil
 	}
 	installer := ""
-	if _, err := exec.LookPath("dnf"); err == nil {
+	if _, err := accessLookPath("dnf"); err == nil {
 		installer = "dnf"
-	} else if _, err := exec.LookPath("yum"); err == nil {
+	} else if _, err := accessLookPath("yum"); err == nil {
 		installer = "yum"
 	}
 	if installer == "" {
-		return fmt.Errorf("BACKEND_UNSUPPORTED: no package manager")
+		return fmt.Errorf("BACKEND_UNSUPPORTED: no package manager for packages=%s", strings.Join(packages, ","))
 	}
 	args := append([]string{"install", "-y"}, packages...)
-	if out, err := runCommandLogged(installer, args...); err != nil {
-		// retry with reduced package set for module naming differences
-		fallback := []string{"install", "-y", "proftpd", "proftpd-utils"}
-		if out2, err2 := runCommandLogged(installer, fallback...); err2 != nil {
-			return fmt.Errorf("PACKAGE_INSTALL_FAILED: %s | %s", strings.TrimSpace(out), strings.TrimSpace(out2))
-		}
+	if out, err := accessRunCommandLogged(installer, args...); err != nil {
+		return fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=%s packages=%s output=%s", installer, strings.Join(packages, ","), strings.TrimSpace(out))
 	}
 	return nil
 }
 
 func ensureProFTPDSFTPModuleInstalled() error {
-	if _, err := exec.LookPath("proftpd"); err != nil {
+	if _, err := accessLookPath("proftpd"); err != nil {
 		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: proftpd binary is missing after package installation")
 	}
-	out, err := runCommandLogged("proftpd", "-l")
+	out, err := accessRunCommandLogged("proftpd", "-l")
 	if err != nil {
-		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: unable to verify ProFTPD modules: %s", strings.TrimSpace(out))
+		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: unable to verify ProFTPD modules output=%s", strings.TrimSpace(out))
 	}
-	if !proFTPDModuleListHasSFTP(out) {
-		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD mod_sftp is not installed or enabled; install proftpd-mod-crypto on Debian/Ubuntu or proftpd-mod_sftp on RHEL-compatible systems")
+	if proFTPDModuleListHasSFTP(out) {
+		return nil
 	}
-
+	repaired, repairErr := enableProFTPDSFTPModule()
+	if repairErr != nil {
+		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD mod_sftp is not installed or enabled; module_output=%q modules_conf_repaired=%t repair_error=%v; install proftpd-mod-crypto on Debian/Ubuntu or proftpd-mod_sftp on RHEL-compatible systems", strings.TrimSpace(out), repaired, repairErr)
+	}
+	service, serviceErr := detectProFTPDServiceNameFunc()
+	if serviceErr == nil {
+		_ = ensureServiceRunningFunc(service)
+	}
+	after, afterErr := accessRunCommandLogged("proftpd", "-l")
+	if afterErr != nil || !proFTPDModuleListHasSFTP(after) {
+		return fmt.Errorf("PROFTPD_SFTP_MODULE_MISSING: ProFTPD mod_sftp is not installed or enabled after repair; before=%q after=%q modules_conf_repaired=%t service_error=%v; install proftpd-mod-crypto on Debian/Ubuntu or proftpd-mod_sftp on RHEL-compatible systems", strings.TrimSpace(out), strings.TrimSpace(after), repaired, serviceErr)
+	}
 	return nil
+}
+
+func enableProFTPDSFTPModule() (bool, error) {
+	modulesPath := "/etc/proftpd/modules.conf"
+	if _, err := os.Stat(modulesPath); err != nil {
+		return false, fmt.Errorf("modules.conf unavailable at %s: %w", modulesPath, err)
+	}
+	return enableProFTPDSFTPModuleInFile(modulesPath)
+}
+
+func enableProFTPDSFTPModuleInFile(path string) (bool, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	lines := strings.Split(string(raw), "\n")
+	repaired := false
+	found := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.EqualFold(trimmed, "LoadModule mod_sftp.c") {
+			found = true
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(strings.TrimPrefix(trimmed, "#")), "LoadModule mod_sftp.c") {
+			if !found {
+				lines[i] = "LoadModule mod_sftp.c"
+				found = true
+				repaired = true
+			} else {
+				lines[i] = "#" + strings.TrimLeft(strings.TrimPrefix(trimmed, "#"), " \t")
+			}
+		}
+	}
+	if !found {
+		if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+			lines[len(lines)-1] = "LoadModule mod_sftp.c"
+		} else {
+			lines = append(lines, "LoadModule mod_sftp.c")
+		}
+		repaired = true
+	}
+	if !repaired {
+		return false, nil
+	}
+	content := strings.Join(lines, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func proFTPDModuleListHasSFTP(output string) bool {
@@ -398,7 +484,51 @@ func ensureProFTPDConfig(confDir string) error {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: write config: %w", err)
 	}
+	repaired, err := ensureProFTPDManagedConfigIncluded(confDir)
+	if err != nil {
+		return err
+	}
+	if repaired {
+		log.Printf("proftpd easywi config include repaired conf_dir=%s", confDir)
+	}
 	return nil
+}
+
+func ensureProFTPDManagedConfigIncluded(confDir string) (bool, error) {
+	for _, mainConfig := range []string{"/etc/proftpd/proftpd.conf", "/etc/proftpd.conf"} {
+		if st, err := os.Stat(mainConfig); err == nil && !st.IsDir() {
+			return ensureProFTPDIncludeInFile(mainConfig, confDir)
+		}
+	}
+	return false, nil
+}
+
+func ensureProFTPDIncludeInFile(mainConfigPath, confDir string) (bool, error) {
+	raw, err := os.ReadFile(mainConfigPath)
+	if err != nil {
+		return false, fmt.Errorf("CONFIG_INVALID: read main config %s: %w", mainConfigPath, err)
+	}
+	includeLine := fmt.Sprintf("Include %s/*.conf", confDir)
+	includeLineAlt := fmt.Sprintf("Include %s/*", confDir)
+	lines := strings.Split(string(raw), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if strings.EqualFold(trimmed, includeLine) || strings.EqualFold(trimmed, includeLineAlt) || strings.Contains(trimmed, confDir) {
+			return false, nil
+		}
+	}
+	content := string(raw)
+	if strings.TrimSpace(content) != "" && !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	content += includeLine + "\n"
+	if err := os.WriteFile(mainConfigPath, []byte(content), 0o644); err != nil {
+		return false, fmt.Errorf("CONFIG_INVALID: write main config include %s: %w", mainConfigPath, err)
+	}
+	return true, nil
 }
 
 func buildProFTPDManagedConfig(port int) string {
@@ -420,8 +550,8 @@ func buildProFTPDManagedConfig(port int) string {
 }
 
 func detectProFTPDServiceName() (string, error) {
-	if _, err := exec.LookPath("systemctl"); err == nil {
-		out, err := runCommandLogged("systemctl", "list-unit-files", "--type=service", "--no-legend")
+	if _, err := accessLookPath("systemctl"); err == nil {
+		out, err := accessRunCommandLogged("systemctl", "list-unit-files", "--type=service", "--no-legend")
 		if err == nil {
 			rows := strings.Split(out, "\n")
 			serviceCandidates := []string{"proftpd.service", "proftpd-basic.service"}
@@ -435,7 +565,7 @@ func detectProFTPDServiceName() (string, error) {
 		}
 	}
 	for _, candidate := range []string{"proftpd", "proftpd.service", "proftpd-basic", "proftpd-basic.service"} {
-		if _, err := runCommandLogged("service", candidate, "status"); err == nil {
+		if _, err := accessRunCommandLogged("service", candidate, "status"); err == nil {
 			return candidate, nil
 		}
 	}
@@ -443,12 +573,28 @@ func detectProFTPDServiceName() (string, error) {
 }
 
 func ensureEasyWIUser() error {
-	if _, err := runCommandLogged("id", "-u", "easywi"); err == nil {
+	if _, err := accessRunCommandLogged("id", "-u", "easywi"); err == nil {
 		return nil
 	}
-	_, _ = runCommandLogged("groupadd", "--system", "easywi")
-	if out, err := runCommandLogged("useradd", "--system", "--gid", "easywi", "--home-dir", "/var/lib/easywi", "--shell", "/usr/sbin/nologin", "easywi"); err != nil && !strings.Contains(strings.ToLower(out), "exists") {
+	_, _ = accessRunCommandLogged("groupadd", "--system", "easywi")
+	if out, err := accessRunCommandLogged("useradd", "--system", "--gid", "easywi", "--home-dir", "/var/lib/easywi", "--shell", "/usr/sbin/nologin", "easywi"); err != nil && !strings.Contains(strings.ToLower(out), "exists") {
 		return fmt.Errorf("PERMISSION_DENIED: %s", strings.TrimSpace(out))
+	}
+	return nil
+}
+
+func ensureProFTPDAuthFile() error {
+	if err := os.MkdirAll(filepath.Dir(linuxAuthUserFile), 0o700); err != nil {
+		return fmt.Errorf("PERMISSION_DENIED: create auth file dir: %w", err)
+	}
+	if _, err := os.Stat(linuxAuthUserFile); err == nil {
+		_ = os.Chmod(linuxAuthUserFile, 0o600)
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("PERMISSION_DENIED: stat auth file: %w", err)
+	}
+	if err := os.WriteFile(linuxAuthUserFile, []byte{}, 0o600); err != nil {
+		return fmt.Errorf("CONFIG_INVALID: create auth file: %w", err)
 	}
 	return nil
 }
@@ -461,7 +607,7 @@ func ensureProFTPDKeys() error {
 		_ = os.Chmod(linuxHostKey, 0o600)
 		return nil
 	}
-	if out, err := runCommandLogged("ssh-keygen", "-q", "-t", "rsa", "-b", "3072", "-N", "", "-f", linuxHostKey); err != nil {
+	if out, err := accessRunCommandLogged("ssh-keygen", "-q", "-t", "rsa", "-b", "3072", "-N", "", "-f", linuxHostKey); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: %s", strings.TrimSpace(out))
 	}
 	if err := os.Chmod(linuxHostKey, 0o600); err != nil {
@@ -477,23 +623,23 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 	if err := os.MkdirAll(rootPath, 0o750); err != nil {
 		return fmt.Errorf("ROOT_INVALID: %w", err)
 	}
-	uidOut, err := runCommandOutput("id", "-u", "easywi")
+	uidOut, err := accessRunCommandOutput("id", "-u", "easywi")
 	if err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: easywi uid missing")
 	}
-	gidOut, err := runCommandOutput("id", "-g", "easywi")
+	gidOut, err := accessRunCommandOutput("id", "-g", "easywi")
 	if err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: easywi gid missing")
 	}
 	uid := strings.TrimSpace(uidOut)
 	gid := strings.TrimSpace(gidOut)
-	if out, err := runCommandLogged("chown", "-R", uid+":"+gid, rootPath); err != nil {
+	if out, err := accessRunCommandLogged("chown", "-R", uid+":"+gid, rootPath); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: chown root path failed: %s", strings.TrimSpace(out))
 	}
 	if err := os.Chmod(rootPath, 0o750); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: chmod root path failed: %w", err)
 	}
-	hash, err := runCommandOutput("openssl", "passwd", "-6", password)
+	hash, err := accessRunCommandOutput("openssl", "passwd", "-6", password)
 	if err != nil {
 		h := sha256.Sum256([]byte(password))
 		hash = "$easywi$" + hex.EncodeToString(h[:])
@@ -529,16 +675,16 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 
 func ensureLinuxSFTPFirewall(port int) error {
 	portSpec := fmt.Sprintf("%d/tcp", port)
-	if _, err := exec.LookPath("ufw"); err == nil {
-		if out, err := runCommandLogged("ufw", "allow", portSpec); err != nil {
+	if _, err := accessLookPath("ufw"); err == nil {
+		if out, err := accessRunCommandLogged("ufw", "allow", portSpec); err != nil {
 			return fmt.Errorf("FIREWALL_CONFIG_FAILED: ufw allow %s failed: %s", portSpec, strings.TrimSpace(out))
 		}
 	}
-	if _, err := exec.LookPath("firewall-cmd"); err == nil {
-		if out, err := runCommandLogged("firewall-cmd", "--permanent", "--add-port="+portSpec); err != nil {
+	if _, err := accessLookPath("firewall-cmd"); err == nil {
+		if out, err := accessRunCommandLogged("firewall-cmd", "--permanent", "--add-port="+portSpec); err != nil {
 			return fmt.Errorf("FIREWALL_CONFIG_FAILED: firewall-cmd add-port %s failed: %s", portSpec, strings.TrimSpace(out))
 		}
-		if out, err := runCommandLogged("firewall-cmd", "--reload"); err != nil {
+		if out, err := accessRunCommandLogged("firewall-cmd", "--reload"); err != nil {
 			return fmt.Errorf("FIREWALL_CONFIG_FAILED: firewall-cmd reload failed: %s", strings.TrimSpace(out))
 		}
 	}
@@ -547,20 +693,20 @@ func ensureLinuxSFTPFirewall(port int) error {
 }
 
 func ensureServiceRunning(service string) error {
-	if _, err := exec.LookPath("systemctl"); err == nil {
-		if out, err := runCommandLogged("systemctl", "daemon-reload"); err != nil {
+	if _, err := accessLookPath("systemctl"); err == nil {
+		if out, err := accessRunCommandLogged("systemctl", "daemon-reload"); err != nil {
 			return fmt.Errorf("SERVICE_START_FAILED: %s", strings.TrimSpace(out))
 		}
-		if out, err := runCommandLogged("systemctl", "restart", service); err != nil {
-			if out2, err2 := runCommandLogged("systemctl", "start", service); err2 != nil {
+		if out, err := accessRunCommandLogged("systemctl", "restart", service); err != nil {
+			if out2, err2 := accessRunCommandLogged("systemctl", "start", service); err2 != nil {
 				return fmt.Errorf("SERVICE_START_FAILED: %s | %s", strings.TrimSpace(out), strings.TrimSpace(out2))
 			}
 		}
 		// Enabling boot-start should not fail provisioning on hosts with custom init wiring.
-		_, _ = runCommandLogged("systemctl", "enable", service)
+		_, _ = accessRunCommandLogged("systemctl", "enable", service)
 		return nil
 	}
-	if out, err := runCommandLogged("service", service, "restart"); err != nil {
+	if out, err := accessRunCommandLogged("service", service, "restart"); err != nil {
 		return fmt.Errorf("SERVICE_START_FAILED: %s", strings.TrimSpace(out))
 	}
 	return nil
@@ -588,6 +734,9 @@ func checkLinuxProFTPDHealth() error {
 			return fmt.Errorf("CONFIG_INVALID: managed markers missing")
 		}
 	}
+	if _, err := ensureProFTPDManagedConfigIncluded(confDir); err != nil {
+		return err
+	}
 	if _, err := os.Stat(linuxHostKey); err != nil {
 		if err := ensureProFTPDKeys(); err != nil {
 			return fmt.Errorf("CONFIG_INVALID: host key missing")
@@ -603,8 +752,8 @@ func checkLinuxProFTPDHealth() error {
 	if err != nil {
 		return err
 	}
-	if _, err := exec.LookPath("systemctl"); err == nil {
-		out, err := runCommandOutput("systemctl", "is-active", service)
+	if _, err := accessLookPath("systemctl"); err == nil {
+		out, err := accessRunCommandOutput("systemctl", "is-active", service)
 		if err != nil || strings.TrimSpace(out) != "active" {
 			if err := ensureServiceRunning(service); err != nil {
 				return err
@@ -653,7 +802,7 @@ func provisionWindowsEmbeddedSFTP(username, password, rootPath string) error {
 		return err
 	}
 	installCmd := fmt.Sprintf(`$ErrorActionPreference='Stop'; if (-not (Get-Service -Name '%s' -ErrorAction SilentlyContinue)) { New-Service -Name '%s' -BinaryPathName '"%s" --config "%s"' -DisplayName '%s' -StartupType Automatic }; Start-Service -Name '%s'`, windowsEmbeddedService, windowsEmbeddedService, binary, windowsEmbeddedConfig, windowsEmbeddedService, windowsEmbeddedService)
-	if out, err := runCommandLogged("powershell", "-NoProfile", "-NonInteractive", "-Command", installCmd); err != nil {
+	if out, err := accessRunCommandLogged("powershell", "-NoProfile", "-NonInteractive", "-Command", installCmd); err != nil {
 		return fmt.Errorf("SERVICE_START_FAILED: %s", strings.TrimSpace(out))
 	}
 	return nil
@@ -713,7 +862,7 @@ func checkWindowsEmbeddedSFTPHealth() error {
 		return fmt.Errorf("CONFIG_INVALID: embedded config missing")
 	}
 	statusCmd := fmt.Sprintf(`(Get-Service -Name '%s' -ErrorAction SilentlyContinue).Status`, windowsEmbeddedService)
-	out, err := runCommandOutput("powershell", "-NoProfile", "-NonInteractive", "-Command", statusCmd)
+	out, err := accessRunCommandOutput("powershell", "-NoProfile", "-NonInteractive", "-Command", statusCmd)
 	if err != nil || !strings.Contains(strings.ToLower(strings.TrimSpace(out)), "running") {
 		return fmt.Errorf("SERVICE_START_FAILED: embedded service not running")
 	}
@@ -727,7 +876,7 @@ func provisionWindowsOpenSSH(username, password, rootPath string) error {
 	_ = username
 	_ = password
 	_ = rootPath
-	_, _ = runCommandLogged("powershell", "-NoProfile", "-NonInteractive", "-Command", "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0")
+	_, _ = accessRunCommandLogged("powershell", "-NoProfile", "-NonInteractive", "-Command", "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0")
 	orig, _ := os.ReadFile(windowsOpenSSHConfig)
 	block := strings.Join([]string{
 		"# BEGIN EASYWI MANAGED",
@@ -752,16 +901,16 @@ func provisionWindowsOpenSSH(username, password, rootPath string) error {
 	if err := os.WriteFile(windowsOpenSSHConfig, []byte(merged), 0o644); err != nil {
 		return fmt.Errorf("CONFIG_INVALID: %w", err)
 	}
-	if _, err := runCommandLogged("powershell", "-NoProfile", "-NonInteractive", "-Command", "Restart-Service sshd -Force"); err != nil {
+	if _, err := accessRunCommandLogged("powershell", "-NoProfile", "-NonInteractive", "-Command", "Restart-Service sshd -Force"); err != nil {
 		_ = os.WriteFile(windowsOpenSSHConfig, orig, 0o644)
-		_, _ = runCommandLogged("powershell", "-NoProfile", "-NonInteractive", "-Command", "Restart-Service sshd -Force")
+		_, _ = accessRunCommandLogged("powershell", "-NoProfile", "-NonInteractive", "-Command", "Restart-Service sshd -Force")
 		return fmt.Errorf("SERVICE_START_FAILED: sshd restart failed and rollback applied")
 	}
 	return nil
 }
 
 func checkWindowsOpenSSHHealth() error {
-	out, err := runCommandOutput("powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-Service sshd -ErrorAction SilentlyContinue).Status")
+	out, err := accessRunCommandOutput("powershell", "-NoProfile", "-NonInteractive", "-Command", "(Get-Service sshd -ErrorAction SilentlyContinue).Status")
 	if err != nil || strings.TrimSpace(out) == "" {
 		return fmt.Errorf("SERVICE_START_FAILED: sshd service unavailable")
 	}
