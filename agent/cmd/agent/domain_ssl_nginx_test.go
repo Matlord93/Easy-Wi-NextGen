@@ -56,14 +56,11 @@ func TestEnsureACMEChallengeLocationUsesAliasWithoutChangingLaravelRoot(t *testi
 }
 
 func TestEnsureNginxSSLForDomainKeepsDocumentRootAndAddsACMEAlias(t *testing.T) {
-	binDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(binDir, "nginx"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("nginx mock: %v", err)
+	originalRunner := commandOutputRunner
+	commandOutputRunner = func(name string, args ...string) (string, error) {
+		return "", nil
 	}
-	if err := os.WriteFile(filepath.Join(binDir, "systemctl"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("systemctl mock: %v", err)
-	}
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Cleanup(func() { commandOutputRunner = originalRunner })
 
 	vhostDir := t.TempDir()
 	domain := "matlort.de"

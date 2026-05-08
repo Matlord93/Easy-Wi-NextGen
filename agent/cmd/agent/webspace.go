@@ -506,8 +506,10 @@ func activatePhpFpmPool(phpVersion, poolPath string) error {
 	return nil
 }
 
+var commandOutputRunner = runCommandOutput
+
 func runCommand(name string, args ...string) error {
-	_, err := runCommandOutput(name, args...)
+	_, err := commandOutputRunner(name, args...)
 	return err
 }
 
