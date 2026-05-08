@@ -9,6 +9,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
+use App\Module\Core\Domain\Entity\InstanceSftpCredential;
 use App\Module\Core\Domain\Entity\Template;
 use App\Module\Core\Domain\Entity\User;
 use App\Module\Core\Domain\Enum\InstanceStatus;
@@ -149,6 +150,82 @@ final class InstanceSftpCredentialApiControllerTest extends TestCase
             self::assertArrayHasKey($key, $jobPayload);
         }
         self::assertArrayNotHasKey('password', $jobPayload);
+    }
+
+    public function testRevealAllowsCredentialWhoseExpiryWasBeforeProvisionCompletion(): void
+    {
+        $customer = new User('customer-reveal@example.test', UserType::Customer);
+        $this->setEntityId($customer, 77);
+        $agent = new Agent('node-reveal', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
+        $template = new Template(
+            'game',
+            'Game',
+            null,
+            null,
+            null,
+            [],
+            '',
+            [],
+            [],
+            [],
+            [],
+            '',
+            '',
+            [],
+            [],
+        );
+        $instance = new Instance($customer, $template, $agent, 1, 1, 1, null, InstanceStatus::Stopped, InstanceUpdatePolicy::Manual);
+        $this->setEntityId($instance, 123);
+
+        $credential = new InstanceSftpCredential($instance, 'sftp123', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c']);
+        $rotatedAt = (new \DateTimeImmutable())->modify('-10 minutes');
+        $credential->setExpiresAt($rotatedAt->modify('-5 minutes'));
+        $credential->markProvisioned($rotatedAt);
+        $credential->setRevealedAt(null);
+        $credential->setHost('sftp.example.test');
+        $credential->setPort(2222);
+
+        $instanceRepository = $this->createMock(InstanceRepository::class);
+        $instanceRepository->method('find')->with(123)->willReturn($instance);
+
+        $credentialRepository = $this->createMock(InstanceSftpCredentialRepository::class);
+        $credentialRepository->method('findOneByInstance')->with($instance)->willReturn($credential);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects($this->once())->method('persist')->with($credential);
+        $entityManager->expects($this->once())->method('flush');
+
+        $encryption = $this->createMock(EncryptionService::class);
+        $encryption->expects($this->once())->method('decrypt')->with($credential->getEncryptedPassword())->willReturn('plain-secret');
+
+        $settings = $this->createMock(AppSettingsService::class);
+        $settings->method('getSftpHost')->willReturn('fallback.example.test');
+        $settings->method('getSftpPort')->willReturn(22);
+
+        $controller = new InstanceSftpCredentialApiController(
+            $instanceRepository,
+            $credentialRepository,
+            $this->createMock(JobRepository::class),
+            $entityManager,
+            $encryption,
+            $this->createMock(AgentGameServerClient::class),
+            $settings,
+            $this->createMock(AuditLogger::class),
+            new NullLogger(),
+        );
+
+        $request = new Request();
+        $request->headers->set('X-Request-ID', 'req-reveal');
+        $request->attributes->set('current_user', $customer);
+
+        $response = $controller->reveal($request, 123);
+        self::assertSame(200, $response->getStatusCode());
+
+        $payload = json_decode((string) $response->getContent(), true);
+        self::assertTrue($payload['ok']);
+        self::assertSame('plain-secret', $payload['data']['password']);
+        self::assertSame('req-reveal', $payload['request_id']);
+        self::assertNotNull($credential->getRevealedAt());
     }
 
     private function setEntityId(object $entity, int $id): void

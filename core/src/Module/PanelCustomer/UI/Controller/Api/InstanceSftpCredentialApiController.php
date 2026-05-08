@@ -256,7 +256,7 @@ final class InstanceSftpCredentialApiController
             if ($credential->getRevealedAt() !== null) {
                 return $this->errorResponse($request, JsonResponse::HTTP_CONFLICT, 'SECRET_ALREADY_VIEWED', 'Password was already revealed once. Use reset to generate a new one.');
             }
-            if ($credential->getExpiresAt() !== null && $credential->getExpiresAt() < new \DateTimeImmutable()) {
+            if ($this->isPasswordRevealExpired($credential, new \DateTimeImmutable())) {
                 return $this->errorResponse($request, JsonResponse::HTTP_CONFLICT, 'SECRET_EXPIRED', 'Password reveal expired. Use reset to generate a new password.');
             }
 
@@ -277,6 +277,21 @@ final class InstanceSftpCredentialApiController
         } catch (\Throwable) {
             return $this->errorResponse($request, JsonResponse::HTTP_INTERNAL_SERVER_ERROR, 'INTERNAL_ERROR', 'Unable to reveal access credentials.');
         }
+    }
+
+    private function isPasswordRevealExpired(InstanceSftpCredential $credential, \DateTimeImmutable $now): bool
+    {
+        $expiresAt = $credential->getExpiresAt();
+        if ($expiresAt === null) {
+            return false;
+        }
+
+        $rotatedAt = $credential->getRotatedAt();
+        if ($rotatedAt !== null && $expiresAt < $rotatedAt) {
+            return false;
+        }
+
+        return $expiresAt < $now;
     }
 
     private function requireUser(Request $request): User

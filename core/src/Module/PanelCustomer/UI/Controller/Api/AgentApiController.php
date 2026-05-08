@@ -2248,15 +2248,7 @@ final class AgentApiController
         $credential->setRootPath($rootPath);
         $credential->setLastError(null, null);
 
-        $expiresAt = null;
-        $expiresRaw = is_string($payload['expires_at'] ?? null) ? (string) $payload['expires_at'] : null;
-        if ($expiresRaw !== null && $expiresRaw !== '') {
-            try {
-                $expiresAt = new DateTimeImmutable($expiresRaw);
-            } catch (\Exception) {
-                $expiresAt = null;
-            }
-        }
+        $expiresAt = $this->resolveSftpPasswordRevealExpiresAt($payload, $completedAt);
 
         $credential->markProvisioned($completedAt);
         $credential->setExpiresAt($expiresAt);
@@ -2272,6 +2264,30 @@ final class AgentApiController
             'expires_at' => $expiresAt?->format(DATE_RFC3339),
         ]);
 
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function resolveSftpPasswordRevealExpiresAt(array $payload, DateTimeImmutable $completedAt): DateTimeImmutable
+    {
+        $fallbackExpiresAt = $completedAt->modify('+15 minutes');
+        $expiresRaw = is_string($payload['expires_at'] ?? null) ? trim((string) $payload['expires_at']) : '';
+        if ($expiresRaw === '') {
+            return $fallbackExpiresAt;
+        }
+
+        try {
+            $expiresAt = new DateTimeImmutable($expiresRaw);
+        } catch (\Exception) {
+            return $fallbackExpiresAt;
+        }
+
+        if ($expiresAt <= $completedAt) {
+            return $fallbackExpiresAt;
+        }
+
+        return $expiresAt;
     }
 
     private function queueDiskScanIfNeeded(\App\Module\Core\Domain\Entity\Instance $instance, DateTimeImmutable $completedAt): void

@@ -3,11 +3,13 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -533,6 +535,78 @@ func chmodModeSupported(t *testing.T, dir string, isDir bool, mode os.FileMode) 
 		return false
 	}
 	return true
+}
+
+func TestEnsureProFTPDUserPreservesExistingRootOwner(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file owners are required for ProFTPD account mapping")
+	}
+
+	origAuth := proFTPDAuthUserFilePath
+	origRunOutput := accessRunCommandOutput
+	origRunLogged := accessRunCommandLogged
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		accessRunCommandOutput = origRunOutput
+		accessRunCommandLogged = origRunLogged
+	})
+
+	tmpDir := t.TempDir()
+	rootPath := filepath.Join(tmpDir, "gameserver")
+	if err := os.Mkdir(rootPath, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	rootInfo, err := os.Stat(rootPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootUID, rootGID := fileOwnerIDs(rootInfo)
+	if rootUID == 0 {
+		if err := os.Chown(rootPath, 12345, 23456); err != nil {
+			t.Skipf("test requires a non-root POSIX-owned temp directory and could not chown probe dir: %v", err)
+		}
+		rootInfo, err = os.Stat(rootPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rootUID, rootGID = fileOwnerIDs(rootInfo)
+	}
+	if rootUID <= 0 || rootGID < 0 {
+		t.Skipf("test requires a non-root POSIX-owned temp directory, got uid=%d gid=%d", rootUID, rootGID)
+	}
+
+	proFTPDAuthUserFilePath = filepath.Join(tmpDir, "proftpd", "passwd")
+	accessRunCommandOutput = func(name string, args ...string) (string, error) {
+		if name == "openssl" && strings.Join(args, " ") == "passwd -6 secret" {
+			return "$6$hash", nil
+		}
+		return "", errors.New("unexpected command: " + name + " " + strings.Join(args, " "))
+	}
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		return "", errors.New("unexpected command: " + name + " " + strings.Join(args, " "))
+	}
+
+	if err := ensureProFTPDUser("sftp42", "secret", rootPath); err != nil {
+		t.Fatal(err)
+	}
+
+	afterInfo, err := os.Stat(rootPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterUID, afterGID := fileOwnerIDs(afterInfo)
+	if afterUID != rootUID || afterGID != rootGID {
+		t.Fatalf("expected root owner to stay %d:%d, got %d:%d", rootUID, rootGID, afterUID, afterGID)
+	}
+
+	raw, err := os.ReadFile(proFTPDAuthUserFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEntry := fmt.Sprintf("sftp42:$6$hash:%d:%d::%s:/usr/sbin/nologin", rootUID, rootGID, rootPath)
+	if strings.TrimSpace(string(raw)) != wantEntry {
+		t.Fatalf("unexpected auth entry\nwant: %s\ngot:  %s", wantEntry, strings.TrimSpace(string(raw)))
+	}
 }
 
 func TestAuthUserFileConfigErrorDoesNotMapToMissingSFTPModule(t *testing.T) {

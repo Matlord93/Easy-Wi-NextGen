@@ -1030,24 +1030,36 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 	if err := os.MkdirAll(filepath.Dir(proFTPDAuthUserFilePath), 0o700); err != nil {
 		return fmt.Errorf("PERMISSION_DENIED: %w", err)
 	}
-	if err := os.MkdirAll(rootPath, 0o750); err != nil {
-		return fmt.Errorf("ROOT_INVALID: %w", err)
-	}
-	uidOut, err := accessRunCommandOutput("id", "-u", "easywi")
+
+	rootInfo, err := os.Stat(rootPath)
+	rootExisted := err == nil
 	if err != nil {
-		return fmt.Errorf("PERMISSION_DENIED: easywi uid missing")
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("ROOT_INVALID: %w", err)
+		}
+		if err := os.MkdirAll(rootPath, 0o750); err != nil {
+			return fmt.Errorf("ROOT_INVALID: %w", err)
+		}
+		rootInfo, err = os.Stat(rootPath)
+		if err != nil {
+			return fmt.Errorf("ROOT_INVALID: stat root path: %w", err)
+		}
 	}
-	gidOut, err := accessRunCommandOutput("id", "-g", "easywi")
+	if !rootInfo.IsDir() {
+		return fmt.Errorf("ROOT_INVALID: not a directory")
+	}
+
+	uid, gid, err := proFTPDAccountIDsForRoot(rootInfo, rootPath, rootExisted)
 	if err != nil {
-		return fmt.Errorf("PERMISSION_DENIED: easywi gid missing")
+		return err
 	}
-	uid := strings.TrimSpace(uidOut)
-	gid := strings.TrimSpace(gidOut)
-	if out, err := accessRunCommandLogged("chown", "-R", uid+":"+gid, rootPath); err != nil {
-		return fmt.Errorf("PERMISSION_DENIED: chown root path failed: %s", strings.TrimSpace(out))
-	}
-	if err := os.Chmod(rootPath, 0o750); err != nil {
-		return fmt.Errorf("PERMISSION_DENIED: chmod root path failed: %w", err)
+	if !rootExisted {
+		if out, err := accessRunCommandLogged("chown", uid+":"+gid, rootPath); err != nil {
+			return fmt.Errorf("PERMISSION_DENIED: chown root path failed: %s", strings.TrimSpace(out))
+		}
+		if err := os.Chmod(rootPath, 0o750); err != nil {
+			return fmt.Errorf("PERMISSION_DENIED: chmod root path failed: %w", err)
+		}
 	}
 	hash, err := accessRunCommandOutput("openssl", "passwd", "-6", password)
 	if err != nil {
@@ -1081,6 +1093,34 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 		return fmt.Errorf("CONFIG_INVALID: write auth file: %w", err)
 	}
 	return nil
+}
+
+func proFTPDAccountIDsForRoot(rootInfo os.FileInfo, rootPath string, rootExisted bool) (string, string, error) {
+	if rootExisted {
+		uid, gid := fileOwnerIDs(rootInfo)
+		if uid < 0 || gid < 0 {
+			return "", "", fmt.Errorf("PERMISSION_DENIED: determine owner for %s", rootPath)
+		}
+		if uid == 0 {
+			return "", "", fmt.Errorf("PERMISSION_DENIED: refusing to create SFTP account with root-owned root path %s", rootPath)
+		}
+		return strconv.Itoa(uid), strconv.Itoa(gid), nil
+	}
+
+	uidOut, err := accessRunCommandOutput("id", "-u", "easywi")
+	if err != nil {
+		return "", "", fmt.Errorf("PERMISSION_DENIED: easywi uid missing")
+	}
+	gidOut, err := accessRunCommandOutput("id", "-g", "easywi")
+	if err != nil {
+		return "", "", fmt.Errorf("PERMISSION_DENIED: easywi gid missing")
+	}
+	uid := strings.TrimSpace(uidOut)
+	gid := strings.TrimSpace(gidOut)
+	if uid == "" || gid == "" {
+		return "", "", fmt.Errorf("PERMISSION_DENIED: easywi uid/gid missing")
+	}
+	return uid, gid, nil
 }
 
 func ensureLinuxSFTPFirewall(port int) error {

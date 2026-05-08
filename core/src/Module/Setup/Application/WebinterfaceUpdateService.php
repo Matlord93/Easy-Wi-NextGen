@@ -11,6 +11,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 final class WebinterfaceUpdateService
 {
+    private const RUNTIME_MAINTENANCE_FILE = 'var/update-maintenance.flag';
+
     private const DEFAULT_EXCLUDES = [
         '.env',
         'config/local*',
@@ -829,12 +831,28 @@ final class WebinterfaceUpdateService
 
     private function deployInPlace(string $sourceDir, string $version, string $logPath, array $excludes): bool
     {
+        $initialInstall = $this->isInitialInstall();
+        if (!$initialInstall) {
+            $this->enableRuntimeMaintenance($this->installDir, $logPath);
+        }
+
+        try {
+            return $this->deployInPlaceUnderMaintenance($sourceDir, $version, $logPath, $excludes, $initialInstall);
+        } finally {
+            if (!$initialInstall) {
+                $this->disableRuntimeMaintenance($this->installDir, $logPath);
+            }
+        }
+    }
+
+    private function deployInPlaceUnderMaintenance(string $sourceDir, string $version, string $logPath, array $excludes, bool $initialInstall): bool
+    {
         if (!$this->commandExists('rsync')) {
             $this->log($logPath, 'rsync ist erforderlich für In-Place-Updates.');
             return false;
         }
 
-        if ($this->isInitialInstall()) {
+        if ($initialInstall) {
             $this->log($logPath, 'Initiale Installation erkannt. Webinterface wird erstmals bereitgestellt.');
             if (!is_dir($this->installDir)) {
                 mkdir($this->installDir, 0775, true);
@@ -985,6 +1003,40 @@ final class WebinterfaceUpdateService
         return is_dir($coreDir) ? $coreDir : $baseDir;
     }
 
+    private function enableRuntimeMaintenance(string $baseDir, string $logPath): void
+    {
+        $appRoot = $this->resolveAppRoot($baseDir);
+        $maintenanceFile = rtrim($appRoot, '/\\') . '/' . self::RUNTIME_MAINTENANCE_FILE;
+        $directory = dirname($maintenanceFile);
+        if (!is_dir($directory) && !@mkdir($directory, 0775, true) && !is_dir($directory)) {
+            $this->log($logPath, 'Update-Wartungsmodus konnte nicht aktiviert werden: var-Verzeichnis fehlt.');
+            return;
+        }
+
+        if (@file_put_contents($maintenanceFile, 'Easy-Wi is being updated. Please retry in a moment.' . PHP_EOL) === false) {
+            $this->log($logPath, 'Update-Wartungsmodus konnte nicht aktiviert werden.');
+            return;
+        }
+
+        $this->log($logPath, 'Update-Wartungsmodus aktiviert.');
+    }
+
+    private function disableRuntimeMaintenance(string $baseDir, string $logPath): void
+    {
+        $appRoot = $this->resolveAppRoot($baseDir);
+        $maintenanceFile = rtrim($appRoot, '/\\') . '/' . self::RUNTIME_MAINTENANCE_FILE;
+        if (!is_file($maintenanceFile)) {
+            return;
+        }
+
+        if (@unlink($maintenanceFile) === false) {
+            $this->log($logPath, 'Update-Wartungsmodus konnte nicht deaktiviert werden: ' . $maintenanceFile);
+            return;
+        }
+
+        $this->log($logPath, 'Update-Wartungsmodus deaktiviert.');
+    }
+
     private function resolveCurrentDir(): ?string
     {
         if (is_link($this->currentSymlink)) {
@@ -1086,6 +1138,17 @@ final class WebinterfaceUpdateService
     }
 
     private function deployDeltaUpdate(string $sourceDir, string $version, string $logPath, array $deletedPaths): bool
+    {
+        $this->enableRuntimeMaintenance($this->installDir, $logPath);
+
+        try {
+            return $this->deployDeltaUpdateUnderMaintenance($sourceDir, $version, $logPath, $deletedPaths);
+        } finally {
+            $this->disableRuntimeMaintenance($this->installDir, $logPath);
+        }
+    }
+
+    private function deployDeltaUpdateUnderMaintenance(string $sourceDir, string $version, string $logPath, array $deletedPaths): bool
     {
         if (!$this->commandExists('rsync')) {
             $this->log($logPath, 'rsync ist erforderlich für Delta-Updates.');
