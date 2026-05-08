@@ -10,6 +10,11 @@ use Doctrine\Migrations\AbstractMigration;
 
 final class Version20260504101500 extends AbstractMigration
 {
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
     public function getDescription(): string
     {
         return 'Add smtp_enabled and abuse_policy_enabled to mail_policies';

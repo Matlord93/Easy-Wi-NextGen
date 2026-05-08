@@ -62,7 +62,7 @@ class InstanceSftpCredential
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $lastErrorCode = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
+    #[ORM\Column(type: 'text', nullable: true)]
     private ?string $lastErrorMessage = null;
 
     /**

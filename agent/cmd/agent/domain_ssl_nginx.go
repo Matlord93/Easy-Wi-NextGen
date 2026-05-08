@@ -10,19 +10,18 @@ import (
 )
 
 func bestWebrootForDomain(domain, payloadWebRoot string) (string, string, error) {
-	vhost := filepath.Join("/etc/nginx/sites-available", domain)
+	vhost := nginxVhostPath(domain)
 	content, _ := os.ReadFile(vhost)
 	config := string(content)
-	re := regexp.MustCompile(`(?m)^\s*root\s+([^;]+);`)
-	if m := re.FindStringSubmatch(config); len(m) > 1 {
-		return strings.TrimSpace(m[1]), config, nil
+	if root := parseNginxRoot(config); root != "" {
+		return acmeWebrootForDocumentRoot(domain, root), config, nil
 	}
 	if payloadWebRoot != "" {
 		candidate := filepath.Join(payloadWebRoot, "public")
 		if nginxFileExists(filepath.Join(candidate, "index.php")) || nginxFileExists(filepath.Join(candidate, "index.html")) {
-			return candidate, config, nil
+			return acmeWebrootForDocumentRoot(domain, candidate), config, nil
 		}
-		return payloadWebRoot, config, nil
+		return acmeWebrootForDocumentRoot(domain, payloadWebRoot), config, nil
 	}
 	return "", config, fmt.Errorf("unable to detect webroot")
 }
@@ -30,6 +29,9 @@ func bestWebrootForDomain(domain, payloadWebRoot string) (string, string, error)
 func testACMEPath(domain, webroot string) (string, error) {
 	challengeDir := filepath.Join(webroot, ".well-known", "acme-challenge")
 	if err := os.MkdirAll(challengeDir, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(challengeDir, 0o755); err != nil {
 		return "", err
 	}
 	file := filepath.Join(challengeDir, "easywi-acme-test.txt")
@@ -45,7 +47,7 @@ func testACMEPath(domain, webroot string) (string, error) {
 }
 
 func ensureNginxSSLForDomain(domain, webroot, fullchain, privkey string) (bool, error) {
-	vhost := filepath.Join("/etc/nginx/sites-available", domain)
+	vhost := nginxVhostPath(domain)
 	content, err := os.ReadFile(vhost)
 	if err != nil {
 		return false, err
@@ -56,6 +58,11 @@ func ensureNginxSSLForDomain(domain, webroot, fullchain, privkey string) (bool, 
 		return false, err
 	}
 	newConf := string(content)
+	documentRoot := parseNginxRoot(newConf)
+	if documentRoot == "" {
+		documentRoot = webroot
+	}
+	newConf = ensureACMEChallengeLocation(newConf, webroot)
 	if !strings.Contains(newConf, "listen 443 ssl") {
 		sslBlock := fmt.Sprintf(`
 server {
@@ -68,7 +75,7 @@ server {
     ssl_certificate %s;
     ssl_certificate_key %s;
 
-    location / {
+%s    location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
@@ -78,9 +85,8 @@ server {
         fastcgi_pass unix:/run/easywi/php-fpm/ws1.sock;
     }
 }
-`, domain, webroot, fullchain, privkey)
-		if strings.Contains(newConf, "location /") && !strings.Contains(newConf, ".well-known/acme-challenge") {
-			newConf = strings.Replace(newConf, "location / {", "location ^~ /.well-known/acme-challenge/ {\n        root "+webroot+";\n        try_files $uri =404;\n    }\n\n    location / {", 1)
+`, domain, documentRoot, fullchain, privkey, acmeChallengeLocation(webroot))
+		if strings.Contains(newConf, "location /") {
 			newConf = strings.Replace(newConf, "try_files $uri $uri/ /index.php?$query_string;", "return 301 https://$host$request_uri;", 1)
 		}
 		newConf += "\n" + sslBlock
@@ -96,6 +102,62 @@ server {
 		return false, err
 	}
 	return true, nil
+}
+
+func nginxVhostPath(domain string) string {
+	if dir := strings.TrimSpace(os.Getenv("EASYWI_NGINX_VHOST_DIR")); dir != "" {
+		return filepath.Join(dir, domain+".conf")
+	}
+	easywiPath := filepath.Join("/etc/easywi/web/nginx/vhosts", domain+".conf")
+	if nginxFileExists(easywiPath) {
+		return easywiPath
+	}
+	return filepath.Join("/etc/nginx/sites-available", domain)
+}
+
+func parseNginxRoot(config string) string {
+	re := regexp.MustCompile(`(?m)^\s*root\s+([^;]+);`)
+	if m := re.FindStringSubmatch(config); len(m) > 1 {
+		return strings.TrimSpace(m[1])
+	}
+	return ""
+}
+
+func acmeWebrootForDocumentRoot(domain, documentRoot string) string {
+	documentRoot = filepath.Clean(strings.TrimSpace(documentRoot))
+	if documentRoot == "." || documentRoot == string(filepath.Separator) {
+		return documentRoot
+	}
+	laravelPublic := filepath.Join("/var/www", domain, "public", "public")
+	if documentRoot == laravelPublic || strings.HasSuffix(documentRoot, string(filepath.Separator)+filepath.Join("public", "public")) {
+		return filepath.Clean(filepath.Join(documentRoot, "..", ".."))
+	}
+	return documentRoot
+}
+
+func ensureACMEChallengeLocation(config, webroot string) string {
+	location := acmeChallengeLocation(webroot)
+	re := regexp.MustCompile(`(?ms)^\s*location \^~ /\.well-known/acme-challenge/ \{.*?^\s*\}\n\n?`)
+	if re.MatchString(config) {
+		return re.ReplaceAllString(config, location)
+	}
+	marker := "    location / {\n"
+	if strings.Contains(config, marker) {
+		return strings.Replace(config, marker, location+marker, 1)
+	}
+	return config
+}
+
+func acmeChallengeLocation(webroot string) string {
+	challengeRoot := filepath.Join(webroot, ".well-known", "acme-challenge")
+	return fmt.Sprintf(`    location ^~ /.well-known/acme-challenge/ {
+        alias %s/;
+        default_type "text/plain";
+        try_files $uri =404;
+        access_log off;
+    }
+
+`, challengeRoot)
 }
 
 func nginxFileExists(path string) bool { _, err := os.Stat(path); return err == nil }

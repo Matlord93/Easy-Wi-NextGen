@@ -270,7 +270,7 @@ final class InstanceSftpCredentialApiController
                 'password' => $password,
                 'backend' => $credential->getBackend(),
                 'host' => $this->resolveHost($instance),
-                'port' => $this->resolvePort($instance),
+                'port' => $this->resolveCredentialPort($credential),
             ]);
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
             return $this->errorResponse($request, $exception->getStatusCode(), $this->mapHttpErrorCode($exception), $exception->getMessage());
@@ -365,7 +365,7 @@ final class InstanceSftpCredentialApiController
             'username' => $credential->getUsername(),
             'backend' => $credential->getBackend(),
             'host' => $this->resolveHost($instance),
-            'port' => $this->resolvePort($instance),
+            'port' => $this->resolveCredentialPort($credential),
             'root_path' => $credential->getRootPath() ?: $this->resolveInstanceRootPath($instance),
             'password_revealed' => $credential->getRevealedAt() !== null,
             'password_masked' => $this->maskPassword(),
@@ -614,5 +614,15 @@ final class InstanceSftpCredentialApiController
         }
 
         return $this->settingsService->getSftpPort();
+    }
+
+    private function resolveCredentialPort(InstanceSftpCredential $credential): int
+    {
+        $port = $credential->getPort();
+        if ($port !== null && $port > 0) {
+            return $port;
+        }
+
+        return $this->resolvePort($credential->getInstance());
     }
 }

@@ -1264,7 +1264,7 @@ final class AdminNodeController
             $rebootRequired = $stats['reboot_required'] ?? null;
             $osProvider = $stats['os_provider'] ?? null;
             $roles = $node->getRoles();
-            $normalizedRoles = $this->normalizeRoles($roles, $stats);
+            $normalizedRoles = $this->normalizeRoles($roles);
             $currentVersion = $node->getLastHeartbeatVersion();
             if ($currentVersion === null || $currentVersion === '') {
                 $statsVersion = $stats['version'] ?? null;
@@ -1676,34 +1676,12 @@ final class AdminNodeController
         return $os === 'windows' ? 'agent.self_update' : 'agent.update';
     }
 
-    private function normalizeRoles(array $roles, array $stats): array
+    private function normalizeRoles(array $roles): array
     {
-        if ($roles !== []) {
-            return $roles;
-        }
-
-        $statRoles = $stats['roles'] ?? null;
-        if (is_array($statRoles)) {
-            $normalized = array_values(array_filter(array_map(static function ($role): ?string {
-                if (!is_string($role)) {
-                    return null;
-                }
-
-                $value = trim($role);
-                return $value !== '' ? $value : null;
-            }, $statRoles)));
-
-            if ($normalized !== []) {
-                return $normalized;
-            }
-        }
-
-        $singleRole = $stats['role'] ?? null;
-        if (is_string($singleRole) && $singleRole !== '') {
-            return [$singleRole];
-        }
-
-        return [];
+        // Only show roles assigned in the panel. Heartbeat stats can contain
+        // agent-local role files (for example TS3 after a service install), but
+        // those must not be treated as configured node roles.
+        return $roles;
     }
 
     /**

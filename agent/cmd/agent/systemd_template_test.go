@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -47,5 +48,22 @@ func TestSystemdUnitTemplateGameserverIncludesCommandSocketWrapper(t *testing.T)
 	}
 	if !strings.Contains(unit, "StandardOutput=journal") || !strings.Contains(unit, "StandardError=journal") {
 		t.Fatalf("expected journal output/error directives, got unit:\n%s", unit)
+	}
+}
+
+func TestEnsureBaseDirRepairsRestrictiveMode(t *testing.T) {
+	baseDir := filepath.Join(t.TempDir(), "instances")
+	if err := os.MkdirAll(baseDir, 0o750); err != nil {
+		t.Fatalf("create base dir: %v", err)
+	}
+	if err := ensureBaseDir(baseDir); err != nil {
+		t.Fatalf("ensure base dir: %v", err)
+	}
+	info, err := os.Stat(baseDir)
+	if err != nil {
+		t.Fatalf("stat base dir: %v", err)
+	}
+	if got := info.Mode().Perm(); got != baseDirMode {
+		t.Fatalf("expected base dir mode %o, got %o", baseDirMode, got)
 	}
 }

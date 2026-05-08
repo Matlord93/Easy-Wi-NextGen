@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	webspaceDirMode  = 0o750
-	webspaceFileMode = 0o644
+	webspaceDirMode        = 0o750
+	webspaceFileMode       = 0o644
+	phpFpmRuntimeDirMode   = 0o750
+	phpFpmTmpfilesRulePath = "/etc/tmpfiles.d/easywi-php-fpm.conf"
 )
 
 func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
@@ -300,12 +302,91 @@ func writePhpFpmPoolWithSettings(path, pool, user, group, listenUser, listenGrou
 		if err := ensureDir(filepath.Dir(listen)); err != nil {
 			return err
 		}
+		if err := ensurePhpFpmRuntimeAccess(listen, listenGroup); err != nil {
+			return err
+		}
 	}
 	content := phpFpmPoolTemplate(pool, user, group, listenUser, listenGroup, listen, webRoot, logsDir, tmpDir, phpVersion, phpSettings)
 	if err := os.WriteFile(path, []byte(content), webspaceFileMode); err != nil {
 		return fmt.Errorf("write php-fpm pool %s: %w", path, err)
 	}
 	return nil
+}
+
+func ensurePhpFpmRuntimeAccess(listen, listenGroup string) error {
+	listen = filepath.Clean(strings.TrimSpace(listen))
+	if listen == "." || !strings.HasPrefix(listen, string(filepath.Separator)) {
+		return nil
+	}
+
+	runtimeRoot := filepath.Clean("/run/easywi")
+	if listen != runtimeRoot && !strings.HasPrefix(listen, runtimeRoot+string(filepath.Separator)) {
+		return nil
+	}
+
+	gid, err := lookupGID(listenGroup)
+	if err != nil {
+		return err
+	}
+	for _, dir := range phpFpmRuntimeDirsForListen(listen) {
+		if err := os.MkdirAll(dir, phpFpmRuntimeDirMode); err != nil {
+			return fmt.Errorf("create php-fpm runtime dir %s: %w", dir, err)
+		}
+		if os.Geteuid() == 0 {
+			if err := os.Chown(dir, 0, gid); err != nil {
+				return fmt.Errorf("chown php-fpm runtime dir %s: %w", dir, err)
+			}
+		}
+		if err := os.Chmod(dir, phpFpmRuntimeDirMode); err != nil {
+			return fmt.Errorf("chmod php-fpm runtime dir %s: %w", dir, err)
+		}
+	}
+	return ensurePhpFpmTmpfilesRule(listenGroup)
+}
+
+func phpFpmRuntimeDirsForListen(listen string) []string {
+	listen = filepath.Clean(listen)
+	runtimeRoot := filepath.Clean("/run/easywi")
+	socketDir := filepath.Dir(listen)
+	if socketDir == runtimeRoot {
+		return []string{runtimeRoot}
+	}
+	if !strings.HasPrefix(socketDir, runtimeRoot+string(filepath.Separator)) {
+		return nil
+	}
+
+	dirs := []string{runtimeRoot}
+	relative, err := filepath.Rel(runtimeRoot, socketDir)
+	if err != nil || relative == "." {
+		return dirs
+	}
+	current := runtimeRoot
+	for _, part := range strings.Split(relative, string(filepath.Separator)) {
+		if part == "" || part == "." {
+			continue
+		}
+		current = filepath.Join(current, part)
+		dirs = append(dirs, current)
+	}
+	return dirs
+}
+
+func ensurePhpFpmTmpfilesRule(listenGroup string) error {
+	if listenGroup == "" || os.Geteuid() != 0 || !pathExists(filepath.Dir(phpFpmTmpfilesRulePath)) {
+		return nil
+	}
+	rule := phpFpmTmpfilesRule(listenGroup)
+	if err := os.WriteFile(phpFpmTmpfilesRulePath, []byte(rule), webspaceFileMode); err != nil {
+		return fmt.Errorf("write php-fpm tmpfiles rule %s: %w", phpFpmTmpfilesRulePath, err)
+	}
+	if _, err := exec.LookPath("systemd-tmpfiles"); err == nil {
+		_ = runCommand("systemd-tmpfiles", "--create", phpFpmTmpfilesRulePath)
+	}
+	return nil
+}
+
+func phpFpmTmpfilesRule(listenGroup string) string {
+	return fmt.Sprintf("d /run/easywi 0750 root %s -\nd /run/easywi/php-fpm 0750 root %s -\n", listenGroup, listenGroup)
 }
 
 func writeNginxInclude(path, docroot, logsDir, phpFpmListen string) error {

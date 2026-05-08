@@ -59,6 +59,13 @@
     const accessMetaEl = document.getElementById('gf-access-meta');
     const accessRevealEl = document.getElementById('gf-access-reveal');
     const accessResetEl = document.getElementById('gf-access-reset');
+    const passwordModalEl = document.getElementById('gf-password-modal');
+    const passwordModalErrorEl = document.getElementById('gf-password-error');
+    const passwordModalHostEl = document.getElementById('gf-password-host');
+    const passwordModalPortEl = document.getElementById('gf-password-port');
+    const passwordModalUserEl = document.getElementById('gf-password-user');
+    const passwordModalValueEl = document.getElementById('gf-password-value');
+    const passwordModalCopyEl = document.getElementById('gf-password-copy');
 
     const setAccessUnavailable = () => {
         if (accessMetaEl) {
@@ -214,6 +221,42 @@
         }
         button.disabled = busy;
         button.textContent = busy ? busyLabel : idleLabel;
+    };
+
+    const closePasswordModal = () => {
+        if (!passwordModalEl) {
+            return;
+        }
+        passwordModalEl.classList.add('hidden');
+        passwordModalEl.classList.remove('flex');
+        if (passwordModalValueEl) {
+            passwordModalValueEl.value = '';
+        }
+        errors.clearInline(passwordModalErrorEl);
+    };
+
+    const showPasswordModal = (credential = {}) => {
+        const password = credential.password || '';
+        if (!passwordModalEl || !passwordModalValueEl) {
+            window.alert(`Password: ${password}`);
+            return;
+        }
+
+        if (passwordModalHostEl) {
+            passwordModalHostEl.textContent = credential.host || '—';
+        }
+        if (passwordModalPortEl) {
+            passwordModalPortEl.textContent = credential.port || '—';
+        }
+        if (passwordModalUserEl) {
+            passwordModalUserEl.textContent = credential.username || '—';
+        }
+        passwordModalValueEl.value = password;
+        errors.clearInline(passwordModalErrorEl);
+        passwordModalEl.classList.remove('hidden');
+        passwordModalEl.classList.add('flex');
+        passwordModalValueEl.focus();
+        passwordModalValueEl.select();
     };
 
     const renderAccess = (credential = {}) => {
@@ -386,7 +429,12 @@
         setButtonBusy(accessRevealEl, true, 'Revealing…', 'Reveal password');
         try {
             const payload = await apiClient.request(app.dataset.urlAccessReveal, { method: 'POST' });
-            errors.showToast({ message: `Password: ${payload.data?.password || ''}`, error_code: 'OK', request_id: payload.request_id || '' }, 10000);
+            showPasswordModal({
+                username: payload.data?.username,
+                password: payload.data?.password || '',
+                host: payload.data?.host,
+                port: payload.data?.port,
+            });
             await loadAccess();
         } catch (error) {
             errors.showAll(inlineErrorEl, error);
@@ -413,6 +461,30 @@
     document.getElementById('gf-editor-close')?.addEventListener('click', closeEditor);
     document.getElementById('gf-editor-cancel')?.addEventListener('click', closeEditor);
     editorSaveEl?.addEventListener('click', saveEditor);
+
+    document.querySelectorAll('[data-gf-password-close]').forEach((button) => {
+        button.addEventListener('click', closePasswordModal);
+    });
+    passwordModalEl?.addEventListener('click', (event) => {
+        if (event.target === passwordModalEl) {
+            closePasswordModal();
+        }
+    });
+    passwordModalCopyEl?.addEventListener('click', async () => {
+        if (!passwordModalValueEl?.value) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(passwordModalValueEl.value);
+            errors.clearInline(passwordModalErrorEl);
+            errors.showToast({ message: 'Password copied to clipboard.', error_code: 'OK' }, 3000);
+        } catch (error) {
+            errors.showAll(passwordModalErrorEl, {
+                message: 'Password could not be copied automatically. Please copy it manually.',
+                error_code: 'CLIPBOARD_UNAVAILABLE',
+            });
+        }
+    });
 
     (async () => {
         try {

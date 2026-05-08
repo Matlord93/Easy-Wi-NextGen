@@ -36,4 +36,23 @@ final class AgentLifecycleTest extends TestCase
         self::assertNull($agent->getLastHeartbeatAt());
         self::assertNull($agent->getLastHeartbeatVersion());
     }
+
+    public function testHeartbeatDoesNotAssignAgentReportedRoles(): void
+    {
+        $agent = new Agent('agent-roles-empty', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c'], 'Roles');
+
+        $agent->recordHeartbeat(['cpu' => 12], '2.0.0', '10.0.0.2', ['TS3']);
+
+        self::assertSame([], $agent->getRoles());
+    }
+
+    public function testHeartbeatDoesNotOverwritePanelManagedRoles(): void
+    {
+        $agent = new Agent('agent-roles-managed', ['key_id' => 'k', 'nonce' => 'n', 'ciphertext' => 'c'], 'Roles');
+        $agent->setRoles(['Game']);
+
+        $agent->recordHeartbeat(['cpu' => 12], '2.0.0', '10.0.0.2', ['TS3']);
+
+        self::assertSame(['Game'], $agent->getRoles());
+    }
 }

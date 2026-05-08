@@ -6899,7 +6899,7 @@ final class Version20261101090000 extends AbstractMigration
             $this->addSql('ALTER TABLE instance_sftp_credentials ADD last_error_code VARCHAR(64) DEFAULT NULL');
         }
         if (!$table->hasColumn('last_error_message')) {
-            $this->addSql('ALTER TABLE instance_sftp_credentials ADD last_error_message VARCHAR(255) DEFAULT NULL');
+            $this->addSql('ALTER TABLE instance_sftp_credentials ADD last_error_message LONGTEXT DEFAULT NULL');
         }
     }
 

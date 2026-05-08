@@ -365,9 +365,10 @@ class Agent
         }
         $this->lastHeartbeatIp = $ip;
 
-        if ($roles !== []) {
-            $this->setRoles($roles);
-        }
+        // Heartbeat roles describe what the agent currently reports from its
+        // local configuration. They must not overwrite panel-managed role
+        // assignments; otherwise service-specific roles such as TS3 can appear
+        // automatically after agent-side jobs or stale /etc/easywi/roles.d files.
 
         if ($metadata !== null) {
             $this->setMetadata($metadata);
