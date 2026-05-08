@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -52,6 +53,9 @@ func TestSystemdUnitTemplateGameserverIncludesCommandSocketWrapper(t *testing.T)
 }
 
 func TestEnsureBaseDirRepairsRestrictiveMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not preserve Unix permission bits for os.Chmod")
+	}
 	baseDir := filepath.Join(t.TempDir(), "instances")
 	if err := os.MkdirAll(baseDir, 0o750); err != nil {
 		t.Fatalf("create base dir: %v", err)

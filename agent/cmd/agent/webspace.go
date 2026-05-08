@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -345,27 +346,24 @@ func ensurePhpFpmRuntimeAccess(listen, listenGroup string) error {
 }
 
 func phpFpmRuntimeDirsForListen(listen string) []string {
-	listen = filepath.Clean(listen)
-	runtimeRoot := filepath.Clean("/run/easywi")
-	socketDir := filepath.Dir(listen)
+	listen = path.Clean(filepath.ToSlash(strings.TrimSpace(listen)))
+	runtimeRoot := "/run/easywi"
+	socketDir := path.Dir(listen)
 	if socketDir == runtimeRoot {
 		return []string{runtimeRoot}
 	}
-	if !strings.HasPrefix(socketDir, runtimeRoot+string(filepath.Separator)) {
+	if !strings.HasPrefix(socketDir, runtimeRoot+"/") {
 		return nil
 	}
 
 	dirs := []string{runtimeRoot}
-	relative, err := filepath.Rel(runtimeRoot, socketDir)
-	if err != nil || relative == "." {
-		return dirs
-	}
+	relative := strings.TrimPrefix(socketDir, runtimeRoot+"/")
 	current := runtimeRoot
-	for _, part := range strings.Split(relative, string(filepath.Separator)) {
+	for _, part := range strings.Split(relative, "/") {
 		if part == "" || part == "." {
 			continue
 		}
-		current = filepath.Join(current, part)
+		current = path.Join(current, part)
 		dirs = append(dirs, current)
 	}
 	return dirs

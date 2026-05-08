@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -149,7 +150,7 @@ func ensureACMEChallengeLocation(config, webroot string) string {
 }
 
 func acmeChallengeLocation(webroot string) string {
-	challengeRoot := filepath.Join(webroot, ".well-known", "acme-challenge")
+	challengeRoot := nginxPathJoin(webroot, ".well-known", "acme-challenge")
 	return fmt.Sprintf(`    location ^~ /.well-known/acme-challenge/ {
         alias %s/;
         default_type "text/plain";
@@ -158,6 +159,25 @@ func acmeChallengeLocation(webroot string) string {
     }
 
 `, challengeRoot)
+}
+
+func nginxPathJoin(elem ...string) string {
+	cleaned := make([]string, 0, len(elem))
+	for _, part := range elem {
+		part = strings.TrimSpace(filepath.ToSlash(part))
+		if part == "" {
+			continue
+		}
+		cleaned = append(cleaned, part)
+	}
+	if len(cleaned) == 0 {
+		return ""
+	}
+	joined := path.Join(cleaned...)
+	if strings.HasPrefix(cleaned[0], "/") && !strings.HasPrefix(joined, "/") {
+		joined = "/" + joined
+	}
+	return joined
 }
 
 func nginxFileExists(path string) bool { _, err := os.Stat(path); return err == nil }

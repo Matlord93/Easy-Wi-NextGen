@@ -46,7 +46,8 @@ func TestEnsureACMEChallengeLocationUsesAliasWithoutChangingLaravelRoot(t *testi
 	if !strings.Contains(updated, "location ^~ /.well-known/acme-challenge/") {
 		t.Fatalf("ACME location missing: %s", updated)
 	}
-	if !strings.Contains(updated, "alias "+domainRoot+"/.well-known/acme-challenge/;") {
+	expectedAlias := "alias " + nginxPathJoin(domainRoot, ".well-known", "acme-challenge") + "/;"
+	if !strings.Contains(updated, expectedAlias) {
 		t.Fatalf("ACME alias does not point at domain root: %s", updated)
 	}
 	if strings.Index(updated, "location ^~ /.well-known/acme-challenge/") > strings.Index(updated, "location / {") {
@@ -62,7 +63,7 @@ func TestEnsureNginxSSLForDomainKeepsDocumentRootAndAddsACMEAlias(t *testing.T) 
 	if err := os.WriteFile(filepath.Join(binDir, "systemctl"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("systemctl mock: %v", err)
 	}
-	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	vhostDir := t.TempDir()
 	domain := "matlort.de"
@@ -90,7 +91,8 @@ func TestEnsureNginxSSLForDomainKeepsDocumentRootAndAddsACMEAlias(t *testing.T) 
 	if strings.Count(updated, "root "+laravelRoot+";") != 2 {
 		t.Fatalf("expected HTTP and HTTPS blocks to keep Laravel root %q, got: %s", laravelRoot, updated)
 	}
-	if !strings.Contains(updated, "alias "+domainRoot+"/.well-known/acme-challenge/;") {
+	expectedAlias := "alias " + nginxPathJoin(domainRoot, ".well-known", "acme-challenge") + "/;"
+	if !strings.Contains(updated, expectedAlias) {
 		t.Fatalf("expected ACME alias to domain root, got: %s", updated)
 	}
 	if strings.Contains(updated, "root "+domainRoot+";") {
