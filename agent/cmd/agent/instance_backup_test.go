@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -102,6 +103,10 @@ func TestValidateBackupArchivePathsRejectsTraversal(t *testing.T) {
 }
 
 func TestHandleInstanceBackupCreateUploadsToWebDAVAndRemovesLocalArchive(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("instance backups are not supported on windows agents")
+	}
+
 	instanceDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(instanceDir, "server.cfg"), []byte("hostname test"), 0o644); err != nil {
 		t.Fatalf("write instance file: %v", err)

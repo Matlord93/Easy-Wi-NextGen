@@ -29,6 +29,7 @@ use App\Module\Gameserver\UI\Controller\Customer\CustomerInstanceActionApiContro
 use App\Module\Ports\Infrastructure\Repository\PortBlockFinderInterface;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
+use App\Repository\BackupTargetRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobLogRepository;
@@ -112,6 +113,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $instanceRepository,
             $this->newInstanceWithoutConstructor(BackupDefinitionRepository::class),
             $this->newInstanceWithoutConstructor(BackupRepository::class),
+            $this->newInstanceWithoutConstructor(BackupTargetRepository::class),
             $this->newInstanceWithoutConstructor(GamePluginRepository::class),
             $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $jobRepository,
@@ -189,6 +191,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $instanceRepository,
             $this->newInstanceWithoutConstructor(BackupDefinitionRepository::class),
             $this->newInstanceWithoutConstructor(BackupRepository::class),
+            $this->newInstanceWithoutConstructor(BackupTargetRepository::class),
             $this->newInstanceWithoutConstructor(GamePluginRepository::class),
             $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $jobRepository,
@@ -236,6 +239,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $instanceRepository,
             $this->newInstanceWithoutConstructor(BackupDefinitionRepository::class),
             $this->newInstanceWithoutConstructor(BackupRepository::class),
+            $this->newInstanceWithoutConstructor(BackupTargetRepository::class),
             $this->newInstanceWithoutConstructor(GamePluginRepository::class),
             $this->newInstanceWithoutConstructor(\App\Module\Ports\Infrastructure\Repository\PortBlockRepository::class),
             $jobRepository,
