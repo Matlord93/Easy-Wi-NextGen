@@ -4,34 +4,50 @@
 {% set logoUrl = logoUrl|default(null) %}
 
 <aside class="ng-sidebar">
-    {% if logoUrl or title %}
-        <div class="ng-sidebar__title">
+    <div class="ng-sidebar__header">
+        <div class="ng-sidebar__brand">
             {% if logoUrl %}
-                <img src="{{ logoUrl }}" alt="{{ title }}" style="max-height: 32px; width: auto;" />
+                <img class="ng-sidebar__logo" src="{{ logoUrl }}" alt="{{ title }}">
             {% endif %}
             {% if title %}
-                <span>{{ title }}</span>
+                <span class="ng-sidebar__title">{{ title }}</span>
             {% endif %}
         </div>
-    {% endif %}
-    <nav class="ng-sidebar__nav">
+        <button class="ng-sidebar__collapse-btn ng-sidebar-toggle" type="button" aria-label="{{ t('sidebar_toggle_aria', page_locale()) }}">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <line x1="2" y1="4" x2="14" y2="4"/>
+                <line x1="2" y1="8" x2="14" y2="8"/>
+                <line x1="2" y1="12" x2="14" y2="12"/>
+            </svg>
+        </button>
+    </div>
+
+    <nav class="ng-sidebar__nav" aria-label="{{ t('sidebar_nav_aria', page_locale()) }}">
         {% for group in groups %}
             {% set groupId = group.id|default(group.label|default(loop.index)) %}
             <details class="ng-sidebar__group" data-nav-id="{{ groupId|lower|replace({' ': '-'}) }}" {{ group.open ? 'open' : '' }}>
                 <summary class="ng-sidebar__group-label">
                     <span>{{ group.label }}</span>
-                    <span class="ng-sidebar__chevron"></span>
+                    <svg class="ng-sidebar__chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 3l5 5-5 5"/>
+                    </svg>
                 </summary>
                 <div class="ng-sidebar__items">
                     {% for item in group.items %}
                         {% set itemKey = item.key|default(item.href|default(item.label|default(''))) %}
                         {% set isActive = activeNav == itemKey %}
-                        <a href="{{ item.href }}" class="ng-sidebar__item {{ isActive ? 'is-active' : '' }}">
-                            {% if item.iconSvg is defined and item.iconSvg %}
-                                <span class="ng-sidebar__icon">{{ item.iconSvg|raw }}</span>
-                            {% elseif item.icon is defined and item.icon %}
-                                <span class="ng-sidebar__icon">{{ item.icon|raw }}</span>
-                            {% endif %}
+                        <a href="{{ item.href }}" class="ng-sidebar__item {{ isActive ? 'is-active' : '' }}" {% if isActive %}aria-current="page"{% endif %}>
+                            <span class="ng-sidebar__icon" aria-hidden="true">
+                                {% if item.iconSvg is defined and item.iconSvg %}
+                                    {{ item.iconSvg|raw }}
+                                {% elseif item.icon is defined and item.icon %}
+                                    {{ item.icon|raw }}
+                                {% else %}
+                                    <svg viewBox="0 0 16 16" fill="currentColor">
+                                        <circle cx="8" cy="8" r="2.5"/>
+                                    </svg>
+                                {% endif %}
+                            </span>
                             <span class="ng-sidebar__text">
                                 {{ item.labelKey is defined and item.labelKey ? t(item.labelKey, page_locale()) : item.label }}
                             </span>
@@ -41,19 +57,24 @@
             </details>
         {% endfor %}
     </nav>
+
     {% if footer is defined and footer %}
         <div class="ng-sidebar__footer">{{ footer }}</div>
     {% endif %}
 </aside>
+
 <script>
-    document.querySelectorAll('.ng-sidebar__group[data-nav-id]').forEach((group) => {
-        const key = `ng-sidebar-group:${group.dataset.navId}`;
-        const stored = localStorage.getItem(key);
-        if (stored !== null) {
-            group.open = stored === 'open';
-        }
-        group.addEventListener('toggle', () => {
-            localStorage.setItem(key, group.open ? 'open' : 'closed');
+    (function () {
+        var groups = document.querySelectorAll('.ng-sidebar__group[data-nav-id]');
+        groups.forEach(function (group) {
+            var key = 'ng-sidebar-group:' + group.dataset.navId;
+            var stored = localStorage.getItem(key);
+            if (stored !== null) {
+                group.open = stored === 'open';
+            }
+            group.addEventListener('toggle', function () {
+                localStorage.setItem(key, group.open ? 'open' : 'closed');
+            });
         });
-    });
+    })();
 </script>

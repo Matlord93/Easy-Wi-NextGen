@@ -1,16 +1,17 @@
 {% extends 'customer/base.html.twig' %}
 
-{% block title %}TS3 Token · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('customer_ts3_token_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+    {% set locale = page_locale() %}
     <div class="ts3-page">
         <div class="ts3-header">
             <div>
-                <h1>Token</h1>
+                <h1>{{ t('customer_ts3_token_title', locale) }}</h1>
                 <p>{{ server.name }}</p>
             </div>
             <div class="ts3-actions">
-                <a class="ts3-link" href="{{ path('customer_ts3_servers_show', {id: server.id}) }}">Zurück</a>
+                <a class="ts3-link" href="{{ path('customer_ts3_servers_show', {id: server.id}) }}">{{ t('customer_ts3_server_details', locale) }}</a>
             </div>
         </div>
 
@@ -28,28 +29,27 @@
             </div>
             <form class="ts3-form" method="post" action="{{ path('customer_ts3_servers_token_rotate', {id: server.id}) }}">
                 <input type="hidden" name="_token" value="{{ csrf.rotate }}">
-                <label for="ts3-server-group">Servergruppe (SGID)</label>
+                <label for="ts3-server-group">{{ t('customer_ts3_token_group', locale) }} (SGID)</label>
                 <select id="ts3-server-group" name="server_group_id" data-url="{{ path('customer_ts3_servers_groups', {id: server.id}) }}">
                     <option value="6">Lade Servergruppen…</option>
                 </select>
-                <p class="ts3-muted">Nutze die SGID aus <code>servergrouplist</code>, z.B. 6 für Server Admin.</p>
-                <button class="ts3-button" type="submit">Token rotieren</button>
+                <button class="ts3-button" type="submit">{{ t('customer_ts3_token_create', locale) }}</button>
             </form>
         </div>
 
         <div class="ts3-card">
             <div class="ts3-credentials">
-                <div><strong>Token-Liste</strong></div>
+                <div><strong>{{ t('customer_ts3_token_title', locale) }}</strong></div>
                 {% if tokens is empty %}
-                    <div class="ts3-muted">Keine Tokens vorhanden.</div>
+                    <div class="ts3-muted">{{ t('customer_ts3_token_none', locale) }}</div>
                 {% else %}
                     <table class="ts3-table">
                         <thead>
                         <tr>
-                            <th>Token</th>
+                            <th>{{ t('customer_ts3_token_value', locale) }}</th>
                             <th>Typ</th>
-                            <th>Status</th>
-                            <th>Erstellt</th>
+                            <th>{{ t('customer_ts3_server_status', locale) }}</th>
+                            <th>{{ t('customer_ts3_backups_created', locale) }}</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -68,6 +68,9 @@
         </div>
     </div>
     <script>
+        const MSG_ACTION_ERROR = {{ t('customer_ts_action_error_prefix', locale)|json_encode|raw }};
+        const MSG_SERVER_NOT_RESPONDING = {{ t('customer_ts_server_not_responding_short', locale)|json_encode|raw }};
+        const MSG_UNKNOWN = {{ t('customer_ts_unknown', locale)|json_encode|raw }};
         (function () {
             const select = document.getElementById('ts3-server-group');
             if (!select) { return; }
@@ -89,7 +92,7 @@
                         if (data.status === 'pending' || data.status === 'error') {
                             const option = document.createElement('option');
                             option.value = '6';
-                            option.textContent = `Fehler: ${data.message ?? 'Server antwortet nicht'} (${data.action_id ?? 'n/a'})`;
+                            option.textContent = `${MSG_ACTION_ERROR}: ${data.message ?? MSG_SERVER_NOT_RESPONDING} (${data.action_id ?? 'n/a'})`;
                             select.innerHTML = '';
                             select.appendChild(option);
                             return;

@@ -334,7 +334,11 @@ final class GameserverBackupScheduleRunner
         }
 
         $target = $this->backupTargetRepository->find((int) $defaultTargetId);
-        if (!$target instanceof BackupTarget || !$target->isEnabled() || $target->getCustomer()->getId() !== $definition->getCustomer()->getId()) {
+        if (!$target instanceof BackupTarget || !$target->isEnabled()) {
+            return null;
+        }
+
+        if (!$target->getCustomer()->isAdmin() && $target->getCustomer()->getId() !== $definition->getCustomer()->getId()) {
             return null;
         }
 

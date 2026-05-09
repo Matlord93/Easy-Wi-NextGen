@@ -8,18 +8,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {% if not _isNexus %}
     <script>
         (function () {
-            const storedTheme = localStorage.getItem('theme');
-            if (storedTheme === 'light') {
-                document.documentElement.classList.remove('dark');
-            } else {
-                document.documentElement.classList.add('dark');
-            }
+            var s = localStorage.getItem('theme');
+            if (s === 'light') { document.documentElement.classList.remove('dark'); }
+            else               { document.documentElement.classList.add('dark'); }
         })();
     </script>
-    {% endif %}
     <title>{{ siteTitle }}</title>
     <link rel="stylesheet" href="{{ asset('ui.css') }}">
     <link rel="stylesheet" href="{{ asset('admin-customer.css') }}">
@@ -29,30 +24,35 @@
     <link rel="stylesheet" href="{{ asset('themes/nexus-gaming/css/theme.css') }}">
     <link rel="stylesheet" href="{{ asset('themes/nexus-gaming/css/panel.css') }}">
     {% endif %}
-    <script src="{{ asset('htmx.min.js') }}"></script>
+    <script src="{{ asset('htmx.min.js') }}" defer></script>
 </head>
-<body class="customer-interface customer-interface-modern ng-shell{% if _isNexus %} theme-nexus-gaming ng-body{% endif %}">
+<body class="customer-interface ng-shell{% if _isNexus %} theme-nexus-gaming ng-body{% endif %}">
+
 {% set activeNav = activeNav|default('') %}
+
 {% set voiceserverUrl = module_enabled('ts6')
     ? path('customer_ts6_servers_index')
     : path('customer_ts3_servers_index')
 %}
-{% set moduleGame = module_enabled('game') %}
-{% set moduleTs = module_enabled('ts') %}
-{% set moduleTs6 = module_enabled('ts6') %}
-{% set moduleWeb = module_enabled('web') %}
-{% set moduleMail = module_enabled('mail') %}
-{% set moduleDns = module_enabled('dns') %}
+
+{% set moduleGame    = module_enabled('game') %}
+{% set moduleTs      = module_enabled('ts') %}
+{% set moduleTs6     = module_enabled('ts6') %}
+{% set moduleWeb     = module_enabled('web') %}
+{% set moduleMail    = module_enabled('mail') %}
+{% set moduleDns     = module_enabled('dns') %}
 {% set moduleBilling = module_enabled('billing') %}
 {% set showVoiceserver = moduleTs6 or moduleTs %}
-{% set customerHasGame = customer_has_module('game') %}
-{% set customerHasVoice = customer_has_module('voice') %}
+
+{% set customerHasGame     = customer_has_module('game') %}
+{% set customerHasVoice    = customer_has_module('voice') %}
 {% set customerHasSinusbot = customer_has_module('sinusbot') %}
-{% set customerHasWeb = customer_has_module('web') %}
+{% set customerHasWeb      = customer_has_module('web') %}
 {% set customerHasDatabase = customer_has_module('database') %}
-{% set customerHasDomain = customer_has_module('domain') %}
-{% set customerHasMail = customer_has_module('mail') %}
-{% set customerHasShop = customer_has_module('shop') %}
+{% set customerHasDomain   = customer_has_module('domain') %}
+{% set customerHasMail     = customer_has_module('mail') %}
+{% set customerHasShop     = customer_has_module('shop') %}
+
 {% set extensionItems = extension_menu_items('customer') %}
 {% set gdprItems = extensionItems is not empty
     ? extensionItems|filter(item => item.href starts with '/gdpr')
@@ -62,24 +62,51 @@
     ? extensionItems|filter(item => not (item.href starts with '/gdpr'))
     : []
 %}
+
+{# ─── SVG icon map ─── #}
+{% set icon = {
+    dashboard:    '<svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M1 2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm1 0v4h4V2H2zm6-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm0 1v4h4V2H9zM1 9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V9zm1 0v4h4V9H2zm6-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zm0 1v4h4V9H9z"/></svg>',
+    activity:     '<svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M6 2a.5.5 0 0 1 .47.33L10 12.036l1.53-4.208A.5.5 0 0 1 12 7.5h3.5a.5.5 0 0 1 0 1h-3.15l-1.88 5.17a.5.5 0 0 1-.94 0L6 3.964 4.47 8.172A.5.5 0 0 1 4 8.5H.5a.5.5 0 0 1 0-1h3.15l1.88-5.17A.5.5 0 0 1 6 2z"/></svg>',
+    gamepad:      '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/><path d="M3.051 3.26a.5.5 0 0 1 .354-.613l1.932-.518a.5.5 0 0 1 .62.44l.293 1.5 7.499-.255a.5.5 0 0 1 .51.54l-.327 3.498a.5.5 0 0 1-.374.46l-2.555.647a.5.5 0 0 1-.608-.376l-.274-1.371-3.79 1.022a.5.5 0 0 1-.61-.391L3.051 3.26z"/></svg>',
+    voice:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>',
+    sinusbot:     '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9 13c0 1.105-1.12 2-2.5 2S4 14.105 4 13s1.12-2 2.5-2S9 11.895 9 13zm2.5 0c0 1.105-1.12 2-2.5 2s-2.5-.895-2.5-2 1.12-2 2.5-2 2.5.895 2.5 2z"/><path fill-rule="evenodd" d="M14 11V2h1v9h-1zM6 3v10H5V3h1z"/><path d="M5 2.905a1 1 0 0 1 .9-.995l8-.8a1 1 0 0 1 1.1.995V3L5 4V2.905z"/></svg>',
+    globe:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077zM4.09 4a9.267 9.267 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.025 7.025 0 0 0 2.255 4H4.09zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.958 6.958 0 0 0-.656 2.5h2.49zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5H4.847zm3.653 0v2.5h2.99a12.495 12.495 0 0 0-.337-2.5H8.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5H4.51zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5H8.5zM5.145 12c.138.386.295.744.468 1.068.552 1.035 1.218 1.65 1.887 1.855V12H5.145zm.182 2.472a6.696 6.696 0 0 1-.597-.933A9.268 9.268 0 0 1 4.09 12H2.255a7.024 7.024 0 0 0 3.072 2.472zM3.82 11a13.652 13.652 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5H3.82zm6.853 3.472A7.024 7.024 0 0 0 13.745 12H11.91a9.27 9.27 0 0 1-.64 1.539 6.688 6.688 0 0 1-.597.933zM8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855.173-.324.33-.682.468-1.068H8.5zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.65 13.65 0 0 1-.312 2.5zm2.802-3.5a6.959 6.959 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5h2.49zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7.024 7.024 0 0 0-3.072-2.472c.218.284.418.598.597.933zM10.855 4a7.966 7.966 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4h2.355z"/></svg>',
+    database:     '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.318 2.687C5.234 2.271 6.536 2 8 2s2.766.27 3.682.687C12.644 3.125 13 3.627 13 4c0 .374-.356.875-1.318 1.313C10.766 5.729 9.464 6 8 6s-2.766-.27-3.682-.687C3.356 4.875 3 4.373 3 4c0-.374.356-.875 1.318-1.313z"/><path d="M13 5.698V7c0 .374-.356.875-1.318 1.313C10.766 8.729 9.464 9 8 9s-2.766-.27-3.682-.687C3.356 7.875 3 7.373 3 7V5.698c.271.202.58.378.904.525C4.978 6.711 6.427 7 8 7s3.022-.289 4.096-.777A4.92 4.92 0 0 0 13 5.698z"/><path d="M13 8.698V10c0 .374-.356.875-1.318 1.313C10.766 11.729 9.464 12 8 12s-2.766-.27-3.682-.687C3.356 10.875 3 10.373 3 10V8.698c.271.202.58.378.904.525C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777A4.92 4.92 0 0 0 13 8.698z"/><path d="M13 11.698V13c0 .374-.356.875-1.318 1.313C10.766 14.729 9.464 15 8 15s-2.766-.27-3.682-.687C3.356 13.875 3 13.373 3 13v-1.302c.271.202.58.378.904.525C4.978 12.71 6.427 13 8 13s3.022-.289 4.096-.777c.324-.147.633-.323.904-.525z"/></svg>',
+    dns:          '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855-.143.268-.276.56-.395.872.705.157 1.472.257 2.282.287V1.077zM4.249 3.539c.142-.384.304-.744.481-1.078a6.7 6.7 0 0 1 .597-.933A7.01 7.01 0 0 0 3.051 3.05c.362.184.763.349 1.198.49zM3.509 7.5c.036-1.07.188-2.087.436-3.008a9.124 9.124 0 0 1-1.565-.667A6.964 6.964 0 0 0 1.018 7.5h2.49z"/></svg>',
+    mail:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/></svg>',
+    ticket:       '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4.5A1.5 1.5 0 0 1 1.5 3h13A1.5 1.5 0 0 1 16 4.5V6a.5.5 0 0 1-.5.5 1.5 1.5 0 0 0 0 3 .5.5 0 0 1 .5.5v1.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 11.5V10a.5.5 0 0 1 .5-.5 1.5 1.5 0 1 0 0-3A.5.5 0 0 1 0 6V4.5zm4 1a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 1 0V6a.5.5 0 0 0-.5-.5zm1 0a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 1 0V6a.5.5 0 0 0-.5-.5zm1 0a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 1 0V6a.5.5 0 0 0-.5-.5z"/></svg>',
+    user:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>',
+    shield:       '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524z"/></svg>',
+    lock:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>',
+    shop:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401l-9.397.472L4.415 11H13a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5z"/></svg>',
+    files:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.825a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3zm-8.322.12C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139z"/></svg>',
+    notifications:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 16a2 2 0 0 0 2-2H6a2 2 0 0 0 2 2zM8 1.918l-.797.161A4.002 4.002 0 0 0 4 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 0 0-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 1 1 1.99 0A5.002 5.002 0 0 1 13 6c0 .88.32 4.2 1.22 6z"/></svg>',
+    gdpr:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524z"/></svg>',
+    dot:          '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/></svg>'
+} %}
+
 {% set infrastructureItems = [
-    moduleGame and customerHasGame ? { key: 'gameservers', label: t('customer_nav_game_servers', page_locale()), href: path('customer_instances') } : null,
-    showVoiceserver and customerHasVoice ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl } : null,
-    moduleGame and customerHasSinusbot ? { key: 'sinusbot', label: t('customer_nav_sinusbot', page_locale()), href: path('customer_sinusbot_index') } : null
+    moduleGame and customerHasGame ? { key: 'gameservers', label: t('customer_nav_game_servers', page_locale()), href: path('customer_instances'),    iconSvg: icon.gamepad } : null,
+    showVoiceserver and customerHasVoice ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl, iconSvg: icon.voice } : null,
+    moduleGame and customerHasSinusbot ? { key: 'sinusbot', label: t('customer_nav_sinusbot', page_locale()), href: path('customer_sinusbot_index'), iconSvg: icon.sinusbot } : null
 ]|filter(v => v) %}
+
 {% set serviceItems = [
-    moduleWeb and customerHasWeb ? { key: 'webspaces', label: t('customer_nav_webspace', page_locale()), href: path('customer_webspace') } : null,
-    customerHasDatabase ? { key: 'databases', label: t('customer_nav_databases', page_locale()), href: path('customer_databases') } : null
+    moduleWeb and customerHasWeb ? { key: 'webspaces', label: t('customer_nav_webspace', page_locale()), href: path('customer_webspace'), iconSvg: icon.globe } : null,
+    customerHasDatabase ? { key: 'databases', label: t('customer_nav_databases', page_locale()), href: path('customer_databases'), iconSvg: icon.database } : null
 ]|filter(v => v) %}
+
 {% set domainItems = [
-    moduleDns and customerHasDomain ? { key: 'domains', label: t('customer_nav_domains', page_locale()), href: path('customer_domains') } : null,
-    moduleMail and customerHasMail ? { key: 'mail', label: t('customer_nav_mail', page_locale()), href: path('customer_mail') } : null
+    moduleDns and customerHasDomain ? { key: 'domains', label: t('customer_nav_domains', page_locale()), href: path('customer_domains'), iconSvg: icon.dns } : null,
+    moduleMail and customerHasMail  ? { key: 'mail',    label: t('customer_nav_mail', page_locale()),    href: path('customer_mail'),    iconSvg: icon.mail } : null
 ]|filter(v => v) %}
+
 {% set marketplaceVisible = moduleBilling and customerHasShop %}
+
 {% set profileUser = current_user() %}
 {% set profileSummary = profileUser ? {
-    name: profileUser.name ?: profileUser.email,
-    email: profileUser.email,
+    name:    profileUser.name ?: profileUser.email,
+    email:   profileUser.email,
     initial: (profileUser.name ?: profileUser.email)|slice(0, 1)|upper
 } : null %}
 
@@ -88,8 +115,9 @@
         label: t('customer_nav_group_overview', page_locale()),
         open: true,
         items: [
-            { key: 'dashboard', label: t('customer_nav_dashboard', page_locale()), href: path('customer_dashboard') },
-            { key: 'activity', label: t('customer_nav_activity', page_locale()), href: path('customer_activity') }
+            { key: 'dashboard', label: t('customer_nav_dashboard', page_locale()), href: path('customer_dashboard'), iconSvg: icon.dashboard },
+            { key: 'activity',  label: t('customer_nav_activity', page_locale()),  href: path('customer_activity'),  iconSvg: icon.activity },
+            { key: 'notifications', label: t('notifications', page_locale()),      href: path('customer_notifications'), iconSvg: icon.notifications }
         ]
     },
     infrastructureItems is not empty ? {
@@ -104,33 +132,33 @@
     } : null,
     domainItems is not empty ? {
         label: t('customer_nav_group_domains_mail', page_locale()),
-        open: true,
+        open: false,
         items: domainItems
     } : null,
     {
         label: t('customer_nav_group_support', page_locale()),
         open: true,
         items: [
-            { key: 'tickets', label: t('customer_nav_tickets', page_locale()), href: path('customer_tickets') }
+            { key: 'tickets', label: t('customer_nav_tickets', page_locale()), href: path('customer_tickets'), iconSvg: icon.ticket }
         ]
     },
     {
         label: t('customer_nav_group_account', page_locale()),
-        open: true,
+        open: false,
         items: [
-            { key: 'profile', label: t('customer_nav_profile', page_locale()), href: path('customer_profile') },
-            { key: 'security', label: t('customer_nav_security', page_locale()), href: path('customer_security') }
+            { key: 'profile',  label: t('customer_nav_profile', page_locale()),  href: path('customer_profile'),  iconSvg: icon.user },
+            { key: 'security', label: t('customer_nav_security', page_locale()), href: path('customer_security'), iconSvg: icon.shield }
         ]
     },
     gdprItems is not empty ? {
         label: t('customer_nav_group_gdpr', page_locale()),
-        open: true,
-        items: gdprItems
+        open: false,
+        items: gdprItems|map(item => item|merge({ iconSvg: icon.gdpr }))
     } : null,
     marketplaceVisible ? {
         label: t('customer_nav_group_marketplace', page_locale()),
-        open: true,
-        items: ([{ key: 'shop', label: t('customer_nav_shop', page_locale()), href: path('customer_shop') }]|merge(marketplaceItems))
+        open: false,
+        items: ([{ key: 'shop', label: t('customer_nav_shop', page_locale()), href: path('customer_shop'), iconSvg: icon.shop }]|merge(marketplaceItems))
     } : null
 ]|filter(v => v) %}
 
@@ -144,9 +172,9 @@
     } %}
     <div class="ng-sidebar-backdrop" data-sidebar-backdrop></div>
 
-    <main class="ng-main">
+    <main class="ng-main" id="main-content">
         {% include 'components/_topbar.html.twig' with {
-            title: pageTitle|default(''),
+            title:   pageTitle|default(''),
             subtitle: pageSubtitle|default(''),
             actions: topbarActions|default([]),
             profile: profileSummary
@@ -156,96 +184,103 @@
         </div>
     </main>
 </div>
+
 <script>
-    const themeToggle = document.getElementById('theme-toggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('click', () => {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-        });
-    }
+    (function () {
+        /* ── Theme toggle ── */
+        var themeToggle = document.getElementById('theme-toggle');
+        var iconDark  = themeToggle ? themeToggle.querySelector('.theme-icon-dark')  : null;
+        var iconLight = themeToggle ? themeToggle.querySelector('.theme-icon-light') : null;
 
-    const copyText = async (value) => {
-        if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(value);
-            return true;
+        function applyTheme() {
+            var isDark = document.documentElement.classList.contains('dark');
+            if (iconDark)  iconDark.style.display  = isDark  ? '' : 'none';
+            if (iconLight) iconLight.style.display = !isDark ? '' : 'none';
         }
 
-        const textarea = document.createElement('textarea');
-        textarea.value = value;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        const success = document.execCommand('copy');
-        textarea.remove();
-        return success;
-    };
-
-    document.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-copy-value]');
-        if (!button) {
-            return;
-        }
-
-        const value = button.dataset.copyValue;
-        if (!value) {
-            return;
-        }
-
-        const originalText = button.dataset.copyOriginal ?? button.textContent?.trim() ?? '';
-        button.dataset.copyOriginal = originalText;
-
-        copyText(value).then((success) => {
-            if (!success) {
-                return;
-            }
-            button.textContent = '{{ t('customer_copy_success', page_locale()) }}';
-            window.setTimeout(() => {
-                button.textContent = originalText;
-            }, 1200);
-        }).catch(() => {
-            return;
-        });
-    });
-
-    (() => {
-        const body = document.body;
-        const toggles = document.querySelectorAll('.ng-sidebar-toggle');
-        const backdrop = document.querySelector('[data-sidebar-backdrop]');
-        if (toggles.length === 0) {
-            return;
-        }
-        const toggleSidebar = () => {
-            if (window.matchMedia('(max-width: 768px)').matches) {
-                body.classList.toggle('is-sidebar-open');
-                return;
-            }
-            body.classList.toggle('is-sidebar-collapsed');
-        };
-        toggles.forEach((toggle) => toggle.addEventListener('click', toggleSidebar));
-        if (backdrop) {
-            backdrop.addEventListener('click', () => body.classList.remove('is-sidebar-open'));
-        }
-        window.addEventListener('resize', () => {
-            if (!window.matchMedia('(max-width: 768px)').matches) {
-                body.classList.remove('is-sidebar-open');
-            }
-        });
-        window.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') {
-                body.classList.remove('is-sidebar-open');
-            }
-        });
-
-        const userMenuToggle = document.querySelector('[data-user-menu-toggle]');
-        const userMenu = document.querySelector('[data-user-menu]');
-        if (userMenuToggle && userMenu) {
-            userMenuToggle.addEventListener('click', () => {
-                userMenu.open = !userMenu.open;
+        if (themeToggle) {
+            applyTheme();
+            themeToggle.addEventListener('click', function () {
+                var isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                applyTheme();
             });
         }
+
+        /* ── Sidebar toggle ── */
+        var body = document.body;
+        var toggles  = document.querySelectorAll('.ng-sidebar-toggle');
+        var backdrop = document.querySelector('[data-sidebar-backdrop]');
+
+        if (toggles.length > 0) {
+            function toggleSidebar() {
+                if (window.matchMedia('(max-width: 768px)').matches) {
+                    body.classList.toggle('is-sidebar-open');
+                } else {
+                    body.classList.toggle('is-sidebar-collapsed');
+                }
+            }
+
+            toggles.forEach(function (t) { t.addEventListener('click', toggleSidebar); });
+
+            if (backdrop) {
+                backdrop.addEventListener('click', function () { body.classList.remove('is-sidebar-open'); });
+            }
+
+            window.addEventListener('resize', function () {
+                if (!window.matchMedia('(max-width: 768px)').matches) {
+                    body.classList.remove('is-sidebar-open');
+                }
+            });
+
+            window.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') { body.classList.remove('is-sidebar-open'); }
+            });
+        }
+
+        /* ── User menu ── */
+        var userMenuToggle = document.querySelector('[data-user-menu-toggle]');
+        var userMenu = document.querySelector('[data-user-menu]');
+        if (userMenuToggle && userMenu) {
+            userMenuToggle.addEventListener('click', function () {
+                userMenu.open = !userMenu.open;
+                userMenuToggle.setAttribute('aria-expanded', userMenu.open ? 'true' : 'false');
+            });
+            document.addEventListener('click', function (e) {
+                if (userMenu.open && !userMenu.contains(e.target) && !userMenuToggle.contains(e.target)) {
+                    userMenu.open = false;
+                }
+            });
+        }
+
+        /* ── Copy to clipboard ── */
+        var copyText = function (value) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(value).then(function () { return true; });
+            }
+            var ta = document.createElement('textarea');
+            ta.value = value;
+            ta.style.cssText = 'position:fixed;opacity:0';
+            document.body.appendChild(ta);
+            ta.focus(); ta.select();
+            var ok = document.execCommand('copy');
+            ta.remove();
+            return Promise.resolve(ok);
+        };
+
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-copy-value]');
+            if (!btn) return;
+            var val = btn.dataset.copyValue;
+            if (!val) return;
+            var orig = btn.dataset.copyOriginal || btn.textContent.trim();
+            btn.dataset.copyOriginal = orig;
+            copyText(val).then(function (ok) {
+                if (!ok) return;
+                btn.textContent = '{{ t('customer_copy_success', page_locale()) }}';
+                setTimeout(function () { btn.textContent = orig; }, 1200);
+            });
+        });
     })();
 </script>
 </body>

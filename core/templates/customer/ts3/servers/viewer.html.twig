@@ -1,16 +1,17 @@
 {% extends 'customer/base.html.twig' %}
 
-{% block title %}TS3 Viewer · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('customer_ts3_viewer_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+    {% set locale = page_locale() %}
     <div class="ts3-page">
         <div class="ts3-header">
             <div>
-                <h1>Viewer</h1>
+                <h1>{{ t('customer_ts3_viewer_title', locale) }}</h1>
                 <p>{{ server.name }}</p>
             </div>
             <div class="ts3-actions">
-                <a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}">Zurück</a>
+                <a class="ts3-link" href="/customer/ts3/servers/{{ server.id }}">{{ t('customer_ts3_server_details', locale) }}</a>
             </div>
         </div>
 
@@ -28,7 +29,7 @@
                     {{ form_row(form.cacheTtlMs, { label: 'Cache TTL (ms)' }) }}
                     {{ form_row(form.domainAllowlist, { label: 'Domain Allowlist (eine pro Zeile)' }) }}
                 </div>
-                <button class="ts3-button" type="submit">Viewer speichern</button>
+                <button class="ts3-button" type="submit">{{ t('customer_ts3_server_save', locale) }}</button>
             {{ form_end(form) }}
         </div>
 

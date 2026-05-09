@@ -101,14 +101,14 @@
                                     <form method="post" action="/webspace/manage/ssl"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ (running or sslPending or sslActive) ? 'disabled' : '' }} class="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40">SSL aktivieren</button></form>
                                     <form method="post" action="/webspace/manage/ssl/disable"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ (running or (not sslActive)) ? 'disabled' : '' }} class="rounded bg-slate-700 px-2 py-1 text-xs text-white disabled:opacity-40">SSL aus</button></form>
                                     <form method="post" action="/webspace/manage/ssl/renew"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ (running or (not sslActive)) ? 'disabled' : '' }} class="rounded bg-emerald-600 px-2 py-1 text-xs text-white disabled:opacity-40">SSL renew</button></form>
-                                    <form method="post" action="/webspace/manage/domain/delete" onsubmit="return confirm('Domain wirklich entfernen?');"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ running ? 'disabled' : '' }} class="rounded bg-rose-600 px-2 py-1 text-xs text-white disabled:opacity-40">Löschen</button></form>
+                                    <form method="post" action="/webspace/manage/domain/delete" onsubmit="return confirm('{{ t('customer_webspace_domain_delete_confirm', page_locale()) }}');"><input type="hidden" name="domain_id" value="{{ domain.id }}"><button {{ running ? 'disabled' : '' }} class="rounded bg-rose-600 px-2 py-1 text-xs text-white disabled:opacity-40">{{ t('customer_webspace_domain_delete', page_locale()) }}</button></form>
                                 </div>
                                 <form method="post" action="/webspace/manage/domain/update" class="mt-2 flex flex-wrap gap-2">
                                     <input type="hidden" name="domain_id" value="{{ domain.id }}">
                                     <input class="rounded border border-slate-300 px-2 py-1 text-xs" name="target_path" value="{{ domain.target_path }}" placeholder="target_path">
                                     <label class="text-xs"><input type="checkbox" name="redirect_https" value="1" {{ domain.redirect_https ? 'checked' : '' }}> HTTPS</label>
                                     <label class="text-xs"><input type="checkbox" name="redirect_www" value="1" {{ domain.redirect_www ? 'checked' : '' }}> WWW</label>
-                                    <button {{ running ? 'disabled' : '' }} class="rounded bg-indigo-500 px-2 py-1 text-xs text-white disabled:opacity-40">Speichern</button>
+                                    <button {{ running ? 'disabled' : '' }} class="rounded bg-indigo-500 px-2 py-1 text-xs text-white disabled:opacity-40">{{ t('customer_webspace_save', page_locale()) }}</button>
                                 </form>
                                 {% if domain.last_error_code or domain.last_error_message %}
                                     <div class="mt-1 text-xs text-rose-700">{{ domain.last_error_code }} {{ domain.last_error_message }}</div>

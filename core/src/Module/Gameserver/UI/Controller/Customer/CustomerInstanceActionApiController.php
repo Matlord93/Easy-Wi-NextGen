@@ -10,6 +10,7 @@ use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\BackupDefinition;
+use App\Module\Core\Domain\Entity\BackupTarget;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Job;
 use App\Module\Core\Domain\Entity\User;
@@ -30,6 +31,7 @@ use App\Module\Gameserver\Infrastructure\Client\AgentGameServerClient;
 use App\Module\Ports\Infrastructure\Repository\PortBlockRepository;
 use App\Repository\BackupDefinitionRepository;
 use App\Repository\BackupRepository;
+use App\Repository\BackupTargetRepository;
 use App\Repository\GamePluginRepository;
 use App\Repository\InstanceRepository;
 use App\Repository\JobLogRepository;
@@ -56,6 +58,7 @@ final class CustomerInstanceActionApiController
         private readonly InstanceRepository $instanceRepository,
         private readonly BackupDefinitionRepository $backupDefinitionRepository,
         private readonly BackupRepository $backupRepository,
+        private readonly BackupTargetRepository $backupTargetRepository,
         private readonly GamePluginRepository $gamePluginRepository,
         private readonly PortBlockRepository $portBlockRepository,
         private readonly JobRepository $jobRepository,
@@ -1783,15 +1786,50 @@ final class CustomerInstanceActionApiController
                 return null;
             }
 
+            if (!$definition->getBackupTarget() instanceof BackupTarget) {
+                $target = $this->resolveRequestedOrDefaultBackupTarget($customer, $payload);
+                if ($target instanceof BackupTarget) {
+                    $definition->setBackupTarget($target);
+                    $this->entityManager->persist($definition);
+                    $this->entityManager->flush();
+                }
+            }
+
             return $definition;
         }
 
         $label = isset($payload['label']) ? trim((string) $payload['label']) : null;
-        $definition = new BackupDefinition($customer, BackupTargetType::Game, (string) $instance->getId(), $label !== '' ? $label : null);
+        $target = $this->resolveRequestedOrDefaultBackupTarget($customer, $payload);
+        $definition = new BackupDefinition($customer, BackupTargetType::Game, (string) $instance->getId(), $label !== '' ? $label : null, $target);
         $this->entityManager->persist($definition);
         $this->entityManager->flush();
 
         return $definition;
+    }
+
+
+    private function resolveRequestedOrDefaultBackupTarget(User $customer, array $payload): ?BackupTarget
+    {
+        $targetId = $payload['target_id'] ?? $payload['backup_target_id'] ?? null;
+        if (!is_scalar($targetId) || trim((string) $targetId) === '') {
+            $settings = $this->appSettingsService->getSettings();
+            $targetId = $settings[AppSettingsService::KEY_BACKUP_DEFAULT_TARGET_ID] ?? null;
+        }
+
+        if (!is_scalar($targetId) || !is_numeric((string) $targetId)) {
+            return null;
+        }
+
+        $target = $this->backupTargetRepository->find((int) $targetId);
+        if (!$target instanceof BackupTarget || !$target->isEnabled()) {
+            return null;
+        }
+
+        if (!$target->getCustomer()->isAdmin() && $target->getCustomer()->getId() !== $customer->getId()) {
+            return null;
+        }
+
+        return $target;
     }
 
     private function findLatestConsoleJob(Instance $instance): ?\App\Module\Core\Domain\Entity\Job

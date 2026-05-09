@@ -1,18 +1,19 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}TS6 Node anlegen · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_ts6_node_new_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
     <div class="ts6-page">
         <div class="ts6-header">
             <div>
-                <h1>TS6 Node anlegen</h1>
-                <p>Verbinde einen Agenten für TeamSpeak 6 Installationen.</p>
+                <h1>{{ t('admin_ts6_node_new_title', locale) }}</h1>
+                <p>{{ t('admin_ts6_node_new_intro', locale) }}</p>
             </div>
         </div>
 
         <div class="ts6-card">
-            <p class="ts6-muted">Wähle den Agenten aus, die Verbindungsdaten werden automatisch übernommen.</p>
+            <p class="ts6-muted">{{ t('admin_ts6_node_agent_hint', locale) }}</p>
             {{ form_start(form, { attr: { class: 'ts6-form' } }) }}
                 {{ form_errors(form) }}
                 <div class="ts6-grid">
@@ -20,7 +21,7 @@
                     {{ form_row(form.agentNodeId, { label: 'Agent Node' }) }}
                     {{ form_row(form.osType) }}
                     {{ form_row(form.downloadUrl) }}
-                    <div class="ts6-muted">Direkter Link zum TeamSpeak 6 Server-Archiv für die Installation.</div>
+                    <div class="ts6-muted">{{ t('admin_ts6_node_download_hint', locale) }}</div>
                     {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
                     {{ form_row(form.instanceName) }}
                     {{ form_row(form.serviceName) }}
@@ -29,7 +30,7 @@
                     {{ form_row(form.voicePort, { label: 'Default Voice Port' }) }}
                 </div>
                 <div class="ts6-actions">
-                    <button class="ts6-button" type="submit">Node speichern</button>
+                    <button class="ts6-button" type="submit">{{ t('admin_ts6_node_save', locale) }}</button>
                 </div>
             {{ form_end(form) }}
         </div>

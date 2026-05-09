@@ -1,16 +1,17 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}SinusBot Nodes · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_sinusbot_nodes_page_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
     <div class="sinusbot-page">
         <div class="sinusbot-header">
             <div>
-                <h1>SinusBot Nodes</h1>
-                <p>Verwalte die Agent-Verbindungen und den Installationsstatus.</p>
+                <h1>{{ t('admin_sinusbot_nodes_page_title', locale) }}</h1>
+                <p>{{ t('admin_sinusbot_nodes_page_desc', locale) }}</p>
             </div>
             <div class="sinusbot-actions">
-                <a class="sinusbot-button" href="/admin/sinusbot/nodes/new">Node hinzufügen</a>
+                <a class="sinusbot-button" href="/admin/sinusbot/nodes/new">{{ t('admin_sinusbot_nodes_add', locale) }}</a>
             </div>
         </div>
 
@@ -23,9 +24,9 @@
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Status</th>
+                        <th>{{ t('admin_sinusbot_nodes_status', locale) }}</th>
                         <th>Version</th>
-                        <th>Aktualisiert</th>
+                        <th>{{ t('admin_sinusbot_nodes_actions', locale) }}</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -43,12 +44,12 @@
                             <td>{{ node.installedVersion ?? '–' }}</td>
                             <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
                             <td class="sinusbot-align-right">
-                                <a class="sinusbot-link" href="/admin/sinusbot/nodes/{{ node.id }}">Details</a>
+                                <a class="sinusbot-link" href="/admin/sinusbot/nodes/{{ node.id }}">{{ t('admin_sinusbot_nodes_details', locale) }}</a>
                             </td>
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="5" class="sinusbot-empty">Keine SinusBot Nodes vorhanden.</td>
+                            <td colspan="5" class="sinusbot-empty">{{ t('admin_sinusbot_nodes_none', locale) }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

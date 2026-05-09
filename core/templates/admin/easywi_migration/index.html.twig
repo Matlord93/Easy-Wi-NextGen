@@ -1,15 +1,15 @@
 {% extends 'admin/layout.html.twig' %}
 
-{% block title %}Easy-Wi Migration{% endblock %}
+{% block title %}{{ t('admin_easywi_migration_page_title', page_locale()) }}{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="mx-auto max-w-4xl space-y-6 px-4 py-8">
 
     <div>
-        <h1 class="text-2xl font-bold text-slate-900">Easy-Wi 3.x Migration</h1>
+        <h1 class="text-2xl font-bold text-slate-900">{{ t('admin_easywi_migration_page_title', locale) }}</h1>
         <p class="mt-1 text-sm text-slate-600">
-            Importiere Daten aus einer bestehenden Easy-Wi 3.x Datenbank.
-            Bereits vorhandene Datensätze werden übersprungen (idempotent).
+            {{ t('admin_easywi_migration_page_desc', locale) }}
         </p>
     </div>
 
@@ -38,7 +38,7 @@
                 <input id="mig-user" type="text" value="root" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
             </div>
             <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Passwort</label>
+                <label class="block text-xs font-medium text-slate-600 mb-1">{{ t('admin_easywi_password', locale) }}</label>
                 <input id="mig-password" type="password" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
             </div>
         </div>
@@ -69,7 +69,7 @@
             Dry-Run (keine Änderungen)
         </button>
         <button id="btn-run" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition">
-            Migration ausführen
+            {{ t('admin_easywi_migration_start', locale) }}
         </button>
     </div>
 
@@ -82,6 +82,10 @@
 </div>
 
 <script>
+const MSG_MIGRATION_RUNNING = {{ t('admin_easywi_migration_running', locale)|json_encode|raw }};
+const MSG_MIGRATION_DONE = {{ t('admin_easywi_migration_done', locale)|json_encode|raw }};
+const MSG_MIGRATION_ERROR = {{ t('admin_easywi_migration_error', locale)|json_encode|raw }};
+const MSG_ERROR_PREFIX = {{ t('customer_ts_action_error_prefix', locale)|json_encode|raw }};
 (function () {
     function buildPayload(dryRun) {
         return {
@@ -100,7 +104,7 @@
         const btn = document.getElementById('btn-probe');
         const result = document.getElementById('probe-result');
         btn.disabled = true;
-        result.innerHTML = '<p class="text-sm text-slate-500">Verbinde…</p>';
+        result.innerHTML = `<p class="text-sm text-slate-500">${MSG_MIGRATION_RUNNING}</p>`;
         result.classList.remove('hidden');
         try {
             const resp = await fetch('/admin/easywi-migration/probe', {
@@ -110,7 +114,7 @@
             });
             const data = await resp.json();
             if (data.error) {
-                result.innerHTML = `<p class="text-sm text-red-600">Fehler: ${data.error}</p>`;
+                result.innerHTML = `<p class="text-sm text-red-600">${MSG_ERROR_PREFIX}: ${data.error}</p>`;
             } else {
                 const rows = Object.entries(data.counts || {}).map(([t, c]) =>
                     `<tr><td class="pr-4 py-0.5 text-sm text-slate-700">${t}</td><td class="text-sm font-mono text-slate-900">${c.toLocaleString()}</td></tr>`
@@ -127,7 +131,7 @@
         const resultBox = document.getElementById('run-result');
         const content = document.getElementById('run-result-content');
         resultBox.classList.remove('hidden');
-        content.innerHTML = '<p class="text-sm text-slate-500">Läuft…</p>';
+        content.innerHTML = `<p class="text-sm text-slate-500">${MSG_MIGRATION_RUNNING}</p>`;
         try {
             const resp = await fetch('/admin/easywi-migration/run', {
                 method: 'POST',
@@ -136,7 +140,7 @@
             });
             const data = await resp.json();
             if (data.error) {
-                content.innerHTML = `<p class="text-sm text-red-600">Fehler: ${data.error}</p>`;
+                content.innerHTML = `<p class="text-sm text-red-600">${MSG_ERROR_PREFIX}: ${data.error}</p>`;
                 return;
             }
             const rows = (data.results || []).map(r => {
@@ -151,7 +155,7 @@
             }).join('');
             const badge = dryRun ? '<span class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">DRY-RUN</span>' : '<span class="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Ausgeführt</span>';
             content.innerHTML = `
-                <div class="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-800">Migration abgeschlossen${badge}</div>
+                <div class="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-800">${MSG_MIGRATION_DONE}${badge}</div>
                 <table class="w-full">
                     <thead><tr class="text-xs font-semibold uppercase text-slate-500">
                         <th class="pb-1 pr-4 text-left">Entität</th>

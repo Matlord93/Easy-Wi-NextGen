@@ -63,7 +63,7 @@
                 </div>
                 <div class="rounded-xl border border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-300">
                     <p class="text-xs uppercase tracking-wide text-indigo-300">Hinweis</p>
-                    <p class="mt-2">Nutze bevorzugt SFTP. Nach dem Zurücksetzen wird ein neues Passwort erzeugt und kann einmal angezeigt werden.</p>
+                    <p class="mt-2">{{ t('customer_instances_files_sftp_hint', page_locale()) }}</p>
                 </div>
             </div>
 
@@ -111,22 +111,22 @@
         <div class="w-full max-w-lg rounded-lg border border-slate-700 bg-slate-900 p-4 shadow-xl">
             <div class="flex items-center justify-between gap-4">
                 <div>
-                    <h4 class="text-base font-semibold text-slate-100">SFTP Passwort</h4>
-                    <p class="mt-1 text-xs text-slate-400">Dieses Passwort wird nur einmal angezeigt. Bitte jetzt kopieren und sicher speichern.</p>
+                    <h4 class="text-base font-semibold text-slate-100">{{ t('customer_instances_files_sftp_password_title', page_locale()) }}</h4>
+                    <p class="mt-1 text-xs text-slate-400">{{ t('customer_instances_files_sftp_password_hint', page_locale()) }}</p>
                 </div>
-                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close aria-label="Passwort-Popup schließen">×</button>
+                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close aria-label="{{ t('customer_instances_files_sftp_close_aria', page_locale()) }}">×</button>
             </div>
             <div class="mt-4 grid gap-2 rounded-lg border border-slate-700 bg-slate-950/60 p-3 text-sm text-slate-200 sm:grid-cols-3">
                 <div>Host: <span class="font-semibold" id="gf-password-host">—</span></div>
                 <div>Port: <span class="font-semibold" id="gf-password-port">—</span></div>
                 <div>User: <span class="font-semibold" id="gf-password-user">—</span></div>
             </div>
-            <label for="gf-password-value" class="mt-4 block text-sm font-semibold text-slate-200">Passwort</label>
+            <label for="gf-password-value" class="mt-4 block text-sm font-semibold text-slate-200">{{ t('customer_instances_files_sftp_password_label', page_locale()) }}</label>
             <input id="gf-password-value" type="text" readonly class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-sm text-slate-100">
             <div id="gf-password-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
             <div class="mt-4 flex flex-wrap justify-end gap-2">
-                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close>Schließen</button>
-                <button type="button" class="ui-button ui-button--primary" id="gf-password-copy">Passwort kopieren</button>
+                <button type="button" class="ui-button ui-button--ghost" data-gf-password-close>{{ t('customer_instances_files_sftp_close', page_locale()) }}</button>
+                <button type="button" class="ui-button ui-button--primary" id="gf-password-copy">{{ t('customer_instances_files_sftp_copy', page_locale()) }}</button>
             </div>
         </div>
     </div>

@@ -1,13 +1,14 @@
 {% extends 'customer/base.html.twig' %}
 
 {% block content %}
+    {% set locale = page_locale() %}
     <div class="space-y-6">
         <section class="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-6 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-200">Webspace Files</p>
-                    <h1 class="text-2xl font-semibold text-white">Dateimanager</h1>
-                    <p class="text-sm text-slate-200">Moderner Zugriff auf Dateien inkl. FTP/SFTP Anmeldedaten.</p>
+                    <h1 class="text-2xl font-semibold text-white">{{ t('customer_files_page_title', locale) }}</h1>
+                    <p class="text-sm text-slate-200">{{ t('customer_files_page_desc', locale) }}</p>
                 </div>
                 <form method="post" action="{{ path('customer_files_test_connection') }}" class="flex items-center gap-2">
                     <input type="hidden" name="webspace" value="{{ selectedWebspace.id }}">
@@ -25,7 +26,7 @@
                         <p class="mt-1 font-mono text-white">{{ selectedWebspace.ftp_host }}</p>
                     </div>
                     <div class="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-slate-200">
-                        <p class="text-xs uppercase tracking-wide text-slate-300">Benutzername</p>
+                        <p class="text-xs uppercase tracking-wide text-slate-300">{{ t('customer_files_username', locale) }}</p>
                         <p class="mt-1 font-mono text-white">{{ selectedWebspace.system_username }}</p>
                     </div>
                     <div class="rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-slate-200">
@@ -106,17 +107,17 @@
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
                         <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                             <tr>
-                                <th class="px-3 py-2">Name</th>
+                                <th class="px-3 py-2">{{ t('customer_files_name', locale) }}</th>
                                 <th class="px-3 py-2">Typ</th>
-                                <th class="px-3 py-2">Größe</th>
-                                <th class="px-3 py-2">Geändert</th>
-                                <th class="px-3 py-2 text-right">Aktionen</th>
+                                <th class="px-3 py-2">{{ t('customer_files_size', locale) }}</th>
+                                <th class="px-3 py-2">{{ t('customer_files_modified', locale) }}</th>
+                                <th class="px-3 py-2 text-right">{{ t('customer_voice_col_actions', locale) }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             {% if entries is empty %}
                                 <tr>
-                                    <td colspan="5" class="px-3 py-6 text-center text-slate-500">Keine Einträge gefunden.</td>
+                                    <td colspan="5" class="px-3 py-6 text-center text-slate-500">{{ t('customer_files_none', locale) }}</td>
                                 </tr>
                             {% endif %}
                             {% for entry in entries %}
@@ -134,16 +135,16 @@
                                     <td class="px-3 py-2 text-right">
                                         <div class="flex flex-wrap justify-end gap-2">
                                             {% if entry.type == 'file' %}
-                                                <a href="{{ path('customer_files_download', { path: entry.path, webspace: selectedWebspace.id }) }}" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">Download</a>
+                                                <a href="{{ path('customer_files_download', { path: entry.path, webspace: selectedWebspace.id }) }}" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_files_download', locale) }}</a>
                                                 {% if entry.editable %}
-                                                    <a href="{{ path('customer_files_edit', { path: entry.path, webspace: selectedWebspace.id }) }}" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">Edit</a>
+                                                    <a href="{{ path('customer_files_edit', { path: entry.path, webspace: selectedWebspace.id }) }}" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_files_edit', locale) }}</a>
                                                 {% endif %}
                                             {% endif %}
-                                            <a href="{{ path('customer_files_rename', { path: entry.path, webspace: selectedWebspace.id }) }}" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">Rename</a>
-                                            <form method="post" action="{{ path('customer_files_delete') }}" onsubmit="return confirm('Eintrag wirklich löschen?');">
+                                            <a href="{{ path('customer_files_rename', { path: entry.path, webspace: selectedWebspace.id }) }}" class="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">{{ t('customer_files_rename', locale) }}</a>
+                                            <form method="post" action="{{ path('customer_files_delete') }}" onsubmit="return confirm('{{ t('customer_files_delete_confirm', locale) }}');">
                                                 <input type="hidden" name="webspace" value="{{ selectedWebspace.id }}">
                                                 <input type="hidden" name="path" value="{{ entry.path }}">
-                                                <button type="submit" class="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 hover:border-rose-300">Delete</button>
+                                                <button type="submit" class="rounded-lg border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 hover:border-rose-300">{{ t('customer_files_delete', locale) }}</button>
                                             </form>
                                         </div>
                                     </td>
@@ -153,13 +154,13 @@
                     </table>
                 </div>
                 <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <h3 class="text-sm font-semibold text-slate-900">Upload</h3>
+                    <h3 class="text-sm font-semibold text-slate-900">{{ t('customer_files_upload', locale) }}</h3>
                     {% if uploadForm %}
                         {{ form_start(uploadForm, { attr: { class: 'mt-3 space-y-3' } }) }}
                             <input type="hidden" name="webspace" value="{{ selectedWebspace.id }}">
                             {{ form_widget(uploadForm.path) }}
                             {{ form_row(uploadForm.upload) }}
-                            <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">Datei hochladen</button>
+                            <button type="submit" class="w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_files_upload', locale) }}</button>
                         {{ form_end(uploadForm) }}
                     {% else %}
                         <p class="mt-3 text-xs text-slate-600">Kein Webspace verfügbar.</p>

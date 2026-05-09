@@ -1,3 +1,4 @@
+{% set locale = page_locale() %}
 <div
     id="gameserver-reinstall"
     class="space-y-4"
@@ -5,24 +6,24 @@
     data-url-reinstall="{{ path('customer_instance_reinstall_api', {id: instance.id}) }}"
 >
     <div class="rounded-lg border border-rose-700 bg-rose-950/30 p-4">
-        <h3 class="text-sm font-semibold text-rose-200">Neuinstallation</h3>
-        <p class="mt-2 text-sm text-rose-100">Diese Aktion überschreibt die Serverinstallation. Bitte bestätige die Ausführung explizit.</p>
+        <h3 class="text-sm font-semibold text-rose-200">{{ t('customer_instances_reinstall_title', locale) }}</h3>
+        <p class="mt-2 text-sm text-rose-100">{{ t('customer_instances_reinstall_desc', locale) }}</p>
         <div id="gs-reinstall-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
     </div>
 
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4 space-y-3">
-        <label class="block text-xs font-semibold uppercase text-slate-300" for="gs-reinstall-option">Version / Option</label>
+        <label class="block text-xs font-semibold uppercase text-slate-300" for="gs-reinstall-option">{{ t('customer_instances_reinstall_version', locale) }}</label>
         <select id="gs-reinstall-option" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100">
             <option value="">Lade Optionen…</option>
         </select>
 
         <label class="inline-flex items-center gap-2 text-sm text-slate-200">
             <input type="checkbox" id="gs-reinstall-confirm" class="rounded border-slate-500 bg-slate-900">
-            Ich bestätige, dass Daten überschrieben werden können.
+            {{ t('customer_instances_reinstall_confirm', locale) }}
         </label>
 
         <div class="flex items-center gap-2">
-            <button type="button" id="gs-reinstall-submit" class="ui-button ui-button--danger">Reinstall starten</button>
+            <button type="button" id="gs-reinstall-submit" class="ui-button ui-button--danger">{{ t('customer_instances_reinstall_submit', locale) }}</button>
             <span id="gs-reinstall-job" class="text-xs text-slate-300"></span>
         </div>
     </div>

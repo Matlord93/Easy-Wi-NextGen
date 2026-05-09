@@ -1,3 +1,4 @@
+{% set locale = page_locale() %}
 <div
     id="gameserver-backups"
     class="space-y-4"
@@ -8,16 +9,18 @@
     data-url-download-template="{{ path('customer_instance_backups_download', {id: instance.id, backupId: '__BACKUP_ID__'}) }}"
     data-url-mode="{{ path('customer_instance_backups_mode', {id: instance.id}) }}"
     data-url-health="{{ path('customer_instance_backups_health', {id: instance.id}) }}"
+    data-confirm-restore="{{ t('customer_instances_backups_restore_confirm', locale) }}"
+    data-confirm-delete="{{ t('customer_instances_backups_delete_confirm', locale) }}"
 >
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
         <div class="flex flex-wrap items-center gap-2">
-            <h3 class="text-sm font-semibold text-slate-100">{{ t('customer_instance_tab_backups', page_locale()) }}</h3>
+            <h3 class="text-sm font-semibold text-slate-100">{{ t('customer_instances_backups_title', locale) }}</h3>
             <select id="gs-backup-mode" class="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100">
                 <option value="manual">Manual</option>
                 <option value="auto">Auto</option>
             </select>
             <input id="gs-backup-label" type="text" class="ml-auto rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100" placeholder="Backup label (optional)">
-            <button type="button" id="gs-backup-create" class="ui-button ui-button--primary">Create backup</button>
+            <button type="button" id="gs-backup-create" class="ui-button ui-button--primary">{{ t('customer_instances_backups_create', locale) }}</button>
         </div>
         <div id="gs-backups-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
 
@@ -26,14 +29,14 @@
                 <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    <th>Size</th>
-                    <th>Actions</th>
+                    <th>{{ t('customer_instances_backups_name', locale) }}</th>
+                    <th>{{ t('customer_instances_backups_created', locale) }}</th>
+                    <th>{{ t('customer_instances_backups_size', locale) }}</th>
+                    <th>{{ t('customer_voice_col_actions', locale) }}</th>
                 </tr>
                 </thead>
                 <tbody id="gs-backups-list">
-                <tr><td colspan="5" class="dashboard-table__empty">Loading backups…</td></tr>
+                <tr><td colspan="5" class="dashboard-table__empty">{{ t('customer_instances_backups_none', locale) }}</td></tr>
                 </tbody>
             </table>
         </div>

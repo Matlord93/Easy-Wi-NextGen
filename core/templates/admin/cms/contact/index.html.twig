@@ -1,13 +1,14 @@
 {% extends 'admin/base.html.twig' %}
 {% block content %}
+{% set locale = page_locale() %}
 <div class="space-y-4">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-semibold">Kontakt-Eingang</h1>
+            <h1 class="text-2xl font-semibold">{{ t('admin_cms_contact_title', locale) }}</h1>
             {% if new_count > 0 %}
-                <p class="text-sm text-indigo-600 font-medium">{{ new_count }} neue Nachricht{{ new_count != 1 ? 'en' : '' }}</p>
+                <p class="text-sm text-indigo-600 font-medium">{{ new_count != 1 ? t('admin_cms_contact_new_count_plural', locale)|replace({'%count%': new_count}) : t('admin_cms_contact_new_count', locale)|replace({'%count%': new_count}) }}</p>
             {% else %}
-                <p class="text-sm text-slate-500">Alle Nachrichten gelesen.</p>
+                <p class="text-sm text-slate-500">{{ t('admin_cms_contact_all_read', locale) }}</p>
             {% endif %}
         </div>
     </div>
@@ -16,12 +17,12 @@
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50">
                 <tr>
-                    <th class="px-4 py-3 text-left font-medium text-slate-600">Status</th>
-                    <th class="px-4 py-3 text-left font-medium text-slate-600">Name</th>
-                    <th class="px-4 py-3 text-left font-medium text-slate-600">E-Mail</th>
-                    <th class="px-4 py-3 text-left font-medium text-slate-600">Betreff</th>
-                    <th class="px-4 py-3 text-left font-medium text-slate-600">Datum</th>
-                    <th class="px-4 py-3 text-right font-medium text-slate-600">Aktionen</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">{{ t('admin_cms_contact_col_status', locale) }}</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">{{ t('admin_cms_contact_col_name', locale) }}</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">{{ t('admin_cms_contact_col_email', locale) }}</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">{{ t('admin_cms_contact_col_subject', locale) }}</th>
+                    <th class="px-4 py-3 text-left font-medium text-slate-600">{{ t('admin_cms_contact_col_date', locale) }}</th>
+                    <th class="px-4 py-3 text-right font-medium text-slate-600">{{ t('admin_cms_contact_col_actions', locale) }}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -29,11 +30,11 @@
                 <tr class="{% if msg.status == 'new' %}bg-indigo-50/40{% endif %} hover:bg-slate-50 transition-colors">
                     <td class="px-4 py-3">
                         {% if msg.status == 'new' %}
-                            <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800">Neu</span>
+                            <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800">{{ t('admin_cms_contact_status_new', locale) }}</span>
                         {% elseif msg.status == 'replied' %}
-                            <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Beantwortet</span>
+                            <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">{{ t('admin_cms_contact_status_replied', locale) }}</span>
                         {% else %}
-                            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">Gelesen</span>
+                            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{{ t('admin_cms_contact_status_read', locale) }}</span>
                         {% endif %}
                     </td>
                     <td class="px-4 py-3 font-medium text-slate-800">{{ msg.name }}</td>
@@ -41,15 +42,15 @@
                     <td class="px-4 py-3 text-slate-700">{{ msg.subject|slice(0, 60) }}{% if msg.subject|length > 60 %}…{% endif %}</td>
                     <td class="px-4 py-3 text-slate-500 whitespace-nowrap">{{ msg.createdAt|date('d.m.Y H:i') }}</td>
                     <td class="px-4 py-3 text-right">
-                        <a href="/admin/cms/contact/{{ msg.id }}" class="text-indigo-600 hover:text-indigo-800 font-medium mr-3">Öffnen</a>
-                        <form method="post" action="/admin/cms/contact/{{ msg.id }}/delete" class="inline" onsubmit="return confirm('Nachricht wirklich löschen?')">
-                            <button type="submit" class="text-rose-500 hover:text-rose-700">Löschen</button>
+                        <a href="/admin/cms/contact/{{ msg.id }}" class="text-indigo-600 hover:text-indigo-800 font-medium mr-3">{{ t('admin_cms_contact_open', locale) }}</a>
+                        <form method="post" action="/admin/cms/contact/{{ msg.id }}/delete" class="inline" onsubmit="return confirm('{{ t('admin_cms_contact_delete_confirm', locale) }}')">
+                            <button type="submit" class="text-rose-500 hover:text-rose-700">{{ t('admin_cms_contact_delete', locale) }}</button>
                         </form>
                     </td>
                 </tr>
             {% else %}
                 <tr>
-                    <td colspan="6" class="px-4 py-10 text-center text-slate-400">Noch keine Kontaktanfragen eingegangen.</td>
+                    <td colspan="6" class="px-4 py-10 text-center text-slate-400">{{ t('admin_cms_contact_empty', locale) }}</td>
                 </tr>
             {% endfor %}
             </tbody>
@@ -58,7 +59,7 @@
 
     {% if total_pages > 1 %}
     <div class="flex items-center justify-between text-sm text-slate-500">
-        <span>{{ total }} Nachrichten gesamt</span>
+        <span>{{ t('admin_cms_contact_total', locale)|replace({'%count%': total}) }}</span>
         <div class="flex gap-2">
             {% if page > 1 %}
                 <a href="?page={{ page - 1 }}" class="rounded border border-slate-200 px-3 py-1 hover:bg-slate-50">← Zurück</a>

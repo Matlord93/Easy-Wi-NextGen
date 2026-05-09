@@ -177,6 +177,19 @@ final class AdminBackupController
         }
 
         $isNew = !$target instanceof BackupTarget;
+        $newSecret = trim((string) ($payload['password'] ?? $payload['token'] ?? ''));
+        if (in_array($type, [BackupDestinationType::Webdav, BackupDestinationType::Nextcloud], true)
+            && $newSecret === ''
+            && !$this->hasWebdavSecret($target)
+        ) {
+            return $this->responseEnvelopeFactory->error(
+                $request,
+                'WebDAV password/app-token is required.',
+                'backup_target_secret_missing',
+                JsonResponse::HTTP_BAD_REQUEST,
+            );
+        }
+
         if ($isNew) {
             $target = new BackupTarget($admin, $type, $label, $config, null, $enabled);
         } else {
@@ -186,7 +199,6 @@ final class AdminBackupController
             $target->setEnabled($enabled);
         }
 
-        $newSecret = trim((string) ($payload['password'] ?? $payload['token'] ?? ''));
         if (in_array($type, [BackupDestinationType::Webdav, BackupDestinationType::Nextcloud], true) && $newSecret !== '') {
             $target->setEncryptedCredentials([
                 'password' => $this->encryptionService->encrypt($newSecret),
@@ -265,14 +277,21 @@ final class AdminBackupController
 
         $encrypted = $target->getEncryptedCredentials();
         $passwordEncrypted = is_string($encrypted['password'] ?? null) ? (string) $encrypted['password'] : '';
-        if ($passwordEncrypted === '') {
+        $tokenEncrypted = is_string($encrypted['token'] ?? null) ? (string) $encrypted['token'] : '';
+        if ($passwordEncrypted === '' && $tokenEncrypted === '') {
             return $this->responseEnvelopeFactory->error($request, 'WebDAV secret missing.', 'backup_target_secret_missing', JsonResponse::HTTP_BAD_REQUEST, null, ['details' => $resultDetails]);
         }
 
         $url = (string) ($config['url'] ?? '');
-        $username = (string) ($config['username'] ?? '');
-        $remotePath = '/' . ltrim((string) ($config['remote_path'] ?? '/'), '/');
+        $remotePath = '/' . ltrim((string) ($config['remote_path'] ?? $config['root_path'] ?? '/'), '/');
         $verifyTls = (bool) ($config['verify_tls'] ?? true);
+
+        $password = $passwordEncrypted !== '' ? $this->encryptionService->decrypt($passwordEncrypted) : '';
+        $token = $tokenEncrypted !== '' ? $this->encryptionService->decrypt($tokenEncrypted) : '';
+        $usernameEncrypted = is_string($encrypted['username'] ?? null) ? (string) $encrypted['username'] : '';
+        $username = $usernameEncrypted !== ''
+            ? $this->encryptionService->decrypt($usernameEncrypted)
+            : (string) ($config['username'] ?? '');
 
         $attempts = 2;
         $timeoutSeconds = 8;
@@ -284,7 +303,8 @@ final class AdminBackupController
             [$statusLine, $bodyPreview] = $this->performWebdavPropfind(
                 rtrim($url, '/') . $remotePath,
                 $username,
-                $this->encryptionService->decrypt($passwordEncrypted),
+                $password,
+                $token,
                 $verifyTls,
                 $timeoutSeconds,
             );
@@ -428,6 +448,8 @@ final class AdminBackupController
 
     private function resolveDefinition(Instance $instance, ?BackupTarget $target): BackupDefinition
     {
+        $target ??= $this->resolveDefaultTarget();
+
         foreach ($this->backupDefinitionRepository->findByCustomer($instance->getCustomer()) as $definition) {
             if ($definition->getTargetType() === BackupTargetType::Game
                 && $definition->getTargetId() === (string) $instance->getId()
@@ -441,6 +463,23 @@ final class AdminBackupController
         $this->entityManager->flush();
 
         return $definition;
+    }
+
+
+    private function resolveDefaultTarget(): ?BackupTarget
+    {
+        $settings = $this->settingsService->getSettings();
+        $targetId = $settings[AppSettingsService::KEY_BACKUP_DEFAULT_TARGET_ID] ?? null;
+        if (!is_scalar($targetId) || !is_numeric((string) $targetId)) {
+            return null;
+        }
+
+        $target = $this->backupTargetRepository->find((int) $targetId);
+        if (!$target instanceof BackupTarget || !$target->isEnabled()) {
+            return null;
+        }
+
+        return $target;
     }
 
     private function requireAdmin(Request $request): User
@@ -476,6 +515,20 @@ final class AdminBackupController
         return is_array($result) ? $result : [];
     }
 
+    private function hasWebdavSecret(?BackupTarget $target): bool
+    {
+        if (!$target instanceof BackupTarget) {
+            return false;
+        }
+
+        $encrypted = $target->getEncryptedCredentials();
+
+        $hasPassword = is_string($encrypted['password'] ?? null) && $encrypted['password'] !== '';
+        $hasToken = is_string($encrypted['token'] ?? null) && $encrypted['token'] !== '';
+
+        return $hasPassword || $hasToken;
+    }
+
     /** @return array<string,mixed> */
     private function normalizeTarget(BackupTarget $target): array
     {
@@ -485,17 +538,21 @@ final class AdminBackupController
             'type' => $target->getType()->value,
             'enabled' => $target->isEnabled(),
             'config' => $target->getConfig(),
-            'secret_set' => $target->hasEncryptedCredential('password'),
+            'secret_set' => $this->hasWebdavSecret($target),
         ];
     }
 
     /** @return array{0:string,1:?string} */
-    private function performWebdavPropfind(string $url, string $username, string $password, bool $verifyTls, int $timeoutSeconds): array
+    private function performWebdavPropfind(string $url, string $username, string $password, string $token, bool $verifyTls, int $timeoutSeconds): array
     {
+        $authHeader = $token !== ''
+            ? 'Authorization: Bearer ' . $token
+            : 'Authorization: Basic ' . base64_encode($username . ':' . $password);
+
         $context = stream_context_create([
             'http' => [
                 'method' => 'PROPFIND',
-                'header' => "Depth: 0\r\nAuthorization: Basic " . base64_encode($username . ':' . $password),
+                'header' => "Depth: 0\r\n" . $authHeader,
                 'timeout' => $timeoutSeconds,
                 'ignore_errors' => true,
             ],

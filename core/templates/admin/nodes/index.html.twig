@@ -245,15 +245,15 @@
                             <div class="nodes-detail-card__header">
                                 <div class="nodes-detail-card__title">Agent (TS/Sinusbot)</div>
                                 <div class="nodes-inline-actions">
-                                    <button class="btn btn--secondary" type="submit">Speichern</button>
+                                    <button class="btn btn--secondary" type="submit">{{ t('admin_nodes_save', page_locale()) }}</button>
                                     <button
                                         class="btn btn--tertiary"
                                         type="button"
                                         hx-post="/admin/nodes/{{ selectedNode.id }}/rotate-secret"
                                         hx-target="#nodes-table-wrap"
                                         hx-swap="innerHTML"
-                                        hx-confirm="Agent-Secret wirklich rotieren? Danach muss der neue Wert in /etc/easywi/agent.conf hinterlegt und der Dienst neu gestartet werden."
-                                    >Secret rotieren</button>
+                                        hx-confirm="{{ t('admin_nodes_rotate_secret_confirm', page_locale()) }}"
+                                    >{{ t('admin_nodes_rotate_secret', page_locale()) }}</button>
                                 </div>
                             </div>
                             <div class="nodes-form-grid">
@@ -277,10 +277,10 @@
                                         placeholder="{{ selectedNode.agent.token_configured ? '••••••••' : '' }}"
                                         class="form-input"
                                     >
-                                    <p class="text-xs text-slate-500">Token nur ausfüllen, wenn er geändert werden soll.</p>
+                                    <p class="text-xs text-slate-500">{{ t('admin_nodes_agent_token_hint', page_locale()) }}</p>
                                 </div>
                                 <div class="form-field">
-                                    <label class="form-label" for="agent-job-concurrency">Max. parallele Jobs</label>
+                                    <label class="form-label" for="agent-job-concurrency">{{ t('admin_nodes_job_concurrency_label', page_locale()) }}</label>
                                     <input
                                         id="agent-job-concurrency"
                                         name="job_concurrency"
@@ -289,7 +289,7 @@
                                         value="{{ selectedNode.agent.job_concurrency ?? 50 }}"
                                         class="form-input"
                                     >
-                                    <p class="text-xs text-slate-500">Legt fest, wie viele Jobs der Agent gleichzeitig ausführen darf.</p>
+                                    <p class="text-xs text-slate-500">{{ t('admin_nodes_job_concurrency_hint', page_locale()) }}</p>
                                 </div>
                                 <div class="form-field">
                                     <label class="form-label" for="instance-base-dirs">{{ t('admin_nodes_instance_base_dirs_label', page_locale()) }}</label>
@@ -304,7 +304,7 @@
                                 </div>
                                 <label class="role-toggle">
                                     <input type="checkbox" name="clear_agent_token" value="1">
-                                    <span>Agent-Token löschen</span>
+                                    <span>{{ t('admin_nodes_clear_agent_token', page_locale()) }}</span>
                                 </label>
                             </div>
                         </form>

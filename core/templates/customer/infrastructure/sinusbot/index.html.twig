@@ -5,24 +5,25 @@
 {% set pageSubtitle = 'Deine Instanz inkl. Status, Zugangsdaten und Bot-Limit.' %}
 
 {% block content %}
-    {% embed 'components/_card.html.twig' with { title: 'Deine SinusBot Instanz', subtitle: 'Verwaltung, Status und Zugangsdaten.' } %}
+    {% set locale = page_locale() %}
+    {% embed 'components/_card.html.twig' with { title: t('customer_sinusbot_page_title', locale), subtitle: t('customer_sinusbot_page_desc', locale) } %}
         {% block card_body %}
             {% if instance %}
                 <div class="rounded-lg border border-slate-200 p-4">
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
-                            <h3 class="text-base font-semibold text-slate-900">Instanz {{ instance.instanceId }}</h3>
-                            <p class="text-sm text-slate-600">Status: {{ instance.status }}</p>
+                            <h3 class="text-base font-semibold text-slate-900">{{ t('customer_sinusbot_instance_name', locale) }} {{ instance.instanceId }}</h3>
+                            <p class="text-sm text-slate-600">{{ t('customer_sinusbot_instance_status', locale) }}: {{ instance.status }}</p>
                             <p class="text-sm text-slate-600">Bots: {{ bots_used }}/{{ instance.botQuota }}</p>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/start">
                                 <input type="hidden" name="_token" value="{{ csrf.start }}">
-                                <button class="ng-button ng-button--primary ng-button--sm" type="submit">Starten</button>
+                                <button class="ng-button ng-button--primary ng-button--sm" type="submit">{{ t('customer_sinusbot_instance_start', locale) }}</button>
                             </form>
                             <form method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/stop">
                                 <input type="hidden" name="_token" value="{{ csrf.stop }}">
-                                <button class="ng-button ng-button--secondary ng-button--sm" type="submit">Stoppen</button>
+                                <button class="ng-button ng-button--secondary ng-button--sm" type="submit">{{ t('customer_sinusbot_instance_stop', locale) }}</button>
                             </form>
                         </div>
                     </div>
@@ -38,25 +39,25 @@
                         </div>
                         <div>
                             <p class="font-medium text-slate-900">Login</p>
-                            <div>Benutzername: {{ instance.sinusbotUsername }}</div>
+                            <div>{{ t('customer_sinusbot_username', locale) }}: {{ instance.sinusbotUsername }}</div>
                             {% if password %}
-                                <div>Passwort: <span class="font-mono text-slate-900">{{ password }}</span></div>
+                                <div>{{ t('customer_ts3_server_password', locale) }}: <span class="font-mono text-slate-900">{{ password }}</span></div>
                             {% else %}
-                                <div>Passwort: ••••••••</div>
+                                <div>{{ t('customer_ts3_server_password', locale) }}: ••••••••</div>
                                 <form class="mt-2" method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/reveal-credentials">
                                     <input type="hidden" name="_token" value="{{ csrf.reveal }}">
-                                    <button class="ng-button ng-button--secondary ng-button--sm" type="submit">Passwort anzeigen</button>
+                                    <button class="ng-button ng-button--secondary ng-button--sm" type="submit">{{ t('customer_sinusbot_show_password', locale) }}</button>
                                 </form>
                             {% endif %}
                             <form class="mt-2" method="post" action="/customer/infrastructure/sinusbot/instances/{{ instance.id }}/reset-password">
                                 <input type="hidden" name="_token" value="{{ csrf.reset }}">
-                                <button class="ng-button ng-button--secondary ng-button--sm" type="submit">Passwort neu setzen</button>
+                                <button class="ng-button ng-button--secondary ng-button--sm" type="submit">{{ t('customer_sinusbot_reset_password', locale) }}</button>
                             </form>
                         </div>
                     </div>
                 </div>
             {% else %}
-                <p class="text-sm text-slate-600">Aktuell ist keine SinusBot Instanz für dein Konto vorhanden.</p>
+                <p class="text-sm text-slate-600">{{ t('customer_sinusbot_instance_none', locale) }}</p>
             {% endif %}
         {% endblock %}
     {% endembed %}

@@ -4,6 +4,7 @@
 {% set pageSubtitle = 'Auto/Manual/Hybrid Regeln' %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="space-y-6">
     {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'policy' } %}
 
@@ -59,7 +60,7 @@
             </div>
         </div>
 
-        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="submit">Speichern</button>
+        <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="submit">{{ t('admin_unifi_save', locale) }}</button>
     </form>
 </div>
 {% endblock %}

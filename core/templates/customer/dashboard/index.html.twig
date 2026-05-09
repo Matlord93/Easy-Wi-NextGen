@@ -1,7 +1,7 @@
 {% extends 'customer/base.html.twig' %}
 
 {% set profileUser = current_user() %}
-{% set customerName = profileUser and profileUser.name ? profileUser.name : (profileUser ? profileUser.email : 'Customer') %}
+{% set customerName = profileUser and profileUser.name ? profileUser.name : (profileUser ? profileUser.email : 'Kunde') %}
 {% set customerEmail = profileUser ? profileUser.email : '' %}
 {% set customerInitial = customerName|slice(0, 1)|upper %}
 {% set pageTitle = '' %}
@@ -16,190 +16,271 @@
 {% set storagePercent = resourceUsage.disk %}
 {% set billingEnabled = module_enabled('billing') %}
 {% set invoiceStatusLabels = {
-    'open': t('customer_dashboard_invoice_status_open', page_locale()),
+    'open':     t('customer_dashboard_invoice_status_open', page_locale()),
     'past_due': t('customer_dashboard_invoice_status_past_due', page_locale()),
-    'paid': t('customer_dashboard_invoice_status_paid', page_locale())
+    'paid':     t('customer_dashboard_invoice_status_paid', page_locale())
 } %}
 {% set nextPaymentAmount = nextPayment ? (nextPayment.amount_due / 100)|number_format(2, ',', '.') ~ ' ' ~ nextPayment.currency : '—' %}
+{% set ticketPercent = summary.tickets_total > 0 ? ((summary.tickets_open / summary.tickets_total) * 100)|round(0, 'common') : 0 %}
 
-<div class="customer-dashboard customer-dashboard--revamp flex flex-col gap-6">
+<div class="cust-page">
 
-    <div>
-        <h2 class="text-3xl font-semibold text-slate-100">{{ t('customer_dashboard_title', page_locale()) }}</h2>
-        <p class="mt-2 text-base text-slate-400">{{ t('customer_dashboard_subtitle', page_locale()) }}</p>
+    {# ── Hero ── #}
+    <div class="cust-hero">
+        <div class="cust-hero__inner">
+            <div>
+                <div class="cust-hero__label">{{ t('customer_dashboard_title', page_locale()) }}</div>
+                <h1 class="cust-hero__title">Willkommen zurück, {{ customerName }}</h1>
+                <p class="cust-hero__desc">{{ customerEmail }} · {{ t('customer_dashboard_subtitle', page_locale()) }}</p>
+            </div>
+            <div class="cust-hero__actions">
+                <a href="{{ path('customer_instances') }}" class="ui-button ui-button--ghost">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/><path d="M3.051 3.26a.5.5 0 0 1 .354-.613l1.932-.518a.5.5 0 0 1 .62.44l.293 1.5 7.499-.255a.5.5 0 0 1 .51.54l-.327 3.498a.5.5 0 0 1-.374.46l-2.555.647a.5.5 0 0 1-.608-.376l-.274-1.371-3.79 1.022a.5.5 0 0 1-.61-.391L3.051 3.26z"/></svg>
+                    {{ t('customer_nav_game_servers', page_locale()) }}
+                </a>
+                <a href="/shop" class="ui-button ui-button--primary">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401l-9.397.472L4.415 11H13a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5z"/></svg>
+                    {{ t('customer_dashboard_action_order', page_locale()) }}
+                </a>
+            </div>
+        </div>
+
+        {# Stats row inside hero #}
+        <div class="cust-hero__stats">
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">{{ t('customer_dashboard_servers_title', page_locale()) }}</div>
+                <div class="cust-hero__stat-value">{{ instances|length }}</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_nav_game_servers', page_locale()) }}</div>
+            </div>
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">{{ t('customer_dashboard_usage_title', page_locale()) }}</div>
+                <div class="cust-hero__stat-value">{{ storagePercent|number_format(0) }}%</div>
+                <div class="cust-hero__stat-sub">
+                    {% if resourceUsage.disk_limit_human %}{{ resourceUsage.disk_used_human }} / {{ resourceUsage.disk_limit_human }}{% else %}{{ t('customer_dashboard_storage_hint', page_locale()) }}{% endif %}
+                </div>
+            </div>
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">{{ t('customer_dashboard_ticket_title', page_locale()) }}</div>
+                <div class="cust-hero__stat-value">{{ summary.tickets_open }}</div>
+                <div class="cust-hero__stat-sub">{{ summary.tickets_pending }} {{ t('customer_dashboard_ticket_pending', page_locale()) }}</div>
+            </div>
+            {% if billingEnabled and activePlan %}
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">{{ t('customer_dashboard_contract_title', page_locale()) }}</div>
+                <div class="cust-hero__stat-value" style="font-size:16px;margin-top:4px;">{{ activePlan.name }}</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_dashboard_next_payment_label', page_locale()) }} {{ nextPaymentAmount }}</div>
+            </div>
+            {% else %}
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">{{ t('customer_dashboard_contract_title', page_locale()) }}</div>
+                <div class="cust-hero__stat-value" style="font-size:15px;margin-top:4px;">—</div>
+                <div class="cust-hero__stat-sub">{{ t('customer_dashboard_contract_unavailable', page_locale()) }}</div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 
-    <section class="dashboard-stats">
-        <article class="dashboard-stat dashboard-stat--contract">
-            <div class="dashboard-stat__headline">{{ t('customer_dashboard_contract_title', page_locale()) }}</div>
-            {% if billingEnabled and activePlan %}
-                <div class="dashboard-stat__value">{{ activePlan.name }}</div>
-                <p class="dashboard-stat__meta">
-                    {{ t('customer_dashboard_next_payment_label', page_locale()) }} {{ nextPaymentAmount }}
-                </p>
-            {% else %}
-                <div class="dashboard-stat__value">{{ t('customer_dashboard_contract_unavailable', page_locale()) }}</div>
-            {% endif %}
-        </article>
+    {# ── Main grid: Server-Liste + Sidebar ── #}
+    <div class="cust-grid-2--wide">
 
-        <article class="dashboard-stat dashboard-stat--storage">
-            <div class="dashboard-stat__topline">
-                <span>{{ t('customer_dashboard_usage_title', page_locale()) }}</span>
-                <strong>{{ storagePercent|number_format(1, '.', ',') }}%</strong>
-            </div>
-            <div class="dashboard-stat__meter">
-                <div style="width: {{ storagePercent }}%"></div>
-            </div>
-            <p class="dashboard-stat__meta">
-                {% if resourceUsage.disk_limit_human %}
-                    {{ resourceUsage.disk_used_human }} / {{ resourceUsage.disk_limit_human }}
-                {% else %}
-                    {{ t('customer_dashboard_storage_hint', page_locale()) }}
-                {% endif %}
-            </p>
-        </article>
-
-        <article class="dashboard-stat dashboard-stat--tickets">
-            <div class="dashboard-stat__topline">
-                <span>{{ t('customer_dashboard_ticket_title', page_locale()) }}</span>
-                <strong>{{ summary.tickets_open }}</strong>
-            </div>
-            <div class="dashboard-stat__meter">
-                {% set ticketPercent = summary.tickets_total > 0 ? ((summary.tickets_open / summary.tickets_total) * 100)|round(0, 'common') : 0 %}
-                <div style="width: {{ ticketPercent }}%"></div>
-            </div>
-            <p class="dashboard-stat__meta">
-                {{ summary.tickets_pending }} {{ t('customer_dashboard_ticket_pending', page_locale()) }} · {{ summary.tickets_total }} {{ t('customer_dashboard_ticket_total', page_locale()) }}
-            </p>
-        </article>
-    </section>
-
-    <section class="dashboard-main-grid">
-        <div class="dashboard-panel">
-            <div class="dashboard-panel__header">
+        {# Server cards #}
+        <div class="cust-panel">
+            <div class="cust-panel__head">
                 <div>
-                    <h3>{{ t('customer_dashboard_servers_title', page_locale()) }}</h3>
-                    <p>{{ t('customer_dashboard_servers_subtitle', page_locale()) }}</p>
+                    <h3 class="cust-panel__title">{{ t('customer_dashboard_servers_title', page_locale()) }}</h3>
+                    <p class="cust-panel__sub">{{ t('customer_dashboard_servers_subtitle', page_locale()) }}</p>
                 </div>
-                <a href="{{ path('customer_instances') }}" class="ui-button ui-button--ghost">{{ t('customer_dashboard_view_all', page_locale()) }}</a>
+                <a href="{{ path('customer_instances') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_dashboard_view_all', page_locale()) }}</a>
             </div>
-
-            <div class="server-grid">
+            <div class="cust-panel__body">
+                <div class="cust-server-grid">
                     {% for slot in 0..3 %}
                         {% set instance = instances[slot] ?? null %}
                         {% if instance %}
-                        {% set statusTone = instance.status in ['running', 'online'] ? 'success' : (instance.status in ['stopped', 'offline'] ? 'danger' : 'warning') %}
-                        <article class="server-card">
-                            <div class="server-card__top">
-                                <div>
-                                    <h4>{{ instance.server_name ?: instance.name }}</h4>
-                                    <p>#{{ instance.id }} · {{ instance.game_key }}</p>
+                            {% set isOnline = instance.status in ['running', 'online'] %}
+                            {% set isOff    = instance.status in ['stopped', 'offline'] %}
+                            {% set dotClass = isOnline ? 'success' : (isOff ? 'danger' : 'warning') %}
+                            {% set cpuPct   = instance.cpu_percent ?? 0 %}
+                            {% set cpuFill  = cpuPct > 80 ? 'danger' : (cpuPct > 60 ? 'warning' : '') %}
+                            <article class="cust-server-card">
+                                <div class="cust-server-card__head">
+                                    <div>
+                                        <h4 class="cust-server-card__name">{{ instance.server_name ?: instance.name }}</h4>
+                                        <p class="cust-server-card__id">#{{ instance.id }} · {{ instance.game_key }}</p>
+                                    </div>
+                                    <span class="cust-status-dot cust-status-dot--{{ dotClass }}">{{ instance.status_label }}</span>
                                 </div>
-                                {% include 'components/ui/_badge.html.twig' with { label: instance.status_label, tone: statusTone } %}
-                            </div>
-                            <div class="server-card__meta">
-                                <span>{{ t('customer_dashboard_server_ping', page_locale()) }}: {{ instance.latency_ms is not null ? instance.latency_ms ~ ' ms' : '—' }}</span>
-                                <span>CPU: {{ instance.cpu_percent is not null ? instance.cpu_percent|number_format(1, '.', ',') ~ '%' : t('customer_instance_unknown_pending', page_locale()) }}</span>
-                                <span>RAM: {% if instance.mem_used_bytes is not null %}{{ (instance.mem_used_bytes / 1024 / 1024)|number_format(0, '.', ',') }} MiB / {{ instance.ram_limit ?? '—' }} MiB{% else %}{{ t('customer_instance_unknown_pending', page_locale()) }}{% endif %}</span>
-                            </div>
-                            <div class="server-card__actions">
-                                <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
-                                    <input type="hidden" name="action" value="start">
-                                    <button class="ui-button ui-button--primary">{{ t('customer_dashboard_server_start', page_locale()) }}</button>
-                                </form>
-                                <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
-                                    <input type="hidden" name="action" value="stop">
-                                    <button class="ui-button ui-button--danger">{{ t('customer_dashboard_server_stop', page_locale()) }}</button>
-                                </form>
-                                <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
-                                    <input type="hidden" name="action" value="restart">
-                                    <button class="ui-button ui-button--ghost">{{ t('customer_dashboard_server_restart', page_locale()) }}</button>
-                                </form>
-                            </div>
-                        </article>
-                    {% else %}
-                        <article class="server-card server-card--placeholder">
-                            <div class="server-card__top"><div><h4>{{ t('customer_dashboard_no_instances', page_locale()) }}</h4><p>Slot {{ slot + 1 }}</p></div></div>
-                            <div class="server-card__meta"><span>—</span></div>
-                        </article>
+                                <div class="cust-server-card__resources">
+                                    <div class="cust-server-card__res-item">
+                                        <span class="cust-server-card__res-label">CPU</span>
+                                        <span class="cust-server-card__res-value">{{ instance.cpu_percent is not null ? instance.cpu_percent|number_format(1) ~ '%' : '—' }}</span>
+                                        <div class="cust-server-card__res-bar"><div class="cust-server-card__res-fill cust-server-card__res-fill--{{ cpuFill }}" style="width:{{ cpuPct }}%"></div></div>
+                                    </div>
+                                    <div class="cust-server-card__res-item">
+                                        <span class="cust-server-card__res-label">RAM</span>
+                                        <span class="cust-server-card__res-value">{% if instance.mem_used_bytes is not null %}{{ (instance.mem_used_bytes / 1024 / 1024)|number_format(0) }}{% else %}—{% endif %} MiB</span>
+                                        <div class="cust-server-card__res-bar"><div class="cust-server-card__res-fill" style="width:0%"></div></div>
+                                    </div>
+                                    <div class="cust-server-card__res-item">
+                                        <span class="cust-server-card__res-label">Ping</span>
+                                        <span class="cust-server-card__res-value">{{ instance.latency_ms is not null ? instance.latency_ms ~ ' ms' : '—' }}</span>
+                                        <div class="cust-server-card__res-bar"><div class="cust-server-card__res-fill" style="width:0%"></div></div>
+                                    </div>
+                                </div>
+                                <div class="cust-server-card__actions">
+                                    <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
+                                        <input type="hidden" name="action" value="start">
+                                        <button class="ui-button ui-button--primary ui-button--sm" type="submit">{{ t('customer_dashboard_server_start', page_locale()) }}</button>
+                                    </form>
+                                    <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
+                                        <input type="hidden" name="action" value="stop">
+                                        <button class="ui-button ui-button--danger ui-button--sm" type="submit">{{ t('customer_dashboard_server_stop', page_locale()) }}</button>
+                                    </form>
+                                    <form method="post" action="{{ path('customer_instance_power', {id: instance.id}) }}">
+                                        <input type="hidden" name="action" value="restart">
+                                        <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_dashboard_server_restart', page_locale()) }}</button>
+                                    </form>
+                                    <a href="{{ path('customer_instance_detail', {id: instance.id}) }}" class="ui-button ui-button--ghost ui-button--sm" style="margin-left:auto;">Details</a>
+                                </div>
+                            </article>
+                        {% else %}
+                            <article class="cust-server-card cust-server-card--placeholder">
+                                <div class="cust-server-card__head">
+                                    <div>
+                                        <h4 class="cust-server-card__name">{{ t('customer_dashboard_no_instances', page_locale()) }}</h4>
+                                        <p class="cust-server-card__id">Slot {{ slot + 1 }}</p>
+                                    </div>
+                                </div>
+                            </article>
                         {% endif %}
                     {% endfor %}
                 </div>
+            </div>
         </div>
 
-        <aside class="dashboard-usage-panel">
-            <h3>{{ t('customer_dashboard_usage_title', page_locale()) }}</h3>
-            <p>{{ t('customer_dashboard_usage_subtitle', page_locale()) }}</p>
-            <div class="dashboard-usage-list">
-                {% for instance in instances %}
-                    <article class="dashboard-usage-item">
-                        <div class="dashboard-usage-item__head">
-                            <strong>{{ instance.server_name ?: instance.name }}</strong>
-                            <span>#{{ instance.id }}</span>
-                        </div>
-                        <ul>
-                            <li>
-                                <span>{{ t('customer_dashboard_cpu_usage', page_locale()) }}</span>
-                                <strong>{{ instance.cpu_percent is not null ? instance.cpu_percent|number_format(1, '.', ',') ~ '%' : t('customer_resource_unknown', page_locale()) }}</strong>
-                            </li>
-                            <li>
-                                <span>{{ t('customer_dashboard_ram_usage', page_locale()) }}</span>
-                                <strong>{% if instance.mem_used_bytes is not null %}{{ (instance.mem_used_bytes / 1024 / 1024)|number_format(0, '.', ',') }} MiB / {{ instance.ram_limit ?? '—' }} MiB{% else %}{{ t('customer_resource_unknown', page_locale()) }}{% endif %}</strong>
-                            </li>
-                            <li>
-                                <span>{{ t('customer_dashboard_disk_usage', page_locale()) }}</span>
-                                <strong>{% if instance.disk_limit_human %}{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}{% else %}{{ instance.disk_used_human }}{% endif %}{% if instance.disk_usage_percent is not null %} ({{ instance.disk_usage_percent|number_format(1, '.', ',') }}%){% endif %}</strong>
-                            </li>
-                        </ul>
-                    </article>
-                {% else %}
-                    <div class="dashboard-usage-empty">{{ t('customer_dashboard_usage_empty', page_locale()) }}</div>
-                {% endfor %}
-            </div>
-        </aside>
-    </section>
+        {# Sidebar: Quick-Links + Resource Overview #}
+        <div style="display:flex;flex-direction:column;gap:16px;">
 
-    {% if billingEnabled %}
-        <section class="dashboard-panel">
-            <div class="dashboard-panel__header">
-                <div>
-                    <h3>{{ t('customer_dashboard_invoice_title', page_locale()) }}</h3>
-                    <p>{{ t('customer_dashboard_invoice_subtitle', page_locale()) }}</p>
+            {# Quick-Links #}
+            <div class="cust-panel">
+                <div class="cust-panel__head">
+                    <h3 class="cust-panel__title">Schnellzugriff</h3>
                 </div>
-                <a href="{{ path('customer_profile') }}" class="ui-button ui-button--ghost">{{ t('customer_dashboard_invoice_action', page_locale()) }}</a>
+                <div class="cust-panel__body">
+                    <div class="cust-quick-links">
+                        <a href="{{ path('customer_instances') }}" class="cust-quick-link">
+                            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/></svg>
+                            Game-Server
+                        </a>
+                        <a href="{{ path('customer_voice') }}" class="cust-quick-link">
+                            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>
+                            TeamSpeak
+                        </a>
+                        <a href="{{ path('customer_webspace') }}" class="cust-quick-link">
+                            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077zM4.09 4a9.267 9.267 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.025 7.025 0 0 0 2.255 4H4.09zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.958 6.958 0 0 0-.656 2.5h2.49z"/></svg>
+                            Webspace
+                        </a>
+                        <a href="{{ path('customer_mail') }}" class="cust-quick-link">
+                            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/></svg>
+                            E-Mail
+                        </a>
+                        <a href="{{ path('customer_tickets') }}" class="cust-quick-link">
+                            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4.5A1.5 1.5 0 0 1 1.5 3h13A1.5 1.5 0 0 1 16 4.5V6a.5.5 0 0 1-.5.5 1.5 1.5 0 0 0 0 3 .5.5 0 0 1 .5.5v1.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 11.5V10a.5.5 0 0 1 .5-.5 1.5 1.5 0 1 0 0-3A.5.5 0 0 1 0 6V4.5z"/></svg>
+                            Tickets
+                        </a>
+                        <a href="{{ path('customer_profile') }}" class="cust-quick-link">
+                            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>
+                            Profil
+                        </a>
+                    </div>
+                </div>
             </div>
 
-            <div class="dashboard-table-wrapper">
-                <table class="dashboard-table">
+            {# Resource usage per server #}
+            <div class="cust-panel">
+                <div class="cust-panel__head">
+                    <div>
+                        <h3 class="cust-panel__title">{{ t('customer_dashboard_usage_title', page_locale()) }}</h3>
+                        <p class="cust-panel__sub">{{ t('customer_dashboard_usage_subtitle', page_locale()) }}</p>
+                    </div>
+                </div>
+                <div class="cust-panel__body--flush">
+                    {% for instance in instances %}
+                        <div style="padding:14px 18px;border-bottom:1px solid var(--ng-border);">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                                <strong style="font-size:13px;color:var(--ng-text);">{{ instance.server_name ?: instance.name }}</strong>
+                                <span style="font-size:11px;color:var(--ng-text-muted);">#{{ instance.id }}</span>
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:5px;">
+                                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ng-text-muted);">
+                                    <span>CPU</span>
+                                    <strong style="color:var(--ng-text);">{{ instance.cpu_percent is not null ? instance.cpu_percent|number_format(1) ~ '%' : t('customer_resource_unknown', page_locale()) }}</strong>
+                                </div>
+                                <div class="cust-kpi__meter"><div class="cust-kpi__meter-bar" style="width:{{ instance.cpu_percent ?? 0 }}%"></div></div>
+                                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ng-text-muted);margin-top:3px;">
+                                    <span>RAM</span>
+                                    <strong style="color:var(--ng-text);">{% if instance.mem_used_bytes is not null %}{{ (instance.mem_used_bytes / 1024 / 1024)|number_format(0) }} / {{ instance.ram_limit ?? '—' }} MiB{% else %}{{ t('customer_resource_unknown', page_locale()) }}{% endif %}</strong>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ng-text-muted);margin-top:3px;">
+                                    <span>Disk</span>
+                                    <strong style="color:var(--ng-text);">{% if instance.disk_limit_human %}{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}{% else %}{{ instance.disk_used_human }}{% endif %}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="cust-empty">
+                            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/></svg>
+                            {{ t('customer_dashboard_usage_empty', page_locale()) }}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    {# ── Invoices (billing module) ── #}
+    {% if billingEnabled %}
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div>
+                <h3 class="cust-panel__title">{{ t('customer_dashboard_invoice_title', page_locale()) }}</h3>
+                <p class="cust-panel__sub">{{ t('customer_dashboard_invoice_subtitle', page_locale()) }}</p>
+            </div>
+            <a href="{{ path('customer_profile') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_dashboard_invoice_action', page_locale()) }}</a>
+        </div>
+        <div class="cust-panel__body--flush">
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
                     <thead>
-                    <tr>
-                        <th>{{ t('customer_dashboard_invoice_table_name', page_locale()) }}</th>
-                        <th>{{ t('customer_dashboard_invoice_table_date', page_locale()) }}</th>
-                        <th>{{ t('customer_dashboard_invoice_table_amount', page_locale()) }}</th>
-                        <th>{{ t('customer_dashboard_invoice_table_status', page_locale()) }}</th>
-                        <th>{{ t('customer_dashboard_invoice_table_action', page_locale()) }}</th>
-                    </tr>
+                        <tr>
+                            <th>{{ t('customer_dashboard_invoice_table_name', page_locale()) }}</th>
+                            <th>{{ t('customer_dashboard_invoice_table_date', page_locale()) }}</th>
+                            <th>{{ t('customer_dashboard_invoice_table_amount', page_locale()) }}</th>
+                            <th>{{ t('customer_dashboard_invoice_table_status', page_locale()) }}</th>
+                            <th>{{ t('customer_dashboard_invoice_table_action', page_locale()) }}</th>
+                        </tr>
                     </thead>
                     <tbody>
                     {% for invoice in invoices %}
-                        {% set statusTone = invoice.status == 'paid' ? 'success' : (invoice.status == 'past_due' ? 'danger' : 'warning') %}
-                        {% set statusLabel = invoiceStatusLabels[invoice.status] ?? invoice.status %}
+                        {% set sTone = invoice.status == 'paid' ? 'success' : (invoice.status == 'past_due' ? 'danger' : 'warning') %}
+                        {% set sLabel = invoiceStatusLabels[invoice.status] ?? invoice.status %}
                         <tr>
-                            <td>{{ invoice.number }}</td>
-                            <td>{{ invoice.due_date|date('Y-m-d') }}</td>
-                            <td>{{ (invoice.amount_due / 100)|number_format(2, ',', '.') }} {{ invoice.currency }}</td>
-                            <td>{% include 'components/ui/_badge.html.twig' with { label: statusLabel, tone: statusTone } %}</td>
-                            <td><a href="{{ path('customer_profile') }}" class="ui-button ui-button--ghost">{{ t('customer_dashboard_invoice_action', page_locale()) }}</a></td>
+                            <td style="font-weight:600;">{{ invoice.number }}</td>
+                            <td style="color:var(--ng-text-muted);">{{ invoice.due_date|date('Y-m-d') }}</td>
+                            <td style="font-weight:600;">{{ (invoice.amount_due / 100)|number_format(2, ',', '.') }} {{ invoice.currency }}</td>
+                            <td><span class="ui-badge ui-badge--{{ sTone }}">{{ sLabel }}</span></td>
+                            <td><a href="{{ path('customer_profile') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_dashboard_invoice_action', page_locale()) }}</a></td>
                         </tr>
                     {% else %}
-                        <tr>
-                            <td colspan="5" class="dashboard-table__empty">{{ t('customer_dashboard_invoice_empty', page_locale()) }}</td>
-                        </tr>
+                        <tr><td colspan="5" class="cust-table__empty">{{ t('customer_dashboard_invoice_empty', page_locale()) }}</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
-        </section>
+        </div>
+    </div>
     {% endif %}
+
 </div>
 {% endblock %}

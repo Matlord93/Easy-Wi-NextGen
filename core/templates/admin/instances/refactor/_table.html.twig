@@ -31,9 +31,9 @@
                     <div class="mt-1 text-xs text-slate-700">{{ instance.template_name }} ({{ instance.game_key }})</div>
                     <div class="mt-2 space-y-1 text-xs text-slate-500">
                         <div>SFTP: {{ instance.sftp_username ?: '—' }} · {{ instance.sftp_host ?: '—' }}:{{ instance.sftp_port ?: '—' }} · {{ instance.sftp_status }}</div>
-                        <div>FTP: {{ instance.ftp_supported ? 'Aktiv' : 'Nicht verfügbar (nur SFTP)' }}</div>
-                        {% if instance.sftp_expires_at %}<div>Passwort-Ablauf: {{ instance.sftp_expires_at|date('Y-m-d H:i') }}</div>{% endif %}
-                        {% if instance.sftp_last_error %}<div class="text-rose-600">SFTP-Fehler: {{ instance.sftp_last_error }}</div>{% endif %}
+                        <div>FTP: {{ instance.ftp_supported ? t('admin_instances_ftp_active', page_locale()) : t('admin_instances_ftp_unavailable', page_locale()) }}</div>
+                        {% if instance.sftp_expires_at %}<div>{{ t('admin_instances_sftp_expires', page_locale()) }}: {{ instance.sftp_expires_at|date('Y-m-d H:i') }}</div>{% endif %}
+                        {% if instance.sftp_last_error %}<div class="text-rose-600">{{ t('admin_instances_sftp_error_label', page_locale()) }}: {{ instance.sftp_last_error }}</div>{% endif %}
                     </div>
                 </td>
                 <td class="px-4 py-4">
@@ -45,12 +45,12 @@
                 <td class="px-4 py-4">
                     {% include 'components/ui/_status_badge.html.twig' with {
                         tone: instance.install_ready ? 'success' : 'warning',
-                        label: instance.install_ready ? 'Install bereit' : 'Setup offen'
+                        label: instance.install_ready ? t('admin_instances_install_ready', page_locale()) : t('admin_instances_setup_open', page_locale())
                     } %}
                 </td>
                 <td class="px-4 py-4 text-right">
                     <div class="flex flex-col items-end gap-2">
-                        <a href="{{ path('customer_instance_detail', {id: instance.id, tab: 'settings'}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Kunde-Einstellungen</a>
+                        <a href="{{ path('customer_instance_detail', {id: instance.id, tab: 'settings'}) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">{{ t('admin_instances_customer_settings', page_locale()) }}</a>
                         {% if not instance.sftp_ready %}
                             <button class="rounded-lg border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-600" hx-post="{{ path('admin_instances_sftp_provision', {id: instance.id}) }}">{{ t('admin_instances_sftp_provision', page_locale()) }}</button>
                         {% endif %}

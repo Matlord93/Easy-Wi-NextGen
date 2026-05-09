@@ -1,17 +1,18 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}TS3 Virtual Server · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_ts3_servers_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
     <div class="ts3-page">
         <div class="ts3-header">
             <div>
-                <h1>TS3 Virtual Server</h1>
-                <p>Übersicht und Kunden-Zuordnung für vorhandene Virtual Server.</p>
+                <h1>{{ t('admin_ts3_servers_title', locale) }}</h1>
+                <p>{{ t('admin_ts3_servers_intro', locale) }}</p>
             </div>
             <div class="ts3-actions">
-                <a class="ts3-link" href="/admin/ts3/servers/create">Server erstellen</a>
-                <a class="ts3-link" href="/admin/ts3/nodes">Nodes verwalten</a>
+                <a class="ts3-link" href="/admin/ts3/servers/create">{{ t('admin_ts3_servers_create', locale) }}</a>
+                <a class="ts3-link" href="/admin/ts3/nodes">{{ t('admin_ts3_servers_manage_nodes', locale) }}</a>
             </div>
         </div>
 
@@ -26,14 +27,14 @@
             <table class="ts3-table">
                 <thead>
                 <tr>
-                    <th>Server</th>
-                    <th>Kunde</th>
-                    <th>Node</th>
-                    <th>Ports</th>
-                    <th>Status</th>
-                    <th>Aktualisiert</th>
-                    <th>Zuordnung</th>
-                    <th>Aktionen</th>
+                    <th>{{ t('admin_ts3_servers_col_server', locale) }}</th>
+                    <th>{{ t('admin_ts3_servers_col_customer', locale) }}</th>
+                    <th>{{ t('admin_ts3_servers_col_node', locale) }}</th>
+                    <th>{{ t('admin_ts3_servers_col_ports', locale) }}</th>
+                    <th>{{ t('admin_ts3_servers_col_status', locale) }}</th>
+                    <th>{{ t('admin_ts3_servers_col_updated', locale) }}</th>
+                    <th>{{ t('admin_ts3_servers_col_assignment', locale) }}</th>
+                    <th>{{ t('admin_ts3_servers_col_actions', locale) }}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -49,7 +50,7 @@
                                 <div>{{ customer.name ?? customer.email }}</div>
                                 <div class="ts3-muted">#{{ customer.id }}</div>
                             {% else %}
-                                <span class="ts3-muted">Unbekannt</span>
+                                <span class="ts3-muted">{{ t('admin_ts3_servers_unknown_customer', locale) }}</span>
                             {% endif %}
                         </td>
                         <td>
@@ -72,19 +73,19 @@
                                         </option>
                                     {% endfor %}
                                 </select>
-                                <button class="ts3-button" type="submit">Zuweisen</button>
+                                <button class="ts3-button" type="submit">{{ t('admin_ts3_servers_assign', locale) }}</button>
                             </form>
                         </td>
                         <td>
                             <form method="post" action="/admin/ts3/servers/{{ server.id }}/delete">
                                 <input type="hidden" name="_token" value="{{ deleteTokens[server.id] ?? '' }}">
-                                <button class="ts3-button" type="submit">Löschen</button>
+                                <button class="ts3-button" type="submit">{{ t('admin_ts3_servers_delete', locale) }}</button>
                             </form>
                         </td>
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="8" class="ts3-empty">Keine TS3 Virtual Server gefunden.</td>
+                        <td colspan="8" class="ts3-empty">{{ t('admin_ts3_servers_empty', locale) }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>

@@ -1,17 +1,18 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}TeamSpeak Nodes · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_ts_nodes_page_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
     <div class="ts3-page">
         <div class="ts3-header">
             <div>
-                <h1>TeamSpeak Nodes</h1>
-                <p>Verwalte TS3- und TS6-Nodes zentral.</p>
+                <h1>{{ t('admin_ts_nodes_page_title', locale) }}</h1>
+                <p>{{ t('admin_ts_nodes_page_desc', locale) }}</p>
             </div>
             <div class="ts3-actions">
-                <a class="ts3-link" href="/admin/ts3/nodes/new">TS3 Node hinzufügen</a>
-                <a class="ts6-link" href="/admin/ts6/nodes/new">TS6 Node hinzufügen</a>
+                <a class="ts3-link" href="/admin/ts3/nodes/new">{{ t('admin_ts_nodes_add', locale) }} (TS3)</a>
+                <a class="ts6-link" href="/admin/ts6/nodes/new">{{ t('admin_ts_nodes_add', locale) }} (TS6)</a>
             </div>
         </div>
 
@@ -26,9 +27,9 @@
                 <tr>
                     <th>Name</th>
                     <th>Agent URL</th>
-                    <th>Status</th>
+                    <th>{{ t('admin_ts_nodes_status', locale) }}</th>
                     <th>Version</th>
-                    <th>Aktualisiert</th>
+                    <th>{{ t('updated', locale) }}</th>
                     <th></th>
                 </tr>
                 </thead>
@@ -48,12 +49,12 @@
                         <td>{{ node.installedVersion ?? '—' }}</td>
                         <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
                         <td class="ts3-align-right">
-                            <a class="ts3-link" href="/admin/ts3/nodes/{{ node.id }}">Details</a>
+                            <a class="ts3-link" href="/admin/ts3/nodes/{{ node.id }}">{{ t('admin_ts_nodes_details', locale) }}</a>
                         </td>
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="6" class="ts3-empty">Keine TS3 Nodes vorhanden.</td>
+                        <td colspan="6" class="ts3-empty">{{ t('admin_ts_nodes_none', locale) }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
@@ -66,10 +67,10 @@
                 <thead>
                 <tr>
                     <th>Name</th>
-                    <th>Status</th>
+                    <th>{{ t('admin_ts_nodes_status', locale) }}</th>
                     <th>Agent</th>
                     <th>Version</th>
-                    <th>Aktualisiert</th>
+                    <th>{{ t('updated', locale) }}</th>
                     <th></th>
                 </tr>
                 </thead>
@@ -89,12 +90,12 @@
                         <td>{{ node.installedVersion ?? '—' }}</td>
                         <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
                         <td class="ts6-align-right">
-                            <a class="ts6-link" href="/admin/ts6/nodes/{{ node.id }}">Details</a>
+                            <a class="ts6-link" href="/admin/ts6/nodes/{{ node.id }}">{{ t('admin_ts_nodes_details', locale) }}</a>
                         </td>
                     </tr>
                 {% else %}
                     <tr>
-                        <td colspan="6" class="ts6-empty">Keine TS6 Nodes vorhanden.</td>
+                        <td colspan="6" class="ts6-empty">{{ t('admin_ts_nodes_none', locale) }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>

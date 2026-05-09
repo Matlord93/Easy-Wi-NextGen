@@ -3,6 +3,7 @@
 {% block title %}TS6 Virtual Server · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
     <div class="ts6-page">
         <div class="ts6-header">
             <div>
@@ -32,9 +33,9 @@
                         <th>Slots</th>
                         <th>Ports</th>
                         <th>Status</th>
-                        <th>Aktualisiert</th>
-                        <th>Zuordnung</th>
-                        <th>Aktionen</th>
+                        <th>{{ t('updated', locale) }}</th>
+                        <th>{{ t('admin_ts6_assignment', locale) }}</th>
+                        <th>{{ t('actions', locale) }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -50,7 +51,7 @@
                                     <div>{{ customer.name ?? customer.email }}</div>
                                     <div class="ts6-muted">#{{ customer.id }}</div>
                                 {% else %}
-                                    <span class="ts6-muted">Unbekannt</span>
+                                    <span class="ts6-muted">{{ t('customer_ts_unknown', locale) }}</span>
                                 {% endif %}
                             </td>
                             <td>
@@ -66,7 +67,7 @@
                                 <span class="ts6-pill">{{ server.status }}</span>
                                 {% set error = serverErrors[server.id] ?? null %}
                                 {% if error %}
-                                    <div class="ts6-error-detail"><strong>Fehler:</strong> {{ error.error ?? 'Unbekannter Fehler' }}</div>
+                                    <div class="ts6-error-detail"><strong>{{ t('customer_ts_action_error_prefix', locale) }}:</strong> {{ error.error ?? t('admin_ts6_unknown_error', locale) }}</div>
                                 {% elseif server.status == 'external' %}
                                     <div class="ts6-error-detail">Server wurde außerhalb des Panels angelegt.</div>
                                 {% elseif server.status == 'missing' %}
@@ -90,9 +91,9 @@
                                 </form>
                             </td>
                             <td>
-                                <form method="post" action="/admin/ts6/servers/{{ server.id }}/delete">
+                                <form method="post" action="/admin/ts6/servers/{{ server.id }}/delete" onsubmit="return confirm('{{ t('admin_ts6_server_delete_confirm', page_locale()) }}');">
                                     <input type="hidden" name="_token" value="{{ deleteTokens[server.id] ?? '' }}">
-                                    <button class="ts6-button" type="submit">Löschen</button>
+                                    <button class="ts6-button" type="submit">{{ t('admin_ts6_server_delete', page_locale()) }}</button>
                                 </form>
                             </td>
                         </tr>

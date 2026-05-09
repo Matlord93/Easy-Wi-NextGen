@@ -80,9 +80,13 @@ func handleInstanceBackupCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	if backupTargetType == "webdav" || backupTargetType == "nextcloud" {
-		remotePath, err := uploadBackupToWebdav(job.Payload, backupPath)
+		localPath := backupPath
+		remotePath, err := uploadBackupToWebdav(job.Payload, localPath)
 		if err != nil {
 			return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"error": err.Error(), "error_code": "backup_target_connection_failed"}, Completed: time.Now().UTC()}, nil
+		}
+		if err := os.Remove(localPath); err != nil && !os.IsNotExist(err) {
+			return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"error": fmt.Sprintf("remove local backup staging file: %v", err), "error_code": "backup_local_cleanup_failed"}, Completed: time.Now().UTC()}, nil
 		}
 		backupPath = remotePath
 	}
@@ -325,13 +329,44 @@ func webdavClient(verifyTLS bool) *http.Client {
 	return &http.Client{Timeout: 120 * time.Second, Transport: tr}
 }
 
+func webdavRemoteFolder(payload map[string]any) string {
+	p := payloadNestedValue(payload, "backup_target_config", "remote_path")
+	if p == "" {
+		p = payloadNestedValue(payload, "backup_target_config", "root_path")
+	}
+	return "/" + strings.TrimLeft(p, "/")
+}
+
+func webdavUsername(payload map[string]any) string {
+	u := payloadNestedValue(payload, "backup_target_config", "username")
+	if u == "" {
+		u = payloadNestedValue(payload, "backup_target_secret", "username")
+	}
+	return u
+}
+
+func applyWebdavAuth(req *http.Request, payload map[string]any) {
+	token := payloadNestedValue(payload, "backup_target_secret", "token")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+		return
+	}
+	req.SetBasicAuth(webdavUsername(payload), payloadNestedValue(payload, "backup_target_secret", "password"))
+}
+
+func hasWebdavCredentials(payload map[string]any) bool {
+	token := payloadNestedValue(payload, "backup_target_secret", "token")
+	if token != "" {
+		return true
+	}
+	return webdavUsername(payload) != "" && payloadNestedValue(payload, "backup_target_secret", "password") != ""
+}
+
 func uploadBackupToWebdav(payload map[string]any, localPath string) (string, error) {
 	baseURL := strings.TrimRight(payloadNestedValue(payload, "backup_target_config", "url"), "/")
-	remoteFolder := "/" + strings.TrimLeft(payloadNestedValue(payload, "backup_target_config", "remote_path"), "/")
-	username := payloadNestedValue(payload, "backup_target_config", "username")
-	password := payloadNestedValue(payload, "backup_target_secret", "password")
+	remoteFolder := webdavRemoteFolder(payload)
 	verifyTLS := strings.ToLower(payloadNestedValue(payload, "backup_target_config", "verify_tls")) != "false"
-	if baseURL == "" || username == "" || password == "" {
+	if baseURL == "" || !hasWebdavCredentials(payload) {
 		return "", fmt.Errorf("webdav target credentials/config missing")
 	}
 
@@ -353,7 +388,7 @@ func uploadBackupToWebdav(payload map[string]any, localPath string) (string, err
 			_ = f.Close()
 			return "", err
 		}
-		req.SetBasicAuth(username, password)
+		applyWebdavAuth(req, payload)
 
 		resp, err := webdavClient(verifyTLS).Do(req)
 		_ = f.Close()
@@ -379,10 +414,8 @@ func uploadBackupToWebdav(payload map[string]any, localPath string) (string, err
 }
 
 func downloadBackupFromWebdav(payload map[string]any, remote string) (string, error) {
-	username := payloadNestedValue(payload, "backup_target_config", "username")
-	password := payloadNestedValue(payload, "backup_target_secret", "password")
 	verifyTLS := strings.ToLower(payloadNestedValue(payload, "backup_target_config", "verify_tls")) != "false"
-	if remote == "" || username == "" || password == "" {
+	if remote == "" || !hasWebdavCredentials(payload) {
 		return "", fmt.Errorf("webdav restore credentials/config missing")
 	}
 
@@ -392,7 +425,7 @@ func downloadBackupFromWebdav(payload map[string]any, remote string) (string, er
 		if err != nil {
 			return "", err
 		}
-		req.SetBasicAuth(username, password)
+		applyWebdavAuth(req, payload)
 
 		resp, err := webdavClient(verifyTLS).Do(req)
 		if err != nil {

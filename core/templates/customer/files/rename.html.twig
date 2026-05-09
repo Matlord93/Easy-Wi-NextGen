@@ -1,14 +1,15 @@
 {% extends 'customer/base.html.twig' %}
 
 {% block content %}
+    {% set locale = page_locale() %}
     <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
-                <h1 class="text-xl font-semibold text-slate-900">Eintrag umbenennen</h1>
+                <h1 class="text-xl font-semibold text-slate-900">{{ t('customer_files_rename', locale) }}</h1>
                 <p class="text-sm text-slate-600">Pfad: <span class="font-mono text-slate-900">{{ path }}</span></p>
             </div>
             <a href="{{ path('customer_files_browse', { path: path|split('/')|slice(0, -1)|join('/'), webspace: webspace.id }) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-indigo-200 hover:text-indigo-600">
-                Zurück zur Liste
+                {{ t('customer_files_cancel', locale) }}
             </a>
         </div>
 
@@ -19,7 +20,7 @@
         {{ form_start(form, { attr: { class: 'mt-6 space-y-4' } }) }}
             {{ form_widget(form.path) }}
             {{ form_row(form.newName) }}
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700">Umbenennen</button>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700">{{ t('customer_files_rename', locale) }}</button>
         {{ form_end(form) }}
     </section>
 {% endblock %}

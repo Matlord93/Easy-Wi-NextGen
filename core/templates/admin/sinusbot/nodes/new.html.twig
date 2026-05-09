@@ -1,13 +1,14 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}SinusBot Node erstellen · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_sinusbot_node_add_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
     <div class="sinusbot-page">
         <div class="sinusbot-header">
             <div>
-                <h1>SinusBot Node hinzufügen</h1>
-                <p>Der registrierte Webinterface-Agent wird automatisch genutzt. Eine manuelle Agent-Service-URL ist nicht mehr nötig.</p>
+                <h1>{{ t('admin_sinusbot_node_add_title', locale) }}</h1>
+                <p>{{ t('admin_sinusbot_node_add_desc', locale) }}</p>
             </div>
         </div>
 
@@ -16,14 +17,14 @@
                 {{ form_errors(form) }}
                 <div class="sinusbot-grid">
                     {{ form_row(form.name, { label: 'Name' }) }}
-                    {{ form_row(form.customerId, { label: 'Kunde' }) }}
+                    {{ form_row(form.customerId, { label: t('admin_sinusbot_customer_label', locale) }) }}
                     {{ form_row(form.downloadUrl, { label: 'SinusBot Download URL' }) }}
-                    {{ form_row(form.installPath, { label: 'Installationspfad' }) }}
-                    {{ form_row(form.webBindIp, { label: 'Web Bind IP' }) }}
+                    {{ form_row(form.installPath, { label: t('admin_sinusbot_install_path_label', locale) }) }}
+                    {{ form_row(form.webBindIp, { label: t('admin_sinusbot_web_bind_label', locale) }) }}
                     {{ form_row(form.webPortBase, { label: 'Web Port Basis' }) }}
                 </div>
                 <div class="sinusbot-actions">
-                    <button class="sinusbot-button" type="submit">Node speichern</button>
+                    <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_node_save', locale) }}</button>
                 </div>
             {{ form_end(form) }}
         </div>

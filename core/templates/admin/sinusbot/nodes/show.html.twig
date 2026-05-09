@@ -2,17 +2,18 @@
 
 
 {% block content %}
+{% set locale = page_locale() %}
     <div class="sinusbot-page">
         <div class="sinusbot-header">
             <div>
                 <h1>{{ node.name }}</h1>
-                <p>{{ t('admin_sinusbot_intro', page_locale()) }}</p>
+                <p>{{ t('admin_sinusbot_intro', locale) }}</p>
             </div>
             <div class="sinusbot-actions">
-                <a class="sinusbot-link" href="/admin/sinusbot/nodes">{{ t('admin_sinusbot_back_to_overview', page_locale()) }}</a>
-                <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/delete" onsubmit="return confirm('SinusBot Node wirklich löschen?');">
+                <a class="sinusbot-link" href="/admin/sinusbot/nodes">{{ t('admin_sinusbot_back_to_overview', locale) }}</a>
+                <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/delete" onsubmit="return confirm('{{ t('admin_sinusbot_delete_confirm', locale) }}');">
                     <input type="hidden" name="_token" value="{{ csrf.delete }}">
-                    <button class="sinusbot-button" type="submit">Löschen</button>
+                    <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_delete', locale) }}</button>
                 </form>
             </div>
         </div>
@@ -31,8 +32,8 @@
             <div class="sinusbot-card">
                 <div class="sinusbot-card-header">
                     <div>
-                        <h2>{{ t('admin_sinusbot_installation_title', page_locale()) }}</h2>
-                        <p class="sinusbot-muted">Status und Steuerung für die Node.</p>
+                        <h2>{{ t('admin_sinusbot_installation_title', locale) }}</h2>
+                        <p class="sinusbot-muted">{{ t('admin_sinusbot_service_desc', locale) }}</p>
                     </div>
                     <div class="sinusbot-status-group">
                         <span class="sinusbot-pill">{{ node.installStatus }}</span>
@@ -40,33 +41,33 @@
                     </div>
                 </div>
                 <div class="sinusbot-meta">
-                    <div><strong>{{ t('admin_sinusbot_status_label', page_locale()) }}</strong> {{ node.installStatus }}</div>
-                    <div><strong>Runtime:</strong> {{ node.running ? 'running' : 'stopped' }}</div>
-                    <div><strong>{{ t('admin_sinusbot_version_label', page_locale()) }}</strong> {{ node.installedVersion ?? '–' }}</div>
-                    <div><strong>{{ t('admin_sinusbot_last_error_label', page_locale()) }}</strong> {{ node.lastError ?? '–' }}</div>
+                    <div><strong>{{ t('admin_sinusbot_status_label', locale) }}</strong> {{ node.installStatus }}</div>
+                    <div><strong>{{ t('admin_sinusbot_runtime', locale) }}:</strong> {{ node.running ? t('admin_sinusbot_start_instance', locale) : t('admin_sinusbot_stop_instance', locale) }}</div>
+                    <div><strong>{{ t('admin_sinusbot_version_label', locale) }}</strong> {{ node.installedVersion ?? '–' }}</div>
+                    <div><strong>{{ t('admin_sinusbot_last_error_label', locale) }}</strong> {{ node.lastError ?? '–' }}</div>
                 </div>
                 <div class="sinusbot-actions">
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/install">
                         <input type="hidden" name="_token" value="{{ csrf.install }}">
-                        <button class="sinusbot-button" type="submit" data-loading-text="Installiere…">{{ t('admin_sinusbot_install_repair', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Installiere…">{{ t('admin_sinusbot_install_repair', locale) }}</button>
                     </form>
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/refresh">
                         <input type="hidden" name="_token" value="{{ csrf.refresh }}">
-                        <button class="sinusbot-button" type="submit" data-loading-text="Aktualisiere…">{{ t('admin_sinusbot_refresh_status', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Aktualisiere…">{{ t('admin_sinusbot_refresh_status', locale) }}</button>
                     </form>
                 </div>
                 <div class="sinusbot-actions">
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/start">
                         <input type="hidden" name="_token" value="{{ csrf.start }}">
-                        <button class="sinusbot-button" type="submit" data-loading-text="Starte…">{{ t('admin_sinusbot_start', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Starte…">{{ t('admin_sinusbot_start', locale) }}</button>
                     </form>
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/stop">
                         <input type="hidden" name="_token" value="{{ csrf.stop }}">
-                        <button class="sinusbot-button" type="submit" data-loading-text="Stoppe…">{{ t('admin_sinusbot_stop', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Stoppe…">{{ t('admin_sinusbot_stop', locale) }}</button>
                     </form>
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/restart">
                         <input type="hidden" name="_token" value="{{ csrf.restart }}">
-                        <button class="sinusbot-button" type="submit" data-loading-text="Starte neu…">{{ t('admin_sinusbot_restart', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit" data-loading-text="Starte neu…">{{ t('admin_sinusbot_restart', locale) }}</button>
                     </form>
                 </div>
             </div>
@@ -74,8 +75,8 @@
             <div class="sinusbot-card">
                 <div class="sinusbot-card-header">
                     <div>
-                        <h2>Kunden-Instanzen</h2>
-                        <p class="sinusbot-muted">Pro Kunde wird eine eigene SinusBot-Instanz mit Bot-Quota verwaltet.</p>
+                        <h2>{{ t('admin_sinusbot_customer_instances_title', locale) }}</h2>
+                        <p class="sinusbot-muted">{{ t('admin_sinusbot_customer_instances_desc', locale) }}</p>
                     </div>
                 </div>
                 <form class="sinusbot-form" method="post" action="/admin/sinusbot/instances/create">
@@ -83,163 +84,163 @@
                     <input type="hidden" name="node_id" value="{{ node.id }}">
                     <div class="sinusbot-grid">
                         <div>
-                            <label for="customer_id">Kunde</label>
+                            <label for="customer_id">{{ t('admin_sinusbot_customer_label', locale) }}</label>
                             <select id="customer_id" name="customer_id" required>
-                                <option value="">Bitte wählen</option>
+                                <option value="">{{ t('admin_sinusbot_select_customer', locale) }}</option>
                                 {% for customer in customers %}
                                     <option value="{{ customer.id }}">{{ customer.email }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div>
-                            <label for="quota">Bot-Quota</label>
+                            <label for="quota">{{ t('admin_sinusbot_quota_label', locale) }}</label>
                             <input id="quota" name="quota" type="number" min="{{ quota_min }}" max="{{ quota_max }}" value="{{ quota_min }}" required>
                         </div>
                         <div>
-                            <label for="username">Username (optional)</label>
+                            <label for="username">{{ t('admin_sinusbot_username_optional', locale) }}</label>
                             <input id="username" name="username" type="text" placeholder="auto">
                         </div>
                     </div>
-                    <button class="sinusbot-button" type="submit">Instanz erstellen</button>
+                    <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_create_instance', locale) }}</button>
                 </form>
 
                 {% if instances is not empty %}
                     <div class="sinusbot-instance-list">
                         {% for instance in instances %}
-                            {% set instanceStatusLabel = instance.status == 'running' ? 'Online' : (instance.status == 'stopped' ? 'Offline' : 'Unbekannt') %}
+                            {% set instanceStatusLabel = instance.status == 'running' ? t('admin_sinusbot_instance_online', locale) : (instance.status == 'stopped' ? t('admin_sinusbot_instance_offline', locale) : t('customer_ts_unknown', locale)) %}
                             {% set instanceStatusClass = instance.status == 'running' ? 'sinusbot-pill--success' : (instance.status == 'stopped' ? 'sinusbot-pill--danger' : 'sinusbot-pill--warning') %}
                             {% set instancePassword = instance_passwords[instance.id] ?? null %}
                             {% set botId = instance.botId ?? instance.instanceId %}
                             <div class="sinusbot-instance-card">
                                 <div class="sinusbot-card-header">
                                     <div>
-                                        <h3>{{ instance.customer ? instance.customer.email : 'Unbekannter Kunde' }}</h3>
-                                        <p class="sinusbot-muted">Instanz-ID {{ instance.instanceId }}</p>
+                                        <h3>{{ instance.customer ? instance.customer.email : t('admin_sinusbot_unknown_customer', locale) }}</h3>
+                                        <p class="sinusbot-muted">{{ t('admin_sinusbot_instance_id_label', locale) }} {{ instance.instanceId }}</p>
                                     </div>
                                     <span class="sinusbot-pill {{ instanceStatusClass }}">{{ instanceStatusLabel }}</span>
                                 </div>
                                 <div class="sinusbot-instance-grid">
                                     <div class="sinusbot-field">
-                                        <span class="sinusbot-field__label">Status</span>
+                                        <span class="sinusbot-field__label">{{ t('admin_sinusbot_status', locale) }}</span>
                                         <span class="sinusbot-field__value">{{ instance.status }}</span>
                                     </div>
                                     <div class="sinusbot-field">
-                                        <span class="sinusbot-field__label">Letzter Check</span>
+                                        <span class="sinusbot-field__label">{{ t('admin_sinusbot_last_check', locale) }}</span>
                                         <span class="sinusbot-field__value">
                                             {{ instance.lastSeenAt ? instance.lastSeenAt|date('Y-m-d H:i') : '—' }}
                                         </span>
                                     </div>
                                     <div class="sinusbot-field">
-                                        <span class="sinusbot-field__label">Bot-ID</span>
+                                        <span class="sinusbot-field__label">{{ t('admin_sinusbot_bot_id', locale) }}</span>
                                         {% if botId %}
                                             <span class="sinusbot-field__value">{{ botId }}</span>
                                         {% else %}
                                             <span class="sinusbot-field__value">—</span>
-                                            <span class="sinusbot-hint">Noch keine Bot-ID gemeldet (Status-Refresh ausführen).</span>
+                                            <span class="sinusbot-hint">{{ t('admin_sinusbot_no_bot_id', locale) }}</span>
                                         {% endif %}
                                     </div>
                                     <div class="sinusbot-field">
-                                        <span class="sinusbot-field__label">Verwaltungs-URL</span>
+                                        <span class="sinusbot-field__label">{{ t('admin_sinusbot_manage_url', locale) }}</span>
                                         {% if instance.manageUrl %}
                                             <div class="sinusbot-field__value">
                                                 <a class="sinusbot-link" href="{{ instance.manageUrl }}" target="_blank" rel="noopener noreferrer">{{ instance.manageUrl }}</a>
-                                                <button class="sinusbot-copy" type="button" data-sinusbot-copy="{{ instance.manageUrl }}">Kopieren</button>
+                                                <button class="sinusbot-copy" type="button" data-sinusbot-copy="{{ instance.manageUrl }}">{{ t('admin_sinusbot_copy', locale) }}</button>
                                             </div>
                                         {% else %}
                                             <span class="sinusbot-field__value">—</span>
-                                            <span class="sinusbot-hint">URL fehlt: WebBind-IP/Port wurde vom Agenten noch nicht gemeldet.</span>
+                                            <span class="sinusbot-hint">{{ t('admin_sinusbot_manage_url_missing', locale) }}</span>
                                         {% endif %}
                                     </div>
                                     <div class="sinusbot-field">
-                                        <span class="sinusbot-field__label">Benutzername</span>
+                                        <span class="sinusbot-field__label">{{ t('admin_sinusbot_username_field', locale) }}</span>
                                         {% if instance.sinusbotUsername %}
                                             <div class="sinusbot-field__value">
                                                 <span>{{ instance.sinusbotUsername }}</span>
-                                                <button class="sinusbot-copy" type="button" data-sinusbot-copy="{{ instance.sinusbotUsername }}">Kopieren</button>
+                                                <button class="sinusbot-copy" type="button" data-sinusbot-copy="{{ instance.sinusbotUsername }}">{{ t('admin_sinusbot_copy', locale) }}</button>
                                             </div>
                                         {% else %}
                                             <span class="sinusbot-field__value">—</span>
-                                            <span class="sinusbot-hint">Noch kein Username gemeldet (Provisioning läuft oder Status-Refresh).</span>
+                                            <span class="sinusbot-hint">{{ t('admin_sinusbot_no_username', locale) }}</span>
                                         {% endif %}
                                     </div>
                                     <div class="sinusbot-field">
-                                        <span class="sinusbot-field__label">Passwort</span>
+                                        <span class="sinusbot-field__label">{{ t('admin_sinusbot_password', locale) }}</span>
                                         {% if instancePassword %}
                                             <div class="sinusbot-field__value sinusbot-secret-row">
-                                                <span class="sinusbot-secret" data-sinusbot-secret="{{ instancePassword }}">••••••••</span>
-                                                <button class="sinusbot-button sinusbot-button--ghost" type="button" data-sinusbot-reveal>Passwort anzeigen</button>
+                                                <span class="sinusbot-secret" data-sinusbot-secret="{{ instancePassword }}" data-label-reveal="{{ t('admin_sinusbot_password_reveal', locale) }}" data-label-hide="{{ t('admin_sinusbot_password_hide', locale) }}">••••••••</span>
+                                                <button class="sinusbot-button sinusbot-button--ghost" type="button" data-sinusbot-reveal>{{ t('admin_sinusbot_password_reveal', locale) }}</button>
                                             </div>
                                         {% else %}
                                             <span class="sinusbot-field__value">—</span>
-                                            <span class="sinusbot-hint">Passwort noch nicht gespeichert (Provisioning-Result fehlt).</span>
+                                            <span class="sinusbot-hint">{{ t('admin_sinusbot_password_missing', locale) }}</span>
                                         {% endif %}
                                     </div>
                                     <div class="sinusbot-field">
-                                        <span class="sinusbot-field__label">Quota</span>
+                                        <span class="sinusbot-field__label">{{ t('admin_sinusbot_quota', locale) }}</span>
                                         <span class="sinusbot-field__value">{{ instance.botQuota }}</span>
                                     </div>
                                 </div>
                                 <div class="sinusbot-actions">
                                     <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/start">
                                         <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].start }}">
-                                        <button class="sinusbot-button" type="submit" data-loading-text="Starte…">Starten</button>
+                                        <button class="sinusbot-button" type="submit" data-loading-text="Starte…">{{ t('admin_sinusbot_start_instance', locale) }}</button>
                                     </form>
                                     <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/stop">
                                         <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].stop }}">
-                                        <button class="sinusbot-button" type="submit" data-loading-text="Stoppe…">Stoppen</button>
+                                        <button class="sinusbot-button" type="submit" data-loading-text="Stoppe…">{{ t('admin_sinusbot_stop_instance', locale) }}</button>
                                     </form>
                                     <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/restart">
                                         <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].restart }}">
-                                        <button class="sinusbot-button" type="submit" data-loading-text="Starte neu…">Restart</button>
+                                        <button class="sinusbot-button" type="submit" data-loading-text="Starte neu…">{{ t('admin_sinusbot_restart_instance', locale) }}</button>
                                     </form>
                                     <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/reset-password">
                                         <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].reset }}">
-                                        <button class="sinusbot-button" type="submit" data-loading-text="Setze zurück…">Passwort reset</button>
+                                        <button class="sinusbot-button" type="submit" data-loading-text="Setze zurück…">{{ t('admin_sinusbot_password_reset_btn', locale) }}</button>
                                     </form>
                                 </div>
                                 <form class="sinusbot-form sinusbot-form-inline" method="post" action="/admin/sinusbot/instances/{{ instance.id }}/quota">
                                     <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].quota }}">
-                                    <label for="quota_{{ instance.id }}">Bot-Quota</label>
+                                    <label for="quota_{{ instance.id }}">{{ t('admin_sinusbot_quota_label', locale) }}</label>
                                     <input id="quota_{{ instance.id }}" name="quota" type="number" min="{{ quota_min }}" max="{{ quota_max }}" value="{{ instance.botQuota }}" required>
-                                    <button class="sinusbot-button" type="submit">Quota aktualisieren</button>
+                                    <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_quota_update', locale) }}</button>
                                 </form>
-                                <form class="sinusbot-form" method="post" action="/admin/sinusbot/instances/{{ instance.id }}/delete" onsubmit="return confirm('SinusBot-Instanz wirklich löschen?');">
+                                <form class="sinusbot-form" method="post" action="/admin/sinusbot/instances/{{ instance.id }}/delete" onsubmit="return confirm('{{ t('admin_sinusbot_instance_delete_confirm', locale) }}');">
                                     <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].delete }}">
                                     <div class="sinusbot-actions">
                                         <label>
                                             <input type="radio" name="mode" value="delete" checked>
-                                            Löschen inkl. Agent
+                                            {{ t('admin_sinusbot_delete_with_agent', locale) }}
                                         </label>
                                         <label>
                                             <input type="radio" name="mode" value="detach">
-                                            Nur Zuordnung entfernen
+                                            {{ t('admin_sinusbot_detach_only', locale) }}
                                         </label>
-                                        <button class="sinusbot-button" type="submit">Instanz löschen</button>
+                                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_delete_instance', locale) }}</button>
                                     </div>
                                 </form>
                             </div>
                         {% endfor %}
                     </div>
                 {% else %}
-                    <p class="sinusbot-muted">Keine Kunden-Instanzen vorhanden.</p>
+                    <p class="sinusbot-muted">{{ t('admin_sinusbot_no_instances', locale) }}</p>
                 {% endif %}
             </div>
 
             <div class="sinusbot-card">
                 <div class="sinusbot-card-header">
                     <div>
-                        <h2>Letzte Jobs</h2>
-                        <p class="sinusbot-muted">Agent-Protokolle zur Fehlersuche.</p>
+                        <h2>{{ t('admin_sinusbot_recent_jobs', locale) }}</h2>
+                        <p class="sinusbot-muted">{{ t('admin_sinusbot_jobs_desc', locale) }}</p>
                     </div>
                 </div>
                 {% if agent_jobs is not empty %}
                     {% for job in agent_jobs %}
                         <div class="sinusbot-meta">
-                            <div><strong>Typ:</strong> {{ job.type }}</div>
-                            <div><strong>Status:</strong> {{ job.status.value }}</div>
-                            <div><strong>Gestartet:</strong> {{ job.startedAt ? job.startedAt|date('Y-m-d H:i') : '—' }}</div>
-                            <div><strong>Beendet:</strong> {{ job.finishedAt ? job.finishedAt|date('Y-m-d H:i') : '—' }}</div>
-                            <div><strong>Fehler:</strong> {{ job.errorText ?? '—' }}</div>
+                            <div><strong>{{ t('admin_sinusbot_job_type', locale) }}</strong> {{ job.type }}</div>
+                            <div><strong>{{ t('admin_sinusbot_job_status', locale) }}</strong> {{ job.status.value }}</div>
+                            <div><strong>{{ t('admin_sinusbot_job_started', locale) }}</strong> {{ job.startedAt ? job.startedAt|date('Y-m-d H:i') : '—' }}</div>
+                            <div><strong>{{ t('admin_sinusbot_job_finished', locale) }}</strong> {{ job.finishedAt ? job.finishedAt|date('Y-m-d H:i') : '—' }}</div>
+                            <div><strong>{{ t('admin_sinusbot_job_error', locale) }}</strong> {{ job.errorText ?? '—' }}</div>
                         </div>
                         {% if job.logText %}
                             <div class="sinusbot-code"><pre>{{ job.logText }}</pre></div>
@@ -252,26 +253,26 @@
                         {% endif %}
                     {% endfor %}
                 {% else %}
-                    <p class="sinusbot-muted">Keine Jobs vorhanden.</p>
+                    <p class="sinusbot-muted">{{ t('admin_sinusbot_no_jobs', locale) }}</p>
                 {% endif %}
             </div>
 
             <div class="sinusbot-card">
                 <div class="sinusbot-card-header">
                     <div>
-                        <h2>Sinusbot-Service</h2>
-                        <p class="sinusbot-muted">Management-Zugriff und Service-Konfiguration der Node.</p>
+                        <h2>{{ t('admin_sinusbot_service_title', locale) }}</h2>
+                        <p class="sinusbot-muted">{{ t('admin_sinusbot_service_desc', locale) }}</p>
                     </div>
                 </div>
                 <div class="sinusbot-meta">
-                    <div><strong>Zugewiesener Kunde:</strong> {{ node.customer ? node.customer.email : '–' }}</div>
-                    <div><strong>{{ t('admin_sinusbot_install_path_label', page_locale()) }}</strong> {{ node.installPath }}</div>
-                    <div><strong>{{ t('admin_sinusbot_web_bind_label', page_locale()) }}</strong> {{ node.webBindIp }}:{{ node.webPortBase }}</div>
-                    <div><strong>TS3-Client:</strong> {{ node.ts3ClientInstalled ? 'Installiert (Installed)' : 'Nicht installiert (Not installed)' }}</div>
-                    <div><strong>TS3-Client Version:</strong> {{ node.ts3ClientVersion ?? '–' }}</div>
-                    <div><strong>TS3-Client Pfad:</strong> {{ node.ts3ClientPath ?? '–' }}</div>
+                    <div><strong>{{ t('admin_sinusbot_assigned_customer', locale) }}</strong> {{ node.customer ? node.customer.email : '–' }}</div>
+                    <div><strong>{{ t('admin_sinusbot_install_path_label', locale) }}</strong> {{ node.installPath }}</div>
+                    <div><strong>{{ t('admin_sinusbot_web_bind_label', locale) }}</strong> {{ node.webBindIp }}:{{ node.webPortBase }}</div>
+                    <div><strong>{{ t('admin_sinusbot_ts3_client', locale) }}</strong> {{ node.ts3ClientInstalled ? t('admin_sinusbot_ts3_installed', locale) : t('admin_sinusbot_ts3_not_installed', locale) }}</div>
+                    <div><strong>{{ t('admin_sinusbot_ts3_version', locale) }}</strong> {{ node.ts3ClientVersion ?? '–' }}</div>
+                    <div><strong>{{ t('admin_sinusbot_ts3_path', locale) }}</strong> {{ node.ts3ClientPath ?? '–' }}</div>
                     <div>
-                        <strong>Verwaltungs-URL:</strong>
+                        <strong>{{ t('admin_sinusbot_manage_url_field', locale) }}</strong>
                         {% if management_url %}
                             <a class="sinusbot-link" href="{{ management_url }}" target="_blank" rel="noopener noreferrer">{{ management_url }}</a>
                         {% else %}
@@ -282,34 +283,34 @@
             </div>
 
             <div class="sinusbot-card">
-                <h2>Login-Daten (Admin)</h2>
-                <p class="sinusbot-muted">Zugangsdaten für den globalen SinusBot-Admin auf dieser Node.</p>
+                <h2>{{ t('admin_sinusbot_login_title', locale) }}</h2>
+                <p class="sinusbot-muted">{{ t('admin_sinusbot_login_desc', locale) }}</p>
                 {% if admin_password %}
                     <div class="sinusbot-credentials">
-                        <div><strong>{{ t('admin_sinusbot_username_label', page_locale()) }}</strong> {{ node.adminUsername ?? '–' }}</div>
+                        <div><strong>{{ t('admin_sinusbot_username_label', locale) }}</strong> {{ node.adminUsername ?? '–' }}</div>
                         <div class="sinusbot-secret">{{ admin_password }}</div>
                     </div>
-                    <button class="sinusbot-button" type="button" data-sinusbot-copy="{{ admin_password }}">{{ t('admin_sinusbot_copy', page_locale()) }}</button>
+                    <button class="sinusbot-button" type="button" data-sinusbot-copy="{{ admin_password }}">{{ t('admin_sinusbot_copy', locale) }}</button>
                 {% else %}
                     <div class="sinusbot-credentials">
-                        <div><strong>{{ t('admin_sinusbot_username_label', page_locale()) }}</strong> {{ node.adminUsername ?? '–' }}</div>
+                        <div><strong>{{ t('admin_sinusbot_username_label', locale) }}</strong> {{ node.adminUsername ?? '–' }}</div>
                         <div class="sinusbot-secret">••••••••</div>
                     </div>
                     <form method="post" action="/admin/sinusbot/nodes/{{ node.id }}/reveal-credentials">
                         <input type="hidden" name="_token" value="{{ csrf.reveal }}">
-                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_reveal', page_locale()) }}</button>
+                        <button class="sinusbot-button" type="submit">{{ t('admin_sinusbot_reveal', locale) }}</button>
                     </form>
                 {% endif %}
             </div>
 
             <div class="sinusbot-card">
-                <h2>{{ t('admin_sinusbot_user_management_title', page_locale()) }}</h2>
-                <p class="sinusbot-muted">{{ t('admin_sinusbot_user_management_description', page_locale()) }}</p>
+                <h2>{{ t('admin_sinusbot_user_management_title', locale) }}</h2>
+                <p class="sinusbot-muted">{{ t('admin_sinusbot_user_management_description', locale) }}</p>
                 <div class="sinusbot-code">
-                    <pre>{{ t('admin_sinusbot_user_management_example', page_locale()) }}</pre>
+                    <pre>{{ t('admin_sinusbot_user_management_example', locale) }}</pre>
                 </div>
                 <a class="sinusbot-link" href="https://sinusbot.github.io/api-docs/" target="_blank" rel="noopener noreferrer">
-                    {{ t('admin_sinusbot_user_management_link', page_locale()) }}
+                    {{ t('admin_sinusbot_user_management_link', locale) }}
                 </a>
             </div>
         </div>
@@ -343,12 +344,12 @@
                     if (revealed) {
                         secret.textContent = '••••••••';
                         secret.dataset.revealed = 'false';
-                        button.textContent = 'Passwort anzeigen';
+                        button.textContent = secret.dataset.labelReveal || 'Show Password';
                         return;
                     }
                     secret.textContent = value;
                     secret.dataset.revealed = 'true';
-                    button.textContent = 'Passwort verbergen';
+                    button.textContent = secret.dataset.labelHide || 'Hide Password';
                 });
             });
 

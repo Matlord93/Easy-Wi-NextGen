@@ -1,26 +1,27 @@
 {% extends 'admin/base.html.twig' %}
 {% block content %}
+{% set locale = page_locale() %}
 <div class="space-y-4">
     <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold">Events</h1>
-        <a href="/admin/cms/events/new" class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">New Event</a>
+        <h1 class="text-2xl font-semibold">{{ t('admin_cms_events_title', locale) }}</h1>
+        <a href="/admin/cms/events/new" class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_cms_events_new', locale) }}</a>
     </div>
     <div class="rounded-2xl border bg-white">
         <table class="min-w-full text-sm">
-            <thead><tr><th class="px-4 py-2 text-left">Title</th><th class="px-4 py-2 text-left">Start</th><th class="px-4 py-2 text-left">Status</th><th class="px-4 py-2 text-right">Actions</th></tr></thead>
+            <thead><tr><th class="px-4 py-2 text-left">{{ t('admin_cms_events_table_title', locale) }}</th><th class="px-4 py-2 text-left">{{ t('admin_cms_events_table_start', locale) }}</th><th class="px-4 py-2 text-left">{{ t('admin_cms_events_table_status', locale) }}</th><th class="px-4 py-2 text-right">{{ t('admin_cms_events_table_actions', locale) }}</th></tr></thead>
             <tbody>
             {% for event in events %}
                 <tr class="border-t">
                     <td class="px-4 py-2">{{ event.title }} <span class="text-xs text-slate-500">/{{ event.slug }}</span></td>
                     <td class="px-4 py-2">{{ event.startAt|date('Y-m-d H:i') }}</td>
-                    <td class="px-4 py-2">{{ event.status }} {% if not event.isPublished %}(draft){% endif %}</td>
+                    <td class="px-4 py-2">{{ event.status }} {% if not event.isPublished %}{{ t('admin_cms_events_draft', locale) }}{% endif %}</td>
                     <td class="px-4 py-2 text-right">
-                        <a class="text-indigo-600" href="/admin/cms/events/{{ event.id }}/edit">Edit</a>
-                        <form method="post" action="/admin/cms/events/{{ event.id }}/delete" class="inline"><button class="ml-3 text-rose-600">Delete</button></form>
+                        <a class="text-indigo-600" href="/admin/cms/events/{{ event.id }}/edit">{{ t('admin_cms_events_edit', locale) }}</a>
+                        <form method="post" action="/admin/cms/events/{{ event.id }}/delete" class="inline"><button class="ml-3 text-rose-600">{{ t('admin_cms_events_delete', locale) }}</button></form>
                     </td>
                 </tr>
             {% else %}
-                <tr><td colspan="4" class="px-4 py-6 text-center text-slate-500">No events yet.</td></tr>
+                <tr><td colspan="4" class="px-4 py-6 text-center text-slate-500">{{ t('admin_cms_events_empty', locale) }}</td></tr>
             {% endfor %}
             </tbody>
         </table>

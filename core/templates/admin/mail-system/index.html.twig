@@ -3,6 +3,7 @@
 {% block title %}{{ t('admin_mail_system_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="flex items-center justify-between mb-6">
     <div>
         <h1 class="text-2xl font-semibold">{{ t('admin_mail_system_title', page_locale()) }}</h1>
@@ -54,7 +55,7 @@
     <div class="px-5 py-4 border-b border-slate-100">
         <h3 class="text-sm font-semibold text-slate-900 mb-2">Quellen</h3>
         {% if status.sources is empty %}
-            <p class="text-sm text-slate-600">Keine Mail-Logdaten vorhanden.</p>
+            <p class="text-sm text-slate-600">{{ t('admin_mail_no_log_data', locale) }}</p>
         {% else %}
             <div class="flex flex-wrap gap-2">
                 {% for source, total in status.sources %}
@@ -78,7 +79,7 @@
             </thead>
             <tbody class="divide-y divide-slate-200">
             {% if status.recent is empty %}
-                <tr><td colspan="7" class="px-5 py-5 text-sm text-slate-600">Keine Einträge vorhanden.</td></tr>
+                <tr><td colspan="7" class="px-5 py-5 text-sm text-slate-600">{{ t('admin_mail_no_entries', locale) }}</td></tr>
             {% else %}
                 {% for row in status.recent %}
                     <tr>

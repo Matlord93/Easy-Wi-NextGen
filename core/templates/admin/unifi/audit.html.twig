@@ -4,6 +4,7 @@
 {% set pageSubtitle = 'Sync Aktivitäten & Fehler' %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="space-y-6">
     {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'audit' } %}
 
@@ -31,7 +32,7 @@
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">Keine Logs vorhanden.</td>
+                            <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">{{ t('admin_unifi_no_logs', locale) }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

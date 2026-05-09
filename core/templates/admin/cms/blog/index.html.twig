@@ -4,56 +4,57 @@
 {% set pageSubtitle = t('cms_blog_description', page_locale()) %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-semibold">{{ t('cms_blog_title', page_locale()) }}</h1>
-            <p class="text-sm text-slate-600">{{ t('cms_blog_description', page_locale()) }}</p>
+            <h1 class="text-2xl font-semibold">{{ t('cms_blog_title', locale) }}</h1>
+            <p class="text-sm text-slate-600">{{ t('cms_blog_description', locale) }}</p>
         </div>
         <a href="/admin/cms/blog/new" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
-            {{ t('cms_blog_new', page_locale()) }}
+            {{ t('cms_blog_new', locale) }}
         </a>
     </div>
 
     <div class="grid gap-6 lg:grid-cols-2">
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Categories</h2>
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">{{ t('admin_cms_blog_categories_title', locale) }}</h2>
             <form method="post" action="/admin/cms/blog/categories" class="mt-3 grid gap-2 sm:grid-cols-3">
                 <input name="name" placeholder="Name" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                 <input name="slug" placeholder="slug" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">Create</button>
+                <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">{{ t('admin_cms_blog_create_category', locale) }}</button>
             </form>
             <div class="mt-4 space-y-2 text-sm">
                 {% for category in categories %}
                     <div class="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
                         <span>{{ category.name }} <span class="text-xs text-slate-500">({{ category.slug }})</span></span>
                         <form method="post" action="/admin/cms/blog/categories/{{ category.id }}/delete">
-                            <button class="text-xs font-semibold text-rose-600">Delete</button>
+                            <button class="text-xs font-semibold text-rose-600">{{ t('admin_cms_blog_delete', locale) }}</button>
                         </form>
                     </div>
                 {% else %}
-                    <p class="text-xs text-slate-500">No categories yet.</p>
+                    <p class="text-xs text-slate-500">{{ t('admin_cms_blog_no_categories', locale) }}</p>
                 {% endfor %}
             </div>
         </div>
 
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Tags</h2>
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">{{ t('admin_cms_blog_tags_title', locale) }}</h2>
             <form method="post" action="/admin/cms/blog/tags" class="mt-3 grid gap-2 sm:grid-cols-3">
                 <input name="name" placeholder="Name" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                 <input name="slug" placeholder="slug" class="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">Create</button>
+                <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">{{ t('admin_cms_blog_create_category', locale) }}</button>
             </form>
             <div class="mt-4 space-y-2 text-sm">
                 {% for tag in tags %}
                     <div class="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
                         <span>{{ tag.name }} <span class="text-xs text-slate-500">({{ tag.slug }})</span></span>
                         <form method="post" action="/admin/cms/blog/tags/{{ tag.id }}/delete">
-                            <button class="text-xs font-semibold text-rose-600">Delete</button>
+                            <button class="text-xs font-semibold text-rose-600">{{ t('admin_cms_blog_delete', locale) }}</button>
                         </form>
                     </div>
                 {% else %}
-                    <p class="text-xs text-slate-500">No tags yet.</p>
+                    <p class="text-xs text-slate-500">{{ t('admin_cms_blog_no_tags', locale) }}</p>
                 {% endfor %}
             </div>
         </div>
@@ -63,11 +64,11 @@
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                    <th class="px-4 py-3">{{ t('title', page_locale()) }}</th>
-                    <th class="px-4 py-3">Category</th>
-                    <th class="px-4 py-3">Tags</th>
-                    <th class="px-4 py-3">{{ t('status', page_locale()) }}</th>
-                    <th class="px-4 py-3 text-right">{{ t('actions', page_locale()) }}</th>
+                    <th class="px-4 py-3">{{ t('title', locale) }}</th>
+                    <th class="px-4 py-3">{{ t('admin_cms_blog_category_col', locale) }}</th>
+                    <th class="px-4 py-3">{{ t('admin_cms_blog_tags_col', locale) }}</th>
+                    <th class="px-4 py-3">{{ t('status', locale) }}</th>
+                    <th class="px-4 py-3 text-right">{{ t('actions', locale) }}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-200">
@@ -81,16 +82,16 @@
                         <td class="px-4 py-3 text-xs text-slate-600">{{ post.tags|join(', ') ?: '-' }}</td>
                         <td class="px-4 py-3">
                             {% if post.is_published %}
-                                <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{{ t('published', page_locale()) }}</span>
+                                <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{{ t('published', locale) }}</span>
                             {% else %}
-                                <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">Draft</span>
+                                <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{{ t('admin_cms_blog_draft_badge', locale) }}</span>
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-right">
                             <div class="inline-flex items-center gap-2">
-                                <a href="/admin/cms/blog/{{ post.id }}/edit" class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">{{ t('edit', page_locale()) }}</a>
-                                <form method="post" action="/admin/cms/blog/{{ post.id }}/delete" onsubmit="return confirm('{{ t('cms_blog_delete_confirm', page_locale()) }}');">
-                                    <button class="rounded-lg border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50" type="submit">{{ t('delete', page_locale()) }}</button>
+                                <a href="/admin/cms/blog/{{ post.id }}/edit" class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50">{{ t('edit', locale) }}</a>
+                                <form method="post" action="/admin/cms/blog/{{ post.id }}/delete" onsubmit="return confirm('{{ t('cms_blog_delete_confirm', locale) }}');">
+                                    <button class="rounded-lg border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50" type="submit">{{ t('delete', locale) }}</button>
                                 </form>
                             </div>
                         </td>
@@ -98,7 +99,7 @@
                 {% else %}
                     <tr>
                         <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">
-                            {{ t('cms_blog_empty', page_locale()) }}
+                            {{ t('cms_blog_empty', locale) }}
                         </td>
                     </tr>
                 {% endfor %}

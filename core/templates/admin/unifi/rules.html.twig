@@ -4,6 +4,7 @@
 {% set pageSubtitle = 'Port Forward CRUD' %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="space-y-6">
     {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'rules' } %}
 
@@ -55,18 +56,18 @@
             </label>
             <label class="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" name="enabled" value="1" {{ form.enabled ? 'checked' : '' }} />
-                Aktiviert
+                {{ t('admin_unifi_rule_enabled', locale) }}
             </label>
             <div class="flex gap-2">
-                <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="submit">Speichern</button>
+                <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="submit">{{ t('admin_unifi_save', locale) }}</button>
                 {% if editRule %}
-                    <a href="/admin/unifi/rules" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Abbrechen</a>
+                    <a href="/admin/unifi/rules" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">{{ t('admin_unifi_cancel', locale) }}</a>
                 {% endif %}
             </div>
         </form>
 
         <div class="lg:col-span-2 rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700">Manuelle Regeln</div>
+            <div class="border-b border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700">{{ t('admin_unifi_manual_rules_title', locale) }}</div>
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead class="bg-slate-50 text-xs uppercase text-slate-500">
@@ -99,7 +100,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">Keine Regeln vorhanden.</td>
+                                <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">{{ t('admin_unifi_no_rules', locale) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>

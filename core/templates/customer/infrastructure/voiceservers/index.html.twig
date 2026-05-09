@@ -10,7 +10,8 @@
 ] %}
 
 {% block content %}
-    {% embed 'components/_card.html.twig' with { title: 'Deine Voiceserver', subtitle: 'Primäre Aktionen sind sichtbar, weitere Funktionen im Overflow-Menü.' } %}
+    {% set locale = page_locale() %}
+    {% embed 'components/_card.html.twig' with { title: t('customer_voiceservers_page_title', locale), subtitle: t('customer_voiceservers_page_desc', locale) } %}
         {% block card_body %}
             <div class="ng-server-list">
                 {% for server in servers %}
@@ -23,16 +24,16 @@
                         meta: [
                             { label: 'Voice', value: server.voicePort ?? '—' },
                             { label: 'File', value: server.filetransferPort ?? '—' },
-                            { label: 'Aktualisiert', value: server.updatedAt ? server.updatedAt|date('Y-m-d H:i') : '—' }
+                            { label: t('updated', locale), value: server.updatedAt ? server.updatedAt|date('Y-m-d H:i') : '—' }
                         ],
                         actions: [
-                            { label: 'Starten', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'primary', size: 'sm' },
-                            { label: 'Stoppen', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'secondary', size: 'sm' },
-                            { label: 'Neustart', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'secondary', size: 'sm' },
+                            { label: t('customer_voiceservers_start', locale), href: voiceBaseUrl ~ '/' ~ server.id, variant: 'primary', size: 'sm' },
+                            { label: t('customer_voiceservers_stop', locale), href: voiceBaseUrl ~ '/' ~ server.id, variant: 'secondary', size: 'sm' },
+                            { label: t('customer_voiceservers_restart', locale), href: voiceBaseUrl ~ '/' ~ server.id, variant: 'secondary', size: 'sm' },
                             { label: 'Token', href: voiceBaseUrl ~ '/' ~ server.id ~ '/token', variant: 'ghost', size: 'sm' },
                             { label: 'Ban-Liste', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' },
                             { label: 'Backup', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' },
-                            { label: 'Einstellungen', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' }
+                            { label: t('customer_voiceservers_name', locale), href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' }
                         ],
                         overflowActions: [
                             { label: 'Channels', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost' },
@@ -41,7 +42,7 @@
                         ]
                     } %}
                 {% else %}
-                    <p>Keine Voiceserver gefunden.</p>
+                    <p>{{ t('customer_voiceservers_none', locale) }}</p>
                 {% endfor %}
             </div>
         {% endblock %}

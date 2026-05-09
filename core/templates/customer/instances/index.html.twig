@@ -1,29 +1,67 @@
 {% extends 'customer/base.html.twig' %}
 
+{% set activeNav = 'gameservers' %}
 {% block title %}{{ t('customer_instances_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
-    <div class="customer-dashboard customer-dashboard--revamp customer-instances-modern customer-section-gradient flex flex-col gap-6">
-        <section class="dashboard-panel">
-            <div class="dashboard-panel__header">
-                <div>
-                    <h3>{{ t('customer_instances_title', page_locale()) }}</h3>
-                    <p>{{ t('customer_instances_intro', page_locale()) }}</p>
-                </div>
-                <div class="flex flex-wrap items-center justify-end gap-2">
-                    <button id="gs-instances-restart-selected" type="button" class="rounded-lg border border-slate-300 bg-white/90 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:text-slate-800">
-                        {{ t('customer_instances_restart_selected', page_locale()) }}
-                    </button>
-                    <button id="gs-instances-restart-all" type="button" class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:border-amber-400 hover:bg-amber-100">
-                        {{ t('customer_instances_restart_all', page_locale()) }}
-                    </button>
-                    <button id="gs-instances-refresh" type="button" class="rounded-lg border border-indigo-200 bg-white/90 px-3 py-2 text-xs font-semibold text-indigo-700 hover:border-indigo-300 hover:text-indigo-800">
-                        {{ t('customer_instances_refresh_now', page_locale()) }}
-                    </button>
-                </div>
-            </div>
-            <div id="gs-instances-list-error" class="hidden rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"></div>
+<div class="cust-page">
 
+    {# ── Hero ── #}
+    <div class="cust-hero">
+        <div class="cust-hero__inner">
+            <div>
+                <div class="cust-hero__label">Infrastruktur</div>
+                <h1 class="cust-hero__title">{{ t('customer_instances_title', page_locale()) }}</h1>
+                <p class="cust-hero__desc">{{ t('customer_instances_intro', page_locale()) }}</p>
+            </div>
+            <div class="cust-hero__actions">
+                <button id="gs-instances-refresh" type="button" class="ui-button ui-button--ghost">
+                    <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/></svg>
+                    {{ t('customer_instances_refresh_now', page_locale()) }}
+                </button>
+                <button id="gs-instances-restart-selected" type="button" class="ui-button ui-button--ghost">
+                    {{ t('customer_instances_restart_selected', page_locale()) }}
+                </button>
+                <button id="gs-instances-restart-all" type="button" class="ui-button ui-button--danger">
+                    {{ t('customer_instances_restart_all', page_locale()) }}
+                </button>
+            </div>
+        </div>
+
+        {# KPI stats #}
+        {% set onlineCount = instances|filter(i => (i.display_status ?? i.status) in ['running', 'online'])|length %}
+        {% set offlineCount = instances|filter(i => (i.display_status ?? i.status) in ['stopped', 'offline'])|length %}
+        <div class="cust-hero__stats" style="grid-template-columns:repeat(3,1fr);">
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">Gesamt</div>
+                <div class="cust-hero__stat-value">{{ instances|length }}</div>
+                <div class="cust-hero__stat-sub">Server</div>
+            </div>
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">Online</div>
+                <div class="cust-hero__stat-value" style="color:#4ade80;">{{ onlineCount }}</div>
+                <div class="cust-hero__stat-sub">Aktiv</div>
+            </div>
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">Offline</div>
+                <div class="cust-hero__stat-value" style="color:#f87171;">{{ offlineCount }}</div>
+                <div class="cust-hero__stat-sub">Gestoppt</div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Error banner ── #}
+    <div id="gs-instances-list-error" class="cust-alert cust-alert--error" style="display:none;"></div>
+
+    {# ── Server list ── #}
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div>
+                <h3 class="cust-panel__title">Deine Server</h3>
+                <p class="cust-panel__sub">Live-Status · wird alle 12 Sekunden aktualisiert</p>
+            </div>
+        </div>
+        <div class="cust-panel__body">
             <div
                 id="gameserver-instances-list"
                 data-poll-base-ms="12000"
@@ -36,22 +74,25 @@
                 data-label-restart-none-available="{{ t('customer_instances_restart_none_available', page_locale()) }}"
                 data-label-restart-bulk-queued="{{ t('customer_instances_restart_bulk_queued', page_locale()) }}"
                 data-label-restart-bulk-finished="{{ t('customer_instances_restart_bulk_finished', page_locale()) }}"
-                class="mt-4 grid gap-6 lg:grid-cols-2"
+                class="cust-server-grid"
             >
                 {% for instance in instances %}
                     <div id="instance-card-{{ instance.id }}">
                         {% include 'customer/instances/_summary_card.html.twig' with { instance: instance } %}
                     </div>
                 {% else %}
-                    <div class="dashboard-table__empty">
+                    <div class="cust-empty" style="grid-column:1/-1;">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/></svg>
                         {{ t('customer_instances_empty', page_locale()) }}
                     </div>
                 {% endfor %}
             </div>
-        </section>
+        </div>
     </div>
-    <script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
-    <script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
-    <script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
-    <script src="{{ asset('js/gameserver/instances-list-app.js') }}"></script>
+
+</div>
+<script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/errors.js') }}"></script>
+<script src="{{ asset('js/gameserver/shared/apiClient.js') }}"></script>
+<script src="{{ asset('js/gameserver/instances-list-app.js') }}"></script>
 {% endblock %}

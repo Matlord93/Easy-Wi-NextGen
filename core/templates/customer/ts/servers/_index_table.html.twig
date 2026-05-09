@@ -1,66 +1,104 @@
-<div class="{{ cssPrefix }}-page">
-    <div class="{{ cssPrefix }}-header">
-        <div>
-            <h1>{{ title }}</h1>
-            <p>{{ intro }}</p>
+{% set locale = page_locale() %}
+<div class="cust-page">
+
+    {# ── Hero ── #}
+    <div class="cust-hero">
+        <div class="cust-hero__inner">
+            <div>
+                <div class="cust-hero__label">Voice-Server</div>
+                <h1 class="cust-hero__title">{{ title }}</h1>
+                <p class="cust-hero__desc">{{ intro }}</p>
+            </div>
+        </div>
+
+        {% set onlineServers = servers|filter(row => row.server.status is defined and row.server.status in ['online', 'running', 'active'])|length %}
+        <div class="cust-hero__stats" style="grid-template-columns:repeat(2,1fr);max-width:320px;">
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">Gesamt</div>
+                <div class="cust-hero__stat-value">{{ servers|length }}</div>
+                <div class="cust-hero__stat-sub">Server</div>
+            </div>
+            <div class="cust-hero__stat">
+                <div class="cust-hero__stat-label">Online</div>
+                <div class="cust-hero__stat-value" style="color:#4ade80;">{{ onlineServers }}</div>
+                <div class="cust-hero__stat-sub">Aktiv</div>
+            </div>
         </div>
     </div>
 
+    {# Flash messages #}
     {% for message in app.flashes('success') %}
-        <div class="{{ cssPrefix }}-alert {{ cssPrefix }}-alert-success">{{ message }}</div>
+        <div class="cust-alert cust-alert--success">{{ message }}</div>
+    {% endfor %}
+    {% for message in app.flashes('error') %}
+        <div class="cust-alert cust-alert--error">{{ message }}</div>
     {% endfor %}
 
-    <div class="{{ cssPrefix }}-card">
-        <table class="{{ cssPrefix }}-table">
-            <thead>
-            <tr>
-                <th>{{ columns.name }}</th>
-                <th>{{ columns.address }}</th>
-                <th>{{ columns.slots }}</th>
-                <th>{{ columns.actions }}</th>
-            </tr>
-            </thead>
-            <tbody>
+    {# ── Server cards ── #}
+    {% if servers is empty %}
+        <div class="cust-panel">
+            <div class="cust-panel__body">
+                <div class="cust-empty">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>
+                    {{ emptyText }}
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="cust-ts-grid">
             {% for row in servers %}
                 {% set server = row.server %}
-                <tr>
-                    <td>
-                        <div>{{ server.name }}</div>
-                        <div class="{{ cssPrefix }}-muted">#{{ server.sid }}</div>
-                    </td>
-                    <td>
-                        <div>IP: {{ row.connectIp ?? server.node.queryConnectIp }}:{{ server.voicePort ?? '—' }}</div>
-                        <div class="{{ cssPrefix }}-muted">FT {{ server.filetransferPort ?? 30033 }}</div>
-                    </td>
-                    <td>
-                        <span data-summary-url="{{ row.summaryUrl }}" data-slots>—</span>
-                    </td>
-                    <td class="{{ cssPrefix }}-align-right">
-                        <div class="{{ cssPrefix }}-actions">
-                            <form method="post" action="{{ detailBase }}/{{ server.id }}/start">
-                                <input type="hidden" name="_token" value="{{ row.csrf.start }}">
-                                <button class="{{ cssPrefix }}-button" type="submit">Start</button>
-                            </form>
-                            <form method="post" action="{{ detailBase }}/{{ server.id }}/stop">
-                                <input type="hidden" name="_token" value="{{ row.csrf.stop }}">
-                                <button class="{{ cssPrefix }}-button" type="submit">Stop</button>
-                            </form>
-                            <form method="post" action="{{ detailBase }}/{{ server.id }}/restart">
-                                <input type="hidden" name="_token" value="{{ row.csrf.restart }}">
-                                <button class="{{ cssPrefix }}-button" type="submit">Neustart</button>
-                            </form>
-                            <a class="{{ cssPrefix }}-link" href="{{ detailBase }}/{{ server.id }}">Einstellung</a>
+                {% set status = server.status|default('unknown')|lower %}
+                {% set isOnline  = status in ['online', 'running', 'active'] %}
+                {% set isOffline = status in ['offline', 'stopped', 'stopping'] %}
+                {% set dotClass = isOnline ? 'success' : (isOffline ? 'danger' : 'warning') %}
+                <article class="cust-ts-card">
+                    <div class="cust-ts-card__head">
+                        <div>
+                            <h3 class="cust-ts-card__name">{{ server.name }}</h3>
+                            <div style="font-size:11px;color:var(--ng-text-muted);margin-top:3px;">SID #{{ server.sid }}</div>
                         </div>
-                    </td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td class="{{ cssPrefix }}-empty" colspan="4">{{ emptyText }}</td>
-                </tr>
+                        <span class="cust-status-dot cust-status-dot--{{ dotClass }}">{{ status|title }}</span>
+                    </div>
+
+                    <div class="cust-ts-card__meta">
+                        <div class="cust-ts-card__meta-row">
+                            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" style="flex-shrink:0"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077z"/></svg>
+                            IP / Connect:
+                            <strong>{{ row.connectIp ?? server.node.queryConnectIp }}:{{ server.voicePort ?? '—' }}</strong>
+                        </div>
+                        <div class="cust-ts-card__meta-row">
+                            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" style="flex-shrink:0"><path d="M9.669.864 8 0 6.331.864l-1.858.282-.842 1.68-1.337 1.32L2.6 6l-.306 1.854 1.337 1.32.842 1.68 1.858.282L8 12l1.669-.864 1.858-.282.842-1.68 1.337-1.32L13.4 6l.306-1.854-1.337-1.32-.842-1.68L9.669.864z"/></svg>
+                            Filetransfer:
+                            <strong>{{ server.filetransferPort ?? 30033 }}</strong>
+                        </div>
+                        <div class="cust-ts-card__meta-row">
+                            <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" style="flex-shrink:0"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4z"/></svg>
+                            Slots:
+                            <strong class="cust-ts-card__slots" data-summary-url="{{ row.summaryUrl }}" data-slots>—</strong>
+                        </div>
+                    </div>
+
+                    <div class="cust-ts-card__actions">
+                        <form method="post" action="{{ detailBase }}/{{ server.id }}/start">
+                            <input type="hidden" name="_token" value="{{ row.csrf.start }}">
+                            <button class="ui-button ui-button--primary ui-button--sm" type="submit">{{ t('customer_' ~ variant ~ '_server_start', locale) }}</button>
+                        </form>
+                        <form method="post" action="{{ detailBase }}/{{ server.id }}/stop">
+                            <input type="hidden" name="_token" value="{{ row.csrf.stop }}">
+                            <button class="ui-button ui-button--danger ui-button--sm" type="submit">{{ t('customer_' ~ variant ~ '_server_stop', locale) }}</button>
+                        </form>
+                        <form method="post" action="{{ detailBase }}/{{ server.id }}/restart">
+                            <input type="hidden" name="_token" value="{{ row.csrf.restart }}">
+                            <button class="ui-button ui-button--ghost ui-button--sm" type="submit">{{ t('customer_' ~ variant ~ '_server_restart', locale) }}</button>
+                        </form>
+                        <a class="ui-button ui-button--ghost ui-button--sm" href="{{ detailBase }}/{{ server.id }}" style="margin-left:auto;">{{ t('customer_' ~ variant ~ '_server_details', locale) }}</a>
+                    </div>
+                </article>
             {% endfor %}
-            </tbody>
-        </table>
-    </div>
+        </div>
+    {% endif %}
+
 </div>
 <script>
     (function () {
@@ -74,7 +112,7 @@
             const delayMs = 1500;
             const loadSummary = () => {
                 fetch(url)
-                    .then((response) => response.json())
+                    .then((r) => r.json())
                     .then((data) => {
                         if (!data) { return; }
                         if (data.status === 'pending' && attempts < maxAttempts) {
@@ -82,10 +120,7 @@
                             setTimeout(loadSummary, delayMs);
                             return;
                         }
-                        if (data.status === 'pending') {
-                            slotCell.textContent = '—';
-                            return;
-                        }
+                        if (data.status === 'pending') { slotCell.textContent = '—'; return; }
                         if (data.status !== 'ok') { return; }
                         slotCell.textContent = `${data.clients_online ?? 0}/${data.max_clients ?? 0}`;
                     })

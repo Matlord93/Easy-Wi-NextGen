@@ -597,7 +597,11 @@ final class RunSchedulesCommand extends Command implements SignalableCommandInte
         }
 
         $target = $this->backupTargetRepository->find((int) $defaultTargetId);
-        if ($target === null || !$target->isEnabled() || $target->getCustomer()->getId() !== $definition->getCustomer()->getId()) {
+        if ($target === null || !$target->isEnabled()) {
+            return null;
+        }
+
+        if (!$target->getCustomer()->isAdmin() && $target->getCustomer()->getId() !== $definition->getCustomer()->getId()) {
             return null;
         }
 

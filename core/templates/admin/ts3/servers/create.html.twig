@@ -1,17 +1,18 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}TS3 Server erstellen · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('admin_ts3_server_create_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
     <div class="ts3-page">
         <div class="ts3-header">
             <div>
-                <h1>TS3 Virtual Server anlegen</h1>
-                <p>Erstelle einen TS3 Server und ordne ihn einem Kunden zu.</p>
+                <h1>{{ t('admin_ts3_server_create_title', locale) }}</h1>
+                <p>{{ t('admin_ts3_server_create_intro', locale) }}</p>
             </div>
             <div class="ts3-actions">
-                <a class="ts3-link" href="/admin/ts3/servers">Übersicht</a>
-                <a class="ts3-link" href="/admin/ts3/nodes">Nodes verwalten</a>
+                <a class="ts3-link" href="/admin/ts3/servers">{{ t('admin_ts3_server_create_overview', locale) }}</a>
+                <a class="ts3-link" href="/admin/ts3/nodes">{{ t('admin_ts3_servers_manage_nodes', locale) }}</a>
             </div>
         </div>
 
@@ -25,14 +26,14 @@
         <div class="ts3-card">
             {{ form_start(form, { attr: { class: 'ts3-form' } }) }}
                 <div class="ts3-grid">
-                    {{ form_row(form.customerId, { label: 'Kunde' }) }}
-                    {{ form_row(form.nodeId, { label: 'Node' }) }}
+                    {{ form_row(form.customerId, { label: t('admin_ts3_servers_col_customer', locale) }) }}
+                    {{ form_row(form.nodeId, { label: t('admin_ts3_servers_col_node', locale) }) }}
                     {{ form_row(form.name, { label: 'Servername' }) }}
                     {{ form_row(form.voicePort, { label: 'Voice Port' }) }}
                     {{ form_row(form.filetransferPort, { label: 'Filetransfer Port' }) }}
                 </div>
                 <div class="ts3-actions">
-                    <button class="ts3-button" type="submit">Server erstellen</button>
+                    <button class="ts3-button" type="submit">{{ t('admin_ts3_server_create_btn', locale) }}</button>
                 </div>
             {{ form_end(form) }}
         </div>

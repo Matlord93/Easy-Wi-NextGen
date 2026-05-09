@@ -1,30 +1,31 @@
 {% extends 'customer/base.html.twig' %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="space-y-6" id="voice-root" data-api-base="{{ path('customer_voice_list_v1') }}">
     <div class="flex items-center justify-between gap-3">
         <div>
-            <h1 class="text-2xl font-semibold text-slate-900">Voice</h1>
-            <p class="text-sm text-slate-700">TeamSpeak v3/v6 Status mit Cache, Retry-After und idempotenten Aktionen.</p>
+            <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_voice_page_title', locale) }}</h1>
+            <p class="text-sm text-slate-700">{{ t('customer_voice_page_desc', locale) }}</p>
         </div>
-        <button type="button" data-refresh class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">Aktualisieren</button>
+        <button type="button" data-refresh class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">{{ t('customer_voice_refresh', locale) }}</button>
     </div>
 
     <div class="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
         <table class="min-w-full text-sm divide-y divide-slate-200">
             <thead class="bg-slate-50">
                 <tr>
-                    <th class="px-4 py-3 text-left">Name</th>
-                    <th class="px-4 py-3 text-left">Provider</th>
-                    <th class="px-4 py-3 text-left">Status</th>
-                    <th class="px-4 py-3 text-left">Players</th>
-                    <th class="px-4 py-3 text-left">Last probed</th>
-                    <th class="px-4 py-3 text-left">Reason</th>
-                    <th class="px-4 py-3 text-left">Actions</th>
+                    <th class="px-4 py-3 text-left">{{ t('customer_voice_col_name', locale) }}</th>
+                    <th class="px-4 py-3 text-left">{{ t('customer_voice_col_provider', locale) }}</th>
+                    <th class="px-4 py-3 text-left">{{ t('customer_voice_col_status', locale) }}</th>
+                    <th class="px-4 py-3 text-left">{{ t('customer_voice_col_players', locale) }}</th>
+                    <th class="px-4 py-3 text-left">{{ t('customer_voice_col_last_probed', locale) }}</th>
+                    <th class="px-4 py-3 text-left">{{ t('customer_voice_col_reason', locale) }}</th>
+                    <th class="px-4 py-3 text-left">{{ t('customer_voice_col_actions', locale) }}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-200" data-voice-table>
-                <tr><td colspan="7" class="px-4 py-6 text-center text-slate-600">Lade Voice-Instanzen ...</td></tr>
+                <tr><td colspan="7" class="px-4 py-6 text-center text-slate-600">{{ t('customer_voice_loading', locale) }}</td></tr>
             </tbody>
         </table>
     </div>
@@ -32,6 +33,17 @@
 
 <script>
 (() => {
+    const MSG_LOADING = {{ t('customer_voice_loading', locale)|json_encode|raw }};
+    const MSG_NONE = {{ t('customer_voice_none', locale)|json_encode|raw }};
+    const MSG_ERROR = {{ t('customer_voice_error', locale)|json_encode|raw }};
+    const MSG_PROBE = {{ t('customer_voice_probe', locale)|json_encode|raw }};
+    const MSG_CACHED = {{ t('customer_voice_cached', locale)|json_encode|raw }};
+    const MSG_STALE = {{ t('customer_voice_stale', locale)|json_encode|raw }};
+    const MSG_QUEUED = {{ t('customer_voice_queued', locale)|json_encode|raw }};
+    const MSG_START = {{ t('customer_voice_start', locale)|json_encode|raw }};
+    const MSG_STOP = {{ t('customer_voice_stop', locale)|json_encode|raw }};
+    const MSG_RESTART = {{ t('customer_voice_restart', locale)|json_encode|raw }};
+
     const root = document.getElementById('voice-root');
     if (!root) {
         return;
@@ -50,24 +62,27 @@
 
     const disableByState = (instance) => instance.action_in_progress || instance.probe_in_progress;
 
-    const actionButtons = (instance) => ['start', 'stop', 'restart'].map((action) => {
-        const disabled = disableByState(instance);
-        const label = action.charAt(0).toUpperCase() + action.slice(1);
-        const retry = instance.retry_after ? ` · retry in ${instance.retry_after}s` : '';
+    const actionButtons = (instance) => {
+        const labels = { start: MSG_START, stop: MSG_STOP, restart: MSG_RESTART };
+        return ['start', 'stop', 'restart'].map((action) => {
+            const disabled = disableByState(instance);
+            const label = labels[action];
+            const retry = instance.retry_after ? ` · retry in ${instance.retry_after}s` : '';
 
-        return `<button type="button" data-action="${action}" data-id="${instance.id}" class="rounded border px-2 py-1 text-xs ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" ${disabled ? 'disabled' : ''}>${label}${disabled ? retry : ''}</button>`;
-    }).join(' ');
+            return `<button type="button" data-action="${action}" data-id="${instance.id}" class="rounded border px-2 py-1 text-xs ${disabled ? 'opacity-50 cursor-not-allowed' : ''}" ${disabled ? 'disabled' : ''}>${label}${disabled ? retry : ''}</button>`;
+        }).join(' ');
+    };
 
     const probeBadge = (instance) => {
         if (instance.probe_in_progress) {
-            return `<span class="rounded bg-amber-100 px-2 py-1 text-xs text-amber-700">queued${instance.retry_after ? ` · ${instance.retry_after}s` : ''}</span>`;
+            return `<span class="rounded bg-amber-100 px-2 py-1 text-xs text-amber-700">${MSG_QUEUED}${instance.retry_after ? ` · ${instance.retry_after}s` : ''}</span>`;
         }
-        return `<span class="rounded ${instance.stale ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'} px-2 py-1 text-xs">${instance.stale ? 'stale' : 'cached'}</span>`;
+        return `<span class="rounded ${instance.stale ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'} px-2 py-1 text-xs">${instance.stale ? MSG_STALE : MSG_CACHED}</span>`;
     };
 
     const render = () => {
         if (!instances.length) {
-            table.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-slate-600">Keine Voice-Instanzen vorhanden.</td></tr>';
+            table.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-slate-600">${MSG_NONE}</td></tr>`;
             return;
         }
 
@@ -81,7 +96,7 @@
                 <td class="px-4 py-3">${escapeHtml(fmtDate(i.checked_at))}<div class="mt-1">${probeBadge(i)}</div></td>
                 <td class="px-4 py-3">${escapeHtml(reason)}</td>
                 <td class="px-4 py-3 flex gap-1 flex-wrap">
-                    <button type="button" data-action="probe" data-id="${i.id}" class="rounded border px-2 py-1 text-xs ${disableByState(i) ? 'opacity-50 cursor-not-allowed' : ''}" ${disableByState(i) ? 'disabled' : ''}>Probe</button>
+                    <button type="button" data-action="probe" data-id="${i.id}" class="rounded border px-2 py-1 text-xs ${disableByState(i) ? 'opacity-50 cursor-not-allowed' : ''}" ${disableByState(i) ? 'disabled' : ''}>${MSG_PROBE}</button>
                     ${actionButtons(i)}
                 </td>
             </tr>`;
@@ -132,7 +147,7 @@
     refreshButton?.addEventListener('click', () => load().catch(() => {}));
 
     load().catch(() => {
-        table.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-rose-700">Voice API nicht erreichbar.</td></tr>';
+        table.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-rose-700">${MSG_ERROR}</td></tr>`;
     });
 })();
 </script>

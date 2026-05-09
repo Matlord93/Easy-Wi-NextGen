@@ -1,8 +1,9 @@
 {% extends 'customer/base.html.twig' %}
 
-{% block title %}TS6 Server · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ server.name }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+    {% set locale = page_locale() %}
     {% set status = server.status|lower %}
     {% set statusClass = status in ['online', 'running', 'active'] ? 'online' : (status in ['offline', 'stopped', 'stopping'] ? 'offline' : (status == 'error' ? 'error' : 'unknown')) %}
     <div class="ts6-page" data-server-id="{{ server.id }}">
@@ -12,7 +13,7 @@
                 <p>SID {{ server.sid }}</p>
             </div>
             <div class="ts6-actions">
-                <a class="ts6-link" href="/customer/ts6/servers">Zurück</a>
+                <a class="ts6-link" href="/customer/ts6/servers">{{ t('customer_ts6_server_details', locale) }}</a>
             </div>
         </div>
 
@@ -23,19 +24,13 @@
             <div class="ts6-alert ts6-alert-error">{{ message }}</div>
         {% endfor %}
 
-        {% if status == 'error' %}
-            <div class="ts6-alert ts6-alert-error ts6-error-banner">
-                <strong>Serverfehler:</strong> Bitte überprüfe die Logs. Status: {{ server.status }}.
-            </div>
-        {% endif %}
-
         <div class="ts6-card ts6-server-card">
             <div class="ts6-meta" data-summary-url="/customer/ts6/servers/{{ server.id }}/summary.json">
                 <div>
                     <span class="ts6-status ts6-status-{{ statusClass }}">{{ server.status }}</span>
                 </div>
                 <div>
-                    <strong>Externe Adresse</strong>
+                    <strong>{{ t('customer_ts6_server_address', locale) }}</strong>
                     <div>{{ externalHost }}:{{ server.voicePort ?? '—' }}</div>
                 </div>
                 <div>
@@ -43,72 +38,69 @@
                     <div>{{ server.sid }}</div>
                 </div>
                 <div>
-                    <strong>Slots</strong>
+                    <strong>{{ t('customer_ts6_server_slots', locale) }}</strong>
                     <div data-slots>—</div>
                 </div>
             </div>
             <div class="ts6-actions">
                 <form method="post" action="/customer/ts6/servers/{{ server.id }}/start">
                     <input type="hidden" name="_token" value="{{ csrf.start }}">
-                    <button class="ts6-button" type="submit">Start</button>
+                    <button class="ts6-button" type="submit">{{ t('customer_ts6_server_start', locale) }}</button>
                 </form>
                 <form method="post" action="/customer/ts6/servers/{{ server.id }}/stop">
                     <input type="hidden" name="_token" value="{{ csrf.stop }}">
-                    <button class="ts6-button" type="submit">Stop</button>
+                    <button class="ts6-button" type="submit">{{ t('customer_ts6_server_stop', locale) }}</button>
                 </form>
                 <form method="post" action="/customer/ts6/servers/{{ server.id }}/restart">
                     <input type="hidden" name="_token" value="{{ csrf.restart }}">
-                    <button class="ts6-button" type="submit">Neustart</button>
+                    <button class="ts6-button" type="submit">{{ t('customer_ts6_server_restart', locale) }}</button>
                 </form>
-                <button class="ts6-button ts6-button-secondary" type="button" data-settings-trigger>Einstellung</button>
+                <button class="ts6-button ts6-button-secondary" type="button" data-settings-trigger>{{ t('customer_ts6_settings_title', locale) }}</button>
             </div>
         </div>
 
         <div class="ts6-tabs">
             <button class="ts6-tab is-active" type="button" data-tab="server">Server</button>
-            <button class="ts6-tab" type="button" data-tab="viewer">Live Viewer</button>
+            <button class="ts6-tab" type="button" data-tab="viewer">{{ t('customer_ts6_viewer_title', locale) }}</button>
             <button class="ts6-tab" type="button" data-tab="clients">Clients</button>
             <button class="ts6-tab" type="button" data-tab="channels">Channels</button>
             <button class="ts6-tab" type="button" data-tab="permissions">Permissions</button>
-            <button class="ts6-tab" type="button" data-tab="tokens">Tokens</button>
+            <button class="ts6-tab" type="button" data-tab="tokens">{{ t('customer_ts6_token_title', locale) }}</button>
             <button class="ts6-tab" type="button" data-tab="bans">Bans</button>
-            <a class="ts6-tab ts6-tab-link" href="/customer/ts6/servers/{{ server.id }}/logs">Logs</a>
-            <a class="ts6-tab ts6-tab-link" href="/customer/ts6/servers/{{ server.id }}/backups">Backups</a>
+            <a class="ts6-tab ts6-tab-link" href="/customer/ts6/servers/{{ server.id }}/logs">{{ t('customer_ts6_logs_title', locale) }}</a>
+            <a class="ts6-tab ts6-tab-link" href="/customer/ts6/servers/{{ server.id }}/backups">{{ t('customer_ts6_backups_title', locale) }}</a>
         </div>
 
         <div class="ts6-tab-content is-active" data-tab-content="server">
             <div class="ts6-panel-grid">
                 <div class="ts6-panel">
-                    <h3>Server Aktionen</h3>
-                    <p class="ts6-muted">Steuere deinen Server direkt.</p>
+                    <h3>Server {{ t('customer_voice_col_actions', locale) }}</h3>
                     <div class="ts6-actions">
                         <form method="post" action="/customer/ts6/servers/{{ server.id }}/start">
                             <input type="hidden" name="_token" value="{{ csrf.start }}">
-                            <button class="ts6-button" type="submit">Start</button>
+                            <button class="ts6-button" type="submit">{{ t('customer_ts6_server_start', locale) }}</button>
                         </form>
                         <form method="post" action="/customer/ts6/servers/{{ server.id }}/stop">
                             <input type="hidden" name="_token" value="{{ csrf.stop }}">
-                            <button class="ts6-button" type="submit">Stop</button>
+                            <button class="ts6-button" type="submit">{{ t('customer_ts6_server_stop', locale) }}</button>
                         </form>
                         <form method="post" action="/customer/ts6/servers/{{ server.id }}/restart">
                             <input type="hidden" name="_token" value="{{ csrf.restart }}">
-                            <button class="ts6-button" type="submit">Neustart</button>
+                            <button class="ts6-button" type="submit">{{ t('customer_ts6_server_restart', locale) }}</button>
                         </form>
                     </div>
                 </div>
 
                 <div class="ts6-panel">
-                    <h3>Verbindung</h3>
-                    <p class="ts6-muted">Externe Adresse und Ports.</p>
+                    <h3>{{ t('customer_ts6_server_connect', locale) }}</h3>
                     <div class="ts6-credentials">
-                        <div><strong>Adresse</strong></div>
+                        <div><strong>{{ t('customer_ts6_server_address', locale) }}</strong></div>
                         <div class="ts6-secret">{{ externalHost }}:{{ server.voicePort ?? '—' }}</div>
                     </div>
                 </div>
 
                 <div class="ts6-panel">
-                    <h3>Status</h3>
-                    <p class="ts6-muted">Schnellstatus & Slots.</p>
+                    <h3>{{ t('customer_ts6_server_status', locale) }}</h3>
                     <div class="ts6-status-row">
                         <span class="ts6-status ts6-status-{{ statusClass }}">{{ server.status }}</span>
                         <span data-slots-inline>—</span>
@@ -152,7 +144,6 @@
                 <div class="ts6-section-header">
                     <div>
                         <h3 class="ts6-section-title">Online Clients</h3>
-                        <p class="ts6-muted">Aktive Nutzer mit Aktionen.</p>
                     </div>
                 </div>
                 <div class="ts6-data-state" data-state="loading">
@@ -163,7 +154,7 @@
                     <tr>
                         <th>Nickname</th>
                         <th>CLID</th>
-                        <th>Aktionen</th>
+                        <th>{{ t('customer_voice_col_actions', locale) }}</th>
                     </tr>
                     </thead>
                     <tbody></tbody>
@@ -176,7 +167,6 @@
                 <div class="ts6-section-header">
                     <div>
                         <h3 class="ts6-section-title">Channels</h3>
-                        <p class="ts6-muted">Channel-Übersicht (CRUD + Order folgt).</p>
                     </div>
                 </div>
                 <div class="ts6-data-state" data-state="loading">
@@ -185,7 +175,7 @@
                 <table class="ts6-table" data-table hidden>
                     <thead>
                     <tr>
-                        <th>Name</th>
+                        <th>{{ t('customer_ts6_server_name', locale) }}</th>
                         <th>CID</th>
                     </tr>
                     </thead>
@@ -199,7 +189,6 @@
                 <div class="ts6-section-header">
                     <div>
                         <h3 class="ts6-section-title">Permissions</h3>
-                        <p class="ts6-muted">Server-/Channel-Gruppen & Explorer.</p>
                     </div>
                     <div>
                         <input class="ts6-input" type="search" placeholder="Suche..." data-permission-search>
@@ -216,8 +205,8 @@
             <div class="ts6-card">
                 <div class="ts6-section-header">
                     <div>
-                        <h3 class="ts6-section-title">Token Verwaltung</h3>
-                        <p class="ts6-muted">Owner Token und Token Liste.</p>
+                        <h3 class="ts6-section-title">{{ t('customer_ts6_token_title', locale) }}</h3>
+                        <p class="ts6-muted">{{ t('customer_ts6_token_desc', locale) }}</p>
                     </div>
                 </div>
                 <div class="ts6-credentials">
@@ -226,23 +215,22 @@
                 </div>
                 <form class="ts6-form" method="post" action="/customer/ts6/servers/{{ server.id }}/token/rotate">
                     <input type="hidden" name="_token" value="{{ csrf.rotate }}">
-                    <label for="ts6-server-group">Servergruppe (SGID)</label>
+                    <label for="ts6-server-group">{{ t('customer_ts6_token_group', locale) }} (SGID)</label>
                     <select id="ts6-server-group" name="server_group_id" data-url="/customer/ts6/servers/{{ server.id }}/server-groups.json">
                         <option value="6">Lade Servergruppen…</option>
                     </select>
-                    <p class="ts6-muted">Nutze die SGID aus <code>servergrouplist</code>, z.B. 6 für Server Admin.</p>
-                    <button class="ts6-button" type="submit">Token rotieren</button>
+                    <button class="ts6-button" type="submit">{{ t('customer_ts6_token_create', locale) }}</button>
                 </form>
                 {% if tokens is empty %}
-                    <div class="ts6-empty-state">Keine Tokens vorhanden.</div>
+                    <div class="ts6-empty-state">{{ t('customer_ts6_token_none', locale) }}</div>
                 {% else %}
                     <table class="ts6-table">
                         <thead>
                         <tr>
-                            <th>Token</th>
+                            <th>{{ t('customer_ts6_token_value', locale) }}</th>
                             <th>Typ</th>
-                            <th>Status</th>
-                            <th>Erstellt</th>
+                            <th>{{ t('customer_ts6_server_status', locale) }}</th>
+                            <th>{{ t('customer_ts6_backups_created', locale) }}</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -265,7 +253,6 @@
                 <div class="ts6-section-header">
                     <div>
                         <h3 class="ts6-section-title">Bans</h3>
-                        <p class="ts6-muted">Aktive Banns (ServerQuery).</p>
                     </div>
                 </div>
                 <div class="ts6-data-state" data-state="loading">
@@ -284,6 +271,14 @@
     </div>
 
     <script>
+        const MSG_SETTINGS_LOAD_ERROR = {{ t('customer_ts_settings_load_error', locale)|json_encode|raw }};
+        const MSG_SETTINGS_SAVE_ERROR = {{ t('customer_ts_settings_save_error', locale)|json_encode|raw }};
+        const MSG_SETTINGS_NETWORK_ERROR = {{ t('customer_ts_settings_network_error', locale)|json_encode|raw }};
+        const MSG_VIEWER_UPDATED = {{ t('customer_ts_viewer_updated', locale)|json_encode|raw }};
+        const MSG_VIEWER_ERROR = {{ t('customer_ts_viewer_error', locale)|json_encode|raw }};
+        const MSG_VIEWER_LOAD_ERROR = {{ t('customer_ts_viewer_load_error', locale)|json_encode|raw }};
+        const MSG_ACTION_ERROR = {{ t('customer_ts_action_error_prefix', locale)|json_encode|raw }};
+        const MSG_UNKNOWN = {{ t('customer_ts_unknown', locale)|json_encode|raw }};
         (function () {
             const tabs = document.querySelectorAll('.ts6-tab[data-tab]');
             const contents = document.querySelectorAll('.ts6-tab-content');
@@ -318,8 +313,8 @@
                             return;
                         }
                         if (data.status === 'error') {
-                            slots.textContent = 'Fehler';
-                            if (inlineSlots) { inlineSlots.textContent = 'Fehler'; }
+                            slots.textContent = MSG_VIEWER_ERROR;
+                            if (inlineSlots) { inlineSlots.textContent = MSG_VIEWER_ERROR; }
                             return;
                         }
                         if (data.status !== 'ok') { return; }
@@ -353,7 +348,7 @@
                         if (data.status === 'error') {
                             const option = document.createElement('option');
                             option.value = '6';
-                            option.textContent = `Fehler: ${data.message ?? 'Unbekannt'} (${data.action_id ?? 'n/a'})`;
+                            option.textContent = `${MSG_ACTION_ERROR}: ${data.message ?? MSG_UNKNOWN} (${data.action_id ?? 'n/a'})`;
                             select.innerHTML = '';
                             select.appendChild(option);
                             return;
@@ -399,7 +394,7 @@
                                 return;
                             }
                             if (data.status === 'pending') {
-                                onError('Server antwortet nicht. Bitte Seite neu laden.');
+                                onError(MSG_SERVER_NOT_RESPONDING);
                                 return;
                             }
                             if (data.status === 'error') {
@@ -429,7 +424,7 @@
                     state.dataset.state = 'error';
                     const error = document.createElement('div');
                     error.className = 'ts6-error-state';
-                    error.innerHTML = `<strong>Fehler:</strong> ${message ?? 'Unbekannt'}${actionId ? ` (Action ID: ${actionId})` : ''}`;
+                    error.innerHTML = `<strong>${MSG_ACTION_ERROR}:</strong> ${message ?? MSG_UNKNOWN}${actionId ? ` (Action ID: ${actionId})` : ''}`;
                     const retry = document.createElement('button');
                     retry.className = 'ts6-button';
                     retry.type = 'button';
@@ -548,7 +543,7 @@
                             registerSettingsForm();
                         })
                         .catch(() => {
-                            content.innerHTML = '<div class="ts6-error-state">Einstellungen konnten nicht geladen werden.</div>';
+                            content.innerHTML = `<div class="ts6-error-state">${MSG_SETTINGS_LOAD_ERROR}</div>`;
                         });
                 }
             };
@@ -575,7 +570,7 @@
                             message.hidden = false;
                             if (payload.status !== 'ok') {
                                 message.className = 'ts6-settings-message ts6-error-state';
-                                message.textContent = payload.message ?? 'Fehler beim Speichern.';
+                                message.textContent = payload.message ?? MSG_SETTINGS_SAVE_ERROR;
                                 return;
                             }
                             message.className = 'ts6-settings-message ts6-success-state';
@@ -585,7 +580,7 @@
                             if (!message) { return; }
                             message.hidden = false;
                             message.className = 'ts6-settings-message ts6-error-state';
-                            message.textContent = 'Netzwerkfehler beim Speichern.';
+                            message.textContent = MSG_SETTINGS_NETWORK_ERROR;
                         });
                 });
                 drawer.querySelectorAll('[data-settings-close]').forEach((button) => {
@@ -673,7 +668,7 @@
                                     return;
                                 }
                                 if (data.status === 'pending') {
-                                    reject({ message: 'Server antwortet nicht. Bitte Seite neu laden.' });
+                                    reject({ message: MSG_SERVER_NOT_RESPONDING });
                                     return;
                                 }
                                 if (data.status === 'error') {
@@ -701,12 +696,12 @@
                     fetchQuery(clientsUrl, (data) => { cached.clients = data; }),
                 ])
                     .then(() => {
-                        status.textContent = 'Aktualisiert';
+                        status.textContent = MSG_VIEWER_UPDATED;
                         buildTree();
                     })
                     .catch((error) => {
-                        status.textContent = 'Fehler';
-                        tree.innerHTML = `<div class="ts6-error-state">Fehler beim Laden${error?.action_id ? ` (Action ID: ${error.action_id})` : ''}</div>`;
+                        status.textContent = MSG_VIEWER_ERROR;
+                        tree.innerHTML = `<div class="ts6-error-state">${MSG_VIEWER_LOAD_ERROR}${error?.action_id ? ` (Action ID: ${error.action_id})` : ''}</div>`;
                     })
                     .finally(() => {
                         inFlight = false;

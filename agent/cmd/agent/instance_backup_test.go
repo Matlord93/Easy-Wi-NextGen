@@ -3,9 +3,15 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"easywi/agent/internal/jobs"
 )
 
 func TestResolveLocalBackupRootUsesConfiguredBasePath(t *testing.T) {
@@ -92,5 +98,67 @@ func TestValidateBackupArchivePathsRejectsTraversal(t *testing.T) {
 	err = validateBackupArchivePaths(archivePath, t.TempDir())
 	if err == nil {
 		t.Fatal("expected traversal validation error")
+	}
+}
+
+func TestHandleInstanceBackupCreateUploadsToWebDAVAndRemovesLocalArchive(t *testing.T) {
+	instanceDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(instanceDir, "server.cfg"), []byte("hostname test"), 0o644); err != nil {
+		t.Fatalf("write instance file: %v", err)
+	}
+
+	backupRoot := t.TempDir()
+	t.Setenv("EASYWI_INSTANCE_BACKUP_DIR", backupRoot)
+
+	var uploadedPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Fatalf("method=%s, want PUT", r.Method)
+		}
+		uploadedPath = r.URL.Path
+		if _, _, ok := r.BasicAuth(); !ok {
+			t.Fatalf("missing basic auth")
+		}
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			t.Fatalf("read request body: %v", err)
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	result, _ := handleInstanceBackupCreate(jobs.Job{
+		ID: "job-1",
+		Payload: map[string]any{
+			"instance_id":        "42",
+			"install_path":       instanceDir,
+			"backup_target_type": "webdav",
+			"backup_target_config": map[string]any{
+				"url":         server.URL,
+				"remote_path": "/remote",
+				"username":    "user",
+			},
+			"backup_target_secret": map[string]any{
+				"password": "pass",
+			},
+		},
+	})
+
+	if result.Status != "success" {
+		t.Fatalf("status=%s output=%v", result.Status, result.Output)
+	}
+	backupPath := result.Output["backup_path"]
+	if !strings.HasPrefix(backupPath, server.URL+"/remote/instance-42-") {
+		t.Fatalf("backup_path=%q, want remote WebDAV URL", backupPath)
+	}
+	if uploadedPath == "" {
+		t.Fatalf("expected upload request")
+	}
+
+	matches, err := filepath.Glob(filepath.Join(backupRoot, "42", "*.tar.gz"))
+	if err != nil {
+		t.Fatalf("glob local backups: %v", err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("expected local staging archive to be removed, found %v", matches)
 	}
 }

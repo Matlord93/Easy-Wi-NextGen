@@ -4,6 +4,7 @@
 {% set pageSubtitle = 'UDM Pro Controller & Ziele' %}
 
 {% block content %}
+{% set locale = page_locale() %}
 <div class="space-y-6">
     {% include 'admin/unifi/_nav.html.twig' with { unifiNav: 'connection' } %}
 
@@ -13,7 +14,7 @@
 
     {% if errors is not empty %}
         <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-            <p class="font-semibold">Bitte korrigieren:</p>
+            <p class="font-semibold">{{ t('admin_unifi_conn_validation_errors', locale) }}:</p>
             <ul class="mt-2 list-disc pl-5">
                 {% for error in errors %}
                     <li>{{ error }}</li>
@@ -24,7 +25,7 @@
 
     {% if connectionResult is defined %}
         <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            <p class="font-semibold">Test Verbindung:</p>
+            <p class="font-semibold">{{ t('admin_unifi_conn_test_title', locale) }}:</p>
             <ul class="mt-2 list-disc pl-5">
                 {% for code in connectionResult %}
                     <li>{{ code }}</li>
@@ -44,28 +45,28 @@
                 <input type="text" name="site" value="{{ settings.site }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="default" />
             </label>
             <label class="text-sm font-semibold text-slate-700">
-                Benutzername
+                {{ t('admin_unifi_username', locale) }}
                 <input type="text" name="username" value="{{ settings.username }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
             </label>
             <label class="text-sm font-semibold text-slate-700">
-                Passwort (wird verschlüsselt)
-                <input type="password" name="password" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Nur eingeben, wenn ändern" />
+                {{ t('admin_unifi_password', locale) }}
+                <input type="password" name="password" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="{{ t('admin_unifi_password_placeholder', locale) }}" />
             </label>
         </div>
         <div class="flex flex-wrap gap-6">
             <label class="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" name="enabled" value="1" {{ settings.enabled ? 'checked' : '' }} />
-                Modul aktivieren
+                {{ t('admin_unifi_enable_module', locale) }}
             </label>
             <label class="flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" name="verify_tls" value="1" {{ settings.verifyTls ? 'checked' : '' }} />
-                TLS prüfen
+                {{ t('admin_unifi_verify_tls', locale) }}
             </label>
         </div>
 
         <div>
-            <h3 class="text-sm font-semibold text-slate-700">Ziel-IP pro Node (für Auto-Regeln)</h3>
-            <p class="mt-1 text-xs text-slate-500">Hier trägst du die interne IP des Nodes ein, auf die die Ports weitergeleitet werden.</p>
+            <h3 class="text-sm font-semibold text-slate-700">{{ t('admin_unifi_node_targets_title', locale) }}</h3>
+            <p class="mt-1 text-xs text-slate-500">{{ t('admin_unifi_node_targets_desc', locale) }}</p>
             <div class="mt-4 space-y-3">
                 {% for node in nodes %}
                     <div class="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 md:flex-row md:items-center md:justify-between">
@@ -76,14 +77,14 @@
                         <input type="text" name="node_targets[{{ node.id }}]" value="{{ settings.nodeTargets[node.id] ?? '' }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm md:w-64" placeholder="10.0.0.10" />
                     </div>
                 {% else %}
-                    <p class="text-sm text-slate-600">Keine Nodes gefunden.</p>
+                    <p class="text-sm text-slate-600">{{ t('admin_unifi_no_nodes', locale) }}</p>
                 {% endfor %}
             </div>
         </div>
 
         <div class="flex flex-wrap gap-3">
-            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="submit">Speichern</button>
-            <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700" type="submit" formaction="/admin/unifi/connection/test">Test Verbindung</button>
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white" type="submit">{{ t('admin_unifi_save', locale) }}</button>
+            <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700" type="submit" formaction="/admin/unifi/connection/test">{{ t('admin_unifi_test_connection', locale) }}</button>
         </div>
     </form>
 </div>

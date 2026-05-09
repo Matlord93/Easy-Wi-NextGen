@@ -1,16 +1,17 @@
 {% extends 'customer/base.html.twig' %}
 
-{% block title %}TS6 Viewer · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('customer_ts6_viewer_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+    {% set locale = page_locale() %}
     <div class="ts6-page">
         <div class="ts6-header">
             <div>
-                <h1>TS6 Viewer</h1>
-                <p>Öffentlicher Viewer für {{ server.name }}</p>
+                <h1>{{ t('customer_ts6_viewer_title', locale) }}</h1>
+                <p>{{ server.name }}</p>
             </div>
             <div class="ts6-actions">
-                <a class="ts6-link" href="/customer/ts6/servers/{{ server.id }}">Zurück</a>
+                <a class="ts6-link" href="/customer/ts6/servers/{{ server.id }}">{{ t('customer_ts6_server_details', locale) }}</a>
             </div>
         </div>
 
@@ -28,7 +29,7 @@
                     {{ form_row(form.cacheTtlMs) }}
                     {{ form_row(form.domainAllowlist) }}
                 </div>
-                <button class="ts6-button" type="submit">Viewer speichern</button>
+                <button class="ts6-button" type="submit">{{ t('customer_ts6_server_save', locale) }}</button>
             {{ form_end(form) }}
         </div>
 

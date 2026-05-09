@@ -3,7 +3,7 @@
       hx-target="#instance-form"
       hx-swap="outerHTML">
     <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
-        Server wird nach dem Erstellen automatisch installiert. Falls wichtige Template-Daten fehlen, bleibt er als "Wartet auf Setup" markiert.
+        {{ t('admin_instances_form_hint', page_locale()) }}
     </div>
 
     {% if form.errors is not empty %}

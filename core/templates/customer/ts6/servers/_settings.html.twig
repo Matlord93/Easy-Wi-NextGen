@@ -1,8 +1,8 @@
+{% set locale = page_locale() %}
 <div class="ts6-settings-panel">
     <div class="ts6-settings-header">
         <div>
-            <h3>Einstellungen</h3>
-            <p class="ts6-muted">Verwalte die externe Adresse und Query-Details für TS6.</p>
+            <h3>{{ t('customer_ts6_settings_title', locale) }}</h3>
         </div>
         <button class="ts6-link" type="button" data-settings-close>Schließen</button>
     </div>
@@ -32,7 +32,7 @@
         </div>
 
         <div class="ts6-settings-section">
-            <h4>Safe-Mode & Permission Limits</h4>
+            <h4>Safe-Mode &amp; Permission Limits</h4>
             <p class="ts6-muted">Optional: beschränke riskante Actions.</p>
             <label class="ts6-toggle">
                 <input type="checkbox" disabled checked>
@@ -49,7 +49,7 @@
         {% endif %}
 
         <div class="ts6-actions">
-            <button class="ts6-button" type="submit">Einstellungen speichern</button>
+            <button class="ts6-button" type="submit">{{ t('customer_ts6_server_save', locale) }}</button>
         </div>
         <div class="ts6-settings-message" data-settings-message hidden></div>
     </form>

@@ -2930,10 +2930,14 @@ final class AgentApiController
 
         if (in_array($target->getType()->value, ['webdav', 'nextcloud'], true)) {
             $encrypted = $target->getEncryptedCredentials();
-            if (is_string($encrypted['password'] ?? null) && $encrypted['password'] !== '') {
-                $payload['backup_target_secret'] = [
-                    'password' => $this->encryptionService->decrypt((string) $encrypted['password']),
-                ];
+            $secret = [];
+            foreach (['password', 'token', 'username'] as $key) {
+                if (is_string($encrypted[$key] ?? null) && $encrypted[$key] !== '') {
+                    $secret[$key] = $this->encryptionService->decrypt((string) $encrypted[$key]);
+                }
+            }
+            if ($secret !== []) {
+                $payload['backup_target_secret'] = $secret;
             }
         }
 

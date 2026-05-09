@@ -23,70 +23,121 @@
 {% set moduleDns = module_enabled('dns') %}
 {% set moduleBilling = module_enabled('billing') %}
 
+{# Profile summary for topbar #}
+{% set adminUser = current_user() %}
+{% set adminProfileSummary = adminUser ? {
+    name: adminUser.name ?: adminUser.email,
+    email: adminUser.email,
+    initial: (adminUser.name ?: adminUser.email)|slice(0, 1)|upper
+} : null %}
+
+{# ─── SVG Icon definitions ─── #}
+{% set icon = {
+    dashboard:    '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v5H2V2zm0 7h5v5H2V9zm7-7h5v5H9V2zm0 7h5v5H9V9z" opacity=".15"/><path fill-rule="evenodd" d="M1 2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm1 0v4h4V2H2zm6-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm0 1v4h4V2H9zM1 9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V9zm1 0v4h4V9H2zm6-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zm0 1v4h4V9H9z"/></svg>',
+    activity:     '<svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M6 2a.5.5 0 0 1 .47.33L10 12.036l1.53-4.208A.5.5 0 0 1 12 7.5h3.5a.5.5 0 0 1 0 1h-3.15l-1.88 5.17a.5.5 0 0 1-.94 0L6 3.964 4.47 8.172A.5.5 0 0 1 4 8.5H.5a.5.5 0 0 1 0-1h3.15l1.88-5.17A.5.5 0 0 1 6 2z"/></svg>',
+    audit:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 4a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm-.5 2.5A.5.5 0 0 1 5 6h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zM5 8a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm0 2a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5z"/><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm10-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1z"/></svg>',
+    users:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>',
+    billing:      '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v1h14V4a1 1 0 0 0-1-1H2zm13 4H1v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7zm-9 2h6a.5.5 0 0 1 0 1H6a.5.5 0 0 1 0-1zm0 2h3a.5.5 0 0 1 0 1H6a.5.5 0 0 1 0-1z"/></svg>',
+    gamepad:      '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/><path d="M3.051 3.26a.5.5 0 0 1 .354-.613l1.932-.518a.5.5 0 0 1 .62.44l.293 1.5 7.499-.255a.5.5 0 0 1 .51.54l-.327 3.498a.5.5 0 0 1-.374.46l-2.555.647a.5.5 0 0 1-.608-.376l-.274-1.371-3.79 1.022a.5.5 0 0 1-.61-.391L3.051 3.26z"/></svg>',
+    templates:    '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm0 5a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm9 0a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V7z"/></svg>',
+    plugins:      '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 13c0 1.105-1.12 2-2.5 2S1 14.105 1 13c0-1.104 1.12-2 2.5-2s2.5.896 2.5 2zm9-2c0 1.105-1.12 2-2.5 2s-2.5-.895-2.5-2 1.12-2 2.5-2 2.5.895 2.5 2z"/><path fill-rule="evenodd" d="M14 11V2h1v9h-1zM6 3v10H5V3h1z"/><path d="M5 2.905a1 1 0 0 1 .9-.995l8-.8a1 1 0 0 1 1.1.995V3L5 4V2.905z"/></svg>',
+    voice:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>',
+    server:       '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm1 8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H2zm.5-2a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm0-5a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm0 8a.5.5 0 0 0 0 1h11a.5.5 0 0 0 0-1h-11zm3 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm0-5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm0 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/></svg>',
+    shield:       '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524z"/></svg>',
+    network:      '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6.5 1a.5.5 0 0 0 0 1h1v1.07A7.001 7.001 0 0 0 8 16a7 7 0 0 0 5.29-11.584.531.531 0 0 0 .013-.012l.354-.354.353.354a.5.5 0 1 0 .707-.707l-1.414-1.415a.5.5 0 1 0-.707.707l.354.354-.354.354A6.978 6.978 0 0 0 9 2.071V1h1a.5.5 0 0 0 0-1H6.5zM7 3.05c0-.02.01-.042.013-.063V3h2v.013A6 6 0 1 1 7 3.05z"/><path d="M10 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/></svg>',
+    chart:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 11H2v3h2v-3zm5-4H7v7h2V7zm5-5v12h-2V2h2zm-2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1h-2zM6 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm-5 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3z"/></svg>',
+    key:          '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10h-.535A4 4 0 0 1 0 8zm4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1 7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.793-.793-1-1h-6.63a.5.5 0 0 1-.451-.285A3 3 0 0 0 4 5z"/><path d="M4 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>',
+    warning:      '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>',
+    wifi:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M15.384 6.115a.485.485 0 0 0-.047-.736A12.444 12.444 0 0 0 8 3C5.259 3 2.723 3.882.663 5.379a.485.485 0 0 0-.048.736.518.518 0 0 0 .668.05A11.448 11.448 0 0 1 8 4c2.507 0 4.827.802 6.716 2.163.205.148.49.13.668-.048z"/><path d="M13.229 8.271a.482.482 0 0 0-.063-.745A9.455 9.455 0 0 0 8 6c-1.905 0-3.68.56-5.166 1.526a.48.48 0 0 0-.063.745.525.525 0 0 0 .652.065A8.46 8.46 0 0 1 8 7a8.46 8.46 0 0 1 4.576 1.336c.206.132.48.108.653-.065zm-2.183 2.183c.226-.226.185-.605-.1-.75A6.473 6.473 0 0 0 8 9c-.98 0-1.907.2-2.946.704-.29.145-.33.524-.104.75l.015.015c.16.16.408.19.611.09A5.478 5.478 0 0 1 8 10c.868 0 1.69.201 2.424.56.203.1.45.07.611-.091l.011-.015zM9.06 12.44c.196-.196.198-.52-.04-.66A1.99 1.99 0 0 0 8 11.5a1.99 1.99 0 0 0-1.02.28c-.238.14-.236.464-.04.66l.706.706a.5.5 0 0 0 .707 0l.707-.707z"/></svg>',
+    archive:      '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 2a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1v7.5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 1 12.5V5a1 1 0 0 1-1-1V2zm2 3v7.5A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5V5H2zm13-3H1v2h14V2zM5 7.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/></svg>',
+    cog:          '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.474l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/></svg>',
+    cube:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.186 1.113a.5.5 0 0 0-.372 0L1.846 3.5 8 5.961 14.154 3.5 8.186 1.113zM15 4.239l-6.5 2.6v7.922l6.5-2.6V4.24zM7.5 14.762V6.838L1 4.239v7.923l6.5 2.6zM7.443.184a1.5 1.5 0 0 1 1.114 0l7.129 2.852A.5.5 0 0 1 16 3.5v8.662a1 1 0 0 1-.629.928l-7.185 2.874a.5.5 0 0 1-.372 0L.63 13.09a1 1 0 0 1-.63-.928V3.5a.5.5 0 0 1 .314-.464L7.443.184z"/></svg>',
+    update:       '<svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>',
+    globe:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077zM4.09 4a9.267 9.267 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.025 7.025 0 0 0 2.255 4H4.09zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.958 6.958 0 0 0-.656 2.5h2.49zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5H4.847zM8.5 5v2.5h2.99a12.495 12.495 0 0 0-.337-2.5H8.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5H4.51zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5H8.5zM5.145 12c.138.386.295.744.468 1.068.552 1.035 1.218 1.65 1.887 1.855V12H5.145zm.182 2.472a6.696 6.696 0 0 1-.597-.933A9.268 9.268 0 0 1 4.09 12H2.255a7.024 7.024 0 0 0 3.072 2.472zM3.82 11a13.652 13.652 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5H3.82zm6.853 3.472A7.024 7.024 0 0 0 13.745 12H11.91a9.27 9.27 0 0 1-.64 1.539 6.688 6.688 0 0 1-.597.933zM8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855.173-.324.33-.682.468-1.068H8.5zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.65 13.65 0 0 1-.312 2.5zm2.802-3.5a6.959 6.959 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5h2.49zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7.024 7.024 0 0 0-3.072-2.472c.218.284.418.598.597.933zM10.855 4a7.966 7.966 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4h2.355z"/></svg>',
+    database:     '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.318 2.687C5.234 2.271 6.536 2 8 2s2.766.27 3.682.687C12.644 3.125 13 3.627 13 4c0 .374-.356.875-1.318 1.313C10.766 5.729 9.464 6 8 6s-2.766-.27-3.682-.687C3.356 4.875 3 4.373 3 4c0-.374.356-.875 1.318-1.313z"/><path d="M13 5.698V7c0 .374-.356.875-1.318 1.313C10.766 8.729 9.464 9 8 9s-2.766-.27-3.682-.687C3.356 7.875 3 7.373 3 7V5.698c.271.202.58.378.904.525C4.978 6.711 6.427 7 8 7s3.022-.289 4.096-.777A4.92 4.92 0 0 0 13 5.698z"/><path d="M13 8.698V10c0 .374-.356.875-1.318 1.313C10.766 11.729 9.464 12 8 12s-2.766-.27-3.682-.687C3.356 10.875 3 10.373 3 10V8.698c.271.202.58.378.904.525C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777A4.92 4.92 0 0 0 13 8.698z"/><path d="M13 11.698V13c0 .374-.356.875-1.318 1.313C10.766 14.729 9.464 15 8 15s-2.766-.27-3.682-.687C3.356 13.875 3 13.373 3 13v-1.302c.271.202.58.378.904.525C4.978 12.71 6.427 13 8 13s3.022-.289 4.096-.777c.324-.147.633-.323.904-.525z"/></svg>',
+    tag:          '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 4.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm-1 0a.5.5 0 1 0-1 0 .5.5 0 0 0 1 0z"/><path d="M2 1h4.586a1 1 0 0 1 .707.293l7 7a1 1 0 0 1 0 1.414l-4.586 4.586a1 1 0 0 1-1.414 0l-7-7A1 1 0 0 1 1 6.586V2a1 1 0 0 1 1-1zm0 5.586 7 7L13.586 9l-7-7H2v4.586z"/></svg>',
+    shop:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401l-9.397.472L4.415 11H13a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5zM3.102 4l.84 4.479 9.144-.459L13.89 4H3.102zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>',
+    page:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 4a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm-.5 2.5A.5.5 0 0 1 5 6h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zM5 8a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm0 2a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5z"/><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm10-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1z"/></svg>',
+    newspaper:    '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 2.5A1.5 1.5 0 0 1 1.5 1h11A1.5 1.5 0 0 1 14 2.5v10.528c0 .3-.05.654-.238.972h.738a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 1 1 0v9a1.5 1.5 0 0 1-1.5 1.5H1.497A1.497 1.497 0 0 1 0 13.5v-11zm12 10.528c0 .318-.313.972-.5.972H1.5a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v10.528zM5 3H3.5a.5.5 0 0 0 0 1H5a.5.5 0 0 0 0-1zm3 0H6.5a.5.5 0 0 0 0 1H8a.5.5 0 0 0 0-1zm3 0h-1.5a.5.5 0 0 0 0 1H11a.5.5 0 0 0 0-1zm-9 3h8a.5.5 0 0 0 0-1H3a.5.5 0 0 0 0 1zm0 2h8a.5.5 0 0 0 0-1H3a.5.5 0 0 0 0 1zm0 2h5a.5.5 0 0 0 0-1H3a.5.5 0 0 0 0 1zm0 2h8a.5.5 0 0 0 0-1H3a.5.5 0 0 0 0 1z"/></svg>',
+    calendar:     '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/></svg>',
+    photo:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg>',
+    chat:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/><path d="M3 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3 6a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9A.5.5 0 0 1 3 6zm0 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"/></svg>',
+    mail:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/></svg>',
+    inbox:        '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.98 4a.5.5 0 0 0-.39.188L1.54 8H6a.5.5 0 0 1 .5.5 1.5 1.5 0 1 0 3 0A.5.5 0 0 1 10 8h4.46l-3.05-3.812A.5.5 0 0 0 11.02 4H4.98zm9.954 5H10.45a2.5 2.5 0 0 1-4.9 0H1.066l.32 2.562a.5.5 0 0 0 .497.438h12.234a.5.5 0 0 0 .496-.438L14.933 9zM3.809 3.563A1.5 1.5 0 0 1 4.981 3h6.038a1.5 1.5 0 0 1 1.172.563l3.7 4.625a.5.5 0 0 1 .105.374l-.39 3.124A1.5 1.5 0 0 1 14.117 13H1.883a1.5 1.5 0 0 1-1.489-1.314l-.39-3.124a.5.5 0 0 1 .106-.374l3.699-4.625z"/></svg>',
+    ticket:       '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4.5A1.5 1.5 0 0 1 1.5 3h13A1.5 1.5 0 0 1 16 4.5V6a.5.5 0 0 1-.5.5 1.5 1.5 0 0 0 0 3 .5.5 0 0 1 .5.5v1.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 11.5V10a.5.5 0 0 1 .5-.5 1.5 1.5 0 1 0 0-3A.5.5 0 0 1 0 6V4.5zm4 1a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 1 0V6a.5.5 0 0 0-.5-.5zm1 0a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 1 0V6a.5.5 0 0 0-.5-.5zm1 0a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 1 0V6a.5.5 0 0 0-.5-.5z"/></svg>',
+    lock:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>',
+    dns:          '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855-.143.268-.276.56-.395.872.705.157 1.472.257 2.282.287V1.077zM4.249 3.539c.142-.384.304-.744.481-1.078a6.7 6.7 0 0 1 .597-.933A7.01 7.01 0 0 0 3.051 3.05c.362.184.763.349 1.198.49zM3.509 7.5c.036-1.07.188-2.087.436-3.008a9.124 9.124 0 0 1-1.565-.667A6.964 6.964 0 0 0 1.018 7.5h2.49zm1.4-2.741a12.344 12.344 0 0 0-.4 2.741H7.5V5.091c-.91-.03-1.783-.145-2.591-.332zM8.5 5.09V7.5h2.99a12.342 12.342 0 0 0-.399-2.741c-.808.187-1.681.301-2.591.332zM4.51 8.5c.035.987.176 1.914.399 2.741A13.612 13.612 0 0 1 7.5 10.91V8.5H4.51zm3.99 0v2.409c.91.03 1.783.145 2.591.332.223-.827.364-1.754.4-2.741H8.5zm-3.282 3.696c.12.312.252.604.395.872.552 1.035 1.218 1.65 1.887 1.855V12.5c-.81.03-1.577.13-2.282.287zm.11 2.276a6.696 6.696 0 0 1-.598-.933 8.853 8.853 0 0 1-.481-1.079 8.38 8.38 0 0 0-1.198.49 7.01 7.01 0 0 0 2.276 1.522zm-1.383-2.964A13.36 13.36 0 0 1 3.508 8.5h-2.49a6.963 6.963 0 0 0 1.362 3.675c.47-.258.995-.482 1.565-.667zm6.728 2.964a7.009 7.009 0 0 0 2.275-1.521 8.376 8.376 0 0 0-1.197-.49 8.853 8.853 0 0 1-.481 1.078 6.688 6.688 0 0 1-.597.933zM8.5 12.5v2.923c.67-.204 1.335-.82 1.887-1.855.143-.268.276-.56.395-.872A12.63 12.63 0 0 0 8.5 12.5zm3.282-3.996c-.2.824-.378 1.55-.4 2.741h2.49a6.963 6.963 0 0 0-1.362-3.675 9.128 9.128 0 0 1-1.565.667 13.36 13.36 0 0 1-.163.267zM13.5 7.5a6.968 6.968 0 0 0-1.208-3.816 9.083 9.083 0 0 1-1.507.548 13.38 13.38 0 0 1 .404 3.268H13.5z"/></svg>',
+    port:         '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M14.5 3a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h13zm-13-1A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13zM5 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm4 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>',
+    extensions:   '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6.5 1A1.5 1.5 0 0 0 5 2.5V3H1.5A1.5 1.5 0 0 0 0 4.5v8A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 14.5 3H11v-.5A1.5 1.5 0 0 0 9.5 1h-3zm0 1h3a.5.5 0 0 1 .5.5V3H6v-.5a.5.5 0 0 1 .5-.5zm1.886 6.914L15 7.151V12.5a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5V7.15l6.614 1.764a1.5 1.5 0 0 0 .772 0zM1.5 4h13a.5.5 0 0 1 .5.5v1.616L8.129 7.948a.5.5 0 0 1-.258 0L1 6.116V4.5a.5.5 0 0 1 .5-.5z"/></svg>',
+    sinusbot:     '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9 13c0 1.105-1.12 2-2.5 2S4 14.105 4 13s1.12-2 2.5-2S9 11.895 9 13zm2.5 0c0 1.105-1.12 2-2.5 2s-2.5-.895-2.5-2 1.12-2 2.5-2 2.5.895 2.5 2z"/><path fill-rule="evenodd" d="M14 11V2h1v9h-1zM6 3v10H5V3h1z"/><path d="M5 2.905a1 1 0 0 1 .9-.995l8-.8a1 1 0 0 1 1.1.995V3L5 4V2.905z"/></svg>',
+    ddos:         '<svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/></svg>',
+    metrics:      '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 11H2v3h2v-3zm5-4H7v7h2V7zm5-5v12h-2V2h2zm-2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1h-2zM6 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm-5 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3z"/></svg>'
+} %}
+
 {% set customerItems = [
-    { key: 'users', label: t('admin_nav_users', page_locale()), href: path('admin_users') },
-    moduleBilling ? { key: 'billing', label: t('admin_nav_billing', page_locale()), href: path('admin_billing') } : null
+    { key: 'users',   label: t('admin_nav_users', page_locale()),   href: path('admin_users'),   iconSvg: icon.users },
+    moduleBilling ? { key: 'billing', label: t('admin_nav_billing', page_locale()), href: path('admin_billing'), iconSvg: icon.billing } : null
 ]|filter(v => v) %}
 
 {% set gameModuleItems = [
-    moduleGame ? { key: 'game-instances', label: t('admin_nav_game_instances', page_locale()), href: path('admin_instances') } : null,
-    moduleGame ? { key: 'templates', label: t('admin_nav_templates', page_locale()), href: path('admin_templates') } : null,
-    moduleGame ? { key: 'plugins', label: t('admin_nav_plugins', page_locale()), href: path('admin_plugins') } : null
+    moduleGame ? { key: 'game-instances', label: t('admin_nav_game_instances', page_locale()), href: path('admin_instances'),  iconSvg: icon.gamepad } : null,
+    moduleGame ? { key: 'templates',      label: t('admin_nav_templates', page_locale()),      href: path('admin_templates'),  iconSvg: icon.templates } : null,
+    moduleGame ? { key: 'plugins',        label: t('admin_nav_plugins', page_locale()),        href: path('admin_plugins'),    iconSvg: icon.plugins } : null
 ]|filter(v => v) %}
 
 {% set voiceModuleItems = [
-    moduleTsCombined ? { key: 'ts-nodes', label: t('admin_nav_ts_nodes', page_locale()), href: path('admin_ts_nodes_index') } : null,
-    moduleTs ? { key: 'ts3-servers', label: t('admin_nav_ts3_servers', page_locale()), href: path('admin_ts3_servers_index') } : null,
-    moduleTs6 ? { key: 'ts6-servers', label: t('admin_nav_ts6_servers', page_locale()), href: path('admin_ts6_servers_index') } : null,
-    moduleSinusbot ? { key: 'sinusbot', label: t('admin_nav_sinusbot', page_locale()), href: path('admin_sinusbot_nodes_index') } : null
+    moduleTsCombined  ? { key: 'ts-nodes',    label: t('admin_nav_ts_nodes', page_locale()),    href: path('admin_ts_nodes_index'),     iconSvg: icon.server } : null,
+    moduleTs          ? { key: 'ts3-servers',  label: t('admin_nav_ts3_servers', page_locale()), href: path('admin_ts3_servers_index'),  iconSvg: icon.voice } : null,
+    moduleTs6         ? { key: 'ts6-servers',  label: t('admin_nav_ts6_servers', page_locale()), href: path('admin_ts6_servers_index'),  iconSvg: icon.voice } : null,
+    moduleSinusbot    ? { key: 'sinusbot',     label: t('admin_nav_sinusbot', page_locale()),    href: path('admin_sinusbot_nodes_index'),iconSvg: icon.sinusbot } : null
 ]|filter(v => v) %}
 
 {% set systemModuleItems = [
-    { key: 'firewall', label: t('admin_nav_firewall', page_locale()), href: path('admin_security') },
-    { key: 'port-pools', label: t('admin_nav_server_ports', page_locale()), href: path('admin_port_pools') },
-    { key: 'metrics', label: t('admin_nav_metrics', page_locale()), href: path('admin_metrics') },
-    { key: 'nodes', label: t('admin_nav_nodes', page_locale()), href: path('admin_nodes') },
-    { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()), href: path('admin_agent_bootstrap_tokens') },
-    { key: 'ddos', label: t('admin_nav_ddos_policy', page_locale()), href: path('admin_ddos') },
-    { key: 'unifi', label: t('admin_nav_unifi', page_locale()), href: path('admin_unifi_dashboard') },
-    { key: 'backup-system', label: t('admin_nav_backup_system', page_locale()), href: path('admin_settings_backups') }
+    { key: 'firewall',         label: t('admin_nav_firewall', page_locale()),        href: path('admin_security'),              iconSvg: icon.shield },
+    { key: 'port-pools',       label: t('admin_nav_server_ports', page_locale()),    href: path('admin_port_pools'),            iconSvg: icon.port },
+    { key: 'metrics',          label: t('admin_nav_metrics', page_locale()),         href: path('admin_metrics'),               iconSvg: icon.metrics },
+    { key: 'nodes',            label: t('admin_nav_nodes', page_locale()),           href: path('admin_nodes'),                 iconSvg: icon.server },
+    { key: 'bootstrap-tokens', label: t('admin_nav_bootstrap_tokens', page_locale()),href: path('admin_agent_bootstrap_tokens'),iconSvg: icon.key },
+    { key: 'ddos',             label: t('admin_nav_ddos_policy', page_locale()),     href: path('admin_ddos'),                  iconSvg: icon.ddos },
+    { key: 'unifi',            label: t('admin_nav_unifi', page_locale()),           href: path('admin_unifi_dashboard'),       iconSvg: icon.wifi },
+    { key: 'backup-system',    label: t('admin_nav_backup_system', page_locale()),   href: path('admin_settings_backups'),      iconSvg: icon.archive }
 ]|filter(v => v) %}
 
 {% set webinterfaceModuleItems = [
-    { key: 'settings', label: t('admin_nav_webinterface_settings', page_locale()), href: path('admin_settings') },
-    { key: 'modules', label: t('admin_nav_modules', page_locale()), href: path('admin_modules') },
-    { key: 'updates', label: t('admin_updates_title', page_locale()), href: path('admin_updates') }
+    { key: 'settings', label: t('admin_nav_webinterface_settings', page_locale()), href: path('admin_settings'), iconSvg: icon.cog },
+    { key: 'modules',  label: t('admin_nav_modules', page_locale()),               href: path('admin_modules'),  iconSvg: icon.cube },
+    { key: 'updates',  label: t('admin_updates_title', page_locale()),             href: path('admin_updates'),  iconSvg: icon.update }
 ] %}
 
 {% set servicesItems = [
-    moduleWeb ? { key: 'webspaces', label: t('admin_nav_webspaces', page_locale()), href: path('admin_webspaces') } : null,
-    { key: 'databases', label: t('admin_nav_databases', page_locale()), href: path('admin_databases') }
+    moduleWeb ? { key: 'webspaces', label: t('admin_nav_webspaces', page_locale()), href: path('admin_webspaces'), iconSvg: icon.globe } : null,
+    { key: 'databases', label: t('admin_nav_databases', page_locale()), href: path('admin_databases'), iconSvg: icon.database }
 ]|filter(v => v) %}
 
 {% set shopItems = moduleBilling ? [
-    { key: 'shop-categories', label: t('admin_nav_shop_categories', page_locale()), href: path('admin_shop_categories') },
-    { key: 'shop-products', label: t('admin_nav_shop_products', page_locale()), href: path('admin_shop_products') }
+    { key: 'shop-categories', label: t('admin_nav_shop_categories', page_locale()), href: path('admin_shop_categories'), iconSvg: icon.tag },
+    { key: 'shop-products',   label: t('admin_nav_shop_products', page_locale()),   href: path('admin_shop_products'),   iconSvg: icon.shop }
 ] : [] %}
 
 {% set cmsItems = [
-    { key: 'cms-pages', label: t('cms_pages_title', page_locale()), href: path('admin_cms_pages') },
-    { key: 'cms-blog', label: t('cms_blog_nav', page_locale()), href: path('admin_cms_blog_index') },
-    { key: 'cms-events', label: 'Events', href: path('admin_cms_events_index') },
-    { key: 'cms-team', label: 'Team', href: path('admin_cms_team_index') },
-    { key: 'cms-media', label: 'Media', href: path('admin_cms_media_index') },
-    { key: 'public-servers', label: t('admin_nav_cms_gameservers', page_locale()), href: path('admin_public_servers') },
-    { key: 'cms-forum', label: 'Forum', href: path('admin_cms_forum') },
-    { key: 'cms-contact', label: 'Kontakt-Eingang', href: path('admin_cms_contact') },
-    { key: 'cms-settings', label: 'CMS Settings', href: path('admin_cms_settings') }
+    { key: 'cms-pages',     label: t('cms_pages_title', page_locale()),       href: path('admin_cms_pages'),       iconSvg: icon.page },
+    { key: 'cms-blog',      label: t('cms_blog_nav', page_locale()),          href: path('admin_cms_blog_index'),  iconSvg: icon.newspaper },
+    { key: 'cms-events',    label: t('admin_cms_events_label', page_locale()),   href: path('admin_cms_events_index'),iconSvg: icon.calendar },
+    { key: 'cms-team',      label: t('admin_cms_team_label', page_locale()),     href: path('admin_cms_team_index'),  iconSvg: icon.users },
+    { key: 'cms-media',     label: t('admin_cms_media_label', page_locale()),    href: path('admin_cms_media_index'), iconSvg: icon.photo },
+    { key: 'public-servers',label: t('admin_nav_cms_gameservers', page_locale()), href: path('admin_public_servers'), iconSvg: icon.server },
+    { key: 'cms-forum',     label: t('admin_cms_forum_label', page_locale()),    href: path('admin_cms_forum'),       iconSvg: icon.chat },
+    { key: 'cms-contact',   label: t('admin_cms_contact_label', page_locale()),  href: path('admin_cms_contact'),     iconSvg: icon.mail },
+    { key: 'cms-settings',  label: t('admin_cms_settings_label', page_locale()), href: path('admin_cms_settings'),    iconSvg: icon.cog }
 ] %}
 
 {% set domainItems = [
-    moduleDns ? { key: 'dns-records', label: t('admin_nav_dns_records', page_locale()), href: path('admin_dns_records') } : null,
-    moduleMail ? { key: 'mail-system', label: t('admin_nav_mail_system', page_locale()), href: path('admin_mail_system') } : null,
-    moduleMail ? { key: 'mailboxes', label: t('admin_nav_mailboxes', page_locale()), href: path('admin_mailboxes') } : null,
-    moduleMail ? { key: 'mail-aliases', label: t('admin_nav_mail_aliases', page_locale()), href: path('admin_mail_aliases') } : null,
-    moduleMail ? { key: 'mail-health', label: t('admin_nav_mail_health', page_locale()), href: path('admin_mail_health') } : null,
-    moduleMail ? { key: 'mail-matrix', label: t('admin_nav_mail_matrix', page_locale()), href: path('admin_mail_matrix') } : null
+    moduleDns  ? { key: 'dns-records',  label: t('admin_nav_dns_records', page_locale()),  href: path('admin_dns_records'),  iconSvg: icon.dns } : null,
+    moduleMail ? { key: 'mail-system',  label: t('admin_nav_mail_system', page_locale()),  href: path('admin_mail_system'),  iconSvg: icon.mail } : null,
+    moduleMail ? { key: 'mailboxes',    label: t('admin_nav_mailboxes', page_locale()),    href: path('admin_mailboxes'),    iconSvg: icon.inbox } : null,
+    moduleMail ? { key: 'mail-aliases', label: t('admin_nav_mail_aliases', page_locale()),href: path('admin_mail_aliases'), iconSvg: icon.mail } : null,
+    moduleMail ? { key: 'mail-health',  label: t('admin_nav_mail_health', page_locale()), href: path('admin_mail_health'),  iconSvg: icon.activity } : null,
+    moduleMail ? { key: 'mail-matrix',  label: t('admin_nav_mail_matrix', page_locale()), href: path('admin_mail_matrix'),  iconSvg: icon.chart } : null
 ]|filter(v => v) %}
 
 {% set sidebarGroups = [
@@ -94,9 +145,9 @@
         label: t('admin_nav_group_overview', page_locale()),
         open: true,
         items: [
-            { key: 'dashboard', label: t('admin_nav_dashboard', page_locale()), href: path('admin_dashboard') },
-            { key: 'activity', label: t('activity', page_locale()), href: path('admin_activity') },
-            { key: 'audit-logs', label: t('admin_nav_audit_logs', page_locale()), href: path('admin_audit_logs') },
+            { key: 'dashboard',  label: t('admin_nav_dashboard', page_locale()),  href: path('admin_dashboard'), iconSvg: icon.dashboard },
+            { key: 'activity',   label: t('activity', page_locale()),             href: path('admin_activity'),  iconSvg: icon.activity },
+            { key: 'audit-logs', label: t('admin_nav_audit_logs', page_locale()), href: path('admin_audit_logs'),iconSvg: icon.audit }
         ]
     },
     customerItems is not empty ? {
@@ -111,57 +162,56 @@
     } : null,
     voiceModuleItems is not empty ? {
         label: t('admin_nav_group_voice', page_locale()),
-        open: true,
+        open: false,
         items: voiceModuleItems
     } : null,
     systemModuleItems is not empty ? {
         label: t('admin_nav_group_system', page_locale()),
-        open: true,
+        open: false,
         items: systemModuleItems
     } : null,
     webinterfaceModuleItems is not empty ? {
         label: t('admin_nav_group_webinterface', page_locale()),
-        open: true,
+        open: false,
         items: webinterfaceModuleItems
     } : null,
     servicesItems is not empty ? {
         label: t('admin_nav_group_services', page_locale()),
-        open: true,
+        open: false,
         items: servicesItems
     } : null,
     shopItems is not empty ? {
         label: t('admin_nav_group_shop', page_locale()),
-        open: true,
+        open: false,
         items: shopItems
     } : null,
     cmsItems is not empty ? {
         label: t('admin_nav_group_cms', page_locale()),
-        open: true,
+        open: false,
         items: cmsItems
     } : null,
     domainItems is not empty ? {
         label: t('admin_nav_group_domains_mail', page_locale()),
-        open: true,
+        open: false,
         items: domainItems
     } : null,
     {
         label: t('admin_nav_group_support', page_locale()),
         open: true,
         items: [
-            { key: 'tickets', label: t('admin_nav_tickets', page_locale()), href: path('admin_tickets') }
+            { key: 'tickets', label: t('admin_nav_tickets', page_locale()), href: path('admin_tickets'), iconSvg: icon.ticket }
         ]
     },
     gdprItems is not empty ? {
         label: t('admin_nav_group_gdpr', page_locale()),
-        open: true,
+        open: false,
         items: gdprItems
     } : null,
     marketplaceItems is not empty ? {
         label: t('admin_nav_group_extensions', page_locale()),
         open: false,
         items: marketplaceItems
-    } : null,
-    null
+    } : null
 ]|filter(v => v) %}
 
 <div class="ng-layout">
@@ -174,54 +224,121 @@
     } %}
     <div class="ng-sidebar-backdrop" data-sidebar-backdrop></div>
 
-    <main class="ng-main">
+    <main class="ng-main" id="main-content">
         {% include 'components/_topbar.html.twig' with {
             title: pageTitle|default(''),
             subtitle: pageSubtitle|default(''),
-            actions: topbarActions|default([])
+            actions: topbarActions|default([]),
+            profile: adminProfileSummary
         } %}
         <div class="ng-content">
             {% block content %}{% endblock %}
         </div>
     </main>
 </div>
-<script>
-    (() => {
-        const body = document.body;
-        const toggles = document.querySelectorAll('.ng-sidebar-toggle');
-        const backdrop = document.querySelector('[data-sidebar-backdrop]');
-        if (toggles.length === 0) {
-            return;
-        }
-        const toggleSidebar = () => {
-            if (window.matchMedia('(max-width: 768px)').matches) {
-                body.classList.toggle('is-sidebar-open');
-                return;
-            }
-            body.classList.toggle('is-sidebar-collapsed');
-        };
-        toggles.forEach((toggle) => toggle.addEventListener('click', toggleSidebar));
-        if (backdrop) {
-            backdrop.addEventListener('click', () => body.classList.remove('is-sidebar-open'));
-        }
-        window.addEventListener('resize', () => {
-            if (!window.matchMedia('(max-width: 768px)').matches) {
-                body.classList.remove('is-sidebar-open');
-            }
-        });
-        window.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') {
-                body.classList.remove('is-sidebar-open');
-            }
-        });
 
-        const userMenuToggle = document.querySelector('[data-user-menu-toggle]');
-        const userMenu = document.querySelector('[data-user-menu]');
-        if (userMenuToggle && userMenu) {
-            userMenuToggle.addEventListener('click', () => {
-                userMenu.open = !userMenu.open;
+{% include 'components/_command_palette.html.twig' %}
+
+<script>
+    (function () {
+        /* ── Theme toggle ── */
+        var themeToggle = document.getElementById('theme-toggle');
+        var iconDark = themeToggle ? themeToggle.querySelector('.theme-icon-dark') : null;
+        var iconLight = themeToggle ? themeToggle.querySelector('.theme-icon-light') : null;
+
+        function applyTheme() {
+            var isDark = document.documentElement.classList.contains('dark');
+            if (iconDark)  iconDark.style.display  = isDark  ? '' : 'none';
+            if (iconLight) iconLight.style.display = !isDark ? '' : 'none';
+        }
+
+        if (themeToggle) {
+            applyTheme();
+            themeToggle.addEventListener('click', function () {
+                var isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                applyTheme();
             });
         }
+
+        /* ── Sidebar toggle ── */
+        var body = document.body;
+        var toggles = document.querySelectorAll('.ng-sidebar-toggle');
+        var backdrop = document.querySelector('[data-sidebar-backdrop]');
+
+        if (toggles.length > 0) {
+            function toggleSidebar() {
+                if (window.matchMedia('(max-width: 768px)').matches) {
+                    body.classList.toggle('is-sidebar-open');
+                } else {
+                    body.classList.toggle('is-sidebar-collapsed');
+                }
+            }
+
+            toggles.forEach(function (t) { t.addEventListener('click', toggleSidebar); });
+
+            if (backdrop) {
+                backdrop.addEventListener('click', function () {
+                    body.classList.remove('is-sidebar-open');
+                });
+            }
+
+            window.addEventListener('resize', function () {
+                if (!window.matchMedia('(max-width: 768px)').matches) {
+                    body.classList.remove('is-sidebar-open');
+                }
+            });
+
+            window.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    body.classList.remove('is-sidebar-open');
+                }
+            });
+        }
+
+        /* ── User menu ── */
+        var userMenuToggle = document.querySelector('[data-user-menu-toggle]');
+        var userMenu = document.querySelector('[data-user-menu]');
+        if (userMenuToggle && userMenu) {
+            userMenuToggle.addEventListener('click', function () {
+                userMenu.open = !userMenu.open;
+                userMenuToggle.setAttribute('aria-expanded', userMenu.open ? 'true' : 'false');
+            });
+            document.addEventListener('click', function (e) {
+                if (userMenu.open && !userMenu.contains(e.target) && !userMenuToggle.contains(e.target)) {
+                    userMenu.open = false;
+                }
+            });
+        }
+
+        /* ── Copy to clipboard ── */
+        var copyText = function (value) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(value).then(function () { return true; });
+            }
+            var ta = document.createElement('textarea');
+            ta.value = value;
+            ta.style.cssText = 'position:fixed;opacity:0';
+            document.body.appendChild(ta);
+            ta.focus(); ta.select();
+            var ok = document.execCommand('copy');
+            ta.remove();
+            return Promise.resolve(ok);
+        };
+
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-copy-value]');
+            if (!btn) return;
+            var val = btn.dataset.copyValue;
+            if (!val) return;
+            var orig = btn.dataset.copyOriginal || btn.textContent.trim();
+            btn.dataset.copyOriginal = orig;
+            copyText(val).then(function (ok) {
+                if (!ok) return;
+                btn.textContent = '{{ t('customer_copy_success', page_locale()) }}';
+                setTimeout(function () { btn.textContent = orig; }, 1200);
+            });
+        });
     })();
 </script>
 {% endblock %}

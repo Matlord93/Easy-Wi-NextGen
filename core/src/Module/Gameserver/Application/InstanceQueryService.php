@@ -89,7 +89,13 @@ final class InstanceQueryService
         }
 
         if ($instance->getStatus() !== InstanceStatus::Running) {
-            return $cached;
+            $offline = $cached;
+            $offline['status'] = 'offline';
+            if (is_array($offline['result'] ?? null)) {
+                $offline['result']['online'] = false;
+                $offline['result']['status'] = 'offline';
+            }
+            return $offline;
         }
 
         if ($this->isQueueCooldown($instance->getQueryStatusCache())) {

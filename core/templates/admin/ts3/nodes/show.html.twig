@@ -3,6 +3,7 @@
 {% block title %}TS3 Node · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+{% set locale = page_locale() %}
     <div class="ts3-page">
         <div class="ts3-header">
             <div>
@@ -10,10 +11,10 @@
                 <p>Agent: {{ node.agentBaseUrl }}</p>
             </div>
             <div class="ts3-actions">
-                <a class="ts3-link" href="/admin/ts3/nodes">Zurück zur Übersicht</a>
-                <form method="post" action="/admin/ts3/nodes/{{ node.id }}/delete" onsubmit="return confirm('TS3 Node wirklich löschen?');">
+                <a class="ts3-link" href="/admin/ts3/nodes">{{ t('admin_ts3_node_show_back', locale) }}</a>
+                <form method="post" action="/admin/ts3/nodes/{{ node.id }}/delete" onsubmit="return confirm('{{ t('admin_ts3_node_delete_confirm', locale) }}');">
                     <input type="hidden" name="_token" value="{{ csrf.delete }}">
-                    <button class="ts3-button" type="submit">Löschen</button>
+                    <button class="ts3-button" type="submit">{{ t('admin_ts3_node_delete', locale) }}</button>
                 </form>
             </div>
         </div>
@@ -24,45 +25,45 @@
 
         <div class="ts3-grid">
             <div class="ts3-card">
-                <h2>Status</h2>
+                <h2>{{ t('admin_ts3_node_status_title', locale) }}</h2>
                 <div class="ts3-meta">
-                    <div><strong>Installationsstatus:</strong> {{ node.installStatus }}</div>
-                    <div><strong>Runtime:</strong> {{ node.running ? 'running' : 'stopped' }}</div>
-                    <div><strong>Version:</strong> {{ node.installedVersion ?? '—' }}</div>
-                    <div><strong>Service:</strong> {{ node.serviceName }}</div>
-                    <div><strong>Running:</strong> {{ node.running ? 'Ja' : 'Nein' }}</div>
-                    <div><strong>Letzter Fehler:</strong> {{ node.lastError ?? '—' }}</div>
+                    <div><strong>{{ t('admin_ts3_node_install_status', locale) }}</strong> {{ node.installStatus }}</div>
+                    <div><strong>{{ t('admin_ts3_node_runtime', locale) }}</strong> {{ node.running ? 'running' : 'stopped' }}</div>
+                    <div><strong>{{ t('admin_ts3_node_version', locale) }}</strong> {{ node.installedVersion ?? '—' }}</div>
+                    <div><strong>{{ t('admin_ts3_node_service', locale) }}</strong> {{ node.serviceName }}</div>
+                    <div><strong>{{ t('admin_ts3_node_running_label', locale) }}</strong> {{ node.running ? 'Ja' : 'Nein' }}</div>
+                    <div><strong>{{ t('admin_ts3_node_last_error', locale) }}</strong> {{ node.lastError ?? '—' }}</div>
                 </div>
                 <div class="ts3-actions">
                     <form method="post" action="/admin/ts3/nodes/{{ node.id }}/install">
                         <input type="hidden" name="_token" value="{{ csrf.install }}">
-                        <button class="ts3-button" type="submit">Installieren</button>
+                        <button class="ts3-button" type="submit">{{ t('admin_ts3_node_install', locale) }}</button>
                     </form>
                     <form method="post" action="/admin/ts3/nodes/{{ node.id }}/start">
                         <input type="hidden" name="_token" value="{{ csrf.start }}">
-                        <button class="ts3-button" type="submit">Start</button>
+                        <button class="ts3-button" type="submit">{{ t('admin_ts3_node_start', locale) }}</button>
                     </form>
                     <form method="post" action="/admin/ts3/nodes/{{ node.id }}/stop">
                         <input type="hidden" name="_token" value="{{ csrf.stop }}">
-                        <button class="ts3-button" type="submit">Stop</button>
+                        <button class="ts3-button" type="submit">{{ t('admin_ts3_node_stop', locale) }}</button>
                     </form>
                     <form method="post" action="/admin/ts3/nodes/{{ node.id }}/restart">
                         <input type="hidden" name="_token" value="{{ csrf.restart }}">
-                        <button class="ts3-button" type="submit">Restart</button>
+                        <button class="ts3-button" type="submit">{{ t('admin_ts3_node_restart', locale) }}</button>
                     </form>
                 </div>
             </div>
 
             <div class="ts3-card">
-                <h2>Letzte Jobs</h2>
+                <h2>{{ t('admin_ts3_node_jobs_title', locale) }}</h2>
                 {% if agent_jobs is not empty %}
                     {% for job in agent_jobs %}
                         <div class="ts3-meta">
-                            <div><strong>Typ:</strong> {{ job.type }}</div>
-                            <div><strong>Status:</strong> {{ job.status.value }}</div>
-                            <div><strong>Gestartet:</strong> {{ job.startedAt ? job.startedAt|date('Y-m-d H:i') : '—' }}</div>
-                            <div><strong>Beendet:</strong> {{ job.finishedAt ? job.finishedAt|date('Y-m-d H:i') : '—' }}</div>
-                            <div><strong>Fehler:</strong> {{ job.errorText ?? '—' }}</div>
+                            <div><strong>{{ t('admin_ts3_node_job_type', locale) }}</strong> {{ job.type }}</div>
+                            <div><strong>{{ t('admin_ts3_node_job_status', locale) }}</strong> {{ job.status.value }}</div>
+                            <div><strong>{{ t('admin_ts3_node_job_started', locale) }}</strong> {{ job.startedAt ? job.startedAt|date('Y-m-d H:i') : '—' }}</div>
+                            <div><strong>{{ t('admin_ts3_node_job_finished', locale) }}</strong> {{ job.finishedAt ? job.finishedAt|date('Y-m-d H:i') : '—' }}</div>
+                            <div><strong>{{ t('admin_ts3_node_job_error', locale) }}</strong> {{ job.errorText ?? '—' }}</div>
                         </div>
                         {% if job.logText %}
                             <div class="ts3-code"><pre>{{ job.logText }}</pre></div>
@@ -75,19 +76,19 @@
                         {% endif %}
                     {% endfor %}
                 {% else %}
-                    <p class="ts3-muted">Keine Jobs vorhanden.</p>
+                    <p class="ts3-muted">{{ t('admin_ts3_node_no_jobs', locale) }}</p>
                 {% endif %}
             </div>
 
             <div class="ts3-card">
-                <h2>Admin Credentials</h2>
-                <p class="ts3-muted">Passwort wird verschlüsselt gespeichert und nur für Admins angezeigt.</p>
+                <h2>{{ t('admin_ts3_node_credentials_title', locale) }}</h2>
+                <p class="ts3-muted">{{ t('admin_ts3_node_credentials_note', locale) }}</p>
                 {% if admin_password %}
                     <div class="ts3-credentials">
                         <div><strong>{{ node.adminUsername }}</strong></div>
                         <div class="ts3-secret">{{ admin_password }}</div>
                     </div>
-                    <button class="ts3-button" type="button" data-ts3-copy="{{ admin_password }}">Kopieren</button>
+                    <button class="ts3-button" type="button" data-ts3-copy="{{ admin_password }}">{{ t('admin_ts3_node_copy', locale) }}</button>
                 {% else %}
                     <div class="ts3-credentials">
                         <div><strong>{{ node.adminUsername }}</strong></div>
@@ -96,10 +97,10 @@
                 {% endif %}
                 <form method="post" action="/admin/ts3/nodes/{{ node.id }}/show-admin-credentials">
                     <input type="hidden" name="_token" value="{{ csrf.show_admin }}">
-                    <button class="ts3-button" type="submit">Anzeigen</button>
+                    <button class="ts3-button" type="submit">{{ t('admin_ts3_node_show', locale) }}</button>
                 </form>
                 {% if node.adminPasswordShownOnceAt %}
-                    <p class="ts3-muted">Zuletzt angezeigt: {{ node.adminPasswordShownOnceAt|date('Y-m-d H:i') }}</p>
+                    <p class="ts3-muted">{{ t('admin_ts3_node_last_shown', locale) }} {{ node.adminPasswordShownOnceAt|date('Y-m-d H:i') }}</p>
                 {% endif %}
             </div>
         </div>

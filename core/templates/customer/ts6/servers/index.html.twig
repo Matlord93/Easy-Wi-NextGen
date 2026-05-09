@@ -1,20 +1,21 @@
 {% extends 'customer/base.html.twig' %}
 
-{% block title %}TS6 Server · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('customer_ts6_page_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
 
 {% block content %}
+    {% set locale = page_locale() %}
     {% include 'customer/ts/servers/_index_table.html.twig' with {
         cssPrefix: 'ts6',
         variant: 'ts6',
-        title: 'TeamSpeak 6 Server',
-        intro: 'Verwalte deine TS6 Virtual Server.',
+        title: t('customer_ts6_page_title', locale),
+        intro: t('customer_ts6_page_desc', locale),
         detailBase: '/customer/ts6/servers',
-        emptyText: 'Keine TS6 Server gefunden.',
+        emptyText: t('customer_ts6_server_none', locale),
         columns: {
-            name: 'Server',
-            address: 'IP & Ports',
-            slots: 'Slots',
-            actions: 'Aktionen'
+            name: t('customer_ts6_server_name', locale),
+            address: t('customer_ts6_server_address', locale),
+            slots: t('customer_ts6_server_slots', locale),
+            actions: t('customer_voice_col_actions', locale)
         }
     } %}
 {% endblock %}

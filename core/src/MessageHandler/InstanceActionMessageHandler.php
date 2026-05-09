@@ -200,6 +200,14 @@ final class InstanceActionMessageHandler
             throw new \RuntimeException('Backup definition not found.');
         }
 
+        $activeBackup = $this->findActiveBackupForDefinition($definition);
+        if ($activeBackup instanceof Backup && $activeBackup->getJob() instanceof Job) {
+            return [
+                'job_id' => $activeBackup->getJob()->getId(),
+                'backup_id' => $activeBackup->getId(),
+            ];
+        }
+
         $backup = new Backup($definition, BackupStatus::Queued);
         $this->entityManager->persist($backup);
         $this->entityManager->flush();
@@ -228,6 +236,25 @@ final class InstanceActionMessageHandler
             'job_id' => $job->getId(),
             'backup_id' => $backup->getId(),
         ];
+    }
+
+
+    private function findActiveBackupForDefinition(BackupDefinition $definition): ?Backup
+    {
+        foreach ($this->backupRepository->findByDefinition($definition) as $backup) {
+            if (!in_array($backup->getStatus(), [BackupStatus::Queued, BackupStatus::Running], true)) {
+                continue;
+            }
+
+            $job = $backup->getJob();
+            if (!$job instanceof Job || $job->getStatus()->isTerminal()) {
+                continue;
+            }
+
+            return $backup;
+        }
+
+        return null;
     }
 
     /**
