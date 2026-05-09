@@ -44,6 +44,17 @@ func handleWebspaceApply(job jobs.Job) (jobs.Result, func() error) {
 	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"runtime": runtimeType, "apply_status": "succeeded"}, Completed: time.Now().UTC()}, nil
 }
 
+func parseProtectedVhostPaths(raw string) map[string]struct{} {
+	protected := map[string]struct{}{}
+	for _, p := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' }) {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			protected[p] = struct{}{}
+		}
+	}
+	return protected
+}
+
 func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" {
 		return webspaceApplyFailure(job.ID, "webspace_unsupported_os", "webspace apply unsupported on windows"), nil
@@ -59,6 +70,7 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	redirectHTTPS := payloadValue(job.Payload, "redirect_https") == "1" || strings.EqualFold(payloadValue(job.Payload, "redirect_https"), "true")
 	runtimeType := strings.ToLower(payloadValue(job.Payload, "runtime"))
 	action := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "action")))
+	protectedVhosts := parseProtectedVhostPaths(payloadValue(job.Payload, "protected_vhost_paths"))
 	rollback := func() error { return nil }
 	if runtimeType == "" {
 		runtimeType = "nginx"
@@ -73,6 +85,9 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	if action == "remove" {
 		vhost := strings.TrimSpace(payloadValue(job.Payload, "nginx_vhost_path", "vhost_path"))
 		if vhost != "" {
+			if _, isProtected := protectedVhosts[vhost]; isProtected {
+				return webspaceApplyFailure(job.ID, "panel_vhost_protected", "refusing to remove panel vhost: "+vhost), nil
+			}
 			rollback = captureVhostRollback(vhost)
 			if err := os.Remove(vhost); err != nil && !os.IsNotExist(err) {
 				return webspaceApplyFailure(job.ID, "write_failed", err.Error()), nil
@@ -119,6 +134,9 @@ func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 		vhost := strings.TrimSpace(payloadValue(job.Payload, "nginx_vhost_path", "vhost_path"))
 		if vhost == "" {
 			vhost = filepath.Join("/etc/easywi/web/nginx/vhosts", domainName+".conf")
+		}
+		if _, isProtected := protectedVhosts[vhost]; isProtected {
+			return webspaceApplyFailure(job.ID, "panel_vhost_protected", "refusing to overwrite panel vhost: "+vhost), nil
 		}
 		rollback = captureVhostRollback(vhost)
 		content := buildManagedNginxVhost(domainName, aliasValues, docroot, phpFpmListen, redirectHTTPS, directives)

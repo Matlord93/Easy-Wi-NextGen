@@ -16,6 +16,7 @@ use App\Repository\AgentRepository;
 use App\Repository\MailDomainRepository;
 use App\Repository\MailNodeRepository;
 use App\Repository\UserRepository;
+use App\Repository\WebspaceNodeRepository;
 use App\Repository\WebspaceRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -35,6 +36,7 @@ final class AdminWebspaceController
         private readonly MailNodeRepository $mailNodeRepository,
         private readonly MailDomainRepository $mailDomainRepository,
         private readonly WebspaceRepository $webspaceRepository,
+        private readonly WebspaceNodeRepository $webspaceNodeRepository,
         private readonly PortPoolRepository $portPoolRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly AuditLogger $auditLogger,
@@ -140,6 +142,11 @@ final class AdminWebspaceController
 
         $this->ensureMailDomainBinding($domainEntity);
 
+        $webspaceNode = $this->webspaceNodeRepository->findByAgent($node);
+        $protectedVhostPaths = ($webspaceNode !== null && $webspaceNode->isPanelHost() && $webspaceNode->getPanelVhostPath() !== null)
+            ? $webspaceNode->getPanelVhostPath()
+            : '';
+
         $jobPayload = [
             'agent_id' => $node->getId(),
             'webspace_id' => (string) $webspace->getId(),
@@ -155,6 +162,7 @@ final class AdminWebspaceController
             'php_fpm_listen' => sprintf('/run/easywi/php-fpm/%s.sock', $systemUsername),
             'nginx_include_path' => sprintf('/etc/easywi/web/nginx/includes/%s.conf', $systemUsername),
             'pool_name' => $systemUsername,
+            'protected_vhost_paths' => $protectedVhostPaths,
         ];
         $job = new Job('webspace.create', $jobPayload);
         $this->entityManager->persist($job);
@@ -173,6 +181,7 @@ final class AdminWebspaceController
             'redirect_https' => '0',
             'redirect_www' => '0',
             'extra_directives' => '',
+            'protected_vhost_paths' => $protectedVhostPaths,
         ];
         $domainJob = new Job('webspace.domain.apply', $domainJobPayload);
         $this->entityManager->persist($domainJob);
@@ -315,6 +324,7 @@ final class AdminWebspaceController
         $customers = $this->userRepository->findCustomers();
         $nodes = $this->agentRepository->findBy([], ['name' => 'ASC'], 200);
         $phpVersions = $this->collectPhpVersions($nodes);
+        $panelHostNodeIds = $this->collectPanelHostNodeIds($nodes);
 
         return new Response($this->twig->render('admin/webspaces/index.html.twig', [
             'webspaces' => array_map(fn (Webspace $webspace) => $this->normalizeWebspace($webspace), $pagination['items']),
@@ -322,6 +332,7 @@ final class AdminWebspaceController
             'nodes' => $nodes,
             'phpVersions' => $phpVersions === [] ? [self::DEFAULT_PHP_VERSION] : $phpVersions,
             'defaultPhpVersion' => self::DEFAULT_PHP_VERSION,
+            'panelHostNodeIds' => $panelHostNodeIds,
             'error' => $error,
             'notice' => $notice,
             'page' => $pagination['page'],
@@ -455,6 +466,23 @@ final class AdminWebspaceController
 
         $this->entityManager->persist(new MailDomain($domain, $mailNode));
         $this->entityManager->flush();
+    }
+
+    /**
+     * @param array<int, \App\Module\Core\Domain\Entity\Agent> $nodes
+     * @return array<string, true>
+     */
+    private function collectPanelHostNodeIds(array $nodes): array
+    {
+        $panelHostIds = [];
+        foreach ($nodes as $node) {
+            $webspaceNode = $this->webspaceNodeRepository->findByAgent($node);
+            if ($webspaceNode !== null && $webspaceNode->isPanelHost()) {
+                $panelHostIds[$node->getId()] = true;
+            }
+        }
+
+        return $panelHostIds;
     }
 
     private function normalizeDomain(string $domain): string

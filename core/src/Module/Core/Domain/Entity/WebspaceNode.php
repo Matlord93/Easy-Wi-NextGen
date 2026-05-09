@@ -43,6 +43,12 @@ class WebspaceNode
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $tlsDefaults = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isPanelHost = false;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $panelVhostPath = null;
+
     #[ORM\ManyToOne(targetEntity: Agent::class)]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Agent $agent;
@@ -146,6 +152,24 @@ class WebspaceNode
     public function setTlsDefaults(?array $tlsDefaults): void
     {
         $this->tlsDefaults = $tlsDefaults;
+        $this->touch();
+    }
+    public function isPanelHost(): bool
+    {
+        return $this->isPanelHost;
+    }
+    public function setIsPanelHost(bool $isPanelHost): void
+    {
+        $this->isPanelHost = $isPanelHost;
+        $this->touch();
+    }
+    public function getPanelVhostPath(): ?string
+    {
+        return $this->panelVhostPath;
+    }
+    public function setPanelVhostPath(?string $panelVhostPath): void
+    {
+        $this->panelVhostPath = $panelVhostPath;
         $this->touch();
     }
     public function getAgent(): Agent

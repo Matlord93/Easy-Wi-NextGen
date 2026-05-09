@@ -43,6 +43,8 @@ final class AdminWebspaceNodeController
             'base_path' => $n->getBasePath(),
             'vhost_paths' => $n->getVhostPaths(),
             'php_fpm_mode' => $n->getPhpFpmMode(),
+            'is_panel_host' => $n->isPanelHost(),
+            'panel_vhost_path' => $n->getPanelVhostPath(),
         ], $nodes)]);
     }
 
@@ -230,6 +232,13 @@ final class AdminWebspaceNodeController
         }
         if (array_key_exists('enabled', $data)) {
             $node->setEnabled((bool) $data['enabled']);
+        }
+        if (array_key_exists('is_panel_host', $data)) {
+            $node->setIsPanelHost((bool) $data['is_panel_host']);
+        }
+        if (array_key_exists('panel_vhost_path', $data)) {
+            $path = trim((string) ($data['panel_vhost_path'] ?? ''));
+            $node->setPanelVhostPath($path === '' ? null : $path);
         }
     }
 

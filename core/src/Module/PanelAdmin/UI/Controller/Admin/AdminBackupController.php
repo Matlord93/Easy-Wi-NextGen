@@ -276,9 +276,9 @@ final class AdminBackupController
         }
 
         $encrypted = $target->getEncryptedCredentials();
-        $passwordEncrypted = is_string($encrypted['password'] ?? null) ? (string) $encrypted['password'] : '';
-        $tokenEncrypted = is_string($encrypted['token'] ?? null) ? (string) $encrypted['token'] : '';
-        if ($passwordEncrypted === '' && $tokenEncrypted === '') {
+        $passwordEncrypted = $this->encryptedCredentialPayload($encrypted, 'password');
+        $tokenEncrypted = $this->encryptedCredentialPayload($encrypted, 'token');
+        if ($passwordEncrypted === null && $tokenEncrypted === null) {
             return $this->responseEnvelopeFactory->error($request, 'WebDAV secret missing.', 'backup_target_secret_missing', JsonResponse::HTTP_BAD_REQUEST, null, ['details' => $resultDetails]);
         }
 
@@ -286,10 +286,10 @@ final class AdminBackupController
         $remotePath = '/' . ltrim((string) ($config['remote_path'] ?? $config['root_path'] ?? '/'), '/');
         $verifyTls = (bool) ($config['verify_tls'] ?? true);
 
-        $password = $passwordEncrypted !== '' ? $this->encryptionService->decrypt($passwordEncrypted) : '';
-        $token = $tokenEncrypted !== '' ? $this->encryptionService->decrypt($tokenEncrypted) : '';
-        $usernameEncrypted = is_string($encrypted['username'] ?? null) ? (string) $encrypted['username'] : '';
-        $username = $usernameEncrypted !== ''
+        $password = $passwordEncrypted !== null ? $this->encryptionService->decrypt($passwordEncrypted) : '';
+        $token = $tokenEncrypted !== null ? $this->encryptionService->decrypt($tokenEncrypted) : '';
+        $usernameEncrypted = $this->encryptedCredentialPayload($encrypted, 'username');
+        $username = $usernameEncrypted !== null
             ? $this->encryptionService->decrypt($usernameEncrypted)
             : (string) ($config['username'] ?? '');
 
@@ -523,10 +523,30 @@ final class AdminBackupController
 
         $encrypted = $target->getEncryptedCredentials();
 
-        $hasPassword = is_string($encrypted['password'] ?? null) && $encrypted['password'] !== '';
-        $hasToken = is_string($encrypted['token'] ?? null) && $encrypted['token'] !== '';
+        return $this->encryptedCredentialPayload($encrypted, 'password') !== null
+            || $this->encryptedCredentialPayload($encrypted, 'token') !== null;
+    }
 
-        return $hasPassword || $hasToken;
+    /**
+     * @param array<string,mixed> $encryptedCredentials
+     *
+     * @return array{key_id?: string, nonce?: string, ciphertext?: string}|null
+     */
+    private function encryptedCredentialPayload(array $encryptedCredentials, string $key): ?array
+    {
+        $payload = $encryptedCredentials[$key] ?? null;
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        return is_string($payload['key_id'] ?? null)
+            && is_string($payload['nonce'] ?? null)
+            && is_string($payload['ciphertext'] ?? null)
+            && $payload['key_id'] !== ''
+            && $payload['nonce'] !== ''
+            && $payload['ciphertext'] !== ''
+            ? $payload
+            : null;
     }
 
     /** @return array<string,mixed> */

@@ -31,13 +31,31 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_node_label', page_locale()) }}</label>
-                    <select name="node_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                    <select name="node_id" id="ws-node-select" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                         <option value="">{{ t('admin_webspaces_node_placeholder', page_locale()) }}</option>
                         {% for node in nodes %}
-                            <option value="{{ node.id }}">{{ node.name ?? node.id }}</option>
+                            <option value="{{ node.id }}" data-panel-host="{{ panelHostNodeIds[node.id] is defined ? '1' : '0' }}">
+                                {{ node.name ?? node.id }}{% if panelHostNodeIds[node.id] is defined %} ★ Panel{% endif %}
+                            </option>
                         {% endfor %}
                     </select>
+                    <div id="ws-panel-host-warning" class="mt-2 hidden rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        Dieser Server hostet das Panel. Der Panel-Vhost wird beim Deployment automatisch geschützt und nicht überschrieben.
+                    </div>
                 </div>
+                <script>
+                (function () {
+                    var sel = document.getElementById('ws-node-select');
+                    var warn = document.getElementById('ws-panel-host-warning');
+                    if (!sel || !warn) return;
+                    function update() {
+                        var opt = sel.options[sel.selectedIndex];
+                        warn.classList.toggle('hidden', !opt || opt.dataset.panelHost !== '1');
+                    }
+                    sel.addEventListener('change', update);
+                    update();
+                }());
+                </script>
                 <div>
                     <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_path_label', page_locale()) }}</label>
                     <input type="text" name="path" placeholder="/var/www/example.com" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" disabled>

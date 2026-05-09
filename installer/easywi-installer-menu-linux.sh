@@ -1,537 +1,579 @@
 #!/usr/bin/env bash
+# EasyWI Linux Installer – v2.0.0
+# Supports: Debian, Ubuntu, RHEL, CentOS, Rocky, AlmaLinux, Fedora,
+#           openSUSE, SLES, Arch Linux, Manjaro, Alpine Linux
+# Modes: Panel (Core), Agent, Panel+Agent, Agent-Update
 set -euo pipefail
 
-VERSION="0.1.0"
-
-LOG_PREFIX="[easywi-installer-menu]"
+VERSION="2.0.0"
+INSTALLER_NAME="[easywi-installer]"
 STEP_COUNTER=0
 DEFAULT_PHP_VERSION="8.4"
 APT_UPDATED=0
+EASYWI_GITHUB_REPO="Matlord93/Easy-Wi-NextGen"
+EASYWI_GITHUB_RELEASE_BASE="https://github.com/${EASYWI_GITHUB_REPO}/releases"
 
-log() {
-  echo "${LOG_PREFIX} $*" >&2
-}
+# ---------------------------------------------------------------------------
+# Logging helpers
+# ---------------------------------------------------------------------------
 
-step() {
-  STEP_COUNTER=$((STEP_COUNTER + 1))
-  log "Step ${STEP_COUNTER}: $*"
-}
-
-fatal() {
-  echo "${LOG_PREFIX} ERROR: $*" >&2
-  exit 1
-}
+log()   { printf '%s %s\n'  "${INSTALLER_NAME}" "$*" >&2; }
+step()  { STEP_COUNTER=$((STEP_COUNTER + 1)); log "── Schritt ${STEP_COUNTER}: $*"; }
+ok()    { log "   ✓ $*"; }
+warn()  { log "   ⚠ $*"; }
+fatal() { log "FEHLER: $*"; exit 1; }
 
 require_root() {
-  if [[ "${EUID}" -ne 0 ]]; then
-    fatal "Must be run as root"
-  fi
+  [[ "${EUID}" -eq 0 ]] || fatal "Dieses Skript muss als root ausgeführt werden."
 }
 
-is_tty() {
-  [[ -t 0 ]]
-}
+# ---------------------------------------------------------------------------
+# TTY I/O helpers
+# ---------------------------------------------------------------------------
+
+is_tty() { [[ -t 0 ]]; }
 
 read_from_tty() {
-  local prompt="${1:-}"
-  local value=""
-
+  local prompt="${1:-}" value=""
   if [[ -e /dev/tty ]]; then
-    if [[ -n "${prompt}" ]]; then
-      printf '%s' "${prompt}" >/dev/tty
-    fi
+    [[ -n "${prompt}" ]] && printf '%s' "${prompt}" >/dev/tty
     IFS= read -r value </dev/tty || true
   fi
-
-  echo "${value}"
+  printf '%s' "${value}"
 }
 
 menu_output() {
-  if [[ -e /dev/tty ]]; then
-    cat >/dev/tty
-  else
-    cat
-  fi
+  if [[ -e /dev/tty ]]; then cat >/dev/tty; else cat; fi
 }
 
-menu_prompt() {
-  local prompt="$1"
-  read_from_tty "${prompt}"
+menu_prompt() { read_from_tty "${1}"; }
+
+prompt_value() {
+  local var_name="$1" prompt="$2" default="${3:-}" current="${!1:-}" value
+  [[ -n "${current}" ]] && return
+  is_tty || return
+  [[ -n "${default}" ]] && prompt="${prompt} [${default}]"
+  value="$(read_from_tty "${prompt}: ")"
+  [[ -z "${value}" ]] && value="${default}"
+  [[ -n "${value}" ]] && printf -v "${var_name}" '%s' "${value}"
 }
 
-require_command() {
-  local cmd="$1"
-  if ! command -v "${cmd}" >/dev/null 2>&1; then
-    fatal "Benötigtes Kommando fehlt: ${cmd}"
-  fi
+prompt_yes_no() {
+  local prompt="$1" default="${2:-no}" value=""
+  is_tty || return 1
+  case "${default}" in
+    yes) prompt="${prompt} [J/n]" ;;
+    no)  prompt="${prompt} [j/N]" ;;
+    *)   prompt="${prompt} [j/n]" ;;
+  esac
+  value="$(read_from_tty "${prompt}: ")"
+  [[ -z "${value}" ]] && value="${default}"
+  case "${value}" in j|J|ja|JA|Ja|y|Y|yes) return 0 ;; *) return 1 ;; esac
 }
 
-ensure_git_safe_dir() {
-  local repo_dir="$1"
-  if ! git config --global --get-all safe.directory | grep -Fxq "${repo_dir}"; then
-    git config --global --add safe.directory "${repo_dir}"
-  fi
+# ---------------------------------------------------------------------------
+# OS detection
+# ---------------------------------------------------------------------------
+
+get_os_field() {
+  local key="$1"
+  [[ -r /etc/os-release ]] \
+    && awk -F= -v k="${key}" '$1==k{gsub(/"/,"",$2);print $2}' /etc/os-release | head -n1
+}
+
+detect_os_family() {
+  # Returns: debian | rhel | suse | arch | alpine | unknown
+  local id id_like
+  id="$(get_os_field ID | tr '[:upper:]' '[:lower:]')"
+  id_like="$(get_os_field ID_LIKE | tr '[:upper:]' '[:lower:]')"
+
+  case "${id}" in
+    ubuntu|debian|linuxmint|pop|elementary|kali|mx|devuan|raspbian)
+      echo "debian"; return ;;
+    rhel|centos|rocky|almalinux|ol|fedora|amzn)
+      echo "rhel"; return ;;
+    opensuse*|sles|sled)
+      echo "suse"; return ;;
+    arch|manjaro|endeavouros|garuda)
+      echo "arch"; return ;;
+    alpine)
+      echo "alpine"; return ;;
+  esac
+
+  for token in ${id_like}; do
+    case "${token}" in
+      debian|ubuntu)    echo "debian"; return ;;
+      rhel|fedora|centos) echo "rhel"; return ;;
+      suse|opensuse)    echo "suse"; return ;;
+      arch)             echo "arch"; return ;;
+    esac
+  done
+
+  echo "unknown"
 }
 
 detect_package_manager() {
-  if command -v apt-get >/dev/null 2>&1; then
-    echo "apt"
-    return
-  fi
-  if command -v dnf >/dev/null 2>&1; then
-    echo "dnf"
-    return
-  fi
-  if command -v yum >/dev/null 2>&1; then
-    echo "yum"
-    return
-  fi
-  if command -v zypper >/dev/null 2>&1; then
-    echo "zypper"
-    return
-  fi
-  if command -v pacman >/dev/null 2>&1; then
-    echo "pacman"
-    return
-  fi
-  fatal "Kein unterstützter Paketmanager gefunden (apt, dnf, yum, zypper, pacman)."
+  command -v apt-get   >/dev/null 2>&1 && { echo "apt";    return; }
+  command -v dnf       >/dev/null 2>&1 && { echo "dnf";    return; }
+  command -v yum       >/dev/null 2>&1 && { echo "yum";    return; }
+  command -v zypper    >/dev/null 2>&1 && { echo "zypper"; return; }
+  command -v pacman    >/dev/null 2>&1 && { echo "pacman"; return; }
+  command -v apk       >/dev/null 2>&1 && { echo "apk";    return; }
+  fatal "Kein unterstützter Paketmanager gefunden (apt, dnf, yum, zypper, pacman, apk)."
 }
+
+detect_arch_suffix() {
+  local m; m="$(uname -m)"
+  case "${m}" in
+    x86_64|amd64)    echo "linux-amd64" ;;
+    aarch64|arm64)   echo "linux-arm64" ;;
+    armv7l|armhf)    echo "linux-arm"   ;;
+    *)  fatal "Nicht unterstützte CPU-Architektur: ${m}" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# Package management
+# ---------------------------------------------------------------------------
 
 apt_update_once() {
   if [[ "${APT_UPDATED}" -eq 0 ]]; then
-    DEBIAN_FRONTEND=noninteractive apt-get update -y 1>&2
+    DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null 2>&1
     APT_UPDATED=1
   fi
 }
 
-get_os_release_value() {
-  local key="$1"
-  if [[ -r /etc/os-release ]]; then
-    awk -F= -v target="${key}" '$1==target {gsub(/"/,"",$2); print $2}' /etc/os-release | head -n1
-  fi
-}
-
-is_ubuntu_2604_or_newer() {
-  local distro version_id
-  distro="$(get_os_release_value ID)"
-  version_id="$(get_os_release_value VERSION_ID)"
-  if [[ "${distro}" != "ubuntu" || -z "${version_id}" ]]; then
-    return 1
-  fi
-  awk -v v="${version_id}" 'BEGIN { split(v,a,"."); major=a[1]+0; minor=a[2]+0; exit !((major>26) || (major==26 && minor>=4)) }'
-}
-
-package_exists_apt() {
-  local package="$1"
-  apt-cache show "${package}" >/dev/null 2>&1
-}
-
-resolve_php_version() {
-  local requested="$1"
-  local manager="$2"
-  local resolved=""
-  local extracted=""
-
-  extracted="$(printf '%s' "${requested}" | tr -d '\\r' | grep -oE '[0-9]+(\\.[0-9]+)?' | head -n1 || true)"
-  if [[ -z "${extracted}" ]]; then
-    requested="${DEFAULT_PHP_VERSION}"
-  else
-    requested="${extracted}"
-  fi
-  if [[ ! "${requested}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-    log "Ungültige PHP-Version (${requested}), verwende ${DEFAULT_PHP_VERSION}."
-    requested="${DEFAULT_PHP_VERSION}"
-  fi
-  resolved="${requested}"
-
-  if [[ "${manager}" == "apt" ]]; then
-    apt_update_once
-    if ! package_exists_apt "php${requested}"; then
-      log "PHP ${requested} nicht in den Paketquellen gefunden."
-      resolved=""
-      local candidate
-      for candidate in 8.4 8.3 8.2 8.1 8.0 7.4; do
-        if package_exists_apt "php${candidate}"; then
-          resolved="${candidate}"
-          break
-        fi
-      done
-      if [[ -z "${resolved}" ]]; then
-        fatal "Keine unterstützte PHP-Version in den Paketquellen gefunden."
-      fi
-      if [[ "${resolved}" != "${requested}" ]]; then
-        log "Verwende PHP ${resolved} statt ${requested}."
-      fi
-    fi
-  else
-    if [[ ! "${requested}" =~ ^8\.(4|3|2|1|0)$ ]]; then
-      log "Hinweis: Für ${manager} wird ein distributionsabhängiges PHP-Paket genutzt, Versionssuffix wird ignoriert."
-    fi
-  fi
-
-  echo "${resolved}"
-}
-
 install_packages() {
-  local manager="$1"
-  shift
+  local manager="$1"; shift
   local packages=("$@")
+  [[ ${#packages[@]} -eq 0 ]] && return
 
-  step "Installiere Systempakete."
-  log "Folgende Pakete werden installiert:"
-  printf '%s\n' "${packages[@]}" | sed 's/^/  - /' >&2
-  printf '\n' >&2
-
+  log "Installiere Pakete: ${packages[*]}"
   case "${manager}" in
     apt)
       apt_update_once
-      DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" 1>&2
+      DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" >/dev/null 2>&1
       ;;
-    dnf)
-      dnf install -y "${packages[@]}" 1>&2
+    dnf)    dnf install -y "${packages[@]}" >/dev/null 2>&1 ;;
+    yum)    yum install -y "${packages[@]}" >/dev/null 2>&1 ;;
+    zypper) zypper --non-interactive install --no-confirm "${packages[@]}" >/dev/null 2>&1 ;;
+    pacman) pacman -Sy --noconfirm --needed "${packages[@]}" >/dev/null 2>&1 ;;
+    apk)    apk add --no-cache "${packages[@]}" >/dev/null 2>&1 ;;
+    *)      fatal "Unbekannter Paketmanager: ${manager}" ;;
+  esac
+  ok "Pakete installiert."
+}
+
+# ---------------------------------------------------------------------------
+# Repository setup per distro family
+# ---------------------------------------------------------------------------
+
+setup_php_repo() {
+  local manager="$1" family="$2" php_version="$3"
+
+  case "${family}" in
+    debian)
+      step "Richte PHP-Repository ein (Ondrej/PHP)."
+      DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common >/dev/null 2>&1
+      local distro; distro="$(get_os_field ID)"
+      if [[ "${distro}" == "ubuntu" ]]; then
+        # Ubuntu >= 24.04 ships PHP 8.x in main; still add PPA for latest
+        add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1 || warn "PPA konnte nicht hinzugefügt werden – nutze Distro-Pakete."
+      else
+        # Debian: sury.org
+        curl -fsSL https://packages.sury.org/php/apt.gpg \
+          | gpg --dearmor -o /etc/apt/trusted.gpg.d/php.gpg 2>/dev/null
+        echo "deb https://packages.sury.org/php/ $(get_os_field VERSION_CODENAME) main" \
+          > /etc/apt/sources.list.d/php.list
+      fi
+      APT_UPDATED=0
+      apt_update_once
       ;;
-    yum)
-      yum install -y "${packages[@]}" 1>&2
+    rhel)
+      step "Richte EPEL + Remi-Repository ein (PHP ${php_version})."
+      local os_ver; os_ver="$(get_os_field VERSION_ID | cut -d. -f1)"
+      # EPEL
+      dnf install -y epel-release >/dev/null 2>&1 \
+        || yum install -y epel-release >/dev/null 2>&1 \
+        || warn "EPEL konnte nicht installiert werden."
+      # Remi
+      if ! rpm -q remi-release >/dev/null 2>&1; then
+        local remi_pkg="https://rpms.remirepo.net/enterprise/remi-release-${os_ver}.rpm"
+        rpm -Uvh "${remi_pkg}" >/dev/null 2>&1 \
+          || warn "Remi-Release-Paket nicht gefunden für EL${os_ver}."
+      fi
+      local ver_nodot="${php_version//./}"
+      dnf module reset   php -y >/dev/null 2>&1 || true
+      dnf module enable  "php:remi-${php_version}" -y >/dev/null 2>&1 \
+        || warn "Remi PHP-Modul nicht verfügbar, nutze System-PHP."
       ;;
-    zypper)
-      zypper --non-interactive install --no-confirm "${packages[@]}" 1>&2
+    suse)
+      step "Richte PHP-Repository (openSUSE) ein."
+      local os_ver; os_ver="$(get_os_field VERSION_ID)"
+      zypper --non-interactive addrepo --refresh \
+        "https://download.opensuse.org/repositories/devel:languages:php/openSUSE_Leap_${os_ver}/devel:languages:php.repo" \
+        2>/dev/null || warn "PHP-Repo für openSUSE ${os_ver} nicht verfügbar."
+      zypper --non-interactive --gpg-auto-import-keys refresh >/dev/null 2>&1 || true
       ;;
-    pacman)
-      pacman -Sy --noconfirm --needed "${packages[@]}" 1>&2
+    arch)
+      step "Aktualisiere Pacman-Datenbank."
+      pacman -Sy >/dev/null 2>&1
       ;;
-    *)
-      fatal "Unbekannter Paketmanager: ${manager}"
+    alpine)
+      step "Aktiviere Alpine community repository."
+      local rel; rel="$(get_os_field VERSION_ID | cut -d. -f1-2)"
+      local repo_line="https://dl-cdn.alpinelinux.org/alpine/v${rel}/community"
+      grep -qF "${repo_line}" /etc/apk/repositories 2>/dev/null \
+        || echo "${repo_line}" >> /etc/apk/repositories
+      apk update >/dev/null 2>&1
       ;;
   esac
 }
 
-random_hex() {
-  local bytes="${1:-32}"
-  if command -v openssl >/dev/null 2>&1; then
-    openssl rand -hex "${bytes}"
-    return
+# ---------------------------------------------------------------------------
+# PHP package resolution
+# ---------------------------------------------------------------------------
+
+resolve_php_version() {
+  local requested="$1" manager="$2" family="$3"
+  local ver; ver="$(printf '%s' "${requested}" | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1 || true)"
+  [[ -z "${ver}" ]] && ver="${DEFAULT_PHP_VERSION}"
+
+  if [[ "${manager}" == "apt" ]]; then
+    apt_update_once
+    for candidate in "${ver}" 8.4 8.3 8.2 8.1; do
+      if apt-cache show "php${candidate}" >/dev/null 2>&1; then
+        [[ "${candidate}" != "${ver}" ]] && warn "PHP ${ver} nicht verfügbar – nutze ${candidate}."
+        echo "${candidate}"; return
+      fi
+    done
+    fatal "Keine unterstützte PHP-Version in den Paketquellen gefunden."
   fi
-  head -c "${bytes}" /dev/urandom | od -An -tx1 | tr -d ' \n'
+
+  # Non-apt: accept as-is (repo was set up above)
+  echo "${ver}"
 }
 
-random_base64() {
-  local bytes="${1:-32}"
-  if command -v openssl >/dev/null 2>&1; then
-    openssl rand -base64 "${bytes}"
-    return
-  fi
-  head -c "${bytes}" /dev/urandom | base64
-}
-
-sha256_hex() {
-  local input="$1"
-  printf '%s' "${input}" | openssl dgst -sha256 -hex | awk '{print $2}'
-}
-
-hmac_sha256_hex() {
-  local secret="$1"
-  local payload="$2"
-  printf '%s' "${payload}" | openssl dgst -sha256 -hmac "${secret}" -hex | awk '{print $2}'
-}
-
-build_signature_payload() {
-  local agent_id="$1"
-  local method="$2"
-  local path="$3"
-  local timestamp="$4"
-  local nonce="$5"
-  local raw_body="$6"
-  local body_hash
-  body_hash="$(sha256_hex "${raw_body}")"
-  local payload
-  payload="$(printf '%s\n%s\n%s\n%s\n%s' "${agent_id}" "${method}" "${path}" "${body_hash}" "${timestamp}")"
-  if [[ -n "${nonce}" ]]; then
-    payload="${payload}"$'\n'"${nonce}"
-  fi
-  printf '%s' "${payload}"
-}
-
-resolve_php_binary() {
-  local version="$1"
-  if command -v "php${version}" >/dev/null 2>&1; then
-    echo "php${version}"
-    return
-  fi
-  echo "php"
-}
-
-ensure_service_enabled() {
-  local service="$1"
-  if systemctl list-unit-files "${service}" >/dev/null 2>&1; then
-    systemctl enable --now "${service}"
-  fi
-}
-
-resolve_panel_package_sets() {
-  local manager="$1"
-  local php_version="$2"
-  local db_system="$3"
-
-  PANEL_BASE_PACKAGES=()
-  PANEL_PHP_PACKAGES=()
-  PANEL_DB_PACKAGES=()
-  PANEL_PHP_DB_PACKAGES=()
-  PANEL_PHP_FPM_SERVICE=""
-  PANEL_DB_SERVICES=()
+# Build the full list of PHP packages for a given manager/version
+resolve_php_packages() {
+  local manager="$1" php_version="$2" db_system="$3"
+  PHP_BASE_PKGS=()
+  PHP_FPM_SERVICE=""
+  PHP_FPM_SOCKET=""
 
   case "${manager}" in
     apt)
-      PANEL_BASE_PACKAGES=(ca-certificates curl git unzip nginx openssl jq)
-      PANEL_PHP_PACKAGES=(
-        "php${php_version}" "php${php_version}-fpm" "php${php_version}-cli"
-        "php${php_version}-mbstring" "php${php_version}-xml" "php${php_version}-curl"
-        "php${php_version}-zip" "php${php_version}-gd" "php${php_version}-intl"
-        "php${php_version}-bcmath" "php${php_version}-opcache"
+      PHP_BASE_PKGS=(
+        "php${php_version}"
+        "php${php_version}-fpm"
+        "php${php_version}-cli"
+        "php${php_version}-mbstring"
+        "php${php_version}-xml"
+        "php${php_version}-curl"
+        "php${php_version}-zip"
+        "php${php_version}-gd"
+        "php${php_version}-intl"
+        "php${php_version}-bcmath"
+        "php${php_version}-opcache"
+        "php${php_version}-redis"
       )
-      PANEL_PHP_FPM_SERVICE="php${php_version}-fpm.service"
+      case "${db_system}" in
+        mariadb|mysql) PHP_BASE_PKGS+=("php${php_version}-mysql") ;;
+        postgresql)    PHP_BASE_PKGS+=("php${php_version}-pgsql") ;;
+      esac
+      PHP_FPM_SERVICE="php${php_version}-fpm"
+      PHP_FPM_SOCKET="/run/php/php${php_version}-fpm.sock"
       ;;
     dnf|yum)
-      PANEL_BASE_PACKAGES=(ca-certificates curl git unzip nginx openssl jq)
-      PANEL_PHP_PACKAGES=(php php-fpm php-cli php-mbstring php-xml php-curl php-zip php-gd php-intl php-bcmath php-opcache)
-      PANEL_PHP_FPM_SERVICE="php-fpm.service"
+      PHP_BASE_PKGS=(php php-fpm php-cli php-mbstring php-xml php-curl
+                     php-zip php-gd php-intl php-bcmath php-opcache php-redis)
+      case "${db_system}" in
+        mariadb|mysql) PHP_BASE_PKGS+=(php-mysqlnd) ;;
+        postgresql)    PHP_BASE_PKGS+=(php-pgsql)   ;;
+      esac
+      PHP_FPM_SERVICE="php-fpm"
+      PHP_FPM_SOCKET="/run/php-fpm/www.sock"
       ;;
     zypper)
-      PANEL_BASE_PACKAGES=(ca-certificates curl git unzip nginx openssl jq)
-      PANEL_PHP_PACKAGES=(php8 php8-fpm php8-cli php8-mbstring php8-xmlwriter php8-curl php8-zip php8-gd php8-intl php8-bcmath php8-opcache)
-      PANEL_PHP_FPM_SERVICE="php-fpm.service"
+      PHP_BASE_PKGS=(php8 php8-fpm php8-cli php8-mbstring php8-xmlwriter
+                     php8-curl php8-zip php8-gd php8-intl php8-bcmath php8-opcache)
+      case "${db_system}" in
+        mariadb|mysql) PHP_BASE_PKGS+=(php8-mysql)  ;;
+        postgresql)    PHP_BASE_PKGS+=(php8-pgsql)   ;;
+      esac
+      PHP_FPM_SERVICE="php-fpm"
+      PHP_FPM_SOCKET="/run/php-fpm/php-fpm.sock"
       ;;
     pacman)
-      PANEL_BASE_PACKAGES=(ca-certificates curl git unzip nginx openssl jq)
-      PANEL_PHP_PACKAGES=(php php-fpm)
-      PANEL_PHP_FPM_SERVICE="php-fpm.service"
+      PHP_BASE_PKGS=(php php-fpm)
+      case "${db_system}" in
+        mariadb|mysql) PHP_BASE_PKGS+=(php-intl) ;;  # db via mysqli in PKGBUILD
+        postgresql)    PHP_BASE_PKGS+=(php-pgsql) ;;
+      esac
+      PHP_FPM_SERVICE="php-fpm"
+      PHP_FPM_SOCKET="/run/php-fpm/php-fpm.sock"
       ;;
-    *)
-      fatal "Keine Paketdefinitionen für Paketmanager ${manager} vorhanden."
+    apk)
+      PHP_BASE_PKGS=(php83 php83-fpm php83-cli php83-mbstring php83-xml
+                     php83-curl php83-zip php83-gd php83-intl php83-bcmath
+                     php83-opcache php83-pecl-redis)
+      case "${db_system}" in
+        mariadb|mysql) PHP_BASE_PKGS+=(php83-pdo_mysql php83-mysqli) ;;
+        postgresql)    PHP_BASE_PKGS+=(php83-pdo_pgsql php83-pgsql) ;;
+      esac
+      PHP_FPM_SERVICE="php-fpm83"
+      PHP_FPM_SOCKET="/run/php-fpm/php-fpm.sock"
       ;;
   esac
+}
+
+# ---------------------------------------------------------------------------
+# Database package resolution
+# ---------------------------------------------------------------------------
+
+resolve_db_packages() {
+  local manager="$1" db_system="$2"
+  DB_PKGS=()
+  DB_SERVICES=()
 
   case "${db_system}" in
     mariadb)
       case "${manager}" in
-        apt) PANEL_DB_PACKAGES=(mariadb-server mariadb-client); PANEL_PHP_DB_PACKAGES=("php${php_version}-mysql");;
-        dnf|yum|zypper|pacman) PANEL_DB_PACKAGES=(mariadb); PANEL_PHP_DB_PACKAGES=(php-mysqlnd);;
+        apt)           DB_PKGS=(mariadb-server mariadb-client) ;;
+        dnf|yum)       DB_PKGS=(mariadb-server mariadb) ;;
+        zypper)        DB_PKGS=(mariadb mariadb-client) ;;
+        pacman)        DB_PKGS=(mariadb) ;;
+        apk)           DB_PKGS=(mariadb mariadb-client) ;;
       esac
-      PANEL_DB_SERVICES=(mariadb.service mysql.service)
+      DB_SERVICES=(mariadb mysql)
       ;;
     mysql)
       case "${manager}" in
-        apt) PANEL_DB_PACKAGES=(mysql-server mysql-client); PANEL_PHP_DB_PACKAGES=("php${php_version}-mysql");;
-        dnf|yum) PANEL_DB_PACKAGES=(mysql-server); PANEL_PHP_DB_PACKAGES=(php-mysqlnd);;
-        zypper) PANEL_DB_PACKAGES=(mariadb); PANEL_PHP_DB_PACKAGES=(php8-mysql);;
-        pacman) PANEL_DB_PACKAGES=(mariadb); PANEL_PHP_DB_PACKAGES=(php-mysqlnd);;
+        apt)           DB_PKGS=(mysql-server mysql-client) ;;
+        dnf|yum)       DB_PKGS=(mysql-community-server mysql-community-client) ;;
+        zypper)        DB_PKGS=(mariadb mariadb-client) ;; # MySQL often unavailable on openSUSE
+        pacman)        DB_PKGS=(mariadb) ;;
+        apk)           DB_PKGS=(mariadb mariadb-client) ;;
       esac
-      PANEL_DB_SERVICES=(mysql.service mariadb.service)
+      DB_SERVICES=(mysql mysqld mariadb)
       ;;
     postgresql)
       case "${manager}" in
-        apt) PANEL_DB_PACKAGES=(postgresql postgresql-contrib); PANEL_PHP_DB_PACKAGES=("php${php_version}-pgsql");;
-        dnf|yum) PANEL_DB_PACKAGES=(postgresql postgresql-server); PANEL_PHP_DB_PACKAGES=(php-pgsql);;
-        zypper) PANEL_DB_PACKAGES=(postgresql postgresql-server); PANEL_PHP_DB_PACKAGES=(php8-pgsql);;
-        pacman) PANEL_DB_PACKAGES=(postgresql); PANEL_PHP_DB_PACKAGES=(php-pgsql);;
+        apt)           DB_PKGS=(postgresql postgresql-contrib) ;;
+        dnf|yum)       DB_PKGS=(postgresql-server postgresql-contrib) ;;
+        zypper)        DB_PKGS=(postgresql postgresql-server postgresql-contrib) ;;
+        pacman)        DB_PKGS=(postgresql) ;;
+        apk)           DB_PKGS=(postgresql postgresql-contrib) ;;
       esac
-      PANEL_DB_SERVICES=(postgresql.service)
+      DB_SERVICES=(postgresql)
       ;;
   esac
 }
 
-enable_universe_repo() {
-  local manager="$1"
-  if [[ "${manager}" != "apt" ]]; then
-    return
-  fi
+# ---------------------------------------------------------------------------
+# nginx config path per distro
+# ---------------------------------------------------------------------------
 
-  step "Aktiviere Universe-Repository und optionales PHP-PPA."
-  DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common 1>&2
-  add-apt-repository -y universe 1>&2
-  if is_ubuntu_2604_or_newer; then
-    log "Ubuntu 26.04+ erkannt: nutze primär offizielle Ubuntu-Pakete."
-  else
-    add-apt-repository -y ppa:ondrej/php 1>&2
-  fi
-  APT_UPDATED=0
-  apt_update_once
+detect_nginx_conf_dir() {
+  local family="$1"
+  case "${family}" in
+    debian) echo "/etc/nginx/sites-available" ;;
+    *)      echo "/etc/nginx/conf.d" ;;
+  esac
 }
+
+detect_nginx_enabled_dir() {
+  local family="$1"
+  case "${family}" in
+    debian) echo "/etc/nginx/sites-enabled" ;;
+    *)      echo "/etc/nginx/conf.d" ;;
+  esac
+}
+
+nginx_packages() {
+  local manager="$1"
+  case "${manager}" in
+    apt|dnf|yum|zypper|pacman) echo "nginx" ;;
+    apk)                        echo "nginx" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# Crypto helpers
+# ---------------------------------------------------------------------------
+
+random_hex()    { openssl rand -hex "${1:-32}" 2>/dev/null || head -c "${1:-32}" /dev/urandom | od -An -tx1 | tr -d ' \n'; }
+random_base64() { openssl rand -base64 "${1:-32}" 2>/dev/null || head -c "${1:-32}" /dev/urandom | base64; }
+sha256_hex()    { printf '%s' "$1" | openssl dgst -sha256 -hex | awk '{print $2}'; }
+hmac_sha256_hex() {
+  local secret="$1" payload="$2"
+  printf '%s' "${payload}" | openssl dgst -sha256 -hmac "${secret}" -hex | awk '{print $2}'
+}
+
+# ---------------------------------------------------------------------------
+# Service helpers
+# ---------------------------------------------------------------------------
+
+has_systemctl() { command -v systemctl >/dev/null 2>&1; }
+has_openrc()    { command -v rc-service >/dev/null 2>&1; }
+
+service_enable_start() {
+  local svc="$1"
+  if has_systemctl; then
+    systemctl enable --now "${svc}" 2>/dev/null || systemctl start "${svc}" 2>/dev/null || warn "Konnte ${svc} nicht starten."
+  elif has_openrc; then
+    rc-update add "${svc}" default 2>/dev/null || true
+    rc-service "${svc}" start 2>/dev/null || warn "Konnte ${svc} nicht starten (OpenRC)."
+  else
+    warn "Weder systemd noch OpenRC gefunden – ${svc} muss manuell gestartet werden."
+  fi
+}
+
+service_reload() {
+  local svc="$1"
+  if has_systemctl; then
+    systemctl reload "${svc}" 2>/dev/null || systemctl restart "${svc}" 2>/dev/null || warn "Konnte ${svc} nicht neuladen."
+  elif has_openrc; then
+    rc-service "${svc}" restart 2>/dev/null || warn "Konnte ${svc} nicht neustarten."
+  fi
+}
+
+service_restart() {
+  local svc="$1"
+  if has_systemctl; then
+    systemctl restart "${svc}" 2>/dev/null || warn "Konnte ${svc} nicht neustarten."
+  elif has_openrc; then
+    rc-service "${svc}" restart 2>/dev/null || warn "Konnte ${svc} nicht neustarten."
+  fi
+}
+
+service_is_active() {
+  local svc="$1"
+  if has_systemctl; then
+    systemctl is-active --quiet "${svc}" 2>/dev/null
+  elif has_openrc; then
+    rc-service "${svc}" status >/dev/null 2>&1
+  else
+    return 1
+  fi
+}
+
+start_first_available_service() {
+  # Start the first service name that systemd/openrc knows about
+  local svc
+  for svc in "$@"; do
+    if has_systemctl && systemctl list-unit-files "${svc}.service" >/dev/null 2>&1; then
+      service_enable_start "${svc}.service"; return
+    elif has_openrc && rc-service "${svc}" status >/dev/null 2>&1; then
+      service_enable_start "${svc}"; return
+    fi
+  done
+  warn "Keiner der Dienste ${*} gefunden."
+}
+
+# ---------------------------------------------------------------------------
+# System user
+# ---------------------------------------------------------------------------
+
+ensure_system_user() {
+  local username="$1" home_dir="$2"
+  if id -u "${username}" >/dev/null 2>&1; then
+    ok "System-User ${username} existiert bereits."; return
+  fi
+  step "Lege System-User ${username} an."
+  useradd --system --create-home --home-dir "${home_dir}" --shell /usr/sbin/nologin "${username}" \
+    || adduser -S -D -H -h "${home_dir}" -s /sbin/nologin "${username}" 2>/dev/null \
+    || fatal "Konnte System-User ${username} nicht anlegen."
+}
+
+# ---------------------------------------------------------------------------
+# Git helpers
+# ---------------------------------------------------------------------------
+
+ensure_git_safe_dir() {
+  local repo_dir="$1"
+  git config --global --get-all safe.directory 2>/dev/null | grep -Fxq "${repo_dir}" \
+    || git config --global --add safe.directory "${repo_dir}"
+}
+
+# ---------------------------------------------------------------------------
+# Composer
+# ---------------------------------------------------------------------------
 
 install_composer() {
   local php_bin="$1"
-
+  if command -v composer >/dev/null 2>&1; then
+    ok "Composer bereits installiert – aktualisiere."
+    composer self-update --quiet 2>/dev/null || true
+    return
+  fi
   step "Installiere Composer."
-  "${php_bin}" -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-  "${php_bin}" composer-setup.php --install-dir=/usr/local/bin --filename=composer
-  "${php_bin}" -r "unlink('composer-setup.php');"
+  local tmp; tmp="$(mktemp)"
+  "${php_bin}" -r "copy('https://getcomposer.org/installer','${tmp}');"
+  "${php_bin}" "${tmp}" --install-dir=/usr/local/bin --filename=composer --quiet
+  rm -f "${tmp}"
+  ok "Composer installiert."
 }
 
-prompt_value() {
-  local var_name="$1"
-  local prompt="$2"
-  local default="${3:-}"
-  local current="${!var_name:-}"
-  local value
+# ---------------------------------------------------------------------------
+# Database setup
+# ---------------------------------------------------------------------------
 
-  if [[ -n "${current}" ]]; then
-    return
-  fi
-
-  if ! is_tty; then
-    return
-  fi
-
-  if [[ -n "${default}" ]]; then
-    prompt="${prompt} [${default}]"
-  fi
-
-  value="$(read_from_tty "${prompt}: ")"
-  if [[ -z "${value}" ]]; then
-    value="${default}"
-  fi
-
-  if [[ -n "${value}" ]]; then
-    printf -v "${var_name}" '%s' "${value}"
-  fi
+setup_database_mysql() {
+  local db_name="$1" db_user="$2" db_password="$3" db_root_password="$4"
+  step "Richte MySQL/MariaDB-Datenbank ein: ${db_name}"
+  local mysql_cmd=(mysql -u root)
+  [[ -n "${db_root_password}" ]] && mysql_cmd+=(--password="${db_root_password}")
+  "${mysql_cmd[@]}" <<SQL
+CREATE DATABASE IF NOT EXISTS \`${db_name}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '${db_user}'@'%' IDENTIFIED BY '${db_password}';
+GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'%';
+FLUSH PRIVILEGES;
+SQL
+  ok "Datenbank ${db_name} eingerichtet."
 }
 
-prompt_yes_no() {
-  local prompt="$1"
-  local default="${2:-no}"
-  local value=""
-
-  if ! is_tty; then
-    return 1
-  fi
-
-  case "${default}" in
-    yes)
-      prompt="${prompt} [Y/n]"
-      ;;
-    no)
-      prompt="${prompt} [y/N]"
-      ;;
-    *)
-      prompt="${prompt} [y/n]"
-      ;;
-  esac
-
-  value="$(read_from_tty "${prompt}: ")"
-  if [[ -z "${value}" ]]; then
-    value="${default}"
-  fi
-
-  case "${value}" in
-    y|Y|yes|YES|Yes)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+setup_database_postgresql() {
+  local db_name="$1" db_user="$2" db_password="$3"
+  step "Richte PostgreSQL-Datenbank ein: ${db_name}"
+  runuser -u postgres -- psql -v ON_ERROR_STOP=1 <<SQL 2>/dev/null
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname='${db_user}') THEN
+    CREATE ROLE ${db_user} LOGIN PASSWORD '${db_password}';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_database WHERE datname='${db_name}') THEN
+    CREATE DATABASE ${db_name} OWNER ${db_user};
+  END IF;
+END \$\$;
+SQL
+  ok "PostgreSQL-Datenbank ${db_name} eingerichtet."
 }
 
-db_system_menu() {
-  menu_output <<'MENU'
-
-Datenbanksystem:
-  1) MariaDB
-  2) MySQL
-  3) PostgreSQL
-MENU
-
-  local choice
-  choice="$(menu_prompt "Bitte wählen Sie [1-3]: ")"
-  case "${choice}" in
-    1) echo "mariadb";;
-    2) echo "mysql";;
-    3) echo "postgresql";;
-    *) echo "mariadb";;
-  esac
-}
-
-ensure_system_user() {
-  local username="$1"
-  local home_dir="$2"
-  if id -u "${username}" >/dev/null 2>&1; then
-    log "System-User ${username} existiert bereits."
-    return
-  fi
-
-  step "Lege den System-User ${username} an."
-  log "Der System-User wird als Dienstkonto für EasyWI verwendet."
-  useradd --system --create-home --home-dir "${home_dir}" --shell /usr/sbin/nologin "${username}"
-}
-
-write_env_local() {
-  local env_path="$1"
-  local db_driver="$2"
-  local db_host="$3"
-  local db_port="$4"
-  local db_name="$5"
-  local db_user="$6"
-  local db_password="$7"
-  local app_secret="$8"
-  local encryption_keys="$9"
-  local registration_token="${10}"
-  local default_uri="${11}"
-  local install_dir="${12}"
-
-  local key_id="v1"
-  local key_ring="${encryption_keys}"
-  if [[ "${key_ring}" == *":"* ]]; then
-    key_id="${key_ring%%:*}"
-  else
-    key_ring="v1:${key_ring}"
-  fi
-
-  local key_material="${key_ring%%,*}"
-  key_material="${key_material#*:}"
-
-  local key_path="/etc/easywi/secret.key"
-  step "Schreibe Encryption Key."
-  mkdir -p "$(dirname "${key_path}")"
-  cat <<KEY >"${key_path}"
-{"active_key_id":"${key_id}","keys":{"${key_id}":"${key_material}"}}
-KEY
-  chmod 600 "${key_path}"
-
-  step "Schreibe .env.local."
-  cat <<ENV >"${env_path}"
-APP_ENV=prod
-APP_SECRET="${app_secret}"
-DEFAULT_URI=${default_uri}
-MESSENGER_TRANSPORT_DSN=doctrine://default?auto_setup=0
-TRUSTED_PROXIES=127.0.0.1
-APP_CORE_UPDATE_INSTALL_DIR=${install_dir}
-ENV
-
-  if [[ -n "${registration_token}" ]]; then
-    echo "AGENT_REGISTRATION_TOKEN=\"${registration_token}\"" >>"${env_path}"
-  fi
-}
+# ---------------------------------------------------------------------------
+# nginx configuration
+# ---------------------------------------------------------------------------
 
 configure_nginx() {
-  local server_name="$1"
-  local web_root="$2"
-  local php_version="$3"
-  local config_path="/etc/nginx/sites-available/easywi.conf"
-  local enabled_path="/etc/nginx/sites-enabled/easywi.conf"
+  local family="$1" server_name="$2" web_root="$3" php_fpm_socket="$4"
+  local conf_dir; conf_dir="$(detect_nginx_conf_dir "${family}")"
+  local enabled_dir; enabled_dir="$(detect_nginx_enabled_dir "${family}")"
+  local config_file="${conf_dir}/easywi.conf"
 
-  step "Konfiguriere Nginx."
-  cat <<NGINX >"${config_path}"
+  step "Konfiguriere Nginx (${conf_dir})."
+  mkdir -p "${conf_dir}" "${enabled_dir}"
+
+  cat > "${config_file}" <<NGINX
+## EasyWI Panel – managed by easywi-installer
 server {
     listen 80;
     server_name ${server_name};
 
     root ${web_root};
-    index index.php;
+    index index.php index.html;
 
-    # Security headers
-    add_header Content-Security-Policy "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     location / {
@@ -539,86 +581,126 @@ server {
     }
 
     location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php${php_version}-fpm.sock;
+        include fastcgi_params;
+        fastcgi_pass unix:${php_fpm_socket};
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param HTTPS off;
     }
 
-    location ~ /\.ht {
+    location ~ /\.(ht|git) {
         deny all;
     }
 }
 NGINX
 
-  ln -sf "${config_path}" "${enabled_path}"
-  rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
-  systemctl reload nginx.service
+  # Debian/Ubuntu use symlinks
+  if [[ "${family}" == "debian" && "${conf_dir}" != "${enabled_dir}" ]]; then
+    ln -sf "${config_file}" "${enabled_dir}/easywi.conf"
+    rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+  fi
+
+  nginx -t 2>/dev/null && service_reload nginx || warn "nginx -t schlug fehl – Konfiguration prüfen."
+  ok "Nginx konfiguriert: ${config_file}"
 }
 
-write_installation_info() {
-  local info_path="$1"
-  local db_driver="$2"
-  local db_host="$3"
-  local db_port="$4"
-  local db_name="$5"
-  local db_user="$6"
-  local db_password="$7"
-  local default_uri="$8"
-  local webserver_config="$9"
+# ---------------------------------------------------------------------------
+# .env.local + secret key
+# ---------------------------------------------------------------------------
 
-  step "Schreibe Installationsinformationen."
-  cat <<INFO >"${info_path}"
-EasyWI Installationsdaten
-=========================
+write_env_local() {
+  local env_path="$1" db_driver="$2" db_host="$3" db_port="$4"
+  local db_name="$5" db_user="$6" db_password="$7"
+  local app_secret="$8" encryption_keys="$9"
+  local registration_token="${10}" default_uri="${11}" install_dir="${12}"
 
-URL: ${default_uri}
+  local key_id="v1"
+  local key_material="${encryption_keys}"
+  if [[ "${encryption_keys}" == *:* ]]; then
+    key_id="${encryption_keys%%:*}"
+    key_material="${encryption_keys#*:}"
+  fi
 
-Datenbank
----------
-Treiber: ${db_driver}
-Host: ${db_host}
-Port: ${db_port:-Standard}
-Name: ${db_name}
-User: ${db_user}
-Passwort: ${db_password}
+  step "Schreibe Encryption Key nach /etc/easywi/secret.key."
+  mkdir -p /etc/easywi
+  printf '{"active_key_id":"%s","keys":{"%s":"%s"}}\n' \
+    "${key_id}" "${key_id}" "${key_material}" > /etc/easywi/secret.key
+  chmod 600 /etc/easywi/secret.key
 
-Webserver
----------
-Nginx-Config: ${webserver_config}
+  local db_url
+  case "${db_driver}" in
+    pgsql)  db_url="postgresql://${db_user}:${db_password}@${db_host}${db_port:+:${db_port}}/${db_name}" ;;
+    *)      db_url="mysql://${db_user}:${db_password}@${db_host}${db_port:+:${db_port}}/${db_name}" ;;
+  esac
+
+  step "Schreibe ${env_path}."
+  cat > "${env_path}" <<ENV
+APP_ENV=prod
+APP_SECRET="${app_secret}"
+DATABASE_URL="${db_url}"
+DEFAULT_URI=${default_uri}
+MESSENGER_TRANSPORT_DSN=doctrine://default?auto_setup=0
+TRUSTED_PROXIES=127.0.0.1
+APP_CORE_UPDATE_INSTALL_DIR=${install_dir}
+ENV
+  [[ -n "${registration_token}" ]] && printf 'AGENT_REGISTRATION_TOKEN="%s"\n' "${registration_token}" >> "${env_path}"
+  chmod 600 "${env_path}"
+  ok ".env.local geschrieben."
+}
+
+# ---------------------------------------------------------------------------
+# Installation summary file
+# ---------------------------------------------------------------------------
+
+write_install_info() {
+  local info_path="$1"; shift
+  step "Schreibe Installationsübersicht nach ${info_path}."
+  cat > "${info_path}" <<INFO
+EasyWI Installationsübersicht – $(date -u +'%Y-%m-%d %H:%M UTC')
+================================================================
+
+URL:          ${1}
+DB-Treiber:   ${2}
+DB-Host:      ${3}:${4:-Standard}
+DB-Name:      ${5}
+DB-User:      ${6}
+DB-Passwort:  ${7}
+Nginx-Config: ${8}
 INFO
-
   chmod 600 "${info_path}"
 }
 
-create_systemd_service() {
-  local name="$1"
-  local exec_start="$2"
-  local description="$3"
-  local unit_path="/etc/systemd/system/${name}.service"
+# ---------------------------------------------------------------------------
+# Systemd / OpenRC unit writers
+# ---------------------------------------------------------------------------
 
-  cat <<SERVICE >"${unit_path}"
+write_panel_messenger_service() {
+  local php_bin="$1" console="$2"
+  if has_systemctl; then
+    cat > /etc/systemd/system/easywi-messenger.service <<UNIT
 [Unit]
-Description=${description}
+Description=EasyWI Symfony Messenger Worker
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=${exec_start}
-Restart=on-failure
+ExecStart=${php_bin} ${console} messenger:consume async --time-limit=3600
+Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-SERVICE
+UNIT
+    systemctl daemon-reload
+    service_enable_start easywi-messenger.service
+  fi
 }
 
-create_agent_systemd_service() {
-  local instance_base_dir="$1"
-  local sftp_base_dir="$2"
-  local unit_path="/etc/systemd/system/easywi-agent.service"
+write_agent_service() {
+  local instance_base_dir="$1" sftp_base_dir="$2"
 
-  cat <<SERVICE >"${unit_path}"
+  if has_systemctl; then
+    cat > /etc/systemd/system/easywi-agent.service <<UNIT
 [Unit]
 Description=EasyWI Agent
 After=network-online.target
@@ -634,650 +716,562 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-SERVICE
-}
+UNIT
+    systemctl daemon-reload
 
-setup_database_mysql() {
-  local db_name="$1"
-  local db_user="$2"
-  local db_password="$3"
-  local db_root_password="$4"
-
-  step "Richte MySQL/MariaDB-Datenbank ein."
-  log "Datenbank: ${db_name}"
-  log "DB-User: ${db_user}"
-  log "Die folgenden SQL-Kommandos werden ausgeführt:"
-  log "  - CREATE DATABASE ${db_name}"
-  log "  - CREATE USER ${db_user}"
-  log "  - GRANT ALL PRIVILEGES ON ${db_name}.* TO ${db_user}"
-
-  local mysql_cmd=(mysql -u root)
-  if [[ -n "${db_root_password}" ]]; then
-    mysql_cmd+=(--password="${db_root_password}")
+  elif has_openrc; then
+    cat > /etc/init.d/easywi-agent <<INIT
+#!/sbin/openrc-run
+description="EasyWI Agent"
+command="/usr/local/bin/easywi-agent"
+command_args="--config /etc/easywi/agent.conf"
+command_background=true
+pidfile="/run/easywi-agent.pid"
+export EASYWI_INSTANCE_BASE_DIR="${instance_base_dir}"
+export EASYWI_SFTP_BASE_DIR="${sftp_base_dir}"
+INIT
+    chmod +x /etc/init.d/easywi-agent
+    rc-update add easywi-agent default 2>/dev/null || true
   fi
-
-  "${mysql_cmd[@]}" <<SQL
-CREATE DATABASE IF NOT EXISTS \`${db_name}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '${db_user}'@'%' IDENTIFIED BY '${db_password}';
-GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'%';
-FLUSH PRIVILEGES;
-SQL
 }
 
-setup_database_postgresql() {
-  local db_name="$1"
-  local db_user="$2"
-  local db_password="$3"
-
-  step "Richte PostgreSQL-Datenbank ein."
-  log "Datenbank: ${db_name}"
-  log "DB-User: ${db_user}"
-  log "Die folgenden SQL-Kommandos werden ausgeführt:"
-  log "  - CREATE USER ${db_user}"
-  log "  - CREATE DATABASE ${db_name} OWNER ${db_user}"
-
-  runuser -u postgres -- psql <<SQL
-DO \$\$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${db_user}') THEN
-    CREATE ROLE ${db_user} LOGIN PASSWORD '${db_password}';
-  END IF;
-  IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '${db_name}') THEN
-    CREATE DATABASE ${db_name} OWNER ${db_user};
-  END IF;
-END
-\$\$;
-SQL
-}
+# ---------------------------------------------------------------------------
+# Release / binary download
+# ---------------------------------------------------------------------------
 
 download_release_asset() {
-  local asset="$1"
-  local destination="$2"
-  local version="$3"
-  local base_url="https://github.com/Matlord93/Easy-Wi-NextGen/releases/latest/download"
-
+  local asset="$1" dest="$2" version="${3:-latest}"
+  local base
   if [[ -n "${version}" && "${version}" != "latest" ]]; then
-    base_url="https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/${version}"
+    base="${EASYWI_GITHUB_RELEASE_BASE}/download/${version}"
+  else
+    base="${EASYWI_GITHUB_RELEASE_BASE}/latest/download"
   fi
-
-  step "Lade ${asset} herunter."
-  log "Download-Quelle: ${base_url}/${asset}"
-  if curl -fsSL "${base_url}/${asset}" -o "${destination}"; then
-    return 0
-  fi
-
-  if [[ "${asset}" =~ ^easywi-agent-linux-(amd64|x86_64|arm64|aarch64)$ ]]; then
-    local fallback_asset
-    for fallback_asset in "${asset}.tar.gz" "${asset}.zip"; do
-      log "Primäres Asset nicht verfügbar, versuche Fallback: ${fallback_asset}"
-      if curl -fsSL "${base_url}/${fallback_asset}" -o "${destination}"; then
-        return 0
-      fi
-    done
-  fi
-
-  fatal "Asset nicht verfügbar: ${asset} (${base_url}/${asset})"
+  log "Download: ${base}/${asset}"
+  curl -fsSL "${base}/${asset}" -o "${dest}" \
+    || fatal "Asset nicht verfügbar: ${asset}"
 }
 
-download_optional_release_asset() {
-  local asset="$1"
-  local destination="$2"
-  local version="$3"
-  local base_url="https://github.com/Matlord93/Easy-Wi-NextGen/releases/latest/download"
-
+download_optional_asset() {
+  local asset="$1" dest="$2" version="${3:-latest}"
+  local base
   if [[ -n "${version}" && "${version}" != "latest" ]]; then
-    base_url="https://github.com/Matlord93/Easy-Wi-NextGen/releases/download/${version}"
+    base="${EASYWI_GITHUB_RELEASE_BASE}/download/${version}"
+  else
+    base="${EASYWI_GITHUB_RELEASE_BASE}/latest/download"
   fi
-
-  if curl -fsSL "${base_url}/${asset}" -o "${destination}"; then
-    log "Optionales Asset geladen: ${asset}"
-    return 0
-  fi
-
-  rm -f "${destination}"
-  log "Optionales Asset nicht verfügbar: ${asset}"
-  return 1
+  curl -fsSL "${base}/${asset}" -o "${dest}" 2>/dev/null && return 0
+  rm -f "${dest}"; return 1
 }
 
-download_release_asset_from_candidates() {
-  local destination="$1"
-  local version="$2"
-  shift 2
-  local candidates=("$@")
-  local asset
+install_agent_binaries() {
+  local arch="$1" version="${2:-latest}"
+  local tmp; tmp="$(mktemp -d)"
+  trap 'rm -rf "${tmp}"' RETURN
 
-  for asset in "${candidates[@]}"; do
-    if download_optional_release_asset "${asset}" "${destination}" "${version}"; then
-      echo "${asset}"
-      return 0
+  step "Lade Agent-Binaries (${arch}, ${version})."
+
+  # Agent binary
+  local agent_dest="${tmp}/agent-raw"
+  local agent_resolved=""
+  for suffix in ".tar.gz" ".zip" ""; do
+    local asset_name="easywi-agent-${arch}${suffix}"
+    if download_optional_asset "${asset_name}" "${agent_dest}" "${version}"; then
+      case "${suffix}" in
+        .tar.gz) tar -xzf "${agent_dest}" -C "${tmp}" ;;
+        .zip)    command -v unzip >/dev/null || fatal "unzip fehlt"; unzip -oq "${agent_dest}" -d "${tmp}" ;;
+        *)       cp "${agent_dest}" "${tmp}/easywi-agent-${arch}" ;;
+      esac
+      agent_resolved="${tmp}/easywi-agent-${arch}"
+      break
+    fi
+  done
+  [[ -n "${agent_resolved}" && -f "${agent_resolved}" ]] \
+    || fatal "Kein Agent-Binary für ${arch} gefunden."
+
+  # Wrapper binary (optional)
+  local wrapper_dest="${tmp}/wrapper-raw"
+  local wrapper_resolved=""
+  for suffix in ".tar.gz" ".zip" ""; do
+    local asset_name="easywi-wrapper-${arch}${suffix}"
+    if download_optional_asset "${asset_name}" "${wrapper_dest}" "${version}"; then
+      case "${suffix}" in
+        .tar.gz) tar -xzf "${wrapper_dest}" -C "${tmp}" ;;
+        .zip)    unzip -oq "${wrapper_dest}" -d "${tmp}" ;;
+        *)       cp "${wrapper_dest}" "${tmp}/easywi-wrapper-${arch}" ;;
+      esac
+      wrapper_resolved="${tmp}/easywi-wrapper-${arch}"
+      break
     fi
   done
 
-  fatal "Keines der erwarteten Release-Assets gefunden: ${candidates[*]}"
+  install -m 0755 "${agent_resolved}" /usr/local/bin/easywi-agent
+  ok "easywi-agent installiert: /usr/local/bin/easywi-agent"
+
+  if [[ -n "${wrapper_resolved}" && -f "${wrapper_resolved}" ]]; then
+    install -m 0755 "${wrapper_resolved}" /usr/local/bin/easywi-wrapper
+    ok "easywi-wrapper installiert: /usr/local/bin/easywi-wrapper"
+  else
+    warn "Kein easywi-wrapper für diese Version gefunden – wird übersprungen."
+  fi
+
+  command -v easywi-agent >/dev/null || fatal "easywi-agent nicht im PATH nach Installation."
 }
 
-detect_release_arch() {
-  local os
-  local arch
-  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-  arch="$(uname -m)"
+# ---------------------------------------------------------------------------
+# Agent base dir helpers
+# ---------------------------------------------------------------------------
 
-  if [[ "${os}" != "linux" ]]; then
-    fatal "Nur Linux wird vom Installer unterstützt (gefunden: ${os})."
-  fi
-
-  case "${arch}" in
-    x86_64|amd64)
-      echo "linux-amd64"
-      ;;
-    aarch64|arm64)
-      echo "linux-arm64"
-      ;;
-    *)
-      fatal "Nicht unterstützte Architektur: ${arch} (erwartet: amd64 oder arm64)."
-      ;;
-  esac
+build_agent_base_dir_config() {
+  local input="${1:-/home,/var/www}"
+  local primary="" joined="" dir
+  local -a dirs=()
+  IFS=',' read -ra raw <<< "${input}"
+  for raw_dir in "${raw[@]}"; do
+    dir="${raw_dir#"${raw_dir%%[! ]*}"}"; dir="${dir%"${dir##*[! ]}"}"
+    [[ -z "${dir}" ]] && continue
+    [[ "${dir}" == /* ]] || fatal "Verzeichnis muss absolut sein: ${dir}"
+    [[ -z "${primary}" ]] && primary="${dir}"
+    local dup=false; local d
+    for d in "${dirs[@]+"${dirs[@]}"}"; do [[ "${d}" == "${dir}" ]] && dup=true && break; done
+    "${dup}" || dirs+=("${dir}")
+  done
+  [[ -z "${primary}" ]] && primary="/home" && dirs=("/home" "/var/www")
+  for dir in "${dirs[@]}"; do joined="${joined:+${joined},}${dir}"; done
+  printf '%s\n%s\n' "${primary}" "${joined}"
 }
 
-install_agent_release_binaries() {
-  local agent_version="$1"
-  local release_arch="$2"
-  local tmp_dir
-  tmp_dir="$(mktemp -d)"
-
-  local downloaded_agent_asset
-  local downloaded_wrapper_asset
-
-  step "Lade Agent-Releaseassets."
-  downloaded_agent_asset="$(download_release_asset_from_candidates "${tmp_dir}/agent-asset" "${agent_version}" \
-    "easywi-agent-${release_arch}.tar.gz" \
-    "easywi-agent-${release_arch}.zip" \
-    "easywi-agent-${release_arch}")"
-  downloaded_wrapper_asset="$(download_release_asset_from_candidates "${tmp_dir}/wrapper-asset" "${agent_version}" \
-    "easywi-wrapper-${release_arch}.tar.gz" \
-    "easywi-wrapper-${release_arch}.zip" \
-    "easywi-wrapper-${release_arch}" \
-    "easywi-wrapper-linux-${release_arch#linux-}")"
-
-  local extracted_agent="${tmp_dir}/easywi-agent-${release_arch}"
-  local extracted_wrapper="${tmp_dir}/easywi-wrapper-${release_arch}"
-  case "${downloaded_agent_asset}" in
-    *.tar.gz)
-      tar -xzf "${tmp_dir}/agent-asset" -C "${tmp_dir}"
-      ;;
-    *.zip)
-      unzip -oq "${tmp_dir}/agent-asset" -d "${tmp_dir}"
-      ;;
-    *)
-      mv "${tmp_dir}/agent-asset" "${extracted_agent}"
-      ;;
-  esac
-  case "${downloaded_wrapper_asset}" in
-    *.tar.gz)
-      tar -xzf "${tmp_dir}/wrapper-asset" -C "${tmp_dir}"
-      ;;
-    *.zip)
-      unzip -oq "${tmp_dir}/wrapper-asset" -d "${tmp_dir}"
-      ;;
-    *)
-      mv "${tmp_dir}/wrapper-asset" "${extracted_wrapper}"
-      ;;
-  esac
-
-  if [[ ! -f "${extracted_agent}" ]]; then
-    fatal "Agent-Binary nicht gefunden nach Entpacken: ${extracted_agent}"
+detect_default_base_dirs() {
+  local dirs=""
+  if command -v findmnt >/dev/null 2>&1; then
+    local m
+    while IFS= read -r m; do
+      m="${m#"${m%%[! ]*}"}"; m="${m%"${m##*[! ]}"}"
+      [[ -z "${m}" ]] && continue
+      case "${m}" in /|/boot*|/run*|/proc|/sys|/dev*|/snap|/var/lib/docker) continue ;; esac
+      dirs="${dirs:+${dirs},}${m}"
+    done < <(findmnt -rn -o TARGET -t ext4,xfs,btrfs,zfs 2>/dev/null)
   fi
-  if [[ ! -f "${extracted_wrapper}" ]]; then
-    fatal "Wrapper-Binary nicht gefunden nach Entpacken: ${extracted_wrapper}"
-  fi
-
-  install -m 0755 "${extracted_agent}" /usr/local/bin/easywi-agent
-  install -m 0755 "${extracted_wrapper}" /usr/local/bin/easywi-wrapper
-  chmod +x /usr/local/bin/easywi-agent /usr/local/bin/easywi-wrapper
-
-  if ! command -v easywi-agent >/dev/null 2>&1; then
-    fatal "easywi-agent wurde nicht korrekt installiert."
-  fi
-  if ! command -v easywi-wrapper >/dev/null 2>&1; then
-    fatal "easywi-wrapper wurde nicht korrekt installiert."
-  fi
-  rm -rf "${tmp_dir}"
+  printf '%s\n' "${dirs:-/home,/var/www}"
 }
 
-validate_systemd_unit() {
-  local service_name="$1"
-  local unit_path="/etc/systemd/system/${service_name}.service"
-  if [[ ! -f "${unit_path}" ]]; then
-    fatal "Systemd-Unit fehlt: ${unit_path}"
-  fi
+detect_local_ipv4() {
+  command -v ip >/dev/null && ip -o -4 addr show scope global 2>/dev/null \
+    | awk '{print $4}' | cut -d/ -f1 | paste -sd, - && return
+  printf '\n'
 }
 
-has_systemctl() {
-  command -v systemctl >/dev/null 2>&1
+# ---------------------------------------------------------------------------
+# Agent registration
+# ---------------------------------------------------------------------------
+
+build_sig_payload() {
+  local agent_id="$1" method="$2" path="$3" ts="$4" nonce="$5" body="$6"
+  local bh; bh="$(sha256_hex "${body}")"
+  printf '%s\n%s\n%s\n%s\n%s\n%s' "${agent_id}" "${method}" "${path}" "${bh}" "${ts}" "${nonce}"
 }
+
+register_agent_with_core() {
+  local core_url="$1" bootstrap_token="$2" version="$3" name="$4" hostname="$5" state_file="$6"
+  [[ -z "${hostname}" ]] && hostname="$(hostname -f 2>/dev/null || hostname)"
+
+  local payload; payload="$(jq -n \
+    --arg t "${bootstrap_token}" --arg h "${hostname}" \
+    --arg o "linux" --arg v "${version}" \
+    '{bootstrap_token:$t,hostname:$h,os:$o,agent_version:$v}')"
+
+  step "Bootstrap-Registrierung am Core (${core_url})."
+  local resp code
+  resp="$(curl -sS -w '\n%{http_code}' -X POST \
+    "${core_url}/api/v1/agent/bootstrap" \
+    -H "Content-Type: application/json" -d "${payload}")"
+  code="${resp##*$'\n'}"; resp="${resp%$'\n'*}"
+  [[ "${code}" == "200" ]] || fatal "Bootstrap fehlgeschlagen (HTTP ${code}): ${resp}"
+
+  local reg_url reg_token agent_id
+  reg_url="$(jq -r '.register_url // empty' <<< "${resp}")"
+  reg_token="$(jq -r '.register_token // empty' <<< "${resp}")"
+  agent_id="$(jq -r '.agent_id // empty' <<< "${resp}")"
+  [[ -n "${reg_url}" && -n "${reg_token}" && -n "${agent_id}" ]] \
+    || fatal "Ungültige Bootstrap-Antwort."
+
+  # Persist state so installer can retry without re-bootstrapping
+  if [[ -n "${state_file}" ]]; then
+    mkdir -p "$(dirname "${state_file}")"
+    jq -n --arg u "${reg_url}" --arg t "${reg_token}" \
+       --arg a "${agent_id}" --arg b "${bootstrap_token}" \
+      '{register_url:$u,register_token:$t,agent_id:$a,bootstrap_token:$b}' \
+      > "${state_file}"
+    chmod 600 "${state_file}"
+  fi
+
+  local agent_secret
+  agent_secret="$(complete_agent_registration "${reg_url}" "${reg_token}" "${agent_id}" "${name}")"
+  printf '%s|%s' "${agent_id}" "${agent_secret}"
+}
+
+complete_agent_registration() {
+  local reg_url="$1" reg_token="$2" agent_id="$3" agent_name="$4"
+  local payload; payload="$(jq -n \
+    --arg a "${agent_id}" --arg t "${reg_token}" --arg n "${agent_name}" \
+    '{agent_id:$a,register_token:$t,name:$n}')"
+
+  local ts nonce path sig
+  ts="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+  nonce="$(random_hex 8)"
+  path="$(printf '%s' "${reg_url}" | sed -E 's#https?://[^/]+##; s#/+$##')"
+  [[ -z "${path}" ]] && path="/"
+  sig="$(hmac_sha256_hex "${reg_token}" "$(build_sig_payload "${agent_id}" "POST" "${path}" "${ts}" "${nonce}" "${payload}")")"
+
+  step "Registrierung abschließen."
+  local resp code
+  resp="$(curl -sS -w '\n%{http_code}' -X POST "${reg_url}" \
+    -H "Content-Type: application/json" \
+    -H "X-Agent-ID: ${agent_id}" \
+    -H "X-Timestamp: ${ts}" \
+    -H "X-Nonce: ${nonce}" \
+    -H "X-Signature: ${sig}" \
+    -d "${payload}")"
+  code="${resp##*$'\n'}"; resp="${resp%$'\n'*}"
+  [[ "${code}" == "200" || "${code}" == "201" ]] || fatal "Registrierung fehlgeschlagen (HTTP ${code}): ${resp}"
+
+  local secret; secret="$(jq -r '.secret // empty' <<< "${resp}")"
+  [[ -n "${secret}" ]] || fatal "Kein Secret in Registrierungsantwort."
+  printf '%s' "${secret}"
+}
+
+write_agent_conf() {
+  local agent_id="$1" secret="$2" api_url="$3"
+  local file_base_dir="$4" sftp_base_dir="$5" bind_ips="$6"
+
+  mapfile -t bdc < <(build_agent_base_dir_config "${file_base_dir}")
+  local primary="${bdc[0]}" all_dirs="${bdc[1]}"
+
+  mkdir -p /etc/easywi
+  cat > /etc/easywi/agent.conf <<CONF
+agent_id=${agent_id}
+secret=${secret}
+api_url=${api_url}
+service_listen=0.0.0.0:7456
+file_base_dir=${primary}
+file_base_dirs=${all_dirs}
+bind_ip_addresses=${bind_ips}
+CONF
+  chmod 600 /etc/easywi/agent.conf
+  ok "Agent-Konfiguration geschrieben: /etc/easywi/agent.conf"
+}
+
+write_agent_conf_placeholder() {
+  mkdir -p /etc/easywi
+  [[ -f /etc/easywi/agent.conf ]] && return
+  cat > /etc/easywi/agent.conf <<CONF
+# EasyWI Agent – Konfiguration
+# Nach Registrierung im Panel hier ausfüllen:
+# agent_id=<ID>
+# secret=<SECRET>
+# api_url=https://panel.example.com
+# service_listen=0.0.0.0:7456
+# file_base_dir=/home
+# file_base_dirs=/home,/var/www
+CONF
+  chmod 600 /etc/easywi/agent.conf
+}
+
+prepare_agent_dirs() {
+  mkdir -p /etc/easywi /opt/easywi/templates /opt/easywi/instances \
+           /opt/sinusbot/instances /var/lib/easywi/sftp
+}
+
+# ---------------------------------------------------------------------------
+# Panel install core logic
+# ---------------------------------------------------------------------------
 
 install_panel() {
-  local mode="$1"
-  local install_dir="$2"
-  local repo_url="$3"
-  local repo_ref="$4"
-  local db_driver="$5"
-  local db_system="$6"
-  local db_root_password="$7"
-  local db_host="$8"
-  local db_port="$9"
-  local db_name="${10}"
-  local db_user="${11}"
-  local db_password="${12}"
-  local php_version="${13}"
-  local web_hostname="${14}"
-  local web_user="${15}"
-  local system_user="${16}"
-  local app_secret="${17}"
-  local app_encryption_keys="${18}"
-  local agent_registration_token="${19}"
-  local app_github_token="${20}"
-  local run_migrations="${21}"
-  local web_scheme="${22}"
-  local provision_database="${23}"
+  local install_dir="$1" repo_url="$2" repo_ref="$3"
+  local db_driver="$4" db_system="$5" db_root_pw="$6"
+  local db_host="$7" db_port="$8" db_name="$9" db_user="${10}" db_password="${11}"
+  local php_version="${12}" web_hostname="${13}"
+  local system_user="${14}" app_secret="${15}" enc_keys="${16}"
+  local reg_token="${17}" github_token="${18}"
+  local run_migrations="${19}" web_scheme="${20}" provision_db="${21}"
 
-  step "Prüfe Panel-Abhängigkeiten."
-  local pkg_manager
-  pkg_manager="$(detect_package_manager)"
-  enable_universe_repo "${pkg_manager}"
-  php_version="$(resolve_php_version "${php_version}" "${pkg_manager}")"
+  local family manager
+  family="$(detect_os_family)"
+  manager="$(detect_package_manager)"
 
-  resolve_panel_package_sets "${pkg_manager}" "${php_version}" "${db_system}"
+  log "Erkanntes OS-Family: ${family} | Paketmanager: ${manager}"
 
-  install_packages "${pkg_manager}" "${PANEL_BASE_PACKAGES[@]}" "${PANEL_PHP_PACKAGES[@]}" "${PANEL_PHP_DB_PACKAGES[@]}" "${PANEL_DB_PACKAGES[@]}"
+  step "Richte PHP-Repositories ein."
+  setup_php_repo "${manager}" "${family}" "${php_version}"
+  php_version="$(resolve_php_version "${php_version}" "${manager}" "${family}")"
 
-  local php_bin
-  php_bin="$(resolve_php_binary "${php_version}")"
+  resolve_php_packages  "${manager}" "${php_version}" "${db_system}"
+  resolve_db_packages   "${manager}" "${db_system}"
+
+  local base_pkgs=(git curl ca-certificates unzip openssl jq)
+  base_pkgs+=("$(nginx_packages "${manager}")")
+
+  install_packages "${manager}" "${base_pkgs[@]}" "${PHP_BASE_PKGS[@]}" "${DB_PKGS[@]}"
+
+  # Find PHP binary
+  local php_bin="php${php_version}"
+  command -v "${php_bin}" >/dev/null 2>&1 || php_bin="php"
+  command -v "${php_bin}" >/dev/null 2>&1 || fatal "PHP-Binary nicht gefunden."
+
   install_composer "${php_bin}"
 
-  ensure_service_enabled "${PANEL_PHP_FPM_SERVICE}"
-  ensure_service_enabled nginx.service
-  local db_service
-  for db_service in "${PANEL_DB_SERVICES[@]}"; do
-    ensure_service_enabled "${db_service}"
+  # Start services
+  service_enable_start "${PHP_FPM_SERVICE}"
+  service_enable_start nginx
+  for svc in "${DB_SERVICES[@]}"; do
+    start_first_available_service "${svc}" && break
   done
 
   ensure_system_user "${system_user}" "${install_dir}"
 
-  if [[ "${provision_database}" == "true" ]]; then
+  # Database
+  if [[ "${provision_db}" == "true" ]]; then
     case "${db_system}" in
-      mariadb|mysql)
-        setup_database_mysql "${db_name}" "${db_user}" "${db_password}" "${db_root_password}"
-        ;;
-      postgresql)
-        setup_database_postgresql "${db_name}" "${db_user}" "${db_password}"
-        ;;
+      mariadb|mysql)  setup_database_mysql "${db_name}" "${db_user}" "${db_password}" "${db_root_pw}" ;;
+      postgresql)     setup_database_postgresql "${db_name}" "${db_user}" "${db_password}" ;;
     esac
   else
-    log "Überspringe DB-Provisionierung (CREATE DATABASE/CREATE USER), nutze bestehende Datenbankkonfiguration."
+    warn "DB-Provisionierung übersprungen – bestehende DB wird verwendet."
   fi
 
+  # Source code
   step "Lade Panel-Quellcode."
   if [[ -d "${install_dir}/.git" ]]; then
     ensure_git_safe_dir "${install_dir}"
     git -C "${install_dir}" fetch --all --tags
     git -C "${install_dir}" checkout "${repo_ref}"
     git -C "${install_dir}" pull --ff-only
+    ok "Repository aktualisiert."
   elif [[ -d "${install_dir}" && -n "$(ls -A "${install_dir}" 2>/dev/null)" ]]; then
-    if prompt_yes_no "Installationsverzeichnis ${install_dir} ist nicht leer. Inhalt löschen und fortfahren?" "no"; then
+    if prompt_yes_no "${install_dir} ist nicht leer. Inhalt löschen?" "no"; then
       (shopt -s dotglob nullglob; rm -rf "${install_dir:?}/"*)
       git clone "${repo_url}" "${install_dir}"
-      ensure_git_safe_dir "${install_dir}"
-      git -C "${install_dir}" checkout "${repo_ref}"
     else
-      fatal "Installationsverzeichnis ${install_dir} ist nicht leer und kein Git-Repository."
+      fatal "Installationsverzeichnis nicht leer und kein Git-Repo."
     fi
   else
     git clone "${repo_url}" "${install_dir}"
-    ensure_git_safe_dir "${install_dir}"
-    git -C "${install_dir}" checkout "${repo_ref}"
   fi
+  ensure_git_safe_dir "${install_dir}"
+  git -C "${install_dir}" checkout "${repo_ref}"
+
+  local core_dir="${install_dir}/core"
+  [[ -d "${core_dir}" ]] || fatal "core/-Verzeichnis nicht gefunden: ${core_dir}"
 
   step "Installiere Composer-Abhängigkeiten."
-  local core_dir="${install_dir}/core"
-  if [[ ! -d "${core_dir}" ]]; then
-    fatal "Core-Verzeichnis nicht gefunden: ${core_dir}"
-  fi
+  COMPOSER_ALLOW_SUPERUSER=1 composer install \
+    --no-dev --optimize-autoloader --working-dir "${core_dir}" --quiet
 
-  COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --working-dir "${core_dir}"
-
-  if [[ -z "${app_secret}" ]]; then
-    app_secret="$(random_hex 32)"
-  fi
-  if [[ -z "${app_encryption_keys}" ]]; then
-    app_encryption_keys="$(random_base64 32)"
-  fi
+  [[ -z "${app_secret}" ]]  && app_secret="$(random_hex 32)"
+  [[ -z "${enc_keys}" ]]    && enc_keys="$(random_base64 32)"
 
   local default_uri="${web_scheme}://${web_hostname}"
-  if [[ "${web_hostname}" == "_" ]]; then
-    default_uri="${web_scheme}://localhost"
-  fi
+  [[ "${web_hostname}" == "_" ]] && default_uri="${web_scheme}://localhost"
 
-  write_env_local "${core_dir}/.env.local" "${db_driver}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" "${app_secret}" "${app_encryption_keys}" "${agent_registration_token}" "${default_uri}" "${install_dir}"
-  write_installation_info "${install_dir}/INSTALLATION_INFO.txt" "${db_driver}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" "${default_uri}" "/etc/nginx/sites-available/easywi.conf"
+  write_env_local "${core_dir}/.env.local" \
+    "${db_driver}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" \
+    "${app_secret}" "${enc_keys}" "${reg_token}" "${default_uri}" "${install_dir}"
 
-  if [[ -n "${app_github_token}" ]]; then
-    echo "APP_GITHUB_TOKEN=\"${app_github_token}\"" >>"${core_dir}/.env.local"
-  fi
+  [[ -n "${github_token}" ]] && printf 'APP_GITHUB_TOKEN="%s"\n' "${github_token}" >> "${core_dir}/.env.local"
 
   step "Setze Dateiberechtigungen."
   chown -R "${system_user}:${system_user}" "${install_dir}"
-  chown -R "${web_user}:${web_user}" "${core_dir}/var" "${core_dir}/public"
+  # nginx/web process needs to write var/ and read public/
+  local web_group; web_group="$(id -gn www-data 2>/dev/null || id -gn nginx 2>/dev/null || echo "${system_user}")"
+  chown -R ":${web_group}" "${core_dir}/var" "${core_dir}/public" 2>/dev/null || true
+  find "${core_dir}/var" -type d -exec chmod 775 {} \; 2>/dev/null || true
 
-  configure_nginx "${web_hostname}" "${core_dir}/public" "${php_version}"
+  configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
 
   if [[ "${run_migrations}" == "true" ]]; then
     step "Führe Datenbankmigrationen aus."
-    "${php_bin}" "${core_dir}/bin/console" doctrine:migrations:migrate --no-interaction --allow-no-migration
-    "${php_bin}" "${core_dir}/bin/console" cache:clear --env=prod
+    "${php_bin}" "${core_dir}/bin/console" doctrine:migrations:migrate \
+      --no-interaction --allow-no-migration 2>&1 | tail -5 || warn "Migrationen lieferten Fehler – prüfen."
+    "${php_bin}" "${core_dir}/bin/console" cache:clear --env=prod --quiet
+    ok "Migrationen abgeschlossen."
   else
-    log "Migrationen wurden übersprungen."
+    warn "Migrationen übersprungen."
   fi
+
+  write_install_info "${install_dir}/INSTALLATION_INFO.txt" \
+    "${default_uri}" "${db_driver}" "${db_host}" "${db_port:-Standard}" \
+    "${db_name}" "${db_user}" "${db_password}" \
+    "$(detect_nginx_conf_dir "${family}")/easywi.conf"
+
+  write_panel_messenger_service "${php_bin}" "${core_dir}/bin/console"
+
+  ok "Panel installiert unter ${install_dir}."
+  printf '\n'
+  printf '  ╔══════════════════════════════════════╗\n'
+  printf '  ║  Panel erreichbar unter: %-13s║\n' "${default_uri}"
+  printf '  ║  Zugangsdaten: %s/INSTALLATION_INFO.txt  ║\n' ""
+  printf '  ╚══════════════════════════════════════╝\n'
 }
 
+# ---------------------------------------------------------------------------
+# Agent install core logic
+# ---------------------------------------------------------------------------
 
-prepare_agent_runtime_layout() {
-  mkdir -p /etc/easywi
-  mkdir -p /opt/easywi/templates
-  mkdir -p /opt/easywi/instances
-  mkdir -p /opt/sinusbot/instances
-}
+install_agent() {
+  # $1 core_url        – URL für Bootstrap-HTTP-Call (und api_url wenn kein Override)
+  # $2 bootstrap_token – Token aus dem Panel
+  # $3 agent_version
+  # $4 file_base_dir
+  # $5 sftp_base_dir
+  # $6 agent_name
+  # $7 agent_hostname
+  # $8 bind_ips
+  # $9 api_url_override – (optional) echte Panel-URL für agent.conf wenn Bootstrap über localhost läuft
+  local core_url="$1" bootstrap_token="$2" agent_version="$3"
+  local file_base_dir="$4" sftp_base_dir="$5"
+  local agent_name="$6" agent_hostname="$7" bind_ips="$8"
+  local api_url_override="${9:-}"
+  local state_file="${EASYWI_BOOTSTRAP_STATE_FILE:-/etc/easywi/bootstrap-state.json}"
 
-install_agent_binaries_only() {
-  local agent_version="$1"
-  local file_base_dir="$2"
-  local sftp_base_dir="$3"
+  # URL die in agent.conf als api_url landet – echte Panel-URL, nicht 127.0.0.1
+  local api_url="${api_url_override:-${core_url}}"
 
-  step "Installiere Agent-Binaries (ohne Registrierung)."
-  log "Es werden nur die Binaries installiert, kein Token notwendig."
+  local manager; manager="$(detect_package_manager)"
+  install_packages "${manager}" ca-certificates curl openssl jq
 
-  local release_arch
-  release_arch="$(detect_release_arch)"
-  install_agent_release_binaries "${agent_version}" "${release_arch}"
+  local arch; arch="$(detect_arch_suffix)"
+  install_agent_binaries "${arch}" "${agent_version}"
+  prepare_agent_dirs
 
-  mapfile -t base_dir_config < <(build_agent_base_dir_config "${file_base_dir}")
-  local primary_base_dir="${base_dir_config[0]}"
+  mapfile -t bdc < <(build_agent_base_dir_config "${file_base_dir}")
+  local primary_base="${bdc[0]}"
 
-  prepare_agent_runtime_layout
-  if [[ ! -f /etc/easywi/agent.conf ]]; then
-    cat <<'CONF' >/etc/easywi/agent.conf
-# Beispiel-Konfiguration für die spätere Registrierung
-# agent_id=<AGENT_ID>
-# secret=<SECRET>
-# api_url=https://panel.example.com
-# service_listen=0.0.0.0:7456
-# file_base_dir=/home
-# file_base_dirs=/home,/var/www
-#
-# Hinweis: Der normale easywi-agent stellt zusätzlich die internen
-# Game- und Sinusbot-Endpunkte bereit (kein separater gamesvc/sinusbotsvc Dienst nötig).
-CONF
-    chmod 600 /etc/easywi/agent.conf
+  if [[ -z "${core_url}" ]]; then
+    warn "Kein Core-URL angegeben – nur Binaries installiert, keine Registrierung."
+    write_agent_conf_placeholder
+    write_agent_service "${primary_base}" "${sftp_base_dir}"
+    if has_systemctl; then
+      systemctl daemon-reload
+      systemctl enable easywi-agent.service
+    fi
+    return
   fi
 
-  create_agent_systemd_service "${primary_base_dir}" "${sftp_base_dir}"
-  validate_systemd_unit "easywi-agent"
+  [[ -z "${agent_name}" ]] && agent_name="$(hostname -f 2>/dev/null || hostname)"
 
-  if has_systemctl; then
-    systemctl daemon-reload
-    systemctl enable easywi-agent.service
+  local agent_id="" agent_secret=""
+
+  # Gespeicherten Bootstrap-State wiederverwenden falls vorhanden
+  if [[ -f "${state_file}" && -z "${bootstrap_token}" ]]; then
+    local st_url st_token st_id
+    st_url="$(jq -r '.register_url // empty' < "${state_file}")"
+    st_token="$(jq -r '.register_token // empty' < "${state_file}")"
+    st_id="$(jq -r '.agent_id // empty' < "${state_file}")"
+    if [[ -n "${st_url}" && -n "${st_token}" && -n "${st_id}" ]]; then
+      log "Verwende gespeicherten Bootstrap-State."
+      agent_secret="$(complete_agent_registration "${st_url}" "${st_token}" "${st_id}" "${agent_name}")" \
+        && agent_id="${st_id}" \
+        || { warn "Gespeicherter State ungültig – versuche neuen Bootstrap."; rm -f "${state_file}"; }
+    fi
   fi
 
-  cat <<'INFO'
-Die Binaries wurden installiert. Die Konfiguration und Dienste können
-nach der Registrierung im Webinterface ergänzt werden:
-  - /etc/easywi/agent.conf
-Der Systemd-Service wurde angelegt.
-INFO
-
-  if has_systemctl; then
-    echo "Systemd wurde erkannt: easywi-agent.service ist für den Autostart aktiviert."
-  else
-    echo "Hinweis: Kein systemctl gefunden. Starte den Agent manuell: /usr/local/bin/easywi-agent --config /etc/easywi/agent.conf"
+  if [[ -z "${agent_id}" ]]; then
+    [[ -z "${bootstrap_token}" ]] && fatal "Bootstrap-Token fehlt. Bitte EASYWI_BOOTSTRAP_TOKEN setzen oder im Installer angeben."
+    local identity
+    identity="$(register_agent_with_core "${core_url}" "${bootstrap_token}" \
+      "${agent_version}" "${agent_name}" "${agent_hostname}" "${state_file}")"
+    agent_id="${identity%%|*}"
+    agent_secret="${identity#*|}"
   fi
-}
 
-install_agent_services() {
-  local agent_id="$1"
-  local secret="$2"
-  local api_url="$3"
-  local file_base_dir="$4"
-  local sftp_base_dir="$5"
-  local bind_ip_addresses="$6"
-
-  mapfile -t base_dir_config < <(build_agent_base_dir_config "${file_base_dir}")
-  local primary_base_dir="${base_dir_config[0]}"
-  local all_base_dirs="${base_dir_config[1]}"
-
-  prepare_agent_runtime_layout
-  cat <<CONF >/etc/easywi/agent.conf
-agent_id=${agent_id}
-secret=${secret}
-api_url=${api_url}
-service_listen=0.0.0.0:7456
-file_base_dir=${primary_base_dir}
-file_base_dirs=${all_base_dirs}
-bind_ip_addresses=${bind_ip_addresses}
-# Der Agent stellt auch die internen Game-/Sinusbot-Endpunkte bereit.
-CONF
-  chmod 600 /etc/easywi/agent.conf
-
-  create_agent_systemd_service "${primary_base_dir}" "${sftp_base_dir}"
-  validate_systemd_unit "easywi-agent"
+  # agent.conf bekommt die echte Panel-URL (api_url), nicht die Bootstrap-URL (127.0.0.1)
+  write_agent_conf "${agent_id}" "${agent_secret}" "${api_url}" \
+    "${file_base_dir}" "${sftp_base_dir}" "${bind_ips}"
+  write_agent_service "${primary_base}" "${sftp_base_dir}"
 
   if has_systemctl; then
     systemctl daemon-reload
     systemctl enable --now easywi-agent.service
-  else
-    log "Kein systemctl gefunden: easywi-agent.service kann nicht automatisch gestartet werden."
-    log "Manueller Start: /usr/local/bin/easywi-agent --config /etc/easywi/agent.conf"
+  elif has_openrc; then
+    rc-service easywi-agent start || true
   fi
+
+  rm -f "${state_file}"
+
+  ok "Agent installiert und gestartet."
+  printf '\n  Agent-ID: %s\n  Config:   /etc/easywi/agent.conf\n' "${agent_id}"
 }
 
-write_bootstrap_state() {
-  local state_file="$1"
-  local register_url="$2"
-  local register_token="$3"
-  local agent_id="$4"
-  local bootstrap_token="$5"
-  local lock_file="${state_file}.lock"
+# ---------------------------------------------------------------------------
+# Agent update (binary only, keep config + service)
+# ---------------------------------------------------------------------------
 
-  install -d -m 700 "$(dirname "${state_file}")"
-  {
-    flock -x 9
-    jq -n --arg url "${register_url}" --arg token "${register_token}" --arg agent "${agent_id}" --arg bootstrap "${bootstrap_token}" \
-      '{register_url:$url,register_token:$token,agent_id:$agent,bootstrap_token:$bootstrap}' >"${state_file}"
-    chmod 600 "${state_file}"
-  } 9>"${lock_file}"
-}
+update_agent() {
+  local agent_version="${1:-latest}"
+  local arch; arch="$(detect_arch_suffix)"
 
-read_bootstrap_state() {
-  local state_file="$1"
-  local lock_file="${state_file}.lock"
+  step "Aktualisiere Agent-Binaries (${arch}, ${agent_version})."
+  local was_active=false
+  service_is_active easywi-agent && was_active=true
 
-  {
-    flock -x 9
-    if [[ ! -f "${state_file}" ]]; then
-      return 1
+  if "${was_active}"; then
+    log "Stoppe laufenden Agent."
+    if has_systemctl; then
+      systemctl stop easywi-agent.service 2>/dev/null || true
+    elif has_openrc; then
+      rc-service easywi-agent stop 2>/dev/null || true
     fi
-    jq -r '.register_url // empty, .register_token // empty, .agent_id // empty, .bootstrap_token // empty' "${state_file}"
-  } 9>"${lock_file}"
+  fi
+
+  install_agent_binaries "${arch}" "${agent_version}"
+
+  if has_systemctl; then
+    systemctl daemon-reload
+  fi
+
+  if "${was_active}"; then
+    log "Starte Agent neu."
+    service_enable_start easywi-agent
+  fi
+
+  local installed_ver="unknown"
+  installed_ver="$(/usr/local/bin/easywi-agent --version 2>/dev/null | head -n1 || echo "unknown")"
+  ok "Agent aktualisiert. Version: ${installed_ver}"
 }
 
-delete_bootstrap_state() {
-  local state_file="$1"
-  local lock_file="${state_file}.lock"
+# ---------------------------------------------------------------------------
+# Menus
+# ---------------------------------------------------------------------------
 
-  {
-    flock -x 9
-    rm -f "${state_file}"
-  } 9>"${lock_file}"
-}
-
-register_agent_with_core() {
-  local core_url="$1"
-  local bootstrap_token="$2"
-  local agent_version="$3"
-  local agent_name="$4"
-  local bootstrap_hostname="$5"
-  local state_file="$6"
-
-  local hostname
-  if [[ -n "${bootstrap_hostname}" ]]; then
-    hostname="${bootstrap_hostname}"
-  else
-    hostname="$(hostname -f 2>/dev/null || hostname)"
-  fi
-
-  local bootstrap_payload
-  bootstrap_payload="$(jq -n --arg token "${bootstrap_token}" --arg hostname "${hostname}" --arg os "linux" --arg version "${agent_version}" '{bootstrap_token:$token,hostname:$hostname,os:$os,agent_version:$version}')"
-
-  step "Registriere Agent am Core (Bootstrap)."
-  log "Bootstrap Debug: core_url=${core_url} hostname=${hostname}"
-  local bootstrap_response bootstrap_status
-  bootstrap_response="$(curl -sS -w '\n%{http_code}' -X POST "${core_url}/api/v1/agent/bootstrap" -H "Content-Type: application/json" -d "${bootstrap_payload}")"
-  bootstrap_status="${bootstrap_response##*$'\n'}"
-  bootstrap_response="${bootstrap_response%$'\n'*}"
-  if [[ "${bootstrap_status}" != "200" ]]; then
-    log "Bootstrap-Fehler (HTTP ${bootstrap_status})."
-    if [[ -n "${bootstrap_response}" ]]; then
-      log "Antwort: ${bootstrap_response}"
-    fi
-    fatal "Agent-Registrierung fehlgeschlagen."
-  fi
-
-  local register_url register_token agent_id
-  register_url="$(jq -r '.register_url // empty' <<<"${bootstrap_response}")"
-  register_token="$(jq -r '.register_token // empty' <<<"${bootstrap_response}")"
-  agent_id="$(jq -r '.agent_id // empty' <<<"${bootstrap_response}")"
-
-  if [[ -z "${register_url}" || -z "${register_token}" || -z "${agent_id}" ]]; then
-    fatal "Ungültige Antwort vom Core Bootstrap-Endpunkt."
-  fi
-  if [[ -n "${state_file}" ]]; then
-    write_bootstrap_state "${state_file}" "${register_url}" "${register_token}" "${agent_id}" "${bootstrap_token}"
-    log "Bootstrap-State gespeichert: ${state_file}"
-  fi
-
-  local agent_secret
-  if ! agent_secret="$(register_agent_with_token "${register_url}" "${register_token}" "${agent_id}" "${agent_name}")"; then
-    fatal "Agent-Registrierung fehlgeschlagen."
-  fi
-  echo "${agent_id}|${agent_secret}"
-}
-
-register_agent_with_token() {
-  local register_url="$1"
-  local register_token="$2"
-  local agent_id="$3"
-  local agent_name="$4"
-  export REGISTER_HTTP_STATUS=""
-  export REGISTER_HTTP_BODY=""
-
-  if [[ "${register_url}" =~ ^https?://[^/]+/.+/$ ]]; then
-    register_url="${register_url%/}"
-  fi
-
-  local register_payload
-  register_payload="$(jq -n --arg agent_id "${agent_id}" --arg token "${register_token}" --arg name "${agent_name}" '{agent_id:$agent_id,register_token:$token,name:$name}')"
-
-  local timestamp nonce path body_hash signature payload
-  timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-  nonce="$(random_hex 8)"
-  path="$(printf '%s' "${register_url}" | sed -E 's#https?://[^/]+##')"
-  if [[ -z "${path}" ]]; then
-    path="/"
-  fi
-  path="${path%%\?*}"
-  path="${path%%#*}"
-  if [[ "${path}" != "/" ]]; then
-    path="${path%/}"
-  fi
-  body_hash="$(sha256_hex "${register_payload}")"
-  payload="$(build_signature_payload "${agent_id}" "POST" "${path}" "${timestamp}" "${nonce}" "${register_payload}")"
-  signature="$(hmac_sha256_hex "${register_token}" "${payload}")"
-
-  step "Agent-Registrierung abschließen."
-  log "Register Debug: agent_id=${agent_id} path=${path} body_hash=${body_hash} timestamp=${timestamp} nonce=${nonce} signature_prefix=${signature:0:12}"
-  local register_response register_status
-  register_response="$(curl -sS -w '\n%{http_code}' -X POST "${register_url}" \
-    -H "Content-Type: application/json" \
-    -H "X-Agent-ID: ${agent_id}" \
-    -H "X-Timestamp: ${timestamp}" \
-    -H "X-Nonce: ${nonce}" \
-    -H "X-Signature: ${signature}" \
-    -d "${register_payload}")"
-  register_status="${register_response##*$'\n'}"
-  register_response="${register_response%$'\n'*}"
-  if [[ "${register_status}" != "200" && "${register_status}" != "201" ]]; then
-    log "Registrierungsfehler (HTTP ${register_status})."
-    if [[ -n "${register_response}" ]]; then
-      log "Antwort: ${register_response}"
-    fi
-    REGISTER_HTTP_STATUS="${register_status}"
-    REGISTER_HTTP_BODY="${register_response}"
-    return 1
-  fi
-
-  local agent_secret
-  agent_secret="$(jq -r '.secret // empty' <<<"${register_response}")"
-  if [[ -z "${agent_secret}" ]]; then
-    REGISTER_HTTP_STATUS="200"
-    REGISTER_HTTP_BODY="${register_response}"
-    return 1
-  fi
-
-  echo "${agent_secret}"
-}
-
-print_intro() {
-  cat <<INTRO
-EasyWI Installer Menü (Linux) v${VERSION}
-
-Dieses Skript führt Sie Schritt für Schritt durch die Installation.
-Es erklärt vor jeder Aktion, was passiert, und übernimmt alle
-Installationsschritte direkt.
-INTRO
-}
-
-panel_mode_menu() {
+db_system_menu() {
   menu_output <<'MENU'
 
-Panel-Installationsmodus:
-  1) Standalone (eigene Webserver-Konfiguration)
-  2) Plesk
-  3) aaPanel
-  4) Abbrechen
+  Datenbanksystem:
+    1) MariaDB   (empfohlen)
+    2) MySQL
+    3) PostgreSQL
 MENU
-
-  local choice
-  choice="$(menu_prompt "Bitte wählen Sie den Modus [1-4]: ")"
-  case "${choice}" in
-    1) echo "standalone";;
-    2) echo "plesk";;
-    3) echo "aapanel";;
-    *) echo "";;
-  esac
+  local c; c="$(menu_prompt "  Auswahl [1-3]: ")"
+  case "${c}" in 1) echo "mariadb";; 2) echo "mysql";; 3) echo "postgresql";; *) echo "mariadb";; esac
 }
 
 run_panel_install() {
-  local mode
-  mode="$(panel_mode_menu)"
-  if [[ -z "${mode}" ]]; then
-    fatal "Panel-Installation abgebrochen."
-  fi
+  menu_output <<'INFO'
+
+  ╔══════════════════════════════════════════════════╗
+  ║  Panel (Core) Installation                       ║
+  ║  Installiert: PHP, Nginx, Composer, Symfony      ║
+  ║  Quellcode von GitHub (Easy-Wi-NextGen)          ║
+  ╚══════════════════════════════════════════════════╝
+
+INFO
 
   local install_dir="${EASYWI_INSTALL_DIR:-/var/www/easywi}"
-  local repo_url="${EASYWI_REPO_URL:-}"
-  local repo_ref="${EASYWI_REPO_REF:-Beta}"
+  local repo_url="${EASYWI_REPO_URL:-https://github.com/Matlord93/Easy-Wi-NextGen.git}"
+  local repo_ref="${EASYWI_REPO_REF:-main}"
   local db_driver="${EASYWI_DB_DRIVER:-mysql}"
   local db_system="${EASYWI_DB_SYSTEM:-}"
-  local db_root_password="${EASYWI_DB_ROOT_PASSWORD:-}"
+  local db_root_pw="${EASYWI_DB_ROOT_PASSWORD:-}"
   local db_host="${EASYWI_DB_HOST:-127.0.0.1}"
   local db_port="${EASYWI_DB_PORT:-}"
   local db_name="${EASYWI_DB_NAME:-easywi}"
@@ -1285,177 +1279,66 @@ run_panel_install() {
   local db_password="${EASYWI_DB_PASSWORD:-}"
   local php_version="${EASYWI_PHP_VERSION:-${DEFAULT_PHP_VERSION}}"
   local web_hostname="${EASYWI_WEB_HOSTNAME:-_}"
-  local web_user="${EASYWI_WEB_USER:-}"
   local system_user="${EASYWI_SYSTEM_USER:-easywi}"
   local app_secret="${EASYWI_APP_SECRET:-}"
-  local app_encryption_keys="${EASYWI_SECRET_KEY:-}"
-  local agent_registration_token="${EASYWI_AGENT_REGISTRATION_TOKEN:-}"
-  local app_github_token="${EASYWI_APP_GITHUB_TOKEN:-}"
+  local enc_keys="${EASYWI_SECRET_KEY:-}"
+  local reg_token="${EASYWI_AGENT_REGISTRATION_TOKEN:-}"
+  local github_token="${EASYWI_APP_GITHUB_TOKEN:-}"
   local run_migrations="${EASYWI_RUN_MIGRATIONS:-true}"
   local web_scheme="${EASYWI_WEB_SCHEME:-https}"
-  local provision_database="${EASYWI_DB_PROVISION:-true}"
+  local provision_db="${EASYWI_DB_PROVISION:-true}"
 
-  echo
-  echo "Panel-Setup: Wir laden den Quellcode, schreiben die .env.local,"
-  echo "konfigurieren den Webserver, und führen optional"
-  echo "die Datenbankmigrationen aus."
+  prompt_value repo_url       "Git-Repository URL"                           "${repo_url}"
+  prompt_value install_dir    "Installationsverzeichnis"                     "${install_dir}"
+  prompt_value repo_ref       "Git-Branch oder Tag"                          "${repo_ref}"
+  prompt_value system_user    "Linux-Systembenutzer für EasyWI"              "${system_user}"
+  prompt_value php_version    "PHP-Version"                                  "${php_version}"
+  prompt_value web_hostname   "Hostname/Domain (_ = alle)"                  "${web_hostname}"
+  prompt_value web_scheme     "Schema (http/https)"                          "${web_scheme}"
+  prompt_value provision_db   "Datenbank automatisch erstellen? (true/false)" "${provision_db}"
 
-  prompt_value repo_url "Git-Repository URL" "https://github.com/Matlord93/Easy-Wi-NextGen.git"
-  prompt_value install_dir "Installationsverzeichnis" "${install_dir}"
-  prompt_value repo_ref "Git-Branch/Tag" "${repo_ref}"
-  if [[ -z "${repo_url}" ]]; then
-    repo_url="https://github.com/Matlord93/Easy-Wi-NextGen.git"
-  fi
   if [[ -z "${db_system}" ]]; then
-    if is_tty; then
-      db_system="$(db_system_menu)"
-    else
-      db_system="mariadb"
-    fi
+    is_tty && db_system="$(db_system_menu)" || db_system="mariadb"
   fi
   case "${db_system}" in
-    mariadb|mysql)
-      db_driver="mysql"
-      ;;
-    postgresql)
-      db_driver="pgsql"
-      ;;
-    *)
-      fatal "Unbekanntes DB-System: ${db_system}"
-      ;;
+    mariadb|mysql) db_driver="mysql" ;;
+    postgresql)    db_driver="pgsql" ;;
+    *) fatal "Unbekanntes DB-System: ${db_system}" ;;
   esac
 
-  prompt_value system_user "System-User (Linux) für EasyWI" "${system_user}"
-  prompt_value db_root_password "DB-Root-Passwort (leer = socket auth)" "${db_root_password}"
-  prompt_value db_host "DB-Host" "${db_host}"
-  prompt_value db_port "DB-Port (leer = Standard)" "${db_port}"
-  prompt_value db_name "DB-Name" "${db_name}"
-  prompt_value db_user "DB-User" "${db_user}"
-  prompt_value db_password "DB-Passwort" "${db_password}"
-  prompt_value app_secret "APP_SECRET (leer = automatisch)" "${app_secret}"
-  prompt_value app_encryption_keys "Encryption key (base64, stored in /etc/easywi/secret.key)" "${app_encryption_keys}"
-  prompt_value agent_registration_token "AGENT_REGISTRATION_TOKEN (optional)" "${agent_registration_token}"
-  prompt_value app_github_token "GitHub Token (optional)" "${app_github_token}"
-  prompt_value provision_database "DB automatisch erstellen? (true/false)" "${provision_database}"
-  prompt_value run_migrations "Migrationen ausführen? (true/false)" "${run_migrations}"
+  prompt_value db_root_pw   "DB-Root-Passwort (leer = Socket-Auth)"    "${db_root_pw}"
+  prompt_value db_host      "DB-Host"                                   "${db_host}"
+  prompt_value db_port      "DB-Port (leer = Standard)"                "${db_port}"
+  prompt_value db_name      "Datenbankname"                             "${db_name}"
+  prompt_value db_user      "Datenbankbenutzer"                         "${db_user}"
+  prompt_value db_password  "Datenbankpasswort"                         "${db_password}"
+  prompt_value reg_token    "Agent-Registrierungstoken (optional)"     "${reg_token}"
+  prompt_value github_token "GitHub-Token (optional)"                  "${github_token}"
+  prompt_value run_migrations "Migrationen ausführen? (true/false)"    "${run_migrations}"
 
-  prompt_value php_version "PHP-Version (8.4)" "${php_version}"
-  prompt_value web_hostname "Servername" "${web_hostname}"
-  prompt_value web_user "Web-User" "${web_user}"
-  prompt_value web_scheme "Web-Schema (http/https)" "${web_scheme}"
-  if [[ -z "${web_scheme}" ]]; then
-    web_scheme="https"
-  fi
+  [[ -z "${db_password}" ]] && fatal "Datenbankpasswort darf nicht leer sein."
 
-  if [[ -z "${web_user}" ]]; then
-    web_user="${system_user}"
-  fi
-  if [[ "${web_user}" != "${system_user}" ]] && ! id -u "${web_user}" >/dev/null 2>&1; then
-    fatal "Web-User ${web_user} existiert nicht."
-  fi
-
-  if [[ -z "${db_password}" ]]; then
-    fatal "DB-Passwort darf nicht leer sein."
-  fi
-
-  log "Webserver: nginx"
-  log "PHP-Version: ${php_version}"
-  log "Datenbanksystem: ${db_system}"
-  log "System-User: ${system_user}"
-  log "Web-User: ${web_user}"
-
-  install_panel "${mode}" "${install_dir}" "${repo_url}" "${repo_ref}" "${db_driver}" "${db_system}" "${db_root_password}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" "${php_version}" "${web_hostname}" "${web_user}" "${system_user}" "${app_secret}" "${app_encryption_keys}" "${agent_registration_token}" "${app_github_token}" "${run_migrations}" "${web_scheme}" "${provision_database}"
-}
-
-build_agent_base_dir_config() {
-  local base_input="$1"
-
-  if [[ -z "${base_input}" ]]; then
-    base_input="/home,/var/www"
-  fi
-
-  local primary=""
-  local -a unique_dirs=()
-  IFS=',' read -ra raw_dirs <<<"${base_input}"
-  for raw_dir in "${raw_dirs[@]}"; do
-    local dir
-    dir="$(printf '%s' "${raw_dir}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-    if [[ -z "${dir}" ]]; then
-      continue
-    fi
-    if [[ "${dir}" != /* ]]; then
-      fatal "File Base Directory muss absolut sein: ${dir}"
-    fi
-
-    if [[ -z "${primary}" ]]; then
-      primary="${dir}"
-    fi
-
-    local exists="false"
-    local candidate
-    for candidate in "${unique_dirs[@]}"; do
-      if [[ "${candidate}" == "${dir}" ]]; then
-        exists="true"
-        break
-      fi
-    done
-    if [[ "${exists}" == "false" ]]; then
-      unique_dirs+=("${dir}")
-    fi
-  done
-
-  if [[ -z "${primary}" ]]; then
-    primary="/home"
-    unique_dirs=("/home" "/var/www")
-  fi
-
-  local joined=""
-  local dir
-  for dir in "${unique_dirs[@]}"; do
-    if [[ -z "${joined}" ]]; then
-      joined="${dir}"
-    else
-      joined+=",${dir}"
-    fi
-  done
-
-  printf '%s\n%s\n' "${primary}" "${joined}"
-}
-
-detect_default_linux_file_base_dirs() {
-  local defaults=""
-  if command -v findmnt >/dev/null 2>&1; then
-    local mount
-    while IFS= read -r mount; do
-      mount="$(printf '%s' "${mount}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-      [[ -z "${mount}" ]] && continue
-      case "${mount}" in
-        /|/boot|/boot/efi|/run|/run/*|/proc|/sys|/dev|/var/lib/docker|/snap) continue ;;
-      esac
-      if [[ -z "${defaults}" ]]; then
-        defaults="${mount}"
-      else
-        defaults+=",${mount}"
-      fi
-    done < <(findmnt -rn -o TARGET -t ext4,xfs,btrfs,zfs 2>/dev/null)
-  fi
-
-  if [[ -z "${defaults}" ]]; then
-    defaults="/home,/var/www"
-  fi
-
-  printf '%s\n' "${defaults}"
-}
-
-detect_local_ipv4_addresses() {
-  if command -v ip >/dev/null 2>&1; then
-    ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | paste -sd, -
-    return
-  fi
-  printf '\n'
+  install_panel \
+    "${install_dir}" "${repo_url}" "${repo_ref}" \
+    "${db_driver}" "${db_system}" "${db_root_pw}" \
+    "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" \
+    "${php_version}" "${web_hostname}" \
+    "${system_user}" "${app_secret}" "${enc_keys}" \
+    "${reg_token}" "${github_token}" \
+    "${run_migrations}" "${web_scheme}" "${provision_db}"
 }
 
 run_agent_install() {
+  menu_output <<'INFO'
+
+  ╔══════════════════════════════════════════════════╗
+  ║  Agent Installation                              ║
+  ║  Lädt Agent-Binary, konfiguriert Systemd-Service ║
+  ║  Optional: Registrierung am Panel                ║
+  ╚══════════════════════════════════════════════════╝
+
+INFO
+
   local core_url="${EASYWI_CORE_URL:-${EASYWI_API_URL:-}}"
   local bootstrap_token="${EASYWI_BOOTSTRAP_TOKEN:-}"
   local agent_version="${EASYWI_AGENT_VERSION:-latest}"
@@ -1463,132 +1346,237 @@ run_agent_install() {
   local sftp_base_dir="${EASYWI_SFTP_BASE_DIR:-/var/lib/easywi/sftp}"
   local agent_name="${EASYWI_AGENT_NAME:-}"
   local agent_hostname="${EASYWI_AGENT_HOSTNAME:-}"
-  local bootstrap_state_file="${EASYWI_BOOTSTRAP_STATE_FILE:-/etc/easywi/bootstrap-state.json}"
-  local register_token="${EASYWI_AGENT_REGISTER_TOKEN:-}"
-  local agent_id="${EASYWI_AGENT_ID:-}"
-  local register_url="${EASYWI_AGENT_REGISTER_URL:-}"
-  local bind_ip_addresses="${EASYWI_BIND_IP_ADDRESSES:-}"
+  local bind_ips="${EASYWI_BIND_IP_ADDRESSES:-}"
 
-  echo
-  echo "Agent-Setup: Wir laden die Agent-Binaries."
-  echo "Optional registrieren wir sie am Core und richten Systemd-Services ein."
+  [[ -z "${file_base_dir}" ]] && file_base_dir="$(detect_default_base_dirs)"
+  [[ -z "${bind_ips}" ]]      && bind_ips="$(detect_local_ipv4)"
 
-  prompt_value core_url "Core API URL" "${core_url}"
-  prompt_value bootstrap_token "Bootstrap Token" "${bootstrap_token}"
-  prompt_value agent_version "Agent Version (latest oder Tag)" "${agent_version}"
-  if [[ -z "${file_base_dir}" ]]; then
-    file_base_dir="$(detect_default_linux_file_base_dirs)"
+  prompt_value core_url        "Panel API URL (leer = nur Binary)"    "${core_url}"
+  prompt_value bootstrap_token "Bootstrap-Token"                      "${bootstrap_token}"
+  prompt_value agent_version   "Agent-Version (latest oder Tag)"      "${agent_version}"
+  prompt_value file_base_dir   "Dateiverzeichnisse (kommagetrennt)"   "${file_base_dir}"
+  prompt_value sftp_base_dir   "SFTP-Basisverzeichnis"                "${sftp_base_dir}"
+  prompt_value bind_ips        "Bind-IP-Adressen (optional)"          "${bind_ips}"
+  prompt_value agent_name      "Agent-Name (optional)"                "${agent_name}"
+  prompt_value agent_hostname  "Agent-Hostname (optional)"            "${agent_hostname}"
+
+  [[ -n "${core_url}" ]] && core_url="${core_url%/}"
+
+  install_agent \
+    "${core_url}" "${bootstrap_token}" "${agent_version}" \
+    "${file_base_dir}" "${sftp_base_dir}" \
+    "${agent_name}" "${agent_hostname}" "${bind_ips}"
+}
+
+run_agent_update() {
+  menu_output <<'INFO'
+
+  ╔══════════════════════════════════════════════════╗
+  ║  Agent aktualisieren                             ║
+  ║  Lädt neue Binary, behält Konfiguration          ║
+  ╚══════════════════════════════════════════════════╝
+
+INFO
+
+  local agent_version="${EASYWI_AGENT_VERSION:-latest}"
+  prompt_value agent_version "Agent-Version (latest oder Tag)" "${agent_version}"
+
+  local manager; manager="$(detect_package_manager)"
+  install_packages "${manager}" ca-certificates curl openssl jq
+
+  update_agent "${agent_version}"
+}
+
+run_both_install() {
+  menu_output <<'INFO'
+
+  ╔══════════════════════════════════════════════════╗
+  ║  Panel (Core) + Agent – Gemeinsame Installation  ║
+  ║                                                  ║
+  ║  Ablauf:                                         ║
+  ║    1) Alle Parameter abfragen                    ║
+  ║    2) Panel installieren                         ║
+  ║    3) Agent automatisch registrieren             ║
+  ║       (kein manueller Token nötig)               ║
+  ╚══════════════════════════════════════════════════╝
+
+INFO
+
+  # ── Panel-Parameter ────────────────────────────────────────────────────
+  local install_dir="${EASYWI_INSTALL_DIR:-/var/www/easywi}"
+  local repo_url="${EASYWI_REPO_URL:-https://github.com/Matlord93/Easy-Wi-NextGen.git}"
+  local repo_ref="${EASYWI_REPO_REF:-main}"
+  local db_driver="${EASYWI_DB_DRIVER:-mysql}"
+  local db_system="${EASYWI_DB_SYSTEM:-}"
+  local db_root_pw="${EASYWI_DB_ROOT_PASSWORD:-}"
+  local db_host="${EASYWI_DB_HOST:-127.0.0.1}"
+  local db_port="${EASYWI_DB_PORT:-}"
+  local db_name="${EASYWI_DB_NAME:-easywi}"
+  local db_user="${EASYWI_DB_USER:-easywi}"
+  local db_password="${EASYWI_DB_PASSWORD:-}"
+  local php_version="${EASYWI_PHP_VERSION:-${DEFAULT_PHP_VERSION}}"
+  local web_hostname="${EASYWI_WEB_HOSTNAME:-_}"
+  local system_user="${EASYWI_SYSTEM_USER:-easywi}"
+  local app_secret="${EASYWI_APP_SECRET:-}"
+  local enc_keys="${EASYWI_SECRET_KEY:-}"
+  local github_token="${EASYWI_APP_GITHUB_TOKEN:-}"
+  local run_migrations="${EASYWI_RUN_MIGRATIONS:-true}"
+  local web_scheme="${EASYWI_WEB_SCHEME:-https}"
+  local provision_db="${EASYWI_DB_PROVISION:-true}"
+
+  # ── Agent-Parameter ─────────────────────────────────────────────────────
+  local agent_version="${EASYWI_AGENT_VERSION:-latest}"
+  local file_base_dir="${EASYWI_FILE_BASE_DIR:-}"
+  local sftp_base_dir="${EASYWI_SFTP_BASE_DIR:-/var/lib/easywi/sftp}"
+  local agent_name="${EASYWI_AGENT_NAME:-}"
+  local agent_hostname="${EASYWI_AGENT_HOSTNAME:-}"
+  local bind_ips="${EASYWI_BIND_IP_ADDRESSES:-}"
+
+  [[ -z "${file_base_dir}" ]] && file_base_dir="$(detect_default_base_dirs)"
+  [[ -z "${bind_ips}" ]]      && bind_ips="$(detect_local_ipv4)"
+
+  # ── Panel-Fragen ─────────────────────────────────────────────────────────
+  menu_output <<'HDR'
+
+  ── Panel-Einstellungen ──────────────────────────────
+HDR
+  prompt_value repo_url       "Git-Repository URL"                            "${repo_url}"
+  prompt_value install_dir    "Installationsverzeichnis"                      "${install_dir}"
+  prompt_value repo_ref       "Git-Branch oder Tag"                           "${repo_ref}"
+  prompt_value system_user    "Linux-Systembenutzer für EasyWI"               "${system_user}"
+  prompt_value php_version    "PHP-Version"                                   "${php_version}"
+  prompt_value web_hostname   "Hostname/Domain (_ = alle)"                   "${web_hostname}"
+  prompt_value web_scheme     "Schema (http/https)"                           "${web_scheme}"
+  prompt_value provision_db   "Datenbank automatisch erstellen? (true/false)" "${provision_db}"
+
+  if [[ -z "${db_system}" ]]; then
+    is_tty && db_system="$(db_system_menu)" || db_system="mariadb"
   fi
-  if [[ -z "${bind_ip_addresses}" ]]; then
-    bind_ip_addresses="$(detect_local_ipv4_addresses)"
-  fi
-  prompt_value file_base_dir "File Base Directory(s, comma separated)" "${file_base_dir}"
-  prompt_value bind_ip_addresses "Bind IP Addresses (comma separated, optional)" "${bind_ip_addresses}"
-  prompt_value sftp_base_dir "SFTP Base Directory" "${sftp_base_dir}"
-  prompt_value agent_name "Agent Name (optional)" "${agent_name}"
-  prompt_value agent_hostname "Agent Hostname (optional)" "${agent_hostname}"
+  case "${db_system}" in
+    mariadb|mysql) db_driver="mysql" ;;
+    postgresql)    db_driver="pgsql" ;;
+    *) fatal "Unbekanntes DB-System: ${db_system}" ;;
+  esac
 
-  local pkg_manager
-  pkg_manager="$(detect_package_manager)"
-  install_packages "${pkg_manager}" ca-certificates curl openssl jq
+  prompt_value db_root_pw     "DB-Root-Passwort (leer = Socket-Auth)"    "${db_root_pw}"
+  prompt_value db_host        "DB-Host"                                   "${db_host}"
+  prompt_value db_port        "DB-Port (leer = Standard)"                "${db_port}"
+  prompt_value db_name        "Datenbankname"                             "${db_name}"
+  prompt_value db_user        "Datenbankbenutzer"                         "${db_user}"
+  prompt_value db_password    "Datenbankpasswort"                         "${db_password}"
+  prompt_value github_token   "GitHub-Token (optional)"                   "${github_token}"
+  prompt_value run_migrations "Migrationen ausführen? (true/false)"       "${run_migrations}"
 
-  if [[ -n "${core_url}" ]]; then
-    core_url="${core_url%/}"
-  fi
+  [[ -z "${db_password}" ]] && fatal "Datenbankpasswort darf nicht leer sein."
 
-  if [[ -z "${core_url}" ]]; then
-    log "Kein Core-URL angegeben -> Installiere nur die Binaries."
-    install_agent_binaries_only "${agent_version}" "${file_base_dir}" "${sftp_base_dir}"
-    return
-  fi
+  # ── Agent-Fragen ──────────────────────────────────────────────────────────
+  menu_output <<'HDR'
 
-  step "Installiere Agent-Binaries."
-  install_agent_binaries_only "${agent_version}" "${file_base_dir}" "${sftp_base_dir}"
+  ── Agent-Einstellungen ──────────────────────────────
+HDR
+  prompt_value agent_version  "Agent-Version (latest oder Tag)"          "${agent_version}"
+  prompt_value file_base_dir  "Dateiverzeichnisse (kommagetrennt)"       "${file_base_dir}"
+  prompt_value sftp_base_dir  "SFTP-Basisverzeichnis"                    "${sftp_base_dir}"
+  prompt_value bind_ips       "Bind-IP-Adressen (optional)"              "${bind_ips}"
+  prompt_value agent_name     "Agent-Name (optional)"                    "${agent_name}"
+  prompt_value agent_hostname "Agent-Hostname (optional)"                "${agent_hostname}"
 
-  if [[ -z "${agent_name}" ]]; then
-    agent_name="$(hostname -f 2>/dev/null || hostname)"
-  fi
-
-  if [[ -z "${bootstrap_token}" && -z "${register_token}" && -f "${bootstrap_state_file}" ]]; then
-    log "Bootstrap-State gefunden: ${bootstrap_state_file}"
-    readarray -t bootstrap_state < <(read_bootstrap_state "${bootstrap_state_file}")
-    register_url="${bootstrap_state[0]:-}"
-    register_token="${bootstrap_state[1]:-}"
-    agent_id="${bootstrap_state[2]:-}"
-    if [[ -z "${bootstrap_token}" ]]; then
-      bootstrap_token="${bootstrap_state[3]:-}"
-    fi
-    if [[ -z "${register_url}" || -z "${register_token}" || -z "${agent_id}" ]]; then
-      fatal "Bootstrap-State ist unvollständig."
-    fi
+  # ── Registrierungs-Token automatisch generieren ───────────────────────────
+  # Der Token wird in Panel-.env.local UND für den Agent-Bootstrap verwendet.
+  # Kein manueller Schritt nötig.
+  local reg_token="${EASYWI_AGENT_REGISTRATION_TOKEN:-}"
+  if [[ -z "${reg_token}" ]]; then
+    reg_token="$(random_hex 32)"
+    log "Auto-generierter Registrierungstoken (wird in .env.local gespeichert)."
   fi
 
-  local agent_secret=""
-  if [[ -n "${register_token}" && -n "${agent_id}" ]]; then
-    log "Registrierung mit gespeicherten Register-Token."
-    if [[ -z "${register_url}" ]]; then
-      register_url="${core_url}/api/v1/agent/register"
-    fi
-    if ! agent_secret="$(register_agent_with_token "${register_url}" "${register_token}" "${agent_id}" "${agent_name}")"; then
-      log "Registrierung mit Register-Token fehlgeschlagen, versuche Bootstrap erneut."
-      delete_bootstrap_state "${bootstrap_state_file}"
-      register_url=""
-      register_token=""
-      agent_id=""
-    fi
-  else
-    if [[ -z "${bootstrap_token}" ]]; then
-      log "Kein Bootstrap-Token angegeben -> Installiere nur die Binaries."
-      install_agent_binaries_only "${agent_version}" "${file_base_dir}" "${sftp_base_dir}"
-      return
-    fi
-  fi
+  # ── Schritt 1: Panel installieren ────────────────────────────────────────
+  menu_output <<'HDR'
 
-  if [[ -z "${agent_secret}" ]]; then
-    if [[ -z "${bootstrap_token}" ]]; then
-      log "Kein Bootstrap-Token verfügbar -> Installiere nur die Binaries."
-      install_agent_binaries_only "${agent_version}" "${file_base_dir}" "${sftp_base_dir}"
-      return
-    fi
-    local agent_identity
-    agent_identity="$(register_agent_with_core "${core_url}" "${bootstrap_token}" "${agent_version}" "${agent_name}" "${agent_hostname}" "${bootstrap_state_file}")"
-    agent_id="${agent_identity%%|*}"
-    agent_secret="${agent_identity#*|}"
-  fi
+  ── Starte Panel-Installation ────────────────────────
+HDR
+  install_panel \
+    "${install_dir}" "${repo_url}" "${repo_ref}" \
+    "${db_driver}" "${db_system}" "${db_root_pw}" \
+    "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" \
+    "${php_version}" "${web_hostname}" \
+    "${system_user}" "${app_secret}" "${enc_keys}" \
+    "${reg_token}" "${github_token}" \
+    "${run_migrations}" "${web_scheme}" "${provision_db}"
 
-  install_agent_services "${agent_id}" "${agent_secret}" "${core_url}" "${file_base_dir}" "${sftp_base_dir}" "${bind_ip_addresses}"
-  delete_bootstrap_state "${bootstrap_state_file}"
+  # ── Schritt 2: Agent gegen das soeben installierte Panel registrieren ────
+  # Bootstrap-Call geht immer gegen 127.0.0.1 – kein DNS nötig, Panel läuft bereits.
+  # Die echte Panel-URL kommt in agent.conf als api_url.
+  local bootstrap_url="http://127.0.0.1"
+  local real_panel_url="${web_scheme}://${web_hostname}"
+  [[ "${web_hostname}" == "_" ]] && real_panel_url="http://127.0.0.1"
+
+  menu_output <<'HDR'
+
+  ── Starte Agent-Installation & Registrierung ────────
+HDR
+  log "Bootstrap via: ${bootstrap_url}  |  api_url in agent.conf: ${real_panel_url}"
+
+  install_agent \
+    "${bootstrap_url}" "${reg_token}" "${agent_version}" \
+    "${file_base_dir}" "${sftp_base_dir}" \
+    "${agent_name}" "${agent_hostname}" "${bind_ips}" \
+    "${real_panel_url}"
+
+  # ── Abschlussmeldung ─────────────────────────────────────────────────────
+  printf '\n'
+  printf '  ╔══════════════════════════════════════════════════╗\n'
+  printf '  ║  Installation abgeschlossen!                     ║\n'
+  printf '  ║                                                  ║\n'
+  printf '  ║  Panel: %-41s║\n'  "${real_panel_url}"
+  printf '  ║  Agent: /etc/easywi/agent.conf                   ║\n'
+  printf '  ║  Info:  %s/INSTALLATION_INFO.txt        ║\n' "${install_dir}"
+  printf '  ╚══════════════════════════════════════════════════╝\n'
+}
+
+# ---------------------------------------------------------------------------
+# Main menu
+# ---------------------------------------------------------------------------
+
+print_banner() {
+  menu_output <<BANNER
+
+  ╔══════════════════════════════════════════════════╗
+  ║        EasyWI Linux Installer v${VERSION}              ║
+  ║  Unterstützte Distros:                           ║
+  ║    Debian · Ubuntu · RHEL · CentOS · Rocky       ║
+  ║    AlmaLinux · Fedora · openSUSE · SLES          ║
+  ║    Arch · Manjaro · Alpine · Amazon Linux        ║
+  ╚══════════════════════════════════════════════════╝
+
+BANNER
 }
 
 main_menu() {
   menu_output <<'MENU'
+  Was möchten Sie tun?
 
-Was möchten Sie installieren?
-  1) Webinterface (Panel)
-  2) Agent
-  3) Panel + Agent
-  4) Beenden
+    1) Panel (Core) installieren
+    2) Agent installieren
+    3) Panel + Agent installieren
+    4) Agent aktualisieren
+    5) Beenden
+
 MENU
-
-  local choice
-  choice="$(menu_prompt "Bitte wählen Sie [1-4]: ")"
+  local choice; choice="$(menu_prompt "  Auswahl [1-5]: ")"
   case "${choice}" in
-    1)
-      run_panel_install
-      ;;
-    2)
-      run_agent_install
-      ;;
-    3)
-      run_panel_install
-      run_agent_install
-      ;;
-    *)
-      log "Installation beendet."
-      ;;
+    1) run_panel_install ;;
+    2) run_agent_install ;;
+    3) run_both_install  ;;
+    4) run_agent_update  ;;
+    *) log "Installation beendet."; exit 0 ;;
   esac
 }
 
+# ---------------------------------------------------------------------------
+# Entrypoint
+# ---------------------------------------------------------------------------
+
 require_root
-print_intro
+print_banner
 main_menu
