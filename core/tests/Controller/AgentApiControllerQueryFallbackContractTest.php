@@ -69,4 +69,16 @@ final class AgentApiControllerQueryFallbackContractTest extends TestCase
         self::assertStringContainsString('"os":', $roles);
     }
 
+    public function testBackupJobsUseLongLockAndDoNotRetryAfterStartTimeout(): void
+    {
+        $controller = (string) file_get_contents(__DIR__.'/../../src/Module/PanelCustomer/UI/Controller/Api/AgentApiController.php');
+
+        self::assertStringContainsString("private const BACKUP_JOB_LOCK_TTL = '+12 hours'", $controller);
+        self::assertStringContainsString('NON_RETRYABLE_AFTER_START_JOB_TYPES', $controller);
+        self::assertStringContainsString("'instance.backup.create'", $controller);
+        self::assertStringContainsString('resolveJobLockExpiresAt($job, $now)', $controller);
+        self::assertStringContainsString('shouldRequeueExpiredJob', $controller);
+        self::assertStringContainsString('Job lock expired; marked failed without retry.', $controller);
+    }
+
 }

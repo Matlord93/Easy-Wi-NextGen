@@ -68,6 +68,22 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 final class AgentApiController
 {
+    private const DEFAULT_JOB_LOCK_TTL = '+10 minutes';
+    private const BACKUP_JOB_LOCK_TTL = '+12 hours';
+
+    /**
+     * Backup jobs create or apply external filesystem state and must not be
+     * dispatched a second time just because archive creation stayed quiet
+     * longer than the default lock window.
+     *
+     * @var array<int, string>
+     */
+    private const NON_RETRYABLE_AFTER_START_JOB_TYPES = [
+        'instance.backup.create',
+        'instance.backup.restore',
+        'webspace.backup',
+    ];
+
     /**
      * Jobs that are explicitly supported on Windows agents.
      *
@@ -419,7 +435,7 @@ final class AgentApiController
             }
 
             $lockToken = bin2hex(random_bytes(16));
-            $job->lock($agent->getId(), $lockToken, $now->modify('+10 minutes'));
+            $job->lock($agent->getId(), $lockToken, $this->resolveJobLockExpiresAt($job, $now));
             $job->claim($agent->getId(), $now);
             $job->transitionTo(JobStatus::Claimed);
             $this->jobLogger->log($job, 'Job claimed.', 5);
@@ -678,12 +694,14 @@ final class AgentApiController
             $this->jobLogger->log($job, 'Job started.', 10);
         }
 
-        $job->extendLock(new DateTimeImmutable('+10 minutes'));
+        $job->extendLock($this->resolveJobLockExpiresAt($job, new DateTimeImmutable()));
 
         $progress = $this->normalizeProgress($payload['progress'] ?? null);
         $lines = $this->normalizeLogLines($payload);
 
         if ($lines === []) {
+            $this->entityManager->flush();
+
             return new JsonResponse(['status' => 'ok']);
         }
 
@@ -867,17 +885,41 @@ final class AgentApiController
             }
             $job->clearLock();
             $job->clearClaim();
-            if ($job->getAttempts() < $job->getMaxAttempts()) {
+            if ($this->shouldRequeueExpiredJob($job)) {
                 $job->transitionTo(JobStatus::Queued);
                 $this->jobLogger->log($job, 'Job lock expired; re-queued for retry.', 0);
                 continue;
             }
             $job->transitionTo(JobStatus::Failed);
             $job->recordFailure('job_timeout', 'Job lock expired.');
-            $this->jobLogger->log($job, 'Job lock expired; retries exhausted.', 100);
+            $message = $this->isNonRetryableAfterStartJobType($job->getType())
+                ? 'Job lock expired; marked failed without retry.'
+                : 'Job lock expired; retries exhausted.';
+            $this->jobLogger->log($job, $message, 100);
         }
 
         $this->entityManager->flush();
+    }
+
+    private function resolveJobLockExpiresAt(Job $job, DateTimeImmutable $now): DateTimeImmutable
+    {
+        return $now->modify($this->isNonRetryableAfterStartJobType($job->getType())
+            ? self::BACKUP_JOB_LOCK_TTL
+            : self::DEFAULT_JOB_LOCK_TTL);
+    }
+
+    private function shouldRequeueExpiredJob(Job $job): bool
+    {
+        if ($job->getStatus() === JobStatus::Running && $this->isNonRetryableAfterStartJobType($job->getType())) {
+            return false;
+        }
+
+        return $job->getAttempts() < $job->getMaxAttempts();
+    }
+
+    private function isNonRetryableAfterStartJobType(string $jobType): bool
+    {
+        return in_array($jobType, self::NON_RETRYABLE_AFTER_START_JOB_TYPES, true);
     }
 
     private function applyJobFailureContext(\App\Module\Core\Domain\Entity\Job $job, JobResultStatus $status, array $output): void
