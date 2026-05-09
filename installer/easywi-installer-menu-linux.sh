@@ -202,7 +202,6 @@ setup_php_repo() {
         rpm -Uvh "${remi_pkg}" >/dev/null 2>&1 \
           || warn "Remi-Release-Paket nicht gefunden für EL${os_ver}."
       fi
-      local ver_nodot="${php_version//./}"
       dnf module reset   php -y >/dev/null 2>&1 || true
       dnf module enable  "php:remi-${php_version}" -y >/dev/null 2>&1 \
         || warn "Remi PHP-Modul nicht verfügbar, nutze System-PHP."
@@ -599,7 +598,11 @@ NGINX
     rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
   fi
 
-  nginx -t 2>/dev/null && service_reload nginx || warn "nginx -t schlug fehl – Konfiguration prüfen."
+  if nginx -t 2>/dev/null; then
+    service_reload nginx
+  else
+    warn "nginx -t schlug fehl – Konfiguration prüfen."
+  fi
   ok "Nginx konfiguriert: ${config_file}"
 }
 
@@ -842,17 +845,17 @@ build_agent_base_dir_config() {
 }
 
 detect_default_base_dirs() {
-  local dirs=""
+  local dirs_csv=""
   if command -v findmnt >/dev/null 2>&1; then
     local m
     while IFS= read -r m; do
       m="${m#"${m%%[! ]*}"}"; m="${m%"${m##*[! ]}"}"
       [[ -z "${m}" ]] && continue
       case "${m}" in /|/boot*|/run*|/proc|/sys|/dev*|/snap|/var/lib/docker) continue ;; esac
-      dirs="${dirs:+${dirs},}${m}"
+      dirs_csv="${dirs_csv:+${dirs_csv},}${m}"
     done < <(findmnt -rn -o TARGET -t ext4,xfs,btrfs,zfs 2>/dev/null)
   fi
-  printf '%s\n' "${dirs:-/home,/var/www}"
+  printf '%s\n' "${dirs_csv:-/home,/var/www}"
 }
 
 detect_local_ipv4() {
@@ -1169,9 +1172,12 @@ install_agent() {
     st_id="$(jq -r '.agent_id // empty' < "${state_file}")"
     if [[ -n "${st_url}" && -n "${st_token}" && -n "${st_id}" ]]; then
       log "Verwende gespeicherten Bootstrap-State."
-      agent_secret="$(complete_agent_registration "${st_url}" "${st_token}" "${st_id}" "${agent_name}")" \
-        && agent_id="${st_id}" \
-        || { warn "Gespeicherter State ungültig – versuche neuen Bootstrap."; rm -f "${state_file}"; }
+      if agent_secret="$(complete_agent_registration "${st_url}" "${st_token}" "${st_id}" "${agent_name}")"; then
+        agent_id="${st_id}"
+      else
+        warn "Gespeicherter State ungültig – versuche neuen Bootstrap."
+        rm -f "${state_file}"
+      fi
     fi
   fi
 
