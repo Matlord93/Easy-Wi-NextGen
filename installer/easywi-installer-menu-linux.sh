@@ -484,7 +484,9 @@ has_openrc()    { command -v rc-service >/dev/null 2>&1; }
 service_enable_start() {
   local svc="$1"
   if has_systemctl; then
-    systemctl enable --now "${svc}" 2>/dev/null || systemctl start "${svc}" 2>/dev/null || warn "Konnte ${svc} nicht starten."
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable "${svc}" 2>/dev/null || warn "Konnte ${svc} nicht für Autostart aktivieren."
+    systemctl start "${svc}" 2>/dev/null || warn "Konnte ${svc} nicht starten."
   elif has_openrc; then
     rc-update add "${svc}" default 2>/dev/null || true
     rc-service "${svc}" start 2>/dev/null || warn "Konnte ${svc} nicht starten (OpenRC)."
@@ -1081,7 +1083,6 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 UNIT
-    systemctl daemon-reload
     service_enable_start easywi-messenger.service
   fi
 }
@@ -1106,7 +1107,6 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 UNIT
-    systemctl daemon-reload
     service_enable_start easywi-scheduler.service
     ok "Scheduler-Service gestartet."
   elif has_openrc; then
@@ -1125,6 +1125,35 @@ INIT
     ok "Scheduler-Service eingerichtet (OpenRC)."
   else
     warn "Kein systemd/OpenRC – Scheduler muss manuell eingerichtet werden."
+  fi
+}
+
+write_panel_console_relay_service() {
+  local php_bin="$1" core_dir="$2" system_user="$3" web_group="$4"
+
+  step "Richte Console-Relay-Service ein."
+  if has_systemctl; then
+    cat > /etc/systemd/system/easywi-console-relay.service <<UNIT
+[Unit]
+Description=EasyWI console relay worker
+After=network.target redis.service
+
+[Service]
+Type=simple
+WorkingDirectory=${core_dir}
+ExecStart=${php_bin} ${core_dir}/bin/console app:console:relay --env=prod
+Restart=always
+RestartSec=2
+User=${system_user}
+Group=${web_group}
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    service_enable_start easywi-console-relay.service
+    ok "Console-Relay-Service gestartet."
+  else
+    warn "Kein systemd – Console-Relay muss manuell eingerichtet werden."
   fi
 }
 
@@ -1604,10 +1633,11 @@ install_panel() {
     "${db_name}" "${db_user}" "${db_password}" \
     "$(detect_nginx_conf_dir "${family}")/easywi.conf"
 
-  write_panel_messenger_service   "${php_bin}" "${core_dir}/bin/console"
-  write_panel_scheduler_service   "${php_bin}" "${core_dir}/bin/console"
-  write_panel_console_wrapper     "${php_bin}" "${core_dir}/bin/console"
-  write_panel_cron                "${php_bin}" "${core_dir}/bin/console" "${system_user}"
+  write_panel_messenger_service        "${php_bin}" "${core_dir}/bin/console"
+  write_panel_scheduler_service        "${php_bin}" "${core_dir}/bin/console"
+  write_panel_console_relay_service    "${php_bin}" "${core_dir}" "${system_user}" "${web_group}"
+  write_panel_console_wrapper          "${php_bin}" "${core_dir}/bin/console"
+  write_panel_cron                     "${php_bin}" "${core_dir}/bin/console" "${system_user}"
 
   ok "Panel installiert unter ${install_dir}."
   printf '\n'
@@ -2223,7 +2253,6 @@ ExecStart=-/usr/bin/cpupower idle-set -D 0
 [Install]
 WantedBy=multi-user.target
 UNIT
-    systemctl daemon-reload
     service_enable_start easywi-cpu-governor.service
     ok "CPU-Governor-Service (easywi-cpu-governor.service) aktiviert."
 
