@@ -3,6 +3,7 @@
   <testsuites>
     <testsuite name="default">
       <directory suffix="Test.php">./tests</directory>
+      <exclude>./tests/bootstrap.php</exclude>
     </testsuite>
   </testsuites>
   <php>

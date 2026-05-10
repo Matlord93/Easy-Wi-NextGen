@@ -20,8 +20,11 @@ jobs:
         with:
           php-version: '8.4'
           tools: composer
-      - run: composer install --no-interaction --prefer-dist
       - run: composer validate --strict
+      - run: composer install --no-interaction --prefer-dist --no-scripts
+        env:
+          COMPOSER_ALLOW_SUPERUSER: '1'
+          SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
       - run: php bin/phpunit --testsuite default
 
   agent:
