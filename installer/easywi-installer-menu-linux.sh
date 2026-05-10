@@ -673,7 +673,7 @@ set_easywi_config_permissions() {
 
   step "Setze Rechte für /etc/easywi-Konfiguration."
   chgrp "${readable_group}" /etc/easywi 2>/dev/null || warn "Konnte Gruppe für /etc/easywi nicht setzen."
-  chmod 750 /etc/easywi 2>/dev/null || warn "Konnte Rechte für /etc/easywi nicht setzen."
+  chmod 775 /etc/easywi 2>/dev/null || warn "Konnte Schreibrechte für /etc/easywi nicht setzen."
 
   local path
   for path in /etc/easywi/secret.key /etc/easywi/db.json; do
@@ -1392,10 +1392,15 @@ install_panel() {
 
   step "Setze Dateiberechtigungen."
   chown -R "${system_user}:${system_user}" "${install_dir}"
-  # nginx/web process needs to write var/ and read public/
+
+  # nginx/PHP-FPM must be able to read public/ and write runtime state.
   local web_group; web_group="$(id -gn www-data 2>/dev/null || id -gn nginx 2>/dev/null || echo "${system_user}")"
-  chown -R ":${web_group}" "${core_dir}/var" "${core_dir}/public" 2>/dev/null || true
-  find "${core_dir}/var" -type d -exec chmod 775 {} \; 2>/dev/null || true
+  mkdir -p "${core_dir}/var" "${core_dir}/var/cache" "${core_dir}/var/log" "${core_dir}/var/easywi" "${core_dir}/srv/setup/state"
+  chown -R "${system_user}:${web_group}" "${core_dir}/var" "${core_dir}/srv/setup" "${core_dir}/public" 2>/dev/null || true
+  find "${core_dir}/var" "${core_dir}/srv/setup" -type d -exec chmod 775 {} \; 2>/dev/null || true
+  find "${core_dir}/var" "${core_dir}/srv/setup" -type f -exec chmod 664 {} \; 2>/dev/null || true
+  chmod -R g+rwX "${core_dir}/var" "${core_dir}/srv/setup" 2>/dev/null || true
+  chmod -R g+rX "${core_dir}/public" 2>/dev/null || true
   set_easywi_config_permissions "${web_group}"
 
   configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
