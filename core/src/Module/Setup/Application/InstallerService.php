@@ -14,6 +14,7 @@ use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelAdmin\Application\AdminSshKeyService;
 use Doctrine\Common\EventManager;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\ORM\EntityManager;
@@ -570,8 +571,26 @@ final class InstallerService
             return;
         }
 
+        $connection = $entityManager->getConnection();
         $schemaTool = new SchemaTool($entityManager);
-        $schemaTool->updateSchema($metadata, true);
+
+        if (!$this->isMySqlConnection($connection)) {
+            $schemaTool->updateSchema($metadata, true);
+
+            return;
+        }
+
+        $connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
+        try {
+            $schemaTool->updateSchema($metadata, true);
+        } finally {
+            $connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
+        }
+    }
+
+    private function isMySqlConnection(Connection $connection): bool
+    {
+        return $connection->getDatabasePlatform() instanceof AbstractMySQLPlatform;
     }
 
     private function ensureRuntimeRepairTablesExist(Connection $connection): void

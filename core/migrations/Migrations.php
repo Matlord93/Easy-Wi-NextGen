@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DoctrineMigrations;
 
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
@@ -2786,6 +2787,8 @@ final class Version20250311123000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        $this->addSql("CREATE TABLE IF NOT EXISTS agents (id VARCHAR(64) NOT NULL, name VARCHAR(120) DEFAULT NULL, secret_payload JSON NOT NULL, created_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', updated_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)', last_heartbeat_at DATETIME DEFAULT NULL COMMENT '(DC2Type:datetime_immutable)', last_seen_at DATETIME DEFAULT NULL COMMENT '(DC2Type:datetime_immutable)', last_heartbeat_ip VARCHAR(45) DEFAULT NULL, last_heartbeat_version VARCHAR(40) DEFAULT NULL, last_heartbeat_stats JSON DEFAULT NULL, metadata JSON DEFAULT NULL, roles JSON NOT NULL, status VARCHAR(20) NOT NULL, PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB");
+        $this->addSql('ALTER TABLE agents MODIFY id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL');
         $this->addSql('CREATE TABLE `databases` (id INT AUTO_INCREMENT NOT NULL, customer_id INT NOT NULL, engine VARCHAR(30) NOT NULL, host VARCHAR(255) NOT NULL, port INT NOT NULL, name VARCHAR(190) NOT NULL, username VARCHAR(190) NOT NULL, encrypted_password JSON NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_databases_customer_id (customer_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
         $this->addSql('CREATE TABLE api_tokens (id INT AUTO_INCREMENT NOT NULL, customer_id INT NOT NULL, name VARCHAR(190) NOT NULL, token_prefix VARCHAR(16) NOT NULL, token_hash VARCHAR(64) NOT NULL, encrypted_token JSON NOT NULL, scopes JSON NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', last_used_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', expires_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', revoked_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', rotated_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_api_tokens_customer_id (customer_id), INDEX idx_api_tokens_token_hash (token_hash), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
         $this->addSql('CREATE TABLE backup_definitions (id INT AUTO_INCREMENT NOT NULL, customer_id INT NOT NULL, target_type VARCHAR(20) NOT NULL, target_id VARCHAR(64) NOT NULL, label VARCHAR(120) DEFAULT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_backup_definitions_customer_id (customer_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
@@ -7733,4 +7736,1255 @@ final class Version20260503210000 extends AbstractMigration
         $this->addSql("ALTER TABLE team_groups ADD game VARCHAR(140) NOT NULL DEFAULT 'Unknown'");
     }
     public function down(Schema $schema): void { }
+}
+
+final class Version20260302110000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Make domain webspace attachment optional and store domain capabilities for webspace/mail orchestration.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('domains')) {
+            return;
+        }
+
+        $table = $schema->getTable('domains');
+
+        if (!$table->hasColumn('capability_webspace')) {
+            $this->addSql('ALTER TABLE domains ADD capability_webspace TINYINT(1) NOT NULL DEFAULT 1');
+        }
+
+        if (!$table->hasColumn('capability_mail')) {
+            $this->addSql('ALTER TABLE domains ADD capability_mail TINYINT(1) NOT NULL DEFAULT 0');
+        }
+
+        if ($table->hasColumn('webspace_id')) {
+            $this->addSql('ALTER TABLE domains CHANGE webspace_id webspace_id INT DEFAULT NULL');
+        }
+
+        $this->addSql('UPDATE domains SET capability_webspace = CASE WHEN webspace_id IS NULL THEN 0 ELSE 1 END');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('domains')) {
+            return;
+        }
+
+        $table = $schema->getTable('domains');
+
+        if ($table->hasColumn('webspace_id')) {
+            $this->addSql('UPDATE domains SET webspace_id = 0 WHERE webspace_id IS NULL');
+            $this->addSql('ALTER TABLE domains CHANGE webspace_id webspace_id INT NOT NULL');
+        }
+
+        if ($table->hasColumn('capability_webspace')) {
+            $this->addSql('ALTER TABLE domains DROP capability_webspace');
+        }
+
+        if ($table->hasColumn('capability_mail')) {
+            $this->addSql('ALTER TABLE domains DROP capability_mail');
+        }
+    }
+}
+
+
+final class Version20260424113000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Add missing indexes for user_sessions.user_id and user_sessions.expires_at.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('user_sessions')) {
+            return;
+        }
+
+        $table = $schema->getTable('user_sessions');
+
+        if (!$table->hasIndex('idx_user_sessions_user_id') && $table->hasColumn('user_id')) {
+            $this->addSql('CREATE INDEX idx_user_sessions_user_id ON user_sessions (user_id)');
+        }
+
+        if (!$table->hasIndex('idx_user_sessions_expires_at') && $table->hasColumn('expires_at')) {
+            $this->addSql('CREATE INDEX idx_user_sessions_expires_at ON user_sessions (expires_at)');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('user_sessions')) {
+            return;
+        }
+
+        $table = $schema->getTable('user_sessions');
+
+        if ($table->hasIndex('idx_user_sessions_user_id')) {
+            $this->addSql('DROP INDEX idx_user_sessions_user_id ON user_sessions');
+        }
+
+        if ($table->hasIndex('idx_user_sessions_expires_at')) {
+            $this->addSql('DROP INDEX idx_user_sessions_expires_at ON user_sessions');
+        }
+    }
+}
+
+
+final class Version20260429120000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Add watchdog_enabled column to instances table';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('instances')) {
+            return;
+        }
+
+        $table = $schema->getTable('instances');
+        if (!$table->hasColumn('watchdog_enabled')) {
+            $this->addSql("ALTER TABLE instances ADD watchdog_enabled TINYINT(1) NOT NULL DEFAULT 0");
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('instances')) {
+            return;
+        }
+
+        $table = $schema->getTable('instances');
+        if ($table->hasColumn('watchdog_enabled')) {
+            $this->addSql("ALTER TABLE instances DROP COLUMN watchdog_enabled");
+        }
+    }
+}
+
+
+final class Version20260501120000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Add extract_subdir and install_mode columns to game_template_plugins table';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('game_template_plugins')) {
+            return;
+        }
+
+        $table = $schema->getTable('game_template_plugins');
+        if (!$table->hasColumn('extract_subdir')) {
+            $this->addSql("ALTER TABLE game_template_plugins ADD extract_subdir VARCHAR(128) DEFAULT NULL");
+        }
+        if (!$table->hasColumn('install_mode')) {
+            $this->addSql("ALTER TABLE game_template_plugins ADD install_mode VARCHAR(32) NOT NULL DEFAULT 'extract'");
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('game_template_plugins')) {
+            return;
+        }
+
+        $table = $schema->getTable('game_template_plugins');
+        if ($table->hasColumn('extract_subdir')) {
+            $this->addSql("ALTER TABLE game_template_plugins DROP COLUMN extract_subdir");
+        }
+        if ($table->hasColumn('install_mode')) {
+            $this->addSql("ALTER TABLE game_template_plugins DROP COLUMN install_mode");
+        }
+    }
+}
+
+
+final class Version20260502100000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Add impressum_content, datenschutz_content to cms_site_settings; add contact_messages table';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if ($schema->hasTable('cms_site_settings')) {
+            $table = $schema->getTable('cms_site_settings');
+            if (!$table->hasColumn('impressum_content')) {
+                $this->addSql("ALTER TABLE cms_site_settings ADD impressum_content LONGTEXT DEFAULT NULL");
+            }
+            if (!$table->hasColumn('datenschutz_content')) {
+                $this->addSql("ALTER TABLE cms_site_settings ADD datenschutz_content LONGTEXT DEFAULT NULL");
+            }
+        }
+
+        if (!$schema->hasTable('contact_messages')) {
+            $this->addSql("
+                CREATE TABLE contact_messages (
+                    id INT AUTO_INCREMENT NOT NULL,
+                    site_id INT NOT NULL,
+                    name VARCHAR(140) NOT NULL,
+                    email VARCHAR(180) NOT NULL,
+                    subject VARCHAR(255) NOT NULL,
+                    message LONGTEXT NOT NULL,
+                    ip_address VARCHAR(45) NOT NULL DEFAULT '',
+                    status VARCHAR(20) NOT NULL DEFAULT 'new',
+                    admin_reply LONGTEXT DEFAULT NULL,
+                    created_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)',
+                    replied_at DATETIME DEFAULT NULL COMMENT '(DC2Type:datetime_immutable)',
+                    INDEX idx_contact_messages_site_status (site_id, status),
+                    INDEX idx_contact_messages_site_created (site_id, created_at),
+                    INDEX idx_contact_messages_ip_created (ip_address, created_at),
+                    PRIMARY KEY (id)
+                ) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB
+            ");
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if ($schema->hasTable('cms_site_settings')) {
+            $table = $schema->getTable('cms_site_settings');
+            if ($table->hasColumn('impressum_content')) {
+                $this->addSql("ALTER TABLE cms_site_settings DROP COLUMN impressum_content");
+            }
+            if ($table->hasColumn('datenschutz_content')) {
+                $this->addSql("ALTER TABLE cms_site_settings DROP COLUMN datenschutz_content");
+            }
+        }
+
+        if ($schema->hasTable('contact_messages')) {
+            $this->addSql("DROP TABLE contact_messages");
+        }
+    }
+}
+
+
+final class Version20260503195720 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return '';
+    }
+
+    public function up(Schema $schema): void
+    {
+        // this up() migration is auto-generated, please modify it to your needs
+        if (!$this->isMySql()) {
+            $this->write('Skipping migration on non-MySQL platform.');
+
+            return;
+        }
+        if ($this->hasTable('contact_messages')) {
+            $this->addSql('ALTER TABLE contact_messages CHANGE ip_address ip_address VARCHAR(45) NOT NULL, CHANGE status status VARCHAR(20) NOT NULL, CHANGE created_at created_at DATETIME NOT NULL, CHANGE replied_at replied_at DATETIME DEFAULT NULL');
+            if ($this->canCreateContactMessageSiteForeignKey()) {
+                $this->addSql('ALTER TABLE contact_messages ADD CONSTRAINT FK_41278201F6BD1646 FOREIGN KEY (site_id) REFERENCES sites (id) ON DELETE CASCADE');
+                $this->addSql('CREATE INDEX IDX_41278201F6BD1646 ON contact_messages (site_id)');
+            } else {
+                $this->write('Skipping FK_41278201F6BD1646 creation because contact_messages.site_id and sites.id are incompatible in this database.');
+            }
+        }
+
+        if ($this->hasTable('game_template_plugins') && $this->hasColumn('game_template_plugins', 'install_mode')) {
+            $this->addSql('ALTER TABLE game_template_plugins CHANGE install_mode install_mode VARCHAR(32) NOT NULL');
+        }
+
+        if ($this->hasTable('team_members') && !$this->hasColumn('team_members', 'team_name')) {
+            $this->addSql('ALTER TABLE team_members ADD team_name VARCHAR(140) DEFAULT NULL');
+        }
+
+        if ($this->hasIndex('user_sessions', 'IDX_7AED7913A76ED395')) {
+            $this->addSql('DROP INDEX IDX_7AED7913A76ED395 ON user_sessions');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        // this down() migration is auto-generated, please modify it to your needs
+        if (!$this->isMySql()) {
+            $this->write('Skipping rollback on non-MySQL platform.');
+
+            return;
+        }
+        if ($this->hasTable('contact_messages')) {
+            if ($this->hasForeignKey('contact_messages', 'FK_41278201F6BD1646')) {
+                $this->addSql('ALTER TABLE contact_messages DROP FOREIGN KEY FK_41278201F6BD1646');
+            }
+            if ($this->hasIndex('contact_messages', 'IDX_41278201F6BD1646')) {
+                $this->addSql('DROP INDEX IDX_41278201F6BD1646 ON contact_messages');
+            }
+            $this->addSql('ALTER TABLE contact_messages CHANGE ip_address ip_address VARCHAR(45) DEFAULT \'\' NOT NULL, CHANGE status status VARCHAR(20) DEFAULT \'new\' NOT NULL, CHANGE created_at created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', CHANGE replied_at replied_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\'');
+        }
+
+        if ($this->hasTable('game_template_plugins') && $this->hasColumn('game_template_plugins', 'install_mode')) {
+            $this->addSql('ALTER TABLE game_template_plugins CHANGE install_mode install_mode VARCHAR(32) DEFAULT \'extract\' NOT NULL');
+        }
+
+        if ($this->hasTable('team_members') && $this->hasColumn('team_members', 'team_name')) {
+            $this->addSql('ALTER TABLE team_members DROP team_name');
+        }
+
+        if ($this->hasTable('user_sessions') && $this->hasColumn('user_sessions', 'user_id') && !$this->hasIndex('user_sessions', 'IDX_7AED7913A76ED395')) {
+            $this->addSql('CREATE INDEX IDX_7AED7913A76ED395 ON user_sessions (user_id)');
+        }
+    }
+
+
+
+    private function isMySql(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform;
+    }
+
+    private function hasTable(string $table): bool
+    {
+        $database = (string) $this->connection->fetchOne('SELECT DATABASE()');
+
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
+            [$database, $table],
+        ) > 0;
+    }
+
+    private function hasColumn(string $table, string $column): bool
+    {
+        return $this->getColumnMetadata($table, $column) !== null;
+    }
+
+    private function canCreateContactMessageSiteForeignKey(): bool
+    {
+        $contactSiteId = $this->getColumnMetadata('contact_messages', 'site_id');
+        $siteId = $this->getColumnMetadata('sites', 'id');
+
+        if ($contactSiteId === null || $siteId === null) {
+            return false;
+        }
+
+        return $contactSiteId['column_type'] === $siteId['column_type']
+            && $contactSiteId['character_set_name'] === $siteId['character_set_name']
+            && $contactSiteId['collation_name'] === $siteId['collation_name'];
+    }
+
+    private function getColumnMetadata(string $table, string $column): ?array
+    {
+        $database = (string) $this->connection->fetchOne('SELECT DATABASE()');
+
+        $result = $this->connection->fetchAssociative(
+            'SELECT COLUMN_TYPE AS column_type, CHARACTER_SET_NAME AS character_set_name, COLLATION_NAME AS collation_name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$database, $table, $column],
+        );
+
+        return $result === false ? null : $result;
+    }
+
+    private function hasForeignKey(string $table, string $foreignKey): bool
+    {
+        $database = (string) $this->connection->fetchOne('SELECT DATABASE()');
+
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = \'FOREIGN KEY\'',
+            [$database, $table, $foreignKey],
+        ) > 0;
+    }
+
+    private function hasIndex(string $table, string $index): bool
+    {
+        $database = (string) $this->connection->fetchOne('SELECT DATABASE()');
+
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
+            [$database, $table, $index],
+        ) > 0;
+    }
+}
+
+
+final class Version20260503201547 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return '';
+    }
+
+    public function up(Schema $schema): void
+    {
+        // this up() migration is auto-generated, please modify it to your needs
+        if (!$this->isMySql()) {
+            $this->write('Skipping migration on non-MySQL platform.');
+
+            return;
+        }
+        if (!$this->hasTable('team_groups')) {
+            $this->addSql('CREATE TABLE team_groups (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(140) NOT NULL, game VARCHAR(140) NOT NULL, slug VARCHAR(180) NOT NULL, image_path VARCHAR(255) DEFAULT NULL, sort_order INT NOT NULL, site_id INT NOT NULL, INDEX IDX_86767EA9F6BD1646 (site_id), INDEX idx_team_groups_site_sort (site_id, sort_order), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4');
+        }
+
+        if ($this->hasTable('team_groups') && $this->hasTable('sites') && !$this->hasForeignKey('team_groups', 'FK_86767EA9F6BD1646') && $this->canCreateTeamGroupsSiteForeignKey()) {
+            $this->addSql('ALTER TABLE team_groups ADD CONSTRAINT FK_86767EA9F6BD1646 FOREIGN KEY (site_id) REFERENCES sites (id) ON DELETE CASCADE');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        // this down() migration is auto-generated, please modify it to your needs
+        if (!$this->isMySql()) {
+            $this->write('Skipping rollback on non-MySQL platform.');
+
+            return;
+        }
+        if ($this->hasTable('team_groups') && $this->hasForeignKey('team_groups', 'FK_86767EA9F6BD1646')) {
+            $this->addSql('ALTER TABLE team_groups DROP FOREIGN KEY FK_86767EA9F6BD1646');
+        }
+        if ($this->hasTable('team_groups')) {
+            $this->addSql('DROP TABLE team_groups');
+        }
+    }
+
+
+    private function isMySql(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform;
+    }
+
+    private function hasTable(string $table): bool
+    {
+        $database = (string) $this->connection->fetchOne('SELECT DATABASE()');
+
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
+            [$database, $table],
+        ) > 0;
+    }
+
+    private function hasForeignKey(string $table, string $foreignKey): bool
+    {
+        $database = (string) $this->connection->fetchOne('SELECT DATABASE()');
+
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = \'FOREIGN KEY\'',
+            [$database, $table, $foreignKey],
+        ) > 0;
+    }
+
+    private function canCreateTeamGroupsSiteForeignKey(): bool
+    {
+        $teamGroupSiteId = $this->getColumnType('team_groups', 'site_id');
+        $siteId = $this->getColumnType('sites', 'id');
+
+        return $teamGroupSiteId !== null && $teamGroupSiteId === $siteId;
+    }
+
+    private function getColumnType(string $table, string $column): ?string
+    {
+        $database = (string) $this->connection->fetchOne('SELECT DATABASE()');
+
+        $columnType = $this->connection->fetchOne(
+            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$database, $table, $column],
+        );
+
+        return $columnType === false ? null : (string) $columnType;
+    }
+}
+
+
+final class Version20260504101500 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Add smtp_enabled and abuse_policy_enabled to mail_policies';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$this->isMySql()) {
+            $this->write('Skipping migration on non-MySQL platform.');
+
+            return;
+        }
+
+        if (!$this->hasTable('mail_policies')) {
+            $this->write('Skipping mail_policies column additions because table mail_policies does not exist in this database.');
+
+            return;
+        }
+
+        if (!$this->hasColumn('mail_policies', 'smtp_enabled')) {
+            $this->addSql('ALTER TABLE mail_policies ADD smtp_enabled TINYINT(1) DEFAULT 1 NOT NULL');
+        }
+
+        if (!$this->hasColumn('mail_policies', 'abuse_policy_enabled')) {
+            $this->addSql('ALTER TABLE mail_policies ADD abuse_policy_enabled TINYINT(1) DEFAULT 1 NOT NULL');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$this->isMySql()) {
+            $this->write('Skipping rollback on non-MySQL platform.');
+
+            return;
+        }
+
+        if (!$this->hasTable('mail_policies')) {
+            return;
+        }
+
+        if ($this->hasColumn('mail_policies', 'smtp_enabled')) {
+            $this->addSql('ALTER TABLE mail_policies DROP smtp_enabled');
+        }
+
+        if ($this->hasColumn('mail_policies', 'abuse_policy_enabled')) {
+            $this->addSql('ALTER TABLE mail_policies DROP abuse_policy_enabled');
+        }
+    }
+
+
+    private function isMySql(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform;
+    }
+
+    private function hasTable(string $table): bool
+    {
+        $database = (string) $this->connection->fetchOne('SELECT DATABASE()');
+
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
+            [$database, $table],
+        ) > 0;
+    }
+
+    private function hasColumn(string $table, string $column): bool
+    {
+        $database = (string) $this->connection->fetchOne('SELECT DATABASE()');
+
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$database, $table, $column],
+        ) > 0;
+    }
+}
+
+
+final class Version20260506120000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Add scheduled task run history table for the central scheduler.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if ($schema->hasTable('scheduled_task_runs')) {
+            return;
+        }
+
+        $this->addSql("CREATE TABLE scheduled_task_runs (
+            id INT AUTO_INCREMENT NOT NULL,
+            schedule_source VARCHAR(64) NOT NULL,
+            schedule_id VARCHAR(64) NOT NULL,
+            name VARCHAR(160) NOT NULL,
+            type VARCHAR(120) NOT NULL,
+            module VARCHAR(80) NOT NULL,
+            started_at DATETIME NOT NULL COMMENT '(DC2Type:datetime_immutable)',
+            finished_at DATETIME DEFAULT NULL COMMENT '(DC2Type:datetime_immutable)',
+            status VARCHAR(32) NOT NULL,
+            message LONGTEXT DEFAULT NULL,
+            created_job_ids JSON NOT NULL,
+            duration_ms INT DEFAULT NULL,
+            INDEX idx_scheduled_task_runs_schedule (schedule_source, schedule_id, started_at),
+            INDEX idx_scheduled_task_runs_type (type, started_at),
+            PRIMARY KEY(id)
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB");
+    }
+
+    public function down(Schema $schema): void
+    {
+        if ($schema->hasTable('scheduled_task_runs')) {
+            $this->addSql('DROP TABLE scheduled_task_runs');
+        }
+    }
+}
+
+
+final class Version20260506133000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Add provisioning state columns to instance_sftp_credentials.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$schema->hasTable('instance_sftp_credentials')) {
+            return;
+        }
+
+        $table = $schema->getTable('instance_sftp_credentials');
+        if (!$table->hasColumn('status')) {
+            $this->addSql("ALTER TABLE instance_sftp_credentials ADD status VARCHAR(32) NOT NULL DEFAULT 'pending'");
+        }
+        if (!$table->hasColumn('provisioned')) {
+            $this->addSql('ALTER TABLE instance_sftp_credentials ADD provisioned TINYINT(1) NOT NULL DEFAULT 0');
+        }
+        $this->addSql("UPDATE instance_sftp_credentials SET provisioned = CASE WHEN backend <> 'NONE' AND last_error_code IS NULL THEN 1 ELSE 0 END, status = CASE WHEN backend <> 'NONE' AND last_error_code IS NULL THEN 'provisioned' WHEN last_error_code IS NOT NULL THEN 'failed' ELSE 'pending' END");
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$schema->hasTable('instance_sftp_credentials')) {
+            return;
+        }
+
+        $table = $schema->getTable('instance_sftp_credentials');
+        if ($table->hasColumn('provisioned')) {
+            $this->addSql('ALTER TABLE instance_sftp_credentials DROP provisioned');
+        }
+        if ($table->hasColumn('status')) {
+            $this->addSql('ALTER TABLE instance_sftp_credentials DROP status');
+        }
+    }
+}
+
+
+final class Version20260506150000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Expand instance SFTP credential error messages.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if ($this->connection->getDatabasePlatform() instanceof SQLitePlatform) {
+            return;
+        }
+
+        if (!$schema->hasTable('instance_sftp_credentials')) {
+            return;
+        }
+
+        $table = $schema->getTable('instance_sftp_credentials');
+        if ($table->hasColumn('last_error_message')) {
+            $this->addSql('ALTER TABLE instance_sftp_credentials MODIFY last_error_message LONGTEXT DEFAULT NULL');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if ($this->connection->getDatabasePlatform() instanceof SQLitePlatform) {
+            return;
+        }
+
+        if (!$schema->hasTable('instance_sftp_credentials')) {
+            return;
+        }
+
+        $table = $schema->getTable('instance_sftp_credentials');
+        if ($table->hasColumn('last_error_message')) {
+            $this->addSql('ALTER TABLE instance_sftp_credentials MODIFY last_error_message VARCHAR(255) DEFAULT NULL');
+        }
+    }
+}
+
+
+final class Version20260509120000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Add panel host protection columns and repair missing runtime tables after interrupted installs.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$this->isMySql()) {
+            $this->write('Skipping migration on non-MySQL platform.');
+
+            return;
+        }
+
+        if ($schema->hasTable('webspace_nodes')) {
+            $table = $schema->getTable('webspace_nodes');
+
+            if (!$table->hasColumn('is_panel_host')) {
+                $this->addSql('ALTER TABLE webspace_nodes ADD is_panel_host TINYINT(1) NOT NULL DEFAULT 0');
+            }
+
+            if (!$table->hasColumn('panel_vhost_path')) {
+                $this->addSql('ALTER TABLE webspace_nodes ADD panel_vhost_path VARCHAR(255) DEFAULT NULL');
+            }
+        }
+
+        $jobsAvailable = $this->ensureJobs($schema);
+        $this->ensureJobResults($schema, $jobsAvailable);
+        $this->ensureJobLogs($schema, $jobsAvailable);
+        $this->ensureMetricSamples($schema);
+        $this->ensurePortRanges($schema);
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$this->isMySql()) {
+            $this->write('Skipping migration on non-MySQL platform.');
+
+            return;
+        }
+
+        if (!$schema->hasTable('webspace_nodes')) {
+            return;
+        }
+
+        $table = $schema->getTable('webspace_nodes');
+
+        if ($table->hasColumn('panel_vhost_path')) {
+            $this->addSql('ALTER TABLE webspace_nodes DROP COLUMN panel_vhost_path');
+        }
+
+        if ($table->hasColumn('is_panel_host')) {
+            $this->addSql('ALTER TABLE webspace_nodes DROP COLUMN is_panel_host');
+        }
+    }
+
+    private function isMySql(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform;
+    }
+
+    private function ensureJobs(Schema $schema): bool
+    {
+        if (!$schema->hasTable('jobs')) {
+            $this->addSql('CREATE TABLE jobs (id VARCHAR(32) NOT NULL, type VARCHAR(120) NOT NULL, payload JSON NOT NULL, status VARCHAR(20) NOT NULL, progress INT DEFAULT NULL, attempts INT NOT NULL DEFAULT 0, max_attempts INT NOT NULL DEFAULT 3, claimed_by VARCHAR(64) DEFAULT NULL, claimed_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', last_error LONGTEXT DEFAULT NULL, last_error_code VARCHAR(64) DEFAULT NULL, last_attempt_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', locked_by VARCHAR(120) DEFAULT NULL, locked_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', lock_token VARCHAR(64) DEFAULT NULL, lock_expires_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_jobs_status (status), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            return true;
+        }
+
+        $table = $schema->getTable('jobs');
+        if (!$table->hasColumn('progress')) {
+            $this->addSql('ALTER TABLE jobs ADD progress INT DEFAULT NULL');
+        }
+        if (!$table->hasColumn('attempts')) {
+            $this->addSql('ALTER TABLE jobs ADD attempts INT NOT NULL DEFAULT 0');
+        }
+        if (!$table->hasColumn('max_attempts')) {
+            $this->addSql('ALTER TABLE jobs ADD max_attempts INT NOT NULL DEFAULT 3');
+        }
+        if (!$table->hasColumn('claimed_by')) {
+            $this->addSql('ALTER TABLE jobs ADD claimed_by VARCHAR(64) DEFAULT NULL');
+        }
+        if (!$table->hasColumn('claimed_at')) {
+            $this->addSql('ALTER TABLE jobs ADD claimed_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\'');
+        }
+        if (!$table->hasColumn('last_error')) {
+            $this->addSql('ALTER TABLE jobs ADD last_error LONGTEXT DEFAULT NULL');
+        }
+        if (!$table->hasColumn('last_error_code')) {
+            $this->addSql('ALTER TABLE jobs ADD last_error_code VARCHAR(64) DEFAULT NULL');
+        }
+        if (!$table->hasColumn('last_attempt_at')) {
+            $this->addSql('ALTER TABLE jobs ADD last_attempt_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\'');
+        }
+
+        return true;
+    }
+
+    private function ensureJobResults(Schema $schema, bool $jobsAvailable): void
+    {
+        $created = false;
+        if (!$schema->hasTable('job_results')) {
+            $this->addSql('CREATE TABLE job_results (id INT AUTO_INCREMENT NOT NULL, job_id VARCHAR(32) NOT NULL, status VARCHAR(20) NOT NULL, output JSON NOT NULL, completed_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', UNIQUE INDEX uniq_job_results_job (job_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $created = true;
+        }
+
+        if (!$jobsAvailable) {
+            return;
+        }
+
+        if ($created || !$schema->getTable('job_results')->hasForeignKey('FK_JOB_RESULTS_JOB')) {
+            $this->addSql('ALTER TABLE job_results ADD CONSTRAINT FK_JOB_RESULTS_JOB FOREIGN KEY (job_id) REFERENCES jobs (id)');
+        }
+    }
+
+    private function ensureJobLogs(Schema $schema, bool $jobsAvailable): void
+    {
+        $created = false;
+        if (!$schema->hasTable('job_logs')) {
+            $this->addSql('CREATE TABLE job_logs (id INT AUTO_INCREMENT NOT NULL, job_id VARCHAR(32) NOT NULL, message VARCHAR(255) NOT NULL, progress INT DEFAULT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_job_logs_job (job_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $created = true;
+        }
+
+        if (!$jobsAvailable) {
+            return;
+        }
+
+        if ($created || !$schema->getTable('job_logs')->hasForeignKey('fk_job_logs_job')) {
+            $this->addSql('ALTER TABLE job_logs ADD CONSTRAINT fk_job_logs_job FOREIGN KEY (job_id) REFERENCES jobs (id) ON DELETE CASCADE');
+        }
+    }
+
+    private function ensureMetricSamples(Schema $schema): void
+    {
+        $created = false;
+        if (!$schema->hasTable('metric_samples')) {
+            $this->addSql('CREATE TABLE metric_samples (id INT AUTO_INCREMENT NOT NULL, agent_id VARCHAR(64) NOT NULL, recorded_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', cpu_percent DOUBLE PRECISION DEFAULT NULL, memory_percent DOUBLE PRECISION DEFAULT NULL, disk_percent DOUBLE PRECISION DEFAULT NULL, net_bytes_sent BIGINT DEFAULT NULL, net_bytes_recv BIGINT DEFAULT NULL, payload JSON DEFAULT NULL, INDEX idx_metric_samples_agent_id (agent_id), INDEX idx_metric_samples_recorded_at (recorded_at), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $created = true;
+        }
+
+        if (!$schema->hasTable('agents')) {
+            return;
+        }
+
+        if ($created || !$schema->getTable('metric_samples')->hasForeignKey('FK_METRIC_SAMPLES_AGENT')) {
+            $this->addSql('ALTER TABLE metric_samples ADD CONSTRAINT FK_METRIC_SAMPLES_AGENT FOREIGN KEY (agent_id) REFERENCES agents (id)');
+        }
+    }
+
+    private function ensurePortRanges(Schema $schema): void
+    {
+        if (!$schema->hasTable('port_ranges')) {
+            $this->addSql('CREATE TABLE port_ranges (id INT AUTO_INCREMENT NOT NULL, node_id VARCHAR(64) NOT NULL, purpose VARCHAR(120) NOT NULL, protocol VARCHAR(8) NOT NULL, start_port INT NOT NULL, end_port INT NOT NULL, enabled TINYINT(1) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_port_ranges_node_id (node_id), INDEX idx_port_ranges_protocol (protocol), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+    }
+}
+
+
+final class Version20260510100000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Repair installs that missed core job and metric tables after interrupted migrations.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$this->isMySql()) {
+            $this->write('Skipping migration on non-MySQL platform.');
+
+            return;
+        }
+
+        $jobsAvailable = $this->ensureJobs($schema);
+        $this->ensureJobResults($schema, $jobsAvailable);
+        $this->ensureJobLogs($schema, $jobsAvailable);
+        $this->ensureMetricSamples($schema);
+        $this->ensurePortRanges($schema);
+    }
+
+    public function down(Schema $schema): void
+    {
+        // Repair-only migration: do not drop runtime data on rollback.
+    }
+
+    private function isMySql(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform;
+    }
+
+    private function ensureJobs(Schema $schema): bool
+    {
+        if (!$schema->hasTable('jobs')) {
+            $this->addSql('CREATE TABLE jobs (id VARCHAR(32) NOT NULL, type VARCHAR(120) NOT NULL, payload JSON NOT NULL, status VARCHAR(20) NOT NULL, progress INT DEFAULT NULL, attempts INT NOT NULL DEFAULT 0, max_attempts INT NOT NULL DEFAULT 3, claimed_by VARCHAR(64) DEFAULT NULL, claimed_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', last_error LONGTEXT DEFAULT NULL, last_error_code VARCHAR(64) DEFAULT NULL, last_attempt_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', locked_by VARCHAR(120) DEFAULT NULL, locked_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', lock_token VARCHAR(64) DEFAULT NULL, lock_expires_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_jobs_status (status), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            return true;
+        }
+
+        $table = $schema->getTable('jobs');
+        if (!$table->hasColumn('progress')) {
+            $this->addSql('ALTER TABLE jobs ADD progress INT DEFAULT NULL');
+        }
+        if (!$table->hasColumn('attempts')) {
+            $this->addSql('ALTER TABLE jobs ADD attempts INT NOT NULL DEFAULT 0');
+        }
+        if (!$table->hasColumn('max_attempts')) {
+            $this->addSql('ALTER TABLE jobs ADD max_attempts INT NOT NULL DEFAULT 3');
+        }
+        if (!$table->hasColumn('claimed_by')) {
+            $this->addSql('ALTER TABLE jobs ADD claimed_by VARCHAR(64) DEFAULT NULL');
+        }
+        if (!$table->hasColumn('claimed_at')) {
+            $this->addSql('ALTER TABLE jobs ADD claimed_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\'');
+        }
+        if (!$table->hasColumn('last_error')) {
+            $this->addSql('ALTER TABLE jobs ADD last_error LONGTEXT DEFAULT NULL');
+        }
+        if (!$table->hasColumn('last_error_code')) {
+            $this->addSql('ALTER TABLE jobs ADD last_error_code VARCHAR(64) DEFAULT NULL');
+        }
+        if (!$table->hasColumn('last_attempt_at')) {
+            $this->addSql('ALTER TABLE jobs ADD last_attempt_at DATETIME DEFAULT NULL COMMENT \'(DC2Type:datetime_immutable)\'');
+        }
+
+        return true;
+    }
+
+    private function ensureJobResults(Schema $schema, bool $jobsAvailable): void
+    {
+        $created = false;
+        if (!$schema->hasTable('job_results')) {
+            $this->addSql('CREATE TABLE job_results (id INT AUTO_INCREMENT NOT NULL, job_id VARCHAR(32) NOT NULL, status VARCHAR(20) NOT NULL, output JSON NOT NULL, completed_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', UNIQUE INDEX uniq_job_results_job (job_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $created = true;
+        }
+
+        if (!$jobsAvailable) {
+            return;
+        }
+
+        if ($created || !$schema->getTable('job_results')->hasForeignKey('FK_JOB_RESULTS_JOB')) {
+            $this->addSql('ALTER TABLE job_results ADD CONSTRAINT FK_JOB_RESULTS_JOB FOREIGN KEY (job_id) REFERENCES jobs (id)');
+        }
+    }
+
+    private function ensureJobLogs(Schema $schema, bool $jobsAvailable): void
+    {
+        $created = false;
+        if (!$schema->hasTable('job_logs')) {
+            $this->addSql('CREATE TABLE job_logs (id INT AUTO_INCREMENT NOT NULL, job_id VARCHAR(32) NOT NULL, message VARCHAR(255) NOT NULL, progress INT DEFAULT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_job_logs_job (job_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $created = true;
+        }
+
+        if (!$jobsAvailable) {
+            return;
+        }
+
+        if ($created || !$schema->getTable('job_logs')->hasForeignKey('fk_job_logs_job')) {
+            $this->addSql('ALTER TABLE job_logs ADD CONSTRAINT fk_job_logs_job FOREIGN KEY (job_id) REFERENCES jobs (id) ON DELETE CASCADE');
+        }
+    }
+
+    private function ensureMetricSamples(Schema $schema): void
+    {
+        $created = false;
+        if (!$schema->hasTable('metric_samples')) {
+            $this->addSql('CREATE TABLE metric_samples (id INT AUTO_INCREMENT NOT NULL, agent_id VARCHAR(64) NOT NULL, recorded_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', cpu_percent DOUBLE PRECISION DEFAULT NULL, memory_percent DOUBLE PRECISION DEFAULT NULL, disk_percent DOUBLE PRECISION DEFAULT NULL, net_bytes_sent BIGINT DEFAULT NULL, net_bytes_recv BIGINT DEFAULT NULL, payload JSON DEFAULT NULL, INDEX idx_metric_samples_agent_id (agent_id), INDEX idx_metric_samples_recorded_at (recorded_at), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+            $created = true;
+        }
+
+        if (!$schema->hasTable('agents')) {
+            return;
+        }
+
+        if ($created || !$schema->getTable('metric_samples')->hasForeignKey('FK_METRIC_SAMPLES_AGENT')) {
+            $this->addSql('ALTER TABLE metric_samples ADD CONSTRAINT FK_METRIC_SAMPLES_AGENT FOREIGN KEY (agent_id) REFERENCES agents (id)');
+        }
+    }
+
+    private function ensurePortRanges(Schema $schema): void
+    {
+        if (!$schema->hasTable('port_ranges')) {
+            $this->addSql('CREATE TABLE port_ranges (id INT AUTO_INCREMENT NOT NULL, node_id VARCHAR(64) NOT NULL, purpose VARCHAR(120) NOT NULL, protocol VARCHAR(8) NOT NULL, start_port INT NOT NULL, end_port INT NOT NULL, enabled TINYINT(1) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_port_ranges_node_id (node_id), INDEX idx_port_ranges_protocol (protocol), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+    }
+}
+
+
+final class Version20260510110000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Ensure interrupted installers have metrics and port range tables without relying on schema sync foreign keys.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform) {
+            $this->write('Skipping migration on non-MySQL platform.');
+
+            return;
+        }
+
+        if (!$this->tableExists('metric_samples')) {
+            $this->addSql('CREATE TABLE metric_samples (id INT AUTO_INCREMENT NOT NULL, agent_id VARCHAR(64) NOT NULL, recorded_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', cpu_percent DOUBLE PRECISION DEFAULT NULL, memory_percent DOUBLE PRECISION DEFAULT NULL, disk_percent DOUBLE PRECISION DEFAULT NULL, net_bytes_sent BIGINT DEFAULT NULL, net_bytes_recv BIGINT DEFAULT NULL, payload JSON DEFAULT NULL, INDEX idx_metric_samples_agent_id (agent_id), INDEX idx_metric_samples_recorded_at (recorded_at), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+
+        if (!$this->tableExists('port_ranges')) {
+            $this->addSql('CREATE TABLE port_ranges (id INT AUTO_INCREMENT NOT NULL, node_id VARCHAR(64) NOT NULL, purpose VARCHAR(120) NOT NULL, protocol VARCHAR(8) NOT NULL, start_port INT NOT NULL, end_port INT NOT NULL, enabled TINYINT(1) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_port_ranges_node_id (node_id), INDEX idx_port_ranges_protocol (protocol), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        // Repair-only migration: do not drop runtime data on rollback.
+    }
+
+    private function tableExists(string $tableName): bool
+    {
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+            [$tableName],
+        ) > 0;
+    }
+}
+
+
+final class Version20260510120000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Repair installs where earlier migrations skipped due to MariaDB platform detection bug (MySQLPlatform instanceof check was false on MariaDB in DBAL 4.x).';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform) {
+            $this->write('Skipping migration on non-MySQL/MariaDB platform.');
+
+            return;
+        }
+
+        $this->repairMetricSamples();
+        $this->repairGameTemplates();
+        $this->repairTeamGroups();
+        $this->repairMailPolicies();
+    }
+
+    public function down(Schema $schema): void
+    {
+        // Repair-only migration: do not drop runtime data on rollback.
+    }
+
+    private function repairMetricSamples(): void
+    {
+        if ($this->tableExists('metric_samples')) {
+            return;
+        }
+
+        $this->addSql('CREATE TABLE metric_samples (id INT AUTO_INCREMENT NOT NULL, agent_id VARCHAR(64) NOT NULL, recorded_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', cpu_percent DOUBLE PRECISION DEFAULT NULL, memory_percent DOUBLE PRECISION DEFAULT NULL, disk_percent DOUBLE PRECISION DEFAULT NULL, net_bytes_sent BIGINT DEFAULT NULL, net_bytes_recv BIGINT DEFAULT NULL, payload JSON DEFAULT NULL, INDEX idx_metric_samples_agent_id (agent_id), INDEX idx_metric_samples_recorded_at (recorded_at), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+
+        if ($this->tableExists('agents')) {
+            $this->addSql('ALTER TABLE metric_samples ADD CONSTRAINT FK_METRIC_SAMPLES_AGENT FOREIGN KEY (agent_id) REFERENCES agents (id)');
+        }
+    }
+
+    private function repairGameTemplates(): void
+    {
+        if ($this->tableExists('game_templates')) {
+            return;
+        }
+
+        $this->addSql('CREATE TABLE game_templates (id INT AUTO_INCREMENT NOT NULL, display_name VARCHAR(120) NOT NULL, game_key VARCHAR(80) NOT NULL, description LONGTEXT DEFAULT NULL, required_ports JSON NOT NULL, start_params LONGTEXT NOT NULL, install_command LONGTEXT NOT NULL, update_command LONGTEXT NOT NULL, allowed_switch_flags JSON NOT NULL, steam_app_id INT DEFAULT NULL, sniper_profile VARCHAR(120) DEFAULT NULL, env_vars JSON NOT NULL, config_files JSON NOT NULL, plugin_paths JSON NOT NULL, fastdl_settings JSON NOT NULL, supported_os JSON NOT NULL, port_profile JSON NOT NULL, requirements JSON NOT NULL, install_resolver JSON NOT NULL, requirement_vars JSON NOT NULL, requirement_secrets JSON NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', UNIQUE INDEX uniq_game_templates_key (game_key), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+    }
+
+    private function repairTeamGroups(): void
+    {
+        if ($this->tableExists('team_groups')) {
+            return;
+        }
+
+        $this->addSql('CREATE TABLE team_groups (id INT AUTO_INCREMENT NOT NULL, name VARCHAR(140) NOT NULL, game VARCHAR(140) NOT NULL, slug VARCHAR(180) NOT NULL, image_path VARCHAR(255) DEFAULT NULL, sort_order INT NOT NULL, site_id INT NOT NULL, INDEX IDX_86767EA9F6BD1646 (site_id), INDEX idx_team_groups_site_sort (site_id, sort_order), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+
+        if ($this->tableExists('sites') && $this->columnTypesMatch('team_groups', 'site_id', 'sites', 'id')) {
+            $this->addSql('ALTER TABLE team_groups ADD CONSTRAINT FK_86767EA9F6BD1646 FOREIGN KEY (site_id) REFERENCES sites (id) ON DELETE CASCADE');
+        }
+    }
+
+    private function repairMailPolicies(): void
+    {
+        if (!$this->tableExists('mail_policies')) {
+            return;
+        }
+
+        if (!$this->columnExists('mail_policies', 'smtp_enabled')) {
+            $this->addSql('ALTER TABLE mail_policies ADD smtp_enabled TINYINT(1) DEFAULT 1 NOT NULL');
+        }
+
+        if (!$this->columnExists('mail_policies', 'abuse_policy_enabled')) {
+            $this->addSql('ALTER TABLE mail_policies ADD abuse_policy_enabled TINYINT(1) DEFAULT 1 NOT NULL');
+        }
+    }
+
+    private function tableExists(string $tableName): bool
+    {
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+            [$tableName],
+        ) > 0;
+    }
+
+    private function columnExists(string $table, string $column): bool
+    {
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$table, $column],
+        ) > 0;
+    }
+
+    private function columnTypesMatch(string $tableA, string $colA, string $tableB, string $colB): bool
+    {
+        $typeA = $this->connection->fetchOne(
+            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$tableA, $colA],
+        );
+        $typeB = $this->connection->fetchOne(
+            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$tableB, $colB],
+        );
+
+        return $typeA !== false && $typeA === $typeB;
+    }
+}
+
+
+final class Version20260510130000 extends AbstractMigration
+{
+    public function isTransactional(): bool
+    {
+        return false;
+    }
+
+    public function getDescription(): string
+    {
+        return 'Repair installs missing instance_metric_samples and game_template_plugins tables that were only created in the legacy Migrations.php combined migration.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform) {
+            $this->write('Skipping migration on non-MySQL/MariaDB platform.');
+
+            return;
+        }
+
+        $this->repairInstanceMetricSamples();
+        $this->repairGameTemplatePlugins();
+    }
+
+    public function down(Schema $schema): void
+    {
+        // Repair-only migration: do not drop runtime data on rollback.
+    }
+
+    private function repairInstanceMetricSamples(): void
+    {
+        if ($this->tableExists('instance_metric_samples')) {
+            return;
+        }
+
+        $this->addSql('CREATE TABLE instance_metric_samples (id INT AUTO_INCREMENT NOT NULL, instance_id INT NOT NULL, cpu_percent DOUBLE PRECISION DEFAULT NULL, mem_used_bytes BIGINT DEFAULT NULL, tasks_current INT DEFAULT NULL, collected_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', error_code VARCHAR(120) DEFAULT NULL, INDEX idx_instance_metric_samples_instance_collected (instance_id, collected_at), INDEX IDX_D9719841B6BD1646 (instance_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+
+        if ($this->tableExists('instances')) {
+            $this->addSql('ALTER TABLE instance_metric_samples ADD CONSTRAINT FK_D9719841B6BD1646 FOREIGN KEY (instance_id) REFERENCES instances (id) ON DELETE CASCADE');
+        }
+    }
+
+    private function repairGameTemplatePlugins(): void
+    {
+        if ($this->tableExists('game_template_plugins')) {
+            $this->repairGameTemplatePluginsColumns();
+
+            return;
+        }
+
+        $this->addSql('CREATE TABLE game_template_plugins (id INT AUTO_INCREMENT NOT NULL, template_id INT NOT NULL, name VARCHAR(160) NOT NULL, version VARCHAR(80) NOT NULL, checksum VARCHAR(128) NOT NULL, download_url VARCHAR(255) NOT NULL, description LONGTEXT DEFAULT NULL, extract_subdir VARCHAR(128) DEFAULT NULL, install_mode VARCHAR(32) NOT NULL DEFAULT \'extract\', created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_game_template_plugins_template (template_id), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+
+        if ($this->tableExists('game_templates')) {
+            $this->addSql('ALTER TABLE game_template_plugins ADD CONSTRAINT FK_93368BF95DAF0FB7 FOREIGN KEY (template_id) REFERENCES game_templates (id)');
+        }
+    }
+
+    private function repairGameTemplatePluginsColumns(): void
+    {
+        if (!$this->columnExists('game_template_plugins', 'extract_subdir')) {
+            $this->addSql('ALTER TABLE game_template_plugins ADD extract_subdir VARCHAR(128) DEFAULT NULL');
+        }
+
+        if (!$this->columnExists('game_template_plugins', 'install_mode')) {
+            $this->addSql("ALTER TABLE game_template_plugins ADD install_mode VARCHAR(32) NOT NULL DEFAULT 'extract'");
+        }
+    }
+
+    private function tableExists(string $tableName): bool
+    {
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+            [$tableName],
+        ) > 0;
+    }
+
+    private function columnExists(string $table, string $column): bool
+    {
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$table, $column],
+        ) > 0;
+    }
 }

@@ -23,6 +23,28 @@ ok()    { log "   ✓ $*"; }
 warn()  { log "   ⚠ $*"; }
 fatal() { log "FEHLER: $*"; exit 1; }
 
+run_or_fatal() {
+  local description="$1"; shift
+  local log_file
+  log_file="$(mktemp -t easywi-installer.XXXXXX.log)"
+
+  if "$@" >"${log_file}" 2>&1; then
+    rm -f "${log_file}"
+    return 0
+  fi
+
+  local status=$?
+  log "FEHLER: ${description} (Exit-Code ${status})."
+  if [[ -s "${log_file}" ]]; then
+    log "Letzte Ausgabe von '${*}':"
+    tail -n 40 "${log_file}" | sed "s/^/${INSTALLER_NAME}   | /" >&2
+  else
+    log "Der fehlgeschlagene Befehl hat keine Ausgabe erzeugt: ${*}"
+  fi
+  rm -f "${log_file}"
+  exit "${status}"
+}
+
 require_root() {
   [[ "${EUID}" -eq 0 ]] || fatal "Dieses Skript muss als root ausgeführt werden."
 }
@@ -143,7 +165,8 @@ detect_arch_suffix() {
 
 apt_update_once() {
   if [[ "${APT_UPDATED}" -eq 0 ]]; then
-    DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null 2>&1
+    run_or_fatal "apt-Paketlisten konnten nicht aktualisiert werden" \
+      env DEBIAN_FRONTEND=noninteractive apt-get update
     APT_UPDATED=1
   fi
 }
@@ -157,13 +180,29 @@ install_packages() {
   case "${manager}" in
     apt)
       apt_update_once
-      DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}" >/dev/null 2>&1
+      run_or_fatal "apt-Paketinstallation fehlgeschlagen: ${packages[*]}" \
+        env DEBIAN_FRONTEND=noninteractive apt-get install -y "${packages[@]}"
       ;;
-    dnf)    dnf install -y "${packages[@]}" >/dev/null 2>&1 ;;
-    yum)    yum install -y "${packages[@]}" >/dev/null 2>&1 ;;
-    zypper) zypper --non-interactive install --no-confirm "${packages[@]}" >/dev/null 2>&1 ;;
-    pacman) pacman -Sy --noconfirm --needed "${packages[@]}" >/dev/null 2>&1 ;;
-    apk)    apk add --no-cache "${packages[@]}" >/dev/null 2>&1 ;;
+    dnf)
+      run_or_fatal "dnf-Paketinstallation fehlgeschlagen: ${packages[*]}" \
+        dnf install -y "${packages[@]}"
+      ;;
+    yum)
+      run_or_fatal "yum-Paketinstallation fehlgeschlagen: ${packages[*]}" \
+        yum install -y "${packages[@]}"
+      ;;
+    zypper)
+      run_or_fatal "zypper-Paketinstallation fehlgeschlagen: ${packages[*]}" \
+        zypper --non-interactive install --no-confirm "${packages[@]}"
+      ;;
+    pacman)
+      run_or_fatal "pacman-Paketinstallation fehlgeschlagen: ${packages[*]}" \
+        pacman -Sy --noconfirm --needed "${packages[@]}"
+      ;;
+    apk)
+      run_or_fatal "apk-Paketinstallation fehlgeschlagen: ${packages[*]}" \
+        apk add --no-cache "${packages[@]}"
+      ;;
     *)      fatal "Unbekannter Paketmanager: ${manager}" ;;
   esac
   ok "Pakete installiert."
@@ -659,6 +698,9 @@ MESSENGER_TRANSPORT_DSN=${messenger_dsn}
 TRUSTED_PROXIES=127.0.0.1
 APP_CORE_UPDATE_INSTALL_DIR=${install_dir}
 EASYWI_DB_CONFIG_PATH=/etc/easywi/db.json
+EASYWI_SECRET_KEY_PATH=/etc/easywi/secret.key
+APP_ENCRYPTION_ACTIVE_KEY_ID=${key_id}
+APP_ENCRYPTION_KEYS=${key_id}:${key_material}
 ENV
   [[ -n "${registration_token}" ]] && printf 'AGENT_REGISTRATION_TOKEN="%s"\n' "${registration_token}" >> "${env_path}"
   chmod 600 "${env_path}"
