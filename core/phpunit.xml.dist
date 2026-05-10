@@ -4,6 +4,13 @@
     <testsuite name="default">
       <directory suffix="Test.php">./tests</directory>
       <exclude>./tests/bootstrap.php</exclude>
+      <!--
+        CI workspaces can contain a nested checkout below tests/Service/core when
+        restoring or unpacking artifacts. If PHPUnit recurses into that copy it
+        loads the same App\Tests classes twice and aborts with a fatal
+        "Cannot redeclare class" error before any tests run.
+      -->
+      <exclude>./tests/Service/core</exclude>
     </testsuite>
   </testsuites>
   <php>

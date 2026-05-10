@@ -210,7 +210,9 @@ final class InstallController
                 }
 
                 if ($action === 'run_migrations') {
-                    if (($databaseState['saved'] ?? false) !== true) {
+                    if (($databaseState['initialized'] ?? false) === true) {
+                        $step = 5;
+                    } elseif (($databaseState['saved'] ?? false) !== true) {
                         $errors[] = ['key' => 'errors.db_config_save_required'];
                         $step = 3;
                     } else {

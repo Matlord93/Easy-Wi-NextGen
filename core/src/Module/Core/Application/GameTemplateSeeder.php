@@ -6,6 +6,7 @@ namespace App\Module\Core\Application;
 
 use App\Module\Core\Domain\Entity\GamePlugin;
 use App\Module\Core\Domain\Entity\Template;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -86,7 +87,13 @@ final class GameTemplateSeeder
         }
 
         if ($templatesCreated > 0) {
-            $entityManager->flush();
+            try {
+                $entityManager->flush();
+            } catch (UniqueConstraintViolationException) {
+                // A concurrent installer request already seeded the templates; discard our pending inserts.
+                $entityManager->clear();
+                $templatesCreated = 0;
+            }
         }
 
         $pluginsCreated = 0;
@@ -126,7 +133,12 @@ final class GameTemplateSeeder
         }
 
         if ($pluginsCreated > 0) {
-            $entityManager->flush();
+            try {
+                $entityManager->flush();
+            } catch (UniqueConstraintViolationException) {
+                $entityManager->clear();
+                $pluginsCreated = 0;
+            }
         }
 
         return [

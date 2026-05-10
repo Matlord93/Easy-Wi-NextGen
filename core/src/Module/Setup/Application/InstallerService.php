@@ -465,6 +465,17 @@ final class InstallerService
         }
 
         @chmod($keyPath, 0600);
+
+        if (!is_readable($keyPath)) {
+            @chmod($keyPath, 0640);
+        }
+
+        if (!is_readable($keyPath)) {
+            throw new \RuntimeException(sprintf(
+                'Secret key was written to "%s" but is not readable by the current process. Ensure the web server user has read access to this file.',
+                $keyPath,
+            ));
+        }
     }
 
     public function getDatabaseConfigPath(): string
