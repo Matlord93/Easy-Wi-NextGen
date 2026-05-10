@@ -2131,7 +2131,7 @@ setup_cpu_grub() {
     local cfg="/boot/grub2/grub.cfg"
     # UEFI-Pfad bevorzugen wenn vorhanden
     local uefi_cfg
-    uefi_cfg="$(ls /boot/efi/EFI/*/grub.cfg /boot/efi/EFI/*/grub2.cfg 2>/dev/null | head -n1 || true)"
+    uefi_cfg="$(find /boot/efi/EFI -maxdepth 2 \( -name 'grub.cfg' -o -name 'grub2.cfg' \) 2>/dev/null | head -n1 || true)"
     [[ -n "${uefi_cfg}" ]] && cfg="${uefi_cfg}"
     grub2-mkconfig -o "${cfg}" 2>/dev/null && updated=true
   fi
@@ -2173,7 +2173,9 @@ set_cpu_governor_now() {
   # Methode 2: cpufreq-set
   if ! "${changed}" && command -v cpufreq-set >/dev/null 2>&1; then
     local cpu
-    for cpu in $(ls -d /sys/devices/system/cpu/cpu[0-9]* 2>/dev/null | grep -oE 'cpu[0-9]+$'); do
+    for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
+      [[ -d "${cpu}" ]] || continue
+      cpu="${cpu##*/}"
       cpufreq-set -c "${cpu#cpu}" -g "${governor}" 2>/dev/null && changed=true
     done
   fi
@@ -2184,14 +2186,19 @@ set_cpu_governor_now() {
     [[ -f "${gov_file}" ]] && printf '%s' "${governor}" > "${gov_file}" 2>/dev/null && changed=true
   done
 
-  "${changed}" && ok "CPU-Governor jetzt auf '${governor}' gesetzt." \
-               || warn "CPU-Governor konnte nicht sofort gesetzt werden (z.B. kein cpufreq-Treiber geladen)."
+  if "${changed}"; then
+    ok "CPU-Governor jetzt auf '${governor}' gesetzt."
+  else
+    warn "CPU-Governor konnte nicht sofort gesetzt werden (z.B. kein cpufreq-Treiber geladen)."
+  fi
 
   # Alle CPU-Idle-/C-States deaktivieren (Tiefe ≥ 0 → keine Schlafzustände)
   if command -v cpupower >/dev/null 2>&1; then
-    cpupower idle-set -D 0 2>/dev/null \
-      && ok "CPU-Idle-States deaktiviert (cpupower idle-set -D 0)." \
-      || warn "cpupower idle-set -D 0 fehlgeschlagen – ggf. nach Reboot wirksam."
+    if cpupower idle-set -D 0 2>/dev/null; then
+      ok "CPU-Idle-States deaktiviert (cpupower idle-set -D 0)."
+    else
+      warn "cpupower idle-set -D 0 fehlgeschlagen – ggf. nach Reboot wirksam."
+    fi
   else
     warn "cpupower nicht verfügbar – idle-set wird nach Reboot via Service gesetzt."
   fi
