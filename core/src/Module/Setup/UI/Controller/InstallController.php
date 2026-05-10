@@ -7,6 +7,7 @@ namespace App\Module\Setup\UI\Controller;
 use App\Module\Setup\Application\InstallerService;
 use App\Module\Setup\Application\InstallerSshKeyException;
 use Doctrine\DBAL\Exception as DbalException;
+use Doctrine\DBAL\Exception\TableNotFoundException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -340,6 +341,11 @@ final class InstallController
                                 ]));
                             } catch (InstallerSshKeyException) {
                                 $errors[] = ['key' => 'errors.admin_ssh_key_store_failed'];
+                            } catch (TableNotFoundException $exception) {
+                                $this->installerService->logException($exception, 'Database table missing during installation — migrations incomplete.');
+                                $databaseState['initialized'] = false;
+                                $step = 4;
+                                $errors[] = ['key' => 'errors.db_migrations_not_run'];
                             } catch (DbalException $exception) {
                                 $this->installerService->logException($exception, 'Database connection failed during installation.');
                                 $errors[] = $this->resolveDatabaseConnectionError($databaseState, $exception);

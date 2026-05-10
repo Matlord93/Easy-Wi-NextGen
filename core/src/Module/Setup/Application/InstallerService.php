@@ -546,7 +546,8 @@ final class InstallerService
         }
 
         $this->ensureRuntimeRepairTablesExist($entityManager->getConnection());
-        if ($useSchemaSyncFallback) {
+        if ($useSchemaSyncFallback || !$this->tableExists($entityManager->getConnection(), 'sites')) {
+            $this->logger->warning('Falling back to schema sync: sites table missing after migrations.');
             $this->ensureSchemaExists($entityManager);
         }
     }
