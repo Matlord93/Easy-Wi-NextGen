@@ -50,12 +50,17 @@ menu_prompt() { read_from_tty "${1}"; }
 
 prompt_value() {
   local var_name="$1" prompt="$2" default="${3:-}" current="${!1:-}" value
-  [[ -n "${current}" ]] && return
-  is_tty || return
+  [[ -n "${current}" ]] && return 0
+  is_tty || return 0
   [[ -n "${default}" ]] && prompt="${prompt} [${default}]"
   value="$(read_from_tty "${prompt}: ")"
   [[ -z "${value}" ]] && value="${default}"
   [[ -n "${value}" ]] && printf -v "${var_name}" '%s' "${value}"
+
+  # Empty answers are valid for optional prompts (for example DB root
+  # password uses socket auth). Do not let the final [[ ... ]] status abort
+  # the installer while set -e is active.
+  return 0
 }
 
 prompt_yes_no() {
@@ -174,16 +179,23 @@ setup_php_repo() {
   case "${family}" in
     debian)
       step "Richte PHP-Repository ein (Ondrej/PHP)."
-      DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common >/dev/null 2>&1
+      apt_update_once
+      install_packages "${manager}" ca-certificates curl gnupg
+
       local distro; distro="$(get_os_field ID)"
       if [[ "${distro}" == "ubuntu" ]]; then
+        install_packages "${manager}" software-properties-common
         # Ubuntu >= 24.04 ships PHP 8.x in main; still add PPA for latest
         add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1 || warn "PPA konnte nicht hinzugefügt werden – nutze Distro-Pakete."
       else
         # Debian: sury.org
+        local codename; codename="$(get_os_field VERSION_CODENAME)"
+        [[ -n "${codename}" ]] || fatal "Debian-Codename konnte nicht ermittelt werden (/etc/os-release: VERSION_CODENAME fehlt)."
+        mkdir -p /usr/share/keyrings
         curl -fsSL https://packages.sury.org/php/apt.gpg \
-          | gpg --dearmor -o /etc/apt/trusted.gpg.d/php.gpg 2>/dev/null
-        echo "deb https://packages.sury.org/php/ $(get_os_field VERSION_CODENAME) main" \
+          | gpg --batch --yes --dearmor -o /usr/share/keyrings/sury-php.gpg 2>/dev/null \
+          || fatal "PHP-Repository-Key konnte nicht installiert werden (curl/gnupg prüfen)."
+        echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ ${codename} main" \
           > /etc/apt/sources.list.d/php.list
       fi
       APT_UPDATED=0
@@ -635,19 +647,152 @@ write_env_local() {
     *)      db_url="mysql://${db_user}:${db_password}@${db_host}${db_port:+:${db_port}}/${db_name}" ;;
   esac
 
+  local messenger_dsn="${EASYWI_MESSENGER_TRANSPORT_DSN:-sync://}"
+
   step "Schreibe ${env_path}."
   cat > "${env_path}" <<ENV
 APP_ENV=prod
 APP_SECRET="${app_secret}"
 DATABASE_URL="${db_url}"
 DEFAULT_URI=${default_uri}
-MESSENGER_TRANSPORT_DSN=doctrine://default?auto_setup=0
+MESSENGER_TRANSPORT_DSN=${messenger_dsn}
 TRUSTED_PROXIES=127.0.0.1
 APP_CORE_UPDATE_INSTALL_DIR=${install_dir}
+EASYWI_DB_CONFIG_PATH=/etc/easywi/db.json
 ENV
   [[ -n "${registration_token}" ]] && printf 'AGENT_REGISTRATION_TOKEN="%s"\n' "${registration_token}" >> "${env_path}"
   chmod 600 "${env_path}"
   ok ".env.local geschrieben."
+}
+
+
+set_easywi_config_permissions() {
+  local readable_group="$1"
+  [[ -z "${readable_group}" ]] && return 0
+  [[ -d /etc/easywi ]] || return 0
+
+  step "Setze Rechte für /etc/easywi-Konfiguration."
+  chgrp "${readable_group}" /etc/easywi 2>/dev/null || warn "Konnte Gruppe für /etc/easywi nicht setzen."
+  chmod 750 /etc/easywi 2>/dev/null || warn "Konnte Rechte für /etc/easywi nicht setzen."
+
+  local path
+  for path in /etc/easywi/secret.key /etc/easywi/db.json; do
+    [[ -f "${path}" ]] || continue
+    chgrp "${readable_group}" "${path}" 2>/dev/null || warn "Konnte Gruppe für ${path} nicht setzen."
+    chmod 640 "${path}" 2>/dev/null || warn "Konnte Rechte für ${path} nicht setzen."
+  done
+}
+
+write_db_config() {
+  local db_driver="$1" db_host="$2" db_port="$3" db_name="$4" db_user="$5" db_password="$6"
+
+  if [[ "${db_driver}" != "mysql" ]]; then
+    fatal "Der Core unterstützt im Installer aktuell nur MySQL/MariaDB als persistente DB-Konfiguration."
+  fi
+
+  step "Schreibe DB-Konfiguration nach /etc/easywi/db.json."
+  mkdir -p /etc/easywi
+  EASYWI_INSTALLER_DB_HOST="${db_host}" \
+  EASYWI_INSTALLER_DB_PORT="${db_port}" \
+  EASYWI_INSTALLER_DB_NAME="${db_name}" \
+  EASYWI_INSTALLER_DB_USER="${db_user}" \
+  EASYWI_INSTALLER_DB_PASSWORD="${db_password}" \
+  php <<'PHP' || fatal "DB-Konfiguration konnte nicht verschlüsselt geschrieben werden."
+<?php
+$keyPath = '/etc/easywi/secret.key';
+$outPath = '/etc/easywi/db.json';
+
+$contents = trim((string) file_get_contents($keyPath));
+if ($contents === '') {
+    fwrite(STDERR, "secret.key is empty\n");
+    exit(1);
+}
+
+$keyMaterial = null;
+$decodedJson = json_decode($contents, true);
+if (is_array($decodedJson)) {
+    $activeKeyId = isset($decodedJson['active_key_id']) && is_string($decodedJson['active_key_id'])
+        ? trim($decodedJson['active_key_id'])
+        : '';
+    if (isset($decodedJson['keys']) && is_array($decodedJson['keys'])) {
+        if ($activeKeyId !== '' && isset($decodedJson['keys'][$activeKeyId]) && is_string($decodedJson['keys'][$activeKeyId])) {
+            $keyMaterial = trim($decodedJson['keys'][$activeKeyId]);
+        } else {
+            foreach ($decodedJson['keys'] as $candidate) {
+                if (is_string($candidate) && trim($candidate) !== '') {
+                    $keyMaterial = trim($candidate);
+                    break;
+                }
+            }
+        }
+    } elseif (isset($decodedJson['keyring']) && is_string($decodedJson['keyring'])) {
+        $contents = trim($decodedJson['keyring']);
+    }
+}
+
+if ($keyMaterial === null) {
+    if (str_contains($contents, ':')) {
+        [, $keyMaterial] = array_pad(explode(':', $contents, 2), 2, '');
+        $keyMaterial = trim($keyMaterial);
+    } else {
+        $keyMaterial = $contents;
+    }
+}
+
+$key = base64_decode($keyMaterial, true);
+if ($key === false) {
+    $key = $keyMaterial;
+}
+$keyBytes = defined('SODIUM_CRYPTO_SECRETBOX_KEYBYTES') ? SODIUM_CRYPTO_SECRETBOX_KEYBYTES : 32;
+if (strlen($key) !== $keyBytes) {
+    fwrite(STDERR, "secret.key has invalid length\n");
+    exit(1);
+}
+
+$payload = array_filter([
+    'host' => getenv('EASYWI_INSTALLER_DB_HOST') ?: '',
+    'port' => ctype_digit((string) getenv('EASYWI_INSTALLER_DB_PORT')) ? (int) getenv('EASYWI_INSTALLER_DB_PORT') : null,
+    'dbname' => getenv('EASYWI_INSTALLER_DB_NAME') ?: '',
+    'user' => getenv('EASYWI_INSTALLER_DB_USER') ?: '',
+    'password' => getenv('EASYWI_INSTALLER_DB_PASSWORD') ?: '',
+    'charset' => 'utf8mb4',
+], static fn ($value) => $value !== null && $value !== '');
+
+$plaintext = json_encode($payload, JSON_UNESCAPED_SLASHES);
+if ($plaintext === false) {
+    fwrite(STDERR, "failed to encode db payload\n");
+    exit(1);
+}
+
+if (function_exists('sodium_crypto_secretbox')) {
+    $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+    $encrypted = [
+        'nonce' => base64_encode($nonce),
+        'ciphertext' => base64_encode(sodium_crypto_secretbox($plaintext, $nonce, $key)),
+    ];
+} else {
+    $nonce = random_bytes(12);
+    $tag = '';
+    $ciphertext = openssl_encrypt($plaintext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $nonce, $tag, '', 16);
+    if ($ciphertext === false) {
+        fwrite(STDERR, "failed to encrypt db payload\n");
+        exit(1);
+    }
+    $encrypted = [
+        'backend' => 'openssl',
+        'nonce' => base64_encode($nonce),
+        'ciphertext' => base64_encode($ciphertext),
+        'tag' => base64_encode($tag),
+    ];
+}
+
+if (file_put_contents($outPath, json_encode($encrypted, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n") === false) {
+    fwrite(STDERR, "failed to write db config\n");
+    exit(1);
+}
+chmod($outPath, 0600);
+PHP
+  ok "DB-Konfiguration geschrieben: /etc/easywi/db.json"
 }
 
 # ---------------------------------------------------------------------------
@@ -672,12 +817,197 @@ INFO
   chmod 600 "${info_path}"
 }
 
+
+# ---------------------------------------------------------------------------
+# Symfony setup helpers
+# ---------------------------------------------------------------------------
+
+run_panel_migrations() {
+  local php_bin="$1" console="$2"
+  local log_file; log_file="$(mktemp)"
+
+  step "Führe Datenbankmigrationen aus."
+  if "${php_bin}" "${console}" doctrine:migrations:migrate \
+      --no-interaction --allow-no-migration >"${log_file}" 2>&1; then
+    tail -20 "${log_file}" >&2 || true
+    rm -f "${log_file}"
+    "${php_bin}" "${console}" cache:clear --env=prod --quiet
+    ok "Migrationen abgeschlossen."
+    return 0
+  fi
+
+  warn "Datenbankmigrationen fehlgeschlagen. Letzte Ausgabe:"
+  tail -40 "${log_file}" >&2 || true
+  rm -f "${log_file}"
+  fatal "Installation abgebrochen, damit der Agent nicht gegen ein unvollständig migriertes Panel registriert wird."
+}
+
+
+ensure_agent_bootstrap_schema() {
+  local db_driver="$1" db_host="$2" db_port="$3" db_name="$4" db_user="$5" db_password="$6"
+  [[ "${db_driver}" == "mysql" ]] || return 0
+
+  step "Prüfe Agent-Registrierungs-Tabellen."
+  EASYWI_INSTALLER_DB_HOST="${db_host}" \
+  EASYWI_INSTALLER_DB_PORT="${db_port}" \
+  EASYWI_INSTALLER_DB_NAME="${db_name}" \
+  EASYWI_INSTALLER_DB_USER="${db_user}" \
+  EASYWI_INSTALLER_DB_PASSWORD="${db_password}" \
+  php <<'PHP' || fatal "Agent-Bootstrap-Tabellen konnten nicht geprüft/angelegt werden."
+<?php
+$host = getenv('EASYWI_INSTALLER_DB_HOST') ?: '127.0.0.1';
+$port = getenv('EASYWI_INSTALLER_DB_PORT') ?: null;
+$dbname = getenv('EASYWI_INSTALLER_DB_NAME') ?: '';
+$user = getenv('EASYWI_INSTALLER_DB_USER') ?: '';
+$password = getenv('EASYWI_INSTALLER_DB_PASSWORD') ?: '';
+
+$dsn = sprintf('mysql:host=%s;%sdbname=%s;charset=utf8mb4', $host, $port !== null && $port !== '' ? 'port=' . $port . ';' : '', $dbname);
+$pdo = new PDO($dsn, $user, $password, [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+]);
+
+$pdo->exec("CREATE TABLE IF NOT EXISTS agents (
+    id VARCHAR(64) NOT NULL,
+    name VARCHAR(120) DEFAULT NULL,
+    secret_payload JSON NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    last_heartbeat_at DATETIME DEFAULT NULL,
+    last_seen_at DATETIME DEFAULT NULL,
+    last_heartbeat_ip VARCHAR(45) DEFAULT NULL,
+    last_heartbeat_version VARCHAR(40) DEFAULT NULL,
+    last_heartbeat_stats JSON DEFAULT NULL,
+    metadata JSON DEFAULT NULL,
+    service_base_url VARCHAR(255) DEFAULT NULL,
+    service_api_token_encrypted LONGTEXT DEFAULT NULL,
+    disk_scan_interval_seconds INT NOT NULL DEFAULT 180,
+    disk_warning_percent INT NOT NULL DEFAULT 85,
+    disk_hard_block_percent INT NOT NULL DEFAULT 120,
+    node_disk_protection_threshold_percent INT NOT NULL DEFAULT 5,
+    node_disk_protection_override_until DATETIME DEFAULT NULL,
+    roles JSON NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    job_concurrency INT NOT NULL DEFAULT 50,
+    PRIMARY KEY(id)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB");
+
+$pdo->exec("CREATE TABLE IF NOT EXISTS audit_logs (
+    id INT AUTO_INCREMENT NOT NULL,
+    actor_id INT DEFAULT NULL,
+    action VARCHAR(120) NOT NULL,
+    payload JSON NOT NULL,
+    created_at DATETIME NOT NULL,
+    hash_prev VARCHAR(64) DEFAULT NULL,
+    hash_current VARCHAR(64) NOT NULL,
+    PRIMARY KEY(id),
+    INDEX idx_audit_logs_actor (actor_id),
+    INDEX idx_audit_logs_created_at (created_at)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB");
+
+$pdo->exec("CREATE TABLE IF NOT EXISTS agent_bootstrap_tokens (
+    id INT AUTO_INCREMENT NOT NULL,
+    created_by_id INT DEFAULT NULL,
+    name VARCHAR(190) NOT NULL,
+    token_prefix VARCHAR(16) NOT NULL,
+    token_hash VARCHAR(64) NOT NULL,
+    encrypted_token JSON NOT NULL,
+    bound_cidr VARCHAR(64) DEFAULT NULL,
+    bound_node_name VARCHAR(190) DEFAULT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    expires_at DATETIME DEFAULT NULL,
+    used_at DATETIME DEFAULT NULL,
+    revoked_at DATETIME DEFAULT NULL,
+    invalidated_at DATETIME DEFAULT NULL,
+    last_used_at DATETIME DEFAULT NULL,
+    attempts_count INT NOT NULL DEFAULT 0,
+    max_attempts INT NOT NULL DEFAULT 5,
+    PRIMARY KEY(id),
+    INDEX idx_agent_bootstrap_tokens_token_hash (token_hash),
+    INDEX idx_agent_bootstrap_tokens_created_by (created_by_id)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB");
+
+$pdo->exec("CREATE TABLE IF NOT EXISTS agent_registration_tokens (
+    id INT AUTO_INCREMENT NOT NULL,
+    bootstrap_token_id INT DEFAULT NULL,
+    agent_id VARCHAR(64) NOT NULL,
+    token_prefix VARCHAR(16) NOT NULL,
+    token_hash VARCHAR(64) NOT NULL,
+    encrypted_token JSON NOT NULL,
+    created_at DATETIME NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME DEFAULT NULL,
+    PRIMARY KEY(id),
+    INDEX idx_agent_registration_tokens_token_hash (token_hash),
+    INDEX idx_agent_registration_tokens_bootstrap (bootstrap_token_id),
+    INDEX idx_agent_registration_tokens_agent (agent_id)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB");
+
+$columnExists = static function (PDO $pdo, string $table, string $column) use ($dbname): bool {
+    $stmt = $pdo->prepare('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1');
+    $stmt->execute([$dbname, $table, $column]);
+
+    return (bool) $stmt->fetchColumn();
+};
+
+$ensureColumn = static function (PDO $pdo, callable $columnExists, string $table, string $column, string $definition): void {
+    if (!$columnExists($pdo, $table, $column)) {
+        $pdo->exec(sprintf('ALTER TABLE %s ADD %s %s', $table, $column, $definition));
+    }
+};
+
+$ensureColumn($pdo, $columnExists, 'agents', 'service_base_url', 'VARCHAR(255) DEFAULT NULL');
+$ensureColumn($pdo, $columnExists, 'agents', 'service_api_token_encrypted', 'LONGTEXT DEFAULT NULL');
+$ensureColumn($pdo, $columnExists, 'agents', 'disk_scan_interval_seconds', 'INT NOT NULL DEFAULT 180');
+$ensureColumn($pdo, $columnExists, 'agents', 'disk_warning_percent', 'INT NOT NULL DEFAULT 85');
+$ensureColumn($pdo, $columnExists, 'agents', 'disk_hard_block_percent', 'INT NOT NULL DEFAULT 120');
+$ensureColumn($pdo, $columnExists, 'agents', 'node_disk_protection_threshold_percent', 'INT NOT NULL DEFAULT 5');
+$ensureColumn($pdo, $columnExists, 'agents', 'node_disk_protection_override_until', 'DATETIME DEFAULT NULL');
+$ensureColumn($pdo, $columnExists, 'agents', 'job_concurrency', 'INT NOT NULL DEFAULT 50');
+$pdo->exec('ALTER TABLE agents ALTER job_concurrency SET DEFAULT 50');
+
+$ensureColumn($pdo, $columnExists, 'agent_bootstrap_tokens', 'invalidated_at', 'DATETIME DEFAULT NULL');
+$ensureColumn($pdo, $columnExists, 'agent_bootstrap_tokens', 'last_used_at', 'DATETIME DEFAULT NULL');
+$ensureColumn($pdo, $columnExists, 'agent_bootstrap_tokens', 'attempts_count', 'INT NOT NULL DEFAULT 0');
+$ensureColumn($pdo, $columnExists, 'agent_bootstrap_tokens', 'max_attempts', 'INT NOT NULL DEFAULT 5');
+$ensureColumn($pdo, $columnExists, 'agent_registration_tokens', 'bootstrap_token_id', 'INT DEFAULT NULL');
+PHP
+  ok "Agent-Registrierungs-Tabellen sind bereit."
+}
+
+create_agent_bootstrap_token() {
+  local php_bin="$1" console="$2" token="$3"
+  [[ -z "${token}" ]] && return 0
+
+  step "Erstelle Agent-Bootstrap-Token für automatische Registrierung."
+  "${php_bin}" "${console}" app:agent:bootstrap-token:create \
+    --token="${token}" \
+    --name="Installer bootstrap $(date -u +'%Y-%m-%d %H:%M UTC')" \
+    --expires-in=30 \
+    --max-attempts=5 \
+    --no-interaction \
+    --quiet \
+    || fatal "Agent-Bootstrap-Token konnte nicht erstellt werden. Prüfe Migrationen und /etc/easywi/secret.key."
+  ok "Agent-Bootstrap-Token erstellt."
+}
+
 # ---------------------------------------------------------------------------
 # Systemd / OpenRC unit writers
 # ---------------------------------------------------------------------------
 
 write_panel_messenger_service() {
   local php_bin="$1" console="$2"
+  local messenger_dsn="${EASYWI_MESSENGER_TRANSPORT_DSN:-sync://}"
+
+  if [[ "${messenger_dsn}" == "sync://" ]]; then
+    if has_systemctl && systemctl list-unit-files easywi-messenger.service >/dev/null 2>&1; then
+      systemctl disable --now easywi-messenger.service 2>/dev/null || true
+    fi
+    ok "Messenger nutzt sync:// – kein Worker-Service erforderlich."
+    return 0
+  fi
+
   if has_systemctl; then
     cat > /etc/systemd/system/easywi-messenger.service <<UNIT
 [Unit]
@@ -770,7 +1100,6 @@ download_optional_asset() {
 install_agent_binaries() {
   local arch="$1" version="${2:-latest}"
   local tmp; tmp="$(mktemp -d)"
-  trap 'rm -rf "${tmp}"' RETURN
 
   step "Lade Agent-Binaries (${arch}, ${version})."
 
@@ -792,31 +1121,9 @@ install_agent_binaries() {
   [[ -n "${agent_resolved}" && -f "${agent_resolved}" ]] \
     || fatal "Kein Agent-Binary für ${arch} gefunden."
 
-  # Wrapper binary (optional)
-  local wrapper_dest="${tmp}/wrapper-raw"
-  local wrapper_resolved=""
-  for suffix in ".tar.gz" ".zip" ""; do
-    local asset_name="easywi-wrapper-${arch}${suffix}"
-    if download_optional_asset "${asset_name}" "${wrapper_dest}" "${version}"; then
-      case "${suffix}" in
-        .tar.gz) tar -xzf "${wrapper_dest}" -C "${tmp}" ;;
-        .zip)    unzip -oq "${wrapper_dest}" -d "${tmp}" ;;
-        *)       cp "${wrapper_dest}" "${tmp}/easywi-wrapper-${arch}" ;;
-      esac
-      wrapper_resolved="${tmp}/easywi-wrapper-${arch}"
-      break
-    fi
-  done
-
   install -m 0755 "${agent_resolved}" /usr/local/bin/easywi-agent
+  rm -rf "${tmp}"
   ok "easywi-agent installiert: /usr/local/bin/easywi-agent"
-
-  if [[ -n "${wrapper_resolved}" && -f "${wrapper_resolved}" ]]; then
-    install -m 0755 "${wrapper_resolved}" /usr/local/bin/easywi-wrapper
-    ok "easywi-wrapper installiert: /usr/local/bin/easywi-wrapper"
-  else
-    warn "Kein easywi-wrapper für diese Version gefunden – wird übersprungen."
-  fi
 
   command -v easywi-agent >/dev/null || fatal "easywi-agent nicht im PATH nach Installation."
 }
@@ -1079,6 +1386,7 @@ install_panel() {
   write_env_local "${core_dir}/.env.local" \
     "${db_driver}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}" \
     "${app_secret}" "${enc_keys}" "${reg_token}" "${default_uri}" "${install_dir}"
+  write_db_config "${db_driver}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}"
 
   [[ -n "${github_token}" ]] && printf 'APP_GITHUB_TOKEN="%s"\n' "${github_token}" >> "${core_dir}/.env.local"
 
@@ -1088,17 +1396,22 @@ install_panel() {
   local web_group; web_group="$(id -gn www-data 2>/dev/null || id -gn nginx 2>/dev/null || echo "${system_user}")"
   chown -R ":${web_group}" "${core_dir}/var" "${core_dir}/public" 2>/dev/null || true
   find "${core_dir}/var" -type d -exec chmod 775 {} \; 2>/dev/null || true
+  set_easywi_config_permissions "${web_group}"
 
   configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
 
   if [[ "${run_migrations}" == "true" ]]; then
-    step "Führe Datenbankmigrationen aus."
-    "${php_bin}" "${core_dir}/bin/console" doctrine:migrations:migrate \
-      --no-interaction --allow-no-migration 2>&1 | tail -5 || warn "Migrationen lieferten Fehler – prüfen."
-    "${php_bin}" "${core_dir}/bin/console" cache:clear --env=prod --quiet
-    ok "Migrationen abgeschlossen."
+    run_panel_migrations "${php_bin}" "${core_dir}/bin/console"
+    ensure_agent_bootstrap_schema "${db_driver}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}"
   else
     warn "Migrationen übersprungen."
+  fi
+
+  if [[ -n "${reg_token}" ]]; then
+    if [[ "${run_migrations}" != "true" ]]; then
+      fatal "Automatische Agent-Registrierung benötigt Datenbankmigrationen (EASYWI_RUN_MIGRATIONS=true)."
+    fi
+    create_agent_bootstrap_token "${php_bin}" "${core_dir}/bin/console" "${reg_token}"
   fi
 
   write_install_info "${install_dir}/INSTALLATION_INFO.txt" \
@@ -1285,13 +1598,13 @@ INFO
   local db_password="${EASYWI_DB_PASSWORD:-}"
   local php_version="${EASYWI_PHP_VERSION:-${DEFAULT_PHP_VERSION}}"
   local web_hostname="${EASYWI_WEB_HOSTNAME:-_}"
-  local system_user="${EASYWI_SYSTEM_USER:-easywi}"
+  local system_user="${EASYWI_SYSTEM_USER:-www-data}"
   local app_secret="${EASYWI_APP_SECRET:-}"
   local enc_keys="${EASYWI_SECRET_KEY:-}"
   local reg_token="${EASYWI_AGENT_REGISTRATION_TOKEN:-}"
   local github_token="${EASYWI_APP_GITHUB_TOKEN:-}"
   local run_migrations="${EASYWI_RUN_MIGRATIONS:-true}"
-  local web_scheme="${EASYWI_WEB_SCHEME:-https}"
+  local web_scheme="${EASYWI_WEB_SCHEME:-http}"
   local provision_db="${EASYWI_DB_PROVISION:-true}"
 
   prompt_value repo_url       "Git-Repository URL"                           "${repo_url}"
@@ -1422,12 +1735,12 @@ INFO
   local db_password="${EASYWI_DB_PASSWORD:-}"
   local php_version="${EASYWI_PHP_VERSION:-${DEFAULT_PHP_VERSION}}"
   local web_hostname="${EASYWI_WEB_HOSTNAME:-_}"
-  local system_user="${EASYWI_SYSTEM_USER:-easywi}"
+  local system_user="${EASYWI_SYSTEM_USER:-www-data}"
   local app_secret="${EASYWI_APP_SECRET:-}"
   local enc_keys="${EASYWI_SECRET_KEY:-}"
   local github_token="${EASYWI_APP_GITHUB_TOKEN:-}"
   local run_migrations="${EASYWI_RUN_MIGRATIONS:-true}"
-  local web_scheme="${EASYWI_WEB_SCHEME:-https}"
+  local web_scheme="${EASYWI_WEB_SCHEME:-http}"
   local provision_db="${EASYWI_DB_PROVISION:-true}"
 
   # ── Agent-Parameter ─────────────────────────────────────────────────────
