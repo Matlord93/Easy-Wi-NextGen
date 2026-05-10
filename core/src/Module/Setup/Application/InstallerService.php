@@ -516,6 +516,7 @@ final class InstallerService
             '--allow-no-migration',
         ]);
 
+        $useSchemaSyncFallback = false;
         if ($result['exitCode'] !== 0) {
             $output = (string) ($result['output'] ?? '');
             $this->logger->error('Installer migration command failed.', [
@@ -530,9 +531,13 @@ final class InstallerService
             }
 
             $this->logger->warning('Falling back to schema sync because migration process could not be started in this runtime.');
+            $useSchemaSyncFallback = true;
         }
 
-        $this->ensureSchemaExists($entityManager);
+        $this->ensureRuntimeRepairTablesExist($entityManager->getConnection());
+        if ($useSchemaSyncFallback) {
+            $this->ensureSchemaExists($entityManager);
+        }
     }
 
     public function initializeDatabase(EntityManagerInterface $entityManager): void
@@ -555,6 +560,25 @@ final class InstallerService
 
         $schemaTool = new SchemaTool($entityManager);
         $schemaTool->updateSchema($metadata, true);
+    }
+
+    private function ensureRuntimeRepairTablesExist(Connection $connection): void
+    {
+        if (!$this->tableExists($connection, 'metric_samples')) {
+            $connection->executeStatement('CREATE TABLE metric_samples (id INT AUTO_INCREMENT NOT NULL, agent_id VARCHAR(64) NOT NULL, recorded_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', cpu_percent DOUBLE PRECISION DEFAULT NULL, memory_percent DOUBLE PRECISION DEFAULT NULL, disk_percent DOUBLE PRECISION DEFAULT NULL, net_bytes_sent BIGINT DEFAULT NULL, net_bytes_recv BIGINT DEFAULT NULL, payload JSON DEFAULT NULL, INDEX idx_metric_samples_agent_id (agent_id), INDEX idx_metric_samples_recorded_at (recorded_at), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+
+        if (!$this->tableExists($connection, 'port_ranges')) {
+            $connection->executeStatement('CREATE TABLE port_ranges (id INT AUTO_INCREMENT NOT NULL, node_id VARCHAR(64) NOT NULL, purpose VARCHAR(120) NOT NULL, protocol VARCHAR(8) NOT NULL, start_port INT NOT NULL, end_port INT NOT NULL, enabled TINYINT(1) NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', updated_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', INDEX idx_port_ranges_node_id (node_id), INDEX idx_port_ranges_protocol (protocol), PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+    }
+
+    private function tableExists(Connection $connection, string $tableName): bool
+    {
+        return (int) $connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+            [$tableName],
+        ) > 0;
     }
 
     private function resolvePhpExecutableForMigrations(): string
