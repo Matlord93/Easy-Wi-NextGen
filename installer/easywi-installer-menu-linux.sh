@@ -1213,6 +1213,25 @@ detect_local_ipv4() {
   printf '\n'
 }
 
+# Returns the single primary IPv4 address of this server.
+# Tries: default-route outbound IP → first global scope IP → hostname -I fallback.
+detect_primary_ipv4() {
+  local ip
+  # Prefer the IP used for the default route (most likely the public interface).
+  if command -v ip >/dev/null 2>&1; then
+    ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '/src/{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -n1)"
+    [[ -n "$ip" && "$ip" != "127."* ]] && { printf '%s' "$ip"; return; }
+
+    # Fall back to first non-loopback global-scope address.
+    ip="$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | grep -v '^127\.' | head -n1)"
+    [[ -n "$ip" ]] && { printf '%s' "$ip"; return; }
+  fi
+
+  # Last resort: hostname -I (space-separated; take first non-loopback).
+  ip="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^127\.' | head -n1)"
+  printf '%s' "${ip:-}"
+}
+
 # ---------------------------------------------------------------------------
 # Agent registration
 # ---------------------------------------------------------------------------
@@ -1872,10 +1891,21 @@ HDR
 
   # ── Schritt 2: Agent gegen das soeben installierte Panel registrieren ────
   # Bootstrap-Call geht immer gegen 127.0.0.1 – kein DNS nötig, Panel läuft bereits.
-  # Die echte Panel-URL kommt in agent.conf als api_url.
+  # Die echte Panel-URL kommt in agent.conf als api_url; bei Wildcard-Hostname
+  # wird die primäre Server-IP ermittelt, damit der Agent das Panel auch von
+  # anderen Hosts aus erreichen kann.
   local bootstrap_url="http://127.0.0.1"
   local real_panel_url="${web_scheme}://${web_hostname}"
-  [[ "${web_hostname}" == "_" ]] && real_panel_url="http://127.0.0.1"
+  if [[ "${web_hostname}" == "_" ]]; then
+    local server_ip
+    server_ip="$(detect_primary_ipv4)"
+    if [[ -n "${server_ip}" ]]; then
+      real_panel_url="${web_scheme}://${server_ip}"
+    else
+      real_panel_url="http://127.0.0.1"
+      warn "Server-IP konnte nicht ermittelt werden – api_url fällt auf 127.0.0.1 zurück."
+    fi
+  fi
 
   menu_output <<'HDR'
 

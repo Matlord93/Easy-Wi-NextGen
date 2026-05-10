@@ -22,6 +22,32 @@ final class CentralSchedulerContractTest extends TestCase
         self::fail('Central scheduler architecture documentation is missing.');
     }
 
+    private static function readMigration(string $version): string
+    {
+        foreach ([
+            __DIR__.'/../../migrations/'.$version.'.php',
+            __DIR__.'/../../migrations/Migrations.php',
+        ] as $path) {
+            if (!is_readable($path)) {
+                continue;
+            }
+
+            $contents = (string) file_get_contents($path);
+            $classOffset = strpos($contents, 'final class '.$version);
+            if (false === $classOffset) {
+                continue;
+            }
+
+            $nextClassOffset = strpos($contents, 'final class Version', $classOffset + 1);
+
+            return false === $nextClassOffset
+                ? substr($contents, $classOffset)
+                : substr($contents, $classOffset, $nextClassOffset - $classOffset);
+        }
+
+        self::fail(sprintf('Migration %s is missing.', $version));
+    }
+
     public function testRunSchedulesIsCentralProductionSchedulerEntryPoint(): void
     {
         $command = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Command/RunSchedulesCommand.php');
@@ -107,7 +133,7 @@ final class CentralSchedulerContractTest extends TestCase
     public function testScheduleHistoryAndErrorsArePersisted(): void
     {
         $entity = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Domain/Entity/ScheduledTaskRun.php');
-        $migration = (string) file_get_contents(__DIR__.'/../../migrations/Version20260506120000.php');
+        $migration = self::readMigration('Version20260506120000');
         $centralRunner = (string) file_get_contents(__DIR__.'/../../src/Module/Core/Application/Scheduler/CentralSchedulerRunner.php');
         $template = (string) file_get_contents(__DIR__.'/../../templates/admin/schedules/index.html.twig');
 

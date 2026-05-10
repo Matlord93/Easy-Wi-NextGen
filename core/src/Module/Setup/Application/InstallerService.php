@@ -573,24 +573,59 @@ final class InstallerService
 
         $connection = $entityManager->getConnection();
         $schemaTool = new SchemaTool($entityManager);
+        $isMysql = $this->isMySqlConnection($connection);
 
-        if (!$this->isMySqlConnection($connection)) {
-            $schemaTool->updateSchema($metadata, true);
+        // Generate schema diff SQL without executing (no FK checks needed for this step).
+        $sqls = $schemaTool->getUpdateSchemaSql($metadata, true);
 
-            return;
+        if ($isMysql) {
+            $connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
         }
 
-        $connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
         try {
-            $schemaTool->updateSchema($metadata, true);
+            foreach ($sqls as $sql) {
+                try {
+                    $connection->executeStatement($sql);
+                } catch (DbalException $e) {
+                    // FK constraint failures are non-fatal during schema sync fallback.
+                    // Migrations may have already added identically-functional constraints
+                    // under different names, causing Doctrine-generated names to conflict.
+                    if ($this->isForeignKeyConstraintError($e)) {
+                        $this->logger->warning('Schema sync skipped FK statement due to constraint conflict.', [
+                            'sql' => $sql,
+                            'error' => $e->getMessage(),
+                        ]);
+                        continue;
+                    }
+                    throw $e;
+                }
+            }
         } finally {
-            $connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
+            if ($isMysql) {
+                $connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
+            }
         }
+    }
+
+    private function isForeignKeyConstraintError(DbalException $e): bool
+    {
+        $message = $e->getMessage();
+
+        return str_contains($message, '1822')
+            || str_contains($message, '1826')
+            || str_contains($message, 'foreign key constraint')
+            || str_contains(strtolower($message), 'foreign key');
     }
 
     private function isMySqlConnection(Connection $connection): bool
     {
-        return $connection->getDatabasePlatform() instanceof AbstractMySQLPlatform;
+        if ($connection->getDatabasePlatform() instanceof AbstractMySQLPlatform) {
+            return true;
+        }
+
+        // Fallback for MariaDB in DBAL 4.x where platform instanceof check may
+        // fail without serverVersion in connection params.
+        return str_contains(strtolower(get_class($connection->getDriver())), 'mysql');
     }
 
     private function ensureRuntimeRepairTablesExist(Connection $connection): void
