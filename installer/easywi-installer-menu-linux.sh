@@ -420,6 +420,20 @@ resolve_db_packages() {
   esac
 }
 
+resolve_redis_packages() {
+  local manager="$1"
+  REDIS_SERVER_PKGS=()
+  REDIS_SERVICES=(redis redis-server)
+
+  case "${manager}" in
+    apt)     REDIS_SERVER_PKGS=(redis-server) ;;
+    dnf|yum) REDIS_SERVER_PKGS=(redis) ;;
+    zypper)  REDIS_SERVER_PKGS=(redis) ;;
+    pacman)  REDIS_SERVER_PKGS=(redis) ;;
+    apk)     REDIS_SERVER_PKGS=(redis) ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # nginx config path per distro
 # ---------------------------------------------------------------------------
@@ -686,7 +700,7 @@ write_env_local() {
     *)      db_url="mysql://${db_user}:${db_password}@${db_host}${db_port:+:${db_port}}/${db_name}" ;;
   esac
 
-  local messenger_dsn="${EASYWI_MESSENGER_TRANSPORT_DSN:-sync://}"
+  local messenger_dsn="${EASYWI_MESSENGER_TRANSPORT_DSN:-doctrine://default}"
 
   step "Schreibe ${env_path}."
   cat > "${env_path}" <<ENV
@@ -695,6 +709,7 @@ APP_SECRET="${app_secret}"
 DATABASE_URL="${db_url}"
 DEFAULT_URI=${default_uri}
 MESSENGER_TRANSPORT_DSN=${messenger_dsn}
+REDIS_DSN=redis://127.0.0.1:6379
 TRUSTED_PROXIES=127.0.0.1
 APP_CORE_UPDATE_INSTALL_DIR=${install_dir}
 EASYWI_DB_CONFIG_PATH=/etc/easywi/db.json
@@ -1040,7 +1055,7 @@ create_agent_bootstrap_token() {
 
 write_panel_messenger_service() {
   local php_bin="$1" console="$2"
-  local messenger_dsn="${EASYWI_MESSENGER_TRANSPORT_DSN:-sync://}"
+  local messenger_dsn="${EASYWI_MESSENGER_TRANSPORT_DSN:-doctrine://default}"
 
   if [[ "${messenger_dsn}" == "sync://" ]]; then
     if has_systemctl && systemctl list-unit-files easywi-messenger.service >/dev/null 2>&1; then
@@ -1069,6 +1084,101 @@ UNIT
     systemctl daemon-reload
     service_enable_start easywi-messenger.service
   fi
+}
+
+write_panel_scheduler_service() {
+  local php_bin="$1" console="$2"
+
+  step "Richte Symfony Scheduler-Worker-Service ein."
+  if has_systemctl; then
+    cat > /etc/systemd/system/easywi-scheduler.service <<UNIT
+[Unit]
+Description=EasyWI Symfony Scheduler Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=${php_bin} ${console} messenger:consume scheduler_default --time-limit=3600
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload
+    service_enable_start easywi-scheduler.service
+    ok "Scheduler-Service gestartet."
+  elif has_openrc; then
+    cat > /etc/init.d/easywi-scheduler <<INIT
+#!/sbin/openrc-run
+description="EasyWI Symfony Scheduler Worker"
+command="${php_bin}"
+command_args="${console} messenger:consume scheduler_default --time-limit=3600"
+command_background=true
+pidfile="/run/easywi-scheduler.pid"
+INIT
+    chmod +x /etc/init.d/easywi-scheduler
+    rc-update add easywi-scheduler default 2>/dev/null || true
+    rc-service easywi-scheduler start 2>/dev/null \
+      || warn "Scheduler-Service konnte nicht gestartet werden (OpenRC)."
+    ok "Scheduler-Service eingerichtet (OpenRC)."
+  else
+    warn "Kein systemd/OpenRC – Scheduler muss manuell eingerichtet werden."
+  fi
+}
+
+write_panel_console_wrapper() {
+  local php_bin="$1" console="$2"
+  step "Erstelle easywi-console Wrapper-Skript."
+  cat > /usr/local/bin/easywi-console <<WRAPPER
+#!/usr/bin/env bash
+# EasyWI Console Wrapper – managed by easywi-installer
+exec ${php_bin} ${console} "\$@"
+WRAPPER
+  chmod +x /usr/local/bin/easywi-console
+  ok "Console-Wrapper verfügbar: /usr/local/bin/easywi-console <befehl>"
+}
+
+write_panel_cron() {
+  local php_bin="$1" console="$2" system_user="$3"
+  step "Richte EasyWI Cron-Jobs ein."
+  cat > /etc/cron.d/easywi <<CRON
+# EasyWI Cron – managed by easywi-installer
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# Symfony-Cache nach Systemstart aufwärmen
+@reboot ${system_user} ${php_bin} ${console} cache:warmup --env=prod --quiet 2>/dev/null
+CRON
+  chmod 644 /etc/cron.d/easywi
+  ok "Cron-Job eingerichtet: /etc/cron.d/easywi"
+}
+
+setup_certbot() {
+  local manager="$1" domain="$2" email="${3:-}"
+  [[ -z "${domain}" || "${domain}" == "_" ]] && return 1
+
+  step "Installiere Certbot und stelle SSL-Zertifikat aus (${domain})."
+  case "${manager}" in
+    apt)     install_packages "${manager}" certbot python3-certbot-nginx ;;
+    dnf|yum) install_packages "${manager}" certbot python3-certbot-nginx ;;
+    zypper)  install_packages "${manager}" python3-certbot python3-certbot-nginx ;;
+    pacman)  install_packages "${manager}" certbot certbot-nginx ;;
+    apk)     install_packages "${manager}" certbot py3-certbot-nginx ;;
+  esac
+
+  local certbot_args=(--nginx --non-interactive --agree-tos -d "${domain}")
+  [[ -n "${email}" ]] \
+    && certbot_args+=(--email "${email}") \
+    || certbot_args+=(--register-unsafely-without-email)
+
+  if certbot "${certbot_args[@]}" 2>/dev/null; then
+    ok "SSL-Zertifikat ausgestellt und Nginx aktualisiert (${domain})."
+    return 0
+  fi
+  warn "Certbot fehlgeschlagen – bitte Zertifikat manuell einrichten."
+  return 1
 }
 
 write_agent_service() {
@@ -1209,7 +1319,7 @@ detect_default_base_dirs() {
 
 detect_local_ipv4() {
   command -v ip >/dev/null && ip -o -4 addr show scope global 2>/dev/null \
-    | awk '{print $4}' | cut -d/ -f1 | paste -sd, - && return
+    | awk '{print $4}' | cut -d/ -f1 | grep -v '^127\.' | paste -sd, - && return
   printf '\n'
 }
 
@@ -1365,6 +1475,7 @@ install_panel() {
   local system_user="${14}" app_secret="${15}" enc_keys="${16}"
   local reg_token="${17}" github_token="${18}"
   local run_migrations="${19}" web_scheme="${20}" provision_db="${21}"
+  local setup_ssl="${22:-false}" ssl_email="${23:-}"
 
   local family manager
   family="$(detect_os_family)"
@@ -1376,13 +1487,14 @@ install_panel() {
   setup_php_repo "${manager}" "${family}" "${php_version}"
   php_version="$(resolve_php_version "${php_version}" "${manager}" "${family}")"
 
-  resolve_php_packages  "${manager}" "${php_version}" "${db_system}"
-  resolve_db_packages   "${manager}" "${db_system}"
+  resolve_php_packages   "${manager}" "${php_version}" "${db_system}"
+  resolve_db_packages    "${manager}" "${db_system}"
+  resolve_redis_packages "${manager}"
 
   local base_pkgs=(git curl ca-certificates unzip openssl jq)
   base_pkgs+=("$(nginx_packages "${manager}")")
 
-  install_packages "${manager}" "${base_pkgs[@]}" "${PHP_BASE_PKGS[@]}" "${DB_PKGS[@]}"
+  install_packages "${manager}" "${base_pkgs[@]}" "${PHP_BASE_PKGS[@]}" "${DB_PKGS[@]}" "${REDIS_SERVER_PKGS[@]}"
 
   # Find PHP binary
   local php_bin="php${php_version}"
@@ -1397,6 +1509,7 @@ install_panel() {
   for svc in "${DB_SERVICES[@]}"; do
     start_first_available_service "${svc}" && break
   done
+  start_first_available_service "${REDIS_SERVICES[@]}"
 
   ensure_system_user "${system_user}" "${install_dir}"
 
@@ -1441,6 +1554,8 @@ install_panel() {
   [[ -z "${app_secret}" ]]  && app_secret="$(random_hex 32)"
   [[ -z "${enc_keys}" ]]    && enc_keys="$(random_base64 32)"
 
+  [[ "${setup_ssl}" == "true" && "${web_hostname}" != "_" ]] && web_scheme="https"
+
   local default_uri="${web_scheme}://${web_hostname}"
   [[ "${web_hostname}" == "_" ]] && default_uri="${web_scheme}://localhost"
 
@@ -1466,6 +1581,10 @@ install_panel() {
 
   configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
 
+  if [[ "${setup_ssl}" == "true" && "${web_hostname}" != "_" ]]; then
+    setup_certbot "${manager}" "${web_hostname}" "${ssl_email}" || true
+  fi
+
   if [[ "${run_migrations}" == "true" ]]; then
     run_panel_migrations "${php_bin}" "${core_dir}/bin/console"
     ensure_agent_bootstrap_schema "${db_driver}" "${db_host}" "${db_port}" "${db_name}" "${db_user}" "${db_password}"
@@ -1485,7 +1604,10 @@ install_panel() {
     "${db_name}" "${db_user}" "${db_password}" \
     "$(detect_nginx_conf_dir "${family}")/easywi.conf"
 
-  write_panel_messenger_service "${php_bin}" "${core_dir}/bin/console"
+  write_panel_messenger_service   "${php_bin}" "${core_dir}/bin/console"
+  write_panel_scheduler_service   "${php_bin}" "${core_dir}/bin/console"
+  write_panel_console_wrapper     "${php_bin}" "${core_dir}/bin/console"
+  write_panel_cron                "${php_bin}" "${core_dir}/bin/console" "${system_user}"
 
   ok "Panel installiert unter ${install_dir}."
   printf '\n'
@@ -1672,15 +1794,25 @@ INFO
   local run_migrations="${EASYWI_RUN_MIGRATIONS:-true}"
   local web_scheme="${EASYWI_WEB_SCHEME:-http}"
   local provision_db="${EASYWI_DB_PROVISION:-true}"
+  local setup_ssl="${EASYWI_SETUP_SSL:-false}"
+  local ssl_email="${EASYWI_SSL_EMAIL:-}"
 
   prompt_value repo_url       "Git-Repository URL"                           "${repo_url}"
   prompt_value install_dir    "Installationsverzeichnis"                     "${install_dir}"
   prompt_value repo_ref       "Git-Branch oder Tag"                          "${repo_ref}"
   prompt_value system_user    "Linux-Systembenutzer für EasyWI"              "${system_user}"
   prompt_value php_version    "PHP-Version"                                  "${php_version}"
-  prompt_value web_hostname   "Hostname/Domain (_ = alle)"                  "${web_hostname}"
-  prompt_value web_scheme     "Schema (http/https)"                          "${web_scheme}"
+  prompt_value web_hostname   "Domain/Hostname (_ = alle, z.B. panel.example.com)" "${web_hostname}"
   prompt_value provision_db   "Datenbank automatisch erstellen? (true/false)" "${provision_db}"
+
+  # SSL-Abfrage nur wenn eine echte Domain angegeben wurde
+  if [[ "${web_hostname}" != "_" && "${setup_ssl}" != "true" ]]; then
+    if is_tty && prompt_yes_no "SSL-Zertifikat via Let's Encrypt einrichten?" "yes"; then
+      setup_ssl="true"
+      prompt_value ssl_email "E-Mail für Let's Encrypt (leer = ohne)" "${ssl_email}"
+    fi
+  fi
+  [[ "${setup_ssl}" == "true" ]] && web_scheme="https" || web_scheme="http"
 
   if [[ -z "${db_system}" ]]; then
     is_tty && db_system="$(db_system_menu)" || db_system="mariadb"
@@ -1710,7 +1842,8 @@ INFO
     "${php_version}" "${web_hostname}" \
     "${system_user}" "${app_secret}" "${enc_keys}" \
     "${reg_token}" "${github_token}" \
-    "${run_migrations}" "${web_scheme}" "${provision_db}"
+    "${run_migrations}" "${web_scheme}" "${provision_db}" \
+    "${setup_ssl}" "${ssl_email}"
 }
 
 run_agent_install() {
@@ -1734,7 +1867,8 @@ INFO
   local bind_ips="${EASYWI_BIND_IP_ADDRESSES:-}"
 
   [[ -z "${file_base_dir}" ]] && file_base_dir="$(detect_default_base_dirs)"
-  [[ -z "${bind_ips}" ]]      && bind_ips="$(detect_local_ipv4)"
+  [[ -z "${bind_ips}" ]]      && bind_ips="$(detect_primary_ipv4)"
+  [[ -z "${bind_ips}" ]]      && fatal "Server-IP konnte nicht ermittelt werden. Bitte EASYWI_BIND_IP_ADDRESSES setzen."
 
   prompt_value core_url        "Panel API URL (leer = nur Binary)"    "${core_url}"
   prompt_value bootstrap_token "Bootstrap-Token"                      "${bootstrap_token}"
@@ -1808,6 +1942,8 @@ INFO
   local run_migrations="${EASYWI_RUN_MIGRATIONS:-true}"
   local web_scheme="${EASYWI_WEB_SCHEME:-http}"
   local provision_db="${EASYWI_DB_PROVISION:-true}"
+  local setup_ssl="${EASYWI_SETUP_SSL:-false}"
+  local ssl_email="${EASYWI_SSL_EMAIL:-}"
 
   # ── Agent-Parameter ─────────────────────────────────────────────────────
   local agent_version="${EASYWI_AGENT_VERSION:-latest}"
@@ -1818,21 +1954,30 @@ INFO
   local bind_ips="${EASYWI_BIND_IP_ADDRESSES:-}"
 
   [[ -z "${file_base_dir}" ]] && file_base_dir="$(detect_default_base_dirs)"
-  [[ -z "${bind_ips}" ]]      && bind_ips="$(detect_local_ipv4)"
+  [[ -z "${bind_ips}" ]]      && bind_ips="$(detect_primary_ipv4)"
+  [[ -z "${bind_ips}" ]]      && fatal "Server-IP konnte nicht ermittelt werden. Bitte EASYWI_BIND_IP_ADDRESSES setzen."
 
   # ── Panel-Fragen ─────────────────────────────────────────────────────────
   menu_output <<'HDR'
 
   ── Panel-Einstellungen ──────────────────────────────
 HDR
-  prompt_value repo_url       "Git-Repository URL"                            "${repo_url}"
-  prompt_value install_dir    "Installationsverzeichnis"                      "${install_dir}"
-  prompt_value repo_ref       "Git-Branch oder Tag"                           "${repo_ref}"
-  prompt_value system_user    "Linux-Systembenutzer für EasyWI"               "${system_user}"
-  prompt_value php_version    "PHP-Version"                                   "${php_version}"
-  prompt_value web_hostname   "Hostname/Domain (_ = alle)"                   "${web_hostname}"
-  prompt_value web_scheme     "Schema (http/https)"                           "${web_scheme}"
-  prompt_value provision_db   "Datenbank automatisch erstellen? (true/false)" "${provision_db}"
+  prompt_value repo_url       "Git-Repository URL"                                       "${repo_url}"
+  prompt_value install_dir    "Installationsverzeichnis"                                 "${install_dir}"
+  prompt_value repo_ref       "Git-Branch oder Tag"                                      "${repo_ref}"
+  prompt_value system_user    "Linux-Systembenutzer für EasyWI"                          "${system_user}"
+  prompt_value php_version    "PHP-Version"                                              "${php_version}"
+  prompt_value web_hostname   "Domain/Hostname (_ = alle, z.B. panel.example.com)"      "${web_hostname}"
+  prompt_value provision_db   "Datenbank automatisch erstellen? (true/false)"            "${provision_db}"
+
+  # SSL-Abfrage nur wenn eine echte Domain angegeben wurde
+  if [[ "${web_hostname}" != "_" && "${setup_ssl}" != "true" ]]; then
+    if is_tty && prompt_yes_no "SSL-Zertifikat via Let's Encrypt einrichten?" "yes"; then
+      setup_ssl="true"
+      prompt_value ssl_email "E-Mail für Let's Encrypt (leer = ohne)" "${ssl_email}"
+    fi
+  fi
+  [[ "${setup_ssl}" == "true" ]] && web_scheme="https" || web_scheme="http"
 
   if [[ -z "${db_system}" ]]; then
     is_tty && db_system="$(db_system_menu)" || db_system="mariadb"
@@ -1887,7 +2032,8 @@ HDR
     "${php_version}" "${web_hostname}" \
     "${system_user}" "${app_secret}" "${enc_keys}" \
     "${reg_token}" "${github_token}" \
-    "${run_migrations}" "${web_scheme}" "${provision_db}"
+    "${run_migrations}" "${web_scheme}" "${provision_db}" \
+    "${setup_ssl}" "${ssl_email}"
 
   # ── Schritt 2: Agent gegen das soeben installierte Panel registrieren ────
   # Bootstrap-Call geht immer gegen 127.0.0.1 – kein DNS nötig, Panel läuft bereits.
@@ -1931,6 +2077,231 @@ HDR
 }
 
 # ---------------------------------------------------------------------------
+# CPU Performance – GRUB + Governor
+# ---------------------------------------------------------------------------
+
+detect_cpu_vendor() {
+  grep -m1 'vendor_id' /proc/cpuinfo 2>/dev/null | awk '{print $3}' || echo "unknown"
+}
+
+setup_cpu_grub() {
+  local extra_args="$1"
+  local grub_default="/etc/default/grub"
+
+  if [[ ! -f "${grub_default}" ]]; then
+    warn "GRUB-Konfiguration nicht gefunden (${grub_default}) – überspringe GRUB-Anpassung."
+    warn "Bitte Kernel-Parameter manuell eintragen: ${extra_args}"
+    return 0
+  fi
+
+  step "Bearbeite GRUB-Konfiguration (${grub_default})."
+  cp "${grub_default}" "${grub_default}.easywi.bak"
+  ok "Backup erstellt: ${grub_default}.easywi.bak"
+
+  # Arbeite auf GRUB_CMDLINE_LINUX (gilt für alle Boot-Einträge).
+  # Falls nicht vorhanden, lege den Key an.
+  local current=""
+  if grep -qE '^GRUB_CMDLINE_LINUX=' "${grub_default}"; then
+    current="$(grep -E '^GRUB_CMDLINE_LINUX=' "${grub_default}" \
+               | sed 's/^GRUB_CMDLINE_LINUX=//' | tr -d '"' | xargs)"
+  fi
+
+  # Entferne bereits vorhandene CPU-/Idle-Parameter (idempotent)
+  local cleaned="${current}"
+  for tok in intel_pstate amd_pstate processor.max_cstate idle; do
+    cleaned="$(printf '%s' "${cleaned}" | sed -E "s/${tok}=[^ ]*( |$)/ /g" | tr -s ' ')"
+  done
+  cleaned="${cleaned# }"; cleaned="${cleaned% }"
+
+  local new_cmdline="${cleaned:+${cleaned} }${extra_args}"
+
+  if grep -qE '^GRUB_CMDLINE_LINUX=' "${grub_default}"; then
+    sed -i "s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"${new_cmdline}\"|" "${grub_default}"
+  else
+    printf '\nGRUB_CMDLINE_LINUX="%s"\n' "${new_cmdline}" >> "${grub_default}"
+  fi
+  ok "GRUB_CMDLINE_LINUX gesetzt: ${new_cmdline}"
+
+  # Regeneriere grub.cfg je nach Distro
+  local updated=false
+  if command -v update-grub >/dev/null 2>&1; then
+    update-grub 2>/dev/null && updated=true
+  fi
+  if ! "${updated}" && command -v grub2-mkconfig >/dev/null 2>&1; then
+    local cfg="/boot/grub2/grub.cfg"
+    # UEFI-Pfad bevorzugen wenn vorhanden
+    local uefi_cfg
+    uefi_cfg="$(ls /boot/efi/EFI/*/grub.cfg /boot/efi/EFI/*/grub2.cfg 2>/dev/null | head -n1 || true)"
+    [[ -n "${uefi_cfg}" ]] && cfg="${uefi_cfg}"
+    grub2-mkconfig -o "${cfg}" 2>/dev/null && updated=true
+  fi
+  if ! "${updated}" && command -v grub-mkconfig >/dev/null 2>&1; then
+    grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null && updated=true
+  fi
+
+  if "${updated}"; then
+    ok "grub.cfg erfolgreich regeneriert."
+  else
+    warn "GRUB-Regenerierung nicht möglich – bitte manuell ausführen (update-grub / grub2-mkconfig)."
+  fi
+
+  warn "WICHTIG: Neustart erforderlich, damit die GRUB-Parameter wirksam werden!"
+}
+
+install_cpufreq_tools() {
+  local manager="$1"
+  step "Installiere CPU-Frequenz-Tools."
+  case "${manager}" in
+    apt)     install_packages "${manager}" cpufrequtils linux-tools-common linux-tools-generic 2>/dev/null || \
+             install_packages "${manager}" cpufrequtils ;;
+    dnf|yum) install_packages "${manager}" kernel-tools ;;
+    zypper)  install_packages "${manager}" cpupower ;;
+    pacman)  install_packages "${manager}" cpupower ;;
+    apk)     install_packages "${manager}" cpufrequtils 2>/dev/null || true ;;
+  esac
+}
+
+set_cpu_governor_now() {
+  local governor="$1"
+  local changed=false
+
+  # Methode 1: cpupower
+  if command -v cpupower >/dev/null 2>&1; then
+    cpupower frequency-set -g "${governor}" 2>/dev/null && changed=true
+  fi
+
+  # Methode 2: cpufreq-set
+  if ! "${changed}" && command -v cpufreq-set >/dev/null 2>&1; then
+    local cpu
+    for cpu in $(ls -d /sys/devices/system/cpu/cpu[0-9]* 2>/dev/null | grep -oE 'cpu[0-9]+$'); do
+      cpufreq-set -c "${cpu#cpu}" -g "${governor}" 2>/dev/null && changed=true
+    done
+  fi
+
+  # Methode 3: direkt via sysfs (funktioniert immer)
+  local gov_file
+  for gov_file in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+    [[ -f "${gov_file}" ]] && printf '%s' "${governor}" > "${gov_file}" 2>/dev/null && changed=true
+  done
+
+  "${changed}" && ok "CPU-Governor jetzt auf '${governor}' gesetzt." \
+               || warn "CPU-Governor konnte nicht sofort gesetzt werden (z.B. kein cpufreq-Treiber geladen)."
+
+  # Alle CPU-Idle-/C-States deaktivieren (Tiefe ≥ 0 → keine Schlafzustände)
+  if command -v cpupower >/dev/null 2>&1; then
+    cpupower idle-set -D 0 2>/dev/null \
+      && ok "CPU-Idle-States deaktiviert (cpupower idle-set -D 0)." \
+      || warn "cpupower idle-set -D 0 fehlgeschlagen – ggf. nach Reboot wirksam."
+  else
+    warn "cpupower nicht verfügbar – idle-set wird nach Reboot via Service gesetzt."
+  fi
+}
+
+write_cpu_governor_service() {
+  local governor="$1"
+
+  if has_systemctl; then
+    cat > /etc/systemd/system/easywi-cpu-governor.service <<UNIT
+[Unit]
+Description=EasyWI CPU Performance Governor
+After=sysinit.target
+Before=basic.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do [ -f "\$f" ] && printf ${governor} > "\$f"; done'
+ExecStart=-/usr/bin/cpupower idle-set -D 0
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload
+    service_enable_start easywi-cpu-governor.service
+    ok "CPU-Governor-Service (easywi-cpu-governor.service) aktiviert."
+
+  elif has_openrc; then
+    cat > /etc/local.d/easywi-cpu-governor.start <<RC
+#!/bin/sh
+for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+  [ -f "\$f" ] && printf '${governor}' > "\$f"
+done
+command -v cpupower >/dev/null 2>&1 && cpupower idle-set -D 0
+RC
+    chmod +x /etc/local.d/easywi-cpu-governor.start
+    rc-update add local default 2>/dev/null || true
+    ok "CPU-Governor-Start-Skript eingerichtet (/etc/local.d/easywi-cpu-governor.start)."
+
+  else
+    warn "Kein systemd/OpenRC – CPU-Governor muss manuell persistiert werden."
+  fi
+}
+
+setup_cpu_performance() {
+  local manager; manager="$(detect_package_manager)"
+  local cpu_vendor; cpu_vendor="$(detect_cpu_vendor)"
+  local governor="performance"
+  local grub_args
+
+  log "CPU-Vendor: ${cpu_vendor}"
+
+  case "${cpu_vendor}" in
+    GenuineIntel)
+      step "Intel-CPU erkannt – deaktiviere intel_pstate, limitiere C-States."
+      # intel_pstate=disable → acpi-cpufreq übernimmt → performance-Governor möglich
+      grub_args="intel_pstate=disable processor.max_cstate=1 idle=mwait"
+      ;;
+    AuthenticAMD)
+      step "AMD-CPU erkannt – setze amd_pstate auf passive, limitiere C-States."
+      # amd_pstate=passive: lässt performance-Governor zu ohne pstate komplett zu deaktivieren
+      grub_args="amd_pstate=passive processor.max_cstate=1 idle=mwait"
+      ;;
+    *)
+      step "Unbekannter CPU-Vendor (${cpu_vendor}) – nutze generische Parameter."
+      grub_args="processor.max_cstate=1"
+      ;;
+  esac
+
+  install_cpufreq_tools "${manager}"
+
+  # Sofort wirksam setzen (vor dem Reboot)
+  set_cpu_governor_now "${governor}"
+
+  # Persistent via systemd/OpenRC
+  write_cpu_governor_service "${governor}"
+
+  # GRUB anpassen
+  setup_cpu_grub "${grub_args}"
+
+  ok "CPU-Performance-Modus eingerichtet."
+  printf '\n'
+  printf '  ╔══════════════════════════════════════════════════╗\n'
+  printf '  ║  CPU Performance-Modus aktiv                     ║\n'
+  printf '  ║                                                  ║\n'
+  printf '  ║  Governor:  %-37s║\n' "${governor}"
+  printf '  ║  CPU:       %-37s║\n' "${cpu_vendor}"
+  printf '  ║  GRUB-Params: %-35s║\n' "${grub_args}"
+  printf '  ║                                                  ║\n'
+  printf '  ║  Neustart erforderlich für GRUB-Änderungen!      ║\n'
+  printf '  ╚══════════════════════════════════════════════════╝\n'
+}
+
+run_cpu_performance() {
+  menu_output <<'INFO'
+
+  ╔══════════════════════════════════════════════════╗
+  ║  CPU Performance-Modus                           ║
+  ║  Setzt CPU dauerhaft auf vollen Takt             ║
+  ║  – auch im Idle (kein Throttling)                ║
+  ║  Passt GRUB für Intel und AMD CPUs an            ║
+  ║  Kompatibel mit allen unterstützten Distros      ║
+  ╚══════════════════════════════════════════════════╝
+
+INFO
+  setup_cpu_performance
+}
+
+# ---------------------------------------------------------------------------
 # Main menu
 # ---------------------------------------------------------------------------
 
@@ -1956,15 +2327,17 @@ main_menu() {
     2) Agent installieren
     3) Panel + Agent installieren
     4) Agent aktualisieren
-    5) Beenden
+    5) CPU Performance-Modus (Intel/AMD · Governor + GRUB)
+    6) Beenden
 
 MENU
-  local choice; choice="$(menu_prompt "  Auswahl [1-5]: ")"
+  local choice; choice="$(menu_prompt "  Auswahl [1-6]: ")"
   case "${choice}" in
-    1) run_panel_install ;;
-    2) run_agent_install ;;
-    3) run_both_install  ;;
-    4) run_agent_update  ;;
+    1) run_panel_install    ;;
+    2) run_agent_install    ;;
+    3) run_both_install     ;;
+    4) run_agent_update     ;;
+    5) run_cpu_performance  ;;
     *) log "Installation beendet."; exit 0 ;;
   esac
 }
