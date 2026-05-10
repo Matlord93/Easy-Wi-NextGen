@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DoctrineMigrations;
 
-use Doctrine\DBAL\Platforms\MySQLPlatform;
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
@@ -22,7 +22,7 @@ final class Version20260510110000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        if (!$this->connection->getDatabasePlatform() instanceof MySQLPlatform) {
+        if (!$this->connection->getDatabasePlatform() instanceof AbstractMySQLPlatform) {
             $this->write('Skipping migration on non-MySQL platform.');
 
             return;
