@@ -15,6 +15,22 @@ import (
 	"easywi/agent/internal/jobs"
 )
 
+func TestInstanceBackupTimeoutUsesEnvVar(t *testing.T) {
+	t.Setenv("EASYWI_INSTANCE_BACKUP_TIMEOUT", "90")
+	got := instanceBackupTimeout()
+	if got != 90*60*1000000000 {
+		t.Fatalf("timeout=%v, want 90m", got)
+	}
+}
+
+func TestInstanceBackupTimeoutFallsBackToDefault(t *testing.T) {
+	t.Setenv("EASYWI_INSTANCE_BACKUP_TIMEOUT", "")
+	got := instanceBackupTimeout()
+	if got != defaultInstanceBackupTimeout {
+		t.Fatalf("timeout=%v, want %v", got, defaultInstanceBackupTimeout)
+	}
+}
+
 func TestResolveLocalBackupRootUsesConfiguredBasePath(t *testing.T) {
 	basePath := filepath.Join(t.TempDir(), "backups")
 	fallback := filepath.Join(t.TempDir(), "instances")

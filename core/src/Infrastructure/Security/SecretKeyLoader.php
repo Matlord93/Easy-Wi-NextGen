@@ -49,16 +49,52 @@ final class SecretKeyLoader
 
         $keyBytes = \defined('SODIUM_CRYPTO_SECRETBOX_KEYBYTES') ? \SODIUM_CRYPTO_SECRETBOX_KEYBYTES : self::DEFAULT_KEY_BYTES;
 
-        $decoded = base64_decode($contents, true);
+        $keyMaterial = $this->extractKeyMaterial($contents);
+
+        $decoded = base64_decode($keyMaterial, true);
         if ($decoded !== false && strlen($decoded) === $keyBytes) {
             return $decoded;
         }
 
-        if (strlen($contents) === $keyBytes) {
-            return $contents;
+        if (strlen($keyMaterial) === $keyBytes) {
+            return $keyMaterial;
         }
 
         throw new \RuntimeException('Secret key has invalid length.');
+    }
+
+    private function extractKeyMaterial(string $contents): string
+    {
+        $decoded = json_decode($contents, true);
+        if (is_array($decoded)) {
+            if (isset($decoded['keys']) && is_array($decoded['keys'])) {
+                $activeKeyId = isset($decoded['active_key_id']) && is_string($decoded['active_key_id'])
+                    ? trim($decoded['active_key_id'])
+                    : '';
+
+                if ($activeKeyId !== '' && isset($decoded['keys'][$activeKeyId]) && is_string($decoded['keys'][$activeKeyId])) {
+                    return trim($decoded['keys'][$activeKeyId]);
+                }
+
+                foreach ($decoded['keys'] as $value) {
+                    if (is_string($value) && trim($value) !== '') {
+                        return trim($value);
+                    }
+                }
+            }
+
+            if (isset($decoded['keyring']) && is_string($decoded['keyring'])) {
+                return $this->extractKeyMaterial(trim($decoded['keyring']));
+            }
+        }
+
+        if (str_contains($contents, ':')) {
+            [, $encodedKey] = array_pad(explode(':', $contents, 2), 2, '');
+
+            return trim($encodedKey);
+        }
+
+        return $contents;
     }
 
     private function resolveKeyPath(?string $envPath, ?string $projectDir): string

@@ -23,7 +23,16 @@ import (
 )
 
 const defaultInstanceBackupBaseDir = "/var/lib/easywi/backups/instances"
-const instanceBackupCommandTimeout = 30 * time.Minute
+const defaultInstanceBackupTimeout = 2 * time.Hour
+
+func instanceBackupTimeout() time.Duration {
+	if raw := strings.TrimSpace(os.Getenv("EASYWI_INSTANCE_BACKUP_TIMEOUT")); raw != "" {
+		if minutes, err := strconv.Atoi(raw); err == nil && minutes > 0 {
+			return time.Duration(minutes) * time.Minute
+		}
+	}
+	return defaultInstanceBackupTimeout
+}
 
 func handleInstanceBackupCreate(job jobs.Job) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" {
@@ -67,7 +76,7 @@ func handleInstanceBackupCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	backupPath := filepath.Join(targetDir, fmt.Sprintf("instance-%s-%d.tar.gz", sanitizeIdentifier(instanceID), time.Now().UTC().Unix()))
-	backupCtx, backupCancel := context.WithTimeout(context.Background(), instanceBackupCommandTimeout)
+	backupCtx, backupCancel := context.WithTimeout(context.Background(), instanceBackupTimeout())
 	defer backupCancel()
 	cmd := exec.CommandContext(backupCtx, "tar", "-czf", backupPath, "-C", instanceDir, ".")
 	if _, err := StreamCommand(cmd, job.ID, nil); err != nil {
@@ -149,7 +158,7 @@ func handleInstanceBackupRestore(job jobs.Job) (jobs.Result, func() error) {
 
 	if parsePayloadBool(payloadValue(job.Payload, "pre_backup"), false) {
 		preBackupPath := filepath.Join(filepath.Dir(backupPath), fmt.Sprintf("pre-restore-%d.tar.gz", time.Now().UTC().Unix()))
-		preBackupCtx, preBackupCancel := context.WithTimeout(context.Background(), instanceBackupCommandTimeout)
+		preBackupCtx, preBackupCancel := context.WithTimeout(context.Background(), instanceBackupTimeout())
 		cmd := exec.CommandContext(preBackupCtx, "tar", "-czf", preBackupPath, "-C", instanceDir, ".")
 		if _, err := StreamCommand(cmd, job.ID, nil); err != nil {
 			preBackupCancel()
@@ -158,7 +167,7 @@ func handleInstanceBackupRestore(job jobs.Job) (jobs.Result, func() error) {
 		preBackupCancel()
 	}
 
-	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), instanceBackupCommandTimeout)
+	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), instanceBackupTimeout())
 	defer restoreCancel()
 	cmd := exec.CommandContext(restoreCtx, "tar", "-xzf", backupPath, "-C", instanceDir)
 	if _, err := StreamCommand(cmd, job.ID, nil); err != nil {
