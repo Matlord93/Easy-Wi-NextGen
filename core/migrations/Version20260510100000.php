@@ -8,7 +8,7 @@ use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
-final class Version20260509120000 extends AbstractMigration
+final class Version20260510100000 extends AbstractMigration
 {
     public function isTransactional(): bool
     {
@@ -17,7 +17,7 @@ final class Version20260509120000 extends AbstractMigration
 
     public function getDescription(): string
     {
-        return 'Add panel host protection columns and repair missing runtime tables after interrupted installs.';
+        return 'Repair installs that missed core job and metric tables after interrupted migrations.';
     }
 
     public function up(Schema $schema): void
@@ -26,18 +26,6 @@ final class Version20260509120000 extends AbstractMigration
             $this->write('Skipping migration on non-MySQL platform.');
 
             return;
-        }
-
-        if ($schema->hasTable('webspace_nodes')) {
-            $table = $schema->getTable('webspace_nodes');
-
-            if (!$table->hasColumn('is_panel_host')) {
-                $this->addSql('ALTER TABLE webspace_nodes ADD is_panel_host TINYINT(1) NOT NULL DEFAULT 0');
-            }
-
-            if (!$table->hasColumn('panel_vhost_path')) {
-                $this->addSql('ALTER TABLE webspace_nodes ADD panel_vhost_path VARCHAR(255) DEFAULT NULL');
-            }
         }
 
         $jobsAvailable = $this->ensureJobs($schema);
@@ -49,25 +37,7 @@ final class Version20260509120000 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
-        if (!$this->isMySql()) {
-            $this->write('Skipping migration on non-MySQL platform.');
-
-            return;
-        }
-
-        if (!$schema->hasTable('webspace_nodes')) {
-            return;
-        }
-
-        $table = $schema->getTable('webspace_nodes');
-
-        if ($table->hasColumn('panel_vhost_path')) {
-            $this->addSql('ALTER TABLE webspace_nodes DROP COLUMN panel_vhost_path');
-        }
-
-        if ($table->hasColumn('is_panel_host')) {
-            $this->addSql('ALTER TABLE webspace_nodes DROP COLUMN is_panel_host');
-        }
+        // Repair-only migration: do not drop runtime data on rollback.
     }
 
     private function isMySql(): bool
