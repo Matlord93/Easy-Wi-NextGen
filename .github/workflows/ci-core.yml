@@ -159,7 +159,7 @@ jobs:
             --armor --detach-sign ../dist/manifest.json
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           # Korrigierte Pfade, da die Dateien im Root-Dist Ordner liegen
           files: |

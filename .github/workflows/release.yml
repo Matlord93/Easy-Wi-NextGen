@@ -31,7 +31,7 @@ jobs:
           openssl dgst -sha256 -sign /tmp/release_key.pem -out dist/core-release/manifest.sig dist/core-release/manifest.json
 
       - name: Publish release assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/core-release/core-full-*.zip
