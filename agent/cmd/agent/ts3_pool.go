@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -51,7 +53,7 @@ func (e *tsPoolEntry) use(fn func(*ts3QueryClient) error) error {
 		err := fn(e.client)
 		e.lastCmd = time.Now()
 		if err != nil {
-			if attempt == 0 {
+			if attempt == 0 && isTsQueryConnectionError(err) {
 				e.client.close()
 				e.client = nil
 				continue
@@ -61,6 +63,28 @@ func (e *tsPoolEntry) use(fn func(*ts3QueryClient) error) error {
 		return nil
 	}
 	return nil
+}
+
+func isTsQueryConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var queryErr *tsQueryError
+	if errors.As(err, &queryErr) {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "broken pipe") ||
+		strings.Contains(message, "connection reset") ||
+		strings.Contains(message, "connection refused") ||
+		strings.Contains(message, "use of closed network connection")
 }
 
 type tsConnectionPool struct {

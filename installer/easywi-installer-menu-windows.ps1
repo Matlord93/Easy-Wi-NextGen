@@ -1,5 +1,31 @@
 param(
-    [switch]$NonInteractive
+    [ValidateSet('Menu', 'Panel', 'Agent', 'PanelAgent')]
+    [string]$Mode = 'Menu',
+    [switch]$NonInteractive,
+    [string]$InstallDir = '',
+    [string]$RepoUrl = '',
+    [string]$RepoRef = '',
+    [string]$DbDriver = '',
+    [string]$DbHost = '',
+    [string]$DbPort = '',
+    [string]$DbName = '',
+    [string]$DbUser = '',
+    [string]$DbPassword = '',
+    [string]$AppSecret = '',
+    [string]$RunComposerInstall = '',
+    [string]$RunDatabaseMigrations = '',
+    [string]$CoreUrl = '',
+    [string]$BootstrapToken = '',
+    [string]$AgentVersion = '',
+    [string]$AgentInstallDir = '',
+    [string]$AgentConfigPath = '',
+    [string]$AgentServiceName = '',
+    [string]$FileBaseDirs = '',
+    [string]$InstanceBaseDir = '',
+    [string]$InstallEmbeddedSftp = '',
+    [string]$SftpServiceName = '',
+    [string]$SftpBaseDir = '',
+    [string]$BindIPAddresses = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +59,47 @@ function Read-Optional {
         return $value
     }
     return $Default
+}
+
+
+function Get-DefaultValue {
+    param([string]$Value, [string]$Default)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $Default }
+    return $Value
+}
+
+function Test-Yes {
+    param([string]$Value)
+    return ($Value -match '^(1|j|ja|y|yes|true)$')
+}
+
+function Invoke-LoggedCommand {
+    param(
+        [string]$Description,
+        [string]$FilePath,
+        [string[]]$Arguments,
+        [string]$WorkingDirectory = ''
+    )
+
+    Write-Log $Description
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $FilePath
+    foreach ($argument in $Arguments) { [void]$psi.ArgumentList.Add($argument) }
+    if (-not [string]::IsNullOrWhiteSpace($WorkingDirectory)) { $psi.WorkingDirectory = $WorkingDirectory }
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+
+    $process = [System.Diagnostics.Process]::Start($psi)
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+
+    if ($process.ExitCode -ne 0) {
+        if (-not [string]::IsNullOrWhiteSpace($stdout)) { Write-Log "Ausgabe: $stdout" }
+        if (-not [string]::IsNullOrWhiteSpace($stderr)) { Write-Log "Fehlerausgabe: $stderr" }
+        throw "$Description fehlgeschlagen (Exit-Code $($process.ExitCode))."
+    }
 }
 
 function Ensure-Directory {
@@ -361,7 +428,9 @@ function Run-PanelSetup {
         [string]$DbName,
         [string]$DbUser,
         [string]$DbPassword,
-        [string]$AppSecret
+        [string]$AppSecret,
+        [bool]$InstallComposerDependencies = $true,
+        [bool]$RunMigrations = $false
     )
 
     Write-Log "Starte Windows Panel-Vorbereitung ($Mode)."
@@ -404,6 +473,23 @@ function Run-PanelSetup {
         "DATABASE_URL=$dbUri"
     ) | Set-Content -Path $envLocalPath -Encoding UTF8
 
+    if ($InstallComposerDependencies) {
+        $composer = Get-Command composer -ErrorAction SilentlyContinue
+        if ($null -ne $composer) {
+            Invoke-LoggedCommand -Description 'Installiere Composer-Abhängigkeiten für das Webinterface' -FilePath $composer.Path -Arguments @('install', '--no-dev', '--optimize-autoloader', '--no-interaction') -WorkingDirectory $coreDir
+        } else {
+            Write-Log 'Composer nicht gefunden; Abhängigkeiten bitte manuell im core-Verzeichnis installieren.'
+        }
+    }
+
+    if ($RunMigrations) {
+        $php = Get-Command php -ErrorAction SilentlyContinue
+        if ($null -eq $php) {
+            throw 'PHP wurde nicht gefunden; Migrationen können nicht automatisch ausgeführt werden.'
+        }
+        Invoke-LoggedCommand -Description 'Führe Datenbank-Migrationen für das Webinterface aus' -FilePath $php.Path -Arguments @('bin/console', 'doctrine:migrations:migrate', '--no-interaction') -WorkingDirectory $coreDir
+    }
+
     $infoPath = Join-Path $InstallDir 'INSTALLATION_INFO_WINDOWS.txt'
     @(
         'EasyWI Windows Panel Vorbereitung',
@@ -413,10 +499,11 @@ function Run-PanelSetup {
         "DB: $DbDriver $DbHost $DbName",
         '',
         'Nächste Schritte:',
-        '1) PHP + Composer installieren',
-        '2) Im core-Verzeichnis `composer install` ausführen',
-        '3) `php bin/console doctrine:migrations:migrate --no-interaction` ausführen',
-        '4) Webserver (IIS/Nginx/Apache) auf core/public zeigen lassen'
+        '1) PHP + Composer installieren, falls noch nicht vorhanden',
+        '2) Falls Composer nicht automatisch lief: im core-Verzeichnis `composer install --no-dev --optimize-autoloader` ausführen',
+        '3) Falls Migrationen nicht automatisch liefen: `php bin/console doctrine:migrations:migrate --no-interaction` ausführen',
+        '4) Webserver (IIS/Nginx/Apache) auf core/public zeigen lassen',
+        '5) Für Agent-Installation Bootstrap-Token im Panel erzeugen und Windows-Installer mit -Mode Agent oder -Mode PanelAgent starten'
     ) | Set-Content -Path $infoPath -Encoding UTF8
 
     Write-Log "Fertig. .env.local wurde erstellt: $envLocalPath"
@@ -786,54 +873,56 @@ function Run-PanelInstall {
     Write-Host ''
     Write-Host 'Panel-Setup: Wir laden das Webinterface, schreiben die .env.local und richten Abhängigkeiten ein.'
     $mode = 'Standalone'
-    $installDir = Read-Optional -Prompt 'Installationsverzeichnis' -Default 'C:\easywi'
-    $repoUrl = Read-Optional -Prompt 'Git-Repository URL' -Default "https://github.com/$RepoOwner/$RepoName"
-    $repoRef = Read-Optional -Prompt 'Git-Branch/Tag' -Default 'Beta'
-    $dbDriver = Read-Optional -Prompt 'DB-Treiber (mysql/pgsql)' -Default 'mysql'
-    $dbHost = Read-Optional -Prompt 'DB-Host' -Default '127.0.0.1'
-    $dbPort = Read-Optional -Prompt 'DB-Port (leer = Standard)' -Default ''
-    $dbName = Read-Optional -Prompt 'DB-Name' -Default 'easywi'
-    $dbUser = Read-Optional -Prompt 'DB-User' -Default 'easywi'
-    $dbPassword = Read-Optional -Prompt 'DB-Passwort' -Default ''
-    $appSecret = Read-Optional -Prompt 'APP_SECRET (leer = automatisch)' -Default ''
+    $panelInstallDir = Read-Optional -Prompt 'Installationsverzeichnis' -Default (Get-DefaultValue -Value $InstallDir -Default 'C:\easywi')
+    $panelRepoUrl = Read-Optional -Prompt 'Git-Repository URL' -Default (Get-DefaultValue -Value $RepoUrl -Default "https://github.com/$RepoOwner/$RepoName")
+    $panelRepoRef = Read-Optional -Prompt 'Git-Branch/Tag' -Default (Get-DefaultValue -Value $RepoRef -Default 'Beta')
+    $panelDbDriver = Read-Optional -Prompt 'DB-Treiber (mysql/pgsql)' -Default (Get-DefaultValue -Value $DbDriver -Default 'mysql')
+    $panelDbHost = Read-Optional -Prompt 'DB-Host' -Default (Get-DefaultValue -Value $DbHost -Default '127.0.0.1')
+    $panelDbPort = Read-Optional -Prompt 'DB-Port (leer = Standard)' -Default $DbPort
+    $panelDbName = Read-Optional -Prompt 'DB-Name' -Default (Get-DefaultValue -Value $DbName -Default 'easywi')
+    $panelDbUser = Read-Optional -Prompt 'DB-User' -Default (Get-DefaultValue -Value $DbUser -Default 'easywi')
+    $panelDbPassword = Read-Optional -Prompt 'DB-Passwort' -Default $DbPassword
+    $panelAppSecret = Read-Optional -Prompt 'APP_SECRET (leer = automatisch)' -Default $AppSecret
+    $composerAnswer = Read-Optional -Prompt 'Composer-Abhängigkeiten installieren? (yes/no)' -Default (Get-DefaultValue -Value $RunComposerInstall -Default 'yes')
+    $migrationAnswer = Read-Optional -Prompt 'Datenbank-Migrationen jetzt ausführen? (yes/no)' -Default (Get-DefaultValue -Value $RunDatabaseMigrations -Default 'no')
 
-    Run-PanelSetup -Mode $mode -InstallDir $installDir -RepoUrl $repoUrl -RepoRef $repoRef -DbDriver $dbDriver -DbHost $dbHost -DbPort $dbPort -DbName $dbName -DbUser $dbUser -DbPassword $dbPassword -AppSecret $appSecret
+    Run-PanelSetup -Mode $mode -InstallDir $panelInstallDir -RepoUrl $panelRepoUrl -RepoRef $panelRepoRef -DbDriver $panelDbDriver -DbHost $panelDbHost -DbPort $panelDbPort -DbName $panelDbName -DbUser $panelDbUser -DbPassword $panelDbPassword -AppSecret $panelAppSecret -InstallComposerDependencies (Test-Yes -Value $composerAnswer) -RunMigrations (Test-Yes -Value $migrationAnswer)
 }
 
 function Run-AgentInstall {
     Write-Host ''
     Write-Host 'Agent-Setup: Wir laden Agent (und optional easywi-sftp), registrieren den Agenten und installieren Windows-Services.'
-    $coreUrl = Read-Optional -Prompt 'Core API URL' -Default $env:EASYWI_CORE_URL
-    if ([string]::IsNullOrWhiteSpace($coreUrl)) { $coreUrl = 'https://api.easywi.example' }
-    $bootstrapToken = Read-Optional -Prompt 'Bootstrap Token' -Default $env:EASYWI_BOOTSTRAP_TOKEN
-    $agentVersion = Read-Optional -Prompt 'Agent Version (latest oder Tag)' -Default 'latest'
-    $installDir = Read-Optional -Prompt 'Agent Installationsverzeichnis' -Default 'C:\easywi\agent'
-    $configPath = Read-Optional -Prompt 'Agent Config Pfad' -Default 'C:\ProgramData\easywi\agent.conf'
-    $serviceName = Read-Optional -Prompt 'Service-Name (Agent)' -Default 'easywi-agent'
+    $agentCoreUrl = Read-Optional -Prompt 'Core API URL' -Default (Get-DefaultValue -Value $CoreUrl -Default $env:EASYWI_CORE_URL)
+    if ([string]::IsNullOrWhiteSpace($agentCoreUrl)) { $agentCoreUrl = 'https://api.easywi.example' }
+    $agentBootstrapToken = Read-Optional -Prompt 'Bootstrap Token' -Default (Get-DefaultValue -Value $BootstrapToken -Default $env:EASYWI_BOOTSTRAP_TOKEN)
+    $resolvedAgentVersion = Read-Optional -Prompt 'Agent Version (latest oder Tag)' -Default (Get-DefaultValue -Value $AgentVersion -Default 'latest')
+    $resolvedAgentInstallDir = Read-Optional -Prompt 'Agent Installationsverzeichnis' -Default (Get-DefaultValue -Value $AgentInstallDir -Default 'C:\easywi\agent')
+    $resolvedConfigPath = Read-Optional -Prompt 'Agent Config Pfad' -Default (Get-DefaultValue -Value $AgentConfigPath -Default 'C:\ProgramData\easywi\agent.conf')
+    $serviceName = Read-Optional -Prompt 'Service-Name (Agent)' -Default (Get-DefaultValue -Value $AgentServiceName -Default 'easywi-agent')
     $defaultFileBaseDirs = Get-DefaultWindowsFileBaseDirs
-    $fileBaseDirs = Read-Optional -Prompt 'File Base Directories (comma separated)' -Default $defaultFileBaseDirs
-    $instanceBaseDir = Read-Optional -Prompt 'Instance Base Directory' -Default 'C:\home'
-    $installEmbeddedSftp = Read-Optional -Prompt 'Embedded easywi-sftp zusätzlich installieren? (yes/no)' -Default 'yes'
-    $sftpServiceName = Read-Optional -Prompt 'Service-Name (SFTP)' -Default 'EasyWI-SFTP'
-    $sftpBaseDir = Read-Optional -Prompt 'SFTP Base Directory' -Default 'C:\ProgramData\EasyWI\sftp'
+    $resolvedFileBaseDirs = Read-Optional -Prompt 'File Base Directories (comma separated)' -Default (Get-DefaultValue -Value $FileBaseDirs -Default $defaultFileBaseDirs)
+    $resolvedInstanceBaseDir = Read-Optional -Prompt 'Instance Base Directory' -Default (Get-DefaultValue -Value $InstanceBaseDir -Default 'C:\home')
+    $installEmbeddedSftpAnswer = Read-Optional -Prompt 'Embedded easywi-sftp zusätzlich installieren? (yes/no)' -Default (Get-DefaultValue -Value $InstallEmbeddedSftp -Default 'yes')
+    $resolvedSftpServiceName = Read-Optional -Prompt 'Service-Name (SFTP)' -Default (Get-DefaultValue -Value $SftpServiceName -Default 'EasyWI-SFTP')
+    $resolvedSftpBaseDir = Read-Optional -Prompt 'SFTP Base Directory' -Default (Get-DefaultValue -Value $SftpBaseDir -Default 'C:\ProgramData\EasyWI\sftp')
     $defaultBindIPs = Get-LocalIPv4Addresses
-    $bindIPAddresses = Read-Optional -Prompt 'Bind IP Addresses (comma separated, optional)' -Default $defaultBindIPs
+    $resolvedBindIPAddresses = Read-Optional -Prompt 'Bind IP Addresses (comma separated, optional)' -Default (Get-DefaultValue -Value $BindIPAddresses -Default $defaultBindIPs)
 
-    $bootstrapToken = Normalize-Token -Token $bootstrapToken
+    $agentBootstrapToken = Normalize-Token -Token $agentBootstrapToken
 
-    if ([string]::IsNullOrWhiteSpace($coreUrl) -or [string]::IsNullOrWhiteSpace($bootstrapToken)) {
+    if ([string]::IsNullOrWhiteSpace($agentCoreUrl) -or [string]::IsNullOrWhiteSpace($agentBootstrapToken)) {
         throw 'Core API URL und Bootstrap Token sind erforderlich.'
     }
 
-    $agentPath = Join-Path $installDir 'easywi-agent.exe'
-    $sftpPath = Join-Path $installDir 'easywi-sftp.exe'
-    $sftpConfigPath = Join-Path $sftpBaseDir 'config.json'
+    $agentPath = Join-Path $resolvedAgentInstallDir 'easywi-agent.exe'
+    $sftpPath = Join-Path $resolvedAgentInstallDir 'easywi-sftp.exe'
+    $sftpConfigPath = Join-Path $resolvedSftpBaseDir 'config.json'
 
-    Resolve-WindowsExecutableAsset -Version $agentVersion -BaseAssetName 'easywi-agent-windows-amd64' -TargetPath $agentPath
-    $enableSftpService = $installEmbeddedSftp -match '^(1|y|yes|true)$'
+    Resolve-WindowsExecutableAsset -Version $resolvedAgentVersion -BaseAssetName 'easywi-agent-windows-amd64' -TargetPath $agentPath
+    $enableSftpService = Test-Yes -Value $installEmbeddedSftpAnswer
     if ($enableSftpService) {
         try {
-            Resolve-WindowsExecutableAsset -Version $agentVersion -BaseAssetName 'easywi-sftp-windows-amd64' -TargetPath $sftpPath
+            Resolve-WindowsExecutableAsset -Version $resolvedAgentVersion -BaseAssetName 'easywi-sftp-windows-amd64' -TargetPath $sftpPath
             $downloadedSftp = $true
         } catch {
             $downloadedSftp = $false
@@ -843,23 +932,38 @@ function Run-AgentInstall {
         }
     }
 
-    $bindIPAddresses = ($bindIPAddresses -split ',') | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
-    $bindIPAddressesValue = ($bindIPAddresses -join ',')
+    $resolvedBindIPAddresses = ($resolvedBindIPAddresses -split ',') | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+    $bindIPAddressesValue = ($resolvedBindIPAddresses -join ',')
 
-    Register-Agent -CoreUrl $coreUrl -BootstrapToken $bootstrapToken -AgentVersion $agentVersion -ConfigPath $configPath -FileBaseDirs $fileBaseDirs -BindIPAddresses $bindIPAddressesValue
+    Register-Agent -CoreUrl $agentCoreUrl -BootstrapToken $agentBootstrapToken -AgentVersion $resolvedAgentVersion -ConfigPath $resolvedConfigPath -FileBaseDirs $resolvedFileBaseDirs -BindIPAddresses $bindIPAddressesValue
     Install-AgentServices `
         -ServiceName $serviceName `
         -AgentPath $agentPath `
-        -ConfigPath $configPath `
-        -SftpServiceName $sftpServiceName `
+        -ConfigPath $resolvedConfigPath `
+        -SftpServiceName $resolvedSftpServiceName `
         -SftpPath $sftpPath `
         -SftpConfigPath $sftpConfigPath `
-        -InstanceBaseDir $instanceBaseDir `
-        -SftpBaseDir $sftpBaseDir
+        -InstanceBaseDir $resolvedInstanceBaseDir `
+        -SftpBaseDir $resolvedSftpBaseDir
 }
 
 function Main-Menu {
     Assert-Admin
+
+    if ($Mode -ne 'Menu') {
+        Write-Log "Starte Windows-Installer im Modus: $Mode"
+        switch ($Mode) {
+            'Panel' { Run-PanelInstall }
+            'Agent' { Run-AgentInstall }
+            'PanelAgent' { Run-PanelInstall; Run-AgentInstall }
+        }
+        return
+    }
+
+    if ($NonInteractive) {
+        throw 'Im NonInteractive-Modus muss -Mode Panel, -Mode Agent oder -Mode PanelAgent angegeben werden.'
+    }
+
     Write-Host 'EasyWI Installer Menü (Windows)'
     Write-Host 'Dieses Skript erklärt jeden Schritt und führt die Installation automatisiert aus.'
     Write-Host ''

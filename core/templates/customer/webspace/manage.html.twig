@@ -63,7 +63,7 @@
             </div>
         </div>
 
-        <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div id="ssl" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-5 py-4">
                 <h2 class="text-lg font-semibold text-slate-900">Domains & SSL</h2>
             </div>
@@ -209,7 +209,7 @@
 
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_php_settings_title', page_locale()) }}</h2>
+                    <h2 id="php" class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_php_settings_title', page_locale()) }}</h2>
                     <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_php_settings_description', page_locale()) }}</p>
                 </div>
                 <form method="post" action="/webspace/manage/php" class="space-y-4 px-5 py-4">
@@ -272,7 +272,7 @@
         <div class="grid gap-6 lg:grid-cols-2">
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_backup_title', page_locale()) }}</h2>
+                    <h2 id="backups" class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_backup_title', page_locale()) }}</h2>
                     <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_backup_description', page_locale()) }}</p>
                 </div>
                 <form method="post" action="/webspace/manage/backup" class="space-y-4 px-5 py-4">
@@ -345,7 +345,7 @@
         <div class="grid gap-6 lg:grid-cols-2">
             <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-5 py-4">
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_logs_title', page_locale()) }}</h2>
+                    <h2 id="logs" class="text-lg font-semibold text-slate-900">{{ t('customer_webspace_manage_logs_title', page_locale()) }}</h2>
                     <p class="text-sm text-slate-700">{{ t('customer_webspace_manage_logs_description', page_locale()) }}</p>
                 </div>
                 <div class="space-y-3 px-5 py-4 text-sm text-slate-700">

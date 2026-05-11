@@ -35,7 +35,7 @@ proc = subprocess.Popen(
 os.close(slave)
 output = b""
 inputs = [
-    (b"3\n", b"Auswahl [1-5]:"),
+    (b"3\n", b"Auswahl [1-6]:"),
     (b"1\n", b"Auswahl [1-3]:"),
     (b"\n", b"DB-Root-Passwort"),
 ]
@@ -81,11 +81,14 @@ fi
 rg -q 'verify_checksum' "$repo_root/installer/linux-agent/install-agent.sh"
 rg -q 'PROXY_URL' "$repo_root/installer/linux-agent/install-agent.sh"
 rg -q 'LOG_PATH' "$repo_root/installer/linux-agent/install-agent.sh"
+rg -q 'PanelAgent' "$repo_root/installer/easywi-installer-menu-windows.ps1"
+rg -q 'RunComposerInstall' "$repo_root/installer/easywi-installer-menu-windows.ps1"
 
 if command -v pwsh >/dev/null 2>&1; then
   pwsh -NoProfile -Command "[void][System.Management.Automation.Language.Parser]::ParseFile('$repo_root/installer/windows-agent/install-service.ps1',[ref]\$null,[ref]\$null)"
   pwsh -NoProfile -Command "[void][System.Management.Automation.Language.Parser]::ParseFile('$repo_root/installer/windows-agent/uninstall-service.ps1',[ref]\$null,[ref]\$null)"
   pwsh -NoProfile -Command "[void][System.Management.Automation.Language.Parser]::ParseFile('$repo_root/installer/windows-agent/install-agent.ps1',[ref]\$null,[ref]\$null)"
+  pwsh -NoProfile -Command "[void][System.Management.Automation.Language.Parser]::ParseFile('$repo_root/installer/easywi-installer-menu-windows.ps1',[ref]\$null,[ref]\$null)"
 
   pwsh -NoProfile -Command "if (-not (Select-String -Path '$repo_root/installer/windows-agent/install-agent.ps1' -Pattern 'Assert-Checksum' -Quiet)) { exit 1 }"
   pwsh -NoProfile -Command "if (-not (Select-String -Path '$repo_root/installer/windows-agent/install-agent.ps1' -Pattern 'Resolve-EffectiveProxy' -Quiet)) { exit 1 }"

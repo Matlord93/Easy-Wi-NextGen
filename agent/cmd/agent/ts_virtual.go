@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -498,7 +499,11 @@ func handleTsQueryList(job jobs.Job, withClient func(map[string]any, func(*ts3Qu
 		return err
 	})
 	if err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
+		if command == "banlist" && isTsQueryEmptyResultError(err) {
+			lines = []string{}
+		} else {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
 	}
 
 	return orchestratorResult{
@@ -559,11 +564,24 @@ func newTs3QueryClient(payload map[string]any) (*ts3QueryClient, error) {
 	}
 	address := net.JoinHostPort(queryIP, queryPort)
 
-	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+	conn, err := dialTsQueryTCP(address)
 	if err != nil {
 		return nil, fmt.Errorf("connect serverquery: %w", err)
 	}
 	return newTsQueryClientWithConn(conn, adminUser, adminPass)
+}
+
+func dialTsQueryTCP(address string) (net.Conn, error) {
+	dialer := net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}
+	conn, err := dialer.Dial("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(30 * time.Second)
+	}
+	return conn, nil
 }
 
 func newTs6QueryClient(payload map[string]any) (*ts3QueryClient, error) {
@@ -644,12 +662,12 @@ func newTs6QueryClientTCP(payload map[string]any) (*ts3QueryClient, error) {
 	}
 	address := net.JoinHostPort(queryIP, queryPort)
 
-	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+	conn, err := dialTsQueryTCP(address)
 	if err != nil {
 		primaryErr := err
 		if fallbackPort != "" && fallbackPort != queryPort {
 			fallbackAddress := net.JoinHostPort(queryIP, fallbackPort)
-			conn, err = net.DialTimeout("tcp", fallbackAddress, 5*time.Second)
+			conn, err = dialTsQueryTCP(fallbackAddress)
 			if err != nil {
 				return nil, fmt.Errorf("connect serverquery: primary %s failed: %w; fallback %s failed: %v", address, primaryErr, fallbackAddress, err)
 			}
@@ -819,13 +837,15 @@ func (conn *sshQueryConn) Close() error {
 }
 
 type ts3QueryClient struct {
-	conn   queryConn
-	reader *bufio.Reader
-	writer *bufio.Writer
+	conn           queryConn
+	reader         *bufio.Reader
+	writer         *bufio.Writer
+	commandTimeout time.Duration
+	deadlineTimer  *time.Timer
 }
 
 func (client *ts3QueryClient) close() {
-	if client == nil {
+	if client == nil || client.conn == nil {
 		return
 	}
 	_ = client.conn.Close()
@@ -833,9 +853,10 @@ func (client *ts3QueryClient) close() {
 
 func newTsQueryClientWithConn(conn queryConn, adminUser, adminPass string) (*ts3QueryClient, error) {
 	client := &ts3QueryClient{
-		conn:   conn,
-		reader: bufio.NewReader(conn),
-		writer: bufio.NewWriter(conn),
+		conn:           conn,
+		reader:         bufio.NewReader(conn),
+		writer:         bufio.NewWriter(conn),
+		commandTimeout: 10 * time.Second,
 	}
 
 	if err := client.drainGreeting(); err != nil {
@@ -861,13 +882,7 @@ func normalizeQueryConnectIP(queryIP string) string {
 }
 
 func (client *ts3QueryClient) command(cmd string) (map[string]string, error) {
-	if _, err := client.writer.WriteString(cmd + "\n"); err != nil {
-		return nil, err
-	}
-	if err := client.writer.Flush(); err != nil {
-		return nil, err
-	}
-	lines, err := client.readResponse()
+	lines, err := client.commandLines(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -875,6 +890,9 @@ func (client *ts3QueryClient) command(cmd string) (map[string]string, error) {
 }
 
 func (client *ts3QueryClient) commandLines(cmd string) ([]string, error) {
+	client.setDeadline()
+	defer client.clearDeadline()
+
 	if _, err := client.writer.WriteString(cmd + "\n"); err != nil {
 		return nil, err
 	}
@@ -882,6 +900,38 @@ func (client *ts3QueryClient) commandLines(cmd string) ([]string, error) {
 		return nil, err
 	}
 	return client.readResponse()
+}
+
+type queryDeadlineConn interface {
+	SetDeadline(time.Time) error
+}
+
+func (client *ts3QueryClient) setDeadline() {
+	if client == nil || client.conn == nil || client.commandTimeout <= 0 {
+		return
+	}
+	if deadlineConn, ok := client.conn.(queryDeadlineConn); ok {
+		_ = deadlineConn.SetDeadline(time.Now().Add(client.commandTimeout))
+		return
+	}
+	client.deadlineTimer = time.AfterFunc(client.commandTimeout, func() {
+		client.close()
+	})
+}
+
+func (client *ts3QueryClient) clearDeadline() {
+	if client == nil || client.conn == nil {
+		return
+	}
+	if client.deadlineTimer != nil {
+		client.deadlineTimer.Stop()
+		client.deadlineTimer = nil
+	}
+	deadlineConn, ok := client.conn.(queryDeadlineConn)
+	if !ok {
+		return
+	}
+	_ = deadlineConn.SetDeadline(time.Time{})
 }
 
 func (client *ts3QueryClient) drainGreeting() error {
@@ -921,13 +971,50 @@ func (client *ts3QueryClient) readResponse() ([]string, error) {
 			continue
 		}
 		if strings.HasPrefix(line, "error id=") {
-			if !strings.HasPrefix(line, "error id=0") {
+			queryErr := parseTsQueryErrorLine(line)
+			if queryErr != nil && queryErr.ID != "0" {
+				return nil, queryErr
+			}
+			if queryErr == nil && !strings.HasPrefix(line, "error id=0") {
 				return nil, fmt.Errorf("serverquery error: %s", line)
 			}
 			return lines, nil
 		}
 		lines = append(lines, line)
 	}
+}
+
+type tsQueryError struct {
+	ID      string
+	Message string
+	Raw     string
+}
+
+func (err *tsQueryError) Error() string {
+	if err == nil {
+		return ""
+	}
+	if err.Message == "" {
+		return fmt.Sprintf("serverquery error id=%s", err.ID)
+	}
+	return fmt.Sprintf("serverquery error id=%s msg=%s", err.ID, err.Message)
+}
+
+func parseTsQueryErrorLine(line string) *tsQueryError {
+	if !strings.HasPrefix(line, "error id=") {
+		return nil
+	}
+	fields := parseTs3QueryLine(strings.TrimPrefix(line, "error "))
+	return &tsQueryError{ID: fields["id"], Message: fields["msg"], Raw: line}
+}
+
+func isTsQueryEmptyResultError(err error) bool {
+	var queryErr *tsQueryError
+	if !errors.As(err, &queryErr) {
+		return false
+	}
+	message := strings.ToLower(queryErr.Message)
+	return queryErr.ID == "1281" || strings.Contains(message, "database empty result set") || strings.Contains(message, "empty result")
 }
 
 func parseTs3QueryLines(lines []string) map[string]string {

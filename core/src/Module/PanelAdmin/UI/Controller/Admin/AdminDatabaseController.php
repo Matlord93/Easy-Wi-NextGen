@@ -79,6 +79,7 @@ final class AdminDatabaseController
         $nodeId = (int) $request->request->get('node_id', 0);
         $name = trim((string) $request->request->get('name', ''));
         $username = trim((string) $request->request->get('username', ''));
+        $password = (string) $request->request->get('password', '');
 
         $errors = [];
         $customer = $customerId > 0 ? $this->userRepository->find($customerId) : null;
@@ -98,6 +99,9 @@ final class AdminDatabaseController
         if ($username === '') {
             $errors[] = 'Username is required.';
         }
+        if (mb_strlen($password) < 8) {
+            $errors[] = 'Password must contain at least 8 characters.';
+        }
         $errors = array_merge($errors, $this->namingPolicy->validateDatabaseName($name));
         $errors = array_merge($errors, $this->namingPolicy->validateUsername($username));
 
@@ -112,7 +116,7 @@ final class AdminDatabaseController
             return $this->renderWithErrors($errors);
         }
 
-        $encryptedPassword = null;
+        $encryptedPassword = $this->encryptionService->encrypt($password);
         $database = new Database(
             $customer,
             $node->getEngine(),
@@ -164,8 +168,12 @@ final class AdminDatabaseController
             return new Response('Database not found.', Response::HTTP_NOT_FOUND);
         }
 
+        $password = (string) $request->request->get('password', '');
+        if (mb_strlen($password) < 8) {
+            return $this->renderWithErrors(['Password must contain at least 8 characters.']);
+        }
 
-        $encryptedPassword = null;
+        $encryptedPassword = $this->encryptionService->encrypt($password);
         $database->setEncryptedPassword($encryptedPassword);
 
         $agentId = $database->getNode()?->getAgent()->getId() ?? '';
@@ -216,6 +224,33 @@ final class AdminDatabaseController
         $this->entityManager->flush();
 
         return new Response('', Response::HTTP_SEE_OTHER, ['Location' => '/admin/databases']);
+    }
+
+
+    #[Route(path: '/customers/{id}/limit', name: 'admin_database_customer_limit', methods: ['POST'])]
+    public function updateCustomerLimit(Request $request, int $id): Response
+    {
+        $actor = $request->attributes->get('current_user');
+        if (!$actor instanceof User || !$actor->isAdmin()) {
+            return new Response('Forbidden.', Response::HTTP_FORBIDDEN);
+        }
+
+        $customer = $this->userRepository->find($id);
+        if (!$customer instanceof User || $customer->getType() !== UserType::Customer) {
+            return $this->renderWithErrors(['Customer not found.']);
+        }
+
+        $limit = max(0, (int) $request->request->get('database_limit', 0));
+        $previousLimit = $customer->getDatabaseLimit();
+        $customer->setDatabaseLimit($limit);
+        $this->auditLogger->log($actor, 'database.customer_limit_updated', [
+            'customer_id' => $customer->getId(),
+            'previous_limit' => $previousLimit,
+            'database_limit' => $limit,
+        ]);
+        $this->entityManager->flush();
+
+        return $this->renderWithErrors();
     }
 
     #[Route(path: '/nodes', name: 'admin_database_nodes_create', methods: ['POST'])]

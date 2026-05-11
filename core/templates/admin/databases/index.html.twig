@@ -135,6 +135,28 @@
         </div>
     </div>
 
+
+    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-200 px-6 py-4">
+            <h2 class="text-lg font-semibold text-slate-900">Kunden-Datenbank-Limits zuweisen</h2>
+            <p class="text-sm text-slate-700">Lege fest, wie viele Datenbanken ein Kunde im Kundenbereich selbst erstellen darf. 0 bedeutet unbegrenzt.</p>
+        </div>
+        <div class="grid gap-3 px-6 py-6 md:grid-cols-2 xl:grid-cols-3">
+            {% for customer in customers %}
+                <form method="post" action="{{ path('admin_database_customer_limit', {id: customer.id}) }}" class="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
+                    <div class="min-w-0 flex-1">
+                        <div class="truncate text-sm font-semibold text-slate-900">{{ customer.email }}</div>
+                        <div class="text-xs text-slate-500">Kunden-ID {{ customer.id }}</div>
+                    </div>
+                    <input name="database_limit" type="number" min="0" value="{{ customer.databaseLimit }}" class="w-24 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">Speichern</button>
+                </form>
+            {% else %}
+                <div class="text-sm text-slate-600">Keine Kunden vorhanden.</div>
+            {% endfor %}
+        </div>
+    </div>
+
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-6 py-4">

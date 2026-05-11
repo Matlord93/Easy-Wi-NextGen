@@ -206,6 +206,80 @@
                                 </div>
                             </td>
                         </tr>
+                        <tr class="bg-slate-50/60">
+                            <td colspan="11" class="px-6 py-5">
+                                <details class="group rounded-xl border border-slate-200 bg-white">
+                                    <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800 group-open:border-b group-open:border-slate-200">
+                                        Domains, SSL, Subdomains und E-Mail-Adressen verwalten
+                                    </summary>
+                                    <div class="grid gap-5 p-4 xl:grid-cols-3">
+                                        <form method="post" action="{{ path('admin_webspaces_domain_add', {id: webspace.id}) }}" class="space-y-3 rounded-lg border border-slate-200 p-4">
+                                            <h3 class="text-xs font-semibold uppercase text-slate-700">Domain/Subdomain hinzufügen</h3>
+                                            <input name="fqdn" placeholder="example.com oder app.example.com" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" required>
+                                            <select name="type" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                                <option value="domain">Domain</option>
+                                                <option value="subdomain">Subdomain</option>
+                                            </select>
+                                            <input name="target_path" placeholder="Zielpfad, z. B. public/shop" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                            <input name="server_aliases" placeholder="Aliase: www.example.com, m.example.com" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                            <label class="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" name="redirect_https" value="1"> HTTPS-Redirect</label>
+                                            <label class="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" name="redirect_www" value="1"> WWW-Redirect</label>
+                                            <label class="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" name="request_tls" value="1"> SSL-Zertifikat direkt anfordern</label>
+                                            <input name="ssl_email" type="email" placeholder="admin@example.com (optional)" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                            <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">Hinzufügen</button>
+                                        </form>
+
+                                        <div class="space-y-3 xl:col-span-2">
+                                            <h3 class="text-xs font-semibold uppercase text-slate-700">Zugewiesene Domains</h3>
+                                            {% for domain in webspace.domains %}
+                                                <div class="rounded-lg border border-slate-200 bg-white p-4">
+                                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                                        <div>
+                                                            <div class="font-semibold text-slate-900">{{ domain.name }}</div>
+                                                            <div class="text-xs text-slate-500">{{ domain.type }} · {{ domain.status }} · Apply: {{ domain.apply_status }}{% if domain.ssl_expires_at %} · SSL bis {{ domain.ssl_expires_at|date('Y-m-d') }}{% endif %}</div>
+                                                        </div>
+                                                        <form method="post" action="{{ path('admin_webspaces_domain_delete', {id: webspace.id, domainId: domain.id}) }}" onsubmit="return confirm('Domain entfernen?');">
+                                                            <button class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">Entfernen</button>
+                                                        </form>
+                                                    </div>
+                                                    <form method="post" action="{{ path('admin_webspaces_domain_update', {id: webspace.id, domainId: domain.id}) }}" class="mt-3 grid gap-2 md:grid-cols-4">
+                                                        <input name="target_path" value="{{ domain.target_path }}" placeholder="Zielpfad" class="rounded-lg border border-slate-200 px-3 py-2 text-xs md:col-span-1">
+                                                        <input name="server_aliases" value="{{ domain.server_aliases }}" placeholder="Subdomains/Aliase" class="rounded-lg border border-slate-200 px-3 py-2 text-xs md:col-span-2">
+                                                        <div class="flex items-center gap-3 text-xs text-slate-700">
+                                                            <label><input type="checkbox" name="redirect_https" value="1" {% if domain.redirect_https %}checked{% endif %}> HTTPS</label>
+                                                            <label><input type="checkbox" name="redirect_www" value="1" {% if domain.redirect_www %}checked{% endif %}> WWW</label>
+                                                        </div>
+                                                        <button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 md:col-span-4">Speichern & anwenden</button>
+                                                    </form>
+                                                    <div class="mt-3 flex flex-wrap gap-2">
+                                                        <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'issue'}) }}" class="flex gap-2">
+                                                            <input name="ssl_email" type="email" placeholder="admin@{{ domain.name }}" class="rounded-lg border border-slate-200 px-3 py-1 text-xs">
+                                                            <button class="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white">SSL ausstellen</button>
+                                                        </form>
+                                                        <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'renew'}) }}">
+                                                            <button class="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">SSL erneuern</button>
+                                                        </form>
+                                                        <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'disable'}) }}">
+                                                            <button class="rounded-lg bg-slate-700 px-3 py-1 text-xs font-semibold text-white">SSL deaktivieren</button>
+                                                        </form>
+                                                    </div>
+                                                    <form method="post" action="{{ path('admin_webspaces_mailbox_create', {id: webspace.id}) }}" class="mt-3 grid gap-2 border-t border-slate-100 pt-3 md:grid-cols-5">
+                                                        <input type="hidden" name="domain_id" value="{{ domain.id }}">
+                                                        <input name="local_part" placeholder="info" class="rounded-lg border border-slate-200 px-3 py-2 text-xs" required>
+                                                        <input value="@{{ domain.name }}" disabled class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                                                        <input name="password" type="password" placeholder="Passwort" class="rounded-lg border border-slate-200 px-3 py-2 text-xs" required>
+                                                        <input name="quota" type="number" min="1" value="1024" class="rounded-lg border border-slate-200 px-3 py-2 text-xs" required>
+                                                        <button class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">E-Mail anlegen</button>
+                                                    </form>
+                                                </div>
+                                            {% else %}
+                                                <div class="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">Noch keine Domains zugewiesen.</div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </details>
+                            </td>
+                        </tr>
                     {% else %}
                         <tr>
                             <td colspan="11" class="px-6 py-6 text-center text-sm text-slate-600">{{ t('admin_webspaces_empty', page_locale()) }}</td>

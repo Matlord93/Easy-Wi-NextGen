@@ -63,6 +63,7 @@ final class CustomerDatabaseController
         $nodeId = (int) $request->request->get('node_id', 0);
         $name = trim((string) $request->request->get('name', ''));
         $username = trim((string) $request->request->get('username', ''));
+        $password = (string) $request->request->get('password', '');
 
         $errors = [];
         $node = $nodeId > 0 ? $this->databaseNodeRepository->find($nodeId) : null;
@@ -77,6 +78,9 @@ final class CustomerDatabaseController
         if ($username === '') {
             $errors[] = 'Username is required.';
         }
+        if (mb_strlen($password) < 8) {
+            $errors[] = 'Password must contain at least 8 characters.';
+        }
         $errors = array_merge($errors, $this->namingPolicy->validateDatabaseName($name));
         $errors = array_merge($errors, $this->namingPolicy->validateUsername($username));
 
@@ -90,7 +94,7 @@ final class CustomerDatabaseController
             return $this->renderWithErrors($customer, $errors);
         }
 
-        $encryptedPassword = null;
+        $encryptedPassword = $this->encryptionService->encrypt($password);
         $database = new Database(
             $customer,
             $node->getEngine(),
