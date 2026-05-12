@@ -88,6 +88,15 @@ final class CentralSchedulerContractTest extends TestCase
         self::assertStringContainsString("new Job('instance.restart'", (string) file_get_contents(__DIR__.'/../../src/Module/Gameserver/Application/GameserverInstanceScheduleRunner.php'));
     }
 
+    public function testInstallerUsesCentralSchedulerTimerInsteadOfMissingMessengerReceiver(): void
+    {
+        $installer = (string) file_get_contents(__DIR__.'/../../../installer/easywi-installer-menu-linux.sh');
+
+        self::assertStringNotContainsString('messenger:consume scheduler_default', $installer);
+        self::assertStringContainsString('app:run-schedules --env=prod --no-interaction', $installer);
+        self::assertStringContainsString('easywi-scheduler.timer', $installer);
+    }
+
     public function testFeatureSpecificCommandsAreOptionalDebugHelpers(): void
     {
         $docs = self::readCentralSchedulerDocs();

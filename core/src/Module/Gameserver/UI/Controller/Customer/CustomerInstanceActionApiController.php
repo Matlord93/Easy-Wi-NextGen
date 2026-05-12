@@ -43,6 +43,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -723,13 +724,26 @@ final class CustomerInstanceActionApiController
             return $this->apiError($request, 'NOT_FOUND', 'Backup archive is unavailable.', JsonResponse::HTTP_NOT_FOUND);
         }
 
+        $agentClient = $this->agentGameServerClient;
         try {
-            $download = $this->agentGameServerClient->downloadInstanceBackup($instance, $this->buildBackupDownloadPayload($backup, $archivePath));
+            $download = $agentClient->openInstanceBackupDownload($instance, $this->buildBackupDownloadPayload($backup, $archivePath));
         } catch (\RuntimeException $exception) {
-            return $this->apiError($request, 'NOT_FOUND', $exception->getMessage() !== '' ? $exception->getMessage() : 'Backup archive is unavailable.', JsonResponse::HTTP_NOT_FOUND);
+            $message = $exception->getMessage() !== '' ? $exception->getMessage() : 'Backup archive is unavailable.';
+            $isResponseWriteFailure = $this->isResponseWriteFailure($message);
+
+            return $this->apiError(
+                $request,
+                $isResponseWriteFailure ? 'BACKUP_DOWNLOAD_FAILED' : 'NOT_FOUND',
+                $message,
+                $isResponseWriteFailure ? JsonResponse::HTTP_BAD_GATEWAY : JsonResponse::HTTP_NOT_FOUND,
+            );
         }
 
-        $response = new Response($download['content']);
+        $response = new StreamedResponse(static function () use ($agentClient, $download): void {
+            foreach ($agentClient->streamResponseContent($download['response']) as $chunk) {
+                echo $chunk;
+            }
+        });
         $response->headers->set('Content-Type', $download['content_type'] ?: 'application/gzip');
         $response->headers->set('Content-Disposition', $response->headers->makeDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $downloadName));
         $response->headers->set('X-Content-Type-Options', 'nosniff');
@@ -2140,6 +2154,14 @@ final class CustomerInstanceActionApiController
         }
 
         return null;
+    }
+
+    private function isResponseWriteFailure(string $message): bool
+    {
+        $normalized = strtolower($message);
+
+        return str_contains($normalized, 'failed writing')
+            || str_contains($normalized, 'response buffer');
     }
 
     /**

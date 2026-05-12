@@ -94,7 +94,6 @@ final class AdminSettingsController
         if ($defaultLocale !== '' && !in_array($defaultLocale, ['de', 'en'], true)) {
             $errors[] = 'Default mail locale must be de or en.';
         }
-
         $defaultSlots = $this->parseOptionalInt($defaultSlotsRaw, 'Default slots must be numeric.', $errors);
         $minSlots = $this->parseOptionalInt($minSlotsRaw, 'Min slots must be numeric.', $errors);
         $maxSlots = $this->parseOptionalInt($maxSlotsRaw, 'Max slots must be numeric.', $errors);
@@ -161,9 +160,9 @@ final class AdminSettingsController
                 'saved' => false,
                 'errors' => $errors,
                 'twoFactorOverview' => $this->resolveTwoFactorOverview($activeTab),
-            'agentRegistrationTokenMasked' => $this->settingsService->getAgentRegistrationTokenMasked(),
-            'agentRegistrationTokenSet' => $this->settingsService->hasAgentRegistrationTokenInDb(),
-            'tokenRotated' => $request->query->getBoolean('tokenRotated'),
+                'agentRegistrationTokenMasked' => $this->settingsService->getAgentRegistrationTokenMasked(),
+                'agentRegistrationTokenSet' => $this->settingsService->hasAgentRegistrationTokenInDb(),
+                'tokenRotated' => $request->query->getBoolean('tokenRotated'),
             ]), Response::HTTP_BAD_REQUEST);
         }
 

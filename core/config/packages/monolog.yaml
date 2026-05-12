@@ -2,24 +2,44 @@ monolog:
   channels: ['files', 'update', 'setup']
   handlers:
     main:
+      type: whatfailuregroup
+      members: ['main_stream']
+    main_stream:
       type: stream
       path: '%kernel.logs_dir%/%kernel.environment%.log'
       level: error
+      file_permission: 0664
+      nested: true
     files:
+      type: whatfailuregroup
+      members: ['files_stream']
+      channels: ['files']
+    files_stream:
       type: stream
       path: '%kernel.logs_dir%/files.%kernel.environment%.log'
       level: info
-      channels: ['files']
+      file_permission: 0664
+      nested: true
     update:
+      type: whatfailuregroup
+      members: ['update_stream']
+      channels: ['update']
+    update_stream:
       type: stream
       path: '%kernel.logs_dir%/update.%kernel.environment%.log'
       level: info
-      channels: ['update']
+      file_permission: 0664
+      nested: true
     setup:
+      type: whatfailuregroup
+      members: ['setup_stream']
+      channels: ['setup']
+    setup_stream:
       type: stream
       path: '%kernel.logs_dir%/setup.%kernel.environment%.log'
       level: info
-      channels: ['setup']
+      file_permission: 0664
+      nested: true
     console:
       type: console
       process_psr_3_messages: false

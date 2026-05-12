@@ -9,6 +9,7 @@ use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 
 class AgentGameServerClient
 {
@@ -44,6 +45,24 @@ class AgentGameServerClient
      */
     public function downloadInstanceBackup(Instance $instance, array $payload): array
     {
+        $download = $this->openInstanceBackupDownload($instance, $payload);
+        $content = '';
+        foreach ($this->streamResponseContent($download['response']) as $chunk) {
+            $content .= $chunk;
+        }
+
+        return [
+            'content' => $content,
+            'content_type' => $download['content_type'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{response: ResponseInterface, content_type: string|null}
+     */
+    public function openInstanceBackupDownload(Instance $instance, array $payload): array
+    {
         $endpoint = sprintf('/v1/instances/%d/backups/download', (int) $instance->getId());
         $headers = $this->buildAuthHeaders($instance, 'POST', $endpoint);
         $headers['Accept'] = 'application/octet-stream';
@@ -62,30 +81,49 @@ class AgentGameServerClient
         }
 
         if ($statusCode < 200 || $statusCode >= 300) {
-            $content = $response->getContent(false);
-            $message = 'Agent backup download failed.';
-            try {
-                $decoded = json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
-                if (is_array($decoded) && is_string($decoded['message'] ?? null) && $decoded['message'] !== '') {
-                    $message = $decoded['message'];
-                } elseif (is_array($decoded) && is_string($decoded['error'] ?? null) && $decoded['error'] !== '') {
-                    $message = $decoded['error'];
-                }
-            } catch (\JsonException) {
-                if (trim($content) !== '') {
-                    $message = trim($content);
-                }
-            }
-
-            throw new \RuntimeException($message);
+            throw new \RuntimeException($this->extractErrorMessage($response));
         }
 
         $headers = $response->getHeaders(false);
 
         return [
-            'content' => $response->getContent(false),
+            'response' => $response,
             'content_type' => $headers['content-type'][0] ?? null,
         ];
+    }
+
+    /**
+     * @return \Generator<int, string>
+     */
+    public function streamResponseContent(ResponseInterface $response): \Generator
+    {
+        foreach ($this->httpClient->stream($response) as $chunk) {
+            if ($chunk->isTimeout() || $chunk->isFirst() || $chunk->isLast()) {
+                continue;
+            }
+
+            yield $chunk->getContent();
+        }
+    }
+
+    private function extractErrorMessage(ResponseInterface $response): string
+    {
+        $content = $response->getContent(false);
+        $message = 'Agent backup download failed.';
+        try {
+            $decoded = json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
+            if (is_array($decoded) && is_string($decoded['message'] ?? null) && $decoded['message'] !== '') {
+                $message = $decoded['message'];
+            } elseif (is_array($decoded) && is_string($decoded['error'] ?? null) && $decoded['error'] !== '') {
+                $message = $decoded['error'];
+            }
+        } catch (\JsonException) {
+            if (trim($content) !== '') {
+                $message = trim($content);
+            }
+        }
+
+        return $message;
     }
 
     /**

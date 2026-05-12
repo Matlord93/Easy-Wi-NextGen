@@ -462,6 +462,17 @@ nginx_packages() {
   esac
 }
 
+certbot_packages() {
+  local manager="$1"
+  case "${manager}" in
+    apt)     echo "certbot python3-certbot-nginx" ;;
+    dnf|yum) echo "certbot python3-certbot-nginx" ;;
+    zypper)  echo "python3-certbot python3-certbot-nginx" ;;
+    pacman)  echo "certbot certbot-nginx" ;;
+    apk)     echo "certbot py3-certbot-nginx" ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # Crypto helpers
 # ---------------------------------------------------------------------------
@@ -671,6 +682,27 @@ NGINX
     warn "nginx -t schlug fehl – Konfiguration prüfen."
   fi
   ok "Nginx konfiguriert: ${config_file}"
+}
+
+detect_existing_php_fpm_socket() {
+  local socket
+  for socket in /run/php/php*-fpm.sock /run/php-fpm/www.sock /run/php-fpm/php-fpm.sock; do
+    [[ -S "${socket}" ]] && { printf '%s\n' "${socket}"; return 0; }
+  done
+  return 1
+}
+
+update_default_uri() {
+  local env_path="$1" default_uri="$2"
+  local contents="" line
+  line="DEFAULT_URI=${default_uri}"
+  [[ -f "${env_path}" ]] && contents="$(cat "${env_path}")"
+
+  if [[ "${contents}" =~ (^|$'\n')DEFAULT_URI= ]]; then
+    printf '%s\n' "${contents}" | sed "s#^DEFAULT_URI=.*#${line}#" > "${env_path}"
+  else
+    { [[ -n "${contents}" ]] && printf '%s\n' "${contents}"; printf '%s\n' "${line}"; } > "${env_path}"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -1090,39 +1122,47 @@ UNIT
 write_panel_scheduler_service() {
   local php_bin="$1" console="$2"
 
-  step "Richte Symfony Scheduler-Worker-Service ein."
+  step "Richte zentralen Scheduler ein."
   if has_systemctl; then
     cat > /etc/systemd/system/easywi-scheduler.service <<UNIT
 [Unit]
-Description=EasyWI Symfony Scheduler Worker
+Description=EasyWI central scheduler
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
-ExecStart=${php_bin} ${console} messenger:consume scheduler_default --time-limit=3600
-Restart=always
-RestartSec=5
+Type=oneshot
+ExecStart=${php_bin} ${console} app:run-schedules --env=prod --no-interaction
+UNIT
+
+    cat > /etc/systemd/system/easywi-scheduler.timer <<UNIT
+[Unit]
+Description=Run EasyWI central scheduler every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Unit=easywi-scheduler.service
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=timers.target
 UNIT
-    service_enable_start easywi-scheduler.service
-    ok "Scheduler-Service gestartet."
+
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl disable --now easywi-scheduler.service 2>/dev/null || true
+    systemctl enable easywi-scheduler.timer 2>/dev/null || warn "Konnte easywi-scheduler.timer nicht für Autostart aktivieren."
+    systemctl start easywi-scheduler.timer 2>/dev/null || warn "Konnte easywi-scheduler.timer nicht starten."
+    ok "Scheduler-Timer gestartet."
   elif has_openrc; then
-    cat > /etc/init.d/easywi-scheduler <<INIT
-#!/sbin/openrc-run
-description="EasyWI Symfony Scheduler Worker"
-command="${php_bin}"
-command_args="${console} messenger:consume scheduler_default --time-limit=3600"
-command_background=true
-pidfile="/run/easywi-scheduler.pid"
-INIT
-    chmod +x /etc/init.d/easywi-scheduler
-    rc-update add easywi-scheduler default 2>/dev/null || true
-    rc-service easywi-scheduler start 2>/dev/null \
-      || warn "Scheduler-Service konnte nicht gestartet werden (OpenRC)."
-    ok "Scheduler-Service eingerichtet (OpenRC)."
+    cat > /etc/cron.d/easywi-scheduler <<CRON
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* * * * * root ${php_bin} ${console} app:run-schedules --env=prod --no-interaction >/dev/null 2>&1
+CRON
+    chmod 0644 /etc/cron.d/easywi-scheduler
+    start_first_available_service crond cron
+    ok "Scheduler-Cron eingerichtet (OpenRC)."
   else
     warn "Kein systemd/OpenRC – Scheduler muss manuell eingerichtet werden."
   fi
@@ -1184,29 +1224,117 @@ CRON
   ok "Cron-Job eingerichtet: /etc/cron.d/easywi"
 }
 
+normalize_hostname() {
+  local host="${1:-}"
+  host="${host#http://}"
+  host="${host#https://}"
+  host="${host%%/*}"
+  host="${host%%:*}"
+  printf '%s' "${host}"
+}
+
+is_valid_certbot_domain() {
+  local domain="$1"
+  [[ "${domain}" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$ ]]
+}
+
+resolve_ipv4s() {
+  local host="$1"
+  getent ahostsv4 "${host}" 2>/dev/null | awk '{print $1}' | sort -u
+}
+
+resolve_local_ipv4s() {
+  {
+    hostname -I 2>/dev/null | tr ' ' '\n'
+    ip -4 addr show scope global 2>/dev/null | awk '/inet /{sub(/\/.*/,"",$2); print $2}'
+    detect_primary_ipv4 2>/dev/null || true
+  } | awk 'NF && $0 !~ /^127\./' | sort -u
+}
+
+check_domain_points_to_server() {
+  local domain="$1"
+  local domain_ips local_ips
+  domain_ips="$(resolve_ipv4s "${domain}" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+  local_ips="$(resolve_local_ipv4s | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+
+  if [[ -z "${domain_ips}" ]]; then
+    warn "DNS-Prüfung: Für ${domain} wurden keine A-Records gefunden. Let's Encrypt wird vermutlich fehlschlagen."
+    return 1
+  fi
+  if [[ -z "${local_ips}" ]]; then
+    warn "DNS-Prüfung: Lokale Server-IP konnte nicht ermittelt werden."
+    return 1
+  fi
+
+  local dip lip
+  for dip in ${domain_ips}; do
+    for lip in ${local_ips}; do
+      if [[ "${dip}" == "${lip}" ]]; then
+        ok "DNS-Prüfung bestanden: ${domain} zeigt auf ${dip}."
+        return 0
+      fi
+    done
+  done
+
+  warn "DNS-Prüfung: ${domain} zeigt auf [${domain_ips}], lokale Server-IPs sind [${local_ips}]. Bitte DNS auf diesen Server setzen."
+  return 1
+}
+
+certbot_has_nginx_plugin() {
+  local certbot_bin="${1:-certbot}"
+  "${certbot_bin}" plugins 2>/dev/null | awk 'BEGIN{ok=0} /nginx|Nginx/{ok=1} END{exit ok?0:1}'
+}
+
+select_certbot_binary() {
+  if command -v certbot >/dev/null 2>&1 && certbot_has_nginx_plugin "$(command -v certbot)"; then
+    command -v certbot
+    return 0
+  fi
+  if [[ -x /usr/bin/certbot ]] && certbot_has_nginx_plugin /usr/bin/certbot; then
+    printf '%s\n' /usr/bin/certbot
+    return 0
+  fi
+  command -v certbot 2>/dev/null || true
+}
+
 setup_certbot() {
   local manager="$1" domain="$2" email="${3:-}"
+  domain="$(normalize_hostname "${domain}")"
   [[ -z "${domain}" || "${domain}" == "_" ]] && return 1
 
-  step "Installiere Certbot und stelle SSL-Zertifikat aus (${domain})."
-  case "${manager}" in
-    apt)     install_packages "${manager}" certbot python3-certbot-nginx ;;
-    dnf|yum) install_packages "${manager}" certbot python3-certbot-nginx ;;
-    zypper)  install_packages "${manager}" python3-certbot python3-certbot-nginx ;;
-    pacman)  install_packages "${manager}" certbot certbot-nginx ;;
-    apk)     install_packages "${manager}" certbot py3-certbot-nginx ;;
-  esac
+  if ! is_valid_certbot_domain "${domain}"; then
+    warn "Ungültige Domain für Let's Encrypt: ${domain}"
+    return 1
+  fi
 
-  local certbot_args=(--nginx --non-interactive --agree-tos -d "${domain}")
+  step "Installiere Certbot mit Nginx-Plugin und stelle SSL-Zertifikat aus (${domain})."
+  local cb_pkgs=()
+  read -r -a cb_pkgs <<< "$(certbot_packages "${manager}")"
+  install_packages "${manager}" "${cb_pkgs[@]}"
+
+  check_domain_points_to_server "${domain}" || true
+
+  local certbot_bin
+  certbot_bin="$(select_certbot_binary)"
+  if [[ -z "${certbot_bin}" ]]; then
+    warn "Certbot wurde nicht gefunden, obwohl die Pakete installiert wurden."
+    return 1
+  fi
+  if ! certbot_has_nginx_plugin "${certbot_bin}"; then
+    warn "Das Certbot-Nginx-Plugin ist nicht verfügbar. Prüfe Paketinstallation (${cb_pkgs[*]}) oder ob ein Snap-/pip-Certbot vor /usr/bin/certbot im PATH liegt."
+    return 1
+  fi
+
+  local certbot_args=(--nginx --non-interactive --agree-tos --keep-until-expiring --redirect -d "${domain}")
   [[ -n "${email}" ]] \
     && certbot_args+=(--email "${email}") \
     || certbot_args+=(--register-unsafely-without-email)
 
-  if certbot "${certbot_args[@]}" 2>/dev/null; then
-    ok "SSL-Zertifikat ausgestellt und Nginx aktualisiert (${domain})."
+  if "${certbot_bin}" "${certbot_args[@]}"; then
+    ok "SSL-Zertifikat ausgestellt, HTTP→HTTPS-Weiterleitung aktiviert und Nginx aktualisiert (${domain})."
     return 0
   fi
-  warn "Certbot fehlgeschlagen – bitte Zertifikat manuell einrichten."
+  warn "Certbot fehlgeschlagen – bitte DNS, Port 80/443 und die Nginx-Konfiguration prüfen."
   return 1
 }
 
@@ -1832,15 +1960,19 @@ INFO
   prompt_value repo_ref       "Git-Branch oder Tag"                          "${repo_ref}"
   prompt_value system_user    "Linux-Systembenutzer für EasyWI"              "${system_user}"
   prompt_value php_version    "PHP-Version"                                  "${php_version}"
-  prompt_value web_hostname   "Domain/Hostname (_ = alle, z.B. panel.example.com)" "${web_hostname}"
+  prompt_value web_hostname   "Panel-Domain (_ = alle, z.B. panel.example.com)" "${web_hostname}"
+  web_hostname="$(normalize_hostname "${web_hostname}")"
   prompt_value provision_db   "Datenbank automatisch erstellen? (true/false)" "${provision_db}"
 
-  # SSL-Abfrage nur wenn eine echte Domain angegeben wurde
+  # SSL wird direkt im Installer erledigt: Domain eingeben, DNS prüfen,
+  # certbot-nginx installieren und Zertifikat ausstellen.
   if [[ "${web_hostname}" != "_" && "${setup_ssl}" != "true" ]]; then
-    if is_tty && prompt_yes_no "SSL-Zertifikat via Let's Encrypt einrichten?" "yes"; then
+    if is_tty && prompt_yes_no "SSL-Zertifikat via Let's Encrypt jetzt im Installer einrichten?" "yes"; then
       setup_ssl="true"
-      prompt_value ssl_email "E-Mail für Let's Encrypt (leer = ohne)" "${ssl_email}"
     fi
+  fi
+  if [[ "${setup_ssl}" == "true" && "${web_hostname}" != "_" ]]; then
+    prompt_value ssl_email "E-Mail für Let's Encrypt/Certbot" "${ssl_email}"
   fi
   [[ "${setup_ssl}" == "true" ]] && web_scheme="https" || web_scheme="http"
 
@@ -1997,15 +2129,19 @@ HDR
   prompt_value repo_ref       "Git-Branch oder Tag"                                      "${repo_ref}"
   prompt_value system_user    "Linux-Systembenutzer für EasyWI"                          "${system_user}"
   prompt_value php_version    "PHP-Version"                                              "${php_version}"
-  prompt_value web_hostname   "Domain/Hostname (_ = alle, z.B. panel.example.com)"      "${web_hostname}"
+  prompt_value web_hostname   "Panel-Domain (_ = alle, z.B. panel.example.com)"          "${web_hostname}"
+  web_hostname="$(normalize_hostname "${web_hostname}")"
   prompt_value provision_db   "Datenbank automatisch erstellen? (true/false)"            "${provision_db}"
 
-  # SSL-Abfrage nur wenn eine echte Domain angegeben wurde
+  # SSL wird direkt im Installer erledigt: Domain eingeben, DNS prüfen,
+  # certbot-nginx installieren und Zertifikat ausstellen.
   if [[ "${web_hostname}" != "_" && "${setup_ssl}" != "true" ]]; then
-    if is_tty && prompt_yes_no "SSL-Zertifikat via Let's Encrypt einrichten?" "yes"; then
+    if is_tty && prompt_yes_no "SSL-Zertifikat via Let's Encrypt jetzt im Installer einrichten?" "yes"; then
       setup_ssl="true"
-      prompt_value ssl_email "E-Mail für Let's Encrypt (leer = ohne)" "${ssl_email}"
     fi
+  fi
+  if [[ "${setup_ssl}" == "true" && "${web_hostname}" != "_" ]]; then
+    prompt_value ssl_email "E-Mail für Let's Encrypt/Certbot" "${ssl_email}"
   fi
   [[ "${setup_ssl}" == "true" ]] && web_scheme="https" || web_scheme="http"
 
@@ -2337,6 +2473,50 @@ INFO
   setup_cpu_performance
 }
 
+run_panel_ssl_setup() {
+  menu_output <<'INFO'
+
+  ╔══════════════════════════════════════════════════╗
+  ║  Panel-SSL nachträglich einrichten               ║
+  ║  Für bereits installierte Panels: Domain setzen,  ║
+  ║  Nginx aktualisieren und Let's Encrypt starten    ║
+  ╚══════════════════════════════════════════════════╝
+
+INFO
+
+  local install_dir="${EASYWI_INSTALL_DIR:-/var/www/easywi}"
+  local web_hostname="${EASYWI_WEB_HOSTNAME:-}"
+  local ssl_email="${EASYWI_SSL_EMAIL:-}"
+  local php_fpm_socket="${EASYWI_PHP_FPM_SOCKET:-}"
+
+  prompt_value install_dir  "Installationsverzeichnis des bestehenden Panels" "${install_dir}"
+  prompt_value web_hostname "Panel-Domain (z.B. panel.example.com)" "${web_hostname}"
+  web_hostname="$(normalize_hostname "${web_hostname}")"
+  prompt_value ssl_email    "E-Mail für Let's Encrypt/Certbot" "${ssl_email}"
+
+  [[ -n "${web_hostname}" && "${web_hostname}" != "_" ]] || fatal "Bitte eine echte Panel-Domain angeben."
+  is_valid_certbot_domain "${web_hostname}" || fatal "Ungültige Domain: ${web_hostname}"
+
+  local core_dir="${install_dir}/core"
+  [[ -d "${core_dir}/public" ]] || fatal "Panel public/-Verzeichnis nicht gefunden: ${core_dir}/public"
+
+  if [[ -z "${php_fpm_socket}" ]]; then
+    php_fpm_socket="$(detect_existing_php_fpm_socket || true)"
+  fi
+  [[ -n "${php_fpm_socket}" ]] || fatal "PHP-FPM-Socket nicht gefunden. Bitte EASYWI_PHP_FPM_SOCKET setzen."
+
+  local family manager
+  family="$(detect_os_family)"
+  manager="$(detect_package_manager)"
+
+  service_enable_start nginx
+  configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${php_fpm_socket}"
+  setup_certbot "${manager}" "${web_hostname}" "${ssl_email}" || fatal "SSL-Zertifikat konnte nicht ausgestellt werden."
+  update_default_uri "${core_dir}/.env.local" "https://${web_hostname}"
+
+  ok "Panel-SSL wurde nachträglich eingerichtet. DEFAULT_URI=https://${web_hostname}"
+}
+
 # ---------------------------------------------------------------------------
 # Main menu
 # ---------------------------------------------------------------------------
@@ -2364,16 +2544,18 @@ main_menu() {
     3) Panel + Agent installieren
     4) Agent aktualisieren
     5) CPU Performance-Modus (Intel/AMD · Governor + GRUB)
-    6) Beenden
+    6) Panel-SSL nachträglich einrichten
+    7) Beenden
 
 MENU
-  local choice; choice="$(menu_prompt "  Auswahl [1-6]: ")"
+  local choice; choice="$(menu_prompt "  Auswahl [1-7]: ")"
   case "${choice}" in
     1) run_panel_install    ;;
     2) run_agent_install    ;;
     3) run_both_install     ;;
     4) run_agent_update     ;;
     5) run_cpu_performance  ;;
+    6) run_panel_ssl_setup  ;;
     *) log "Installation beendet."; exit 0 ;;
   esac
 }

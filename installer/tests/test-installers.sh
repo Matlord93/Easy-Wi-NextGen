@@ -35,7 +35,7 @@ proc = subprocess.Popen(
 os.close(slave)
 output = b""
 inputs = [
-    (b"3\n", b"Auswahl [1-6]:"),
+    (b"3\n", b"Auswahl [1-7]:"),
     (b"1\n", b"Auswahl [1-3]:"),
     (b"\n", b"DB-Root-Passwort"),
 ]

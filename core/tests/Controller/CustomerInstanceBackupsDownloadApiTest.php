@@ -17,6 +17,8 @@ final class CustomerInstanceBackupsDownloadApiTest extends TestCase
         self::assertStringContainsString("'NOT_FOUND'", $controller);
         self::assertStringContainsString("'CONFLICT'", $controller);
         self::assertStringContainsString("'FORBIDDEN'", $controller);
+        self::assertStringContainsString("'BACKUP_DOWNLOAD_FAILED'", $controller);
+        self::assertStringContainsString('StreamedResponse', $controller);
     }
 
     public function testBackupsNormalizationContainsSizeBytesField(): void

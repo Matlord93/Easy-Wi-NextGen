@@ -120,16 +120,18 @@
 
                 <div>
                     <h2 class="text-sm font-semibold text-slate-900">{{ t('admin_settings_core_section', page_locale()) }}</h2>
-                    <div class="mt-4">
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_instance_base_dir', page_locale()) }}</label>
-                        <input
-                            type="text"
-                            name="instance_base_dir"
-                            value="{{ settings.instance_base_dir }}"
-                            placeholder="/home"
-                            class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                        >
-                        <p class="mt-2 text-xs text-slate-600">{{ t('admin_settings_instance_base_dir_hint', page_locale()) }}</p>
+                    <div class="mt-4 grid gap-5 lg:grid-cols-2">
+                        <div class="lg:col-span-2">
+                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_instance_base_dir', page_locale()) }}</label>
+                            <input
+                                type="text"
+                                name="instance_base_dir"
+                                value="{{ settings.instance_base_dir }}"
+                                placeholder="/home"
+                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            >
+                            <p class="mt-2 text-xs text-slate-600">{{ t('admin_settings_instance_base_dir_hint', page_locale()) }}</p>
+                        </div>
                     </div>
                 </div>
 
