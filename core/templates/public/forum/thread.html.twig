@@ -32,7 +32,7 @@
                         </div>
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-semibold text-slate-200 truncate">
-                                {{ post.authorUser ? post.authorUser.email : 'Gelöschter Benutzer' }}
+                                {{ post.authorUser ? post.authorUser.email : t('public_forum_deleted_user', page_locale()) }}
                             </p>
                             <p class="text-xs text-slate-500">{{ post.createdAt|date('d.m.Y H:i') }}</p>
                         </div>

@@ -89,7 +89,7 @@ final class WebinterfaceUpdateSettingsService
     {
         return match (strtolower(trim($channel))) {
             CoreReleaseChecker::CHANNEL_BETA => CoreReleaseChecker::CHANNEL_BETA,
-            CoreReleaseChecker::CHANNEL_ALPHA => CoreReleaseChecker::CHANNEL_ALPHA,
+            CoreReleaseChecker::CHANNEL_DEV, CoreReleaseChecker::CHANNEL_ALPHA => CoreReleaseChecker::CHANNEL_DEV,
             default => CoreReleaseChecker::CHANNEL_STABLE,
         };
     }

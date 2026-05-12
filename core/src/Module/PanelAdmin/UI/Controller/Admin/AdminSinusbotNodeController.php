@@ -260,7 +260,7 @@ final class AdminSinusbotNodeController
         $this->entityManager->remove($node);
         $this->entityManager->flush();
 
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Node gelöscht. (SinusBot node deleted.)');
+        $request->getSession()->getFlashBag()->add('success', 'admin_sinusbot_node_deleted');
 
         return new Response('', Response::HTTP_FOUND, [
             'Location' => '/admin/sinusbot/nodes',
@@ -385,7 +385,7 @@ final class AdminSinusbotNodeController
     {
         $agent = $this->resolveDefaultAgent();
         if ($agent === null) {
-            $form->addError(new FormError('Kein Agent verfügbar. Bitte zuerst einen Agent im Webinterface registrieren.'));
+            $form->addError(new FormError('admin_sinusbot_no_agent_available'));
             return;
         }
 

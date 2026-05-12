@@ -448,7 +448,7 @@
                     list.innerHTML = '';
                     if (!items.length) {
                         list.hidden = true;
-                        showEmpty('Keine Einträge');
+                        showEmpty('{{ t('common_empty_entries', locale)|e('js') }}');
                         return;
                     }
                     items.forEach((item) => {
@@ -470,7 +470,7 @@
                             tbody.innerHTML = '';
                             if (data.length === 0) {
                                 table.hidden = true;
-                                showEmpty('Keine Einträge');
+                                showEmpty('{{ t('common_empty_entries', locale)|e('js') }}');
                                 return;
                             }
                             if (section.dataset.tabContent === 'clients') {
@@ -515,7 +515,7 @@
                                 return;
                             }
                         }
-                        showEmpty('Keine Einträge');
+                        showEmpty('{{ t('common_empty_entries', locale)|e('js') }}');
                     }, showError);
                 };
 

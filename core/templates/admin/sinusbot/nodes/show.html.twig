@@ -19,10 +19,10 @@
         </div>
 
         {% for message in app.flashes('success') %}
-            <div class="sinusbot-alert sinusbot-alert-success">{{ message }}</div>
+            <div class="sinusbot-alert sinusbot-alert-success">{{ t(message, page_locale()) }}</div>
         {% endfor %}
         {% for message in app.flashes('error') %}
-            <div class="sinusbot-alert sinusbot-alert-error">{{ message }}</div>
+            <div class="sinusbot-alert sinusbot-alert-error">{{ t(message, page_locale()) }}</div>
         {% endfor %}
 
         {% set runtimeLabel = node.running ? 'Online' : 'Offline' %}
@@ -195,7 +195,7 @@
                                     </form>
                                     <form method="post" action="/admin/sinusbot/instances/{{ instance.id }}/reset-password">
                                         <input type="hidden" name="_token" value="{{ instance_csrf[instance.id].reset }}">
-                                        <button class="sinusbot-button" type="submit" data-loading-text="Setze zurück…">{{ t('admin_sinusbot_password_reset_btn', locale) }}</button>
+                                        <button class="sinusbot-button" type="submit" data-loading-text="{{ t('admin_sinusbot_reset_loading', page_locale()) }}">{{ t('admin_sinusbot_password_reset_btn', locale) }}</button>
                                     </form>
                                 </div>
                                 <form class="sinusbot-form sinusbot-form-inline" method="post" action="/admin/sinusbot/instances/{{ instance.id }}/quota">

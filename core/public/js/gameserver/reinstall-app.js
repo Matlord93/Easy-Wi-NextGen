@@ -18,6 +18,7 @@
     const confirmInput = document.getElementById('gs-reinstall-confirm');
     const submitBtn = document.getElementById('gs-reinstall-submit');
     const jobLabel = document.getElementById('gs-reinstall-job');
+    const label = (key, fallback) => root.dataset[key] || fallback;
 
     if (!required.ok) {
         errors.showAll(inlineError, {
@@ -30,7 +31,7 @@
 
     const setBusy = (busy) => {
         submitBtn.disabled = busy;
-        submitBtn.textContent = busy ? 'Starte…' : 'Reinstall starten';
+        submitBtn.textContent = busy ? label('labelStarting', 'Starting…') : label('labelStart', 'Start reinstall');
     };
 
     const loadOptions = async () => {
@@ -38,7 +39,7 @@
             const payload = await apiClient.request(root.dataset.urlOptions);
             const options = payload.data?.options || [];
             if (!Array.isArray(options) || options.length === 0) {
-                optionSelect.innerHTML = '<option value="">Keine Optionen verfügbar</option>';
+                optionSelect.innerHTML = `<option value="">${label('labelNoOptions', 'No options available')}</option>`;
                 return;
             }
 
@@ -46,14 +47,14 @@
             errors.clearInline(inlineError);
         } catch (error) {
             errors.showAll(inlineError, error);
-            optionSelect.innerHTML = '<option value="">Laden fehlgeschlagen</option>';
+            optionSelect.innerHTML = `<option value="">${label('labelLoadingFailed', 'Loading failed')}</option>`;
         }
     };
 
     const submit = async () => {
         if (!confirmInput.checked) {
             errors.showAll(inlineError, {
-                message: 'Bitte bestätige die Neuinstallation.',
+                message: label('labelConfirmRequired', 'Please confirm the reinstall.'),
                 error_code: 'INVALID_INPUT',
                 request_id: '',
             });
@@ -71,10 +72,10 @@
                 }),
             });
             const jobId = payload.data?.job_id || '';
-            jobLabel.textContent = jobId ? `Job #${jobId} queued` : 'Reinstall queued';
+            jobLabel.textContent = jobId ? label('labelJobQueued', 'Job #%id% queued').replace('%id%', jobId) : label('labelReinstallQueued', 'Reinstall queued');
             errors.clearInline(inlineError);
             errors.showToast({
-                message: 'Neuinstallation wurde eingeplant.',
+                message: label('labelScheduled', 'Reinstall has been scheduled.'),
                 error_code: 'OK',
                 request_id: payload.request_id || '',
             }, 2500);

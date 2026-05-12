@@ -154,7 +154,7 @@ final class AdminUnifiController
             $allowedTags = $this->parseTags((string) $request->request->get('allowed_tags', ''));
 
             if (!in_array($mode, [UnifiPolicy::MODE_AUTO, UnifiPolicy::MODE_MANUAL, UnifiPolicy::MODE_HYBRID], true)) {
-                $errors[] = 'Ungültiger Modus.';
+                $errors[] = 'admin_unifi_invalid_mode';
             }
 
             if ($errors === []) {
@@ -519,11 +519,11 @@ final class AdminUnifiController
         }
 
         if (!in_array($protocol, ['tcp', 'udp'], true)) {
-            $errors[] = 'Ungültiges Protokoll.';
+            $errors[] = 'admin_unifi_invalid_protocol';
         }
 
         if (!is_numeric($portValue) || (int) $portValue <= 0 || (int) $portValue > 65535) {
-            $errors[] = 'Ungültiger Port.';
+            $errors[] = 'admin_unifi_invalid_port';
         }
 
         if ($targetIp === '') {
@@ -531,7 +531,7 @@ final class AdminUnifiController
         }
 
         if (!is_numeric($targetPortValue) || (int) $targetPortValue <= 0 || (int) $targetPortValue > 65535) {
-            $errors[] = 'Ungültiger Ziel-Port.';
+            $errors[] = 'admin_unifi_invalid_target_port';
         }
 
         $port = (int) $portValue;

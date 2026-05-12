@@ -35,6 +35,7 @@ use Symfony\Component\Uid\Uuid;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/customer/ts6/servers')]
@@ -61,6 +62,7 @@ final class CustomerTs6ServerController
         private readonly CacheInterface $cache,
         private readonly ServerQueryLimiterInterface $queryLimiter,
         private readonly AgentJobRepository $agentJobRepository,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -674,7 +676,7 @@ final class CustomerTs6ServerController
         }
 
         $actionId = $this->rejectServerAction($customer, $server, $action, $reason);
-        $request->getSession()->getFlashBag()->add('error', sprintf('Aktion abgebrochen (%s). Action ID: %s', $reason, $actionId));
+        $request->getSession()->getFlashBag()->add('error', $this->translator->trans('customer_ts_action_aborted', ['%reason%' => $reason, '%action_id%' => $actionId], 'portal'));
         $this->entityManager->flush();
 
         return $actionId;
@@ -698,7 +700,7 @@ final class CustomerTs6ServerController
     private function resolveGuardReason(Ts6VirtualServer $server): ?string
     {
         if ($server->getSid() <= 0) {
-            return 'Server-ID fehlt (Provisionierung läuft noch)';
+            return $this->translator->trans('customer_ts_server_id_missing_provisioning', [], 'portal');
         }
 
         $status = strtolower($server->getStatus());
@@ -743,7 +745,7 @@ final class CustomerTs6ServerController
             }
         }
 
-        return 'Kein konkreter Fehlertext vorhanden. Bitte Logs öffnen und nach der letzten Action-ID suchen.';
+        return $this->translator->trans('customer_ts_no_error_detail', [], 'portal');
     }
 
     private function createActionId(): string

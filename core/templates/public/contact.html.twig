@@ -1,16 +1,16 @@
 {% extends 'themes/' ~ (active_theme|default('minimal')) ~ '/base.html.twig' %}
 
-{% block title %}Kontakt · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
+{% block title %}{{ t('contact_title', page_locale()) }} · {{ app_setting('site_title', 'Easy-Wi NextGen') }}{% endblock %}
 
 {% block content %}
 <div class="ng-page-hero">
     <div class="ng-container">
         <nav class="ng-breadcrumb">
-            <a href="/">Home</a>
-            <span>Kontakt</span>
+            <a href="/">{{ t('common_home', page_locale()) }}</a>
+            <span>{{ t('contact_title', page_locale()) }}</span>
         </nav>
-        <h1 class="text-3xl font-bold ng-gradient-text">Kontakt</h1>
-        <p class="mt-2 text-sm text-slate-400">Schreib uns – wir melden uns so schnell wie möglich.</p>
+        <h1 class="text-3xl font-bold ng-gradient-text">{{ t('contact_title', page_locale()) }}</h1>
+        <p class="mt-2 text-sm text-slate-400">{{ t('contact_subtitle', page_locale()) }}</p>
     </div>
 </div>
 
@@ -18,12 +18,12 @@
     <div class="mx-auto max-w-xl">
         {% if success %}
             <div class="mb-6 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">
-                Danke, wir melden uns.
+                {{ t('contact_success', page_locale()) }}
             </div>
         {% endif %}
         {% if errors is not empty %}
             <div class="mb-6 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
-                {% for error in errors %}<p>{{ error }}</p>{% endfor %}
+                {% for error in errors %}<p>{{ t(error, page_locale()) }}</p>{% endfor %}
             </div>
         {% endif %}
 
@@ -31,19 +31,19 @@
             <form method="post" class="space-y-4">
                 <input type="hidden" name="_token" value="{{ csrf_token('public_contact') }}">
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-400">Name</label>
-                    <input name="name" placeholder="Dein Name" class="ng-input w-full" required>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">{{ t('common_name', page_locale()) }}</label>
+                    <input name="name" placeholder="{{ t('contact_name_placeholder', page_locale()) }}" class="ng-input w-full" required>
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-400">E-Mail</label>
-                    <input name="email" type="email" placeholder="deine@email.de" class="ng-input w-full" required>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">{{ t('contact_email_label', page_locale()) }}</label>
+                    <input name="email" type="email" placeholder="{{ t('contact_email_placeholder', page_locale()) }}" class="ng-input w-full" required>
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-400">Betreff</label>
-                    <input name="subject" placeholder="Betreff" class="ng-input w-full" required>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">{{ t('contact_subject_label', page_locale()) }}</label>
+                    <input name="subject" placeholder="{{ t('contact_subject_label', page_locale()) }}" class="ng-input w-full" required>
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-slate-400">Nachricht</label>
+                    <label class="mb-1 block text-sm font-medium text-slate-400">{{ t('contact_message_label', page_locale()) }}</label>
                     <textarea name="message" rows="6" class="ng-input w-full" required></textarea>
                 </div>
                 <input type="text" name="website" class="hidden" autocomplete="off" tabindex="-1">
@@ -54,7 +54,7 @@
                         <input name="captcha_answer" class="ng-input w-full" required>
                     </div>
                 {% endif %}
-                <button class="ng-btn">Senden</button>
+                <button class="ng-btn">{{ t('contact_submit', page_locale()) }}</button>
             </form>
         </div>
     </div>

@@ -18,7 +18,7 @@
                 {% set statusLabel = 'Live' %}
             {% elseif event.status == 'upcoming' or event.status == 'scheduled' %}
                 {% set statusClass = 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' %}
-                {% set statusLabel = 'Demnächst' %}
+                {% set statusLabel = t('common_upcoming', page_locale()) %}
             {% elseif event.status == 'finished' or event.status == 'past' %}
                 {% set statusClass = 'border-slate-700 bg-slate-800/40 text-slate-500' %}
                 {% set statusLabel = 'Abgeschlossen' %}

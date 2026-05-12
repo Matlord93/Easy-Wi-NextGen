@@ -24,7 +24,7 @@
                 {% set statusLabel = 'Live' %}
             {% elseif event.status == 'upcoming' or event.status == 'scheduled' %}
                 {% set statusClass = 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' %}
-                {% set statusLabel = 'Demnächst' %}
+                {% set statusLabel = t('common_upcoming', page_locale()) %}
             {% elseif event.status == 'finished' or event.status == 'past' %}
                 {% set statusClass = 'border-slate-700 bg-slate-800/40 text-slate-500' %}
                 {% set statusLabel = 'Abgeschlossen' %}
@@ -72,7 +72,7 @@
         {% else %}
             <div class="ng-empty-state">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                <p>Keine Events verfügbar.</p>
+                <p>{{ t('common_no_events', page_locale()) }}</p>
             </div>
         {% endfor %}
     </div>

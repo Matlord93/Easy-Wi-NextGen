@@ -54,7 +54,7 @@ final class PublicKontaktController
                 $message = trim((string) $request->request->get('message', ''));
 
                 if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $subject === '' || $message === '') {
-                    $error = 'Bitte fülle alle Felder korrekt aus.';
+                    $error = 'contact_validation_error';
                 } elseif (mb_strlen($message) > 5000) {
                     $error = 'Deine Nachricht ist zu lang (max. 5000 Zeichen).';
                 } else {

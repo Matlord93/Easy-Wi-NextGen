@@ -4,6 +4,15 @@
     class="space-y-4"
     data-url-options="{{ path('customer_instance_reinstall_api_options', {id: instance.id}) }}"
     data-url-reinstall="{{ path('customer_instance_reinstall_api', {id: instance.id}) }}"
+    data-label-loading-options="{{ t('customer_reinstall_loading_options', locale) }}"
+    data-label-no-options="{{ t('customer_reinstall_no_options', locale) }}"
+    data-label-loading-failed="{{ t('common_loading_failed', locale) }}"
+    data-label-starting="{{ t('customer_reinstall_starting', locale) }}"
+    data-label-start="{{ t('customer_reinstall_start', locale) }}"
+    data-label-confirm-required="{{ t('customer_reinstall_confirm_required', locale) }}"
+    data-label-job-queued="{{ t('common_job_queued', locale) }}"
+    data-label-reinstall-queued="{{ t('common_reinstall_queued', locale) }}"
+    data-label-scheduled="{{ t('customer_reinstall_scheduled', locale) }}"
 >
     <div class="rounded-lg border border-rose-700 bg-rose-950/30 p-4">
         <h3 class="text-sm font-semibold text-rose-200">{{ t('customer_instances_reinstall_title', locale) }}</h3>
@@ -14,7 +23,7 @@
     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4 space-y-3">
         <label class="block text-xs font-semibold uppercase text-slate-300" for="gs-reinstall-option">{{ t('customer_instances_reinstall_version', locale) }}</label>
         <select id="gs-reinstall-option" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-100">
-            <option value="">Lade Optionen…</option>
+            <option value="">{{ t('customer_reinstall_loading_options', locale) }}</option>
         </select>
 
         <label class="inline-flex items-center gap-2 text-sm text-slate-200">

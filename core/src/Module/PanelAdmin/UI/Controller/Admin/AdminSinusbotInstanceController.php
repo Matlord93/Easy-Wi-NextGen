@@ -183,7 +183,7 @@ final class AdminSinusbotInstanceController
         }
 
         $this->provisioner->deleteInstance($instance);
-        $request->getSession()->getFlashBag()->add('success', 'SinusBot-Instanz gelöscht.');
+        $request->getSession()->getFlashBag()->add('success', 'admin_sinusbot_instance_deleted');
 
         return $this->redirectToNode($nodeId);
     }

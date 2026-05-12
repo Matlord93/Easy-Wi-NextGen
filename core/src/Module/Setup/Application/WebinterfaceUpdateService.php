@@ -346,9 +346,7 @@ final class WebinterfaceUpdateService
             return null;
         }
 
-        $channel = strtolower(trim($this->settingsService->getCoreChannel()));
-        $allowPrerelease = in_array($channel, ['beta', 'alpha'], true);
-        $alphaOnly = $channel === 'alpha';
+        $channel = $this->normalizeReleaseChannel($this->settingsService->getCoreChannel());
         $endpoint = sprintf('https://api.github.com/repos/%s/releases?per_page=20', $repository);
 
         try {
@@ -380,16 +378,8 @@ final class WebinterfaceUpdateService
                 continue;
             }
 
-            $isPrerelease = ($release['prerelease'] ?? false) === true;
-            if (!$allowPrerelease && $isPrerelease) {
+            if ($this->detectGithubReleaseChannel($release) !== $channel) {
                 continue;
-            }
-            // beta channel: skip alpha-tagged prereleases
-            if ($allowPrerelease && !$alphaOnly && $isPrerelease) {
-                $tagLower = strtolower((string) ($release['tag_name'] ?? ''));
-                if (str_contains($tagLower, 'alpha')) {
-                    continue;
-                }
             }
 
             $assets = is_array($release['assets'] ?? null) ? $release['assets'] : [];
@@ -435,14 +425,21 @@ final class WebinterfaceUpdateService
             return null;
         }
 
-        $latest = is_string($payload['latest'] ?? null) ? trim($payload['latest']) : '';
+        $channel = $this->normalizeReleaseChannel($this->settingsService->getCoreChannel());
+        $latestPayload = $payload['latest'] ?? null;
+        $latest = '';
+        if (is_array($latestPayload)) {
+            $latest = is_string($latestPayload[$channel] ?? null) ? trim($latestPayload[$channel]) : '';
+        } elseif (is_string($latestPayload)) {
+            $latest = trim($latestPayload);
+        }
         if ($latest === '') {
             return null;
         }
 
-        // New structured feed format: {latest, releases:[{version, artifacts:{core_novendor_targz:{url,sha256}}, changelog}]}
+        // New structured feed format: {latest:{stable,beta,dev}, releases:[{version, channel, artifacts:{core_novendor_targz:{url,sha256}}, changelog}]}
         if (is_array($payload['releases'] ?? null)) {
-            return $this->createManifestFromReleaseFeed($latest, $payload['releases']);
+            return $this->createManifestFromReleaseFeed($latest, $payload['releases'], $channel);
         }
 
         // Legacy flat format: {latest, asset_url, sha256, notes, delta}
@@ -479,7 +476,7 @@ final class WebinterfaceUpdateService
     /**
      * @param array<int, mixed> $releases
      */
-    private function createManifestFromReleaseFeed(string $latest, array $releases): ?UpdateManifest
+    private function createManifestFromReleaseFeed(string $latest, array $releases, string $channel): ?UpdateManifest
     {
         foreach ($releases as $release) {
             if (!is_array($release)) {
@@ -487,7 +484,8 @@ final class WebinterfaceUpdateService
             }
 
             $version = is_string($release['version'] ?? null) ? trim($release['version']) : '';
-            if ($version !== $latest) {
+            $releaseChannel = is_string($release['channel'] ?? null) ? $this->normalizeReleaseChannel($release['channel']) : 'stable';
+            if ($version !== $latest || $releaseChannel !== $channel) {
                 continue;
             }
 
@@ -518,6 +516,47 @@ final class WebinterfaceUpdateService
         }
 
         return null;
+    }
+
+
+    /**
+     * @param array<string, mixed> $release
+     */
+    private function detectGithubReleaseChannel(array $release): string
+    {
+        foreach (['body', 'name'] as $field) {
+            $value = $release[$field] ?? null;
+            if (!is_string($value) || trim($value) === '') {
+                continue;
+            }
+            if (preg_match('/(?:^|\R)\s*(?:easywi[-_ ]?)?channel\s*[:=]\s*(stable|beta|dev|alpha)\b/i', $value, $matches) === 1) {
+                return $this->normalizeReleaseChannel($matches[1]);
+            }
+        }
+
+        $isPrerelease = ($release['prerelease'] ?? false) === true;
+        if (!$isPrerelease) {
+            return 'stable';
+        }
+
+        $tagLower = strtolower((string) ($release['tag_name'] ?? $release['name'] ?? ''));
+        if (preg_match('/(?:^|[._\-+])(?:dev|alpha|snapshot|nightly)(?:$|[._\-+])/', $tagLower) === 1) {
+            return 'dev';
+        }
+        if (preg_match('/(?:^|[._\-+])(?:beta|preview|rc)(?:$|[._\-+])/', $tagLower) === 1) {
+            return 'beta';
+        }
+
+        return 'beta';
+    }
+
+    private function normalizeReleaseChannel(string $channel): string
+    {
+        return match (strtolower(trim($channel))) {
+            'beta' => 'beta',
+            'dev', 'alpha' => 'dev',
+            default => 'stable',
+        };
     }
 
     private function findAssetUrlByName(array $assets, string $assetName): ?string

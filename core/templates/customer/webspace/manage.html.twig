@@ -4,10 +4,10 @@
 {% block content %}
 <div class="customer-webspace-modern customer-webspace-manage-modern flex flex-col gap-6">
     {% if flashSuccess %}
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ flashSuccess }}</div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ t(flashSuccess, page_locale()) }}</div>
     {% endif %}
     {% if flashError %}
-        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ flashError }}</div>
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ t(flashError, page_locale()) }}</div>
     {% endif %}
     <div>
         <h1 class="text-2xl font-semibold text-slate-900">{{ t('customer_webspace_manage_title', page_locale()) }}</h1>

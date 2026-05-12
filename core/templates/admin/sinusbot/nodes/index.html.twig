@@ -16,7 +16,7 @@
         </div>
 
         {% for message in app.flashes('success') %}
-            <div class="sinusbot-alert sinusbot-alert-success">{{ message }}</div>
+            <div class="sinusbot-alert sinusbot-alert-success">{{ t(message, page_locale()) }}</div>
         {% endfor %}
 
         <div class="sinusbot-card">

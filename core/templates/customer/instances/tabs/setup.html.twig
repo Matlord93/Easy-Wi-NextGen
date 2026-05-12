@@ -52,7 +52,7 @@
                                     >
                                 {% endif %}
                                 {% if field.helptext %}
-                                    <p class="mt-1 text-xs text-slate-600">{{ field.helptext }}</p>
+                                    <p class="mt-1 text-xs text-slate-600">{{ t(field.helptext, locale) }}</p>
                                 {% endif %}
                                 {% if field.error %}
                                     <p class="mt-1 text-xs text-rose-600">{{ field.error }}</p>
@@ -87,7 +87,7 @@
                                 class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                             >
                             {% if field.helptext %}
-                                <p class="mt-1 text-xs text-slate-600">{{ field.helptext }}</p>
+                                <p class="mt-1 text-xs text-slate-600">{{ t(field.helptext, locale) }}</p>
                             {% endif %}
                             {% if field.error %}
                                 <p class="mt-1 text-xs text-rose-600">{{ field.error }}</p>
@@ -121,7 +121,7 @@
                                 <span class="text-xs text-slate-600">Gesetzt: {{ field.is_set ? 'Ja' : 'Nein' }}</span>
                             </div>
                             {% if field.helptext %}
-                                <p class="mt-1 text-xs text-slate-600">{{ field.helptext }}</p>
+                                <p class="mt-1 text-xs text-slate-600">{{ t(field.helptext, locale) }}</p>
                             {% endif %}
                             {% if field.error %}
                                 <p class="mt-1 text-xs text-rose-600">{{ field.error }}</p>

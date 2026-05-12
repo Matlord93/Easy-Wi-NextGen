@@ -759,7 +759,7 @@ final class CustomerInstanceActionApiController
 
         return $this->apiOk($request, [
             'instance_id' => $instance->getId(),
-            'warnings' => ['Neuinstallation löscht bestehende Daten dieser Instanz.'],
+            'warnings' => ['customer_instances_reinstall_warning_data_loss'],
             'options' => $options,
         ]);
     }

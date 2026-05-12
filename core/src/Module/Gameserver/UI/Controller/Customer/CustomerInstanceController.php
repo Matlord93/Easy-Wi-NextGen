@@ -181,7 +181,7 @@ final class CustomerInstanceController
             if ($key === 'STEAM_LOGIN_MODE') {
                 $value = strtolower(trim($value));
                 if (!in_array($value, ['anonymous', 'account'], true)) {
-                    $errors[$key] = 'Bitte wähle eine gültige Steam-Login-Art aus.';
+                    $errors[$key] = 'customer_instances_setup_invalid_steam_login_mode';
                     continue;
                 }
                 $setupVars[$key] = $value;
@@ -1883,7 +1883,7 @@ final class CustomerInstanceController
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => null,
-                'helptext' => 'Optional, nur nötig für private Server.',
+                'helptext' => 'customer_instances_setup_help_private_server',
             ],
             [
                 'key' => 'RCON_PASSWORD',
@@ -1892,7 +1892,7 @@ final class CustomerInstanceController
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => null,
-                'helptext' => 'Optional, für Remote-Konsole.',
+                'helptext' => 'customer_instances_setup_help_remote_console',
             ],
             [
                 'key' => 'STEAM_GSLT',
@@ -1901,7 +1901,7 @@ final class CustomerInstanceController
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => null,
-                'helptext' => 'Benötigt für manche Source-Server.',
+                'helptext' => 'customer_instances_setup_help_source_required',
             ],
             [
                 'key' => 'STEAM_LOGIN_MODE',
@@ -1919,7 +1919,7 @@ final class CustomerInstanceController
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => null,
-                'helptext' => 'Nur nötig, wenn kein Anonymous-Login möglich ist.',
+                'helptext' => 'customer_instances_setup_help_anonymous_unavailable',
             ],
             [
                 'key' => 'STEAM_PASSWORD',
@@ -1928,7 +1928,7 @@ final class CustomerInstanceController
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => null,
-                'helptext' => 'Nur nötig, wenn Steam Account genutzt wird.',
+                'helptext' => 'customer_instances_setup_help_steam_account',
             ],
             [
                 'key' => 'GAME_TYPE',
@@ -1937,7 +1937,7 @@ final class CustomerInstanceController
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => null,
-                'helptext' => 'Nur für Source-Server.',
+                'helptext' => 'customer_instances_setup_help_source_only',
             ],
             [
                 'key' => 'GAME_MODE',
@@ -1946,7 +1946,7 @@ final class CustomerInstanceController
                 'required' => false,
                 'scope' => 'customer_allowed',
                 'validation' => null,
-                'helptext' => 'Nur für Source-Server.',
+                'helptext' => 'customer_instances_setup_help_source_only',
             ],
         ];
 

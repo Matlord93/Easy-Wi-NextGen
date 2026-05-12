@@ -12,6 +12,8 @@ final class AgentReleaseChecker
 
     public const CHANNEL_STABLE = 'stable';
     public const CHANNEL_BETA = 'beta';
+    public const CHANNEL_DEV = 'dev';
+    /** @deprecated use CHANNEL_DEV */
     public const CHANNEL_ALPHA = 'alpha';
 
     public function __construct(
@@ -111,7 +113,7 @@ final class AgentReleaseChecker
         return [
             self::CHANNEL_STABLE => 'Stable',
             self::CHANNEL_BETA => 'Beta',
-            self::CHANNEL_ALPHA => 'Alpha',
+            self::CHANNEL_DEV => 'Dev',
         ];
     }
 
@@ -193,7 +195,7 @@ final class AgentReleaseChecker
     {
         return match (strtolower(trim($channel))) {
             self::CHANNEL_BETA => self::CHANNEL_BETA,
-            self::CHANNEL_ALPHA => self::CHANNEL_ALPHA,
+            self::CHANNEL_DEV, self::CHANNEL_ALPHA => self::CHANNEL_DEV,
             default => self::CHANNEL_STABLE,
         };
     }
@@ -237,32 +239,61 @@ final class AgentReleaseChecker
                 continue;
             }
 
-            $isPrerelease = ($release['prerelease'] ?? false) === true;
-            $tagLower = strtolower((string) ($release['tag_name'] ?? ''));
-
-            if ($channel === self::CHANNEL_STABLE) {
-                if ($isPrerelease) {
-                    continue;
-                }
-            } elseif ($channel === self::CHANNEL_BETA) {
-                // beta: prerelease releases that are NOT alpha-tagged
-                if (!$isPrerelease) {
-                    continue;
-                }
-                if (str_contains($tagLower, 'alpha')) {
-                    continue;
-                }
-            } elseif ($channel === self::CHANNEL_ALPHA) {
-                // alpha: all prerelease releases (including alpha-tagged)
-                if (!$isPrerelease) {
-                    continue;
-                }
+            if ($this->detectReleaseChannel($release) !== $channel) {
+                continue;
             }
 
             $filtered[] = $release;
         }
 
         return $filtered;
+    }
+
+
+    /**
+     * @param array<string, mixed> $release
+     */
+    private function detectReleaseChannel(array $release): string
+    {
+        $explicitChannel = $this->extractExplicitChannel($release);
+        if ($explicitChannel !== null) {
+            return $explicitChannel;
+        }
+
+        $isPrerelease = ($release['prerelease'] ?? false) === true;
+        if (!$isPrerelease) {
+            return self::CHANNEL_STABLE;
+        }
+
+        $tagLower = strtolower((string) ($release['tag_name'] ?? $release['name'] ?? ''));
+        if (preg_match('/(?:^|[._\-+])(?:dev|alpha|snapshot|nightly)(?:$|[._\-+])/', $tagLower) === 1) {
+            return self::CHANNEL_DEV;
+        }
+
+        if (preg_match('/(?:^|[._\-+])(?:beta|preview|rc)(?:$|[._\-+])/', $tagLower) === 1) {
+            return self::CHANNEL_BETA;
+        }
+
+        return self::CHANNEL_BETA;
+    }
+
+    /**
+     * @param array<string, mixed> $release
+     */
+    private function extractExplicitChannel(array $release): ?string
+    {
+        foreach (['body', 'name'] as $field) {
+            $value = $release[$field] ?? null;
+            if (!is_string($value) || trim($value) === '') {
+                continue;
+            }
+
+            if (preg_match('/(?:^|\R)\s*(?:easywi[-_ ]?)?channel\s*[:=]\s*(stable|beta|dev|alpha)\b/i', $value, $matches) === 1) {
+                return $this->normalizeChannel($matches[1]);
+            }
+        }
+
+        return null;
     }
 
     private function extractReleaseTag(array $release): ?string

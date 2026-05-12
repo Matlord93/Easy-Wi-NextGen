@@ -22,6 +22,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use App\Module\Core\Attribute\RequiresModule;
 
 #[Route(path: '/files')]
@@ -47,6 +48,7 @@ final class CustomerFileManagerController extends AbstractController
         private readonly LoggerInterface $logger,
         private readonly AppSettingsService $settingsService,
         private readonly SftpFilesystemService $sftpService,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -71,7 +73,7 @@ final class CustomerFileManagerController extends AbstractController
                 'currentPath' => '',
                 'breadcrumbs' => [],
                 'entries' => [],
-                'listError' => 'Kein Webspace verfügbar.',
+                'listError' => 'customer_files_flash_no_webspace',
                 'uploadForm' => null,
                 'webspaces' => [],
                 'selectedWebspace' => null,
@@ -94,12 +96,16 @@ final class CustomerFileManagerController extends AbstractController
                     $candidateRoot = (string) ($details['candidate_root'] ?? '');
                     $agentRoot = (string) ($details['agent_root'] ?? '');
                     $suggestedBaseDir = $this->suggestedAgentBaseDir($candidateRoot);
-                    $listError = sprintf(
-                        'Agent-Konfiguration erforderlich: Webspace-Pfad "%s" liegt außerhalb von "%s". Setze auf dem Node in /etc/easywi/agent.conf: file_base_dir=%s (oder ein gemeinsames Parent-Verzeichnis), danach Agent neu starten (systemctl restart easywi-agent) und Dateirechte prüfen. (%s)',
-                        $candidateRoot,
-                        $agentRoot,
-                        $suggestedBaseDir,
-                        $exception->getErrorCode(),
+                    $listError = $this->translator->trans(
+                        'customer_files_agent_config_required_full',
+                        [
+                            '%webspace_path%' => $candidateRoot,
+                            '%agent_base%' => $agentRoot,
+                            '%file_base_dir%' => $suggestedBaseDir,
+                            '%reason%' => $exception->getErrorCode(),
+                        ],
+                        'portal',
+                        $request->getLocale(),
                     );
                 } else {
                     $listError = sprintf('%s (%s)', $exception->getMessage(), $exception->getErrorCode());
@@ -167,12 +173,16 @@ final class CustomerFileManagerController extends AbstractController
                     $candidateRoot = (string) ($details['candidate_root'] ?? '');
                     $agentRoot = (string) ($details['agent_root'] ?? '');
                     $suggestedBaseDir = $this->suggestedAgentBaseDir($candidateRoot);
-                    $message = sprintf(
-                        'Agent-Konfiguration erforderlich (Webspace: "%s", Agent: "%s"). In /etc/easywi/agent.conf file_base_dir auf %s (oder Parent) setzen, Agent neu starten und Rechte prüfen. (%s)',
-                        $candidateRoot,
-                        $agentRoot,
-                        $suggestedBaseDir,
-                        $exception->getErrorCode(),
+                    $message = $this->translator->trans(
+                        'customer_files_agent_config_required_short',
+                        [
+                            '%webspace_path%' => $candidateRoot,
+                            '%agent_base%' => $agentRoot,
+                            '%file_base_dir%' => $suggestedBaseDir,
+                            '%reason%' => $exception->getErrorCode(),
+                        ],
+                        'portal',
+                        $request->getLocale(),
                     );
                 } else {
                     $message = sprintf('%s (%s)', $exception->getMessage(), $exception->getErrorCode());
@@ -180,7 +190,7 @@ final class CustomerFileManagerController extends AbstractController
             }
             $this->addFlash('agent_test', [
                 'status' => 'error',
-                'message' => sprintf('Agent-Verbindung fehlgeschlagen: %s', $message),
+                'message' => $this->translator->trans('customer_files_agent_connection_failed', ['%message%' => $message], 'portal', $request->getLocale()),
                 'entries' => [],
             ]);
         }
@@ -204,7 +214,7 @@ final class CustomerFileManagerController extends AbstractController
         $path = '';
 
         if (!$form->isSubmitted() || !$form->isValid()) {
-            $this->addFlash('error', 'Upload fehlgeschlagen: ungültige Eingabe.');
+            $this->addFlash('error', 'customer_files_upload_invalid');
             return $this->redirectToRoute('customer_files_browse', [
                 'webspace' => $webspace->getId(),
             ]);
@@ -214,7 +224,7 @@ final class CustomerFileManagerController extends AbstractController
         $upload = $form->get('upload')->getData();
 
         if (!$upload instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
-            $this->addFlash('error', 'Upload fehlgeschlagen: keine Datei gefunden.');
+            $this->addFlash('error', 'customer_files_upload_no_file');
             return $this->redirectToRoute('customer_files_browse', [
                 'path' => $path,
                 'webspace' => $webspace->getId(),
@@ -223,7 +233,7 @@ final class CustomerFileManagerController extends AbstractController
 
         try {
             $this->fileService->uploadFile($webspace, $path, $upload);
-            $this->addFlash('success', 'Upload erfolgreich.');
+            $this->addFlash('success', 'customer_files_upload_success');
         } catch (\Throwable $exception) {
             $this->logger->error('files.upload_failed', [
                 'path' => $path,
@@ -291,19 +301,19 @@ final class CustomerFileManagerController extends AbstractController
         try {
             $parent = $this->resolveParentPath($path);
             if (trim($path) === '') {
-                throw new \RuntimeException('Pfad fehlt.');
+                throw new \RuntimeException($this->translator->trans('customer_files_missing_path', [], 'portal', $request->getLocale()));
             }
             $normalized = $this->normalizePath($path);
             $name = basename($normalized);
             $parent = $this->resolveParentPath($normalized);
             $this->fileService->delete($webspace, $parent, $name);
-            $this->addFlash('success', 'Eintrag wurde gelöscht.');
+            $this->addFlash('success', 'customer_files_delete_success');
         } catch (\Throwable $exception) {
             $this->logger->error('files.delete_failed', [
                 'path' => $path,
                 'exception' => $exception,
             ]);
-            $this->addFlash('error', sprintf('Löschen fehlgeschlagen: %s', $exception->getMessage()));
+            $this->addFlash('error', $this->translator->trans('customer_files_delete_failed', ['%message%' => $exception->getMessage()], 'portal', $request->getLocale()));
         }
 
         return $this->redirectToRoute('customer_files_browse', [
@@ -334,12 +344,12 @@ final class CustomerFileManagerController extends AbstractController
             try {
                 $normalized = $this->normalizePath($path);
                 if ($normalized === '') {
-                    throw new \RuntimeException('Pfad fehlt.');
+                    throw new \RuntimeException($this->translator->trans('customer_files_missing_path', [], 'portal', $request->getLocale()));
                 }
                 $parent = $this->resolveParentPath($normalized);
                 $name = basename($normalized);
                 $this->fileService->rename($webspace, $parent, $name, $newName);
-                $this->addFlash('success', 'Eintrag wurde umbenannt.');
+                $this->addFlash('success', 'customer_files_rename_success');
                 return $this->redirectToRoute('customer_files_browse', [
                     'path' => $parent,
                     'webspace' => $webspace->getId(),
@@ -412,7 +422,7 @@ final class CustomerFileManagerController extends AbstractController
                 $parent = $this->resolveParentPath($normalized);
                 $name = basename($normalized);
                 $this->fileService->writeFile($webspace, $parent, $name, $content);
-                $this->addFlash('success', 'Datei gespeichert.');
+                $this->addFlash('success', 'customer_files_save_success');
                 return $this->redirectToRoute('customer_files_browse', [
                     'path' => $this->resolveParentPath($normalized),
                     'webspace' => $webspace->getId(),

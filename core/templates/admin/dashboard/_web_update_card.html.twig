@@ -52,8 +52,8 @@
                         <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">{{ t('update_channel_stable', page_locale()) }}</span>
                     {% elseif value == 'beta' %}
                         <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">{{ t('update_channel_beta', page_locale()) }}</span>
-                    {% elseif value == 'alpha' %}
-                        <span class="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-700">{{ t('update_channel_experimental', page_locale()) }}</span>
+                    {% elseif value == 'dev' %}
+                        <span class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-sky-700">{{ t('update_channel_dev', page_locale()) }}</span>
                     {% endif %}
                 </label>
             {% endfor %}
@@ -61,8 +61,8 @@
         <p class="mt-2 text-xs text-slate-500">
             {{ t('update_channel_current_label', page_locale()) }}
             <span class="font-semibold text-slate-700">{{ coreUpdate.channels[coreUpdate.channel] ?? coreUpdate.channel }}</span>.
-            {% if coreUpdate.channel == 'alpha' %}
-                {{ t('update_channel_experimental_desc', page_locale()) }}
+            {% if coreUpdate.channel == 'dev' %}
+                {{ t('update_channel_dev_desc', page_locale()) }}
             {% elseif coreUpdate.channel == 'beta' %}
                 {{ t('update_channel_beta_desc', page_locale()) }}
             {% else %}
@@ -130,7 +130,7 @@
                 </label>
                 <span class="text-sm text-slate-700">{{ coreUpdate.autoEnabled ? t('update_status_enabled', page_locale()) : t('update_status_disabled', page_locale()) }}</span>
             </form>
-            <p class="mt-1 text-xs text-slate-500">Panel über <code class="rounded bg-slate-200 px-1">app:update:auto</code> automatisch aktualisieren.</p>
+            <p class="mt-1 text-xs text-slate-500">{{ t('admin_web_update_auto_hint', page_locale())|replace({'app:update:auto': '<code class="rounded bg-slate-200 px-1">app:update:auto</code>'})|raw }}</p>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
             <p class="text-xs font-semibold uppercase text-slate-500 mb-2">{{ t('update_auto_migrate_label', page_locale()) }}</p>

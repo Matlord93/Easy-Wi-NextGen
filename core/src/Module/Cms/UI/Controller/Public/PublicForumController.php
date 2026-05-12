@@ -32,6 +32,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Environment;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[Route(path: '/forum')]
 final class PublicForumController
@@ -59,6 +60,7 @@ final class PublicForumController
         private readonly ThemeResolver $themeResolver,
         private readonly CmsSettingsProvider $settingsProvider,
         private readonly Environment $twig,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -233,7 +235,7 @@ final class PublicForumController
         }
 
         if (!$this->captchaVerifier->verify($request, 'forum_new_thread')) {
-            return new Response('Captcha ungültig.', Response::HTTP_BAD_REQUEST);
+            return new Response($this->translator->trans('public_forum_captcha_invalid', [], 'portal', $request->getLocale()), Response::HTTP_BAD_REQUEST);
         }
 
         $title = trim((string) $request->request->get('title', ''));
@@ -293,7 +295,7 @@ final class PublicForumController
         }
 
         if (!$this->captchaVerifier->verify($request, 'forum_reply')) {
-            return new Response('Captcha ungültig.', Response::HTTP_BAD_REQUEST);
+            return new Response($this->translator->trans('public_forum_captcha_invalid', [], 'portal', $request->getLocale()), Response::HTTP_BAD_REQUEST);
         }
 
         $content = trim((string) $request->request->get('content', ''));

@@ -10,7 +10,7 @@
 <div class="ng-page-hero">
     <div class="ng-container">
         <nav class="ng-breadcrumb">
-            <a href="/">Home</a>
+            <a href="/">{{ t('common_home', page_locale()) }}</a>
             <span>{{ t('cms_blog_title', page_locale()) }}</span>
         </nav>
         <h1 class="text-3xl font-bold ng-gradient-text">{{ t('cms_blog_title', page_locale()) }}</h1>
@@ -21,16 +21,16 @@
 <div class="ng-container ng-section">
     <form method="get" action="/blog"
           class="mb-8 grid gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 backdrop-blur-sm md:grid-cols-4">
-        <input type="text" name="q" value="{{ filters.q }}" placeholder="Beiträge suchen …"
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ t('public_blog_search_placeholder', page_locale()) }}"
                class="ng-input md:col-span-2" />
         <select name="category" class="ng-input">
-            <option value="">Alle Kategorien</option>
+            <option value="">{{ t('public_blog_all_categories', page_locale()) }}</option>
             {% for category in categories %}
                 <option value="{{ category.slug }}" {% if category.is_active %}selected{% endif %}>{{ category.name }}</option>
             {% endfor %}
         </select>
         <select name="tag" class="ng-input">
-            <option value="">Alle Tags</option>
+            <option value="">{{ t('public_blog_all_tags', page_locale()) }}</option>
             {% for tag in tags %}
                 <option value="{{ tag.slug }}" {% if tag.is_active %}selected{% endif %}>{{ tag.name }}</option>
             {% endfor %}

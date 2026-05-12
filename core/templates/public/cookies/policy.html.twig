@@ -47,25 +47,25 @@
     </section>
 
     <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-        <h2 class="text-lg font-semibold text-slate-100">Cookie-Liste</h2>
+        <h2 class="text-lg font-semibold text-slate-100">{{ t('cookie_list_title', page_locale()) }}</h2>
         <div class="mt-4 overflow-x-auto">
             <table class="min-w-full text-sm text-slate-200">
                 <thead class="bg-slate-800 text-left text-slate-200">
                     <tr>
-                        <th class="px-4 py-2">Name</th>
-                        <th class="px-4 py-2">Zweck</th>
-                        <th class="px-4 py-2">Kategorie</th>
-                        <th class="px-4 py-2">Laufzeit</th>
-                        <th class="px-4 py-2">Provider</th>
+                        <th class="px-4 py-2">{{ t('common_name', page_locale()) }}</th>
+                        <th class="px-4 py-2">{{ t('common_purpose', page_locale()) }}</th>
+                        <th class="px-4 py-2">{{ t('common_category', page_locale()) }}</th>
+                        <th class="px-4 py-2">{{ t('common_duration', page_locale()) }}</th>
+                        <th class="px-4 py-2">{{ t('common_provider', page_locale()) }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-700">
                     {% for cookie in cookies %}
                         <tr>
                             <td class="px-4 py-2 font-mono text-xs">{{ cookie.name }}</td>
-                            <td class="px-4 py-2">{{ cookie.purpose }}</td>
-                            <td class="px-4 py-2">{{ cookie.category|capitalize }}</td>
-                            <td class="px-4 py-2">{{ cookie.duration }}</td>
+                            <td class="px-4 py-2">{{ t(cookie.purpose, page_locale()) }}</td>
+                            <td class="px-4 py-2">{{ t(cookie.category, page_locale()) }}</td>
+                            <td class="px-4 py-2">{{ t(cookie.duration, page_locale()) }}</td>
                             <td class="px-4 py-2">{{ cookie.provider }}</td>
                         </tr>
                     {% endfor %}

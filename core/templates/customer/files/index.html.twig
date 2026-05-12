@@ -43,16 +43,16 @@
 
             <div class="mt-4 space-y-2">
                 {% for message in app.flashes('success') %}
-                    <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{{ message }}</div>
+                    <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{{ t(message, page_locale()) }}</div>
                 {% endfor %}
                 {% for message in app.flashes('error') %}
-                    <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{{ message }}</div>
+                    <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{{ t(message, page_locale()) }}</div>
                 {% endfor %}
                 {% for result in app.flashes('agent_test') %}
                     <div class="rounded-lg border {{ result.status == 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700' }} px-4 py-2 text-sm">
                         <p class="font-semibold">{{ result.message }}</p>
                         {% if result.entries is not empty %}
-                            <p class="mt-1 text-xs">Beispieleinträge: {{ result.entries|join(', ') }}</p>
+                            <p class="mt-1 text-xs">{{ t('customer_file_manager_sample_entries', page_locale())|replace({'%entries%': result.entries|join(', ')}) }}</p>
                         {% endif %}
                     </div>
                 {% endfor %}

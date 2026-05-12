@@ -88,4 +88,59 @@ final class AgentReleaseCheckerTest extends TestCase
         self::assertSame('v2.0.0', $selected['tag']);
     }
 
+    public function testChannelFilteringSeparatesDevBetaAndStableGithubReleases(): void
+    {
+        $checker = new AgentReleaseChecker(new ArrayAdapter(), 'Matlord93/Easy-Wi-NextGen', 300, 'dev');
+
+        $releases = [
+            [
+                'draft' => false,
+                'prerelease' => false,
+                'tag_name' => 'v2.0.0',
+                'body' => "easywi-channel: stable\n",
+                'assets' => [
+                    ['name' => 'easywi-agent-linux-amd64', 'browser_download_url' => 'https://example.invalid/v2/easywi-agent-linux-amd64'],
+                    ['name' => 'checksums-agent.txt', 'browser_download_url' => 'https://example.invalid/v2/checksums-agent.txt'],
+                ],
+            ],
+            [
+                'draft' => false,
+                'prerelease' => true,
+                'tag_name' => 'v2.1.0-beta.1',
+                'body' => "easywi-channel: beta\n",
+                'assets' => [
+                    ['name' => 'easywi-agent-linux-amd64', 'browser_download_url' => 'https://example.invalid/beta/easywi-agent-linux-amd64'],
+                    ['name' => 'checksums-agent.txt', 'browser_download_url' => 'https://example.invalid/beta/checksums-agent.txt'],
+                ],
+            ],
+            [
+                'draft' => false,
+                'prerelease' => true,
+                'tag_name' => 'v2.2.0-dev.3',
+                'body' => "easywi-channel: dev\n",
+                'assets' => [
+                    ['name' => 'easywi-agent-linux-amd64', 'browser_download_url' => 'https://example.invalid/dev/easywi-agent-linux-amd64'],
+                    ['name' => 'checksums-agent.txt', 'browser_download_url' => 'https://example.invalid/dev/checksums-agent.txt'],
+                ],
+            ],
+        ];
+
+        $method = new \ReflectionMethod($checker, 'selectLatestReleaseAsset');
+
+        $stable = $method->invoke($checker, $releases, 'stable', 'easywi-agent-linux-amd64');
+        $beta = $method->invoke($checker, $releases, 'beta', 'easywi-agent-linux-amd64');
+        $dev = $method->invoke($checker, $releases, 'dev', 'easywi-agent-linux-amd64');
+
+        self::assertSame('v2.0.0', $stable['tag'] ?? null);
+        self::assertSame('v2.1.0-beta.1', $beta['tag'] ?? null);
+        self::assertSame('v2.2.0-dev.3', $dev['tag'] ?? null);
+    }
+
+    public function testAlphaChannelAliasNormalizesToDev(): void
+    {
+        $checker = new AgentReleaseChecker(new ArrayAdapter(), 'Matlord93/Easy-Wi-NextGen', 300, 'alpha');
+
+        self::assertSame('dev', $checker->getChannel());
+    }
+
 }
