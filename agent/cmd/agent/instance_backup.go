@@ -315,7 +315,7 @@ func resolveLocalBackupRoot(payload map[string]any, fallback string) (string, er
 		payloadNestedValue(payload, "backup_target_config", "directory"),
 		payloadNestedValue(payload, "backup_target_config", "root_path"),
 		payloadNestedValue(payload, "backup_target_config", "backup_path"),
-		payloadValue(payload, "backup_base_path", "backup_root", "backup_path"),
+		payloadValue(payload, "backup_base_path", "backup_root"),
 	)
 	if strings.TrimSpace(configured) == "" {
 		return fallback, nil
@@ -479,6 +479,10 @@ func uploadBackupToWebdav(payload map[string]any, localPath string) (string, err
 		return "", err
 	}
 
+	if err := ensureWebdavCollection(payload, baseURL, remoteFolder, verifyTLS); err != nil {
+		return "", err
+	}
+
 	var lastErr error
 	for attempt := 1; attempt <= 2; attempt++ {
 		f, err := os.Open(localPath)
@@ -514,6 +518,44 @@ func uploadBackupToWebdav(payload map[string]any, localPath string) (string, err
 	}
 
 	return "", lastErr
+}
+
+func ensureWebdavCollection(payload map[string]any, baseURL string, remoteFolder string, verifyTLS bool) error {
+	remoteFolder = "/" + strings.Trim(strings.TrimSpace(remoteFolder), "/")
+	if remoteFolder == "/" {
+		return nil
+	}
+
+	client := webdavClient(verifyTLS)
+	current := ""
+	for _, segment := range strings.Split(strings.Trim(remoteFolder, "/"), "/") {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			continue
+		}
+		current += "/" + url.PathEscape(segment)
+		collectionURL := strings.TrimRight(baseURL, "/") + current
+
+		req, err := http.NewRequest("MKCOL", collectionURL, nil)
+		if err != nil {
+			return err
+		}
+		applyWebdavAuth(req, payload)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("webdav create collection failed: %w", err)
+		}
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 || resp.StatusCode == http.StatusMethodNotAllowed {
+			_ = resp.Body.Close()
+			continue
+		}
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		_ = resp.Body.Close()
+		return fmt.Errorf("webdav create collection failed: %d %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	return nil
 }
 
 func downloadBackupFromWebdav(payload map[string]any, remote string) (string, error) {

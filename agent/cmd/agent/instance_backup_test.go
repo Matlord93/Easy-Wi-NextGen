@@ -74,6 +74,33 @@ func TestResolveLocalBackupRootFallsBackToDefault(t *testing.T) {
 	}
 }
 
+func TestResolveLocalBackupRootIgnoresArchiveBackupPath(t *testing.T) {
+	fallback := filepath.Join(t.TempDir(), "instances")
+	archivePath := filepath.Join(fallback, "1", "instance-1-1778574267.tar.gz")
+	root, err := resolveLocalBackupRoot(map[string]any{
+		"backup_path": archivePath,
+	}, fallback)
+	if err != nil {
+		t.Fatalf("resolveLocalBackupRoot returned error: %v", err)
+	}
+	if root != fallback {
+		t.Fatalf("root=%q, want fallback %q", root, fallback)
+	}
+}
+
+func TestValidateLocalBackupDownloadPathIgnoresArchiveBackupPathAlias(t *testing.T) {
+	fallback := filepath.Join(t.TempDir(), "instances")
+	t.Setenv("EASYWI_INSTANCE_BACKUP_DIR", fallback)
+	archivePath := filepath.Join(fallback, "1", "instance-1-1778574267.tar.gz")
+	err := validateLocalBackupDownloadPath("1", archivePath, map[string]any{
+		"backup_target_type": "local",
+		"backup_path":        archivePath,
+	})
+	if err != nil {
+		t.Fatalf("validateLocalBackupDownloadPath returned error: %v", err)
+	}
+}
+
 func TestResolveLocalBackupRootRejectsRelativePath(t *testing.T) {
 	_, err := resolveLocalBackupRoot(map[string]any{
 		"backup_target_config": map[string]any{
@@ -133,17 +160,21 @@ func TestHandleInstanceBackupCreateUploadsToWebDAVAndRemovesLocalArchive(t *test
 
 	var uploadedPath string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut {
-			t.Fatalf("method=%s, want PUT", r.Method)
-		}
-		uploadedPath = r.URL.Path
 		if _, _, ok := r.BasicAuth(); !ok {
 			t.Fatalf("missing basic auth")
 		}
-		if _, err := io.Copy(io.Discard, r.Body); err != nil {
-			t.Fatalf("read request body: %v", err)
+		switch r.Method {
+		case "MKCOL":
+			w.WriteHeader(http.StatusCreated)
+		case http.MethodPut:
+			uploadedPath = r.URL.Path
+			if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
+			w.WriteHeader(http.StatusCreated)
+		default:
+			t.Fatalf("method=%s, want MKCOL or PUT", r.Method)
 		}
-		w.WriteHeader(http.StatusCreated)
 	}))
 	defer server.Close()
 
@@ -181,5 +212,55 @@ func TestHandleInstanceBackupCreateUploadsToWebDAVAndRemovesLocalArchive(t *test
 	}
 	if len(matches) != 0 {
 		t.Fatalf("expected local staging archive to be removed, found %v", matches)
+	}
+}
+
+func TestUploadBackupToWebdavCreatesRemoteCollectionsBeforePut(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "instance-42.tar.gz")
+	if err := os.WriteFile(localPath, []byte("backup"), 0o600); err != nil {
+		t.Fatalf("write local backup: %v", err)
+	}
+
+	createdCollections := map[string]bool{}
+	var uploadedPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "MKCOL":
+			createdCollections[r.URL.Path] = true
+			w.WriteHeader(http.StatusCreated)
+		case http.MethodPut:
+			if !createdCollections["/remote"] || !createdCollections["/remote/nested"] {
+				http.Error(w, "collection missing", http.StatusConflict)
+				return
+			}
+			uploadedPath = r.URL.Path
+			if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				t.Fatalf("read request body: %v", err)
+			}
+			w.WriteHeader(http.StatusCreated)
+		default:
+			t.Fatalf("method=%s, want MKCOL or PUT", r.Method)
+		}
+	}))
+	defer server.Close()
+
+	remoteURL, err := uploadBackupToWebdav(map[string]any{
+		"backup_target_config": map[string]any{
+			"url":         server.URL,
+			"remote_path": "/remote/nested",
+			"username":    "user",
+		},
+		"backup_target_secret": map[string]any{
+			"password": "pass",
+		},
+	}, localPath)
+	if err != nil {
+		t.Fatalf("uploadBackupToWebdav returned error: %v", err)
+	}
+	if uploadedPath != "/remote/nested/instance-42.tar.gz" {
+		t.Fatalf("uploadedPath=%q, want nested backup path", uploadedPath)
+	}
+	if remoteURL != server.URL+"/remote/nested/instance-42.tar.gz" {
+		t.Fatalf("remoteURL=%q, want uploaded URL", remoteURL)
 	}
 }
