@@ -7,6 +7,7 @@ namespace App\Module\Gameserver\Infrastructure\Client;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\Agent;
 use App\Module\Core\Domain\Entity\Instance;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class AgentGameServerClient
@@ -34,6 +35,57 @@ class AgentGameServerClient
         ]);
 
         return is_array($response['results'] ?? null) ? $response['results'] : [];
+    }
+
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{content: string, content_type: string|null}
+     */
+    public function downloadInstanceBackup(Instance $instance, array $payload): array
+    {
+        $endpoint = sprintf('/v1/instances/%d/backups/download', (int) $instance->getId());
+        $headers = $this->buildAuthHeaders($instance, 'POST', $endpoint);
+        $headers['Accept'] = 'application/octet-stream';
+
+        $response = $this->httpClient->request('POST', $this->resolveBaseUrl($instance->getNode()) . $endpoint, [
+            'headers' => $headers,
+            'json' => $payload,
+            'timeout' => max($this->timeoutSeconds, 60),
+            'max_duration' => max($this->timeoutSeconds, 3600),
+        ]);
+
+        try {
+            $statusCode = $response->getStatusCode();
+        } catch (TransportExceptionInterface $exception) {
+            throw new \RuntimeException('Agent backup download endpoint unavailable.', previous: $exception);
+        }
+
+        if ($statusCode < 200 || $statusCode >= 300) {
+            $content = $response->getContent(false);
+            $message = 'Agent backup download failed.';
+            try {
+                $decoded = json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
+                if (is_array($decoded) && is_string($decoded['message'] ?? null) && $decoded['message'] !== '') {
+                    $message = $decoded['message'];
+                } elseif (is_array($decoded) && is_string($decoded['error'] ?? null) && $decoded['error'] !== '') {
+                    $message = $decoded['error'];
+                }
+            } catch (\JsonException) {
+                if (trim($content) !== '') {
+                    $message = trim($content);
+                }
+            }
+
+            throw new \RuntimeException($message);
+        }
+
+        $headers = $response->getHeaders(false);
+
+        return [
+            'content' => $response->getContent(false),
+            'content_type' => $headers['content-type'][0] ?? null,
+        ];
     }
 
     /**

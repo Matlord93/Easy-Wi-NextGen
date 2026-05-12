@@ -8,6 +8,7 @@ use App\Message\InstanceActionMessage;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
+use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\SetupChecker;
 use App\Module\Core\Domain\Entity\BackupDefinition;
 use App\Module\Core\Domain\Entity\BackupTarget;
@@ -40,6 +41,8 @@ use Cron\CronExpression;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -77,6 +80,7 @@ final class CustomerInstanceActionApiController
         private readonly \Doctrine\ORM\EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
         private readonly ResponseEnvelopeFactory $responseEnvelopeFactory,
+        private readonly EncryptionService $encryptionService,
         private readonly ?AgentGameServerClient $agentGameServerClient = null,
         private readonly ?ConsoleStreamDiagnostics $consoleStreamDiagnostics = null,
     ) {
@@ -678,7 +682,7 @@ final class CustomerInstanceActionApiController
 
     #[Route(path: '/api/instances/{id}/backups/{backupId}/download', name: 'customer_instance_backups_download', methods: ['GET'])]
     #[Route(path: '/api/v1/customer/instances/{id}/backups/{backupId}/download', name: 'customer_instance_backups_download_v1', methods: ['GET'])]
-    public function downloadBackup(Request $request, int $id, int $backupId): JsonResponse|\Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function downloadBackup(Request $request, int $id, int $backupId): JsonResponse|Response|\Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         try {
             $customer = $this->requireCustomer($request);
@@ -702,15 +706,33 @@ final class CustomerInstanceActionApiController
         }
 
         $archivePath = trim((string) $backup->getArchivePath());
-        if ($archivePath === '' || !is_file($archivePath) || !is_readable($archivePath)) {
+        if ($archivePath === '') {
             return $this->apiError($request, 'NOT_FOUND', 'Backup archive is unavailable.', JsonResponse::HTTP_NOT_FOUND);
         }
 
-        $response = new \Symfony\Component\HttpFoundation\BinaryFileResponse($archivePath);
-        $response->setContentDisposition(
-            \Symfony\Component\HttpFoundation\ResponseHeaderBag::DISPOSITION_ATTACHMENT,
-            sprintf('instance-%d-backup-%d.tar.gz', $instance->getId(), $backup->getId()),
-        );
+        $downloadName = $this->backupDownloadName($instance, $backup, $archivePath);
+        if (is_file($archivePath) && is_readable($archivePath)) {
+            $response = new \Symfony\Component\HttpFoundation\BinaryFileResponse($archivePath);
+            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $downloadName);
+            $response->headers->set('X-Request-ID', $this->resolveRequestId($request));
+
+            return $response;
+        }
+
+        if (!$this->agentGameServerClient instanceof AgentGameServerClient) {
+            return $this->apiError($request, 'NOT_FOUND', 'Backup archive is unavailable.', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        try {
+            $download = $this->agentGameServerClient->downloadInstanceBackup($instance, $this->buildBackupDownloadPayload($backup, $archivePath));
+        } catch (\RuntimeException $exception) {
+            return $this->apiError($request, 'NOT_FOUND', $exception->getMessage() !== '' ? $exception->getMessage() : 'Backup archive is unavailable.', JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $response = new Response($download['content']);
+        $response->headers->set('Content-Type', $download['content_type'] ?: 'application/gzip');
+        $response->headers->set('Content-Disposition', $response->headers->makeDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $downloadName));
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Request-ID', $this->resolveRequestId($request));
 
         return $response;
@@ -1754,6 +1776,49 @@ final class CustomerInstanceActionApiController
     /**
      * @return array<string, mixed>
      */
+    private function backupDownloadName(Instance $instance, \App\Module\Core\Domain\Entity\Backup $backup, string $archivePath): string
+    {
+        $extension = str_ends_with(strtolower($archivePath), '.tar.gz') ? '.tar.gz' : '.tar.gz';
+
+        return sprintf('instance-%d-backup-%d%s', $instance->getId(), $backup->getId(), $extension);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildBackupDownloadPayload(\App\Module\Core\Domain\Entity\Backup $backup, string $archivePath): array
+    {
+        $payload = [
+            'backup_path' => $archivePath,
+            'backup_sha256' => $backup->getChecksumSha256(),
+        ];
+
+        $target = $backup->getDefinition()->getBackupTarget();
+        if (!$target instanceof BackupTarget || !$target->isEnabled()) {
+            $payload['backup_target_type'] = 'local';
+
+            return $payload;
+        }
+
+        $payload['backup_target_id'] = (string) $target->getId();
+        $payload['backup_target_type'] = $target->getType()->value;
+        $payload['backup_target_config'] = $target->getConfig();
+
+        if (in_array($target->getType()->value, ['webdav', 'nextcloud'], true)) {
+            $secret = [];
+            foreach ($target->getEncryptedCredentials() as $key => $value) {
+                if (is_string($key) && in_array($key, ['password', 'token', 'username'], true) && is_string($value) && $value !== '') {
+                    $secret[$key] = $this->encryptionService->decrypt($value);
+                }
+            }
+            if ($secret !== []) {
+                $payload['backup_target_secret'] = $secret;
+            }
+        }
+
+        return $payload;
+    }
+
     private function normalizeBackup(\App\Module\Core\Domain\Entity\Backup $backup): array
     {
         return [

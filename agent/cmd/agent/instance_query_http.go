@@ -80,6 +80,12 @@ func handleInstanceQueryHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if strings.Contains(r.URL.Path, "/backups/") {
+		if handled := handleInstanceBackupHTTP(w, r, instanceID); handled {
+			return
+		}
+	}
+
 	if r.Method != http.MethodGet {
 		writeJSONError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method not allowed")
 		return
