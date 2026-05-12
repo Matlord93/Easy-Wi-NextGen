@@ -1,5 +1,9 @@
 {
-  "latest": "0.0.0",
+  "latest": {
+    "stable": "0.0.0",
+    "beta": "0.0.0-beta.1",
+    "dev": "0.0.0-dev.1"
+  },
   "releases": [
     {
       "version": "0.0.0",

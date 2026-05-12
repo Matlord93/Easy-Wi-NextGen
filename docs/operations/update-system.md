@@ -23,3 +23,9 @@
 - Bei Fehler im Update wird automatisch auf vorheriges Release zurückgeschwenkt.
 - DB-Rollback wird **nicht** automatisch erzwungen (nur wenn Migration safe rückwärtsfähig ist).
 - Runbook: Release-Symlink prüfen, Logs prüfen, ggf. manueller Migration-Rollback.
+
+## Release-Kanäle
+- Das Panel trennt Core- und Agent-Updates nach `stable`, `beta` und `dev`.
+- GitHub Releases sollten in den Release Notes einen Marker `easywi-channel: stable|beta|dev` enthalten.
+- Ohne Marker nutzt das Panel die GitHub-Pre-release-Einstellung und das Tag-Suffix (`-beta.N`, `-dev.N`) als Fallback.
+- `alpha` wird aus Kompatibilitätsgründen als Alias für `dev` gelesen, neue Releases sollen aber `dev` verwenden.

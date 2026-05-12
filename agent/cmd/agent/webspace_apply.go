@@ -20,7 +20,7 @@ var (
 
 func handleWebspaceApply(job jobs.Job) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" {
-		return webspaceApplyFailure(job.ID, "webspace_unsupported_os", "webspace apply unsupported on windows"), nil
+		return handleWebspaceApplyWindows(job)
 	}
 
 	runtimeType := strings.ToLower(payloadValue(job.Payload, "runtime"))
@@ -44,6 +44,115 @@ func handleWebspaceApply(job jobs.Job) (jobs.Result, func() error) {
 	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"runtime": runtimeType, "apply_status": "succeeded"}, Completed: time.Now().UTC()}, nil
 }
 
+func handleWebspaceApplyWindows(job jobs.Job) (jobs.Result, func() error) {
+	release, err := lockWebspaceApply(job.Payload)
+	if err != nil {
+		return webspaceApplyFailure(job.ID, "webspace_action_in_progress", err.Error()), nil
+	}
+	defer release()
+
+	if err := restartWindowsIIS(); err != nil {
+		return webspaceApplyFailure(job.ID, "reload_failed", err.Error()), nil
+	}
+	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"runtime": "iis", "apply_status": "succeeded"}, Completed: time.Now().UTC()}, nil
+}
+
+func handleWebspaceDomainApplyWindows(job jobs.Job) (jobs.Result, func() error) {
+	webRoot := payloadValue(job.Payload, "web_root")
+	targetPath := payloadValue(job.Payload, "target_path")
+	domainName := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "domain")))
+	serverAliases := strings.TrimSpace(payloadValue(job.Payload, "server_aliases", "aliases"))
+	docroot := strings.TrimSpace(payloadValue(job.Payload, "docroot", "document_root"))
+	action := strings.ToLower(strings.TrimSpace(payloadValue(job.Payload, "action")))
+	siteName := strings.TrimSpace(payloadValue(job.Payload, "site_name", "iis_site_name", "webspace_id"))
+	if siteName == "" {
+		siteName = domainName
+	}
+
+	release, err := lockWebspaceApply(job.Payload)
+	if err != nil {
+		return webspaceApplyFailure(job.ID, "webspace_action_in_progress", err.Error()), nil
+	}
+	defer release()
+
+	if action == "remove" {
+		if siteName == "" {
+			return webspaceApplyFailure(job.ID, "invalid_payload", "site_name or domain is required"), nil
+		}
+		if err := removeWindowsIISSite(siteName); err != nil {
+			return webspaceApplyFailure(job.ID, "reload_failed", err.Error()), nil
+		}
+		return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"runtime": "iis", "apply_status": "succeeded", "action": "removed", "site_name": siteName}, Completed: time.Now().UTC()}, nil
+	}
+
+	if err := validateDomainName(domainName); err != nil {
+		return webspaceApplyFailure(job.ID, "invalid_domain_name", err.Error()), nil
+	}
+	aliasValues := strings.FieldsFunc(serverAliases, func(r rune) bool { return r == ',' || r == ';' || r == ' ' || r == '\t' || r == '\n' })
+	for _, alias := range aliasValues {
+		if err := validateDomainName(alias); err != nil {
+			return webspaceApplyFailure(job.ID, "invalid_domain_name", "invalid alias: "+alias), nil
+		}
+	}
+	if webRoot != "" && targetPath != "" {
+		resolved, err := resolvePathWithinRoot(webRoot, targetPath)
+		if err != nil {
+			errCode := "invalid_path"
+			if strings.Contains(strings.ToLower(err.Error()), "outside") {
+				errCode = "path_outside_webspace_root"
+			}
+			return webspaceApplyFailure(job.ID, errCode, err.Error()), nil
+		}
+		docroot = resolved
+	}
+	if docroot == "" {
+		return webspaceApplyFailure(job.ID, "invalid_path", "docroot is required"), nil
+	}
+	if err := os.MkdirAll(docroot, webspaceDirMode); err != nil {
+		return webspaceApplyFailure(job.ID, "write_failed", err.Error()), nil
+	}
+	if siteName == "" {
+		siteName = sanitizeIdentifier(domainName)
+	}
+	if err := ensureWindowsIISSite(siteName, domainName, aliasValues, docroot); err != nil {
+		return webspaceApplyFailure(job.ID, "reload_failed", err.Error()), nil
+	}
+	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"runtime": "iis", "apply_status": "succeeded", "changed": "1", "site_name": siteName, "docroot": docroot}, Completed: time.Now().UTC()}, nil
+}
+
+func restartWindowsIIS() error {
+	shell := windowsPowerShellBinary()
+	if shell == "" {
+		return fmt.Errorf("powershell is required to reload IIS")
+	}
+	script := `$ErrorActionPreference='Stop'; if (Get-Service -Name W3SVC -ErrorAction SilentlyContinue) { Restart-Service -Name W3SVC -Force } else { throw 'W3SVC service is not installed' }`
+	return runCommand(shell, "-NoProfile", "-NonInteractive", "-Command", script)
+}
+
+func ensureWindowsIISSite(siteName, hostHeader string, aliases []string, docroot string) error {
+	shell := windowsPowerShellBinary()
+	if shell == "" {
+		return fmt.Errorf("powershell is required to configure IIS")
+	}
+	hosts := append([]string{hostHeader}, aliases...)
+	hostArray := powershellArrayLiteral(hosts)
+	script := fmt.Sprintf(`$ErrorActionPreference='Stop'; Import-Module WebAdministration; $siteName=%s; $docroot=%s; $hosts=%s; if (-not (Test-Path $docroot)) { New-Item -ItemType Directory -Path $docroot -Force | Out-Null }; $site=Get-Website -Name $siteName -ErrorAction SilentlyContinue; if (-not $site) { New-Website -Name $siteName -PhysicalPath $docroot -Port 80 -HostHeader $hosts[0] -Force | Out-Null } else { Set-ItemProperty ("IIS:\Sites\" + $siteName) -Name physicalPath -Value $docroot }; foreach ($hostName in $hosts) { $exists=Get-WebBinding -Name $siteName -Protocol 'http' -ErrorAction SilentlyContinue | Where-Object { $_.bindingInformation -eq ("*:80:" + $hostName) }; if (-not $exists) { New-WebBinding -Name $siteName -Protocol 'http' -Port 80 -HostHeader $hostName | Out-Null } }; Start-Website -Name $siteName`, powershellStringLiteral(siteName), powershellStringLiteral(docroot), hostArray)
+	return runCommand(shell, "-NoProfile", "-NonInteractive", "-Command", script)
+}
+
+func removeWindowsIISSite(siteName string) error {
+	shell := windowsPowerShellBinary()
+	if shell == "" {
+		return fmt.Errorf("powershell is required to configure IIS")
+	}
+	script := fmt.Sprintf(`$ErrorActionPreference='Stop'; Import-Module WebAdministration; $siteName=%s; if (Get-Website -Name $siteName -ErrorAction SilentlyContinue) { Remove-Website -Name $siteName }`, powershellStringLiteral(siteName))
+	return runCommand(shell, "-NoProfile", "-NonInteractive", "-Command", script)
+}
+
+func powershellStringLiteral(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
+}
+
 func parseProtectedVhostPaths(raw string) map[string]struct{} {
 	protected := map[string]struct{}{}
 	for _, p := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' }) {
@@ -57,7 +166,7 @@ func parseProtectedVhostPaths(raw string) map[string]struct{} {
 
 func handleWebspaceDomainApply(job jobs.Job) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" {
-		return webspaceApplyFailure(job.ID, "webspace_unsupported_os", "webspace apply unsupported on windows"), nil
+		return handleWebspaceDomainApplyWindows(job)
 	}
 
 	webRoot := payloadValue(job.Payload, "web_root")

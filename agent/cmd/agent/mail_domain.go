@@ -20,6 +20,9 @@ func handleMailDomainCreate(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
 	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableDomainCreate(job)
+	}
 
 	domainName := payloadValue(job.Payload, "domain", "name", "hostname")
 	configPath := payloadValue(job.Payload, "config_path", "domain_config_path", "virtual_domain_path")
@@ -124,6 +127,9 @@ func parseDKIMTXT(raw string) string {
 func handleMailDkimRotate(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableDkimRotate(job)
 	}
 
 	domainName := payloadValue(job.Payload, "domain", "name", "hostname")

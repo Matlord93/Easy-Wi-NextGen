@@ -172,13 +172,16 @@ func collectMetadata(cfg config.Config) map[string]any {
 }
 
 func windowsCapabilities() []string {
-	capabilities := []string{"heartbeat", "job_polling"}
-	jobTypes := make([]string, 0, len(windowsAllowedJobTypes))
-	for jobType := range windowsAllowedJobTypes {
-		jobTypes = append(jobTypes, jobType)
+	capabilities := []string{
+		"heartbeat",
+		"job_polling",
+		"windows_full_job_dispatch",
+		"windows_native_updates",
+		"windows_openssh_sftp",
+		"windows_iis_roles",
+		"windows_mailenable_mail",
 	}
-	sort.Strings(jobTypes)
-	capabilities = append(capabilities, jobTypes...)
+	sort.Strings(capabilities)
 	return capabilities
 }
 

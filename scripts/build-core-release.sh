@@ -3,6 +3,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="${1:-$ROOT/dist/core-release}"
 VERSION="${VERSION:-$(cat "$ROOT/VERSION")}"
+RELEASE_CHANNEL="${RELEASE_CHANNEL:-stable}"
+export RELEASE_CHANNEL
 TAG="v${VERSION}"
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 GIT_SHA="$(git -C "$ROOT" rev-parse HEAD)"
@@ -60,7 +62,12 @@ root=pathlib.Path('$DIST')
 version='$VERSION'
 repo=os.environ.get('GITHUB_REPOSITORY','example/repo')
 tag='v'+version
-release={"version":version,"date":"$BUILD_DATE"[:10],"channel":"stable","migrations":True,"min_php":"8.3","min_db":{"mysql":"8.0"},"artifacts":{},"changelog":"See release notes."}
+channel=os.environ.get('RELEASE_CHANNEL','stable').strip().lower()
+if channel == 'alpha':
+    channel = 'dev'
+if channel not in {'stable','beta','dev'}:
+    raise SystemExit(f'Unsupported RELEASE_CHANNEL: {channel}')
+release={"version":version,"date":"$BUILD_DATE"[:10],"channel":channel,"migrations":True,"min_php":"8.3","min_db":{"mysql":"8.0"},"artifacts":{},"changelog":"See release notes."}
 for name,key in [
  (f'core-full-{version}.zip','core_full_zip'),
  (f'core-full-{version}.tar.gz','core_full_targz'),
@@ -68,7 +75,7 @@ for name,key in [
  (f'core-novendor-{version}.tar.gz','core_novendor_targz')]:
  p=root/name
  release['artifacts'][key]={"url":f"https://github.com/{repo}/releases/download/{tag}/{name}","sha256":hashlib.sha256(p.read_bytes()).hexdigest(),"size":p.stat().st_size}
-feed={"latest":version,"releases":[release]}
+feed={"latest":{channel:version},"releases":[release]}
 (root/'feed.json').write_text(json.dumps(feed,indent=2)+"\n")
 PY
 

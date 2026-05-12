@@ -24,7 +24,7 @@ const (
 
 func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" {
-		return webspaceApplyFailure(job.ID, "webspace_unsupported_os", "webspace create unsupported on windows"), nil
+		return handleWebspaceCreateWindows(job)
 	}
 
 	webRoot := payloadValue(job.Payload, "web_root", "path")
@@ -156,6 +156,55 @@ func handleWebspaceCreate(job jobs.Job) (jobs.Result, func() error) {
 		},
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func handleWebspaceCreateWindows(job jobs.Job) (jobs.Result, func() error) {
+	webRoot := payloadValue(job.Payload, "web_root", "path")
+	docroot := payloadValue(job.Payload, "docroot", "document_root")
+	if docroot == "" && webRoot != "" {
+		docroot = filepath.Join(webRoot, "public")
+	}
+	missing := missingValues([]requiredValue{
+		{key: "web_root", value: webRoot},
+		{key: "docroot", value: docroot},
+	})
+	if len(missing) > 0 {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"message": "missing required values: " + strings.Join(missing, ", ")}, Completed: time.Now().UTC()}, nil
+	}
+
+	var cleanupPaths []string
+	rollback := func() error {
+		for i := len(cleanupPaths) - 1; i >= 0; i-- {
+			if err := os.RemoveAll(cleanupPaths[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	failWithRollback := func(err error) (jobs.Result, func() error) {
+		return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{"message": err.Error()}, Completed: time.Now().UTC()}, rollback
+	}
+
+	logsDir := filepath.Join(webRoot, "logs")
+	tmpDir := filepath.Join(webRoot, "tmp")
+	for _, dir := range []string{webRoot, docroot, logsDir, tmpDir} {
+		if !pathExists(dir) {
+			cleanupPaths = append(cleanupPaths, dir)
+		}
+		if err := os.MkdirAll(dir, webspaceDirMode); err != nil {
+			return failWithRollback(fmt.Errorf("create %s: %w", dir, err))
+		}
+	}
+
+	webConfigPath := filepath.Join(docroot, "web.config")
+	if !pathExists(webConfigPath) {
+		content := "<configuration>\n  <!-- Managed by Easy-Wi agent -->\n  <system.webServer>\n    <defaultDocument enabled=\"true\" />\n  </system.webServer>\n</configuration>\n"
+		if err := os.WriteFile(webConfigPath, []byte(content), webspaceFileMode); err != nil {
+			return failWithRollback(fmt.Errorf("write web.config: %w", err))
+		}
+	}
+
+	return jobs.Result{JobID: job.ID, Status: "success", Output: map[string]string{"web_root": webRoot, "docroot": docroot, "logs_dir": logsDir, "tmp_dir": tmpDir, "runtime": "iis"}, Completed: time.Now().UTC()}, nil
 }
 
 func handleWebspaceDelete(job jobs.Job) (jobs.Result, func() error) {

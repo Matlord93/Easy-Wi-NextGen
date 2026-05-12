@@ -28,6 +28,9 @@ func handleMailboxCreate(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
 	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableMailboxCreate(job)
+	}
 
 	address := payloadValue(job.Payload, "address", "email")
 	passwordHash := payloadValue(job.Payload, "password_hash", "password")
@@ -114,6 +117,9 @@ func handleMailboxPasswordReset(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
 	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableMailboxPasswordReset(job)
+	}
 
 	address := payloadValue(job.Payload, "address", "email")
 	passwordHash := payloadValue(job.Payload, "password_hash", "password")
@@ -149,6 +155,9 @@ func handleMailboxPasswordReset(job jobs.Job) (jobs.Result, func() error) {
 func handleMailboxQuotaUpdate(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableMailboxQuotaUpdate(job)
 	}
 
 	address := payloadValue(job.Payload, "address", "email")
@@ -188,6 +197,9 @@ func handleMailboxEnable(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
 	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableMailboxStatus(job, true)
+	}
 
 	return handleMailboxStatus(job, true)
 }
@@ -196,6 +208,9 @@ func handleMailboxDisable(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
 	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableMailboxStatus(job, false)
+	}
 
 	return handleMailboxStatus(job, false)
 }
@@ -203,6 +218,9 @@ func handleMailboxDisable(job jobs.Job) (jobs.Result, func() error) {
 func handleMailboxDelete(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableMailboxDelete(job)
 	}
 
 	address := payloadValue(job.Payload, "address", "email")

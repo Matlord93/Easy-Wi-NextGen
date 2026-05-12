@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -17,14 +16,6 @@ func handleVoiceProbe(job jobs.Job) (jobs.Result, func() error) {
 	provider := strings.ToLower(payloadValue(job.Payload, "provider_type"))
 	if provider == "" {
 		provider = "unknown"
-	}
-
-	if runtime.GOOS == "windows" {
-		return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{
-			"message":       "voice query is not supported on windows agents",
-			"error_code":    "voice_unsupported_os",
-			"provider_type": provider,
-		}, Completed: time.Now().UTC()}, nil
 	}
 
 	if provider != "ts3" && provider != "ts6" {
@@ -91,15 +82,6 @@ func handleVoiceAction(job jobs.Job, action string) (jobs.Result, func() error) 
 	provider := strings.ToLower(payloadValue(job.Payload, "provider_type"))
 	if provider == "" {
 		provider = "unknown"
-	}
-
-	if runtime.GOOS == "windows" {
-		return jobs.Result{JobID: job.ID, Status: "failed", Output: map[string]string{
-			"message":       "voice actions are not supported on windows agents",
-			"error_code":    "voice_unsupported_os",
-			"provider_type": provider,
-			"action":        action,
-		}, Completed: time.Now().UTC()}, nil
 	}
 
 	if provider != "ts3" && provider != "ts6" {

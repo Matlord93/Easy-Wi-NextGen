@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -98,8 +99,44 @@ func handleInstanceSftpCredentialsReset(job jobs.Job) (jobs.Result, func() error
 
 func handleInstanceSftpCredentialsResetWindows(job jobs.Job) (jobs.Result, func() error) {
 	requestID := payloadValue(job.Payload, "request_id")
+	username := payloadValue(job.Payload, "username", "sftp_username", "user")
+	password := strings.TrimSpace(payloadValue(job.Payload, "one_time_password", "password", "sftp_password"))
+	preferredBackend := strings.ToUpper(strings.TrimSpace(payloadValue(job.Payload, "preferred_backend", "backend")))
+	rootPath := strings.TrimSpace(payloadValue(job.Payload, "install_path", "root_path", "instance_root"))
 
-	return failureResultWithCode(job.ID, "WINDOWS_SFTP_UNSUPPORTED", fmt.Errorf("SFTP provisioning for Windows gameserver instances is not enabled; configure the embedded EasyWI SFTP service or use a Linux node"), requestID, "")
+	homePath, err := resolveInstanceDir(map[string]any{"install_path": rootPath, "base_dir": payloadValue(job.Payload, "base_dir")})
+	if err != nil {
+		return failureResultWithCode(job.ID, "ROOT_INVALID", err, requestID, "")
+	}
+	if !filepath.IsAbs(homePath) || strings.Contains(homePath, "..") {
+		return failureResultWithCode(job.ID, "ROOT_INVALID", fmt.Errorf("invalid root path: %s", homePath), requestID, "")
+	}
+	if st, err := os.Stat(homePath); err != nil || !st.IsDir() {
+		if err == nil {
+			err = fmt.Errorf("not a directory")
+		}
+		return failureResultWithCode(job.ID, "sftp_instance_dir_missing", fmt.Errorf("instance directory unavailable: %w", err), requestID, "")
+	}
+
+	backend, err := provisionAccessBackend(username, password, homePath, preferredBackend)
+	if err != nil {
+		return failureResultWithCode(job.ID, mapAccessErr(err), err, requestID, "")
+	}
+
+	return jobs.Result{
+		JobID:  job.ID,
+		Status: "success",
+		Output: map[string]string{
+			"username":   username,
+			"backend":    backend,
+			"host":       payloadValue(job.Payload, "host", "node_ip", "bind_ip"),
+			"port":       strconv.Itoa(defaultAccessListenPort),
+			"root_path":  homePath,
+			"home_path":  homePath,
+			"request_id": requestID,
+		},
+		Completed: time.Now().UTC(),
+	}, nil
 }
 
 func generateSftpPassword() string {

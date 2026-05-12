@@ -131,9 +131,8 @@ func ensureBaseForRole(role string) (string, error) {
 }
 
 type windowsRolePlan struct {
-	features       []string
-	wingetPackages []string
-	services       []string
+	features []string
+	services []string
 }
 
 func ensureBaseForRoleWindows(role string) (string, error) {
@@ -148,9 +147,6 @@ func ensureBaseForRoleWindows(role string) (string, error) {
 	if err := installWindowsFeatures(plan.features, &output); err != nil {
 		return output.String(), err
 	}
-	if err := installWindowsPackages(plan.wingetPackages, &output); err != nil {
-		return output.String(), err
-	}
 	if err := ensureRoleFilesWindows(role, &output); err != nil {
 		return output.String(), err
 	}
@@ -163,6 +159,17 @@ func ensureBaseForRoleWindows(role string) (string, error) {
 		if err := installSteamCmdWindows(&output); err != nil {
 			return output.String(), err
 		}
+		if err := ensureWindowsJavaRuntime(&output); err != nil {
+			return output.String(), err
+		}
+	}
+	if role == "mail" {
+		appendOutput(&output, "windows_mail_local_supported=mailenable")
+		appendOutput(&output, "windows_mail_note=install MailEnable and use mail_backend=mailenable for Windows local mail; built-in Windows SMTP is relay-only and not equivalent to Postfix/Dovecot/OpenDKIM")
+	}
+	if role == "db" {
+		appendOutput(&output, "windows_db_native_package=none")
+		appendOutput(&output, "windows_db_note=install MariaDB or PostgreSQL from vendor media before database jobs")
 	}
 	if err := enableWindowsRoleServices(plan.services, &output); err != nil {
 		return output.String(), err
@@ -174,10 +181,7 @@ func ensureBaseForRoleWindows(role string) (string, error) {
 func windowsRoleInstallPlan(role string) *windowsRolePlan {
 	switch role {
 	case "game":
-		return &windowsRolePlan{
-			wingetPackages: []string{"EclipseAdoptium.Temurin.25.JDK"},
-			services:       []string{"sshd"},
-		}
+		return &windowsRolePlan{services: []string{"sshd"}}
 	case "web", "core":
 		return &windowsRolePlan{
 			features: []string{
@@ -185,15 +189,14 @@ func windowsRoleInstallPlan(role string) *windowsRolePlan {
 				"Web-Http-Errors", "Web-App-Dev", "Web-CGI", "Web-FastCGI", "Web-ISAPI-Ext",
 				"Web-ISAPI-Filter", "Web-Asp-Net45", "Web-Mgmt-Tools", "Web-Mgmt-Console",
 			},
-			wingetPackages: []string{"PHP.PHP"},
-			services:       []string{"W3SVC"},
+			services: []string{"W3SVC"},
 		}
 	case "dns":
 		return &windowsRolePlan{features: []string{"DNS"}, services: []string{"DNS"}}
 	case "mail":
-		return &windowsRolePlan{features: []string{"SMTP-Server"}, services: []string{"SMTPSVC"}}
+		return &windowsRolePlan{}
 	case "db":
-		return &windowsRolePlan{wingetPackages: []string{"MariaDB.Server", "PostgreSQL.PostgreSQL"}}
+		return &windowsRolePlan{}
 	default:
 		return nil
 	}
@@ -273,21 +276,6 @@ if (Get-Command Install-WindowsFeature -ErrorAction SilentlyContinue) {
 	return runCommandWithOutput(shell, []string{"-NoProfile", "-NonInteractive", "-Command", script}, output)
 }
 
-func installWindowsPackages(packages []string, output *strings.Builder) error {
-	if len(packages) == 0 {
-		return nil
-	}
-	if !commandExists("winget") {
-		return fmt.Errorf("winget is required to install packages: %s", strings.Join(packages, ", "))
-	}
-	for _, pkg := range packages {
-		if err := runCommandWithOutput("winget", []string{"install", "--id", pkg, "--silent", "--accept-source-agreements", "--accept-package-agreements"}, output); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func ensureRoleFilesWindows(role string, output *strings.Builder) error {
 	baseDir := windowsEasyWiBaseDir()
 	rolesDir := filepath.Join(baseDir, "roles.d")
@@ -340,6 +328,16 @@ func ensureWindowsSFTPAlternative(output *strings.Builder) error {
 		return err
 	}
 	appendOutput(output, "windows_sftp=openssh_port_2222")
+	return nil
+}
+
+func ensureWindowsJavaRuntime(output *strings.Builder) error {
+	if commandExists("java") {
+		appendOutput(output, "java=already_installed")
+		return nil
+	}
+	appendOutput(output, "java=missing")
+	appendOutput(output, "java_note=install a Windows x64 Java runtime from a vendor-supported installer before starting Java game servers")
 	return nil
 }
 

@@ -88,6 +88,26 @@ func handleWebEnsureBaseWindows(job jobs.Job) (jobs.Result, func() error) {
 	var output strings.Builder
 	appendOutput(&output, "detected_os_family=windows")
 
+	plan := windowsRoleInstallPlan("web")
+	if plan != nil {
+		if err := installWindowsFeatures(plan.features, &output); err != nil {
+			return jobs.Result{
+				JobID:     job.ID,
+				Status:    "failed",
+				Output:    map[string]string{"message": err.Error(), "details": output.String()},
+				Completed: time.Now().UTC(),
+			}, nil
+		}
+		if err := enableWindowsRoleServices(plan.services, &output); err != nil {
+			return jobs.Result{
+				JobID:     job.ID,
+				Status:    "failed",
+				Output:    map[string]string{"message": err.Error(), "details": output.String()},
+				Completed: time.Now().UTC(),
+			}, nil
+		}
+	}
+
 	if err := ensureWebBaseFilesWindows(&output); err != nil {
 		return jobs.Result{
 			JobID:     job.ID,
@@ -250,8 +270,8 @@ func ensureWebBaseFilesWindows(output *strings.Builder) error {
 		}
 	}
 
-	templatePath := filepath.Join(baseDir, "templates", "iis_site.config")
-	templateContent := "<configuration>\n  <!-- Managed by Easy-Wi agent -->\n</configuration>\n"
+	templatePath := filepath.Join(baseDir, "templates", "iis_web.config")
+	templateContent := "<configuration>\n  <!-- Managed by Easy-Wi agent -->\n  <system.webServer>\n    <defaultDocument enabled=\"true\" />\n  </system.webServer>\n</configuration>\n"
 	if err := os.WriteFile(templatePath, []byte(templateContent), 0o640); err != nil {
 		return fmt.Errorf("write iis template: %w", err)
 	}

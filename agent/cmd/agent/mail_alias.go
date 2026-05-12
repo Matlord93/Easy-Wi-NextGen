@@ -21,6 +21,9 @@ func handleMailAliasCreate(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
 	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableAliasUpsert(job, "created")
+	}
 
 	return handleMailAliasUpsert(job, "created")
 }
@@ -28,6 +31,9 @@ func handleMailAliasCreate(job jobs.Job) (jobs.Result, func() error) {
 func handleMailAliasUpdate(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableAliasUpsert(job, "updated")
 	}
 
 	return handleMailAliasUpsert(job, "updated")
@@ -37,6 +43,9 @@ func handleMailAliasEnable(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
 	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableAliasStatus(job, true)
+	}
 
 	return handleMailAliasStatus(job, true)
 }
@@ -45,6 +54,9 @@ func handleMailAliasDisable(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
 	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableAliasStatus(job, false)
+	}
 
 	return handleMailAliasStatus(job, false)
 }
@@ -52,6 +64,9 @@ func handleMailAliasDisable(job jobs.Job) (jobs.Result, func() error) {
 func handleMailAliasDelete(job jobs.Job) (jobs.Result, func() error) {
 	if out, ok := mailBackendGuard(job); !ok {
 		return jobs.Result{JobID: job.ID, Status: "failed", Output: out, Completed: time.Now().UTC()}, nil
+	}
+	if isWindowsMailEnableBackend(job) {
+		return handleMailEnableAliasDelete(job)
 	}
 
 	address := payloadValue(job.Payload, "address", "alias")

@@ -3,7 +3,6 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
-	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
@@ -12,9 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -35,18 +32,6 @@ func instanceBackupTimeout() time.Duration {
 }
 
 func handleInstanceBackupCreate(job jobs.Job) (jobs.Result, func() error) {
-	if runtime.GOOS == "windows" {
-		return jobs.Result{
-			JobID:  job.ID,
-			Status: "failed",
-			Output: map[string]string{
-				"error":      "instance backups are not supported on windows agents",
-				"error_code": "backup_unsupported_windows",
-			},
-			Completed: time.Now().UTC(),
-		}, nil
-	}
-
 	instanceID := payloadValue(job.Payload, "instance_id")
 	if strings.TrimSpace(instanceID) == "" {
 		return failureResult(job.ID, fmt.Errorf("instance_id is required"))
@@ -76,10 +61,7 @@ func handleInstanceBackupCreate(job jobs.Job) (jobs.Result, func() error) {
 	}
 
 	backupPath := filepath.Join(targetDir, fmt.Sprintf("instance-%s-%d.tar.gz", sanitizeIdentifier(instanceID), time.Now().UTC().Unix()))
-	backupCtx, backupCancel := context.WithTimeout(context.Background(), instanceBackupTimeout())
-	defer backupCancel()
-	cmd := exec.CommandContext(backupCtx, "tar", "-czf", backupPath, "-C", instanceDir, ".")
-	if _, err := StreamCommand(cmd, job.ID, nil); err != nil {
+	if err := createTarGzArchive(backupPath, instanceDir); err != nil {
 		return failureResult(job.ID, fmt.Errorf("create backup archive: %w", err))
 	}
 
@@ -114,18 +96,6 @@ func handleInstanceBackupCreate(job jobs.Job) (jobs.Result, func() error) {
 }
 
 func handleInstanceBackupRestore(job jobs.Job) (jobs.Result, func() error) {
-	if runtime.GOOS == "windows" {
-		return jobs.Result{
-			JobID:  job.ID,
-			Status: "failed",
-			Output: map[string]string{
-				"error":      "instance backup restore is not supported on windows agents",
-				"error_code": "backup_restore_unsupported_windows",
-			},
-			Completed: time.Now().UTC(),
-		}, nil
-	}
-
 	backupPath := payloadValue(job.Payload, "backup_path")
 	if strings.TrimSpace(backupPath) == "" {
 		return failureResult(job.ID, fmt.Errorf("backup_path is required"))
@@ -158,19 +128,12 @@ func handleInstanceBackupRestore(job jobs.Job) (jobs.Result, func() error) {
 
 	if parsePayloadBool(payloadValue(job.Payload, "pre_backup"), false) {
 		preBackupPath := filepath.Join(filepath.Dir(backupPath), fmt.Sprintf("pre-restore-%d.tar.gz", time.Now().UTC().Unix()))
-		preBackupCtx, preBackupCancel := context.WithTimeout(context.Background(), instanceBackupTimeout())
-		cmd := exec.CommandContext(preBackupCtx, "tar", "-czf", preBackupPath, "-C", instanceDir, ".")
-		if _, err := StreamCommand(cmd, job.ID, nil); err != nil {
-			preBackupCancel()
+		if err := createTarGzArchive(preBackupPath, instanceDir); err != nil {
 			return failureResult(job.ID, fmt.Errorf("create pre-restore backup: %w", err))
 		}
-		preBackupCancel()
 	}
 
-	restoreCtx, restoreCancel := context.WithTimeout(context.Background(), instanceBackupTimeout())
-	defer restoreCancel()
-	cmd := exec.CommandContext(restoreCtx, "tar", "-xzf", backupPath, "-C", instanceDir)
-	if _, err := StreamCommand(cmd, job.ID, nil); err != nil {
+	if err := extractTarGzArchive(backupPath, instanceDir); err != nil {
 		return failureResult(job.ID, fmt.Errorf("restore backup archive: %w", err))
 	}
 
@@ -183,6 +146,132 @@ func handleInstanceBackupRestore(job jobs.Job) (jobs.Result, func() error) {
 		},
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func createTarGzArchive(archivePath, sourceDir string) (err error) {
+	archive, err := os.Create(archivePath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := archive.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
+
+	gzWriter := gzip.NewWriter(archive)
+	defer func() {
+		if closeErr := gzWriter.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
+
+	tarWriter := tar.NewWriter(gzWriter)
+	defer func() {
+		if closeErr := tarWriter.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
+
+	return filepath.WalkDir(sourceDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		header.Name = filepath.ToSlash(rel)
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+		if info.IsDir() || !info.Mode().IsRegular() {
+			return nil
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(tarWriter, file)
+		closeErr := file.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	})
+}
+
+func extractTarGzArchive(archivePath, destinationRoot string) (err error) {
+	archive, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := archive.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
+
+	gzReader, err := gzip.NewReader(archive)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := gzReader.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
+
+	tarReader := tar.NewReader(gzReader)
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		target := filepath.Clean(filepath.Join(destinationRoot, header.Name))
+		rel, relErr := filepath.Rel(destinationRoot, target)
+		if relErr != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(header.Name) {
+			return fmt.Errorf("backup archive contains unsafe path: %s", header.Name)
+		}
+		mode := os.FileMode(header.Mode)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, mode); err != nil {
+				return err
+			}
+		case tar.TypeReg, tar.TypeRegA:
+			if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
+				return err
+			}
+			file, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+			if err != nil {
+				return err
+			}
+			_, copyErr := io.Copy(file, tarReader)
+			closeErr := file.Close()
+			if copyErr != nil {
+				return copyErr
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+		}
+	}
+	return nil
 }
 
 func computeFileChecksumAndSize(path string) (checksum string, size int64, err error) {
