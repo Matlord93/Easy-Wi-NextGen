@@ -8,6 +8,7 @@ use App\Message\InstanceActionMessage;
 use App\Module\Core\Application\AppSettingsService;
 use App\Module\Core\Application\AuditLogger;
 use App\Module\Core\Application\DiskEnforcementService;
+use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Application\InstanceDiskStateResolver;
 use App\Module\Core\Application\NodeDiskProtectionService;
 use App\Module\Core\Application\SetupChecker;
@@ -131,6 +132,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->createMock(EntityManagerInterface::class),
             $messageBus,
             new ResponseEnvelopeFactory(),
+            $this->createMock(EncryptionService::class),
         );
 
         $customer = $instance->getCustomer();
@@ -209,6 +211,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->createMock(EntityManagerInterface::class),
             $messageBus,
             new ResponseEnvelopeFactory(),
+            $this->createMock(EncryptionService::class),
         );
 
         $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode([]));
@@ -259,6 +262,7 @@ final class CustomerInstanceReinstallPayloadTest extends TestCase
             $this->createMock(EntityManagerInterface::class),
             $this->createMock(MessageBusInterface::class),
             new ResponseEnvelopeFactory(),
+            $this->createMock(EncryptionService::class),
         );
 
         $request = Request::create('/api/instances/1/reinstall', 'POST', [], [], [], [], json_encode(['confirm' => true]));
