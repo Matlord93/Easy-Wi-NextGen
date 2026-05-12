@@ -204,11 +204,12 @@ func collectWindowsServiceStatus(roles []string) map[string]string {
 			continue
 		}
 		state := strings.ToLower(parseWindowsServiceState(output))
-		if state == "running" {
+		switch state {
+		case "running":
 			statuses[service] = "active"
-		} else if state == "unknown" {
+		case "unknown":
 			statuses[service] = "inactive"
-		} else {
+		default:
 			statuses[service] = state
 		}
 	}

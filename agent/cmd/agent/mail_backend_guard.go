@@ -42,14 +42,11 @@ func mailBackendGuard(job jobs.Job) (map[string]string, bool) {
 		}, false
 	}
 
-	if runtime.GOOS == "windows" && (backend == "local" || backend == mailEnableBackendName) {
-		if mailEnablePowerShellAvailable() {
-			return nil, true
-		}
+	if runtime.GOOS == "windows" && backend == mailEnableBackendName && !mailEnablePowerShellAvailable() {
 		return map[string]string{
-			"message":      "Windows local mail requires MailEnable with the MailEnable.Provision.Command PowerShell snap-in; built-in Windows SMTP is not a full Postfix/Dovecot/OpenDKIM replacement",
+			"message":      "Windows MailEnable mail requires the MailEnable.Provision.Command PowerShell snap-in",
 			"error_code":   "MAIL_BACKEND_UNSUPPORTED_WINDOWS",
-			"ui_hint":      "Install/configure MailEnable and use mail_backend=mailenable, or use mail_backend=external/panel, or run local mail on a Linux node.",
+			"ui_hint":      "Install/configure MailEnable, use mail_backend=external/panel, or run local mail on a Linux node.",
 			"mail_backend": backend,
 		}, false
 	}

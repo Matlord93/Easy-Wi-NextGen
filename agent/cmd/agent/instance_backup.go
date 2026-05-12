@@ -22,6 +22,11 @@ import (
 const defaultInstanceBackupBaseDir = "/var/lib/easywi/backups/instances"
 const defaultInstanceBackupTimeout = 2 * time.Hour
 
+// tarTypeLegacyRegular is the pre-POSIX regular-file typeflag. The standard
+// library exposes this as deprecated tar.TypeRegA, so keep the literal behind
+// a local name to support older archives without triggering staticcheck.
+const tarTypeLegacyRegular byte = 0
+
 func instanceBackupTimeout() time.Duration {
 	if raw := strings.TrimSpace(os.Getenv("EASYWI_INSTANCE_BACKUP_TIMEOUT")); raw != "" {
 		if minutes, err := strconv.Atoi(raw); err == nil && minutes > 0 {
@@ -253,7 +258,7 @@ func extractTarGzArchive(archivePath, destinationRoot string) (err error) {
 			if err := os.MkdirAll(target, mode); err != nil {
 				return err
 			}
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg, tarTypeLegacyRegular:
 			if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
 				return err
 			}

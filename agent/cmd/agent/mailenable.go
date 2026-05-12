@@ -31,12 +31,12 @@ func mailEnablePowerShellAvailable() bool {
 
 func runMailEnablePowerShell(script string) error {
 	if !commandExists("powershell") {
-		return fmt.Errorf("Windows PowerShell is required for MailEnable provisioning")
+		return fmt.Errorf("powershell is required for MailEnable provisioning")
 	}
 	wrapped := "$ErrorActionPreference='Stop'; Add-PSSnapin MailEnable.Provision.Command -ErrorAction Stop; " + script
 	out, err := runCommandOutput("powershell", "-NoProfile", "-NonInteractive", "-Command", wrapped)
 	if err != nil {
-		return fmt.Errorf("MailEnable PowerShell failed: %s", sanitizeOutput(out))
+		return fmt.Errorf("mailenable PowerShell failed: %s", sanitizeOutput(out))
 	}
 	return nil
 }
