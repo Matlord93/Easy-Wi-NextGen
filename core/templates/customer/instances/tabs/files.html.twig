@@ -1,16 +1,39 @@
-<div class="space-y-4">
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h2 class="text-lg font-semibold text-slate-900">{{ t('customer_instance_tab_files', page_locale()) }}</h2>
-            <p class="text-sm text-slate-700">{{ t('customer_instance_files_tab_intro', page_locale()) }}</p>
+<div class="space-y-5">
+    {# ─── Header ─── #}
+    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+                <svg class="h-5 w-5 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M.54 3.87.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31zM2.19 4a1 1 0 0 0-.996 1.09l.637 7a1 1 0 0 0 .995.91h10.348a1 1 0 0 0 .995-.91l.637-7A1 1 0 0 0 13.81 4H2.19zm4.69-1.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707z"/></svg>
+                <div>
+                    <h2 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_tab_files', page_locale()) }}</h2>
+                    <p class="text-xs text-slate-500">{{ t('customer_instance_files_tab_intro', page_locale()) }}</p>
+                </div>
+            </div>
+            <a href="{{ path('customer_instance_files', {id: instance.id}) }}"
+               class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500">
+                <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 16 16"><path d="M11 2H9v3h2V2zm-2 3H6.5l3 3.3 3-3.3H10V2H8v3zm-2 1H2.5a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5V6a.5.5 0 0 0-.5-.5H11V7h2v8H3V7h2v-.5a.5.5 0 0 0-.5-.5H5V6zm3 3a.5.5 0 0 1 .5.5v2.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7 12.293V9.5A.5.5 0 0 1 8 9z"/></svg>
+                {{ t('customer_instance_files_open_manager', page_locale()) }}
+            </a>
         </div>
-        <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700">
-            {{ t('customer_instance_files_open_manager', page_locale()) }}
-        </a>
     </div>
 
-    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-        <p class="font-semibold text-slate-700">{{ t('customer_instance_files_tip_title', page_locale()) }}</p>
-        <p class="mt-1">{{ t('customer_instance_files_tip_body', page_locale()) }}</p>
+    {# ─── Hinweis ─── #}
+    <div class="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
+        <div class="flex items-start gap-3">
+            <svg class="mt-0.5 h-5 w-5 shrink-0 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+            <div>
+                <p class="text-sm font-semibold text-slate-200">{{ t('customer_instance_files_tip_title', page_locale()) }}</p>
+                <p class="mt-1 text-xs text-slate-400">{{ t('customer_instance_files_tip_body', page_locale()) }}</p>
+            </div>
+        </div>
+    </div>
+
+    {# ─── SFTP-Hinweis ─── #}
+    <div class="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">SFTP-Zugang</p>
+        <p class="mt-2 text-xs text-slate-400">
+            Host, Port und Nutzername findest du im Datei-Manager. Das Passwort wird nur einmal nach einem Reset angezeigt.
+            Klassisches FTP ist für Gameserver nicht verfügbar – bitte SFTP verwenden.
+        </p>
     </div>
 </div>

@@ -1,6 +1,6 @@
 <div
     id="gameserver-settings"
-    class="space-y-4"
+    class="space-y-5"
     data-url-settings="{{ path('customer_instance_settings_api_summary', {id: instance.id}) }}"
     data-url-configs="{{ path('customer_instance_configs_envelope_list', {id: instance.id}) }}"
     data-url-config-show="{{ path('customer_instance_configs_envelope_show', {id: instance.id, configId: '__CONFIG_ID__'}) }}"
@@ -14,91 +14,159 @@
     data-url-access-reveal="{{ path('instances_access_reveal', {id: instance.id}) }}"
     data-url-access-reset="{{ path('instances_access_reset', {id: instance.id}) }}"
 >
-
     <input type="hidden" id="slotInput" value="{{ instance.current_slots }}">
 
-    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
-        <div class="flex items-center justify-between gap-2">
-            <h3 class="text-sm font-semibold text-slate-100">{{ t('customer_instance_tab_settings', page_locale()) }}</h3>
-            <p id="gs-settings-meta" class="text-xs text-slate-300">Loading settings…</p>
+    {# ─── Status-Banner ─── #}
+    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/></svg>
+                <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_tab_settings', page_locale()) }}</h3>
+            </div>
+            <p id="gs-settings-meta" class="text-xs text-slate-400">Einstellungen werden geladen…</p>
         </div>
-        <div id="gs-settings-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
+        <div id="gs-settings-error" class="hidden mt-3 rounded-lg border border-rose-700/50 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-3">
-        <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
-            <div class="flex items-center justify-between gap-2">
-                <h4 class="text-xs font-semibold uppercase text-slate-300">Configs</h4>
-                <button type="button" id="gs-settings-create" class="ui-button ui-button--ghost">Create</button>
+    {# ─── Konfigurationsdateien ─── #}
+    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40">
+        <div class="flex items-center justify-between border-b border-slate-700/50 px-4 py-3">
+            <div class="flex items-center gap-2">
+                <svg class="h-4 w-4 text-slate-400" fill="currentColor" viewBox="0 0 16 16"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/></svg>
+                <h4 class="text-sm font-semibold text-slate-200">Konfigurationsdateien</h4>
             </div>
-            <div class="mt-3 space-y-2">
-                <input id="gs-settings-config-search" type="search" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100" placeholder="Search configs">
-                <select id="gs-settings-config-scope" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100">
-                    <option value="">All scopes</option>
-                    <option value="template">Template</option>
-                    <option value="instance">Instance</option>
-                </select>
-            </div>
-            <ul id="gs-settings-config-list" class="mt-3 space-y-2">
-                <li class="text-sm text-slate-400">Loading configs…</li>
-            </ul>
+            <button type="button" id="gs-settings-create"
+                class="rounded-lg border border-slate-600 bg-slate-700/40 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">
+                Neu erstellen
+            </button>
         </div>
-        <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4 lg:col-span-2">
-            <h4 class="text-xs font-semibold uppercase text-slate-300">Editor</h4>
-            <p id="gs-settings-selected" class="mt-2 text-xs text-slate-400">Select a config to edit</p>
-            <textarea id="gs-settings-content" class="mt-3 h-64 w-full rounded-lg border border-slate-600 bg-slate-900 p-3 font-mono text-xs text-slate-100" placeholder="Select config to edit"></textarea>
-            <div class="mt-3 flex flex-wrap gap-2">
-                <button type="button" id="gs-settings-save" class="ui-button ui-button--primary">Save</button>
-                <button type="button" id="gs-settings-apply" class="ui-button ui-button--ghost">Apply</button>
+        <div class="grid lg:grid-cols-3">
+            {# Config-Liste #}
+            <div class="border-b border-slate-700/50 p-4 lg:border-b-0 lg:border-r">
+                <div class="space-y-2">
+                    <input id="gs-settings-config-search" type="search"
+                        class="w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
+                        placeholder="Configs durchsuchen…">
+                    <select id="gs-settings-config-scope"
+                        class="w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none">
+                        <option value="">Alle Bereiche</option>
+                        <option value="template">Template</option>
+                        <option value="instance">Instanz</option>
+                    </select>
+                </div>
+                <ul id="gs-settings-config-list" class="mt-3 space-y-1">
+                    <li class="text-xs text-slate-500">Configs werden geladen…</li>
+                </ul>
             </div>
-        </div>
-    </div>
-
-    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
-        <h4 class="text-xs font-semibold uppercase text-slate-300">Automation</h4>
-        <div class="mt-3 grid gap-3 md:grid-cols-2">
-            <div class="rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-200">
-                <span class="mb-2 block font-semibold">Auto-Backup</span>
-                <label class="flex items-center"><input id="gs-auto-backup-enabled" type="checkbox" class="mr-2"> Aktiv</label>
-                <select id="gs-auto-backup-mode" class="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100">
-                    <option value="manual">Manual</option>
-                    <option value="auto">Auto</option>
-                </select>
-                <div id="gs-auto-backup-time-wrap" class="mt-2">
-                    <label for="gs-auto-backup-time" class="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Time</label>
-                    <select id="gs-auto-backup-time" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"></select>
+            {# Editor #}
+            <div class="p-4 lg:col-span-2">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-semibold uppercase tracking-widest text-slate-500">Editor</h4>
+                    <p id="gs-settings-selected" class="text-xs text-slate-500">Config auswählen</p>
+                </div>
+                <textarea id="gs-settings-content"
+                    class="mt-3 h-64 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 p-3 font-mono text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
+                    placeholder="Config auswählen zum Bearbeiten…"></textarea>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <button type="button" id="gs-settings-save"
+                        class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500">
+                        Speichern
+                    </button>
+                    <button type="button" id="gs-settings-apply"
+                        class="rounded-lg border border-slate-600 bg-slate-700/40 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700">
+                        Anwenden
+                    </button>
                 </div>
             </div>
-
-            <div class="rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-200">
-                <span class="mb-2 block font-semibold">Auto-Restart</span>
-                <label class="flex items-center"><input id="gs-auto-restart-enabled" type="checkbox" class="mr-2"> Aktiv</label>
-                <div id="gs-auto-restart-time-wrap" class="mt-2">
-                    <label for="gs-auto-restart-time" class="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Time</label>
-                    <select id="gs-auto-restart-time" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"></select>
-                </div>
-            </div>
-
-            <div class="rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-200">
-                <span class="mb-2 block font-semibold">Auto-Update</span>
-                <label class="flex items-center"><input id="gs-auto-update-enabled" type="checkbox" class="mr-2"> Aktiv</label>
-                <div id="gs-auto-update-time-wrap" class="mt-2">
-                    <label for="gs-auto-update-time" class="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">Time</label>
-                    <select id="gs-auto-update-time" class="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"></select>
-                </div>
-            </div>
-
-            <label class="rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-200">
-                <span class="mb-2 block font-semibold">Versionssperre</span>
-                <input id="gs-version-lock-enabled" type="checkbox" class="mr-2"> Aktiv
-                <select id="gs-version-lock-version" class="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"></select>
-            </label>
-        </div>
-        <div class="mt-3">
-            <button id="gs-automation-save" type="button" class="ui-button ui-button--primary">Automation speichern</button>
         </div>
     </div>
 
+    {# ─── Automatisierung ─── #}
+    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40">
+        <div class="flex items-center gap-2 border-b border-slate-700/50 px-4 py-3">
+            <svg class="h-4 w-4 text-slate-400" fill="currentColor" viewBox="0 0 16 16"><path d="M6 .5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H9v1.07a7.001 7.001 0 0 1 3.274 12.474l.601.602a.5.5 0 0 1-.707.708l-.746-.746A6.97 6.97 0 0 1 8 16a6.97 6.97 0 0 1-3.422-.892l-.746.746a.5.5 0 0 1-.707-.708l.601-.602A7.001 7.001 0 0 1 7 3.07V2h-.5A.5.5 0 0 1 6 1.5v-1zm2.5 12.5a.5.5 0 0 0-1 0V14h1v-.5zM8 7.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V8a.5.5 0 0 1 .5-.5z"/></svg>
+            <h4 class="text-sm font-semibold text-slate-200">Automatisierung</h4>
+        </div>
+        <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-4">
+            {# Auto-Backup #}
+            <div class="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-semibold text-slate-300">Auto-Backup</span>
+                    <label class="relative inline-flex cursor-pointer items-center">
+                        <input id="gs-auto-backup-enabled" type="checkbox" class="peer sr-only">
+                        <div class="peer h-5 w-9 rounded-full border border-slate-600 bg-slate-700 after:absolute after:left-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-slate-400 after:transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:bg-white"></div>
+                    </label>
+                </div>
+                <div class="mt-3 space-y-2">
+                    <select id="gs-auto-backup-mode"
+                        class="w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none">
+                        <option value="manual">Manuell</option>
+                        <option value="auto">Automatisch</option>
+                    </select>
+                    <div id="gs-auto-backup-time-wrap">
+                        <label for="gs-auto-backup-time" class="block text-[10px] uppercase tracking-wide text-slate-500">Uhrzeit</label>
+                        <select id="gs-auto-backup-time"
+                            class="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none"></select>
+                    </div>
+                </div>
+            </div>
+
+            {# Auto-Neustart #}
+            <div class="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-semibold text-slate-300">Auto-Neustart</span>
+                    <label class="relative inline-flex cursor-pointer items-center">
+                        <input id="gs-auto-restart-enabled" type="checkbox" class="peer sr-only">
+                        <div class="peer h-5 w-9 rounded-full border border-slate-600 bg-slate-700 after:absolute after:left-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-slate-400 after:transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:bg-white"></div>
+                    </label>
+                </div>
+                <div id="gs-auto-restart-time-wrap" class="mt-3">
+                    <label for="gs-auto-restart-time" class="block text-[10px] uppercase tracking-wide text-slate-500">Uhrzeit</label>
+                    <select id="gs-auto-restart-time"
+                        class="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none"></select>
+                </div>
+            </div>
+
+            {# Auto-Update #}
+            <div class="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-semibold text-slate-300">Auto-Update</span>
+                    <label class="relative inline-flex cursor-pointer items-center">
+                        <input id="gs-auto-update-enabled" type="checkbox" class="peer sr-only">
+                        <div class="peer h-5 w-9 rounded-full border border-slate-600 bg-slate-700 after:absolute after:left-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-slate-400 after:transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:bg-white"></div>
+                    </label>
+                </div>
+                <div id="gs-auto-update-time-wrap" class="mt-3">
+                    <label for="gs-auto-update-time" class="block text-[10px] uppercase tracking-wide text-slate-500">Uhrzeit</label>
+                    <select id="gs-auto-update-time"
+                        class="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none"></select>
+                </div>
+            </div>
+
+            {# Versionssperre #}
+            <div class="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-semibold text-slate-300">Versionssperre</span>
+                    <label class="relative inline-flex cursor-pointer items-center">
+                        <input id="gs-version-lock-enabled" type="checkbox" class="peer sr-only">
+                        <div class="peer h-5 w-9 rounded-full border border-slate-600 bg-slate-700 after:absolute after:left-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-slate-400 after:transition-all peer-checked:border-indigo-500 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:bg-white"></div>
+                    </label>
+                </div>
+                <div class="mt-3">
+                    <label class="block text-[10px] uppercase tracking-wide text-slate-500">Version</label>
+                    <select id="gs-version-lock-version"
+                        class="mt-1 w-full rounded-lg border border-slate-600/70 bg-slate-800/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none"></select>
+                </div>
+            </div>
+        </div>
+
+        <div class="border-t border-slate-700/50 px-4 py-3">
+            <button id="gs-automation-save" type="button"
+                class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500">
+                Automatisierung speichern
+            </button>
+        </div>
+    </div>
 </div>
 
 <script src="{{ asset('js/gameserver/shared/domMount.js') }}"></script>

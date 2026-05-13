@@ -18,14 +18,37 @@ final class ChangelogEntryRepository extends ServiceEntityRepository
     /**
      * @return ChangelogEntry[]
      */
-    public function findVisiblePublicBySite(int $siteId): array
+    public function findVisiblePublicBySite(int $siteId, ?int $limit = null): array
     {
-        return $this->createQueryBuilder('entry')
+        $queryBuilder = $this->createQueryBuilder('entry')
             ->andWhere('entry.siteId = :siteId')
             ->andWhere('entry.visiblePublic = true')
             ->setParameter('siteId', $siteId)
-            ->orderBy('entry.publishedAt', 'DESC')
+            ->orderBy('entry.publishedAt', 'DESC');
+
+        if ($limit !== null && $limit > 0) {
+            $queryBuilder->setMaxResults($limit);
+        }
+
+        return $queryBuilder->getQuery()->getResult();
+    }
+
+    public function findPanelUpdateEntry(int $siteId, string $version): ?ChangelogEntry
+    {
+        return $this->createQueryBuilder('entry')
+            ->andWhere('entry.siteId = :siteId')
+            ->andWhere('entry.version = :version')
+            ->andWhere('entry.title = :title')
+            ->setParameter('siteId', $siteId)
+            ->setParameter('version', $version)
+            ->setParameter('title', self::panelUpdateTitle($version))
+            ->setMaxResults(1)
             ->getQuery()
-            ->getResult();
+            ->getOneOrNullResult();
+    }
+
+    public static function panelUpdateTitle(string $version): string
+    {
+        return sprintf('Panel-Update %s installiert', $version);
     }
 }

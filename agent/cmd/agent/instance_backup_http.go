@@ -126,15 +126,34 @@ func validateLocalBackupDownloadPath(instanceID string, backupPath string, paylo
 		}
 	}
 
-	allowedRoot, err := filepath.Abs(filepath.Join(backupRoot, sanitizeIdentifier(instanceID)))
+	instanceDirName := sanitizeIdentifier(instanceID)
+	allowedRoot, err := filepath.Abs(filepath.Join(backupRoot, instanceDirName))
 	if err != nil {
 		return fmt.Errorf("invalid backup root")
 	}
 
-	rel, err := filepath.Rel(allowedRoot, cleanPath)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return fmt.Errorf("backup path is outside the instance backup directory")
+	if backupPathWithinRoot(cleanPath, allowedRoot) {
+		return nil
 	}
 
-	return nil
+	// Some existing installations configured the local backup target to the
+	// instance directory itself (for example
+	// /var/lib/easywi/backups/instances/1) instead of the parent directory that
+	// EasyWI appends the instance id to.  Keep downloads compatible with those
+	// archives while still requiring the configured directory basename to match
+	// the requested instance id.
+	configuredRoot, err := filepath.Abs(filepath.Clean(backupRoot))
+	if err != nil {
+		return fmt.Errorf("invalid backup root")
+	}
+	if filepath.Base(configuredRoot) == instanceDirName && backupPathWithinRoot(cleanPath, configuredRoot) {
+		return nil
+	}
+
+	return fmt.Errorf("backup path is outside the instance backup directory")
+}
+
+func backupPathWithinRoot(cleanPath string, allowedRoot string) bool {
+	rel, err := filepath.Rel(allowedRoot, cleanPath)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }

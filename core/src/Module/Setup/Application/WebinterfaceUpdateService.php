@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Module\Setup\Application;
 
+use App\Module\Core\Application\PanelUpdateNewsPublisher;
 use App\Module\Core\Update\UpdateManifest;
 use App\Module\Core\Update\UpdateResult;
 use App\Module\Core\Update\UpdateStatus;
@@ -36,6 +37,7 @@ final class WebinterfaceUpdateService
         private readonly string $releaseChannel,
         private readonly string $kernelEnvironment,
         private readonly bool $kernelDebug,
+        private readonly ?PanelUpdateNewsPublisher $panelUpdateNewsPublisher = null,
     ) {
     }
 
@@ -180,6 +182,8 @@ final class WebinterfaceUpdateService
                     $manifest->latest,
                 );
             }
+
+            $this->panelUpdateNewsPublisher?->publishSuccessfulUpdate($installedVersion, $manifest->latest, $manifest->notes);
 
             return new UpdateResult(
                 true,

@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -105,6 +106,8 @@ var (
 	detectProFTPDServiceNameFunc    = detectProFTPDServiceName
 	ensureServiceRunningFunc        = ensureServiceRunning
 	checkTCPListeningFunc           = checkTCPListening
+	linuxPackageInstallMu           sync.Mutex
+	accessPackageManagerRetrySleep  = 5 * time.Second
 )
 
 func handleAccessCapabilitiesHTTP(w http.ResponseWriter, r *http.Request) bool {
@@ -403,12 +406,16 @@ func installLinuxPackages(packages []string) error {
 	if len(packages) == 0 {
 		return nil
 	}
+
+	linuxPackageInstallMu.Lock()
+	defer linuxPackageInstallMu.Unlock()
+
 	if _, err := accessLookPath("apt-get"); err == nil {
-		if out, err := accessRunCommandLogged("apt-get", "update"); err != nil {
+		if out, err := runPackageManagerCommandWithRetry("apt-get", []string{"update"}, 12); err != nil {
 			return fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=apt-get packages=%s output=%s", strings.Join(packages, ","), strings.TrimSpace(out))
 		}
 		args := append([]string{"install", "-y"}, packages...)
-		if out, err := accessRunCommandLogged("apt-get", args...); err != nil {
+		if out, err := runPackageManagerCommandWithRetry("apt-get", args, 12); err != nil {
 			return fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=apt-get packages=%s output=%s", strings.Join(packages, ","), strings.TrimSpace(out))
 		}
 		return nil
@@ -423,10 +430,55 @@ func installLinuxPackages(packages []string) error {
 		return fmt.Errorf("BACKEND_UNSUPPORTED: no package manager for packages=%s", strings.Join(packages, ","))
 	}
 	args := append([]string{"install", "-y"}, packages...)
-	if out, err := accessRunCommandLogged(installer, args...); err != nil {
+	if out, err := runPackageManagerCommandWithRetry(installer, args, 6); err != nil {
 		return fmt.Errorf("PACKAGE_INSTALL_FAILED: package_manager=%s packages=%s output=%s", installer, strings.Join(packages, ","), strings.TrimSpace(out))
 	}
 	return nil
+}
+
+func runPackageManagerCommandWithRetry(name string, args []string, maxAttempts int) (string, error) {
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+	attemptOutputs := make([]string, 0, maxAttempts)
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		out, err := accessRunCommandLogged(name, args...)
+		trimmed := strings.TrimSpace(out)
+		if err == nil {
+			if len(attemptOutputs) == 0 {
+				return out, nil
+			}
+			attemptOutputs = append(attemptOutputs, fmt.Sprintf("attempt %d/%d succeeded: %s", attempt, maxAttempts, trimmed))
+			return strings.Join(attemptOutputs, " | "), nil
+		}
+		lastErr = err
+		attemptOutputs = append(attemptOutputs, fmt.Sprintf("attempt %d/%d failed: %s", attempt, maxAttempts, trimmed))
+		if !packageManagerOutputIndicatesLock(trimmed) || attempt == maxAttempts {
+			return strings.Join(attemptOutputs, " | "), err
+		}
+		time.Sleep(accessPackageManagerRetrySleep)
+	}
+	return strings.Join(attemptOutputs, " | "), lastErr
+}
+
+func packageManagerOutputIndicatesLock(output string) bool {
+	lower := strings.ToLower(output)
+	lockMarkers := []string{
+		"could not get lock",
+		"unable to acquire the dpkg frontend lock",
+		"unable to lock the administration directory",
+		"unable to lock directory",
+		"is another process using it",
+		"existing lock",
+		"failed to synchronize cache for repo",
+	}
+	for _, marker := range lockMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func ensureProFTPDSFTPModuleInstalled() error {

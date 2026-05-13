@@ -1,105 +1,165 @@
 {% set status = instance.status %}
 {% set displayStatus = instance.display_status ?? status %}
-{% set statusColor = 'bg-slate-100 text-slate-600' %}
-{% if displayStatus == 'running' %}{% set statusColor = 'bg-emerald-100 text-emerald-700' %}{% endif %}
-{% if displayStatus in ['stopped', 'pending_setup'] %}{% set statusColor = 'bg-amber-100 text-amber-700' %}{% endif %}
-{% if displayStatus in ['suspended', 'error'] %}{% set statusColor = 'bg-rose-100 text-rose-700' %}{% endif %}
-{% if displayStatus == 'provisioning' %}{% set statusColor = 'bg-sky-100 text-sky-700' %}{% endif %}
 
-{% set diskStateStyles = {
-    'ok': 'text-emerald-700 bg-emerald-50',
-    'warning': 'text-amber-700 bg-amber-50',
-    'over_limit': 'text-rose-700 bg-rose-50',
-    'hard_block': 'text-rose-700 bg-rose-100'
-} %}
-{% set diskBadge = diskStateStyles[instance.disk_state] ?? 'text-slate-600 bg-slate-100' %}
+{% set statusClass = 'bg-slate-700/60 text-slate-300' %}
+{% set statusDot   = 'bg-slate-400' %}
+{% if displayStatus == 'running' %}
+    {% set statusClass = 'bg-emerald-500/15 text-emerald-300' %}
+    {% set statusDot   = 'bg-emerald-400 animate-pulse' %}
+{% elseif displayStatus in ['stopped', 'pending_setup'] %}
+    {% set statusClass = 'bg-amber-500/15 text-amber-300' %}
+    {% set statusDot   = 'bg-amber-400' %}
+{% elseif displayStatus in ['suspended', 'error'] %}
+    {% set statusClass = 'bg-rose-500/15 text-rose-300' %}
+    {% set statusDot   = 'bg-rose-400' %}
+{% elseif displayStatus == 'provisioning' %}
+    {% set statusClass = 'bg-sky-500/15 text-sky-300' %}
+    {% set statusDot   = 'bg-sky-400 animate-pulse' %}
+{% endif %}
+
+{% set diskBadgeClass = 'text-slate-400' %}
+{% if instance.disk_state == 'warning' %}{% set diskBadgeClass = 'text-amber-400' %}{% endif %}
+{% if instance.disk_state in ['over_limit', 'hard_block'] %}{% set diskBadgeClass = 'text-rose-400' %}{% endif %}
+
 {% set displayName = instance.server_name ?? instance.template.name %}
 {% set query = instance.query ?? {} %}
 {% set queryDebug = query.result.debug ?? {} %}
 {% set queryStatusLabels = {
-    'online': t('customer_instance_query_status_online', page_locale()),
-    'running': t('customer_instance_query_status_running', page_locale()),
-    'starting': t('customer_instance_query_status_starting', page_locale()),
-    'offline': t('customer_instance_query_status_offline', page_locale()),
-    'queued': t('customer_instance_query_status_queued', page_locale()),
-    'unknown': t('customer_instance_query_status_unknown', page_locale()),
-    'error': t('customer_instance_query_status_error', page_locale())
+    'online':      t('customer_instance_query_status_online',   page_locale()),
+    'running':     t('customer_instance_query_status_running',  page_locale()),
+    'starting':    t('customer_instance_query_status_starting', page_locale()),
+    'offline':     t('customer_instance_query_status_offline',  page_locale()),
+    'queued':      t('customer_instance_query_status_queued',   page_locale()),
+    'unknown':     t('customer_instance_query_status_unknown',  page_locale()),
+    'error':       t('customer_instance_query_status_error',    page_locale())
 } %}
-{% set queryStatusKey = query.status|default('unknown') %}
+{% set queryStatusKey   = query.status|default('unknown') %}
 {% set queryStatusLabel = queryStatusLabels[queryStatusKey] ?? query.status ?? '—' %}
 {% set playersOnline = instance.query_players_online %}
-{% set playersMax = instance.query_players_max %}
-{% set playersKnown = playersOnline is not null and playersMax is not null and playersMax > 0 %}
-{% set connection = instance.connection ?? {} %}
+{% set playersMax    = instance.query_players_max %}
+{% set playersKnown  = playersOnline is not null and playersMax is not null and playersMax > 0 %}
+{% set connection    = instance.connection ?? {} %}
 {% set runtimeStatus = (instance.runtime_status ?? displayStatus ?? status)|lower %}
-{% set runningStates = ['running', 'online', 'up'] %}
-{% set isRunning = runtimeStatus in runningStates %}
-{% set powerState = instance.power ?? {} %}
+{% set isRunning     = runtimeStatus in ['running', 'online', 'up'] %}
+{% set powerState    = instance.power ?? {} %}
 {% set powerDisabled = powerState.disabled ?? false %}
-{% set powerReason = powerState.reason ?? '' %}
+{% set powerReason   = powerState.reason ?? '' %}
 
-<div class="rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-indigo-50/40 to-sky-50/70 p-5 shadow-sm" data-instance-card data-instance-id="{{ instance.id }}" data-query-url="{{ path('customer_instance_query_api', {id: instance.id}) }}" data-query-health-url="{{ path('customer_instance_query_health_api_v2', {id: instance.id}) }}" data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}" data-url-overview="{{ path('customer_instance_overview_page', {id: instance.id}) }}">
-    <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-2">
-                <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700">
-                    <input type="checkbox" data-bulk-select-restart class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" {% if not isRunning or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>
-                    {{ t('customer_instances_select_for_restart', page_locale()) }}
-                </label>
-                {% include 'components/_game_icon.html.twig' with { gameKey: instance.template.game_key, class: 'h-9 w-9 text-indigo-500' } %}
-                <h2 class="text-lg font-semibold text-slate-900">{{ displayName }}</h2>
-                <span class="rounded-full px-3 py-1 text-xs font-semibold {{ statusColor }}">{{ t('customer_instance_status_' ~ displayStatus, page_locale()) }}</span>
-                <span class="rounded-full px-3 py-1 text-xs font-semibold {{ diskBadge }}">{{ t('customer_instance_disk_state_' ~ instance.disk_state, page_locale()) }}</span>
-            </div>
-            <a href="{{ path('customer_instance_overview_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instances_open', page_locale()) }}</a>
-        </div>
-
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-xs">
-            <div class="rounded-lg border border-slate-200 bg-white p-3"><span class="text-slate-500">{{ t('customer_instance_node_label', page_locale()) }}</span><p class="mt-1 text-sm font-semibold text-slate-900">{{ instance.node.name }}</p><p class="mt-1 text-xs text-slate-500">{{ t('customer_instances_location_label', page_locale()) }}: {{ instance.node.location ?? t('customer_instances_location_unknown', page_locale()) }}</p></div>
-            <div class="rounded-lg border border-slate-200 bg-white p-3"><span class="text-slate-500">{{ t('customer_instance_players_online', page_locale()) }}</span><p class="mt-1 text-sm font-semibold text-slate-900" data-query-players>{% if playersKnown %}{{ playersOnline }} / {{ playersMax }}{% else %}{{ t('customer_instance_players_unknown', page_locale()) }}{% endif %}</p></div>
-            <div class="rounded-lg border border-slate-200 bg-white p-3"><span class="text-slate-500">{{ t('customer_instance_query_status', page_locale()) }}</span><p class="mt-1 text-sm font-semibold text-slate-900" data-query-status>{{ queryStatusLabel }}</p></div>
-            <div class="rounded-lg border border-slate-200 bg-white p-3"><span class="text-slate-500">{{ t('customer_instance_disk_used', page_locale()) }}</span><p class="mt-1 text-sm font-semibold text-slate-900">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</p></div>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white p-4">
-            <p class="text-xs font-semibold uppercase text-slate-600">{{ t('customer_instances_data_area', page_locale()) }}</p>
-            <div class="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-                <div>{{ t('customer_instances_game_address', page_locale()) }}: <strong>{{ connection.address ?? '—' }}</strong></div>
-                <div>{{ t('customer_instances_query_address', page_locale()) }}: <strong data-query-map>{{ query.map ?? '—' }}</strong></div>
-                <div>{{ t('customer_instances_data_path_label', page_locale()) }}: <strong>{{ instance.data_path ?? t('customer_instances_data_path_unknown', page_locale()) }}</strong></div>
-                <div>{{ t('customer_instances_sftp_access', page_locale()) }}: <strong>{{ t('customer_instance_files_sftp_title', page_locale()) }}</strong> <span class="text-xs text-slate-500">(Host/Port/User im Datei-Manager, Passwort nur einmal nach Reset)</span></div>
-                <div>{{ t('customer_instances_ftp_access', page_locale()) }}: <strong>Nicht verfügbar – Gameserver nutzen SFTP.</strong></div>
-                <div>{{ t('customer_instances_latency', page_locale()) }}: <strong data-query-latency>{{ query.result.latency_ms is not null ? query.result.latency_ms ~ ' ms' : '—' }}</strong></div>
-                <div>{{ t('customer_instances_last_query', page_locale()) }}: <strong data-query-checked>{{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}</strong></div>
-            </div>
-            <div class="hidden mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700" data-query-error>{{ t('customer_instances_query_error', page_locale()) }}</div>
-            <div class="hidden mt-2 rounded bg-slate-100 px-2 py-1 text-xs text-slate-600" data-query-unsupported>{{ t('customer_instance_query_unsupported', page_locale()) }}</div>
-            <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                <p class="font-semibold text-slate-800">{{ t('customer_instances_connection_details', page_locale()) }}</p>
-                <div class="mt-2 grid gap-2 sm:grid-cols-3">
-                    <div>Host: <strong data-debug-host>{{ queryDebug.resolved_host ?? connection.host ?? '—' }}</strong></div>
-                    <div>Port: <strong data-debug-port>{{ queryDebug.resolved_port ?? connection.port ?? '—' }}</strong></div>
-                    <div>Protocol: <strong data-debug-protocol>{{ queryDebug.resolved_protocol ?? 'udp' }}</strong></div>
+<div
+    class="group relative flex flex-col rounded-xl border border-slate-700/60 bg-slate-800/40 p-4 transition-all duration-200 hover:border-slate-600/70 hover:bg-slate-800/60"
+    data-instance-card
+    data-instance-id="{{ instance.id }}"
+    data-query-url="{{ path('customer_instance_query_api', {id: instance.id}) }}"
+    data-query-health-url="{{ path('customer_instance_query_health_api_v2', {id: instance.id}) }}"
+    data-power-url="{{ path('customer_instance_power_api', {id: instance.id}) }}"
+    data-url-overview="{{ path('customer_instance_overview_page', {id: instance.id}) }}"
+>
+    {# ─── Header ─── #}
+    <div class="flex items-start justify-between gap-3">
+        <div class="flex min-w-0 items-center gap-2.5">
+            {% include 'components/_game_icon.html.twig' with { gameKey: instance.template.game_key, class: 'h-9 w-9 shrink-0 text-indigo-400' } %}
+            <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <h2 class="text-sm font-semibold text-slate-100 truncate">{{ displayName }}</h2>
+                    <span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium {{ statusClass }}">
+                        <span class="inline-block h-1.5 w-1.5 rounded-full {{ statusDot }}"></span>
+                        {{ t('customer_instance_status_' ~ displayStatus, page_locale()) }}
+                    </span>
                 </div>
+                <p class="mt-0.5 text-[11px] text-slate-500">#{{ instance.id }} · {{ instance.template.game_key }}</p>
             </div>
-            <details class="mt-2 text-xs text-slate-600" data-query-details>
-                <summary class="cursor-pointer font-semibold">Debug</summary>
-                <div class="mt-1 space-y-1">
-                    <div>Host source: <span data-debug-host-source>{{ queryDebug.resolved_host_source ?? '—' }}</span></div>
-                    <div>Port source: <span data-debug-port-source>{{ queryDebug.port_source ?? '—' }}</span></div>
-                    <div>timeout <span data-debug-timeout>{{ queryDebug.timeout_ms ?? '—' }}</span> ms, error <span data-debug-error>{{ queryDebug.last_error_code ?? '—' }}</span></div>
-                </div>
-            </details>
+        </div>
+        <a href="{{ path('customer_instance_overview_page', {id: instance.id}) }}"
+           class="shrink-0 rounded-lg border border-slate-600 bg-slate-700/50 px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:border-indigo-500/60 hover:bg-indigo-600/20 hover:text-indigo-300">
+            {{ t('customer_instances_open', page_locale()) }}
+        </a>
+    </div>
+
+    {# ─── Stats Grid ─── #}
+    <div class="mt-3 grid grid-cols-2 gap-1.5 text-[11px]">
+        <div class="rounded-lg border border-slate-700/40 bg-slate-900/50 px-2.5 py-2">
+            <p class="uppercase tracking-wide text-slate-500">{{ t('customer_instance_node_label', page_locale()) }}</p>
+            <p class="mt-0.5 font-semibold text-slate-200 truncate">{{ instance.node.name }}</p>
+            {% if instance.node.location %}
+                <p class="text-slate-500 truncate">{{ instance.node.location }}</p>
+            {% endif %}
+        </div>
+        <div class="rounded-lg border border-slate-700/40 bg-slate-900/50 px-2.5 py-2">
+            <p class="uppercase tracking-wide text-slate-500">{{ t('customer_instance_players_online', page_locale()) }}</p>
+            <p class="mt-0.5 font-semibold text-slate-200" data-query-players>
+                {% if playersKnown %}{{ playersOnline }} / {{ playersMax }}{% else %}{{ t('customer_instance_players_unknown', page_locale()) }}{% endif %}
+            </p>
+        </div>
+        <div class="rounded-lg border border-slate-700/40 bg-slate-900/50 px-2.5 py-2">
+            <p class="uppercase tracking-wide text-slate-500">{{ t('customer_instance_query_status', page_locale()) }}</p>
+            <p class="mt-0.5 font-semibold text-slate-200" data-query-status>{{ queryStatusLabel }}</p>
+        </div>
+        <div class="rounded-lg border border-slate-700/40 bg-slate-900/50 px-2.5 py-2">
+            <p class="uppercase tracking-wide text-slate-500">{{ t('customer_instance_disk_used', page_locale()) }}</p>
+            <p class="mt-0.5 font-semibold {{ diskBadgeClass }}">{{ instance.disk_used_human }} / {{ instance.disk_limit_human }}</p>
+        </div>
+    </div>
+
+    {# ─── Connection Info ─── #}
+    <div class="mt-3 rounded-lg border border-slate-700/40 bg-slate-900/30 p-3 text-[11px]">
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-slate-400">
+            <div>
+                <span class="text-slate-500">{{ t('customer_instances_game_address', page_locale()) }}</span>
+                <strong class="block text-slate-200">{{ connection.address ?? '—' }}</strong>
+            </div>
+            <div>
+                <span class="text-slate-500">Map</span>
+                <strong class="block text-slate-200" data-query-map>{{ query.map ?? '—' }}</strong>
+            </div>
         </div>
 
-        <div class="flex flex-wrap gap-2">
-            <button type="button" data-power-action="start" class="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700" {% if isRunning or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>{{ t('customer_instance_start', page_locale()) }}</button>
-            <button type="button" data-power-action="stop" class="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700" {% if (not isRunning) or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>{{ t('customer_instance_stop', page_locale()) }}</button>
-            <button type="button" data-power-action="restart" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700" {% if (not isRunning) or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>{{ t('customer_instance_restart', page_locale()) }}</button>
-            <a href="{{ path('customer_instance_console_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instance_tab_console', page_locale()) }}</a>
-            <a href="{{ path('customer_instance_files', {id: instance.id}) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instance_tab_files', page_locale()) }}</a>
-            <a href="{{ path('customer_instance_backups_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instance_tab_backups', page_locale()) }}</a>
-            <a href="{{ path('customer_instance_tasks_page', {id: instance.id}) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">{{ t('customer_instance_tab_tasks', page_locale()) }}</a>
+        <div class="mt-2 grid grid-cols-3 gap-2 border-t border-slate-700/40 pt-2 text-slate-500">
+            <div>Host: <strong class="text-slate-400" data-debug-host>{{ queryDebug.resolved_host ?? connection.host ?? '—' }}</strong></div>
+            <div>Port: <strong class="text-slate-400" data-debug-port>{{ queryDebug.resolved_port ?? connection.port ?? '—' }}</strong></div>
+            <div>Proto: <strong class="text-slate-400" data-debug-protocol>{{ queryDebug.resolved_protocol ?? 'udp' }}</strong></div>
+        </div>
+
+        <details class="mt-1" data-query-details>
+            <summary class="cursor-pointer text-slate-600 hover:text-slate-400">Debug-Details</summary>
+            <div class="mt-1 space-y-0.5 text-slate-600">
+                <div>Host-Quelle: <span data-debug-host-source>{{ queryDebug.resolved_host_source ?? '—' }}</span></div>
+                <div>Port-Quelle: <span data-debug-port-source>{{ queryDebug.port_source ?? '—' }}</span></div>
+                <div>Timeout: <span data-debug-timeout>{{ queryDebug.timeout_ms ?? '—' }}</span> ms · Fehler: <span data-debug-error>{{ queryDebug.last_error_code ?? '—' }}</span></div>
+            </div>
+        </details>
+
+        <div class="hidden mt-1 rounded bg-amber-500/10 px-2 py-1 text-amber-400" data-query-error>{{ t('customer_instances_query_error', page_locale()) }}</div>
+        <div class="hidden mt-1 rounded bg-slate-700/50 px-2 py-1 text-slate-400" data-query-unsupported>{{ t('customer_instance_query_unsupported', page_locale()) }}</div>
+
+        <p class="mt-1 text-slate-600" data-query-checked>
+            {{ t('customer_instance_players_checked', page_locale()) }}: {{ query.checked_at ? query.checked_at|date('Y-m-d H:i') : '—' }}
+        </p>
+    </div>
+
+    {# ─── Actions ─── #}
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <label class="inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300">
+            <input type="checkbox" data-bulk-select-restart
+                class="rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-indigo-500"
+                {% if not isRunning or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>
+            {{ t('customer_instances_select_for_restart', page_locale()) }}
+        </label>
+        <div class="flex gap-1.5">
+            <button type="button" data-power-action="start"
+                class="rounded-lg border border-emerald-700/50 bg-emerald-600/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-400 transition hover:bg-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-40"
+                {% if isRunning or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>
+                {{ t('customer_instance_start', page_locale()) }}
+            </button>
+            <button type="button" data-power-action="stop"
+                class="rounded-lg border border-rose-700/50 bg-rose-600/10 px-2.5 py-1.5 text-[11px] font-semibold text-rose-400 transition hover:bg-rose-600/20 disabled:cursor-not-allowed disabled:opacity-40"
+                {% if (not isRunning) or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>
+                {{ t('customer_instance_stop', page_locale()) }}
+            </button>
+            <button type="button" data-power-action="restart"
+                class="rounded-lg border border-slate-600 bg-slate-700/40 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition hover:bg-slate-700/70 disabled:cursor-not-allowed disabled:opacity-40"
+                {% if (not isRunning) or powerDisabled %}disabled{% if powerReason %} title="{{ powerReason }}"{% endif %}{% endif %}>
+                {{ t('customer_instance_restart', page_locale()) }}
+            </button>
         </div>
     </div>
 </div>

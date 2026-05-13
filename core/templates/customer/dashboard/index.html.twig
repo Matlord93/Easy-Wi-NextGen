@@ -80,6 +80,36 @@
         </div>
     </div>
 
+    {% if panelNews is not empty %}
+    <div class="cust-panel">
+        <div class="cust-panel__head">
+            <div>
+                <h3 class="cust-panel__title">{{ t('customer_dashboard_news_title', page_locale()) }}</h3>
+                <p class="cust-panel__sub">{{ t('customer_dashboard_news_subtitle', page_locale()) }}</p>
+            </div>
+            <a href="{{ path('public_changelog') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_dashboard_news_all', page_locale()) }}</a>
+        </div>
+        <div class="cust-panel__body--flush">
+            {% for entry in panelNews %}
+                <article style="padding:16px 18px;border-bottom:1px solid var(--ng-border);">
+                    <div style="display:flex;gap:10px;align-items:flex-start;justify-content:space-between;">
+                        <div>
+                            <h4 style="margin:0;color:var(--ng-text);font-size:14px;font-weight:700;">{{ entry.title }}</h4>
+                            <p style="margin:4px 0 0;color:var(--ng-text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;">{{ entry.published_at|date('d.m.Y') }}</p>
+                        </div>
+                        {% if entry.version %}
+                            <span class="ui-badge ui-badge--info">{{ entry.version }}</span>
+                        {% endif %}
+                    </div>
+                    {% if entry.content %}
+                        <p style="margin:10px 0 0;color:var(--ng-text-muted);font-size:13px;white-space:pre-line;">{{ entry.content|length > 280 ? entry.content|slice(0, 280) ~ '…' : entry.content }}</p>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     {# ── Main grid: Server-Liste + Sidebar ── #}
     <div class="cust-grid-2--wide">
 

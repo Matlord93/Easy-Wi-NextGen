@@ -1,7 +1,7 @@
 {% set locale = page_locale() %}
 <div
     id="gameserver-backups"
-    class="space-y-4"
+    class="space-y-5"
     data-url-list="{{ path('customer_instance_backups_list', {id: instance.id}) }}"
     data-url-create="{{ path('customer_instance_backups_create', {id: instance.id}) }}"
     data-url-restore-template="{{ path('customer_instance_backups_restore', {id: instance.id, backupId: '__BACKUP_ID__'}) }}"
@@ -12,31 +12,55 @@
     data-confirm-restore="{{ t('customer_instances_backups_restore_confirm', locale) }}"
     data-confirm-delete="{{ t('customer_instances_backups_delete_confirm', locale) }}"
 >
-    <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4">
-        <div class="flex flex-wrap items-center gap-2">
-            <h3 class="text-sm font-semibold text-slate-100">{{ t('customer_instances_backups_title', locale) }}</h3>
-            <select id="gs-backup-mode" class="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100">
-                <option value="manual">Manual</option>
-                <option value="auto">Auto</option>
-            </select>
-            <input id="gs-backup-label" type="text" class="ml-auto rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-100" placeholder="Backup label (optional)">
-            <button type="button" id="gs-backup-create" class="ui-button ui-button--primary">{{ t('customer_instances_backups_create', locale) }}</button>
-        </div>
-        <div id="gs-backups-error" class="hidden mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm text-rose-700"></div>
+    {# ─── Header + Erstellen ─── #}
+    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2">
+                <svg class="h-5 w-5 text-indigo-400" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.963 0 6.286 0 8a3 3 0 0 0 3 3h5v-1.5H3a1.5 1.5 0 1 1-.204-2.99.5.5 0 0 0 .556-.55 4.009 4.009 0 0 1 .185-1.298A3.498 3.498 0 0 1 8 2.5a3.498 3.498 0 0 1 3.463 2.964.5.5 0 0 0 .556.55A1.5 1.5 0 1 1 12.5 8H11v1.5h1.5a3 3 0 1 0-2.937-3.543A5.53 5.53 0 0 0 8 1z"/><path d="M7.646 15.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 14.293V7.5a.5.5 0 0 0-1 0v6.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3z"/></svg>
+                <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instances_backups_title', locale) }}</h3>
+            </div>
 
-        <div class="dashboard-table-wrapper mt-4">
-            <table class="dashboard-table">
+            <div class="ml-auto flex flex-wrap items-center gap-2">
+                <select id="gs-backup-mode"
+                    class="rounded-lg border border-slate-600/80 bg-slate-900/60 px-2 py-1.5 text-xs text-slate-200 focus:outline-none">
+                    <option value="manual">Manuell</option>
+                    <option value="auto">Automatisch</option>
+                </select>
+                <input id="gs-backup-label" type="text"
+                    class="rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none w-48"
+                    placeholder="Backup-Bezeichnung (optional)">
+                <button type="button" id="gs-backup-create"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500">
+                    <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
+                    {{ t('customer_instances_backups_create', locale) }}
+                </button>
+            </div>
+        </div>
+        <div id="gs-backups-error" class="hidden mt-3 rounded-lg border border-rose-700/50 bg-rose-500/10 p-3 text-sm text-rose-300"></div>
+    </div>
+
+    {# ─── Backup-Tabelle ─── #}
+    <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 overflow-hidden">
+        <div class="border-b border-slate-700/50 px-4 py-3">
+            <h4 class="text-xs font-semibold uppercase tracking-widest text-slate-500">Gespeicherte Backups</h4>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
                 <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>{{ t('customer_instances_backups_name', locale) }}</th>
-                    <th>{{ t('customer_instances_backups_created', locale) }}</th>
-                    <th>{{ t('customer_instances_backups_size', locale) }}</th>
-                    <th>{{ t('customer_voice_col_actions', locale) }}</th>
-                </tr>
+                    <tr class="border-b border-slate-700/50 bg-slate-900/40">
+                        <th class="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500">ID</th>
+                        <th class="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instances_backups_name', locale) }}</th>
+                        <th class="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instances_backups_created', locale) }}</th>
+                        <th class="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instances_backups_size', locale) }}</th>
+                        <th class="px-4 py-2.5 text-right font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_voice_col_actions', locale) }}</th>
+                    </tr>
                 </thead>
                 <tbody id="gs-backups-list">
-                <tr><td colspan="5" class="dashboard-table__empty">{{ t('customer_instances_backups_none', locale) }}</td></tr>
+                    <tr>
+                        <td colspan="5" class="px-4 py-6 text-center text-slate-500">
+                            {{ t('customer_instances_backups_none', locale) }}
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>

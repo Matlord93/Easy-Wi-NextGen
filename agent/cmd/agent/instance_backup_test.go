@@ -101,6 +101,36 @@ func TestValidateLocalBackupDownloadPathIgnoresArchiveBackupPathAlias(t *testing
 	}
 }
 
+func TestValidateLocalBackupDownloadPathAcceptsConfiguredInstanceDirectory(t *testing.T) {
+	fallback := filepath.Join(t.TempDir(), "instances")
+	instanceBackupDir := filepath.Join(fallback, "1")
+	archivePath := filepath.Join(instanceBackupDir, "instance-1-1778574267.tar.gz")
+	err := validateLocalBackupDownloadPath("1", archivePath, map[string]any{
+		"backup_target_type": "local",
+		"backup_target_config": map[string]any{
+			"base_path": instanceBackupDir,
+		},
+	})
+	if err != nil {
+		t.Fatalf("validateLocalBackupDownloadPath returned error: %v", err)
+	}
+}
+
+func TestValidateLocalBackupDownloadPathRejectsOtherConfiguredInstanceDirectory(t *testing.T) {
+	fallback := filepath.Join(t.TempDir(), "instances")
+	otherInstanceBackupDir := filepath.Join(fallback, "2")
+	archivePath := filepath.Join(otherInstanceBackupDir, "instance-2-1778574267.tar.gz")
+	err := validateLocalBackupDownloadPath("1", archivePath, map[string]any{
+		"backup_target_type": "local",
+		"backup_target_config": map[string]any{
+			"base_path": otherInstanceBackupDir,
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for other instance backup directory")
+	}
+}
+
 func TestResolveLocalBackupRootRejectsRelativePath(t *testing.T) {
 	_, err := resolveLocalBackupRoot(map[string]any{
 		"backup_target_config": map[string]any{

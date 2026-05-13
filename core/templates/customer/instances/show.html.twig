@@ -1,42 +1,84 @@
 {% extends 'customer/base.html.twig' %}
 
-
 {% block content %}
-    <div class="customer-dashboard customer-dashboard--revamp flex flex-col gap-6">
+<div class="customer-dashboard customer-dashboard--revamp flex flex-col gap-6">
+
+    <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-            <h2 class="text-3xl font-semibold text-slate-100">{{ instance.template.name }} · #{{ instance.id }}</h2>
-            <p class="mt-2 text-base text-slate-400">{{ t('customer_instance_detail_intro', page_locale()) }}</p>
+            <p class="text-xs font-semibold uppercase tracking-widest text-indigo-400">Gameserver</p>
+            <h2 class="mt-1 text-2xl font-bold text-slate-100">
+                {{ instance.template.name }}
+                <span class="text-slate-500 font-normal">#{{ instance.id }}</span>
+            </h2>
+            <p class="mt-1 text-sm text-slate-400">{{ t('customer_instance_detail_intro', page_locale()) }}</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-xs text-slate-400">
+                {{ instance.template.game_key }}
+            </span>
+            <span class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-xs text-slate-400">
+                {{ instance.node.name }}
+            </span>
+        </div>
+    </div>
+
+    <section class="dashboard-panel">
+        <div class="dashboard-panel__header">
+            <div>
+                <h3>{{ t('customer_instance_detail_kicker', page_locale()) }}</h3>
+                <p>{{ instance.template.game_key }} · {{ instance.node.name }} ({{ instance.node.id }})</p>
+            </div>
         </div>
 
+        {# ─── Tab Navigation ─── #}
+        <div class="mt-5 flex flex-wrap gap-1 border-b border-slate-700/60 pb-0">
+            {% for tab in tabs %}
+                {% set isActive = tab.key == activeTab %}
+                <a
+                    href="{{ tab.href }}"
+                    class="relative inline-flex items-center gap-1.5 rounded-t-lg border px-3 py-2 text-xs font-medium transition-all
+                        {{ isActive
+                            ? 'border-slate-600 border-b-slate-800/40 bg-slate-800/60 text-indigo-300 z-10'
+                            : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40' }}"
+                    style="{{ isActive ? 'margin-bottom: -1px;' : '' }}"
+                >
+                    {# Tab Icons #}
+                    {% if tab.key == 'overview' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M0 1.5A1.5 1.5 0 0 1 1.5 0h3A1.5 1.5 0 0 1 6 1.5v3A1.5 1.5 0 0 1 4.5 6h-3A1.5 1.5 0 0 1 0 4.5v-3zm6.5 0A1.5 1.5 0 0 1 8 0h3A1.5 1.5 0 0 1 12.5 1.5v3A1.5 1.5 0 0 1 11 6H8A1.5 1.5 0 0 1 6.5 4.5v-3zm-6.5 6A1.5 1.5 0 0 1 1.5 6h3A1.5 1.5 0 0 1 6 7.5v3A1.5 1.5 0 0 1 4.5 12h-3A1.5 1.5 0 0 1 0 10.5v-3zm6.5 0A1.5 1.5 0 0 1 8 6h3a1.5 1.5 0 0 1 1.5 1.5v3A1.5 1.5 0 0 1 11 12H8a1.5 1.5 0 0 1-1.5-1.5v-3z"/></svg>
+                    {% elseif tab.key == 'console' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M6 9a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 6 9zM3.854 4.146a.5.5 0 1 0-.708.708L4.793 6.5 3.146 8.146a.5.5 0 1 0 .708.708l2-2a.5.5 0 0 0 0-.708l-2-2z"/><path d="M2 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H2zm12 1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h12z"/></svg>
+                    {% elseif tab.key == 'settings' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/></svg>
+                    {% elseif tab.key == 'configs' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/><path d="M8.646 6.646a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L10.293 9 8.646 7.354a.5.5 0 0 1 0-.708zm-1.292 0a.5.5 0 0 0-.708 0l-2 2a.5.5 0 0 0 0 .708l2 2a.5.5 0 0 0 .708-.708L5.707 9l1.647-1.646a.5.5 0 0 0 0-.708z"/></svg>
+                    {% elseif tab.key == 'addons' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm6.5 0A1.5 1.5 0 0 1 8.5 1h3A1.5 1.5 0 0 1 13 2.5v3A1.5 1.5 0 0 1 11.5 7h-3A1.5 1.5 0 0 1 7 5.5v-3zm-6.5 7A1.5 1.5 0 0 1 2.5 8h3A1.5 1.5 0 0 1 7 9.5v3A1.5 1.5 0 0 1 5.5 14h-3A1.5 1.5 0 0 1 1 12.5v-3zm6.5 0A1.5 1.5 0 0 1 8.5 8h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 7 12.5v-3z"/></svg>
+                    {% elseif tab.key == 'backups' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 4.963 0 6.286 0 8a3 3 0 0 0 3 3h5v-1.5H3a1.5 1.5 0 1 1-.204-2.99.5.5 0 0 0 .556-.55 4.009 4.009 0 0 1 .185-1.298A3.498 3.498 0 0 1 8 2.5a3.498 3.498 0 0 1 3.463 2.964.5.5 0 0 0 .556.55A1.5 1.5 0 1 1 12.5 8H11v1.5h1.5a3 3 0 1 0-2.937-3.543A5.53 5.53 0 0 0 8 1z"/><path d="M7.646 15.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 14.293V7.5a.5.5 0 0 0-1 0v6.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3z"/></svg>
+                    {% elseif tab.key == 'files' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M.54 3.87.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31zM2.19 4a1 1 0 0 0-.996 1.09l.637 7a1 1 0 0 0 .995.91h10.348a1 1 0 0 0 .995-.91l.637-7A1 1 0 0 0 13.81 4H2.19zm4.69-1.707A1 1 0 0 0 6.172 2H2.5a1 1 0 0 0-1 .981l.006.139C1.72 3.042 1.95 3 2.19 3h5.396l-.707-.707z"/></svg>
+                    {% elseif tab.key == 'tasks' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M5 10.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zm0-2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5zM3 2h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm0-1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H3z"/></svg>
+                    {% elseif tab.key == 'setup' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H3.5a.5.5 0 0 0 0 1h1.464a8.05 8.05 0 0 0-.044.5H3.5a.5.5 0 0 0 0 1h1.469a7.957 7.957 0 0 0 .07.5H3.5a.5.5 0 0 0 0 1h1.68a5.997 5.997 0 0 0 .416 1H3.5a.5.5 0 0 0 0 1h2.24a5.488 5.488 0 0 0 .635.915A8.027 8.027 0 0 1 3.5 11h-.5V8.5l.5-.5V6l-.5-.5V3.5L4 3h1.5a5.5 5.5 0 0 1 2-.077zM8 2.5V4h-.5a5.5 5.5 0 0 0-3 .922v.077l.5.5V7l-.5.5v1l.5.5V10a5.5 5.5 0 0 0 3 .922H8v1.5a6 6 0 1 1 0-11.5z"/></svg>
+                    {% elseif tab.key == 'reinstall' %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+                    {% else %}
+                        <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>
+                    {% endif %}
+                    {% if tab.label_is_key is defined and not tab.label_is_key %}
+                        {{ tab.label }}
+                    {% else %}
+                        {{ t(tab.label, page_locale()) }}
+                    {% endif %}
+                </a>
+            {% endfor %}
+        </div>
 
-        <section class="dashboard-panel">
-            <div class="dashboard-panel__header">
-                <div>
-                    <h3>{{ t('customer_instance_detail_kicker', page_locale()) }}</h3>
-                    <p>{{ instance.template.game_key }} · {{ instance.node.name }} ({{ instance.node.id }})</p>
-                </div>
-            </div>
+        <div class="mt-5">
+            {% include tabTemplate %}
+        </div>
+    </section>
 
-            <div class="mt-4 flex flex-wrap gap-2 border-b border-slate-700 pb-3">
-                {% for tab in tabs %}
-                    <a
-                        href="{{ tab.href }}"
-                        class="rounded-lg px-3 py-2 text-xs font-semibold transition {{ tab.key == activeTab ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-slate-100' }}"
-                    >
-                        {% if tab.label_is_key is defined and not tab.label_is_key %}
-                            {{ tab.label }}
-                        {% else %}
-                            {{ t(tab.label, page_locale()) }}
-                        {% endif %}
-                    </a>
-                {% endfor %}
-            </div>
-
-            <div class="mt-4">
-                {% include tabTemplate %}
-            </div>
-        </section>
-
-
-    </div>
+</div>
 {% endblock %}

@@ -189,6 +189,7 @@ services:
       $releaseChannel: '%app.core_release_channel%'
       $kernelEnvironment: '%kernel.environment%'
       $kernelDebug: '%kernel.debug%'
+      $panelUpdateNewsPublisher: '@App\Module\Core\Application\PanelUpdateNewsPublisher'
 
   App\Module\Core\Application\UpdateJobService:
     arguments:

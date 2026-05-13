@@ -4,57 +4,74 @@
 {% set resolverType = installResolver.type ?? '' %}
 {% set isMinecraft = resolverType in ['minecraft_vanilla', 'papermc_paper'] %}
 {% if detailMode %}
-    <form method="post" action="{{ path('customer_instance_settings', {id: instance.id, detail: 1}) }}" class="space-y-4">
+    <form method="post" action="{{ path('customer_instance_settings', {id: instance.id, detail: 1}) }}" class="space-y-5">
 {% else %}
-    <form class="space-y-4" hx-post="{{ path('customer_instance_settings', {id: instance.id}) }}" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
+    <form class="space-y-5" hx-post="{{ path('customer_instance_settings', {id: instance.id}) }}" hx-target="#instance-card-{{ instance.id }}" hx-swap="outerHTML">
 {% endif %}
+
     <div class="grid gap-4 lg:grid-cols-2">
-        <div class="rounded-lg border border-slate-200 bg-white p-4">
-            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_update_policy', page_locale()) }}</p>
-            <div class="mt-3 space-y-2 text-sm text-slate-600">
-                <label class="flex items-center gap-2">
-                    <input type="radio" name="update_policy" value="manual" {% if instance.update_policy != 'auto' %}checked{% endif %} class="text-indigo-600">
+        {# ─── Update-Richtlinie ─── #}
+        <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
+            <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">{{ t('customer_instance_update_policy', page_locale()) }}</p>
+            <div class="mt-3 space-y-2.5">
+                <label class="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2 text-sm text-slate-300 hover:bg-slate-900/60">
+                    <input type="radio" name="update_policy" value="manual"
+                        {% if instance.update_policy != 'auto' %}checked{% endif %}
+                        class="text-indigo-500 border-slate-500 bg-slate-800 focus:ring-indigo-500">
                     {{ t('customer_instance_policy_manual_only', page_locale()) }}
                 </label>
-                <label class="flex items-center gap-2">
-                    <input type="radio" name="update_policy" value="auto" {% if instance.update_policy == 'auto' %}checked{% endif %} class="text-indigo-600">
+                <label class="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2 text-sm text-slate-300 hover:bg-slate-900/60">
+                    <input type="radio" name="update_policy" value="auto"
+                        {% if instance.update_policy == 'auto' %}checked{% endif %}
+                        class="text-indigo-500 border-slate-500 bg-slate-800 focus:ring-indigo-500">
                     {{ t('customer_instance_policy_auto_schedule', page_locale()) }}
                 </label>
             </div>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_cron_schedule', page_locale()) }}</label>
-                    <input type="text" name="cron_expression" value="{{ instance.schedule ? instance.schedule.cron_expression : '0 3 * * *' }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                    <p class="mt-1 text-xs text-slate-700">{{ t('customer_instance_cron_default', page_locale()) }}</p>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instance_cron_schedule', page_locale()) }}</label>
+                    <input type="text" name="cron_expression"
+                        value="{{ instance.schedule ? instance.schedule.cron_expression : '0 3 * * *' }}"
+                        class="mt-1.5 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none">
+                    <p class="mt-1 text-[11px] text-slate-600">{{ t('customer_instance_cron_default', page_locale()) }}</p>
                 </div>
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_time_zone', page_locale()) }}</label>
-                    <input type="text" name="time_zone" value="{{ instance.schedule ? instance.schedule.time_zone : 'UTC' }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instance_time_zone', page_locale()) }}</label>
+                    <input type="text" name="time_zone"
+                        value="{{ instance.schedule ? instance.schedule.time_zone : 'UTC' }}"
+                        class="mt-1.5 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none">
                 </div>
             </div>
-            <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                Pin status:
+            <div class="mt-3 rounded-lg border border-slate-700/40 bg-slate-900/40 p-3 text-xs text-slate-400">
+                <span class="font-semibold text-slate-300">Pin-Status:</span>
                 {% if (instance.locked_build_id ?? '') != '' or (instance.locked_version ?? '') != '' %}
-                    <span class="font-semibold text-amber-700">locked</span>
+                    <span class="ml-1 font-semibold text-amber-400">Gesperrt</span>
                 {% else %}
-                    <span class="font-semibold text-emerald-700">not pinned</span>
+                    <span class="ml-1 font-semibold text-emerald-400">Nicht gesperrt</span>
                 {% endif %}
                 {% if instance.schedule %}
-                    · Last run: {{ instance.schedule.last_run_at ? instance.schedule.last_run_at|date('Y-m-d H:i:s') : '—' }}
-                    · Last status: {{ instance.schedule.last_status ?: '—' }}
-                    {% if instance.schedule.last_error_code %}(error: {{ instance.schedule.last_error_code }}){% endif %}
-                    {% if instance.schedule.next_run_at %} · Next run: {{ instance.schedule.next_run_at|date('Y-m-d H:i:s') }}{% endif %}
+                    <div class="mt-1 space-y-0.5 text-[11px] text-slate-500">
+                        <div>Letzter Lauf: {{ instance.schedule.last_run_at ? instance.schedule.last_run_at|date('Y-m-d H:i:s') : '—' }}</div>
+                        <div>Status: {{ instance.schedule.last_status ?: '—' }}{% if instance.schedule.last_error_code %} (Fehler: {{ instance.schedule.last_error_code }}){% endif %}</div>
+                        {% if instance.schedule.next_run_at %}
+                            <div>Nächster Lauf: {{ instance.schedule.next_run_at|date('Y-m-d H:i:s') }}</div>
+                        {% endif %}
+                    </div>
                 {% endif %}
             </div>
         </div>
-        <div class="rounded-lg border border-slate-200 bg-white p-4">
-            <p class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_version_lock', page_locale()) }}</p>
+
+        {# ─── Versionssperre ─── #}
+        <div class="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
+            <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">{{ t('customer_instance_version_lock', page_locale()) }}</p>
             {% if isMinecraft and minecraftCatalog is not empty %}
                 {% set versionOptions = resolverType == 'minecraft_vanilla' ? minecraftCatalog.vanilla.versions : minecraftCatalog.paper.versions %}
                 <div class="mt-4 grid gap-3 sm:grid-cols-2">
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_locked_version', page_locale()) }}</label>
-                        <select name="locked_version" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" data-minecraft-version>
+                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instance_locked_version', page_locale()) }}</label>
+                        <select name="locked_version"
+                            class="mt-1.5 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none"
+                            data-minecraft-version>
                             <option value="" {% if (instance.locked_version ?? '') == '' %}selected{% endif %}>{{ t('customer_instance_latest_option', page_locale()) }}</option>
                             {% for version in versionOptions %}
                                 <option value="{{ version }}" {% if version == (instance.locked_version ?? '') %}selected{% endif %}>{{ version }}</option>
@@ -63,8 +80,10 @@
                     </div>
                     {% if resolverType == 'papermc_paper' %}
                         <div>
-                            <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_locked_build_id', page_locale()) }}</label>
-                            <select name="locked_build_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" data-minecraft-build>
+                            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instance_locked_build_id', page_locale()) }}</label>
+                            <select name="locked_build_id"
+                                class="mt-1.5 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 focus:border-indigo-500 focus:outline-none"
+                                data-minecraft-build>
                                 <option value="" {% if (instance.locked_build_id ?? '') == '' %}selected{% endif %}>{{ t('customer_instance_latest_option', page_locale()) }}</option>
                                 {% for version, builds in minecraftCatalog.paper.builds %}
                                     {% for build in builds %}
@@ -79,25 +98,34 @@
                         <input type="hidden" name="locked_build_id" value="">
                     {% endif %}
                 </div>
-                <p class="mt-3 text-xs text-slate-700">{{ t('customer_instance_lock_remove_hint', page_locale()) }}</p>
+                <p class="mt-3 text-xs text-slate-500">{{ t('customer_instance_lock_remove_hint', page_locale()) }}</p>
             {% else %}
                 <div class="mt-4 grid gap-3 sm:grid-cols-2">
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_locked_build_id', page_locale()) }}</label>
-                        <input type="text" name="locked_build_id" value="{{ instance.locked_build_id ?? '' }}" placeholder="{{ t('customer_instance_locked_build_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instance_locked_build_id', page_locale()) }}</label>
+                        <input type="text" name="locked_build_id" value="{{ instance.locked_build_id ?? '' }}"
+                            placeholder="{{ t('customer_instance_locked_build_placeholder', page_locale()) }}"
+                            class="mt-1.5 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none">
                     </div>
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_instance_lock_label', page_locale()) }}</label>
-                        <input type="text" name="locked_version" value="{{ instance.locked_version ?? '' }}" placeholder="{{ t('customer_instance_lock_label_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_instance_lock_label', page_locale()) }}</label>
+                        <input type="text" name="locked_version" value="{{ instance.locked_version ?? '' }}"
+                            placeholder="{{ t('customer_instance_lock_label_placeholder', page_locale()) }}"
+                            class="mt-1.5 w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none">
                     </div>
                 </div>
-                <p class="mt-3 text-xs text-slate-700">{{ t('customer_instance_lock_remove_hint', page_locale()) }}</p>
+                <p class="mt-3 text-xs text-slate-500">{{ t('customer_instance_lock_remove_hint', page_locale()) }}</p>
             {% endif %}
         </div>
     </div>
+
     <div class="flex justify-end">
-        <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800">{{ t('customer_instance_save_update_settings', page_locale()) }}</button>
+        <button type="submit"
+            class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500">
+            {{ t('customer_instance_save_update_settings', page_locale()) }}
+        </button>
     </div>
+
     </form>
 
 {% if isMinecraft and resolverType == 'papermc_paper' %}
@@ -107,30 +135,21 @@
             versionSelects.forEach((versionSelect) => {
                 const form = versionSelect.closest('form');
                 const buildSelect = form ? form.querySelector('[data-minecraft-build]') : null;
-                if (!buildSelect) {
-                    return;
-                }
-
+                if (!buildSelect) return;
                 const updateBuilds = () => {
                     const version = versionSelect.value;
                     const options = Array.from(buildSelect.options);
                     options.forEach((option, index) => {
-                        if (index === 0) {
-                            option.hidden = false;
-                            option.disabled = false;
-                            return;
-                        }
+                        if (index === 0) { option.hidden = false; option.disabled = false; return; }
                         const optionVersion = option.dataset.version || '';
                         const shouldShow = version === '' || optionVersion === version;
                         option.hidden = !shouldShow;
                         option.disabled = !shouldShow;
                     });
-
                     if (buildSelect.selectedOptions.length > 0 && buildSelect.selectedOptions[0].disabled) {
                         buildSelect.value = '';
                     }
                 };
-
                 updateBuilds();
                 versionSelect.addEventListener('change', updateBuilds);
             });

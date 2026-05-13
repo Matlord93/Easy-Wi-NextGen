@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Module\PanelCustomer\UI\Controller\Customer;
 
 use App\Module\Core\Application\DiskUsageFormatter;
+use App\Module\Core\Application\SiteResolver;
+use App\Module\Core\Domain\Entity\ChangelogEntry;
 use App\Module\Core\Domain\Entity\Instance;
 use App\Module\Core\Domain\Entity\Ticket;
 use App\Module\Core\Domain\Entity\User;
@@ -13,6 +15,7 @@ use App\Module\Core\Domain\Enum\InstanceStatus;
 use App\Module\Core\Domain\Enum\TicketStatus;
 use App\Module\Core\Domain\Enum\UserType;
 use App\Module\PanelCustomer\Application\BookedResourceUsageAggregator;
+use App\Repository\ChangelogEntryRepository;
 use App\Repository\CustomerProfileRepository;
 use App\Repository\DatabaseRepository;
 use App\Repository\InstanceMetricSampleRepository;
@@ -38,6 +41,8 @@ final class CustomerDashboardController
         private readonly InvoiceRepository $invoiceRepository,
         private readonly ShopRentalRepository $rentalRepository,
         private readonly CustomerProfileRepository $profileRepository,
+        private readonly ChangelogEntryRepository $changelogRepository,
+        private readonly SiteResolver $siteResolver,
         private readonly DiskUsageFormatter $diskUsageFormatter,
         private readonly BookedResourceUsageAggregator $bookedResourceUsageAggregator,
         private readonly Environment $twig,
@@ -77,6 +82,10 @@ final class CustomerDashboardController
             ? $this->diskUsageFormatter->formatBytes((int) $resourceUsage['total_used_ram_bytes'])
             : null;
         $nextPayment = $this->resolveNextPayment($invoices);
+        $site = $this->siteResolver->resolve($request);
+        $panelNews = $site?->getId() !== null
+            ? $this->normalizePanelNews($this->changelogRepository->findVisiblePublicBySite($site->getId(), 3))
+            : [];
 
         return new Response($this->twig->render('customer/dashboard/index.html.twig', [
             'activeNav' => 'dashboard',
@@ -88,7 +97,22 @@ final class CustomerDashboardController
             'activePlan' => $this->resolveActivePlan($rentals),
             'nextPayment' => $nextPayment,
             'invoices' => $this->normalizeInvoices(array_slice($invoices, 0, 5)),
+            'panelNews' => $panelNews,
         ]));
+    }
+
+    /**
+     * @param ChangelogEntry[] $entries
+     * @return array<int, array{title: string, version: string|null, content: string, published_at: \DateTimeImmutable}>
+     */
+    private function normalizePanelNews(array $entries): array
+    {
+        return array_map(static fn (ChangelogEntry $entry): array => [
+            'title' => $entry->getTitle(),
+            'version' => $entry->getVersion(),
+            'content' => $entry->getContent(),
+            'published_at' => $entry->getPublishedAt(),
+        ], $entries);
     }
 
     private function requireCustomer(Request $request): User

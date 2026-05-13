@@ -93,6 +93,42 @@ func TestMapAccessErr(t *testing.T) {
 	}
 }
 
+func TestPackageManagerOutputIndicatesAptListLock(t *testing.T) {
+	output := "Reading package lists... E: Could not get lock /var/lib/apt/lists/lock. It is held by process 292518 (apt-get) E: Unable to lock directory /var/lib/apt/lists/"
+	if !packageManagerOutputIndicatesLock(output) {
+		t.Fatalf("expected apt lists lock output to be retryable")
+	}
+}
+
+func TestRunPackageManagerCommandRetriesLockAndReturnsSuccess(t *testing.T) {
+	origRun := accessRunCommandLogged
+	origSleep := accessPackageManagerRetrySleep
+	t.Cleanup(func() {
+		accessRunCommandLogged = origRun
+		accessPackageManagerRetrySleep = origSleep
+	})
+	accessPackageManagerRetrySleep = 0
+	attempts := 0
+	accessRunCommandLogged = func(name string, args ...string) (string, error) {
+		attempts++
+		if attempts == 1 {
+			return "E: Could not get lock /var/lib/apt/lists/lock. It is held by process 292518 (apt-get)", errors.New("locked")
+		}
+		return "done", nil
+	}
+
+	out, err := runPackageManagerCommandWithRetry("apt-get", []string{"update"}, 2)
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got err=%v output=%q", err, out)
+	}
+	if attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", attempts)
+	}
+	if !strings.Contains(out, "attempt 1/2 failed") || !strings.Contains(out, "attempt 2/2 succeeded") {
+		t.Fatalf("expected retry diagnostics in output, got %q", out)
+	}
+}
+
 func TestLinuxPackagesForDistro(t *testing.T) {
 	tests := []struct {
 		name string
