@@ -37,6 +37,7 @@ func TestBuildProFTPDManagedConfigMatchesConfirmedVirtualHostTemplate(t *testing
 		"    AuthUserFile /var/lib/easywi/proftpd/passwd",
 		"    RequireValidShell off",
 		"    DefaultRoot ~",
+		"    AllowOverwrite on",
 		"    TimeoutIdle 600",
 		"  </VirtualHost>",
 		"</IfModule>",
@@ -63,6 +64,9 @@ func TestBuildProFTPDManagedConfigContainsMarkers(t *testing.T) {
 	}
 	if strings.Index(cfg, "<VirtualHost 0.0.0.0>") > strings.Index(cfg, "SFTPEngine on") {
 		t.Fatalf("expected SFTPEngine inside the VirtualHost block")
+	}
+	if !strings.Contains(cfg, "AllowOverwrite on") {
+		t.Fatalf("AllowOverwrite must be enabled so SFTP users can overwrite/edit existing files: %s", cfg)
 	}
 	if strings.Contains(cfg, "MaxInstances") {
 		t.Fatalf("MaxInstances must not be emitted in the VirtualHost block: %s", cfg)
@@ -642,6 +646,75 @@ func TestEnsureProFTPDUserPreservesExistingRootOwner(t *testing.T) {
 	wantEntry := fmt.Sprintf("sftp42:$6$hash:%d:%d::%s:/usr/sbin/nologin", rootUID, rootGID, rootPath)
 	if strings.TrimSpace(string(raw)) != wantEntry {
 		t.Fatalf("unexpected auth entry\nwant: %s\ngot:  %s", wantEntry, strings.TrimSpace(string(raw)))
+	}
+}
+
+func TestEnsureProFTPDUserRepairsWritableTree(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file owners are required for ProFTPD account mapping")
+	}
+
+	origAuth := proFTPDAuthUserFilePath
+	origRunOutput := accessRunCommandOutput
+	t.Cleanup(func() {
+		proFTPDAuthUserFilePath = origAuth
+		accessRunCommandOutput = origRunOutput
+	})
+
+	tmpDir := t.TempDir()
+	rootPath := filepath.Join(tmpDir, "gameserver")
+	nestedDir := filepath.Join(rootPath, "game", "csgo", "addons", "configs", "fake_rcon")
+	if err := os.MkdirAll(nestedDir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(nestedDir, "cache.ini")
+	if err := os.WriteFile(configPath, []byte("cache"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	rootInfo, err := os.Stat(rootPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootUID, rootGID := fileOwnerIDs(rootInfo)
+	if rootUID == 0 {
+		if err := os.Chown(rootPath, 12345, 23456); err != nil {
+			t.Skipf("test requires a non-root POSIX-owned root directory and could not chown probe dir: %v", err)
+		}
+		rootInfo, err = os.Stat(rootPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rootUID, rootGID = fileOwnerIDs(rootInfo)
+	}
+	if rootUID <= 0 || rootGID < 0 {
+		t.Skipf("test requires a non-root POSIX-owned temp directory, got uid=%d gid=%d", rootUID, rootGID)
+	}
+
+	proFTPDAuthUserFilePath = filepath.Join(tmpDir, "proftpd", "passwd")
+	accessRunCommandOutput = func(name string, args ...string) (string, error) {
+		if name == "openssl" && strings.Join(args, " ") == "passwd -6 secret" {
+			return "$6$hash", nil
+		}
+		return "", errors.New("unexpected command: " + name + " " + strings.Join(args, " "))
+	}
+
+	if err := ensureProFTPDUser("sftp42", "secret", rootPath); err != nil {
+		t.Fatal(err)
+	}
+
+	dirInfo, err := os.Stat(nestedDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dirInfo.Mode().Perm()&0o700 != 0o700 {
+		t.Fatalf("expected nested directory to be owner-readable/writable/executable, got %o", dirInfo.Mode().Perm())
+	}
+	fileInfo, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fileInfo.Mode().Perm()&0o600 != 0o600 {
+		t.Fatalf("expected nested file to be owner-readable/writable, got %o", fileInfo.Mode().Perm())
 	}
 }
 

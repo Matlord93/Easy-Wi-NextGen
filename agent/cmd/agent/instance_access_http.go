@@ -992,6 +992,7 @@ func buildProFTPDManagedConfig(port int) string {
 		fmt.Sprintf("    AuthUserFile %s", proFTPDAuthUserFilePath),
 		"    RequireValidShell off",
 		"    DefaultRoot ~",
+		"    AllowOverwrite on",
 		"    TimeoutIdle 600",
 		"  </VirtualHost>",
 		"</IfModule>",
@@ -1105,13 +1106,8 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 	if err != nil {
 		return err
 	}
-	if !rootExisted {
-		if out, err := accessRunCommandLogged("chown", uid+":"+gid, rootPath); err != nil {
-			return fmt.Errorf("PERMISSION_DENIED: chown root path failed: %s", strings.TrimSpace(out))
-		}
-		if err := os.Chmod(rootPath, 0o750); err != nil {
-			return fmt.Errorf("PERMISSION_DENIED: chmod root path failed: %w", err)
-		}
+	if err := ensureProFTPDRootWritable(rootPath, uid, gid); err != nil {
+		return err
 	}
 	hash, err := accessRunCommandOutput("openssl", "passwd", "-6", password)
 	if err != nil {
@@ -1145,6 +1141,47 @@ func ensureProFTPDUser(username, password, rootPath string) error {
 		return fmt.Errorf("CONFIG_INVALID: write auth file: %w", err)
 	}
 	return nil
+}
+
+func ensureProFTPDRootWritable(rootPath, uidString, gidString string) error {
+	uid, err := strconv.Atoi(strings.TrimSpace(uidString))
+	if err != nil || uid < 0 {
+		return fmt.Errorf("PERMISSION_DENIED: invalid sftp uid %q", uidString)
+	}
+	gid, err := strconv.Atoi(strings.TrimSpace(gidString))
+	if err != nil || gid < 0 {
+		return fmt.Errorf("PERMISSION_DENIED: invalid sftp gid %q", gidString)
+	}
+
+	return filepath.WalkDir(rootPath, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return fmt.Errorf("PERMISSION_DENIED: walk root path %s: %w", path, walkErr)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("PERMISSION_DENIED: stat root path entry %s: %w", path, err)
+		}
+		currentUID, currentGID := fileOwnerIDs(info)
+		if currentUID >= 0 && currentGID >= 0 && (currentUID != uid || currentGID != gid) {
+			if err := os.Lchown(path, uid, gid); err != nil {
+				return fmt.Errorf("PERMISSION_DENIED: chown root path entry %s: %w", path, err)
+			}
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+		mode := info.Mode().Perm()
+		wanted := mode | 0o600
+		if entry.IsDir() {
+			wanted = mode | 0o700
+		}
+		if mode != wanted {
+			if err := os.Chmod(path, wanted); err != nil {
+				return fmt.Errorf("PERMISSION_DENIED: chmod root path entry %s: %w", path, err)
+			}
+		}
+		return nil
+	})
 }
 
 func proFTPDAccountIDsForRoot(rootInfo os.FileInfo, rootPath string, rootExisted bool) (string, string, error) {
