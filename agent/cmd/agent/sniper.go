@@ -20,7 +20,7 @@ var (
 	jsonLineRegex                = regexp.MustCompile(`\{.*\}`)
 	forceInstallDirRegex         = regexp.MustCompile(`(?i)(\+force_install_dir\s+)(\"[^\"]+\"|'[^']+'|\S+)`)
 	forceInstallDirPresenceRegex = regexp.MustCompile(`(?i)\+force_install_dir\b`)
-	steamcmdInjectRegex          = regexp.MustCompile(`(?i)(^|\\s)([^\\s]*steamcmd(?:\\.sh|\\.exe)?)(\\s)`)
+	steamcmdInjectRegex          = regexp.MustCompile(`(?i)(^|\s)([^\s]*steamcmd(?:\.sh|\.exe)?)(\s)`)
 	steamcmdCommandRegex         = regexp.MustCompile(`(^|\s)(/var/lib/easywi/game/steamcmd/steamcmd\.sh|/usr/local/bin/steamcmd|steamcmd)(\s|$)`)
 	steamcmdArchiveURL           = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz"
 )

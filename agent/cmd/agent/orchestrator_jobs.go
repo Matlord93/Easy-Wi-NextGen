@@ -1,9 +1,15 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"net/url"
 	"os"
@@ -26,18 +32,20 @@ type orchestratorResult struct {
 }
 
 type ts6ConfigOptions struct {
-	licenseAccepted  bool
-	voiceIP          []string
-	defaultVoicePort int
-	filetransferPort int
-	filetransferIP   []string
-	queryBindIP      string
-	queryHttpEnable  bool
-	queryHttpPort    int
-	queryHttpsEnable bool
-	queryHttpsPort   int
-	queryAdminPass   string
-	workingDirectory string
+	licenseAccepted      bool
+	voiceIP              []string
+	defaultVoicePort     int
+	filetransferPort     int
+	filetransferIP       []string
+	queryBindIP          string
+	queryHttpEnable      bool
+	queryHttpPort        int
+	queryHttpsEnable     bool
+	queryHttpsPort       int
+	queryAdminPass       string
+	workingDirectory     string
+	httpsCertificatePath string
+	httpsPrivateKeyPath  string
 }
 
 var teamspeakVersionRegex = regexp.MustCompile(`\d+\.\d+(?:\.\d+)*(?:[A-Za-z])?(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?`)
@@ -446,47 +454,64 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
-	archivePath, err := downloadArchiveForInstall(installDir, downloadURL, downloadFilename, "ts6server.tar.xz")
+	archivePath, err := downloadArchiveForInstall(installDir, downloadURL, downloadFilename, "teamspeak6-server-linux-amd64.tar.xz")
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if err := extractArchive(archivePath, downloadURL, installDir); err != nil {
+	extractionDir := ts6ArchiveExtractionDir(installDir, archivePath)
+	if extractionDir != installDir {
+		if err := ensureInstanceDir(extractionDir); err != nil {
+			return orchestratorResult{status: "failed", errorText: err.Error()}
+		}
+	}
+	if err := extractArchiveWithoutStrip(archivePath, downloadURL, extractionDir); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if err := chownRecursiveToUser(installDir, serviceUser); err != nil {
+	resolvedInstallDir, err := resolveTs6InstallDir(installDir, archivePath, extractionDir)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := chownRecursiveToUser(resolvedInstallDir, serviceUser); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
-	configPath := filepath.Join(installDir, "tsserver.yaml")
-	configContent := buildTs6Config(ts6ConfigOptions{
-		licenseAccepted:  acceptLicense,
-		voiceIP:          voiceIP,
-		defaultVoicePort: defaultVoicePort,
-		filetransferPort: filetransferPort,
-		filetransferIP:   filetransferIP,
-		queryBindIP:      queryBindIP,
-		queryHttpEnable:  true,
-		queryHttpPort:    10080,
-		queryHttpsEnable: queryHttpsEnable,
-		queryHttpsPort:   queryHttpsPort,
-		queryAdminPass:   adminPassword,
-		workingDirectory: installDir,
-	})
-	if err := writeFile(configPath, configContent); err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
 	uid, gid, err := lookupIDs(serviceUser, serviceUser)
 	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	if err := ensureTs6SshHostKey(resolvedInstallDir, uid, gid); err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	certPath, keyPath, err := ensureTs6HttpsCertificate(resolvedInstallDir, uid, gid)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	configPath := filepath.Join(resolvedInstallDir, "tsserver.yaml")
+	configContent := buildTs6Config(ts6ConfigOptions{
+		licenseAccepted:      acceptLicense,
+		voiceIP:              voiceIP,
+		defaultVoicePort:     defaultVoicePort,
+		filetransferPort:     filetransferPort,
+		filetransferIP:       filetransferIP,
+		queryBindIP:          queryBindIP,
+		queryHttpEnable:      true,
+		queryHttpPort:        10080,
+		queryHttpsEnable:     queryHttpsEnable,
+		queryHttpsPort:       queryHttpsPort,
+		queryAdminPass:       adminPassword,
+		workingDirectory:     resolvedInstallDir,
+		httpsCertificatePath: certPath,
+		httpsPrivateKeyPath:  keyPath,
+	})
+	if err := writeFile(configPath, configContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 	if err := os.Chown(configPath, uid, gid); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
-	if err := ensureTs6SshHostKey(installDir, uid, gid); err != nil {
-		return orchestratorResult{status: "failed", errorText: err.Error()}
-	}
 	unitPath := filepath.Join("/etc/systemd/system", fmt.Sprintf("%s.service", serviceName))
-	unitContent := systemdUnitTemplate(serviceName, serviceUser, installDir, installDir, filepath.Join(installDir, "tsserver"), fmt.Sprintf("--accept-license --config-file %s", filepath.Join(installDir, "tsserver.yaml")), 0, 0)
+	unitContent := systemdUnitTemplate(serviceName, serviceUser, resolvedInstallDir, resolvedInstallDir, filepath.Join(resolvedInstallDir, "tsserver"), fmt.Sprintf("--accept-license --config-file %s", configPath), 0, 0)
 	if err := writeFile(unitPath, unitContent); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
@@ -496,11 +521,20 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 	if err := runCommand("systemctl", "enable", "--now", serviceName); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
+	if err := waitForTs6QueryListeners(queryBindIP, queryHttpsPort, 10080, 10022, 60*time.Second); err != nil {
+		diagnostics := map[string]any{}
+		for key, value := range collectServiceDiagnostics(serviceName) {
+			diagnostics[key] = value
+		}
+		diagnostics["query_readiness_error"] = err.Error()
+		return orchestratorResult{status: "failed", errorText: err.Error(), resultPayload: diagnostics}
+	}
 
 	return orchestratorResult{
 		status: "success",
 		resultPayload: map[string]any{
 			"installed_version": fallbackVersion(extractVersionFromDownloadURL(downloadURL)),
+			"install_dir":       resolvedInstallDir,
 			"running":           true,
 		},
 	}
@@ -633,6 +667,92 @@ func handleSinusbotInstall(job jobs.Job) orchestratorResult {
 			},
 		},
 	}
+}
+
+func waitForTs6QueryListeners(queryBindIP string, queryHTTPSPort, queryHTTPPort, querySSHPort int, timeout time.Duration) error {
+	queryIP := normalizeQueryConnectIP(queryBindIP)
+	if queryIP == "" {
+		queryIP = "127.0.0.1"
+	}
+	ports := []int{querySSHPort, queryHTTPSPort, queryHTTPPort}
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for {
+		for _, port := range ports {
+			if port <= 0 {
+				continue
+			}
+			address := net.JoinHostPort(queryIP, fmt.Sprintf("%d", port))
+			conn, err := net.DialTimeout("tcp", address, time.Second)
+			if err == nil {
+				_ = conn.Close()
+				return nil
+			}
+			lastErr = fmt.Errorf("%s: %w", address, err)
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+	if lastErr != nil {
+		return fmt.Errorf("TS6 query listeners did not become reachable within %s: %w", timeout, lastErr)
+	}
+	return fmt.Errorf("TS6 query listeners did not become reachable within %s", timeout)
+}
+
+func ts6ArchiveExtractionDir(installDir, archivePath string) string {
+	archiveRoot := archiveRootDirectoryName(archivePath)
+	if archiveRoot != "" && filepath.Base(filepath.Clean(installDir)) == archiveRoot {
+		return filepath.Dir(filepath.Clean(installDir))
+	}
+	return installDir
+}
+
+func resolveTs6InstallDir(installDir, archivePath, extractionDir string) (string, error) {
+	if hasTs6ServerBinary(installDir) {
+		return installDir, nil
+	}
+
+	archiveRoot := archiveRootDirectoryName(archivePath)
+	if archiveRoot != "" {
+		candidate := filepath.Join(extractionDir, archiveRoot)
+		if hasTs6ServerBinary(candidate) {
+			return candidate, nil
+		}
+	}
+
+	entries, err := os.ReadDir(extractionDir)
+	if err != nil {
+		return "", fmt.Errorf("inspect TS6 extraction directory: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		candidate := filepath.Join(extractionDir, entry.Name())
+		if hasTs6ServerBinary(candidate) {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("ts6 binary not found after extracting %s without stripping directories", filepath.Base(archivePath))
+}
+
+func hasTs6ServerBinary(dir string) bool {
+	info, err := os.Stat(filepath.Join(dir, "tsserver"))
+	return err == nil && !info.IsDir()
+}
+
+func archiveRootDirectoryName(archivePath string) string {
+	base := filepath.Base(archivePath)
+	lower := strings.ToLower(base)
+	for _, suffix := range []string{".tar.xz", ".tar.gz", ".tar.bz2", ".txz", ".tgz", ".tbz2", ".tar", ".zip"} {
+		if strings.HasSuffix(lower, suffix) {
+			return base[:len(base)-len(suffix)]
+		}
+	}
+	return ""
 }
 
 func installSinusbotDependencies() error {
@@ -1028,29 +1148,31 @@ func validateArchive(path string) (err error) {
 }
 
 func buildTs6Config(options ts6ConfigOptions) string {
-	queryIPs := options.voiceIP
-	if options.queryBindIP != "" {
-		queryIPs = []string{options.queryBindIP}
+	workingDirectory := strings.TrimSpace(options.workingDirectory)
+	if workingDirectory == "" {
+		workingDirectory = "/home/teamspeak6"
 	}
-	httpEnabled := boolToInt(options.queryHttpEnable)
-	httpsEnabled := boolToInt(options.queryHttpsEnable)
-	acceptValue := "accept"
-	if !options.licenseAccepted {
-		acceptValue = "0"
+	adminPassword := options.queryAdminPass
+	certificatePath := strings.TrimSpace(options.httpsCertificatePath)
+	if certificatePath == "" {
+		certificatePath = ts6HTTPSCertificateFilename
 	}
-	sshIPs := []string{"0.0.0.0"}
+	privateKeyPath := strings.TrimSpace(options.httpsPrivateKeyPath)
+	if privateKeyPath == "" {
+		privateKeyPath = ts6HTTPSPrivateKeyFilename
+	}
 	return fmt.Sprintf(`server:
   license-path: .
-  default-voice-port: %d
+  default-voice-port: 9987
   voice-ip:
-%s
+    - 0.0.0.0
   log-path: logs
   log-append: 0
   no-default-virtual-server: 0
-  filetransfer-port: %d
+  filetransfer-port: 30033
   filetransfer-ip:
-%s
-  accept-license: %s
+    - 0.0.0.0
+  accept-license: accept
   crashdump-path: crashdumps
 
   database:
@@ -1083,26 +1205,87 @@ func buildTs6Config(options ts6ConfigOptions) string {
     timeout: 300
 
     http:
-      enable: %d
-      port: %d
+      enable: 1
+      port: 10080
       ip:
-%s
+      - 127.0.0.1
 
     https:
-      enable: %d
-      port: %d
+      enable: 1
+      port: 10443
       ip:
-%s
-      certificate: ""
-      private-key: ""
+      - 127.0.0.1
+      certificate: %q
+      private-key: %q
 
     ssh:
       enable: 1
       port: 10022
       ip:
-%s
+      - 0.0.0.0
       rsa-key: ssh_host_rsa_key
-`, options.defaultVoicePort, formatYamlList(options.voiceIP, 4), options.filetransferPort, formatYamlList(options.filetransferIP, 4), acceptValue, options.workingDirectory, options.workingDirectory, options.queryAdminPass, httpEnabled, options.queryHttpPort, formatYamlList(queryIPs, 6), httpsEnabled, options.queryHttpsPort, formatYamlList(queryIPs, 6), formatYamlList(sshIPs, 6))
+`, workingDirectory, workingDirectory, adminPassword, certificatePath, privateKeyPath)
+}
+
+const (
+	ts6HTTPSCertificateFilename = "query_https.crt"
+	ts6HTTPSPrivateKeyFilename  = "query_https.key"
+)
+
+func ensureTs6HttpsCertificate(installDir string, uid, gid int) (string, string, error) {
+	certPath := filepath.Join(installDir, ts6HTTPSCertificateFilename)
+	keyPath := filepath.Join(installDir, ts6HTTPSPrivateKeyFilename)
+	if ts6FileExists(certPath) && ts6FileExists(keyPath) {
+		return ts6HTTPSCertificateFilename, ts6HTTPSPrivateKeyFilename, nil
+	}
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", "", fmt.Errorf("generate TS6 HTTPS private key: %w", err)
+	}
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return "", "", fmt.Errorf("generate TS6 HTTPS certificate serial: %w", err)
+	}
+	now := time.Now().UTC()
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			CommonName: "Easy-WI TeamSpeak 6 Query",
+		},
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.AddDate(10, 0, 0),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames:              []string{"localhost"},
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		return "", "", fmt.Errorf("create TS6 HTTPS certificate: %w", err)
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
+	if err := os.WriteFile(certPath, certPEM, 0o644); err != nil {
+		return "", "", fmt.Errorf("write TS6 HTTPS certificate: %w", err)
+	}
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		return "", "", fmt.Errorf("write TS6 HTTPS private key: %w", err)
+	}
+	if err := os.Chown(certPath, uid, gid); err != nil {
+		return "", "", err
+	}
+	if err := os.Chown(keyPath, uid, gid); err != nil {
+		return "", "", err
+	}
+	return ts6HTTPSCertificateFilename, ts6HTTPSPrivateKeyFilename, nil
+}
+
+func ts6FileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func ensureTs6SshHostKey(installDir string, uid, gid int) error {
@@ -1246,21 +1429,6 @@ func handleTs6InstanceCreate(job jobs.Job) orchestratorResult {
 	queryHttpsPort := parseInt(payloadValue(job.Payload, "query_https_port"), 10443)
 	filetransferPort := parseInt(payloadValue(job.Payload, "filetransfer_port"), 30033)
 
-	configPath := filepath.Join(instanceDir, "tsserver.yaml")
-	configContent := buildTs6Config(ts6ConfigOptions{
-		licenseAccepted:  true,
-		voiceIP:          []string{"0.0.0.0"},
-		defaultVoicePort: voicePort,
-		filetransferPort: filetransferPort,
-		filetransferIP:   []string{"0.0.0.0"},
-		queryHttpsEnable: true,
-		queryHttpsPort:   queryHttpsPort,
-		workingDirectory: instanceDir,
-	})
-	if err := writeFile(configPath, configContent); err != nil {
-		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("write config: %v", err)}
-	}
-
 	uid, gid, err := lookupIDs(osUsername, osUsername)
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
@@ -1268,11 +1436,32 @@ func handleTs6InstanceCreate(job jobs.Job) orchestratorResult {
 	if err := os.Chown(instanceDir, uid, gid); err != nil {
 		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("chown instance dir: %v", err)}
 	}
-	if err := os.Chown(configPath, uid, gid); err != nil {
-		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("chown config: %v", err)}
-	}
 	if err := ensureTs6SshHostKey(instanceDir, uid, gid); err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+	certPath, keyPath, err := ensureTs6HttpsCertificate(instanceDir, uid, gid)
+	if err != nil {
+		return orchestratorResult{status: "failed", errorText: err.Error()}
+	}
+
+	configPath := filepath.Join(instanceDir, "tsserver.yaml")
+	configContent := buildTs6Config(ts6ConfigOptions{
+		licenseAccepted:      true,
+		voiceIP:              []string{"0.0.0.0"},
+		defaultVoicePort:     voicePort,
+		filetransferPort:     filetransferPort,
+		filetransferIP:       []string{"0.0.0.0"},
+		queryHttpsEnable:     true,
+		queryHttpsPort:       queryHttpsPort,
+		workingDirectory:     instanceDir,
+		httpsCertificatePath: certPath,
+		httpsPrivateKeyPath:  keyPath,
+	})
+	if err := writeFile(configPath, configContent); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("write config: %v", err)}
+	}
+	if err := os.Chown(configPath, uid, gid); err != nil {
+		return orchestratorResult{status: "failed", errorText: fmt.Sprintf("chown config: %v", err)}
 	}
 
 	binaryPath := filepath.Join(installDir, "tsserver")

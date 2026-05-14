@@ -69,3 +69,35 @@ func TestSteamCmdInstallErrorFailedLine(t *testing.T) {
 		t.Fatalf("expected failed install line, got %v", err)
 	}
 }
+
+func TestNormalizeSteamCmdInstallDirInjectsForceInstallDir(t *testing.T) {
+	command := "steamcmd +login anonymous +app_update 222860 validate +quit"
+	instanceDir := "/home/gs21"
+	normalized := normalizeSteamCmdInstallDir(command, instanceDir)
+	if !strings.Contains(normalized, "steamcmd +force_install_dir "+instanceDir+" +login anonymous") {
+		t.Fatalf("expected force_install_dir to be injected, got %q", normalized)
+	}
+}
+
+func TestBuildInstanceInstallShellCommandBootstrapsSteamCmd(t *testing.T) {
+	instanceDir := "/home/gs21"
+	command := replaceSteamCmdExecutable(
+		normalizeSteamCmdInstallDir("steamcmd +login anonymous +app_update 222860 validate +quit", instanceDir),
+		"$STEAMCMD_EXEC",
+	)
+	shellCmd := buildInstanceInstallShellCommand(instanceDir, command, true)
+
+	for _, expected := range []string{
+		"STEAMCMD_EXEC=",
+		"steamcmd_linux.tar.gz",
+		"cd " + instanceDir + " && $STEAMCMD_EXEC +force_install_dir " + instanceDir,
+		instanceDir + "/.steam/sdk32/steamclient.so",
+	} {
+		if !strings.Contains(shellCmd, expected) {
+			t.Fatalf("expected shell command to contain %q, got %q", expected, shellCmd)
+		}
+	}
+	if strings.Contains(shellCmd, " /usr/local/bin/steamcmd ") {
+		t.Fatalf("expected reinstall command to avoid broken global steamcmd, got %q", shellCmd)
+	}
+}

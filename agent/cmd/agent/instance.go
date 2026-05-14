@@ -842,10 +842,40 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		if err != nil {
 			return failureResult(job.ID, err)
 		}
-		installWithDir := fmt.Sprintf("cd %s && %s", instanceDir, renderedInstallCommand)
+
+		renderedInstallCommand = normalizeSteamCmdInstallDir(renderedInstallCommand, instanceDir)
+		usesSteamCmd := steamcmdCommandRegex.MatchString(renderedInstallCommand)
+		if usesSteamCmd {
+			renderedInstallCommand = replaceSteamCmdExecutable(renderedInstallCommand, "$STEAMCMD_EXEC")
+		}
+
+		installWithDir := buildInstanceInstallShellCommand(instanceDir, renderedInstallCommand, usesSteamCmd)
+		if logSender != nil && job.ID != "" {
+			maskedInstall := maskSensitiveValues(renderedInstallCommand, templateValues)
+			logSender.Send(job.ID, []string{fmt.Sprintf("instance reinstall install starting (uses_steamcmd=%t command=%s)", usesSteamCmd, maskedInstall)}, nil)
+		}
 		installOutput, err := runCommandOutputAsUserWithLogs(osUsername, installWithDir, job.ID, logSender)
 		if err != nil {
 			return failureResult(job.ID, fmt.Errorf("install command failed: %w", err))
+		}
+		steamAppID := payloadValue(job.Payload, "steam_app_id")
+		if usesSteamCmd {
+			for attempts := 0; attempts < steamCmdRetryLimit && shouldRetrySteamCmd(installOutput, steamAppID); attempts++ {
+				retryOutput, retryErr := runCommandOutputAsUserWithLogs(osUsername, installWithDir, job.ID, logSender)
+				if retryErr != nil {
+					return failureResult(job.ID, fmt.Errorf("install command failed: %w", retryErr))
+				}
+				if retryOutput != "" {
+					if installOutput != "" {
+						installOutput += "\n" + retryOutput
+					} else {
+						installOutput = retryOutput
+					}
+				}
+			}
+			if err := steamCmdInstallError(installOutput, steamAppID); err != nil {
+				return failureResult(job.ID, err)
+			}
 		}
 		diagnostics["install_log"] = trimOutput(installOutput, 4000)
 	}
@@ -883,6 +913,25 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		Output:    diagnostics,
 		Completed: time.Now().UTC(),
 	}, nil
+}
+
+func buildInstanceInstallShellCommand(instanceDir, installCommand string, usesSteamCmd bool) string {
+	installSnippet := ""
+	postInstallSnippet := ""
+	if usesSteamCmd {
+		steamCmdDir := instanceDirSteamCmdDir(instanceDir)
+		installSnippet = steamCmdInstallSnippet(steamCmdDir)
+		postInstallSnippet = steamCmdClientSnippet(steamCmdDir, instanceDir)
+	}
+
+	return fmt.Sprintf(
+		"export HOME=%[1]s; export XDG_DATA_HOME=%[1]s/.local/share; "+
+			"mkdir -p %[1]s/.steam %[1]s/.local/share; "+
+			"%[3]s"+
+			"cd %[1]s && %[2]s; "+
+			"%[4]s",
+		instanceDir, installCommand, installSnippet, postInstallSnippet,
+	)
 }
 
 func buildInstanceUsername(customerID, instanceID string) string {

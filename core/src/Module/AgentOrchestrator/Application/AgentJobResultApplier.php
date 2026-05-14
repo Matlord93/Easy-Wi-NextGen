@@ -153,6 +153,9 @@ final class AgentJobResultApplier
             if (is_array($payload) && isset($payload['installed_version']) && is_string($payload['installed_version'])) {
                 $node->setInstalledVersion($payload['installed_version']);
             }
+            if (is_array($payload) && isset($payload['install_dir']) && is_string($payload['install_dir'])) {
+                $node->setInstallPath($payload['install_dir']);
+            }
             if (is_array($payload) && array_key_exists('running', $payload)) {
                 $node->setRunning((bool) $payload['running']);
             }
