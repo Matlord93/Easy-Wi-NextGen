@@ -36,6 +36,9 @@ class DdosStatus
     #[ORM\Column(type: 'json')]
     private array $protocols = [];
 
+    #[ORM\Column(name: 'port_stats', type: 'json')]
+    private array $portStats = [];
+
     #[ORM\Column(length: 20, nullable: true)]
     private ?string $mode = null;
 
@@ -58,6 +61,7 @@ class DdosStatus
         array $protocols,
         ?string $mode,
         \DateTimeImmutable $reportedAt,
+        array $portStats = [],
     ) {
         $this->node = $node;
         $this->attackActive = $attackActive;
@@ -65,6 +69,7 @@ class DdosStatus
         $this->connectionCount = $connectionCount;
         $this->ports = $ports;
         $this->protocols = $protocols;
+        $this->portStats = $portStats;
         $this->mode = $mode;
         $this->reportedAt = $reportedAt;
         $this->updatedAt = new \DateTimeImmutable();
@@ -116,6 +121,14 @@ class DdosStatus
         return $this->mode;
     }
 
+    /**
+     * @return array<int, array{port: int, syn_recv: int, attack_active: bool}>
+     */
+    public function getPortStats(): array
+    {
+        return $this->portStats;
+    }
+
     public function getReportedAt(): \DateTimeImmutable
     {
         return $this->reportedAt;
@@ -138,12 +151,14 @@ class DdosStatus
         array $protocols,
         ?string $mode,
         \DateTimeImmutable $reportedAt,
+        array $portStats = [],
     ): void {
         $this->attackActive = $attackActive;
         $this->packetsPerSecond = $packetsPerSecond;
         $this->connectionCount = $connectionCount;
         $this->ports = $ports;
         $this->protocols = $protocols;
+        $this->portStats = $portStats;
         $this->mode = $mode;
         $this->reportedAt = $reportedAt;
         $this->updatedAt = new \DateTimeImmutable();

@@ -1396,6 +1396,7 @@ final class AgentApiController
         $connectionCount = $this->parseDdosInt($output['conn_count'] ?? null);
         $ports = $this->parseDdosPorts($output['ports'] ?? null);
         $protocols = $this->parseDdosProtocols($output['protocols'] ?? null);
+        $portStats = $this->parseDdosPortStats($output['port_stats'] ?? null);
 
         $mode = is_string($output['mode'] ?? null) ? trim((string) $output['mode']) : null;
         if ($mode === '') {
@@ -1415,6 +1416,7 @@ final class AgentApiController
                 $protocols,
                 $mode,
                 $reportedAt,
+                $portStats,
             );
         } else {
             $status->updateStatus(
@@ -1425,6 +1427,7 @@ final class AgentApiController
                 $protocols,
                 $mode,
                 $reportedAt,
+                $portStats,
             );
         }
 
@@ -1437,8 +1440,26 @@ final class AgentApiController
             'ports' => $ports,
             'protocols' => $protocols,
             'mode' => $mode,
+            'port_stats' => $portStats,
             'reported_at' => $reportedAt->format(DATE_RFC3339),
         ]);
+
+        foreach ($portStats as $portStat) {
+            if (($portStat['attack_active'] ?? false) !== true) {
+                continue;
+            }
+
+            $this->entityManager->persist(new SecurityEvent(
+                $agent,
+                'blocked',
+                'ddos',
+                'port_attack_active',
+                null,
+                'port:' . (string) $portStat['port'],
+                (int) ($portStat['syn_recv'] ?? 0),
+                $reportedAt,
+            ));
+        }
 
         if ($attackActive) {
             $event = new SecurityEvent(
@@ -1802,6 +1823,50 @@ final class AgentApiController
         $ports = array_values(array_unique($ports));
         sort($ports);
         return $ports;
+    }
+
+    /**
+     * @return array<int, array{port: int, syn_recv: int, attack_active: bool}>
+     */
+    private function parseDdosPortStats(mixed $value): array
+    {
+        if (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            }
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $stats = [];
+        foreach ($value as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $port = $entry['port'] ?? null;
+            if (!is_numeric($port)) {
+                continue;
+            }
+
+            $port = (int) $port;
+            if ($port <= 0 || $port > 65535) {
+                continue;
+            }
+
+            $stats[] = [
+                'port' => $port,
+                'syn_recv' => is_numeric($entry['syn_recv'] ?? null) ? max(0, (int) $entry['syn_recv']) : 0,
+                'attack_active' => $this->parseDdosBool($entry['attack_active'] ?? null) ?? false,
+            ];
+        }
+
+        usort($stats, static fn (array $left, array $right): int => $left['port'] <=> $right['port']);
+
+        return $stats;
     }
 
     /**

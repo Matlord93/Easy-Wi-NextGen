@@ -77,11 +77,87 @@ func firewallRuleOutput(ports []int, status string) map[string]string {
 }
 
 func portsFromPayload(payload map[string]any) ([]int, error) {
-	portsRaw := payloadValue(payload, "port_block_ports", "ports")
-	if portsRaw == "" {
-		return []int{}, nil
+	for _, key := range []string{"port_block_ports", "ports"} {
+		raw, ok := payload[key]
+		if !ok {
+			continue
+		}
+		ports, handled, err := parsePortsValue(raw)
+		if err != nil {
+			return nil, err
+		}
+		if handled && len(ports) > 0 {
+			return ports, nil
+		}
 	}
-	return parsePorts(portsRaw)
+
+	return []int{}, nil
+}
+
+func parsePortsValue(value any) ([]int, bool, error) {
+	switch typed := value.(type) {
+	case nil:
+		return []int{}, false, nil
+	case []int:
+		return validatePorts(typed)
+	case []float64:
+		ports := make([]int, 0, len(typed))
+		for _, port := range typed {
+			if port != float64(int(port)) {
+				return nil, true, fmt.Errorf("invalid port: %v", port)
+			}
+			ports = append(ports, int(port))
+		}
+		return validatePorts(ports)
+	case []any:
+		ports := make([]int, 0, len(typed))
+		for _, entry := range typed {
+			entryPorts, handled, err := parsePortsValue(entry)
+			if err != nil {
+				return nil, true, err
+			}
+			if handled {
+				ports = append(ports, entryPorts...)
+			}
+		}
+		return validatePorts(ports)
+	case float64:
+		if typed != float64(int(typed)) {
+			return nil, true, fmt.Errorf("invalid port: %v", typed)
+		}
+		return validatePorts([]int{int(typed)})
+	case int:
+		return validatePorts([]int{typed})
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return []int{}, false, nil
+		}
+		if strings.HasPrefix(trimmed, "[") {
+			var decoded []any
+			if err := json.Unmarshal([]byte(trimmed), &decoded); err == nil {
+				ports, _, err := parsePortsValue(decoded)
+				return ports, true, err
+			}
+		}
+		ports, err := parsePorts(trimmed)
+		return ports, true, err
+	default:
+		text := payloadString(typed)
+		if strings.TrimSpace(text) == "" {
+			return []int{}, false, nil
+		}
+		return parsePortsValue(text)
+	}
+}
+
+func validatePorts(ports []int) ([]int, bool, error) {
+	for _, port := range ports {
+		if port <= 0 || port > 65535 {
+			return nil, true, fmt.Errorf("port out of range: %d", port)
+		}
+	}
+	return ports, true, nil
 }
 
 func parsePorts(raw string) ([]int, error) {

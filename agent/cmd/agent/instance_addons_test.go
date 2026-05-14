@@ -106,3 +106,58 @@ func buildAddonTarGz(t *testing.T, files map[string]string) []byte {
 	}
 	return buf.Bytes()
 }
+
+func TestHandleInstanceAddonRemoveDoesNotDeleteSharedCfgDirectory(t *testing.T) {
+	baseDir := t.TempDir()
+	instanceDir := filepath.Join(baseDir, "gs24")
+	cfgDir := filepath.Join(instanceDir, "left4dead2", "cfg")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatalf("create cfg dir: %v", err)
+	}
+	userConfig := filepath.Join(cfgDir, "server.cfg")
+	if err := os.WriteFile(userConfig, []byte("hostname user"), 0o644); err != nil {
+		t.Fatalf("write user config: %v", err)
+	}
+	addonConfig := filepath.Join(cfgDir, "sourcemod.cfg")
+	if err := os.WriteFile(addonConfig, []byte("addon config"), 0o644); err != nil {
+		t.Fatalf("write addon config: %v", err)
+	}
+
+	manifest := addonManifest{
+		PluginID: "sourcemod",
+		Name:     "SourceMod",
+		Version:  "1.12",
+		Entries: []string{
+			filepath.Join("left4dead2", "cfg"),
+			filepath.Join("left4dead2", "cfg", "sourcemod.cfg"),
+		},
+	}
+	if err := writeAddonManifest(instanceDir, "sourcemod", manifest); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	result, cleanup := handleInstanceAddonRemove(jobs.Job{
+		ID: "job-addon-remove",
+		Payload: map[string]any{
+			"instance_dir": instanceDir,
+			"base_dir":     baseDir,
+			"plugin_id":    "sourcemod",
+		},
+	})
+	if cleanup != nil {
+		defer func() { _ = cleanup() }()
+	}
+	if result.Status != "success" {
+		t.Fatalf("handleInstanceAddonRemove status=%q output=%v", result.Status, result.Output)
+	}
+
+	if data, err := os.ReadFile(userConfig); err != nil || string(data) != "hostname user" {
+		t.Fatalf("user config data=%q err=%v", string(data), err)
+	}
+	if _, err := os.Stat(addonConfig); !os.IsNotExist(err) {
+		t.Fatalf("addon config still exists or unexpected err=%v", err)
+	}
+	if _, err := os.Stat(cfgDir); err != nil {
+		t.Fatalf("shared cfg dir was removed: %v", err)
+	}
+}

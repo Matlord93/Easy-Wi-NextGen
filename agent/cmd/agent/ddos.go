@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"strconv"
@@ -16,10 +17,17 @@ const (
 	ddosModeConnLimit = "conn-limit"
 	ddosModeOff       = "off"
 
-	ddosChainName     = "EASYWI_DDOS"
-	ddosConnThreshold = 20000
-	ddosSynThreshold  = 200
+	ddosChainName        = "EASYWI_DDOS"
+	ddosConnThreshold    = 20000
+	ddosSynThreshold     = 200
+	ddosSynPortThreshold = 50
 )
+
+type ddosPortStat struct {
+	Port         int  `json:"port"`
+	SynRecv      int  `json:"syn_recv"`
+	AttackActive bool `json:"attack_active"`
+}
 
 func handleDdosPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 	if runtime.GOOS == "windows" {
@@ -35,6 +43,10 @@ func handleDdosPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 	protocols := ddosProtocolsFromPayload(job.Payload)
+
+	if len(protocols) == 0 && mode != ddosModeOff && mode != ddosModeSynCookie {
+		protocols = defaultDdosProtocols()
+	}
 
 	if mode == "" {
 		return failureResult(job.ID, fmt.Errorf("mode is required"))
@@ -78,21 +90,28 @@ func handleDdosStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 	connCount, _ := ddosConntrackCount()
 	synRecv, _ := ddosSynRecvCount()
 
-	attackActive := connCount >= ddosConnThreshold || synRecv >= ddosSynThreshold
-
 	ports, _ := ddosPortsFromPayload(job.Payload)
 	protocols := ddosProtocolsFromPayload(job.Payload)
+	if len(protocols) == 0 {
+		protocols = defaultDdosProtocols()
+	}
 	mode := strings.ToLower(payloadValue(job.Payload, "mode"))
+	portStats := ddosProtectedPortStats(ports)
+	attackedPorts := ddosAttackedPorts(portStats)
+
+	attackActive := connCount >= ddosConnThreshold || synRecv >= ddosSynThreshold || len(attackedPorts) > 0
 
 	output := map[string]string{
-		"attack_active": strconv.FormatBool(attackActive),
-		"conn_count":    strconv.Itoa(connCount),
-		"pps":           strconv.Itoa(synRecv),
-		"syn_recv":      strconv.Itoa(synRecv),
-		"ports":         strings.Join(intSliceToStrings(ports), ","),
-		"protocols":     strings.Join(protocols, ","),
-		"mode":          mode,
-		"reported_at":   time.Now().UTC().Format(time.RFC3339),
+		"attack_active":  strconv.FormatBool(attackActive),
+		"conn_count":     strconv.Itoa(connCount),
+		"pps":            strconv.Itoa(synRecv),
+		"syn_recv":       strconv.Itoa(synRecv),
+		"ports":          strings.Join(intSliceToStrings(ports), ","),
+		"protocols":      strings.Join(protocols, ","),
+		"mode":           mode,
+		"port_stats":     encodeDdosPortStats(portStats),
+		"attacked_ports": strings.Join(intSliceToStrings(attackedPorts), ","),
+		"reported_at":    time.Now().UTC().Format(time.RFC3339),
 	}
 
 	return jobs.Result{
@@ -110,6 +129,10 @@ func handleWindowsDdosPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 		return failureResult(job.ID, err)
 	}
 	protocols := ddosProtocolsFromPayload(job.Payload)
+
+	if len(protocols) == 0 && mode != ddosModeOff && mode != ddosModeSynCookie {
+		protocols = defaultDdosProtocols()
+	}
 
 	if mode == "" {
 		return failureResult(job.ID, fmt.Errorf("mode is required"))
@@ -144,21 +167,29 @@ func handleWindowsDdosPolicyApply(job jobs.Job) (jobs.Result, func() error) {
 
 func handleWindowsDdosStatusCheck(job jobs.Job) (jobs.Result, func() error) {
 	connCount, synRecv := ddosWindowsNetstatCounts()
-	attackActive := connCount >= ddosConnThreshold || synRecv >= ddosSynThreshold
 
 	ports, _ := ddosPortsFromPayload(job.Payload)
 	protocols := ddosProtocolsFromPayload(job.Payload)
+	if len(protocols) == 0 {
+		protocols = defaultDdosProtocols()
+	}
 	mode := strings.ToLower(payloadValue(job.Payload, "mode"))
+	portStats := ddosWindowsPortStats(ports)
+	attackedPorts := ddosAttackedPorts(portStats)
+
+	attackActive := connCount >= ddosConnThreshold || synRecv >= ddosSynThreshold || len(attackedPorts) > 0
 
 	output := map[string]string{
-		"attack_active": strconv.FormatBool(attackActive),
-		"conn_count":    strconv.Itoa(connCount),
-		"pps":           strconv.Itoa(synRecv),
-		"syn_recv":      strconv.Itoa(synRecv),
-		"ports":         strings.Join(intSliceToStrings(ports), ","),
-		"protocols":     strings.Join(protocols, ","),
-		"mode":          mode,
-		"reported_at":   time.Now().UTC().Format(time.RFC3339),
+		"attack_active":  strconv.FormatBool(attackActive),
+		"conn_count":     strconv.Itoa(connCount),
+		"pps":            strconv.Itoa(synRecv),
+		"syn_recv":       strconv.Itoa(synRecv),
+		"ports":          strings.Join(intSliceToStrings(ports), ","),
+		"protocols":      strings.Join(protocols, ","),
+		"mode":           mode,
+		"port_stats":     encodeDdosPortStats(portStats),
+		"attacked_ports": strings.Join(intSliceToStrings(attackedPorts), ","),
+		"reported_at":    time.Now().UTC().Format(time.RFC3339),
 	}
 
 	return jobs.Result{
@@ -438,50 +469,53 @@ func clearDdosRules() error {
 }
 
 func ddosPortsFromPayload(payload map[string]any) ([]int, error) {
-	if raw, ok := payload["ports"]; ok {
-		switch typed := raw.(type) {
-		case []any:
-			ports, err := normalizePayloadPorts(typed)
-			if err != nil {
-				return nil, err
-			}
-			return normalizeDdosPorts(ports), nil
-		case []int:
-			return normalizeDdosPorts(typed), nil
-		case []float64:
-			ports := make([]int, 0, len(typed))
-			for _, entry := range typed {
-				ports = append(ports, int(entry))
-			}
-			return normalizeDdosPorts(ports), nil
-		case string:
-			ports, err := parsePorts(typed)
-			if err != nil {
-				return nil, err
-			}
-			return normalizeDdosPorts(ports), nil
+	ports := make([]int, 0)
+	for _, key := range []string{"port_block_ports", "ports"} {
+		raw, ok := payload[key]
+		if !ok {
+			continue
+		}
+		parsed, handled, err := parsePortsValue(raw)
+		if err != nil {
+			return nil, err
+		}
+		if handled {
+			ports = append(ports, parsed...)
 		}
 	}
 
-	return []int{}, nil
+	if reservations, ok := payload["port_reservations"]; ok {
+		parsed, err := ddosPortsFromReservations(reservations)
+		if err != nil {
+			return nil, err
+		}
+		ports = append(ports, parsed...)
+	}
+
+	return normalizeDdosPorts(ports), nil
 }
 
-func normalizePayloadPorts(values []any) ([]int, error) {
+func ddosPortsFromReservations(value any) ([]int, error) {
+	values, ok := value.([]any)
+	if !ok {
+		return []int{}, nil
+	}
+
 	ports := make([]int, 0, len(values))
-	for _, value := range values {
-		switch typed := value.(type) {
-		case float64:
-			ports = append(ports, int(typed))
-		case int:
-			ports = append(ports, typed)
-		case string:
-			parsed, err := strconv.Atoi(strings.TrimSpace(typed))
-			if err != nil {
-				return nil, fmt.Errorf("invalid port: %s", typed)
-			}
-			ports = append(ports, parsed)
+	for _, entry := range values {
+		reservation, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		parsed, handled, err := parsePortsValue(reservation["port"])
+		if err != nil {
+			return nil, err
+		}
+		if handled {
+			ports = append(ports, parsed...)
 		}
 	}
+
 	return ports, nil
 }
 
@@ -519,6 +553,10 @@ func ddosProtocolsFromPayload(payload map[string]any) []string {
 		}
 	}
 	return []string{}
+}
+
+func defaultDdosProtocols() []string {
+	return []string{"tcp", "udp"}
 }
 
 func normalizeProtocols(values []string) []string {
@@ -573,4 +611,119 @@ func ddosSynRecvCount() (int, error) {
 		return 0, nil
 	}
 	return len(lines), nil
+}
+
+func ddosProtectedPortStats(ports []int) []ddosPortStat {
+	if len(ports) == 0 || !commandAvailable("ss") {
+		return ddosEmptyPortStats(ports)
+	}
+
+	output, err := runCommandOutput("ss", "-H", "-n", "state", "syn-recv")
+	if err != nil {
+		return ddosEmptyPortStats(ports)
+	}
+
+	counts := make(map[int]int, len(ports))
+	for _, line := range strings.Split(output, "\n") {
+		port, ok := ddosLocalPortFromSSLine(line)
+		if !ok {
+			continue
+		}
+		counts[port]++
+	}
+
+	return ddosBuildPortStats(ports, counts)
+}
+
+func ddosWindowsPortStats(ports []int) []ddosPortStat {
+	output, err := runCommandOutput("netstat", "-an")
+	if err != nil {
+		return ddosEmptyPortStats(ports)
+	}
+
+	counts := make(map[int]int, len(ports))
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) < 4 || strings.ToUpper(fields[len(fields)-1]) != "SYN_RECEIVED" {
+			continue
+		}
+		port, ok := ddosPortFromAddress(fields[1])
+		if !ok {
+			continue
+		}
+		counts[port]++
+	}
+
+	return ddosBuildPortStats(ports, counts)
+}
+
+func ddosEmptyPortStats(ports []int) []ddosPortStat {
+	return ddosBuildPortStats(ports, map[int]int{})
+}
+
+func ddosBuildPortStats(ports []int, counts map[int]int) []ddosPortStat {
+	ports = normalizeDdosPorts(ports)
+	stats := make([]ddosPortStat, 0, len(ports))
+	for _, port := range ports {
+		synRecv := counts[port]
+		stats = append(stats, ddosPortStat{Port: port, SynRecv: synRecv, AttackActive: synRecv >= ddosSynPortThreshold})
+	}
+	return stats
+}
+
+func ddosAttackedPorts(stats []ddosPortStat) []int {
+	ports := make([]int, 0)
+	for _, stat := range stats {
+		if stat.AttackActive {
+			ports = append(ports, stat.Port)
+		}
+	}
+	return ports
+}
+
+func encodeDdosPortStats(stats []ddosPortStat) string {
+	data, err := json.Marshal(stats)
+	if err != nil {
+		return "[]"
+	}
+	return string(data)
+}
+
+func ddosLocalPortFromSSLine(line string) (int, bool) {
+	fields := strings.Fields(strings.TrimSpace(line))
+	if len(fields) < 4 {
+		return 0, false
+	}
+	for _, candidate := range fields {
+		if port, ok := ddosPortFromAddress(candidate); ok {
+			return port, true
+		}
+	}
+	return 0, false
+}
+
+func ddosPortFromAddress(address string) (int, bool) {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return 0, false
+	}
+	if strings.HasPrefix(address, "[") {
+		end := strings.LastIndex(address, "]:")
+		if end != -1 {
+			return ddosParsePort(address[end+2:])
+		}
+	}
+	idx := strings.LastIndex(address, ":")
+	if idx == -1 || idx == len(address)-1 {
+		return 0, false
+	}
+	return ddosParsePort(address[idx+1:])
+}
+
+func ddosParsePort(value string) (int, bool) {
+	port, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || port <= 0 || port > 65535 {
+		return 0, false
+	}
+	return port, true
 }

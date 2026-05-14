@@ -366,10 +366,12 @@ func removeAddonEntries(instanceDir string, entries []string) error {
 		paths = append(paths, target)
 		dirSet[filepath.Dir(target)] = struct{}{}
 	}
-	sort.Strings(paths)
+	sort.Slice(paths, func(i, j int) bool {
+		return len(paths[i]) > len(paths[j])
+	})
 	for _, target := range paths {
-		if err := os.RemoveAll(target); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("remove addon entry %s: %w", target, err)
+		if err := removeAddonEntry(target); err != nil {
+			return err
 		}
 	}
 	dirs := make([]string, 0, len(dirSet))
@@ -388,6 +390,31 @@ func removeAddonEntries(instanceDir string, entries []string) error {
 				return fmt.Errorf("remove addon dir %s: %w", dir, err)
 			}
 		}
+	}
+	return nil
+}
+
+func removeAddonEntry(target string) error {
+	info, err := os.Lstat(target)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("stat addon entry %s: %w", target, err)
+	}
+
+	if info.IsDir() {
+		if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+			if strings.Contains(err.Error(), "directory not empty") {
+				return nil
+			}
+			return fmt.Errorf("remove addon dir %s: %w", target, err)
+		}
+		return nil
+	}
+
+	if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove addon file %s: %w", target, err)
 	}
 	return nil
 }

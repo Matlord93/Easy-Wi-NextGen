@@ -57,19 +57,16 @@ final class AdminDdosController
         $protocols = $this->normalizeProtocols($request->request->all('protocols'));
         $mode = trim((string) $request->request->get('mode', 'rate-limit'));
 
+        if ($ports === [] && !in_array($mode, ['off', 'syn-cookie'], true)) {
+            $ports = self::PORT_OPTIONS;
+        }
+        if ($protocols === [] && !in_array($mode, ['off', 'syn-cookie'], true)) {
+            $protocols = self::PROTOCOL_OPTIONS;
+        }
+
         $errors = [];
         if ($nodeIds === []) {
             $errors[] = 'Select at least one node.';
-        }
-
-        if (!in_array($mode, ['off', 'syn-cookie'], true)) {
-            if ($ports === []) {
-                $errors[] = 'Select at least one port.';
-            }
-
-            if ($protocols === []) {
-                $errors[] = 'Select at least one protocol.';
-            }
         }
 
         if (!in_array($mode, self::MODE_OPTIONS, true)) {
@@ -91,9 +88,10 @@ final class AdminDdosController
             ]);
         }
 
-        $queuedJobs = [];
         foreach ($nodes as $node) {
             $revision = $this->buildPolicyRevision($node, $mode, $ports, $protocols, $admin);
+            $this->entityManager->flush();
+
             $payload = [
                 'agent_id' => $node->getId(),
                 'ports' => $ports,
@@ -109,12 +107,14 @@ final class AdminDdosController
 
             $job = new Job('ddos.policy.apply', $payload);
             $this->entityManager->persist($job);
-            $queuedJobs[] = $job;
-        }
 
-        foreach ($queuedJobs as $job) {
+            $statusJob = new Job('ddos.status.check', $payload);
+            $this->entityManager->persist($statusJob);
+            $this->entityManager->flush();
+
             $this->auditLogger->log($admin, 'ddos.policy.apply_queued', [
                 'job_id' => $job->getId(),
+                'status_job_id' => $statusJob->getId(),
                 'mode' => $mode,
                 'ports' => $ports,
                 'protocols' => $protocols,
@@ -155,6 +155,8 @@ final class AdminDdosController
             $protocols = $statusItem?->getProtocols() ?? [];
             sort($protocols);
 
+            $portStats = $statusItem?->getPortStats() ?? [];
+
             $policyPorts = $policyItem?->getPorts() ?? [];
             sort($policyPorts);
 
@@ -169,6 +171,7 @@ final class AdminDdosController
                 'connCount' => $statusItem?->getConnectionCount(),
                 'ports' => $ports,
                 'protocols' => $protocols,
+                'portStats' => $portStats,
                 'mode' => $statusItem?->getMode(),
                 'reportedAt' => $statusItem?->getReportedAt(),
                 'updatedAt' => $statusItem?->getUpdatedAt(),
@@ -192,9 +195,9 @@ final class AdminDdosController
             'modeOptions' => self::MODE_OPTIONS,
             'formData' => array_merge([
                 'nodes' => [],
-                'ports' => [],
+                'ports' => self::PORT_OPTIONS,
                 'custom_ports' => '',
-                'protocols' => [],
+                'protocols' => self::PROTOCOL_OPTIONS,
                 'mode' => 'rate-limit',
             ], $formData),
         ]), $status);
