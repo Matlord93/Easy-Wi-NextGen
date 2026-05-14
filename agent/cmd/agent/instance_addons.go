@@ -420,7 +420,8 @@ func removeAddonEntry(target string) error {
 }
 
 func isDirectoryNotEmptyError(err error) bool {
-	return strings.Contains(strings.ToLower(err.Error()), "directory not empty")
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "directory not empty") || strings.Contains(message, "directory is not empty")
 }
 
 func copyAddonFile(src, dst string) (err error) {
