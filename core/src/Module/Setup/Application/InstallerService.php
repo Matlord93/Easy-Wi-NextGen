@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Module\Setup\Application;
 
 use App\Infrastructure\Config\DbConfigProvider;
+use App\Infrastructure\Filesystem\WritablePathProbe;
 use App\Module\Core\Application\EncryptionService;
 use App\Module\Core\Domain\Entity\AppSetting;
 use App\Module\Core\Domain\Entity\CmsSiteSettings;
@@ -1145,13 +1146,12 @@ final class InstallerService
         ];
     }
 
-
     /**
      * @return array<string, mixed>
      */
     private function buildEnvLocalRequirement(string $path): array
     {
-        $ok = is_file($path) ? is_writable($path) : $this->isDirectoryWritable(dirname($path));
+        $ok = WritablePathProbe::fileTarget($path);
 
         return [
             'key' => 'env_local',
@@ -1166,13 +1166,7 @@ final class InstallerService
 
     private function isDirectoryWritable(string $path): bool
     {
-        if (is_dir($path)) {
-            return is_writable($path);
-        }
-
-        $parent = dirname($path);
-
-        return is_dir($parent) && is_writable($parent);
+        return WritablePathProbe::directoryOrCreatable($path);
     }
 
 }

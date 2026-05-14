@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Config;
 
+use App\Infrastructure\Filesystem\WritablePathProbe;
 use App\Infrastructure\Security\CryptoService;
 use App\Infrastructure\Security\SecretKeyLoader;
 
@@ -252,17 +253,6 @@ final class DbConfigProvider
 
     private function isPathWritable(string $path): bool
     {
-        if (is_file($path)) {
-            return is_writable($path);
-        }
-
-        $directory = dirname($path);
-        if (is_dir($directory)) {
-            return is_writable($directory);
-        }
-
-        $parent = dirname($directory);
-
-        return is_dir($parent) && is_writable($parent);
+        return WritablePathProbe::fileTarget($path);
     }
 }

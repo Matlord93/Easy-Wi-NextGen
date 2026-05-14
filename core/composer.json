@@ -37,7 +37,9 @@
     "phpseclib/phpseclib": "^3.0",
     "league/flysystem-bundle": "^3.0",
     "league/flysystem-sftp-v3": "^3.0",
-    "endroid/qr-code": "^6.1"
+    "endroid/qr-code": "^6.1",
+    "symfony/doctrine-messenger": "^8.0",
+    "symfony/mailgun-mailer": "^8.0"
   },
   "require-dev": {
     "friendsofphp/php-cs-fixer": "^3.75",
@@ -81,7 +83,9 @@
     "auto-scripts": {
       "php -d memory_limit=512M bin/console cache:clear --no-warmup": "script",
       "php -d memory_limit=512M bin/console assets:install %PUBLIC_DIR%": "script",
-      "php -d memory_limit=512M bin/console cache:clear": "script"
+      "php -d memory_limit=512M bin/console cache:clear": "script",
+      "cache:clear": "symfony-cmd",
+      "assets:install %PUBLIC_DIR%": "symfony-cmd"
     },
     "post-install-cmd": [
       "@auto-scripts"
