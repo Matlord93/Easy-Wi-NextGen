@@ -535,6 +535,36 @@ service_is_active() {
   fi
 }
 
+configure_php_fpm_easywi_sandbox() {
+  local php_fpm_service="$1"
+  [[ -n "${php_fpm_service}" ]] || return 0
+  has_systemctl || return 0
+
+  local unit_name="${php_fpm_service%.service}.service"
+  local dropin_dir="/etc/systemd/system/${unit_name}.d"
+  local dropin_file="${dropin_dir}/easywi-etc.conf"
+
+  step "Erlaube PHP-FPM Schreibzugriff auf /etc/easywi."
+  mkdir -p /etc/easywi "${dropin_dir}"
+  cat > "${dropin_file}" <<UNIT
+# Managed by easywi-installer.
+# Debian 13/Trixie hardens PHP-FPM with systemd ProtectSystem, which makes
+# the global /etc tree read-only. EasyWI only needs write access to its own
+# encrypted configuration directory.
+[Service]
+ReadWritePaths=/etc/easywi
+UNIT
+
+  systemctl daemon-reload 2>/dev/null || warn "systemd daemon-reload für PHP-FPM-Drop-in fehlgeschlagen."
+  if systemctl list-unit-files "${unit_name}" >/dev/null 2>&1; then
+    systemctl restart "${unit_name}" 2>/dev/null \
+      || warn "Konnte ${unit_name} nach Sandbox-Anpassung nicht neustarten."
+  else
+    warn "PHP-FPM-Unit ${unit_name} nicht gefunden – Drop-in wurde dennoch geschrieben: ${dropin_file}"
+  fi
+  ok "PHP-FPM darf /etc/easywi schreiben: ${dropin_file}"
+}
+
 start_first_available_service() {
   # Start the first service name that systemd/openrc knows about
   local svc
@@ -1757,6 +1787,7 @@ install_panel() {
   # nginx/PHP-FPM must be able to read public/ and write runtime state.
   local web_group; web_group="$(id -gn www-data 2>/dev/null || id -gn nginx 2>/dev/null || echo "${system_user}")"
   set_panel_file_permissions "${install_dir}" "${core_dir}" "${system_user}" "${web_group}"
+  configure_php_fpm_easywi_sandbox "${PHP_FPM_SERVICE}"
 
   configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
 

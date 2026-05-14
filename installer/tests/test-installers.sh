@@ -83,6 +83,8 @@ rg -q 'PROXY_URL' "$repo_root/installer/linux-agent/install-agent.sh"
 rg -q 'LOG_PATH' "$repo_root/installer/linux-agent/install-agent.sh"
 rg -q 'install -d -o "\$\{runtime_user\}" -g "\$\{readable_group\}" -m 2775 /etc/easywi' "$repo_root/installer/easywi-installer-menu-linux.sh"
 rg -q 'set_easywi_config_permissions "\$\{system_user\}" "\$\{web_group\}"' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'ReadWritePaths=/etc/easywi' "$repo_root/installer/easywi-installer-menu-linux.sh"
+rg -q 'configure_php_fpm_easywi_sandbox "\$\{PHP_FPM_SERVICE\}"' "$repo_root/installer/easywi-installer-menu-linux.sh"
 rg -q 'PanelAgent' "$repo_root/installer/easywi-installer-menu-windows.ps1"
 rg -q 'RunComposerInstall' "$repo_root/installer/easywi-installer-menu-windows.ps1"
 
