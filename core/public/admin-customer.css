@@ -822,8 +822,22 @@ html.dark body {
 }
 
 /* Backward-compat button aliases */
-.btn-primary { @extend .ui-button--primary; }
-.btn-ghost   { @extend .ui-button--ghost; }
+.btn-primary {
+    background: var(--ng-primary);
+    color: #fff;
+    border-color: var(--ng-primary);
+}
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-ghost {
+    background: var(--ng-surface-soft);
+    color: var(--ng-text-muted);
+    border-color: var(--ng-border);
+}
+.btn-ghost:hover {
+    background: var(--ng-elevated);
+    color: var(--ng-text);
+    border-color: var(--ng-border-strong);
+}
 
 .btn {
     display: inline-flex;
