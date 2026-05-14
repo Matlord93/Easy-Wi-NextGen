@@ -24,7 +24,7 @@
         <div>
             <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Game / Engine</label>
             <select name="game_key" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
-                <option value="">Spiel auswählen</option>
+                <option value="">{{ t('admin_plugins_game_select_placeholder', page_locale()) }}</option>
                 {% for template in templates %}
                     <option value="{{ template.game_key }}" {% if form.game_key == template.game_key %}selected{% endif %}>{{ template.label }}</option>
                 {% endfor %}

@@ -146,8 +146,8 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">Kunden-Datenbank-Limits zuweisen</h2>
-                <p class="ng-data-card__sub">Lege fest, wie viele Datenbanken ein Kunde im Kundenbereich selbst erstellen darf. 0 bedeutet unbegrenzt.</p>
+                <h2 class="ng-data-card__title">{{ t('admin_databases_customer_limits_title', page_locale()) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_databases_customer_limits_intro', page_locale()) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body">
@@ -156,13 +156,13 @@
                     <form method="post" action="{{ path('admin_database_customer_limit', {id: customer.id}) }}" class="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
                         <div class="min-w-0 flex-1">
                             <div class="truncate text-sm font-semibold text-slate-900">{{ customer.email }}</div>
-                            <div class="text-xs text-slate-500">Kunden-ID {{ customer.id }}</div>
+                            <div class="text-xs text-slate-500">{{ t('admin_databases_customer_id_label', page_locale()) }} {{ customer.id }}</div>
                         </div>
                         <input name="database_limit" type="number" min="0" value="{{ customer.databaseLimit }}" class="form-input w-24">
-                        <button class="ui-button ui-button--primary ui-button--sm">Speichern</button>
+                        <button class="ui-button ui-button--primary ui-button--sm">{{ t('save', page_locale()) }}</button>
                     </form>
                 {% else %}
-                    <div class="cust-empty">Keine Kunden vorhanden.</div>
+                    <div class="cust-empty">{{ t('admin_databases_no_customers', page_locale()) }}</div>
                 {% endfor %}
             </div>
         </div>
@@ -273,7 +273,7 @@
                         </div>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">TLS mode</label>
+                        <label class="form-label">{{ t('admin_databases_tls_mode', page_locale()) }}</label>
                         <select name="tls_mode" class="form-input">
                             <option value="off">off</option>
                             <option value="required">required</option>
@@ -283,20 +283,20 @@
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-field">
-                            <label class="form-label">Admin user</label>
+                            <label class="form-label">{{ t('admin_databases_admin_user', page_locale()) }}</label>
                             <input name="admin_user" type="text" class="form-input">
                         </div>
                         <div class="form-field">
-                            <label class="form-label">Admin secret</label>
+                            <label class="form-label">{{ t('admin_databases_admin_secret', page_locale()) }}</label>
                             <input name="admin_secret" type="password" class="form-input">
                         </div>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">CA cert (optional)</label>
+                        <label class="form-label">{{ t('admin_databases_ca_cert', page_locale()) }}</label>
                         <textarea name="ca_cert" class="form-input"></textarea>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">Tags (comma-separated)</label>
+                        <label class="form-label">{{ t('admin_databases_tags', page_locale()) }}</label>
                         <input name="tags" type="text" class="form-input">
                     </div>
                     <div class="form-field">

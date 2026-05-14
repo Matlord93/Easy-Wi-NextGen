@@ -1,11 +1,12 @@
+{% set locale = page_locale() %}
 <div class="px-5 py-5 space-y-4">
     {% if request is null %}
         <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            No deletion request submitted yet.
+            {{ t('customer_gdpr_delete_no_request', locale) }}
         </div>
         <form hx-post="/gdpr/delete" hx-target="#gdpr-delete-status" hx-swap="outerHTML">
             <button class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white hover:bg-rose-500">
-                Request anonymization
+                {{ t('customer_gdpr_delete_request_btn', locale) }}
             </button>
         </form>
     {% else %}
@@ -15,22 +16,22 @@
                 <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ style.badge }}">
                     {{ style.label }}
                 </span>
-                <div class="mt-2 text-sm text-slate-700">Requested {{ request.requestedAt|date('Y-m-d H:i') }}</div>
+                <div class="mt-2 text-sm text-slate-700">{{ t('customer_gdpr_delete_requested_at', locale) }} {{ request.requestedAt|date('Y-m-d H:i') }}</div>
                 {% if request.processedAt %}
-                    <div class="text-xs text-slate-600">Completed {{ request.processedAt|date('Y-m-d H:i') }}</div>
+                    <div class="text-xs text-slate-600">{{ t('customer_gdpr_delete_completed_at', locale) }} {{ request.processedAt|date('Y-m-d H:i') }}</div>
                 {% endif %}
             </div>
             {% if request.status.value != 'completed' %}
-                <span class="text-xs text-slate-600">Job ID {{ request.jobId }}</span>
+                <span class="text-xs text-slate-600">{{ t('customer_gdpr_delete_job_id', locale) }} {{ request.jobId }}</span>
             {% endif %}
         </div>
         {% if request.status.value == 'completed' %}
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                Your account data has been anonymized.
+                {{ t('customer_gdpr_delete_done_msg', locale) }}
             </div>
         {% else %}
             <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                We are processing your anonymization request. You will be notified when complete.
+                {{ t('customer_gdpr_delete_pending_msg', locale) }}
             </div>
         {% endif %}
     {% endif %}

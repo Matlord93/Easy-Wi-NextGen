@@ -44,7 +44,7 @@
                             {% endfor %}
                         </select>
                         <div id="ws-panel-host-warning" class="mt-2 hidden ng-alert ng-alert--warning">
-                            Dieser Server hostet das Panel. Der Panel-Vhost wird beim Deployment automatisch geschützt und nicht überschrieben.
+                            {{ t('admin_webspaces_panel_host_warning', page_locale()) }}
                         </div>
                     </div>
                     <script>
@@ -159,7 +159,7 @@
                             <th>{{ t('admin_webspaces_ddos_label', page_locale()) }}</th>
                             <th>{{ t('admin_webspaces_php_label', page_locale()) }}</th>
                             <th>{{ t('admin_webspaces_status_label', page_locale()) }}</th>
-                            <th>Apply</th>
+                            <th>{{ t('admin_webspaces_col_apply', page_locale()) }}</th>
                             <th>{{ t('admin_actions', page_locale()) }}</th>
                         </tr>
                     </thead>
@@ -195,7 +195,7 @@
                                 </td>
                                 <td class="text-xs text-slate-600">
                                     <div>{{ webspace.apply_status|default('unknown')|replace({'_':' '})|title }}</div>
-                                    <div>{% if webspace.apply_required %}required{% else %}clean{% endif %}</div>
+                                    <div>{% if webspace.apply_required %}{{ t('admin_webspaces_apply_required', page_locale()) }}{% else %}{{ t('admin_webspaces_apply_clean', page_locale()) }}{% endif %}</div>
                                     {% if webspace.last_apply_error_code %}
                                         <div class="text-rose-600">{{ webspace.last_apply_error_code }}</div>
                                     {% endif %}
@@ -231,27 +231,27 @@
                                 <td colspan="11" class="px-6 py-5">
                                     <details class="group rounded-xl border border-slate-200 bg-white">
                                         <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800 group-open:border-b group-open:border-slate-200">
-                                            Domains, SSL, Subdomains und E-Mail-Adressen verwalten
+                                            {{ t('admin_webspaces_domain_management_title', page_locale()) }}
                                         </summary>
                                         <div class="grid gap-5 p-4 xl:grid-cols-3">
                                             <form method="post" action="{{ path('admin_webspaces_domain_add', {id: webspace.id}) }}" class="flex flex-col gap-3 rounded-lg border border-slate-200 p-4">
-                                                <h3 class="text-xs font-semibold uppercase text-slate-700">Domain/Subdomain hinzufügen</h3>
+                                                <h3 class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_domain_add_title', page_locale()) }}</h3>
                                                 <input name="fqdn" placeholder="example.com oder app.example.com" class="form-input" required>
                                                 <select name="type" class="form-input">
                                                     <option value="domain">Domain</option>
                                                     <option value="subdomain">Subdomain</option>
                                                 </select>
-                                                <input name="target_path" placeholder="Zielpfad, z. B. public/shop" class="form-input">
+                                                <input name="target_path" placeholder="{{ t('admin_webspaces_domain_target_path_placeholder', page_locale()) }}" class="form-input">
                                                 <input name="server_aliases" placeholder="Aliase: www.example.com, m.example.com" class="form-input">
-                                                <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" name="redirect_https" value="1"> HTTPS-Redirect</label>
-                                                <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" name="redirect_www" value="1"> WWW-Redirect</label>
-                                                <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" name="request_tls" value="1"> SSL-Zertifikat direkt anfordern</label>
+                                                <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" name="redirect_https" value="1"> {{ t('admin_webspaces_domain_https_redirect', page_locale()) }}</label>
+                                                <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" name="redirect_www" value="1"> {{ t('admin_webspaces_domain_www_redirect', page_locale()) }}</label>
+                                                <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" name="request_tls" value="1"> {{ t('admin_webspaces_domain_request_ssl', page_locale()) }}</label>
                                                 <input name="ssl_email" type="email" placeholder="admin@example.com (optional)" class="form-input">
-                                                <button class="ui-button ui-button--primary ui-button--sm">Hinzufügen</button>
+                                                <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_domain_add_button', page_locale()) }}</button>
                                             </form>
 
                                             <div class="flex flex-col gap-3 xl:col-span-2">
-                                                <h3 class="text-xs font-semibold uppercase text-slate-700">Zugewiesene Domains</h3>
+                                                <h3 class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webspaces_assigned_domains_title', page_locale()) }}</h3>
                                                 {% for domain in webspace.domains %}
                                                     <div class="rounded-lg border border-slate-200 bg-white p-4">
                                                         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -260,28 +260,28 @@
                                                                 <div class="text-xs text-slate-500">{{ domain.type }} · {{ domain.status }} · Apply: {{ domain.apply_status }}{% if domain.ssl_expires_at %} · SSL bis {{ domain.ssl_expires_at|date('Y-m-d') }}{% endif %}</div>
                                                             </div>
                                                             <form method="post" action="{{ path('admin_webspaces_domain_delete', {id: webspace.id, domainId: domain.id}) }}" onsubmit="return confirm('Domain entfernen?');">
-                                                                <button class="ui-button ui-button--danger ui-button--sm">Entfernen</button>
+                                                                <button class="ui-button ui-button--danger ui-button--sm">{{ t('admin_webspaces_domain_remove_button', page_locale()) }}</button>
                                                             </form>
                                                         </div>
                                                         <form method="post" action="{{ path('admin_webspaces_domain_update', {id: webspace.id, domainId: domain.id}) }}" class="mt-3 grid gap-2 md:grid-cols-4">
-                                                            <input name="target_path" value="{{ domain.target_path }}" placeholder="Zielpfad" class="form-input md:col-span-1">
+                                                            <input name="target_path" value="{{ domain.target_path }}" placeholder="{{ t('admin_webspaces_domain_target_path_label', page_locale()) }}" class="form-input md:col-span-1">
                                                             <input name="server_aliases" value="{{ domain.server_aliases }}" placeholder="Subdomains/Aliase" class="form-input md:col-span-2">
                                                             <div class="flex items-center gap-3 text-xs text-slate-700">
                                                                 <label class="cursor-pointer"><input type="checkbox" name="redirect_https" value="1" {% if domain.redirect_https %}checked{% endif %}> HTTPS</label>
                                                                 <label class="cursor-pointer"><input type="checkbox" name="redirect_www" value="1" {% if domain.redirect_www %}checked{% endif %}> WWW</label>
                                                             </div>
-                                                            <button class="ui-button ui-button--ghost ui-button--sm md:col-span-4">Speichern & anwenden</button>
+                                                            <button class="ui-button ui-button--ghost ui-button--sm md:col-span-4">{{ t('admin_webspaces_domain_save_apply_button', page_locale()) }}</button>
                                                         </form>
                                                         <div class="mt-3 flex flex-wrap gap-2">
                                                             <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'issue'}) }}" class="flex gap-2">
                                                                 <input name="ssl_email" type="email" placeholder="admin@{{ domain.name }}" class="form-input">
-                                                                <button class="ui-button ui-button--primary ui-button--sm">SSL ausstellen</button>
+                                                                <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_domain_ssl_issue_button', page_locale()) }}</button>
                                                             </form>
                                                             <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'renew'}) }}">
-                                                                <button class="ui-button ui-button--primary ui-button--sm">SSL erneuern</button>
+                                                                <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_domain_ssl_renew_button', page_locale()) }}</button>
                                                             </form>
                                                             <form method="post" action="{{ path('admin_webspaces_domain_ssl', {id: webspace.id, domainId: domain.id, action: 'disable'}) }}">
-                                                                <button class="ui-button ui-button--ghost ui-button--sm">SSL deaktivieren</button>
+                                                                <button class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_webspaces_domain_ssl_disable_button', page_locale()) }}</button>
                                                             </form>
                                                         </div>
                                                         <form method="post" action="{{ path('admin_webspaces_mailbox_create', {id: webspace.id}) }}" class="mt-3 grid gap-2 border-t border-slate-100 pt-3 md:grid-cols-5">
@@ -290,11 +290,11 @@
                                                             <input value="@{{ domain.name }}" disabled class="form-input bg-slate-50">
                                                             <input name="password" type="password" placeholder="Passwort" class="form-input" required>
                                                             <input name="quota" type="number" min="1" value="1024" class="form-input" required>
-                                                            <button class="ui-button ui-button--primary ui-button--sm">E-Mail anlegen</button>
+                                                            <button class="ui-button ui-button--primary ui-button--sm">{{ t('admin_webspaces_mailbox_create_button', page_locale()) }}</button>
                                                         </form>
                                                     </div>
                                                 {% else %}
-                                                    <div class="cust-empty">Noch keine Domains zugewiesen.</div>
+                                                    <div class="cust-empty">{{ t('admin_webspaces_no_domains', page_locale()) }}</div>
                                                 {% endfor %}
                                             </div>
                                         </div>

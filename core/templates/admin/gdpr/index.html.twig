@@ -19,10 +19,10 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>Entity</th>
-                            <th>PII</th>
-                            <th>Export</th>
-                            <th>Delete/Anonymize</th>
+                            <th>{{ t('admin_gdpr_inventory_col_entity', page_locale()) }}</th>
+                            <th>{{ t('admin_gdpr_inventory_col_pii', page_locale()) }}</th>
+                            <th>{{ t('admin_gdpr_inventory_col_export', page_locale()) }}</th>
+                            <th>{{ t('admin_gdpr_inventory_col_deletion', page_locale()) }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -35,7 +35,7 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="4" class="cust-table__empty">No inventory entries.</td>
+                                <td colspan="4" class="cust-table__empty">{{ t('admin_gdpr_inventory_empty', page_locale()) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -102,10 +102,10 @@
                 <table class="cust-table">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>Action</th>
-                            <th>Actor</th>
-                            <th>Payload</th>
+                            <th>{{ t('admin_gdpr_audit_col_time', page_locale()) }}</th>
+                            <th>{{ t('admin_gdpr_audit_col_action', page_locale()) }}</th>
+                            <th>{{ t('admin_gdpr_audit_col_actor', page_locale()) }}</th>
+                            <th>{{ t('admin_gdpr_audit_col_payload', page_locale()) }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -113,12 +113,12 @@
                             <tr>
                                 <td>{{ entry.createdAt|date('Y-m-d H:i:s') }}</td>
                                 <td class="font-medium text-slate-900">{{ entry.action }}</td>
-                                <td>{{ entry.actor ? entry.actor.email : 'system' }}</td>
+                                <td>{{ entry.actor ? entry.actor.email : t('admin_gdpr_audit_actor_system', page_locale()) }}</td>
                                 <td class="text-xs"><pre class="whitespace-pre-wrap">{{ entry.payload|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre></td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="4" class="cust-table__empty">No GDPR audit events yet.</td>
+                                <td colspan="4" class="cust-table__empty">{{ t('admin_gdpr_audit_empty', page_locale()) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>

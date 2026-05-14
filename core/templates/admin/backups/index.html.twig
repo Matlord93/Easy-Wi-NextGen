@@ -1,10 +1,10 @@
 {% extends 'admin/base.html.twig' %}
 
-{% set pageTitle = 'Backups' %}
+{% set pageTitle = t('admin_backups_title', page_locale()) %}
 {% set activeNav = 'backups' %}
 {% set topbarActions = [
-    { label: 'Targets', href: path('admin_backups_targets'), variant: 'ghost' },
-    { label: 'Settings', href: path('admin_settings_backups'), variant: 'ghost' }
+    { label: t('admin_backups_nav_targets', page_locale()), href: path('admin_backups_targets'), variant: 'ghost' },
+    { label: t('admin_backups_nav_settings', page_locale()), href: path('admin_settings_backups'), variant: 'ghost' }
 ] %}
 
 {% block content %}
@@ -12,11 +12,11 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">Backups</h2>
+                <h2 class="ng-data-card__title">{{ t('admin_backups_title', page_locale()) }}</h2>
             </div>
             <div class="ng-data-card__actions">
-                <a href="{{ path('admin_backups_targets') }}" class="ui-button ui-button--ghost ui-button--sm">Targets</a>
-                <a href="{{ path('admin_settings_backups') }}" class="ui-button ui-button--ghost ui-button--sm">Settings</a>
+                <a href="{{ path('admin_backups_targets') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_backups_nav_targets', page_locale()) }}</a>
+                <a href="{{ path('admin_settings_backups') }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_backups_nav_settings', page_locale()) }}</a>
             </div>
         </div>
         <div class="ng-data-card__body--flush">
@@ -25,13 +25,13 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Instance</th>
-                            <th>Customer</th>
-                            <th>Target</th>
-                            <th>Status</th>
-                            <th>Size</th>
-                            <th>Created</th>
-                            <th>Error</th>
+                            <th>{{ t('admin_backups_col_instance', page_locale()) }}</th>
+                            <th>{{ t('admin_backups_col_customer', page_locale()) }}</th>
+                            <th>{{ t('admin_backups_col_target', page_locale()) }}</th>
+                            <th>{{ t('status', page_locale()) }}</th>
+                            <th>{{ t('size', page_locale()) }}</th>
+                            <th>{{ t('created', page_locale()) }}</th>
+                            <th>{{ t('error', page_locale()) }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -47,7 +47,7 @@
                                 <td>{{ backup.error ?: '—' }}</td>
                             </tr>
                         {% else %}
-                            <tr><td colspan="8" class="cust-table__empty">No backups yet.</td></tr>
+                            <tr><td colspan="8" class="cust-table__empty">{{ t('admin_backups_list_empty', page_locale()) }}</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

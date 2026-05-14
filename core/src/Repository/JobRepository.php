@@ -12,6 +12,9 @@ use Doctrine\Persistence\ManagerRegistry;
 
 class JobRepository extends ServiceEntityRepository
 {
+    /** Job types that run silently in the background and are never shown in the UI. */
+    private const BACKGROUND_TYPES = ['instance.query.check'];
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Job::class);
@@ -23,6 +26,8 @@ class JobRepository extends ServiceEntityRepository
     public function findLatest(int $limit = 50): array
     {
         return $this->createQueryBuilder('job')
+            ->andWhere('job.type NOT IN (:hidden)')
+            ->setParameter('hidden', self::BACKGROUND_TYPES)
             ->orderBy('job.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
@@ -35,6 +40,8 @@ class JobRepository extends ServiceEntityRepository
     public function findPaginatedLatest(int $page, int $perPage = 25): array
     {
         $query = $this->createQueryBuilder('job')
+            ->andWhere('job.type NOT IN (:hidden)')
+            ->setParameter('hidden', self::BACKGROUND_TYPES)
             ->orderBy('job.createdAt', 'DESC')
             ->setFirstResult(max(0, ($page - 1) * $perPage))
             ->setMaxResults($perPage)
@@ -52,6 +59,8 @@ class JobRepository extends ServiceEntityRepository
     {
         return (int) $this->createQueryBuilder('job')
             ->select('COUNT(job.id)')
+            ->andWhere('job.type NOT IN (:hidden)')
+            ->setParameter('hidden', self::BACKGROUND_TYPES)
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -61,7 +70,9 @@ class JobRepository extends ServiceEntityRepository
         return (int) $this->createQueryBuilder('job')
             ->select('COUNT(job.id)')
             ->andWhere('job.status = :status')
+            ->andWhere('job.type NOT IN (:hidden)')
             ->setParameter('status', $status)
+            ->setParameter('hidden', self::BACKGROUND_TYPES)
             ->getQuery()
             ->getSingleScalarResult();
     }

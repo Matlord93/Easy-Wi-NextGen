@@ -13,7 +13,7 @@
         <div>
             <label class="text-xs font-semibold uppercase text-slate-700">Kategorie</label>
             <select name="category_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                <option value="">Bitte wählen</option>
+                <option value="">{{ t('please_select', page_locale()) }}</option>
                 {% for category in categories %}
                     <option value="{{ category.id }}" {{ category.id == form.category_id ? 'selected' : '' }}>{{ category.name }}</option>
                 {% endfor %}
@@ -58,7 +58,7 @@
             <div>
                 <label class="text-xs font-semibold uppercase text-slate-700">Template</label>
                 <select name="template_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    <option value="">Bitte wählen</option>
+                    <option value="">{{ t('please_select', page_locale()) }}</option>
                     {% for template in templates %}
                         <option value="{{ template.id }}" {{ template.id == form.template_id ? 'selected' : '' }}>{{ template.name }}</option>
                     {% endfor %}
@@ -67,7 +67,7 @@
             <div>
                 <label class="text-xs font-semibold uppercase text-slate-700">Node</label>
                 <select name="node_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    <option value="">Bitte wählen</option>
+                    <option value="">{{ t('please_select', page_locale()) }}</option>
                     {% for node in nodes %}
                         <option value="{{ node.id }}" {{ node.id == form.node_id ? 'selected' : '' }}>{{ node.name }}</option>
                     {% endfor %}

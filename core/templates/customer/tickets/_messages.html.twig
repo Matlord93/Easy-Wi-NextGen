@@ -1,15 +1,26 @@
-<div class="divide-y divide-slate-100">
+{% set locale = page_locale() %}
+<div class="flex flex-col gap-0 divide-y divide-slate-100">
     {% for message in messages %}
-        <div class="px-6 py-5">
-            <div class="flex items-start justify-between">
-                <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ message.author.email }}</p>
-                    <p class="text-xs text-slate-700">{{ message.author.type|title }} · {{ message.created_at|date('d.m.Y H:i') }}</p>
+        {% set isStaff = message.author.type in ['admin', 'superadmin', 'reseller'] %}
+        <div class="px-6 py-5 {{ isStaff ? 'bg-indigo-50' : 'bg-white' }}">
+            <div class="flex items-start gap-3 {{ isStaff ? 'flex-row-reverse' : '' }}">
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold {{ isStaff ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700' }}">
+                    {{ message.author.email|slice(0,1)|upper }}
+                </div>
+                <div class="{{ isStaff ? 'items-end' : 'items-start' }} flex flex-1 flex-col min-w-0">
+                    <div class="flex items-baseline gap-2 {{ isStaff ? 'flex-row-reverse' : '' }}">
+                        <span class="text-xs font-semibold {{ isStaff ? 'text-indigo-700' : 'text-slate-700' }}">
+                            {{ isStaff ? t('customer_ticket_reply_support', locale) : t('customer_ticket_reply_you', locale) }}
+                        </span>
+                        <span class="text-xs text-slate-400">{{ message.created_at|date('d.m.Y H:i') }}</span>
+                    </div>
+                    <div class="mt-2 max-w-prose rounded-xl px-4 py-3 text-sm {{ isStaff ? 'rounded-tr-sm bg-indigo-100 text-indigo-900 ml-auto' : 'rounded-tl-sm bg-slate-100 text-slate-800' }}">
+                        <p class="whitespace-pre-line">{{ message.body }}</p>
+                    </div>
                 </div>
             </div>
-            <p class="mt-3 text-sm text-slate-700 whitespace-pre-line">{{ message.body }}</p>
         </div>
     {% else %}
-        <div class="px-6 py-6 text-sm text-slate-700">{{ t('customer_ticket_no_messages', page_locale()) }}</div>
+        <div class="px-6 py-10 text-center text-sm text-slate-500">{{ t('admin_tickets_messages_empty', locale) }}</div>
     {% endfor %}
 </div>

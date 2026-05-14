@@ -1,74 +1,74 @@
 {% extends 'customer/base.html.twig' %}
-
 {% set activeNav = 'tickets' %}
-{% block title %}Tickets · Easy-Wi NextGen{% endblock %}
+{% set locale = page_locale() %}
+{% block title %}{{ t('customer_tickets_title', locale) }}{% endblock %}
+
+{% set statusLabels = {
+    'open':     t('customer_tickets_status_open', locale),
+    'pending':  t('customer_tickets_status_pending', locale),
+    'resolved': t('customer_tickets_status_resolved', locale),
+    'closed':   t('customer_tickets_status_closed', locale),
+} %}
+{% set priorityLabels = {
+    'low':    t('customer_tickets_priority_low', locale),
+    'normal': t('customer_tickets_priority_normal', locale),
+    'high':   t('customer_tickets_priority_high', locale),
+    'urgent': t('customer_tickets_priority_urgent', locale),
+} %}
 
 {% block content %}
-<div class="cust-page">
+<div class="flex flex-col gap-5">
 
-    {# ── Hero ── #}
-    <div class="cust-hero">
-        <div class="cust-hero__inner">
-            <div>
-                <div class="cust-hero__label">Support</div>
-                <h1 class="cust-hero__title">{{ t('customer_tickets_title', page_locale()) }}</h1>
-                <p class="cust-hero__desc">{{ t('customer_tickets_intro', page_locale()) }}</p>
-            </div>
-        </div>
-
-        {# KPIs inside hero #}
-        <div class="cust-hero__stats">
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_tickets_total', page_locale()) }}</div>
-                <div class="cust-hero__stat-value">{{ summary.total }}</div>
-                <div class="cust-hero__stat-sub">Tickets gesamt</div>
-            </div>
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_tickets_open', page_locale()) }}</div>
-                <div class="cust-hero__stat-value" style="color:#fbbf24;">{{ summary.open }}</div>
-                <div class="cust-hero__stat-sub">Offen</div>
-            </div>
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_tickets_pending', page_locale()) }}</div>
-                <div class="cust-hero__stat-value" style="color:#818cf8;">{{ summary.pending }}</div>
-                <div class="cust-hero__stat-sub">Warten auf Antwort</div>
-            </div>
-            <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">{{ t('customer_tickets_resolved', page_locale()) }}</div>
-                <div class="cust-hero__stat-value" style="color:#4ade80;">{{ summary.resolved }}</div>
-                <div class="cust-hero__stat-sub">Gelöst</div>
-            </div>
+    {# Page header #}
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">{{ t('customer_tickets_title', locale) }}</h1>
+            <p class="mt-1 text-sm text-slate-500">{{ t('customer_tickets_intro', locale) }}</p>
         </div>
     </div>
 
-    {# ── Main grid: list + create ── #}
-    <div class="cust-grid-2">
+    {# KPI strip #}
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('customer_tickets_total', locale) }}</div>
+            <div class="mt-1 text-xl font-bold text-slate-900">{{ summary.total }}</div>
+        </div>
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+            <div class="text-xs font-semibold uppercase tracking-wide text-amber-600">{{ t('customer_tickets_open', locale) }}</div>
+            <div class="mt-1 text-xl font-bold text-amber-700">{{ summary.open }}</div>
+        </div>
+        <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-center">
+            <div class="text-xs font-semibold uppercase tracking-wide text-indigo-600">{{ t('customer_tickets_pending', locale) }}</div>
+            <div class="mt-1 text-xl font-bold text-indigo-700">{{ summary.pending }}</div>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center">
+            <div class="text-xs font-semibold uppercase tracking-wide text-emerald-600">{{ t('customer_tickets_resolved', locale) }}</div>
+            <div class="mt-1 text-xl font-bold text-emerald-700">{{ summary.resolved }}</div>
+        </div>
+    </div>
+
+    {# Main 2-col: list + form #}
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_380px]">
 
         {# Ticket list #}
-        <div class="cust-panel">
-            <div class="cust-panel__head">
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                 <div>
-                    <h3 class="cust-panel__title">{{ t('customer_tickets_list_title', page_locale()) }}</h3>
-                    <p class="cust-panel__sub">{{ t('customer_tickets_list_intro', page_locale()) }}</p>
+                    <h2 class="text-base font-semibold text-slate-900">{{ t('customer_tickets_list_title', locale) }}</h2>
+                    <p class="text-xs text-slate-500">{{ t('customer_tickets_list_intro', locale) }}</p>
                 </div>
-                <button
-                    class="ui-button ui-button--ghost ui-button--sm"
-                    hx-get="/tickets/table"
-                    hx-target="#tickets-table"
-                    hx-swap="outerHTML"
-                >
-                    <svg viewBox="0 0 16 16" fill="currentColor" width="13" height="13"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/></svg>
-                    {{ t('refresh', page_locale()) }}
+                <button class="ui-button ui-button--ghost ui-button--sm" hx-get="/tickets/table" hx-target="#tickets-table" hx-swap="outerHTML">
+                    {{ t('refresh', locale) }}
                 </button>
             </div>
-            <div id="tickets-table" class="cust-panel__body--flush" hx-get="/tickets/table" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
-                {% include 'customer/tickets/_table.html.twig' with { tickets: tickets, statusStyles: statusStyles, priorityStyles: priorityStyles } %}
+            <div id="tickets-table" hx-get="/tickets/table" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
+                {% include 'customer/tickets/_table.html.twig' with { tickets: tickets, statusStyles: statusStyles, priorityStyles: priorityStyles, statusLabels: statusLabels, priorityLabels: priorityLabels } %}
             </div>
         </div>
 
         {# New ticket form #}
-        <div id="ticket-form" class="cust-form-card" hx-trigger="tickets-changed from:body" hx-get="/tickets/form" hx-swap="outerHTML">
-            {% include 'customer/tickets/_form.html.twig' with { form: form } %}
+        <div id="ticket-form" class="self-start rounded-xl border border-slate-200 bg-white shadow-sm" hx-trigger="tickets-changed from:body" hx-get="/tickets/form" hx-swap="outerHTML">
+            {% include 'customer/tickets/_form.html.twig' with { form: form, locale: locale } %}
         </div>
 
     </div>

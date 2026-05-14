@@ -14,7 +14,7 @@
 
         <div class="ts3-settings-section">
             <h4>Flood-Limits (ServerQuery)</h4>
-            <p class="ts3-muted">Limits werden beim Provisioning gesetzt. Admins können sie überschreiben.</p>
+            <p class="ts3-muted">{{ t('customer_ts3_limits_provisioning_note', locale) }}</p>
             <div class="ts3-grid">
                 <div>
                     <label for="ts3-flood-commands">Max Commands</label>
@@ -33,7 +33,7 @@
 
         <div class="ts3-settings-section">
             <h4>Safe-Mode &amp; Permission Limits</h4>
-            <p class="ts3-muted">Optional: begrenze risikoreiche Aktionen für Standardnutzer.</p>
+            <p class="ts3-muted">{{ t('customer_ts3_risk_actions_note', locale) }}</p>
             <label class="ts3-toggle">
                 <input type="checkbox" disabled checked>
                 <span>Safe-Mode aktiv (Demo)</span>

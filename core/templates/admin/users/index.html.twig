@@ -10,7 +10,7 @@
     {# ── Summary Chips ── #}
     <div class="ng-kpi-row">
         <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('users', page_locale())|default('Gesamt') }}</div>
+            <div class="ng-kpi-box__label">{{ t('users', page_locale()) }}</div>
             <div class="ng-kpi-box__value">{{ users|length }}</div>
         </div>
         <div class="ng-kpi-box">
@@ -18,11 +18,11 @@
             <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ users|filter(u => u.type == 'customer')|length }}</div>
         </div>
         <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">Admins</div>
+            <div class="ng-kpi-box__label">{{ t('user_type_admin_plural', page_locale()) }}</div>
             <div class="ng-kpi-box__value ng-kpi-box__value--primary">{{ users|filter(u => u.type in ['admin', 'superadmin'])|length }}</div>
         </div>
         <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">Reseller</div>
+            <div class="ng-kpi-box__label">{{ t('user_type_reseller_plural', page_locale()) }}</div>
             <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ users|filter(u => u.type == 'reseller')|length }}</div>
         </div>
     </div>
@@ -105,7 +105,7 @@
         </details>
     {% else %}
         <div class="ng-alert ng-alert--warning">
-            Nur Superadmins können Kunden/User erstellen oder bearbeiten.
+            {{ t('user_management_superadmin_only', page_locale()) }}
         </div>
     {% endif %}
 
@@ -116,7 +116,7 @@
                 <div>
                     <h2 class="ng-data-card__title">{{ t('user_management_ssh_pending_title', page_locale()) }}</h2>
                 </div>
-                <span class="ui-badge ui-badge--warning">{{ pendingSshKeys|length }} ausstehend</span>
+                <span class="ui-badge ui-badge--warning">{{ pendingSshKeys|length }} {{ t('pending', page_locale()) }}</span>
             </div>
             <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:12px;">
                 {% for pending in pendingSshKeys %}
@@ -143,8 +143,8 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">Alle Benutzer</h2>
-                <p class="ng-data-card__sub">Verwalte Kunden, Reseller und Admins</p>
+                <h2 class="ng-data-card__title">{{ t('user_management_all_users', page_locale()) }}</h2>
+                <p class="ng-data-card__sub">{{ t('user_management_subtitle', page_locale()) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body--flush">
@@ -155,8 +155,8 @@
                             <th>{{ t('email', page_locale()) }}</th>
                             <th>{{ t('type', page_locale()) }}</th>
                             <th>{{ t('created', page_locale()) }}</th>
-                            <th>Status</th>
-                            {% if canManageUsers %}<th>Aktionen</th>{% endif %}
+                            <th>{{ t('status', page_locale()) }}</th>
+                            {% if canManageUsers %}<th>{{ t('actions', page_locale()) }}</th>{% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -180,9 +180,9 @@
                                 <td style="font-size:12px;color:var(--ng-text-muted);">
                                     {% if user.type in ['admin', 'superadmin'] %}
                                         {% if user.ssh_key_set %}
-                                            <span class="ui-badge ui-badge--success" style="font-size:10px;">SSH Key hinterlegt</span>
+                                            <span class="ui-badge ui-badge--success" style="font-size:10px;">{{ t('user_ssh_key_set', page_locale()) }}</span>
                                         {% else %}
-                                            <span class="ui-badge ui-badge--warning" style="font-size:10px;">Kein SSH Key</span>
+                                            <span class="ui-badge ui-badge--warning" style="font-size:10px;">{{ t('user_no_ssh_key', page_locale()) }}</span>
                                         {% endif %}
                                     {% else %}
                                         {{ t('portal_language', page_locale()) }}: <strong>{{ user.portal_language|upper }}</strong>
@@ -224,12 +224,12 @@
                                                     <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ng-text-muted);cursor:pointer;">
                                                         <input type="hidden" name="member_access_enabled" value="0">
                                                         <input type="checkbox" name="member_access_enabled" value="1" style="accent-color:var(--ng-primary);" {{ user.member_access_enabled ? 'checked' : '' }}>
-                                                        Member access
+                                                        {{ t('user_member_access_label', page_locale()) }}
                                                     </label>
                                                     <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ng-text-muted);cursor:pointer;">
                                                         <input type="hidden" name="customer_access_enabled" value="0">
                                                         <input type="checkbox" name="customer_access_enabled" value="1" style="accent-color:var(--ng-primary);" {{ user.customer_access_enabled ? 'checked' : '' }}>
-                                                        Customer access
+                                                        {{ t('user_customer_access_label', page_locale()) }}
                                                     </label>
                                                 </div>
                                                 <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">

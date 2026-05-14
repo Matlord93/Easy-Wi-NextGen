@@ -5,11 +5,11 @@
         <div class="flex items-start gap-3">
             {% if setupStatus.is_ready %}
                 <svg class="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/></svg>
-                <p class="text-sm text-emerald-300">Alle Pflichtfelder sind gesetzt. Du kannst den Server installieren und starten.</p>
+                <p class="text-sm text-emerald-300">{{ t('customer_instance_setup_all_required_set', locale) }}</p>
             {% else %}
                 <svg class="mt-0.5 h-5 w-5 shrink-0 text-amber-400" fill="currentColor" viewBox="0 0 16 16"><path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>
                 <div>
-                    <p class="text-sm text-amber-300">Bitte trage die fehlenden Angaben ein, um den Server nutzen zu können.</p>
+                    <p class="text-sm text-amber-300">{{ t('customer_instance_setup_missing_fields', locale) }}</p>
                     {% if setupMissingLabels is not empty %}
                         <ul class="mt-2 list-disc pl-4 text-xs text-amber-400 space-y-0.5">
                             {% for label in setupMissingLabels %}
@@ -17,7 +17,7 @@
                             {% endfor %}
                         </ul>
                     {% else %}
-                        <p class="mt-1 text-xs text-amber-500">Einige Felder müssen vom Support ergänzt werden.</p>
+                        <p class="mt-1 text-xs text-amber-500">{{ t('customer_instance_setup_support_required', locale) }}</p>
                     {% endif %}
                 </div>
             {% endif %}
@@ -25,12 +25,12 @@
     </div>
 
     <div class="grid gap-5 lg:grid-cols-2">
-        {# ─── Variablen ─── #}
+        {# ─── Variables ─── #}
         <div class="space-y-5">
             <div class="rounded-xl border border-slate-700/60 bg-slate-800/40">
                 <div class="border-b border-slate-700/50 px-4 py-3">
-                    <h3 class="text-sm font-semibold text-slate-200">Variablen</h3>
-                    <p class="mt-0.5 text-xs text-slate-500">Alle Variablen außer Ports – werden im Start-Skript oder in den Configs gespeichert.</p>
+                    <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instance_setup_variables_title', locale) }}</h3>
+                    <p class="mt-0.5 text-xs text-slate-500">{{ t('customer_instance_setup_variables_intro', locale) }}</p>
                 </div>
                 <div class="p-4">
                     {% if setupMessages.vars %}
@@ -63,11 +63,11 @@
                                 </div>
                             {% endif %}
                         {% else %}
-                            <p class="text-sm text-slate-500">Keine Variablen definiert.</p>
+                            <p class="text-sm text-slate-500">{{ t('customer_instance_setup_variables_empty', locale) }}</p>
                         {% endfor %}
                         <button type="submit"
                             class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500">
-                            Variablen speichern
+                            {{ t('customer_instance_setup_variables_save', locale) }}
                         </button>
                     </form>
                 </div>
@@ -79,7 +79,7 @@
             <div class="rounded-xl border border-slate-700/60 bg-slate-800/40">
                 <div class="border-b border-slate-700/50 px-4 py-3">
                     <h3 class="text-sm font-semibold text-slate-200">{{ t('customer_instances_setup_title', locale) }}</h3>
-                    <p class="mt-0.5 text-xs text-slate-500">Diese Werte werden direkt in der Server-Config gespeichert.</p>
+                    <p class="mt-0.5 text-xs text-slate-500">{{ t('customer_instance_setup_config_intro', locale) }}</p>
                 </div>
                 <div class="p-4">
                     {% if setupMessages.vars %}
@@ -131,9 +131,9 @@
                                     <input name="secrets[{{ field.key }}]"
                                         type="{{ field.type == 'number' ? 'number' : 'password' }}"
                                         class="w-full rounded-lg border border-slate-600/80 bg-slate-900/60 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none"
-                                        placeholder="Neues Secret eingeben">
+                                        placeholder="{{ t('customer_instance_setup_secrets_placeholder', locale) }}">
                                     <span class="text-[11px] text-slate-500">
-                                        Gesetzt: <span class="{{ field.is_set ? 'text-emerald-400' : 'text-slate-500' }}">{{ field.is_set ? 'Ja' : 'Nein' }}</span>
+                                        {{ t('customer_instance_setup_secrets_set_label', locale) }} <span class="{{ field.is_set ? 'text-emerald-400' : 'text-slate-500' }}">{{ field.is_set ? t('customer_instance_setup_secrets_yes', locale) : t('customer_instance_setup_secrets_no', locale) }}</span>
                                     </span>
                                 </div>
                                 {% if field.helptext %}
@@ -144,11 +144,11 @@
                                 {% endif %}
                             </div>
                         {% else %}
-                            <p class="text-sm text-slate-500">Keine Secrets definiert.</p>
+                            <p class="text-sm text-slate-500">{{ t('customer_instance_setup_secrets_empty', locale) }}</p>
                         {% endfor %}
                         <button type="submit"
                             class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500">
-                            Secrets speichern
+                            {{ t('customer_instance_setup_secrets_save', locale) }}
                         </button>
                     </form>
                 </div>

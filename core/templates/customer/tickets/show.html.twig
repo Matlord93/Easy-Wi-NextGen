@@ -1,42 +1,74 @@
 {% extends 'customer/base.html.twig' %}
-
+{% set locale = page_locale() %}
+{% set activeNav = 'tickets' %}
+{% set statusLabels = {
+    'open':     t('customer_tickets_status_open', locale),
+    'pending':  t('customer_tickets_status_pending', locale),
+    'resolved': t('customer_tickets_status_resolved', locale),
+    'closed':   t('customer_tickets_status_closed', locale),
+} %}
+{% set priorityLabels = {
+    'low':    t('customer_tickets_priority_low', locale),
+    'normal': t('customer_tickets_priority_normal', locale),
+    'high':   t('customer_tickets_priority_high', locale),
+    'urgent': t('customer_tickets_priority_urgent', locale),
+} %}
 
 {% block content %}
-<div class="customer-module-modern customer-tickets-modern flex flex-col gap-6">
-    <div class="rounded-xl border border-slate-200 bg-white p-6">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+<div class="flex flex-col gap-5">
+
+    {# Ticket header #}
+    <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
+            <a href="/tickets" class="hover:text-slate-700">← {{ t('customer_tickets_title', locale) }}</a>
+            <span>/</span>
+            <span class="font-mono">#{{ ticket.id }}</span>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <p class="text-xs uppercase text-slate-700">{{ t('customer_ticket_label', page_locale())|replace({'%id%': ticket.id}) }}</p>
-                <h1 class="text-2xl font-semibold text-slate-900">{{ ticket.subject }}</h1>
-                <p class="mt-2 text-sm text-slate-700">{{ t('customer_ticket_category_label', page_locale())|replace({'%category%': ticket.category|title}) }}</p>
+                <h1 class="text-xl font-bold text-slate-900">{{ ticket.subject }}</h1>
+                <p class="mt-1 text-sm text-slate-500">
+                    {{ t('customer_ticket_category_label', locale)|replace({'%category%': ticket.category|title}) }}
+                    · {{ t('customer_ticket_created_update', locale)|replace({'%created%': ticket.created_at|date('d.m.Y H:i'), '%updated%': ticket.last_message_at|date('d.m.Y H:i')}) }}
+                </p>
             </div>
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap gap-2">
                 <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ statusStyles[ticket.status] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
-                    {{ ticket.status|title }}
+                    {{ statusLabels[ticket.status] ?? ticket.status }}
                 </span>
                 <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ priorityStyles[ticket.priority] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
-                    {{ t('customer_ticket_priority_label', page_locale())|replace({'%priority%': ticket.priority|title}) }}
+                    {{ priorityLabels[ticket.priority] ?? ticket.priority }}
                 </span>
             </div>
-        </div>
-        <div class="mt-6 text-sm text-slate-700">
-            {{ t('customer_ticket_created_update', page_locale())|replace({'%created%': ticket.created_at|date('d.m.Y H:i'), '%updated%': ticket.last_message_at|date('d.m.Y H:i')}) }}
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
-        <div class="rounded-xl border border-slate-200 bg-white">
+    {# Conversation + reply #}
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
+
+        {# Chat thread #}
+        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-lg font-semibold">{{ t('customer_ticket_conversation_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('customer_ticket_conversation_intro', page_locale()) }}</p>
+                <h2 class="text-base font-semibold text-slate-900">{{ t('customer_ticket_conversation_title', locale) }}</h2>
             </div>
             <div id="ticket-messages">
                 {% include 'customer/tickets/_messages.html.twig' with { ticket: ticket, messages: messages } %}
             </div>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white">
-            {% include 'customer/tickets/_message_form.html.twig' with { ticket: ticket } %}
+
+        {# Reply form or closed notice #}
+        <div class="self-start rounded-xl border border-slate-200 bg-white shadow-sm sticky top-5">
+            {% if ticket.status == 'closed' %}
+                <div class="p-6 text-sm text-slate-600">
+                    <p class="font-semibold text-slate-800">{{ statusLabels.closed }}</p>
+                    <p class="mt-1">{{ t('customer_ticket_closed_notice', locale) }}</p>
+                    <a href="/tickets" class="mt-4 inline-flex ui-button ui-button--ghost ui-button--sm">← {{ t('customer_tickets_title', locale) }}</a>
+                </div>
+            {% else %}
+                {% include 'customer/tickets/_message_form.html.twig' with { ticket: ticket, locale: locale } %}
+            {% endif %}
         </div>
+
     </div>
 </div>
 {% endblock %}

@@ -22,7 +22,7 @@
         {% for job in jobs %}
             <tr class="hover:bg-slate-50">
                 <td class="px-5 py-4 font-mono text-xs text-slate-600">{{ job.id }}</td>
-                <td class="px-5 py-4 font-medium">{{ job.type }}</td>
+                <td class="px-5 py-4 font-medium">{{ t('job_type_' ~ job.type|replace({'.': '_'}), page_locale()) }}</td>
                 <td class="px-5 py-4">
                     {% set style = statusStyles[job.status] ?? 'bg-slate-100 text-slate-600 border-slate-200' %}
                     <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ style }}">

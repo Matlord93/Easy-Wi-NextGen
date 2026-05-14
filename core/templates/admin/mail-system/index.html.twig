@@ -48,7 +48,7 @@
                 <p class="ng-data-card__sub">Letzte {{ status.window_hours }} Stunden (Postfix/Dovecot/OpenDKIM/Agent Logs)</p>
             </div>
             <div class="ng-data-card__actions">
-                <a href="/api/v1/admin/mail/logs?limit=100" class="ui-button ui-button--ghost ui-button--sm">JSON Logs öffnen</a>
+                <a href="/api/v1/admin/mail/logs?limit=100" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_mail_system_json_logs_button', locale) }}</a>
             </div>
         </div>
         <div class="ng-data-card__body">
@@ -181,7 +181,7 @@
                     <tbody>
                         {% if security.suspicious is empty %}
                             <tr>
-                                <td colspan="7" class="cust-table__empty">Keine auffälligen Events erkannt.</td>
+                                <td colspan="7" class="cust-table__empty">{{ t('admin_mail_system_no_anomalies', locale) }}</td>
                             </tr>
                         {% else %}
                             {% for row in security.suspicious %}

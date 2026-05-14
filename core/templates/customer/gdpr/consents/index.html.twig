@@ -1,6 +1,6 @@
 {% extends 'customer/base.html.twig' %}
 
-{% block title %}Consent Log · Easy-Wi NextGen{% endblock %}
+{% block title %}{{ t('customer_gdpr_consents_page_title', page_locale()) }}{% endblock %}
 
 {% block content %}
 <div class="customer-module-modern customer-gdpr-modern flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
@@ -60,16 +60,16 @@
                     type="text"
                     name="version"
                     required
-                    placeholder="e.g. 2025-02 / v3"
+                    placeholder="{{ t('customer_gdpr_consents_form_version_placeholder', page_locale()) }}"
                     class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                 />
             </div>
             <button class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white hover:bg-indigo-500">
-                Save consent
+                {{ t('customer_gdpr_consents_form_save', page_locale()) }}
             </button>
         </form>
         <div class="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-            Make sure the recorded version matches the document that was accepted.
+            {{ t('customer_gdpr_consents_version_notice', page_locale()) }}
         </div>
     </div>
 </div>

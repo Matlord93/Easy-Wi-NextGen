@@ -24,7 +24,7 @@
         </div>
 
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            <p class="font-semibold">Dateimanager läuft im Kompatibilitätsmodus.</p>
+            <p class="font-semibold">{{ t('customer_instances_files_legacy_mode', page_locale()) }}</p>
             <p class="mt-1 text-xs text-amber-700">
                 Die Agent File-API ist derzeit nicht erreichbar{% if fileApiError %}: {{ fileApiError }}{% endif %}.
             </p>

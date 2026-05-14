@@ -12,30 +12,30 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">Datenbankverbindung (Quelle)</h2>
+                <h2 class="ng-data-card__title">{{ t('admin_easywi_db_connection_title', locale) }}</h2>
                 <p class="ng-data-card__sub">{{ t('admin_easywi_migration_page_desc', locale) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body">
             <div class="grid grid-cols-2 gap-4">
                 <div class="form-field">
-                    <label class="form-label">Host</label>
+                    <label class="form-label">{{ t('host', locale) }}</label>
                     <input id="mig-host" type="text" value="127.0.0.1" class="form-input">
                 </div>
                 <div class="form-field">
-                    <label class="form-label">Port</label>
+                    <label class="form-label">{{ t('port', locale) }}</label>
                     <input id="mig-port" type="number" value="3306" class="form-input">
                 </div>
                 <div class="form-field">
-                    <label class="form-label">Datenbankname</label>
+                    <label class="form-label">{{ t('admin_easywi_db_name', locale) }}</label>
                     <input id="mig-dbname" type="text" placeholder="easywi" class="form-input">
                 </div>
                 <div class="form-field">
-                    <label class="form-label">Tabellenprefix</label>
+                    <label class="form-label">{{ t('admin_easywi_table_prefix', locale) }}</label>
                     <input id="mig-prefix" type="text" value="easywi_" class="form-input">
                 </div>
                 <div class="form-field">
-                    <label class="form-label">Benutzer</label>
+                    <label class="form-label">{{ t('username', locale) }}</label>
                     <input id="mig-user" type="text" value="root" class="form-input">
                 </div>
                 <div class="form-field">
@@ -45,7 +45,7 @@
             </div>
             <div class="mt-4 flex items-center gap-3">
                 <button id="btn-probe" class="ui-button ui-button--ghost">
-                    Verbindung prüfen &amp; Tabellen zählen
+                    {{ t('admin_easywi_probe_button', locale) }}
                 </button>
             </div>
             <div id="probe-result" class="mt-3 hidden"></div>
@@ -56,7 +56,7 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">Zu importierende Entitäten</h2>
+                <h2 class="ng-data-card__title">{{ t('admin_easywi_entities_title', locale) }}</h2>
             </div>
         </div>
         <div class="ng-data-card__body">
@@ -76,7 +76,7 @@
         <div class="ng-data-card__body">
             <div class="flex flex-wrap gap-3">
                 <button id="btn-dryrun" class="ui-button ui-button--warning">
-                    Dry-Run (keine Änderungen)
+                    {{ t('admin_easywi_dry_run_button', locale) }}
                 </button>
                 <button id="btn-run" class="ui-button ui-button--primary">
                     {{ t('admin_easywi_migration_start', locale) }}
@@ -89,7 +89,7 @@
     <div id="run-result" class="ng-data-card hidden">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">Ergebnis</h2>
+                <h2 class="ng-data-card__title">{{ t('admin_easywi_result_title', locale) }}</h2>
             </div>
         </div>
         <div class="ng-data-card__body">
@@ -104,6 +104,12 @@ const MSG_MIGRATION_RUNNING = {{ t('admin_easywi_migration_running', locale)|jso
 const MSG_MIGRATION_DONE = {{ t('admin_easywi_migration_done', locale)|json_encode|raw }};
 const MSG_MIGRATION_ERROR = {{ t('admin_easywi_migration_error', locale)|json_encode|raw }};
 const MSG_ERROR_PREFIX = {{ t('customer_ts_action_error_prefix', locale)|json_encode|raw }};
+const MSG_COL_ENTITY = {{ t('admin_easywi_col_entity', locale)|json_encode|raw }};
+const MSG_COL_IMPORTED = {{ t('admin_easywi_col_imported', locale)|json_encode|raw }};
+const MSG_COL_SKIPPED = {{ t('admin_easywi_col_skipped', locale)|json_encode|raw }};
+const MSG_COL_FAILED = {{ t('admin_easywi_col_failed', locale)|json_encode|raw }};
+const MSG_COL_TOTAL = {{ t('admin_easywi_col_total', locale)|json_encode|raw }};
+const MSG_EXECUTED = {{ t('common_executed', locale)|json_encode|raw }};
 (function () {
     function buildPayload(dryRun) {
         return {
@@ -173,16 +179,16 @@ const MSG_ERROR_PREFIX = {{ t('customer_ts_action_error_prefix', locale)|json_en
             }).join('');
             const badge = dryRun
                 ? '<span class="ui-badge ui-badge--warning ml-2">DRY-RUN</span>'
-                : '<span class="ui-badge ui-badge--success ml-2">{{ t('common_executed', page_locale()) }}</span>';
+                : `<span class="ui-badge ui-badge--success ml-2">${MSG_EXECUTED}</span>`;
             content.innerHTML = `
                 <div class="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-800">${MSG_MIGRATION_DONE}${badge}</div>
                 <table class="w-full">
                     <thead><tr class="text-xs font-semibold uppercase text-slate-500">
-                        <th class="pb-1 pr-4 text-left">Entität</th>
-                        <th class="pb-1 pr-4 text-left text-emerald-700">Importiert</th>
-                        <th class="pb-1 pr-4 text-left">Übersprungen</th>
-                        <th class="pb-1 pr-4 text-left text-red-600">Fehler</th>
-                        <th class="pb-1 text-left">Gesamt</th>
+                        <th class="pb-1 pr-4 text-left">${MSG_COL_ENTITY}</th>
+                        <th class="pb-1 pr-4 text-left text-emerald-700">${MSG_COL_IMPORTED}</th>
+                        <th class="pb-1 pr-4 text-left">${MSG_COL_SKIPPED}</th>
+                        <th class="pb-1 pr-4 text-left text-red-600">${MSG_COL_FAILED}</th>
+                        <th class="pb-1 text-left">${MSG_COL_TOTAL}</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>`;

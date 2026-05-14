@@ -1,7 +1,7 @@
 {% extends 'admin/base.html.twig' %}
 
-{% set pageTitle = 'UniFi Verbindung' %}
-{% set pageSubtitle = 'UDM Pro Controller & Ziele' %}
+{% set pageTitle = t('admin_unifi_connection_title', page_locale()) %}
+{% set pageSubtitle = t('admin_unifi_connection_subtitle', page_locale()) %}
 
 {% block content %}
 {% set locale = page_locale() %}
@@ -37,11 +37,11 @@
     <form method="post" action="/admin/unifi/connection" class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div class="grid gap-4 md:grid-cols-2">
             <label class="text-sm font-semibold text-slate-700">
-                Controller URL
+                {{ t('admin_unifi_controller_url', locale) }}
                 <input type="text" name="base_url" value="{{ settings.baseUrl }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="https://udm-pro.local" />
             </label>
             <label class="text-sm font-semibold text-slate-700">
-                Site
+                {{ t('admin_unifi_site', locale) }}
                 <input type="text" name="site" value="{{ settings.site }}" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="default" />
             </label>
             <label class="text-sm font-semibold text-slate-700">
@@ -71,7 +71,7 @@
                 {% for node in nodes %}
                     <div class="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p class="text-sm font-semibold text-slate-800">{{ node.name ?? 'Unnamed node' }}</p>
+                            <p class="text-sm font-semibold text-slate-800">{{ node.name ?? t('admin_unifi_unnamed_node', locale) }}</p>
                             <p class="text-xs text-slate-500">ID: {{ node.id }}</p>
                         </div>
                         <input type="text" name="node_targets[{{ node.id }}]" value="{{ settings.nodeTargets[node.id] ?? '' }}" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm md:w-64" placeholder="10.0.0.10" />

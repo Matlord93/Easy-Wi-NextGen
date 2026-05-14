@@ -17,7 +17,7 @@
         </div>
     {% elseif tokenRotated %}
         <div class="ng-alert ng-alert--success">
-            Agent registration token rotated successfully.
+            {{ t('admin_settings_token_rotated', page_locale()) }}
         </div>
     {% elseif saved %}
         <div class="ng-alert ng-alert--success">
@@ -42,7 +42,7 @@
                 { key: 'customer', label: t('admin_webinterface_tab_customer', page_locale()) },
                 { key: 'security', label: t('admin_webinterface_tab_security', page_locale()) },
                 { key: 'maintenance', label: t('admin_webinterface_tab_maintenance', page_locale()) },
-                { key: 'agent', label: 'Agent' }
+                { key: 'agent', label: t('admin_webinterface_tab_agent', page_locale()) }
             ] %}
             <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-3 mb-6">
                 {% for tab in tabs %}
@@ -207,7 +207,7 @@
                             </div>
                             <div class="form-field">
                                 <label class="form-label">{{ t('admin_webinterface_customer_logs_label', page_locale()) }}</label>
-                                <input type="text" name="customer_logs_label" value="{{ settings.customer_logs_label }}" placeholder="Logs" class="form-input">
+                                <input type="text" name="customer_logs_label" value="{{ settings.customer_logs_label }}" placeholder="{{ t('admin_webinterface_customer_logs_default_label', page_locale()) }}" class="form-input">
                             </div>
                         </div>
                     </div>
@@ -243,30 +243,30 @@
                                     </label>
                                     <label class="inline-flex items-center gap-2">
                                         <input type="checkbox" name="registration_enabled" value="1" class="rounded border-slate-300" {{ settings.registration_enabled ? 'checked' : '' }}>
-                                        Webinterface: Öffentliche Registrierung aktivieren
+                                        {{ t('admin_webinterface_security_registration_public', page_locale()) }}
                                     </label>
                                 </div>
                             </div>
                         </details>
 
                         <details class="rounded-lg border border-slate-200">
-                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">Local Anti Abuse</summary>
+                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">{{ t('admin_webinterface_security_antiabu_title', page_locale()) }}</summary>
                             <div class="border-t border-slate-200 px-4 py-4">
                                 <div class="grid grid-cols-2 gap-4">
-                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_contact ? 'checked' : '' }}> PoW for contact</label>
-                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_registration ? 'checked' : '' }}> PoW for registration</label>
-                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_registration ? 'checked' : '' }}> Math captcha for registration</label>
-                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_contact ? 'checked' : '' }}> Math captcha for contact</label>
+                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_contact ? 'checked' : '' }}> {{ t('admin_webinterface_security_pow_contact', page_locale()) }}</label>
+                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_registration ? 'checked' : '' }}> {{ t('admin_webinterface_security_pow_registration', page_locale()) }}</label>
+                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_registration ? 'checked' : '' }}> {{ t('admin_webinterface_security_captcha_registration', page_locale()) }}</label>
+                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_contact ? 'checked' : '' }}> {{ t('admin_webinterface_security_captcha_contact', page_locale()) }}</label>
                                     <div class="form-field">
-                                        <label class="form-label">Min submit seconds</label>
+                                        <label class="form-label">{{ t('admin_webinterface_security_min_submit_seconds', page_locale()) }}</label>
                                         <input type="number" min="1" name="anti_abuse_min_submit_seconds" value="{{ settings.anti_abuse_min_submit_seconds }}" class="form-input">
                                     </div>
                                     <div class="form-field">
-                                        <label class="form-label">PoW difficulty (0-6)</label>
+                                        <label class="form-label">{{ t('admin_webinterface_security_pow_difficulty', page_locale()) }}</label>
                                         <input type="number" min="0" max="6" name="anti_abuse_pow_difficulty" value="{{ settings.anti_abuse_pow_difficulty }}" class="form-input">
                                     </div>
                                     <div class="form-field">
-                                        <label class="form-label">Daily IP lock threshold</label>
+                                        <label class="form-label">{{ t('admin_webinterface_security_daily_ip_threshold', page_locale()) }}</label>
                                         <input type="number" min="1" name="anti_abuse_daily_ip_limit" value="{{ settings.anti_abuse_daily_ip_limit }}" class="form-input">
                                     </div>
                                 </div>

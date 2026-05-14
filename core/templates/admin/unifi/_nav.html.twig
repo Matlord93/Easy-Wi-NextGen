@@ -1,11 +1,11 @@
 {% set items = [
-    { label: 'Dashboard', href: '/admin/unifi', key: 'dashboard' },
-    { label: 'Verbindung', href: '/admin/unifi/connection', key: 'connection' },
-    { label: 'Policy', href: '/admin/unifi/policy', key: 'policy' },
-    { label: 'Manuelle Regeln', href: '/admin/unifi/rules', key: 'rules' },
-    { label: 'Auto-Preview', href: '/admin/unifi/auto-preview', key: 'auto-preview' },
-    { label: 'Audit Logs', href: '/admin/unifi/audit', key: 'audit' },
-    { label: 'How it works', href: '/admin/unifi/docs', key: 'docs' }
+    { label: t('admin_unifi_nav_dashboard', page_locale()),   href: '/admin/unifi',             key: 'dashboard' },
+    { label: t('admin_unifi_nav_connection', page_locale()),  href: '/admin/unifi/connection',   key: 'connection' },
+    { label: t('admin_unifi_nav_policy', page_locale()),      href: '/admin/unifi/policy',       key: 'policy' },
+    { label: t('admin_unifi_nav_rules', page_locale()),       href: '/admin/unifi/rules',        key: 'rules' },
+    { label: t('admin_unifi_nav_auto_preview', page_locale()), href: '/admin/unifi/auto-preview', key: 'auto-preview' },
+    { label: t('admin_unifi_nav_audit', page_locale()),       href: '/admin/unifi/audit',        key: 'audit' },
+    { label: t('admin_unifi_nav_docs', page_locale()),        href: '/admin/unifi/docs',         key: 'docs' }
 ] %}
 
 <div class="flex flex-wrap gap-2">

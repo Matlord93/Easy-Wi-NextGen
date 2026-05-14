@@ -1,232 +1,293 @@
 {% extends 'admin/base.html.twig' %}
-
 {% set pageTitle = t('admin_tickets_heading', page_locale()) %}
 {% set pageSubtitle = t('admin_tickets_intro', page_locale()) %}
 {% set activeNav = 'tickets' %}
+{% set locale = page_locale() %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+{% set statusLabels = {
+    'open':     t('admin_tickets_status_open', locale),
+    'pending':  t('admin_tickets_status_pending', locale),
+    'resolved': t('admin_tickets_status_resolved', locale),
+    'closed':   t('admin_tickets_status_closed', locale),
+} %}
+{% set priorityLabels = {
+    'low':    t('admin_tickets_priority_label_low', locale),
+    'normal': t('admin_tickets_priority_label_normal', locale),
+    'high':   t('admin_tickets_priority_label_high', locale),
+    'urgent': t('admin_tickets_priority_label_urgent', locale),
+} %}
+{% set categoryLabels = {
+    'general':   t('admin_tickets_category_label_general', locale),
+    'billing':   t('admin_tickets_category_label_billing', locale),
+    'technical': t('admin_tickets_category_label_technical', locale),
+    'abuse':     t('admin_tickets_category_label_abuse', locale),
+} %}
 
-    {# ── KPI Row ── #}
-    <div class="ng-kpi-row">
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_tickets_total_label', page_locale()) }}</div>
-            <div class="ng-kpi-box__value">{{ summary.total }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_tickets_open', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.open }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_tickets_pending', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ summary.pending }}</div>
-        </div>
-        <div class="ng-kpi-box">
-            <div class="ng-kpi-box__label">{{ t('admin_tickets_resolved', page_locale()) }}</div>
-            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.resolved }}</div>
-        </div>
-    </div>
+{# Find oldest open/pending ticket (lowest ID) #}
+{% set oldestOpen = null %}
+{% for ticket in tickets %}
+    {% if ticket.status in ['open', 'pending'] %}
+        {% if oldestOpen is null or ticket.id < oldestOpen.id %}
+            {% set oldestOpen = ticket %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
 
-    {# ── Flash messages ── #}
+<div class="flex flex-col gap-5">
+
+    {# Flash messages #}
     {% if success is not empty %}
         <div class="ng-alert ng-alert--success">
             <ul class="list-disc space-y-1 pl-4">
-                {% for message in success %}<li>{{ message }}</li>{% endfor %}
+                {% for msg in success %}<li>{{ msg }}</li>{% endfor %}
             </ul>
         </div>
     {% endif %}
 
-    {# ── Inbox + New Ticket ── #}
-    <div class="ng-layout-2col">
-
-        {# Ticket list #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_tickets_inbox_title', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_tickets_inbox_intro', page_locale()) }}</p>
-                </div>
-                <div class="ng-data-card__actions">
-                    <button
-                        class="ui-button ui-button--ghost ui-button--sm"
-                        hx-get="/admin/tickets/table"
-                        hx-target="#tickets-table"
-                        hx-swap="outerHTML"
-                    >
-                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/></svg>
-                        {{ t('refresh', page_locale()) }}
-                    </button>
-                </div>
-            </div>
-            <div class="ng-data-card__body--flush">
-                <div id="tickets-table" hx-get="/admin/tickets/table" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
-                    {% include 'admin/tickets/_table.html.twig' with { tickets: tickets, statusStyles: statusStyles, priorityStyles: priorityStyles } %}
-                </div>
-            </div>
+    {# KPI strip #}
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('admin_tickets_total_label', locale) }}</div>
+            <div class="mt-1 text-2xl font-bold text-slate-900">{{ summary.total }}</div>
         </div>
-
-        {# New ticket form #}
-        <div id="ticket-form" class="ng-data-card" hx-trigger="tickets-changed from:body" hx-get="/admin/tickets/form" hx-swap="outerHTML">
-            {% include 'admin/tickets/_form.html.twig' with { form: form, customers: customers, templates: templates, adminSignature: adminSignature } %}
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+            <div class="text-xs font-semibold uppercase tracking-wide text-amber-600">{{ t('admin_tickets_open', locale) }}</div>
+            <div class="mt-1 text-2xl font-bold text-amber-700">{{ summary.open }}</div>
+        </div>
+        <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-center">
+            <div class="text-xs font-semibold uppercase tracking-wide text-indigo-600">{{ t('admin_tickets_pending', locale) }}</div>
+            <div class="mt-1 text-2xl font-bold text-indigo-700">{{ summary.pending }}</div>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center">
+            <div class="text-xs font-semibold uppercase tracking-wide text-emerald-600">{{ t('admin_tickets_resolved', locale) }}</div>
+            <div class="mt-1 text-2xl font-bold text-emerald-700">{{ summary.resolved }}</div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('admin_tickets_closed', locale) }}</div>
+            <div class="mt-1 text-2xl font-bold text-slate-600">{{ summary.closed }}</div>
         </div>
     </div>
 
-    {# ── Templates + Quick Replies ── #}
-    <div class="ng-layout-2col--equal">
-
-        {# Ticket Templates #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
+    {# Oldest open ticket banner #}
+    {% if oldestOpen %}
+        {% set nowTs = date()|date('U') %}
+        {% set createdTs = oldestOpen.created_at|date('U') %}
+        {% set ageDays = ((nowTs - createdTs) / 86400)|round(0, 'floor') %}
+        <div class="flex flex-col gap-4 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-start gap-4">
+                <div class="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
+                    <svg class="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
                 <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_tickets_templates_title', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_tickets_templates_intro', page_locale()) }}</p>
+                    <p class="text-xs font-bold uppercase tracking-widest text-amber-700">{{ t('admin_tickets_oldest_open_banner_title', locale) }}</p>
+                    <p class="mt-0.5 text-base font-semibold text-amber-900">#{{ oldestOpen.id }} — {{ oldestOpen.subject }}</p>
+                    <p class="mt-0.5 text-xs text-amber-700">
+                        {{ oldestOpen.customer.email }}
+                        · {{ ageDays == 0 ? t('admin_tickets_age_today', locale) : ageDays ~ t('admin_tickets_age_days_suffix', locale) }}
+                        · {{ priorityLabels[oldestOpen.priority] ?? oldestOpen.priority }}
+                        · {{ statusLabels[oldestOpen.status] ?? oldestOpen.status }}
+                    </p>
                 </div>
             </div>
-            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:16px;">
-                {% if templateErrors is not empty %}
-                    <div class="ng-alert ng-alert--danger">
-                        <ul class="list-disc list-inside">
-                            {% for error in templateErrors %}<li>{{ error }}</li>{% endfor %}
-                        </ul>
-                    </div>
-                {% endif %}
+            <a href="/admin/tickets/{{ oldestOpen.id }}" class="inline-flex items-center gap-2 rounded-lg border border-amber-400 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-200 transition-colors flex-shrink-0">
+                {{ t('admin_tickets_oldest_open_open', locale) }}
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+            </a>
+        </div>
+    {% else %}
+        <div class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3">
+            <svg class="h-5 w-5 flex-shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="text-sm font-medium text-emerald-700">{{ t('admin_tickets_no_oldest', locale) }}</span>
+        </div>
+    {% endif %}
 
-                <form method="post" action="/admin/tickets/templates" style="display:flex;flex-direction:column;gap:12px;border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);">
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_tickets_template_title', page_locale()) }}</label>
-                        <input name="title" value="{{ templateForm.title }}" class="form-input">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_tickets_template_subject', page_locale()) }}</label>
-                        <input name="subject" value="{{ templateForm.subject }}" class="form-input">
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_tickets_form_category', page_locale()) }}</label>
-                            <select name="category" class="form-input">
-                                <option value="general"   {{ templateForm.category == 'general'   ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
-                                <option value="billing"   {{ templateForm.category == 'billing'   ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
-                                <option value="technical" {{ templateForm.category == 'technical' ? 'selected' : '' }}>{{ t('admin_tickets_category_technical', page_locale()) }}</option>
-                                <option value="abuse"     {{ templateForm.category == 'abuse'     ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', page_locale()) }}</option>
-                            </select>
-                        </div>
-                        <div class="form-field">
-                            <label class="form-label">{{ t('admin_tickets_form_priority', page_locale()) }}</label>
-                            <select name="priority" class="form-input">
-                                <option value="low"    {{ templateForm.priority == 'low'    ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
-                                <option value="normal" {{ templateForm.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', page_locale()) }}</option>
-                                <option value="high"   {{ templateForm.priority == 'high'   ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', page_locale()) }}</option>
-                                <option value="urgent" {{ templateForm.priority == 'urgent' ? 'selected' : '' }}>{{ t('admin_tickets_priority_urgent', page_locale()) }}</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_tickets_template_body', page_locale()) }}</label>
-                        <textarea name="body" rows="4" class="form-input">{{ templateForm.body }}</textarea>
-                    </div>
-                    <div>
-                        <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_tickets_template_create', page_locale()) }}</button>
-                    </div>
-                </form>
-
-                {% if templates is empty %}
-                    <div class="cust-empty">
-                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 4a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm-.5 2.5A.5.5 0 0 1 5 6h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zM5 8a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm0 2a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5z"/><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2z"/></svg>
-                        {{ t('admin_tickets_templates_empty', page_locale()) }}
-                    </div>
-                {% else %}
-                    <div style="display:flex;flex-direction:column;gap:10px;">
-                        {% for template in templates %}
-                            <form method="post" action="/admin/tickets/templates/{{ template.id }}" style="border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);display:flex;flex-direction:column;gap:10px;">
-                                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                                    <h3 style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{{ template.title }}</h3>
-                                    <span style="font-size:11px;color:var(--ng-text-muted);">{{ template.updated_at|date('d.m.Y H:i') }}</span>
-                                </div>
-                                <input name="title" value="{{ template.title }}" class="form-input">
-                                <input name="subject" value="{{ template.subject }}" class="form-input">
-                                <div class="grid grid-cols-2 gap-3">
-                                    <select name="category" class="form-input">
-                                        <option value="general"   {{ template.category == 'general'   ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
-                                        <option value="billing"   {{ template.category == 'billing'   ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
-                                        <option value="technical" {{ template.category == 'technical' ? 'selected' : '' }}>{{ t('admin_tickets_category_technical', page_locale()) }}</option>
-                                        <option value="abuse"     {{ template.category == 'abuse'     ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', page_locale()) }}</option>
-                                    </select>
-                                    <select name="priority" class="form-input">
-                                        <option value="low"    {{ template.priority == 'low'    ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
-                                        <option value="normal" {{ template.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', page_locale()) }}</option>
-                                        <option value="high"   {{ template.priority == 'high'   ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', page_locale()) }}</option>
-                                        <option value="urgent" {{ template.priority == 'urgent' ? 'selected' : '' }}>{{ t('admin_tickets_priority_urgent', page_locale()) }}</option>
-                                    </select>
-                                </div>
-                                <textarea name="body" rows="3" class="form-input">{{ template.body }}</textarea>
-                                <div style="display:flex;gap:8px;">
-                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_tickets_template_save', page_locale()) }}</button>
-                                    <button type="submit" formmethod="post" formaction="/admin/tickets/templates/{{ template.id }}/delete" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_tickets_template_delete', page_locale()) }}</button>
-                                </div>
-                            </form>
-                        {% endfor %}
-                    </div>
-                {% endif %}
+    {# Main inbox #}
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="text-base font-semibold text-slate-900">{{ t('admin_tickets_inbox_title', locale) }}</h2>
+                <p class="text-sm text-slate-500">{{ t('admin_tickets_inbox_intro', locale) }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button class="ui-button ui-button--ghost ui-button--sm" hx-get="/admin/tickets/table" hx-target="#tickets-table-wrap" hx-swap="outerHTML">
+                    {{ t('refresh', locale) }}
+                </button>
+                <button class="ui-button ui-button--primary ui-button--sm" onclick="document.getElementById('new-ticket-section').classList.toggle('hidden')">
+                    + {{ t('admin_tickets_new_ticket_btn', locale) }}
+                </button>
             </div>
         </div>
 
-        {# Quick Replies #}
-        <div class="ng-data-card">
-            <div class="ng-data-card__header">
-                <div>
-                    <h2 class="ng-data-card__title">{{ t('admin_tickets_quick_replies_title', page_locale()) }}</h2>
-                    <p class="ng-data-card__sub">{{ t('admin_tickets_quick_replies_intro', page_locale()) }}</p>
-                </div>
-            </div>
-            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:16px;">
-                {% if quickReplyErrors is not empty %}
-                    <div class="ng-alert ng-alert--danger">
-                        <ul class="list-disc list-inside">
-                            {% for error in quickReplyErrors %}<li>{{ error }}</li>{% endfor %}
-                        </ul>
-                    </div>
-                {% endif %}
+        {# Status filter tabs #}
+        <div class="flex overflow-x-auto border-b border-slate-200 px-5" id="ticket-filter-tabs">
+            {% set filters = {
+                'all':      t('admin_tickets_filter_all', locale),
+                'open':     t('admin_tickets_filter_open', locale),
+                'pending':  t('admin_tickets_filter_pending', locale),
+                'resolved': t('admin_tickets_filter_resolved', locale),
+                'closed':   t('admin_tickets_filter_closed', locale),
+            } %}
+            {% for filterKey, filterLabel in filters %}
+                <button
+                    class="ticket-filter-tab whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors {{ loop.first ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700' }}"
+                    data-filter="{{ filterKey }}"
+                    onclick="filterTickets('{{ filterKey }}')"
+                >{{ filterLabel }}</button>
+            {% endfor %}
+        </div>
 
-                <form method="post" action="/admin/tickets/quick-replies" style="display:flex;flex-direction:column;gap:12px;border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);">
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_tickets_quick_reply_title', page_locale()) }}</label>
-                        <input name="title" value="{{ quickReplyForm.title }}" class="form-input">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">{{ t('admin_tickets_quick_reply_body', page_locale()) }}</label>
-                        <textarea name="body" rows="4" class="form-input">{{ quickReplyForm.body }}</textarea>
-                    </div>
-                    <div>
-                        <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_tickets_quick_reply_create', page_locale()) }}</button>
-                    </div>
-                </form>
-
-                {% if quickReplies is empty %}
-                    <div class="cust-empty">
-                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1h12z"/></svg>
-                        {{ t('admin_tickets_quick_replies_empty', page_locale()) }}
-                    </div>
-                {% else %}
-                    <div style="display:flex;flex-direction:column;gap:10px;">
-                        {% for reply in quickReplies %}
-                            <form method="post" action="/admin/tickets/quick-replies/{{ reply.id }}" style="border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);display:flex;flex-direction:column;gap:10px;">
-                                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                                    <h3 style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{{ reply.title }}</h3>
-                                    <span style="font-size:11px;color:var(--ng-text-muted);">{{ reply.updated_at|date('d.m.Y H:i') }}</span>
-                                </div>
-                                <input name="title" value="{{ reply.title }}" class="form-input">
-                                <textarea name="body" rows="3" class="form-input">{{ reply.body }}</textarea>
-                                <div style="display:flex;gap:8px;">
-                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_tickets_quick_reply_save', page_locale()) }}</button>
-                                    <button type="submit" formmethod="post" formaction="/admin/tickets/quick-replies/{{ reply.id }}/delete" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_tickets_quick_reply_delete', page_locale()) }}</button>
-                                </div>
-                            </form>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
+        <div id="tickets-table-wrap" hx-get="/admin/tickets/table" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
+            {% include 'admin/tickets/_table.html.twig' with {
+                tickets: tickets,
+                statusStyles: statusStyles,
+                priorityStyles: priorityStyles,
+                statusLabels: statusLabels,
+                priorityLabels: priorityLabels,
+                categoryLabels: categoryLabels
+            } %}
         </div>
     </div>
+
+    {# New ticket section (hidden by default) #}
+    <div id="new-ticket-section" class="hidden">
+        <div id="ticket-form" hx-trigger="tickets-changed from:body" hx-get="/admin/tickets/form" hx-swap="outerHTML">
+            {% include 'admin/tickets/_form.html.twig' with {
+                form: form,
+                customers: customers,
+                templates: templates,
+                adminSignature: adminSignature
+            } %}
+        </div>
+    </div>
+
+    {# Templates & Quick Replies — collapsible #}
+    <details class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary class="flex cursor-pointer select-none items-center justify-between px-5 py-4 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            <span>{{ t('admin_tickets_section_tools', locale) }}</span>
+            <svg class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </summary>
+        <div class="border-t border-slate-200 p-5">
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+
+                {# Ticket Templates #}
+                <div class="flex flex-col gap-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-800">{{ t('admin_tickets_templates_title', locale) }}</h3>
+                        <p class="text-xs text-slate-500">{{ t('admin_tickets_templates_intro', locale) }}</p>
+                    </div>
+                    {% if templateErrors is not empty %}
+                        <div class="ng-alert ng-alert--danger"><ul class="list-disc list-inside">{% for error in templateErrors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+                    {% endif %}
+                    <form method="post" action="/admin/tickets/templates" class="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div class="form-field"><label class="form-label">{{ t('admin_tickets_template_title', locale) }}</label><input name="title" value="{{ templateForm.title }}" class="form-input"></div>
+                        <div class="form-field"><label class="form-label">{{ t('admin_tickets_template_subject', locale) }}</label><input name="subject" value="{{ templateForm.subject }}" class="form-input"></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="form-field"><label class="form-label">{{ t('admin_tickets_form_category', locale) }}</label>
+                                <select name="category" class="form-input">
+                                    <option value="general" {{ templateForm.category == 'general' ? 'selected' : '' }}>{{ t('admin_tickets_category_general', locale) }}</option>
+                                    <option value="billing" {{ templateForm.category == 'billing' ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', locale) }}</option>
+                                    <option value="technical" {{ templateForm.category == 'technical' ? 'selected' : '' }}>{{ t('admin_tickets_category_technical', locale) }}</option>
+                                    <option value="abuse" {{ templateForm.category == 'abuse' ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', locale) }}</option>
+                                </select>
+                            </div>
+                            <div class="form-field"><label class="form-label">{{ t('admin_tickets_form_priority', locale) }}</label>
+                                <select name="priority" class="form-input">
+                                    <option value="low" {{ templateForm.priority == 'low' ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', locale) }}</option>
+                                    <option value="normal" {{ templateForm.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', locale) }}</option>
+                                    <option value="high" {{ templateForm.priority == 'high' ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', locale) }}</option>
+                                    <option value="urgent" {{ templateForm.priority == 'urgent' ? 'selected' : '' }}>{{ t('admin_tickets_priority_urgent', locale) }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-field"><label class="form-label">{{ t('admin_tickets_template_body', locale) }}</label><textarea name="body" rows="4" class="form-input">{{ templateForm.body }}</textarea></div>
+                        <div><button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_tickets_template_create', locale) }}</button></div>
+                    </form>
+                    {% if templates is empty %}
+                        <p class="text-center text-sm text-slate-500">{{ t('admin_tickets_templates_empty', locale) }}</p>
+                    {% else %}
+                        <div class="flex flex-col gap-3">
+                            {% for template in templates %}
+                                <form method="post" action="/admin/tickets/templates/{{ template.id }}" class="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                    <div class="flex items-center justify-between"><h4 class="text-xs font-semibold text-slate-700">{{ template.title }}</h4><span class="text-xs text-slate-400">{{ template.updated_at|date('d.m.Y H:i') }}</span></div>
+                                    <input name="title" value="{{ template.title }}" class="form-input">
+                                    <input name="subject" value="{{ template.subject }}" class="form-input">
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <select name="category" class="form-input">
+                                            <option value="general" {{ template.category == 'general' ? 'selected' : '' }}>{{ t('admin_tickets_category_general', locale) }}</option>
+                                            <option value="billing" {{ template.category == 'billing' ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', locale) }}</option>
+                                            <option value="technical" {{ template.category == 'technical' ? 'selected' : '' }}>{{ t('admin_tickets_category_technical', locale) }}</option>
+                                            <option value="abuse" {{ template.category == 'abuse' ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', locale) }}</option>
+                                        </select>
+                                        <select name="priority" class="form-input">
+                                            <option value="low" {{ template.priority == 'low' ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', locale) }}</option>
+                                            <option value="normal" {{ template.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', locale) }}</option>
+                                            <option value="high" {{ template.priority == 'high' ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', locale) }}</option>
+                                            <option value="urgent" {{ template.priority == 'urgent' ? 'selected' : '' }}>{{ t('admin_tickets_priority_urgent', locale) }}</option>
+                                        </select>
+                                    </div>
+                                    <textarea name="body" rows="3" class="form-input">{{ template.body }}</textarea>
+                                    <div class="flex gap-2">
+                                        <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_tickets_template_save', locale) }}</button>
+                                        <button type="submit" formaction="/admin/tickets/templates/{{ template.id }}/delete" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_tickets_template_delete', locale) }}</button>
+                                    </div>
+                                </form>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                {# Quick Replies #}
+                <div class="flex flex-col gap-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-800">{{ t('admin_tickets_quick_replies_title', locale) }}</h3>
+                        <p class="text-xs text-slate-500">{{ t('admin_tickets_quick_replies_intro', locale) }}</p>
+                    </div>
+                    {% if quickReplyErrors is not empty %}
+                        <div class="ng-alert ng-alert--danger"><ul class="list-disc list-inside">{% for error in quickReplyErrors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+                    {% endif %}
+                    <form method="post" action="/admin/tickets/quick-replies" class="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div class="form-field"><label class="form-label">{{ t('admin_tickets_quick_reply_title', locale) }}</label><input name="title" value="{{ quickReplyForm.title }}" class="form-input"></div>
+                        <div class="form-field"><label class="form-label">{{ t('admin_tickets_quick_reply_body', locale) }}</label><textarea name="body" rows="4" class="form-input">{{ quickReplyForm.body }}</textarea></div>
+                        <div><button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_tickets_quick_reply_create', locale) }}</button></div>
+                    </form>
+                    {% if quickReplies is empty %}
+                        <p class="text-center text-sm text-slate-500">{{ t('admin_tickets_quick_replies_empty', locale) }}</p>
+                    {% else %}
+                        <div class="flex flex-col gap-3">
+                            {% for reply in quickReplies %}
+                                <form method="post" action="/admin/tickets/quick-replies/{{ reply.id }}" class="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                    <div class="flex items-center justify-between"><h4 class="text-xs font-semibold text-slate-700">{{ reply.title }}</h4><span class="text-xs text-slate-400">{{ reply.updated_at|date('d.m.Y H:i') }}</span></div>
+                                    <input name="title" value="{{ reply.title }}" class="form-input">
+                                    <textarea name="body" rows="3" class="form-input">{{ reply.body }}</textarea>
+                                    <div class="flex gap-2">
+                                        <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_tickets_quick_reply_save', locale) }}</button>
+                                        <button type="submit" formaction="/admin/tickets/quick-replies/{{ reply.id }}/delete" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_tickets_quick_reply_delete', locale) }}</button>
+                                    </div>
+                                </form>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </details>
 
 </div>
+
+<script>
+function filterTickets(filter) {
+    document.querySelectorAll('.ticket-filter-tab').forEach(tab => {
+        const active = tab.dataset.filter === filter;
+        tab.classList.toggle('border-indigo-600', active);
+        tab.classList.toggle('text-indigo-600', active);
+        tab.classList.toggle('border-transparent', !active);
+        tab.classList.toggle('text-slate-500', !active);
+        tab.classList.toggle('hover:text-slate-700', !active);
+    });
+    document.querySelectorAll('[data-ticket-status]').forEach(row => {
+        row.classList.toggle('hidden', filter !== 'all' && row.dataset.ticketStatus !== filter);
+    });
+}
+</script>
 {% endblock %}

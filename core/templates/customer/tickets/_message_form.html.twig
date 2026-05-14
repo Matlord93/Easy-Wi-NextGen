@@ -1,11 +1,14 @@
+{% set locale = locale ?? page_locale() %}
 <div class="border-b border-slate-200 px-6 py-4">
-    <h3 class="text-lg font-semibold">{{ t('customer_ticket_reply_title', page_locale()) }}</h3>
-    <p class="text-sm text-slate-700">{{ t('customer_ticket_reply_intro', page_locale()) }}</p>
+    <h3 class="text-base font-semibold text-slate-900">{{ t('admin_tickets_reply_title', locale) }}</h3>
+    <p class="text-xs text-slate-500">{{ t('admin_tickets_reply_intro', locale) }}</p>
 </div>
-<form class="p-6 space-y-4" method="post" action="/tickets/{{ ticket.id }}/messages" hx-post="/tickets/{{ ticket.id }}/messages" hx-target="#ticket-messages" hx-swap="outerHTML">
+<form class="p-5 space-y-4" method="post" action="/tickets/{{ ticket.id }}/messages" hx-post="/tickets/{{ ticket.id }}/messages" hx-target="#ticket-messages" hx-swap="outerHTML">
     <div>
-        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('customer_ticket_message', page_locale()) }}</label>
-        <textarea name="message" rows="6" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('customer_ticket_message_placeholder', page_locale()) }}"></textarea>
+        <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">{{ t('admin_tickets_reply_message', locale) }}</label>
+        <textarea name="message" rows="7" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-indigo-400 focus:bg-white focus:outline-none" placeholder="{{ t('admin_tickets_reply_placeholder', locale) }}"></textarea>
     </div>
-    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ t('customer_ticket_reply_submit', page_locale()) }}</button>
+    <button type="submit" class="w-full ui-button ui-button--primary">
+        {{ t('admin_tickets_reply_submit', locale) }}
+    </button>
 </form>

@@ -21,7 +21,7 @@
                         <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                             {{ plugin.template.game_key|upper }}
                         </span>
-                        <div class="mt-1 text-[11px] text-slate-500">Für alle Templates mit diesem game_key</div>
+                        <div class="mt-1 text-[11px] text-slate-500">{{ t('admin_plugins_game_key_hint', page_locale()) }}</div>
                     </td>
                     <td class="px-5 py-4 text-slate-600">{{ plugin.version }}</td>
                     <td class="px-5 py-4 text-slate-600 font-mono text-xs">{{ plugin.checksum }}</td>

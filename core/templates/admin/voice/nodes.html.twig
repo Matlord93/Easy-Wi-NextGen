@@ -4,7 +4,7 @@
 <div class="space-y-6" id="voice-admin-root">
     <div>
         <h1 class="text-2xl font-semibold text-slate-900">Voice Nodes</h1>
-        <p class="text-sm text-slate-700">Provider-Knoten für TS3/TS6 verwalten.</p>
+        <p class="text-sm text-slate-700">{{ t('admin_voice_nodes_subtitle', page_locale()) }}</p>
     </div>
 
     <form method="get" action="{{ path('admin_voice_nodes') }}" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm grid gap-3 md:grid-cols-4">

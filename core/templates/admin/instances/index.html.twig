@@ -42,26 +42,26 @@
     <div class="ng-data-card">
         <div class="ng-data-card__header">
             <div>
-                <h2 class="ng-data-card__title">Ops Übersicht</h2>
-                <p class="ng-data-card__sub">Kritische Systemmetriken auf einen Blick</p>
+                <h2 class="ng-data-card__title">{{ t('admin_instances_ops_overview_title', page_locale()) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_instances_ops_overview_intro', page_locale()) }}</p>
             </div>
         </div>
         <div class="ng-data-card__body">
             <div class="ng-ops-grid">
                 <div class="ng-ops-box">
-                    <div class="ng-ops-box__label">Offline Agents</div>
+                    <div class="ng-ops-box__label">{{ t('admin_instances_ops_offline_agents', page_locale()) }}</div>
                     <div class="ng-ops-box__value ng-ops-box__value--danger">{{ ops.offline_agents }}</div>
                 </div>
                 <div class="ng-ops-box">
-                    <div class="ng-ops-box__label">Disk Warnungen</div>
+                    <div class="ng-ops-box__label">{{ t('admin_instances_ops_disk_warnings', page_locale()) }}</div>
                     <div class="ng-ops-box__value ng-ops-box__value--warning">{{ ops.disk_problem_instances }}</div>
                 </div>
                 <div class="ng-ops-box">
-                    <div class="ng-ops-box__label">Runtime unbekannt</div>
+                    <div class="ng-ops-box__label">{{ t('admin_instances_ops_runtime_unknown', page_locale()) }}</div>
                     <div class="ng-ops-box__value ng-ops-box__value--info">{{ ops.runtime_unknown_instances }}</div>
                 </div>
                 <div class="ng-ops-box">
-                    <div class="ng-ops-box__label">Blockierte Schedules</div>
+                    <div class="ng-ops-box__label">{{ t('admin_instances_ops_blocked_schedules', page_locale()) }}</div>
                     <div class="ng-ops-box__value ng-ops-box__value--danger">{{ ops.blocked_schedules }}</div>
                 </div>
             </div>

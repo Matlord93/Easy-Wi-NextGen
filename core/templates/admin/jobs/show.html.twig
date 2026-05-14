@@ -40,7 +40,7 @@
                 {{ job.status|title }}
             </div>
             <div class="mt-4 space-y-1 text-sm text-slate-700">
-                <p><span class="text-slate-700 font-medium">{{ t('type', page_locale()) }}:</span> {{ job.type }}</p>
+                <p><span class="text-slate-700 font-medium">{{ t('type', page_locale()) }}:</span> {{ t('job_type_' ~ job.type|replace({'.': '_'}), page_locale()) }}</p>
                 <p><span class="text-slate-700 font-medium">{{ t('created', page_locale()) }}:</span> {{ job.createdAt|date('Y-m-d H:i') }}</p>
                 <p><span class="text-slate-700 font-medium">{{ t('updated', page_locale()) }}:</span> {{ job.updatedAt|date('Y-m-d H:i') }}</p>
             </div>

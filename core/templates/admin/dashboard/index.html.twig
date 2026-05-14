@@ -173,8 +173,8 @@
             {% set messageItems = [] %}
             {% for job in jobs|slice(0, 3) %}
                 {% set messageItems = messageItems|merge([{
-                    title: t('admin_dashboard_system_message_job', page_locale())|replace({'%id%': job.id}),
-                    description: job.type,
+                    title: t('job_type_' ~ job.type|replace({'.': '_'}), page_locale()),
+                    description: t('admin_dashboard_system_message_job', page_locale())|replace({'%id%': job.id}),
                     time: job.createdAt ? job.createdAt|date('H:i') : t('admin_dashboard_time_unknown', page_locale()),
                     icon: '<svg viewBox="0 0 20 20" fill="currentColor"><path d="M4.75 3A1.75 1.75 0 0 0 3 4.75v10.5C3 16.216 3.784 17 4.75 17h10.5A1.75 1.75 0 0 0 17 15.25V4.75A1.75 1.75 0 0 0 15.25 3H4.75Zm2.5 3.25h5.5a.75.75 0 0 1 0 1.5H7.25a.75.75 0 0 1 0-1.5Zm0 4h8a.75.75 0 0 1 0 1.5h-8a.75.75 0 0 1 0-1.5Z"/></svg>'
                 }]) %}
@@ -203,7 +203,7 @@
                 %}
                 {% set queueRows = queueRows|merge([[
                     '#' ~ job.id,
-                    job.type,
+                    t('job_type_' ~ job.type|replace({'.': '_'}), page_locale()),
                     badge
                 ]]) %}
             {% endfor %}

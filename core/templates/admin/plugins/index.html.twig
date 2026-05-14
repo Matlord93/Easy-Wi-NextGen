@@ -15,7 +15,7 @@
         hx-post="/admin/plugins/seed"
         hx-target="#plugins-table"
         hx-swap="none"
-    >Standard-Plugins hinzufügen</button>
+    >{{ t('admin_plugins_add_standard_button', page_locale()) }}</button>
     <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/plugins/import">{{ t('admin_plugins_import_button', page_locale()) }}</a>
     <a class="ui-button ui-button--primary ui-button--sm" href="/admin/plugins/new">{{ t('admin_plugins_create_button', page_locale()) }}</a>
 {% endset %}

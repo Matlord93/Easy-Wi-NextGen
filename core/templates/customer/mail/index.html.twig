@@ -25,7 +25,7 @@
         {# Stats #}
         <div class="cust-hero__stats" style="grid-template-columns:repeat(3,1fr);max-width:480px;">
             <div class="cust-hero__stat">
-                <div class="cust-hero__stat-label">Postfächer</div>
+                <div class="cust-hero__stat-label">{{ t('customer_mail_mailboxes_label', page_locale()) }}</div>
                 <div class="cust-hero__stat-value">{{ mailboxes|length }}</div>
                 <div class="cust-hero__stat-sub">E-Mail-Konten</div>
             </div>
@@ -58,7 +58,7 @@
         <div class="cust-panel">
             <div class="cust-panel__head">
                 <div>
-                    <h3 class="cust-panel__title">Webmail-Zugänge</h3>
+                    <h3 class="cust-panel__title">{{ t('customer_mail_webmail_accesses_title', page_locale()) }}</h3>
                     <p class="cust-panel__sub">Roundcube URLs nach Domain</p>
                 </div>
             </div>
@@ -175,7 +175,7 @@
                 <div>
                     <label class="cust-form-label">Domain</label>
                     <select name="domain_id" required>
-                        <option value="">Domain auswählen</option>
+                        <option value="">{{ t('customer_mail_domain_select_placeholder', page_locale()) }}</option>
                         {% for domain in domains %}
                             <option value="{{ domain.id }}">{{ domain.name }}</option>
                         {% endfor %}
