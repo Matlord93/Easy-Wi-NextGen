@@ -1274,10 +1274,10 @@ func ensureTs6HttpsCertificate(installDir string, uid, gid int) (string, string,
 	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
 		return "", "", fmt.Errorf("write TS6 HTTPS private key: %w", err)
 	}
-	if err := os.Chown(certPath, uid, gid); err != nil {
+	if err := chownIfSupported(certPath, uid, gid); err != nil {
 		return "", "", err
 	}
-	if err := os.Chown(keyPath, uid, gid); err != nil {
+	if err := chownIfSupported(keyPath, uid, gid); err != nil {
 		return "", "", err
 	}
 	return ts6HTTPSCertificateFilename, ts6HTTPSPrivateKeyFilename, nil
@@ -1286,6 +1286,13 @@ func ensureTs6HttpsCertificate(installDir string, uid, gid int) (string, string,
 func ts6FileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+func chownIfSupported(path string, uid, gid int) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	return os.Chown(path, uid, gid)
 }
 
 func ensureTs6SshHostKey(installDir string, uid, gid int) error {
@@ -1301,7 +1308,7 @@ func ensureTs6SshHostKey(installDir string, uid, gid int) error {
 	if err := os.Chmod(keyPath, 0o600); err != nil {
 		return err
 	}
-	if err := os.Chown(keyPath, uid, gid); err != nil {
+	if err := chownIfSupported(keyPath, uid, gid); err != nil {
 		return err
 	}
 	pubPath := keyPath + ".pub"
@@ -1309,22 +1316,13 @@ func ensureTs6SshHostKey(installDir string, uid, gid int) error {
 		if err := os.Chmod(pubPath, 0o644); err != nil {
 			return err
 		}
-		if err := os.Chown(pubPath, uid, gid); err != nil {
+		if err := chownIfSupported(pubPath, uid, gid); err != nil {
 			return err
 		}
 	} else if !os.IsNotExist(err) {
 		return err
 	}
 	return nil
-}
-
-func formatYamlList(values []string, indent int) string {
-	prefix := strings.Repeat(" ", indent)
-	lines := make([]string, 0, len(values))
-	for _, value := range values {
-		lines = append(lines, fmt.Sprintf("%s- %s", prefix, value))
-	}
-	return strings.Join(lines, "\n")
 }
 
 func removeUnspecifiedIPv6(values []string, fallback []string) []string {
@@ -1364,13 +1362,6 @@ func hostHasIPv6() bool {
 		}
 	}
 	return false
-}
-
-func boolToInt(value bool) int {
-	if value {
-		return 1
-	}
-	return 0
 }
 
 func convertJobResult(result jobs.Result, afterSubmit func() error) orchestratorResult {
