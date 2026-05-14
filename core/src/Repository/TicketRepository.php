@@ -22,7 +22,28 @@ final class TicketRepository extends ServiceEntityRepository
      */
     public function findByCustomer(User $customer): array
     {
-        return $this->findBy(['customer' => $customer], ['lastMessageAt' => 'DESC']);
+        return $this->createQueryBuilder('ticket')
+            ->addSelect('customer')
+            ->innerJoin('ticket.customer', 'customer')
+            ->andWhere('ticket.customer = :customer')
+            ->setParameter('customer', $customer)
+            ->orderBy('ticket.lastMessageAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return Ticket[]
+     */
+    public function findForAdminList(): array
+    {
+        return $this->createQueryBuilder('ticket')
+            ->addSelect('customer', 'assignedTo')
+            ->innerJoin('ticket.customer', 'customer')
+            ->leftJoin('ticket.assignedTo', 'assignedTo')
+            ->orderBy('ticket.lastMessageAt', 'DESC')
+            ->getQuery()
+            ->getResult();
     }
 
     public function deleteClosedBefore(\DateTimeImmutable $cutoff): int

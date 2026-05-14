@@ -215,7 +215,7 @@ final class TicketApiController
             return new JsonResponse(['error' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
         }
 
-        $messages = $this->ticketMessageRepository->findByTicket($ticket);
+        $messages = $this->ticketMessageRepository->findPublicByTicket($ticket);
 
         return new JsonResponse([
             'ticket' => $this->normalizeTicket($ticket),

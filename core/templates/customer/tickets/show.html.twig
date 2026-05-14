@@ -15,60 +15,72 @@
 } %}
 
 {% block content %}
-<div class="flex flex-col gap-5">
+{% set nowTs = date()|date('U') %}
+{% set ageDays = ((nowTs - ticket.created_at|date('U')) / 86400)|round(0, 'floor') %}
 
-    {# Ticket header #}
-    <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="mb-1 flex items-center gap-2 text-xs text-slate-500">
-            <a href="/tickets" class="hover:text-slate-700">← {{ t('customer_tickets_title', locale) }}</a>
-            <span>/</span>
-            <span class="font-mono">#{{ ticket.id }}</span>
-        </div>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <h1 class="text-xl font-bold text-slate-900">{{ ticket.subject }}</h1>
-                <p class="mt-1 text-sm text-slate-500">
-                    {{ t('customer_ticket_category_label', locale)|replace({'%category%': ticket.category|title}) }}
-                    · {{ t('customer_ticket_created_update', locale)|replace({'%created%': ticket.created_at|date('d.m.Y H:i'), '%updated%': ticket.last_message_at|date('d.m.Y H:i')}) }}
-                </p>
+<div style="display:flex;flex-direction:column;gap:20px;">
+
+    {# ── Hero ── #}
+    <section class="ng-card" style="overflow:hidden;">
+        <div class="tkt-hero">
+            <div class="tkt-hero__inner">
+                <div class="tkt-hero__breadcrumb">
+                    <a href="/tickets">← {{ t('customer_tickets_title', locale) }}</a>
+                    <span>/</span>
+                    <span style="font-family:monospace;">#{{ ticket.id }}</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                        {% include 'components/tickets/_status_badge.html.twig' with { ticket: ticket, statusLabels: statusLabels } %}
+                        {% include 'components/tickets/_priority_badge.html.twig' with { ticket: ticket, priorityLabels: priorityLabels } %}
+                    </div>
+                    <h1 class="tkt-hero__title" style="font-size:20px;">{{ ticket.subject }}</h1>
+                    <p class="tkt-hero__sub">{{ t('customer_ticket_category_label', locale)|replace({'%category%': ticket.category|title}) }} · {{ t('customer_ticket_created_update', locale)|replace({'%created%': ticket.created_at|date('d.m.Y H:i'), '%updated%': ticket.last_message_at|date('d.m.Y H:i')}) }}</p>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px;max-width:320px;">
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('customer_tickets_age_label', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:22px;">{{ ageDays == 0 ? t('customer_tickets_age_today', locale) : ageDays }}</div>
+                    </div>
+                    <div class="tkt-kpi">
+                        <div class="tkt-kpi__label">{{ t('customer_tickets_last_update', locale) }}</div>
+                        <div class="tkt-kpi__value" style="font-size:20px;">{{ ticket.last_message_at|date('d.m.') }}</div>
+                        <div style="font-size:11px;color:rgba(226,232,240,.5);margin-top:2px;">{{ ticket.last_message_at|date('H:i') }}</div>
+                    </div>
+                </div>
             </div>
-            <div class="flex flex-wrap gap-2">
-                <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ statusStyles[ticket.status] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
-                    {{ statusLabels[ticket.status] ?? ticket.status }}
-                </span>
-                <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ priorityStyles[ticket.priority] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
-                    {{ priorityLabels[ticket.priority] ?? ticket.priority }}
-                </span>
-            </div>
         </div>
-    </div>
+    </section>
 
-    {# Conversation + reply #}
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
+    {# ── Main: conversation + sidebar ── #}
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:20px;align-items:start;">
 
-        {# Chat thread #}
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-base font-semibold text-slate-900">{{ t('customer_ticket_conversation_title', locale) }}</h2>
+        {# Conversation #}
+        <section class="ng-card" style="overflow:hidden;">
+            <div style="padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+                <h2 style="margin:0;font-size:15px;font-weight:700;color:var(--ng-text);">{{ t('customer_ticket_conversation_title', locale) }}</h2>
+                <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('customer_tickets_transparency_hint', locale) }}</p>
             </div>
             <div id="ticket-messages">
                 {% include 'customer/tickets/_messages.html.twig' with { ticket: ticket, messages: messages } %}
             </div>
-        </div>
+        </section>
 
-        {# Reply form or closed notice #}
-        <div class="self-start rounded-xl border border-slate-200 bg-white shadow-sm sticky top-5">
-            {% if ticket.status == 'closed' %}
-                <div class="p-6 text-sm text-slate-600">
-                    <p class="font-semibold text-slate-800">{{ statusLabels.closed }}</p>
-                    <p class="mt-1">{{ t('customer_ticket_closed_notice', locale) }}</p>
-                    <a href="/tickets" class="mt-4 inline-flex ui-button ui-button--ghost ui-button--sm">← {{ t('customer_tickets_title', locale) }}</a>
-                </div>
-            {% else %}
-                {% include 'customer/tickets/_message_form.html.twig' with { ticket: ticket, locale: locale } %}
-            {% endif %}
-        </div>
-
+        {# Sidebar #}
+        <aside style="position:sticky;top:20px;">
+            <div class="ng-card" style="overflow:hidden;">
+                {% if ticket.status == 'closed' %}
+                    <div style="padding:24px 20px;display:flex;flex-direction:column;gap:12px;">
+                        <div style="width:44px;height:44px;border-radius:12px;background:var(--ng-surface-soft);color:var(--ng-text-muted);display:flex;align-items:center;justify-content:center;font-size:20px;">✓</div>
+                        <p style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ statusLabels.closed }}</p>
+                        <p style="margin:0;font-size:13px;color:var(--ng-text-muted);">{{ t('customer_ticket_closed_notice', locale) }}</p>
+                        <a href="/tickets" class="ui-button ui-button--ghost" style="width:100%;">← {{ t('customer_tickets_title', locale) }}</a>
+                    </div>
+                {% else %}
+                    {% include 'customer/tickets/_message_form.html.twig' with { ticket: ticket, locale: locale } %}
+                {% endif %}
+            </div>
+        </aside>
     </div>
 </div>
 {% endblock %}

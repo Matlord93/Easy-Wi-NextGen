@@ -1,14 +1,18 @@
 {% set locale = locale ?? page_locale() %}
-<div class="border-b border-slate-200 px-6 py-4">
-    <h3 class="text-base font-semibold text-slate-900">{{ t('admin_tickets_reply_title', locale) }}</h3>
-    <p class="text-xs text-slate-500">{{ t('admin_tickets_reply_intro', locale) }}</p>
+<div style="padding:18px 20px;border-bottom:1px solid var(--ng-border);">
+    <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('admin_tickets_reply_title', locale) }}</h3>
+    <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('admin_tickets_reply_intro', locale) }}</p>
 </div>
-<form class="p-5 space-y-4" method="post" action="/tickets/{{ ticket.id }}/messages" hx-post="/tickets/{{ ticket.id }}/messages" hx-target="#ticket-messages" hx-swap="outerHTML">
-    <div>
-        <label class="text-xs font-semibold uppercase tracking-wide text-slate-600">{{ t('admin_tickets_reply_message', locale) }}</label>
-        <textarea name="message" rows="7" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-indigo-400 focus:bg-white focus:outline-none" placeholder="{{ t('admin_tickets_reply_placeholder', locale) }}"></textarea>
+<form style="padding:18px 20px;display:flex;flex-direction:column;gap:14px;" method="post" action="/tickets/{{ ticket.id }}/messages" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="/tickets/{{ ticket.id }}/messages" hx-target="#ticket-messages" hx-swap="outerHTML">
+    <input type="hidden" name="_token" value="{{ csrf_token('customer_ticket_message_' ~ ticket.id) }}">
+    <div class="form-field">
+        <label class="form-label">{{ t('admin_tickets_reply_message', locale) }}</label>
+        <textarea name="message" rows="7" placeholder="{{ t('admin_tickets_reply_placeholder', locale) }}"></textarea>
     </div>
-    <button type="submit" class="w-full ui-button ui-button--primary">
-        {{ t('admin_tickets_reply_submit', locale) }}
-    </button>
+    <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:var(--ng-radius-sm);border:1px dashed var(--ng-border);background:var(--ng-surface-soft);font-size:12px;font-weight:600;color:var(--ng-text-muted);cursor:pointer;transition:border-color .15s;">
+        <input type="file" name="attachments[]" style="display:none;" multiple>
+        <svg style="width:14px;height:14px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
+        {{ t('ticket_ui_attach_file', locale) }} <span style="font-weight:400;opacity:.7;">({{ t('ticket_ui_attachment_limits', locale) }})</span>
+    </label>
+    <button type="submit" class="ui-button ui-button--primary" style="width:100%;">{{ t('admin_tickets_reply_submit', locale) }}</button>
 </form>

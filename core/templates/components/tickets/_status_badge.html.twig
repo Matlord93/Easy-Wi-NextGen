@@ -1,4 +1,4 @@
-{% set locale = page_locale() %}
+{% set locale = locale ?? page_locale() %}
 {% set statusLabels = statusLabels ?? {
     'open':     t('admin_tickets_status_open', locale),
     'pending':  t('admin_tickets_status_pending', locale),
@@ -12,5 +12,6 @@
     'closed':   'ui-badge--neutral',
 } %}
 <span class="ui-badge {{ badgeClass[ticket.status] ?? 'ui-badge--neutral' }}">
-    {{ statusLabels[ticket.status] ?? ticket.status }}
+    <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.75;margin-right:2px;vertical-align:middle;"></span>
+    {{ statusLabels[ticket.status] ?? ticket.status|title }}
 </span>

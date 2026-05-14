@@ -22,7 +22,30 @@ final class TicketMessageRepository extends ServiceEntityRepository
      */
     public function findByTicket(Ticket $ticket): array
     {
-        return $this->findBy(['ticket' => $ticket], ['createdAt' => 'ASC']);
+        return $this->createQueryBuilder('message')
+            ->addSelect('author')
+            ->innerJoin('message.author', 'author')
+            ->andWhere('message.ticket = :ticket')
+            ->setParameter('ticket', $ticket)
+            ->orderBy('message.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return TicketMessage[]
+     */
+    public function findPublicByTicket(Ticket $ticket): array
+    {
+        return $this->createQueryBuilder('message')
+            ->addSelect('author')
+            ->innerJoin('message.author', 'author')
+            ->andWhere('message.ticket = :ticket')
+            ->andWhere('message.internal = false')
+            ->setParameter('ticket', $ticket)
+            ->orderBy('message.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 
     public function deleteForClosedTicketsBefore(\DateTimeImmutable $cutoff): int
@@ -30,7 +53,7 @@ final class TicketMessageRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('message')
             ->delete()
             ->andWhere('message.ticket IN (
-                SELECT t.id FROM App\\Entity\\Ticket t
+                SELECT t.id FROM App\\Module\\Core\\Domain\\Entity\\Ticket t
                 WHERE t.status = :status AND t.updatedAt < :cutoff
             )')
             ->setParameter('status', TicketStatus::Closed)

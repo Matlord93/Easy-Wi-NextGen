@@ -1,50 +1,70 @@
 {% set locale = locale ?? page_locale() %}
-<div class="border-b border-slate-200 px-6 py-4">
-    <h3 class="text-lg font-semibold">{{ t('admin_tickets_reply_title', locale) }}</h3>
-    <p class="text-sm text-slate-700">{{ t('admin_tickets_reply_intro', page_locale()) }}</p>
-</div>
-<form class="p-6 space-y-4" method="post" action="/admin/tickets/{{ ticket.id }}/messages" hx-post="/admin/tickets/{{ ticket.id }}/messages" hx-target="#ticket-messages" hx-swap="outerHTML">
-    {% if quickReplies is not empty %}
-        <div>
-            <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_quick_reply_label', page_locale()) }}</label>
-            <select id="admin-ticket-quick-reply" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                <option value="">{{ t('admin_tickets_quick_reply_placeholder', page_locale()) }}</option>
-                {% for reply in quickReplies %}
-                    <option value="{{ reply.id }}" data-body="{{ reply.body|e('html_attr') }}">{{ reply.title }}</option>
-                {% endfor %}
-            </select>
+<div style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+
+    {# Reply form #}
+    <form class="tkt-reply-form" method="post" action="/admin/tickets/{{ ticket.id }}/messages" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-post="/admin/tickets/{{ ticket.id }}/messages" hx-target="#ticket-messages" hx-swap="outerHTML">
+        <input type="hidden" name="_token" value="{{ csrf_token('admin_ticket_message_' ~ ticket.id) }}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
+            <div>
+                <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('ticket_ui_write_reply', locale) }}</h3>
+                <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('ticket_ui_admin_reply_intro', locale) }}</p>
+            </div>
+            <span class="ui-badge ui-badge--primary">{{ t('ticket_ui_reply_customer', locale) }}</span>
         </div>
-    {% endif %}
-    <div>
-        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_reply_message', page_locale()) }}</label>
-        <textarea id="admin-ticket-reply-message" name="message" rows="6" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="{{ t('admin_tickets_reply_placeholder', page_locale()) }}"></textarea>
-    </div>
-    {% if adminSignature %}
-        <label class="flex items-center gap-2 text-xs text-slate-700">
-            <input type="checkbox" name="include_signature" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" checked>
-            {{ t('admin_tickets_signature_toggle', page_locale()) }}
-        </label>
-    {% endif %}
-    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-slate-900 text-white">{{ t('admin_tickets_reply_submit', page_locale()) }}</button>
-</form>
+        {% if quickReplies is not empty %}
+            <div class="form-field" style="margin-bottom:10px;">
+                <label class="form-label">{{ t('admin_tickets_quick_reply_label', locale) }}</label>
+                <select id="admin-ticket-quick-reply">
+                    <option value="">{{ t('ticket_ui_select_template', locale) }}</option>
+                    {% for reply in quickReplies %}<option value="{{ reply.id }}" data-body="{{ reply.body|e('html_attr') }}">{{ reply.title }}</option>{% endfor %}
+                </select>
+            </div>
+        {% endif %}
+        <div class="form-field" style="margin-bottom:10px;">
+            <label class="form-label">{{ t('ticket_ui_message', locale) }}</label>
+            <textarea id="admin-ticket-reply-message" name="message" rows="5" placeholder="{{ t('ticket_ui_reply_placeholder', locale) }}"></textarea>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:var(--ng-radius-sm);border:1px dashed var(--ng-border);background:var(--ng-surface-soft);font-size:12px;font-weight:600;color:var(--ng-text-muted);cursor:pointer;transition:border-color .15s;">
+                <input type="file" name="attachments[]" style="display:none;" multiple>
+                <svg style="width:13px;height:13px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"/></svg>
+                {{ t('ticket_ui_attach_file', locale) }} <span style="font-weight:400;opacity:.7;">({{ t('ticket_ui_attachment_limits', locale) }})</span>
+            </label>
+            <div style="display:flex;align-items:center;gap:10px;">
+                {% if adminSignature %}
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ng-text-muted);cursor:pointer;">
+                        <input type="checkbox" name="include_signature" value="1" style="width:auto;min-height:auto;" checked>
+                        {{ t('ticket_ui_signature', locale) }}
+                    </label>
+                {% endif %}
+                <button type="submit" class="ui-button ui-button--primary">{{ t('ticket_ui_send_reply', locale) }}</button>
+            </div>
+        </div>
+    </form>
 
+    {# Internal note form #}
+    <form id="ticket-internal-note" class="tkt-note-form" method="post" action="/admin/tickets/{{ ticket.id }}/internal-notes" hx-post="/admin/tickets/{{ ticket.id }}/internal-notes" hx-target="#ticket-messages" hx-swap="outerHTML">
+        <input type="hidden" name="_token" value="{{ csrf_token('admin_ticket_internal_note_' ~ ticket.id) }}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
+            <div>
+                <h3 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('ticket_ui_add_internal_note', locale) }}</h3>
+                <p style="margin:3px 0 0;font-size:12px;color:rgba(252,211,77,0.7);">{{ t('ticket_ui_internal_note_intro', locale) }}</p>
+            </div>
+            <span class="ui-badge ui-badge--warning">
+                <svg style="width:11px;height:11px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                {{ t('ticket_ui_internal_note', locale) }}
+            </span>
+        </div>
+        <div class="form-field" style="margin-bottom:12px;">
+            <label class="form-label">{{ t('ticket_ui_internal_note', locale) }}</label>
+            <textarea name="internal_note" rows="4" placeholder="{{ t('ticket_ui_internal_note_placeholder', locale) }}"></textarea>
+        </div>
+        <div style="display:flex;justify-content:flex-end;">
+            <button type="submit" class="ui-button ui-button--warning" style="background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.4);color:#fcd34d;">{{ t('ticket_ui_save_internal_note', locale) }}</button>
+        </div>
+    </form>
+
+</div>
 {% if quickReplies is not empty %}
-    <script>
-        (() => {
-            const replySelect = document.getElementById('admin-ticket-quick-reply');
-            const messageTextarea = document.getElementById('admin-ticket-reply-message');
-
-            if (!replySelect || !messageTextarea) {
-                return;
-            }
-
-            replySelect.addEventListener('change', () => {
-                const option = replySelect.selectedOptions[0];
-                if (!option || !option.dataset.body) {
-                    return;
-                }
-                messageTextarea.value = option.dataset.body || '';
-            });
-        })();
-    </script>
+<script>(()=>{const s=document.getElementById('admin-ticket-quick-reply');const t=document.getElementById('admin-ticket-reply-message');if(!s||!t)return;s.addEventListener('change',()=>{const o=s.selectedOptions[0];if(o?.dataset.body)t.value=o.dataset.body;});})();</script>
 {% endif %}

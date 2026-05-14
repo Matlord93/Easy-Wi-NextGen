@@ -1,0 +1,16 @@
+{% set locale = locale ?? page_locale() %}
+{% set priorityLabels = priorityLabels ?? {
+    'low':    t('admin_tickets_priority_label_low', locale),
+    'normal': t('admin_tickets_priority_label_normal', locale),
+    'high':   t('admin_tickets_priority_label_high', locale),
+    'urgent': t('admin_tickets_priority_label_urgent', locale),
+} %}
+{% set badgeClass = {
+    'low':    'ui-badge--neutral',
+    'normal': 'ui-badge--primary',
+    'high':   'ui-badge--warning',
+    'urgent': 'ui-badge--danger',
+} %}
+<span class="ui-badge {{ badgeClass[ticket.priority] ?? 'ui-badge--neutral' }}">
+    {{ priorityLabels[ticket.priority] ?? ticket.priority|title }}
+</span>

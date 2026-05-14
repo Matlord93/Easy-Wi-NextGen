@@ -27,6 +27,10 @@ class Ticket implements ResourceEventSource
     #[ORM\JoinColumn(nullable: false)]
     private User $customer;
 
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'assigned_to_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?User $assignedTo = null;
+
     #[ORM\Column(length: 160)]
     private string $subject;
 
@@ -73,6 +77,17 @@ class Ticket implements ResourceEventSource
     public function getSubject(): string
     {
         return $this->subject;
+    }
+
+    public function getAssignedTo(): ?User
+    {
+        return $this->assignedTo;
+    }
+
+    public function assignTo(?User $admin): void
+    {
+        $this->assignedTo = $admin;
+        $this->touch();
     }
 
     public function setSubject(string $subject): void

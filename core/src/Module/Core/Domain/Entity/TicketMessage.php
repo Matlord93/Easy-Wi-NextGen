@@ -31,14 +31,18 @@ class TicketMessage implements ResourceEventSource
     #[ORM\Column(type: 'text')]
     private string $body;
 
+    #[ORM\Column(name: 'is_internal', options: ['default' => false])]
+    private bool $internal = false;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
-    public function __construct(Ticket $ticket, User $author, string $body)
+    public function __construct(Ticket $ticket, User $author, string $body, bool $internal = false)
     {
         $this->ticket = $ticket;
         $this->author = $author;
         $this->body = $body;
+        $this->internal = $internal;
         $this->createdAt = new \DateTimeImmutable();
     }
 
@@ -60,6 +64,11 @@ class TicketMessage implements ResourceEventSource
     public function getBody(): string
     {
         return $this->body;
+    }
+
+    public function isInternal(): bool
+    {
+        return $this->internal;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

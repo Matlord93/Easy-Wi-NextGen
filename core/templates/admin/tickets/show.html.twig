@@ -1,7 +1,6 @@
 {% extends 'admin/base.html.twig' %}
-{% set locale = page_locale() %}
 {% set activeNav = 'tickets' %}
-
+{% set locale = page_locale() %}
 {% set statusLabels = {
     'open':     t('admin_tickets_status_open', locale),
     'pending':  t('admin_tickets_status_pending', locale),
@@ -22,63 +21,151 @@
 } %}
 
 {% block content %}
-<div class="flex flex-col gap-5">
+<div style="display:grid;grid-template-columns:240px minmax(0,1fr) 360px;gap:20px;min-height:calc(100vh - 9rem);">
 
-    {# Ticket header card #}
-    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                    <a href="/admin/tickets" class="text-xs text-slate-500 hover:text-slate-700">← {{ t('admin_tickets_heading', locale) }}</a>
-                    <span class="text-xs text-slate-300">/</span>
-                    <span class="text-xs font-mono text-slate-500">#{{ ticket.id }}</span>
-                </div>
-                <h1 class="text-xl font-bold text-slate-900 truncate">{{ ticket.subject }}</h1>
-                <p class="mt-1 text-sm text-slate-500">
-                    {{ categoryLabels[ticket.category] ?? ticket.category }}
-                    · {{ ticket.customer.email }}
-                    · {{ t('admin_ticket_timestamps', locale)|replace({'%created%': ticket.created_at|date('d.m.Y H:i'), '%updated%': ticket.last_message_at|date('d.m.Y H:i')}) }}
-                </p>
+    {# ── Left nav sidebar ── #}
+    <aside style="position:sticky;top:20px;align-self:start;">
+        <div class="ng-card" style="overflow:hidden;padding:16px;">
+            <a href="/admin/tickets" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--ng-text-muted);text-decoration:none;transition:color .15s;margin-bottom:16px;">
+                <svg style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                {{ t('admin_tickets_heading', locale) }}
+            </a>
+            <div style="background:var(--ng-surface-soft);border:1px solid var(--ng-border);border-radius:var(--ng-radius-sm);padding:14px;margin-bottom:14px;">
+                <div style="font-size:11px;font-weight:700;font-family:monospace;color:var(--ng-text-muted);">#{{ ticket.id }}</div>
+                <h2 style="margin:6px 0 8px;font-size:14px;font-weight:700;color:var(--ng-text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">{{ ticket.subject }}</h2>
+                <p style="margin:0;font-size:12px;color:var(--ng-text-muted);">{{ ticket.customer.email }}</p>
             </div>
-            <div class="flex flex-wrap items-center gap-3 flex-shrink-0">
-                <div id="ticket-status-badge">
-                    {% include 'admin/tickets/_status_badge.html.twig' with { ticket: ticket, statusStyles: statusStyles, statusLabels: statusLabels } %}
+            <div style="display:flex;flex-direction:column;gap:4px;">
+                <a href="/admin/tickets/{{ ticket.id }}" style="display:block;padding:8px 12px;border-radius:var(--ng-radius-sm);background:var(--ng-primary-soft);color:var(--ng-primary);font-size:13px;font-weight:700;text-decoration:none;">{{ t('ticket_ui_conversation', locale) }}</a>
+                <a href="#ticket-reply" style="display:block;padding:8px 12px;border-radius:var(--ng-radius-sm);color:var(--ng-text-muted);font-size:13px;font-weight:600;text-decoration:none;transition:background .15s;" onmouseover="this.style.background='var(--ng-primary-soft)'" onmouseout="this.style.background='transparent'">{{ t('ticket_ui_reply', locale) }}</a>
+                <a href="#ticket-info" style="display:block;padding:8px 12px;border-radius:var(--ng-radius-sm);color:var(--ng-text-muted);font-size:13px;font-weight:600;text-decoration:none;transition:background .15s;" onmouseover="this.style.background='var(--ng-primary-soft)'" onmouseout="this.style.background='transparent'">{{ t('ticket_ui_ticket_data', locale) }}</a>
+            </div>
+        </div>
+    </aside>
+
+    {# ── Main conversation ── #}
+    <main class="ng-card" style="overflow:hidden;display:flex;flex-direction:column;">
+        {# Hero header #}
+        <div class="tkt-hero" style="flex-shrink:0;">
+            <div class="tkt-hero__inner">
+                <div class="tkt-hero__breadcrumb">
+                    <a href="/admin/tickets">← {{ t('ticket_ui_overview', locale) }}</a>
+                    <span>/</span>
+                    <span style="font-family:monospace;">#{{ ticket.id }}</span>
                 </div>
-                <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold {{ priorityStyles[ticket.priority] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
-                    {{ priorityLabels[ticket.priority] ?? ticket.priority }}
-                </span>
-                <form class="flex items-center gap-2" method="post" action="/admin/tickets/{{ ticket.id }}/status" hx-post="/admin/tickets/{{ ticket.id }}/status" hx-target="#ticket-status-badge" hx-swap="outerHTML">
-                    <select name="status" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                        <option value="open" {{ ticket.status == 'open' ? 'selected' : '' }}>{{ statusLabels.open }}</option>
-                        <option value="pending" {{ ticket.status == 'pending' ? 'selected' : '' }}>{{ statusLabels.pending }}</option>
-                        <option value="resolved" {{ ticket.status == 'resolved' ? 'selected' : '' }}>{{ statusLabels.resolved }}</option>
-                        <option value="closed" {{ ticket.status == 'closed' ? 'selected' : '' }}>{{ statusLabels.closed }}</option>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                        {% include 'components/tickets/_status_badge.html.twig' with { ticket: ticket, statusLabels: statusLabels } %}
+                        {% include 'components/tickets/_priority_badge.html.twig' with { ticket: ticket, priorityLabels: priorityLabels } %}
+                    </div>
+                    <h1 class="tkt-hero__title" style="font-size:19px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ ticket.subject }}</h1>
+                    <p class="tkt-hero__sub">{{ ticket.customer.email }} · {{ t('ticket_ui_created_lower', locale) }} {{ ticket.created_at|date('d.m.Y H:i') }} · {{ t('ticket_ui_last_activity_lower', locale) }} {{ ticket.last_message_at|date('d.m.Y H:i') }}</p>
+                </div>
+            </div>
+        </div>
+
+        {# Messages #}
+        {% include 'admin/tickets/_messages.html.twig' with { ticket: ticket, messages: messages, statusLabels: statusLabels } %}
+
+        {# Reply forms #}
+        <div id="ticket-reply" style="border-top:1px solid var(--ng-border);">
+            {% include 'admin/tickets/_message_form.html.twig' with { ticket: ticket, quickReplies: quickReplies, adminSignature: adminSignature, locale: locale } %}
+        </div>
+    </main>
+
+    {# ── Right info sidebar ── #}
+    <aside id="ticket-info" style="position:sticky;top:20px;align-self:start;display:flex;flex-direction:column;gap:14px;">
+
+        {# Metadata form #}
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="padding:16px 20px;border-bottom:1px solid var(--ng-border);">
+                <h2 style="margin:0;font-size:14px;font-weight:700;color:var(--ng-text);">{{ t('ticket_ui_ticket_info', locale) }}</h2>
+                <p style="margin:3px 0 0;font-size:12px;color:var(--ng-text-muted);">{{ t('ticket_ui_ticket_info_intro', locale) }}</p>
+            </div>
+            <form method="post" action="/admin/tickets/{{ ticket.id }}/metadata" style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+                <input type="hidden" name="_token" value="{{ csrf_token('admin_ticket_metadata_' ~ ticket.id) }}">
+                <div class="form-field">
+                    <label class="form-label">{{ t('ticket_ui_change_status', locale) }}</label>
+                    <select name="status">
+                        {% for value,label in statusLabels %}<option value="{{ value }}" {{ ticket.status == value ? 'selected' : '' }}>{{ label }}</option>{% endfor %}
                     </select>
-                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_tickets_update_status', locale) }}</button>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('ticket_ui_change_priority', locale) }}</label>
+                    <select name="priority">
+                        {% for value,label in priorityLabels %}<option value="{{ value }}" {{ ticket.priority == value ? 'selected' : '' }}>{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('ticket_ui_change_category', locale) }}</label>
+                    <select name="category">
+                        {% for value,label in categoryLabels %}<option value="{{ value }}" {{ ticket.category == value ? 'selected' : '' }}>{{ label }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">{{ t('ticket_ui_assigned_to', locale) }}</label>
+                    <select name="assigned_to_id">
+                        <option value="" {{ ticket.assigned_to is empty ? 'selected' : '' }}>{{ t('ticket_ui_unassigned', locale) }}</option>
+                        {% for staff in staffUsers|default([]) %}
+                            <option value="{{ staff.id }}" {{ ticket.assigned_to and ticket.assigned_to.id == staff.id ? 'selected' : '' }}>{{ staff.email }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="ui-button ui-button--primary" style="width:100%;">{{ t('ticket_ui_save_changes', locale) }}</button>
+            </form>
+        </div>
+
+        {# Quick actions #}
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="padding:14px 20px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;color:var(--ng-text);">{{ t('ticket_ui_quick_actions', locale) }}</h3>
+            </div>
+            <div style="padding:14px 20px;display:flex;flex-direction:column;gap:8px;">
+                <form method="post" action="/admin/tickets/{{ ticket.id }}/status">
+                    <input type="hidden" name="_token" value="{{ csrf_token('admin_ticket_status_' ~ ticket.id) }}">
+                    <input type="hidden" name="status" value="resolved">
+                    <button type="submit" class="tkt-sidebar-btn tkt-sidebar-btn--success">{{ t('ticket_ui_mark_resolved', locale) }}</button>
+                </form>
+                <a href="#ticket-reply" class="tkt-sidebar-btn tkt-sidebar-btn--primary">{{ t('ticket_ui_reply_customer', locale) }}</a>
+                <a href="#ticket-internal-note" class="tkt-sidebar-btn tkt-sidebar-btn--warning">{{ t('ticket_ui_add_internal_note', locale) }}</a>
+                <form method="post" action="/admin/tickets/{{ ticket.id }}/status">
+                    <input type="hidden" name="_token" value="{{ csrf_token('admin_ticket_status_' ~ ticket.id) }}">
+                    <input type="hidden" name="status" value="closed">
+                    <button type="submit" class="tkt-sidebar-btn">{{ t('ticket_ui_close_ticket', locale) }}</button>
                 </form>
             </div>
         </div>
-    </div>
 
-    {# Conversation + reply side by side #}
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_380px]">
-
-        {# Message thread #}
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-base font-semibold text-slate-900">{{ t('admin_tickets_conversation_title', locale) }}</h2>
-                <p class="text-xs text-slate-500">{{ t('admin_tickets_conversation_intro', locale) }}</p>
+        {# Ticket details #}
+        <div class="ng-card" style="overflow:hidden;">
+            <div style="padding:14px 20px;border-bottom:1px solid var(--ng-border);">
+                <h3 style="margin:0;font-size:13px;font-weight:700;color:var(--ng-text);">{{ t('ticket_ui_customer_data', locale) }}</h3>
             </div>
-            <div id="ticket-messages">
-                {% include 'admin/tickets/_messages.html.twig' with { ticket: ticket, messages: messages, statusStyles: statusStyles, priorityStyles: priorityStyles, statusLabels: statusLabels } %}
+            <div style="padding:14px 20px;">
+                <dl class="tkt-dl">
+                    <div>
+                        <dt>{{ t('ticket_ui_customer_data', locale) }}</dt>
+                        <dd>{{ ticket.customer.email }}</dd>
+                    </div>
+                    <div>
+                        <dt>{{ t('ticket_ui_assigned_to', locale) }}</dt>
+                        <dd style="{{ ticket.assigned_to ? '' : 'color:var(--ng-text-muted);font-weight:400;' }}">{{ ticket.assigned_to ? ticket.assigned_to.email : t('ticket_ui_unassigned', locale) }}</dd>
+                    </div>
+                    <div>
+                        <dt>{{ t('ticket_ui_tags', locale) }}</dt>
+                        <dd style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+                            <span class="ui-badge ui-badge--neutral">{{ categoryLabels[ticket.category] ?? ticket.category|title }}</span>
+                            <span class="ui-badge ui-badge--neutral">#{{ ticket.id }}</span>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>{{ t('ticket_ui_internal_notes', locale) }}</dt>
+                        <dd style="color:var(--ng-text-muted);font-weight:400;">{{ t('ticket_ui_internal_note_intro', locale) }}</dd>
+                    </div>
+                </dl>
             </div>
         </div>
 
-        {# Reply form #}
-        <div class="rounded-xl border border-slate-200 bg-white shadow-sm self-start sticky top-5">
-            {% include 'admin/tickets/_message_form.html.twig' with { ticket: ticket, quickReplies: quickReplies, adminSignature: adminSignature, locale: locale } %}
-        </div>
-
-    </div>
+    </aside>
 </div>
 {% endblock %}

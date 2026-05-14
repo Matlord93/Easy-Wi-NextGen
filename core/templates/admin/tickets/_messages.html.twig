@@ -1,25 +1,51 @@
 {% set locale = page_locale() %}
-<div class="divide-y divide-slate-100">
+{% set internalCount = messages|filter(message => message.is_internal)|length %}
+<div id="ticket-messages" class="tkt-thread">
     {% for message in messages %}
         {% set isAdmin = message.author.type in ['admin', 'superadmin', 'reseller'] %}
-        <div class="px-6 py-5 {{ isAdmin ? 'bg-indigo-50' : 'bg-white' }}">
-            <div class="flex items-start gap-3">
-                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold {{ isAdmin ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600' }}">
+        {% if message.is_internal %}
+            <div class="tkt-note">
+                <div class="tkt-note__label">
+                    <svg style="width:13px;height:13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    {{ t('ticket_ui_internal_note', locale) }}
+                </div>
+                <div class="tkt-note__body">{{ message.body }}</div>
+                <div class="tkt-note__footer">{{ message.author.email }} · {{ message.created_at|date('d.m.Y H:i') }}</div>
+            </div>
+        {% else %}
+            <div class="tkt-msg {{ isAdmin ? 'tkt-msg--admin' : '' }}">
+                <div class="tkt-avatar {{ isAdmin ? 'tkt-avatar--admin' : 'tkt-avatar--customer' }}">
                     {{ message.author.email|slice(0,1)|upper }}
                 </div>
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-baseline gap-2">
-                        <span class="text-sm font-semibold {{ isAdmin ? 'text-indigo-900' : 'text-slate-900' }}">{{ message.author.email }}</span>
-                        <span class="text-xs text-slate-400">{{ message.created_at|date('d.m.Y H:i') }}</span>
-                        {% if isAdmin %}
-                            <span class="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">{{ t('type', locale) }}</span>
-                        {% endif %}
+                <div class="tkt-bubble-wrap">
+                    <div class="tkt-bubble-meta" style="{{ isAdmin ? 'flex-direction:row-reverse;' : '' }}">
+                        <span style="font-weight:700;color:{{ isAdmin ? 'var(--ng-primary)' : 'var(--ng-text)' }};">
+                            {{ isAdmin ? t('customer_ticket_reply_support', locale) : message.author.email }}
+                        </span>
+                        <span>{{ message.created_at|date('d.m.Y H:i') }}</span>
                     </div>
-                    <p class="mt-2 whitespace-pre-line text-sm {{ isAdmin ? 'text-indigo-800' : 'text-slate-700' }}">{{ message.body }}</p>
+                    <div class="tkt-bubble {{ isAdmin ? 'tkt-bubble--admin' : 'tkt-bubble--customer' }}">{{ message.body }}</div>
+                    {% if message.attachments is not empty %}
+                        <div class="tkt-attachments" style="{{ isAdmin ? 'justify-content:flex-end;' : '' }}">
+                            {% for attachment in message.attachments %}
+                                <a href="{{ attachment.download_url }}" class="tkt-att">
+                                    <svg style="width:13px;height:13px;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                                    <span class="tkt-att__name">{{ attachment.name }}</span>
+                                    <span style="font-weight:400;opacity:.6;flex-shrink:0;">{{ (attachment.size / 1024)|round(0, 'ceil') }} KB</span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                 </div>
             </div>
-        </div>
+        {% endif %}
     {% else %}
-        <div class="px-6 py-8 text-center text-sm text-slate-500">{{ t('admin_tickets_messages_empty', locale) }}</div>
+        {% include 'components/tickets/_empty_state.html.twig' with { title: t('admin_tickets_messages_empty', locale), text: t('ticket_ui_admin_messages_empty_text', locale) } %}
     {% endfor %}
+
+    {% if internalCount == 0 %}
+        <div style="max-width:min(760px,92%);width:100%;margin:0 auto;background:rgba(245,158,11,0.05);border:1px dashed rgba(245,158,11,0.25);border-radius:12px;padding:14px 18px;text-align:center;font-size:13px;font-weight:600;color:rgba(252,211,77,0.6);">
+            {{ t('ticket_ui_internal_notes_empty', locale) }}
+        </div>
+    {% endif %}
 </div>

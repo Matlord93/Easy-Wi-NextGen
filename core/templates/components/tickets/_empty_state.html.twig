@@ -1,0 +1,11 @@
+{% set locale = locale ?? page_locale() %}
+<div class="cust-empty" style="border: 1px dashed var(--ng-border); border-radius: var(--ng-radius-lg); padding: 48px 24px;">
+    <svg style="width:44px;height:44px;opacity:.3;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.678.173.926.421L12 20.25l2.694-2.463a1.5 1.5 0 0 1 .926-.421 48.55 48.55 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z"/>
+    </svg>
+    <p style="margin:0;font-size:15px;font-weight:700;color:var(--ng-text);">{{ title|default(t('ticket_ui_empty_title', locale)) }}</p>
+    <p style="margin:4px 0 0;font-size:13px;color:var(--ng-text-muted);max-width:340px;">{{ text|default(t('ticket_ui_empty_text', locale)) }}</p>
+    {% if actionHref|default('') %}
+        <a href="{{ actionHref }}" class="ui-button ui-button--primary" style="margin-top:12px;">{{ actionLabel|default(t('ticket_ui_create_ticket', locale)) }}</a>
+    {% endif %}
+</div>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DoctrineMigrations;
 
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
@@ -9105,6 +9106,237 @@ final class Version20260514120000 extends AbstractMigration
     {
         try {
             return $this->connection->createSchemaManager()->tablesExist([$tableName]);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function columnExists(string $table, string $column): bool
+    {
+        try {
+            $columns = $this->connection->createSchemaManager()->listTableColumns($table);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return array_key_exists(strtolower($column), array_change_key_case($columns, CASE_LOWER));
+    }
+}
+
+final class Version20260514133000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Allow tickets to be assigned to an admin user.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$this->tableExists('tickets') || $this->columnExists('tickets', 'assigned_to_id')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE tickets ADD assigned_to_id INT DEFAULT NULL');
+        $this->addSql('CREATE INDEX idx_tickets_assigned_to_id ON tickets (assigned_to_id)');
+
+        if (!$this->isSqlite()) {
+            $this->addSql('ALTER TABLE tickets ADD CONSTRAINT FK_TICKETS_ASSIGNED_TO FOREIGN KEY (assigned_to_id) REFERENCES users (id) ON DELETE SET NULL');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$this->tableExists('tickets') || !$this->columnExists('tickets', 'assigned_to_id')) {
+            return;
+        }
+
+        if (!$this->isSqlite() && $this->foreignKeyExists('tickets', 'FK_TICKETS_ASSIGNED_TO')) {
+            $this->addSql('ALTER TABLE tickets DROP FOREIGN KEY FK_TICKETS_ASSIGNED_TO');
+        }
+
+        if ($this->indexExists('tickets', 'idx_tickets_assigned_to_id')) {
+            $this->addSql($this->isSqlite() ? 'DROP INDEX idx_tickets_assigned_to_id' : 'DROP INDEX idx_tickets_assigned_to_id ON tickets');
+        }
+
+        $this->addSql('ALTER TABLE tickets DROP assigned_to_id');
+    }
+
+    private function tableExists(string $table): bool
+    {
+        try {
+            return $this->connection->createSchemaManager()->tablesExist([$table]);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function columnExists(string $table, string $column): bool
+    {
+        try {
+            $columns = $this->connection->createSchemaManager()->listTableColumns($table);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return array_key_exists(strtolower($column), array_change_key_case($columns, CASE_LOWER));
+    }
+
+    private function indexExists(string $table, string $index): bool
+    {
+        try {
+            $indexes = $this->connection->createSchemaManager()->listTableIndexes($table);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return array_key_exists(strtolower($index), array_change_key_case($indexes, CASE_LOWER));
+    }
+
+    private function foreignKeyExists(string $table, string $foreignKey): bool
+    {
+        try {
+            $foreignKeys = $this->connection->createSchemaManager()->listTableForeignKeys($table);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        foreach ($foreignKeys as $key) {
+            if (strcasecmp($key->getName(), $foreignKey) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isSqlite(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof SQLitePlatform;
+    }
+}
+
+final class Version20260514143000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Add ticket attachment metadata.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if ($this->tableExists('ticket_attachments')) {
+            return;
+        }
+
+        if ($this->isSqlite()) {
+            $this->addSql('CREATE TABLE ticket_attachments (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, ticket_id INTEGER NOT NULL, message_id INTEGER NOT NULL, uploaded_by_id INTEGER NOT NULL, original_name VARCHAR(255) NOT NULL, storage_path VARCHAR(255) NOT NULL, mime_type VARCHAR(120) NOT NULL, size_bytes INTEGER NOT NULL, created_at DATETIME NOT NULL)');
+        } elseif ($this->isPostgreSql()) {
+            $this->addSql('CREATE TABLE ticket_attachments (id SERIAL NOT NULL, ticket_id INT NOT NULL, message_id INT NOT NULL, uploaded_by_id INT NOT NULL, original_name VARCHAR(255) NOT NULL, storage_path VARCHAR(255) NOT NULL, mime_type VARCHAR(120) NOT NULL, size_bytes INT NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, PRIMARY KEY(id))');
+        } else {
+            $this->addSql('CREATE TABLE ticket_attachments (id INT AUTO_INCREMENT NOT NULL, ticket_id INT NOT NULL, message_id INT NOT NULL, uploaded_by_id INT NOT NULL, original_name VARCHAR(255) NOT NULL, storage_path VARCHAR(255) NOT NULL, mime_type VARCHAR(120) NOT NULL, size_bytes INT NOT NULL, created_at DATETIME NOT NULL COMMENT \'(DC2Type:datetime_immutable)\', PRIMARY KEY(id)) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
+        }
+
+        $this->addSql('CREATE INDEX idx_ticket_attachments_ticket_id ON ticket_attachments (ticket_id)');
+        $this->addSql('CREATE INDEX idx_ticket_attachments_message_id ON ticket_attachments (message_id)');
+        $this->addSql('CREATE INDEX idx_ticket_attachments_uploaded_by_id ON ticket_attachments (uploaded_by_id)');
+
+        if (!$this->isSqlite()) {
+            $this->addSql('ALTER TABLE ticket_attachments ADD CONSTRAINT FK_TICKET_ATTACHMENTS_TICKET FOREIGN KEY (ticket_id) REFERENCES tickets (id) ON DELETE CASCADE');
+            $this->addSql('ALTER TABLE ticket_attachments ADD CONSTRAINT FK_TICKET_ATTACHMENTS_MESSAGE FOREIGN KEY (message_id) REFERENCES ticket_messages (id) ON DELETE CASCADE');
+            $this->addSql('ALTER TABLE ticket_attachments ADD CONSTRAINT FK_TICKET_ATTACHMENTS_UPLOADED_BY FOREIGN KEY (uploaded_by_id) REFERENCES users (id)');
+        }
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$this->tableExists('ticket_attachments')) {
+            return;
+        }
+
+        if (!$this->isSqlite()) {
+            foreach (['FK_TICKET_ATTACHMENTS_TICKET', 'FK_TICKET_ATTACHMENTS_MESSAGE', 'FK_TICKET_ATTACHMENTS_UPLOADED_BY'] as $foreignKey) {
+                if ($this->foreignKeyExists('ticket_attachments', $foreignKey)) {
+                    $dropKeyword = $this->isPostgreSql() ? 'DROP CONSTRAINT' : 'DROP FOREIGN KEY';
+                    $this->addSql(sprintf('ALTER TABLE ticket_attachments %s %s', $dropKeyword, $foreignKey));
+                }
+            }
+        }
+
+        $this->addSql('DROP TABLE ticket_attachments');
+    }
+
+    private function tableExists(string $table): bool
+    {
+        try {
+            return $this->connection->createSchemaManager()->tablesExist([$table]);
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function foreignKeyExists(string $table, string $foreignKey): bool
+    {
+        try {
+            $foreignKeys = $this->connection->createSchemaManager()->listTableForeignKeys($table);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        foreach ($foreignKeys as $key) {
+            if (strcasecmp($key->getName(), $foreignKey) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isSqlite(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof SQLitePlatform;
+    }
+
+    private function isPostgreSql(): bool
+    {
+        return $this->connection->getDatabasePlatform() instanceof PostgreSQLPlatform;
+    }
+}
+
+final class Version20260514153000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Mark ticket messages that are internal admin-only notes.';
+    }
+
+    public function up(Schema $schema): void
+    {
+        if (!$this->tableExists('ticket_messages') || $this->columnExists('ticket_messages', 'is_internal')) {
+            return;
+        }
+
+        if ($this->connection->getDatabasePlatform() instanceof PostgreSQLPlatform) {
+            $this->addSql('ALTER TABLE ticket_messages ADD is_internal BOOLEAN NOT NULL DEFAULT FALSE');
+
+            return;
+        }
+
+        $this->addSql('ALTER TABLE ticket_messages ADD is_internal TINYINT(1) NOT NULL DEFAULT 0');
+    }
+
+    public function down(Schema $schema): void
+    {
+        if (!$this->tableExists('ticket_messages') || !$this->columnExists('ticket_messages', 'is_internal')) {
+            return;
+        }
+
+        $this->addSql('ALTER TABLE ticket_messages DROP is_internal');
+    }
+
+    private function tableExists(string $table): bool
+    {
+        try {
+            return $this->connection->createSchemaManager()->tablesExist([$table]);
         } catch (\Throwable) {
             return false;
         }

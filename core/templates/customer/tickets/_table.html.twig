@@ -1,35 +1,50 @@
 {% set locale = page_locale() %}
-{% if tickets is empty %}
-    <div class="flex flex-col items-center justify-center py-12 text-center">
-        <svg class="h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a3 3 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z"/></svg>
-        <p class="mt-3 text-sm font-medium text-slate-500">{{ t('customer_ticket_table_empty', locale) }}</p>
-    </div>
-{% else %}
-    <div class="divide-y divide-slate-100">
-        {% for ticket in tickets %}
-            {% set nowTs = date()|date('U') %}
-            {% set ageDays = ((nowTs - ticket.created_at|date('U')) / 86400)|round(0, 'floor') %}
-            {% set ageLabel = ageDays == 0 ? t('customer_tickets_age_today', locale) : ageDays ~ t('customer_tickets_age_days_suffix', locale) %}
-            <a href="{{ path('customer_ticket_show', {id: ticket.id}) }}" class="flex items-start justify-between gap-4 px-5 py-4 transition-colors hover:bg-slate-50">
-                <div class="flex-1 min-w-0">
-                    <p class="truncate font-semibold text-slate-900">{{ ticket.subject }}</p>
-                    <div class="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                        <span class="font-mono">#{{ ticket.id }}</span>
-                        <span>·</span>
-                        <span>{{ ticket.category|title }}</span>
-                        <span>·</span>
-                        <span>{{ ageLabel }}</span>
+{% set categoryLabels = categoryLabels ?? {
+    'general':   t('admin_tickets_category_label_general', locale),
+    'billing':   t('admin_tickets_category_label_billing', locale),
+    'technical': t('admin_tickets_category_label_technical', locale),
+    'abuse':     t('admin_tickets_category_label_abuse', locale),
+} %}
+<div id="tickets-table" style="background:var(--ng-surface-soft);" hx-get="/tickets/table" hx-include="#customer-ticket-filters" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
+    {% if tickets is empty %}
+        <div style="padding:16px;">
+            {% include 'components/tickets/_empty_state.html.twig' with {
+                title: t('ticket_ui_empty_title', locale),
+                text: t('ticket_ui_customer_empty_text', locale),
+                actionHref: '#ticket-form',
+                actionLabel: t('ticket_ui_create_first_ticket', locale)
+            } %}
+        </div>
+    {% else %}
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;">
+            {% for ticket in tickets %}
+                {% set nowTs = date()|date('U') %}
+                {% set ageDays = ((nowTs - ticket.created_at|date('U')) / 86400)|round(0, 'floor') %}
+                {% set ageLabel = ageDays == 0 ? t('customer_tickets_age_today', locale) : ageDays ~ t('customer_tickets_age_days_suffix', locale) %}
+                <a href="{{ path('customer_ticket_show', {id: ticket.id}) }}" class="tkt-item">
+                    <div class="tkt-item__bar tkt-item__bar--{{ ticket.priority }}"></div>
+                    <div style="display:grid;grid-template-columns:minmax(0,1fr) 140px auto;gap:12px;align-items:center;">
+                        <div style="min-width:0;">
+                            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px;">
+                                <span class="tkt-item__id">#{{ ticket.id }}</span>
+                                <span class="ui-badge ui-badge--neutral ui-badge--sm">{{ categoryLabels[ticket.category] ?? ticket.category|title }}</span>
+                                {% include 'components/tickets/_priority_badge.html.twig' with { ticket: ticket, priorityLabels: priorityLabels } %}
+                            </div>
+                            <div class="tkt-item__subject">{{ ticket.subject }}</div>
+                            <div class="tkt-item__meta">{{ t('ticket_ui_created', locale) }} {{ ticket.created_at|date('d.m.Y') }} · {{ t('customer_tickets_age_label', locale) }}: {{ ageLabel }}</div>
+                        </div>
+                        <div class="tkt-item__date-box">
+                            <div class="tkt-item__date-label">{{ t('ticket_ui_last_reply', locale) }}</div>
+                            <div class="tkt-item__date-val">{{ ticket.last_message_at|date('d.m.Y') }}</div>
+                            <div class="tkt-item__date-time">{{ ticket.last_message_at|date('H:i') }}</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+                            {% include 'components/tickets/_status_badge.html.twig' with { ticket: ticket, statusLabels: statusLabels } %}
+                            <span class="tkt-item__arrow">→</span>
+                        </div>
                     </div>
-                </div>
-                <div class="flex flex-shrink-0 flex-col items-end gap-1.5">
-                    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold {{ statusStyles[ticket.status] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
-                        {{ statusLabels[ticket.status] ?? ticket.status }}
-                    </span>
-                    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium {{ priorityStyles[ticket.priority] ?? 'border-slate-200 bg-slate-50 text-slate-600' }}">
-                        {{ priorityLabels[ticket.priority] ?? ticket.priority }}
-                    </span>
-                </div>
-            </a>
-        {% endfor %}
-    </div>
-{% endif %}
+                </a>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
