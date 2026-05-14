@@ -43,7 +43,6 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 	ramLimitValue := payloadValue(job.Payload, "ram_limit")
 	diskLimitValue := payloadValue(job.Payload, "disk_limit")
 	requiredPortsRaw := payloadValue(job.Payload, "required_ports")
-	portBlockPortsRaw := payloadValue(job.Payload, "port_block_ports", "ports")
 	baseDir := payloadValue(job.Payload, "base_dir")
 	serviceName := payloadValue(job.Payload, "service_name")
 	autostart := parsePayloadBool(payloadValue(job.Payload, "autostart", "auto_start"), true)
@@ -119,7 +118,7 @@ func handleInstanceCreate(job jobs.Job) (jobs.Result, func() error) {
 		}
 	}
 
-	allocatedPorts, err := parsePorts(portBlockPortsRaw)
+	allocatedPorts, err := parsePayloadPortsStrict(job.Payload, "port_block_ports", "ports")
 	if err != nil {
 		return failureResult(job.ID, err)
 	}
@@ -688,7 +687,6 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 	startParams := payloadValue(job.Payload, "start_params")
 	installCommand := payloadValue(job.Payload, "install_command")
 	requiredPortsRaw := payloadValue(job.Payload, "required_ports")
-	portBlockPortsRaw := payloadValue(job.Payload, "port_block_ports", "ports")
 	cpuLimitValue := payloadValue(job.Payload, "cpu_limit")
 	ramLimitValue := payloadValue(job.Payload, "ram_limit")
 	diskLimitValue := payloadValue(job.Payload, "disk_limit")
@@ -721,13 +719,9 @@ func handleInstanceReinstall(job jobs.Job, logSender JobLogSender) (jobs.Result,
 		return failureResult(job.ID, err)
 	}
 
-	var allocatedPorts []int
-	if portBlockPortsRaw != "" {
-		ports, err := parsePorts(portBlockPortsRaw)
-		if err != nil {
-			return failureResult(job.ID, err)
-		}
-		allocatedPorts = ports
+	allocatedPorts, err := parsePayloadPortsStrict(job.Payload, "port_block_ports", "ports")
+	if err != nil {
+		return failureResult(job.ID, err)
 	}
 
 	cpuLimit, err := parsePositiveInt(cpuLimitValue, "cpu_limit")
@@ -1299,6 +1293,25 @@ func parsePortLabels(requiredPortsRaw string) []string {
 		labels = append(labels, label)
 	}
 	return labels
+}
+
+func parsePayloadPortsStrict(payload map[string]any, keys ...string) ([]int, error) {
+	for _, key := range keys {
+		raw, ok := payload[key]
+		if !ok {
+			continue
+		}
+
+		ports, handled, err := parsePortsValue(raw)
+		if err != nil {
+			return nil, err
+		}
+		if handled && len(ports) > 0 {
+			return ports, nil
+		}
+	}
+
+	return []int{}, nil
 }
 
 func parsePayloadPorts(payload map[string]any) []int {

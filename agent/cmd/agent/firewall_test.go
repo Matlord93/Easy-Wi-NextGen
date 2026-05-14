@@ -51,3 +51,40 @@ func TestPortsFromPayloadFallsBackWhenPortBlockPortsEmpty(t *testing.T) {
 		t.Fatalf("ports=%v, want [27015]", ports)
 	}
 }
+
+func TestParsePayloadPortsStrictAcceptsArrayPayload(t *testing.T) {
+	ports, err := parsePayloadPortsStrict(map[string]any{
+		"ports": []any{float64(27015)},
+	}, "port_block_ports", "ports")
+	if err != nil {
+		t.Fatalf("parsePayloadPortsStrict returned error: %v", err)
+	}
+	if len(ports) != 1 || ports[0] != 27015 {
+		t.Fatalf("ports=%v, want [27015]", ports)
+	}
+}
+
+func TestParsePayloadPortsStrictAcceptsJsonArrayString(t *testing.T) {
+	ports, err := parsePayloadPortsStrict(map[string]any{
+		"ports": "[27015]",
+	}, "port_block_ports", "ports")
+	if err != nil {
+		t.Fatalf("parsePayloadPortsStrict returned error: %v", err)
+	}
+	if len(ports) != 1 || ports[0] != 27015 {
+		t.Fatalf("ports=%v, want [27015]", ports)
+	}
+}
+
+func TestParsePayloadPortsStrictFallsBackFromEmptyPortBlock(t *testing.T) {
+	ports, err := parsePayloadPortsStrict(map[string]any{
+		"port_block_ports": []any{},
+		"ports":            []any{float64(27016)},
+	}, "port_block_ports", "ports")
+	if err != nil {
+		t.Fatalf("parsePayloadPortsStrict returned error: %v", err)
+	}
+	if len(ports) != 1 || ports[0] != 27016 {
+		t.Fatalf("ports=%v, want [27016]", ports)
+	}
+}

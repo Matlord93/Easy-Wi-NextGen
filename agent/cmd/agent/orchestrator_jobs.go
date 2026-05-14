@@ -446,7 +446,7 @@ func handleTs6NodeInstall(job jobs.Job) orchestratorResult {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
 
-	archivePath, err := downloadArchiveForInstall(installDir, downloadURL, downloadFilename, "ts6server.tar.bz2")
+	archivePath, err := downloadArchiveForInstall(installDir, downloadURL, downloadFilename, "ts6server.tar.xz")
 	if err != nil {
 		return orchestratorResult{status: "failed", errorText: err.Error()}
 	}
