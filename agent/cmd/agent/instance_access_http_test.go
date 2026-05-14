@@ -664,11 +664,17 @@ func TestEnsureProFTPDUserRepairsWritableTree(t *testing.T) {
 	tmpDir := t.TempDir()
 	rootPath := filepath.Join(tmpDir, "gameserver")
 	nestedDir := filepath.Join(rootPath, "game", "csgo", "addons", "configs", "fake_rcon")
-	if err := os.MkdirAll(nestedDir, 0o500); err != nil {
+	if err := os.MkdirAll(nestedDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	configPath := filepath.Join(nestedDir, "cache.ini")
-	if err := os.WriteFile(configPath, []byte("cache"), 0o400); err != nil {
+	if err := os.WriteFile(configPath, []byte("cache"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(nestedDir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(configPath, 0o400); err != nil {
 		t.Fatal(err)
 	}
 	rootInfo, err := os.Stat(rootPath)
