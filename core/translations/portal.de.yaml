@@ -4443,7 +4443,6 @@ admin_mail_system_no_anomalies: "Keine auffälligen Events erkannt."
 admin_updates_auto_run_migrations: "DB-Migrationen nach jedem Auto-Update automatisch ausführen."
 admin_updates_crontab_instruction: "Füge folgenden Eintrag in deine Crontab ein, um Updates automatisch zu prüfen und zu installieren:"
 # Admin – Voice / Nodes
-overview: "Übersicht"
 admin_voice_nodes_subtitle: "Provider-Knoten für TS3/TS6 verwalten."
 # Customer – Tickets
 customer_tickets_stat_total: "Tickets gesamt"
@@ -4475,7 +4474,6 @@ customer_ts3_restore_serverquery_note: "Restore/Import ist von der ServerQuery-U
 customer_webspace_open_button: "Öffnen ↗"
 customer_sinusbot_bot_limit_warning: "Hinweis: Bei direktem WebUI-Zugriff kann das Bot-Limit nur garantiert werden, wenn Bots über den Kundenbereich verwaltet werden."
 # Ticket system redesign
-admin_tickets_closed: "Geschlossen"
 admin_tickets_oldest_open_banner_title: "Ältestes offenes Ticket"
 admin_tickets_oldest_open_open: "Ticket öffnen"
 admin_tickets_age_today: "Heute"
