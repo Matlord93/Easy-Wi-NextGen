@@ -386,7 +386,7 @@ func removeAddonEntries(instanceDir string, entries []string) error {
 			continue
 		}
 		if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
-			if !os.IsNotExist(err) && !strings.Contains(err.Error(), "directory not empty") {
+			if !isDirectoryNotEmptyError(err) {
 				return fmt.Errorf("remove addon dir %s: %w", dir, err)
 			}
 		}
@@ -405,7 +405,7 @@ func removeAddonEntry(target string) error {
 
 	if info.IsDir() {
 		if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
-			if strings.Contains(err.Error(), "directory not empty") {
+			if isDirectoryNotEmptyError(err) {
 				return nil
 			}
 			return fmt.Errorf("remove addon dir %s: %w", target, err)
@@ -417,6 +417,10 @@ func removeAddonEntry(target string) error {
 		return fmt.Errorf("remove addon file %s: %w", target, err)
 	}
 	return nil
+}
+
+func isDirectoryNotEmptyError(err error) bool {
+	return strings.Contains(strings.ToLower(err.Error()), "directory not empty")
 }
 
 func copyAddonFile(src, dst string) (err error) {
