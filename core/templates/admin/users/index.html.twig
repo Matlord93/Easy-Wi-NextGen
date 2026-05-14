@@ -1,226 +1,279 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('user_management_title', page_locale()) %}
+{% set pageSubtitle = t('user_management_description', page_locale()) %}
+{% set activeNav = 'users' %}
+
 {% block content %}
 <div class="flex flex-col gap-6">
-    <div class="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 to-indigo-900 px-6 py-7 text-white shadow-sm">
-        <h1 class="text-2xl font-semibold">{{ t('user_management_title', page_locale()) }}</h1>
-        <p class="mt-2 max-w-2xl text-sm text-slate-100">{{ t('user_management_description', page_locale()) }}</p>
-        <div class="mt-4 flex flex-wrap gap-3 text-xs font-medium">
-            <span class="rounded-full bg-white/10 px-3 py-1">{{ users|length }} {{ t('users', page_locale())|default('Benutzer') }}</span>
-            <span class="rounded-full bg-white/10 px-3 py-1">{{ users|filter(u => u.type == 'customer')|length }} {{ t('user_type_customer', page_locale()) }}</span>
-            <span class="rounded-full bg-white/10 px-3 py-1">{{ users|filter(u => u.type in ['admin', 'superadmin'])|length }} Admin</span>
+
+    {# ── Summary Chips ── #}
+    <div class="ng-kpi-row">
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('users', page_locale())|default('Gesamt') }}</div>
+            <div class="ng-kpi-box__value">{{ users|length }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('user_type_customer', page_locale()) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ users|filter(u => u.type == 'customer')|length }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">Admins</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--primary">{{ users|filter(u => u.type in ['admin', 'superadmin'])|length }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">Reseller</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ users|filter(u => u.type == 'reseller')|length }}</div>
         </div>
     </div>
 
+    {# ── Flash messages ── #}
     {% if errors is not empty %}
-        <div class="rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm text-rose-700">
-            <ul class="list-disc space-y-1 pl-5">
-                {% for error in errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
+        <div class="ng-alert ng-alert--danger">
+            <ul class="list-disc space-y-1 pl-4">
+                {% for error in errors %}<li>{{ error }}</li>{% endfor %}
             </ul>
         </div>
     {% endif %}
-
     {% if success is not empty %}
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 text-sm text-emerald-700">
-            <ul class="list-disc space-y-1 pl-5">
-                {% for message in success %}
-                    <li>{{ message }}</li>
-                {% endfor %}
+        <div class="ng-alert ng-alert--success">
+            <ul class="list-disc space-y-1 pl-4">
+                {% for message in success %}<li>{{ message }}</li>{% endfor %}
             </ul>
         </div>
     {% endif %}
 
+    {# ── Create user ── #}
     {% if canManageUsers %}
-        <details class="group rounded-xl border border-slate-200 bg-white p-6 shadow-sm" {{ errors is not empty ? 'open' : '' }}>
-            <summary class="flex cursor-pointer list-none items-center justify-between gap-3">
+        <details class="ng-data-card" {{ errors is not empty ? 'open' : '' }}>
+            <summary class="ng-data-card__header" style="cursor:pointer;list-style:none;">
                 <div>
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('user_management_create_title', page_locale()) }}</h2>
-                    <p class="text-sm text-slate-600">{{ t('user_management_create_intro', page_locale()) }}</p>
+                    <h2 class="ng-data-card__title">{{ t('user_management_create_title', page_locale()) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('user_management_create_intro', page_locale()) }}</p>
                 </div>
-                <span class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white">Benutzer/User erstellen</span>
+                <div class="ng-data-card__actions">
+                    <span class="ui-button ui-button--primary ui-button--sm">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
+                        {{ t('user_management_create_action', page_locale()) }}
+                    </span>
+                </div>
             </summary>
 
-            <form method="post" action="/admin/users" class="mt-6 grid gap-4 md:grid-cols-4">
-                <div class="md:col-span-2">
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('email', page_locale()) }}</label>
-                    <input type="email" name="email" value="{{ createForm.email }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
+            <form method="post" action="/admin/users" class="ng-data-card__body">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div class="form-field md:col-span-2">
+                        <label class="form-label">{{ t('email', page_locale()) }}</label>
+                        <input type="email" name="email" value="{{ createForm.email }}" class="form-input" required placeholder="user@example.com">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('type', page_locale()) }}</label>
+                        <select name="type" class="form-input">
+                            <option value="customer" {{ createForm.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
+                            <option value="reseller" {{ createForm.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
+                            <option value="admin"    {{ createForm.type == 'admin'    ? 'selected' : '' }}>{{ t('user_type_admin', page_locale()) }}</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('user_database_limit_label', page_locale()) }}</label>
+                        <input type="number" min="0" name="database_limit" value="{{ createForm.database_limit }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('password', page_locale()) }}</label>
+                        <input type="password" name="password" class="form-input" required>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('password_confirm', page_locale()) }}</label>
+                        <input type="password" name="password_confirm" class="form-input" required>
+                    </div>
+                    <div class="form-field md:col-span-2" style="flex-direction:row;align-items:center;gap:20px;flex-wrap:wrap;padding-top:20px;">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ng-text-muted);font-weight:500;cursor:pointer;">
+                            <input type="hidden" name="member_access_enabled" value="0">
+                            <input type="checkbox" name="member_access_enabled" value="1" style="accent-color:var(--ng-primary);width:15px;height:15px;" {{ createForm.member_access_enabled ? 'checked' : '' }}>
+                            Member access (ROLE_MEMBER)
+                        </label>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ng-text-muted);font-weight:500;cursor:pointer;">
+                            <input type="hidden" name="customer_access_enabled" value="0">
+                            <input type="checkbox" name="customer_access_enabled" value="1" style="accent-color:var(--ng-primary);width:15px;height:15px;" {{ createForm.customer_access_enabled ? 'checked' : '' }}>
+                            Customer access (ROLE_CUSTOMER)
+                        </label>
+                    </div>
                 </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('type', page_locale()) }}</label>
-                    <select name="type" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                        <option value="customer" {{ createForm.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
-                        <option value="reseller" {{ createForm.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
-                        <option value="admin" {{ createForm.type == 'admin' ? 'selected' : '' }}>{{ t('user_type_admin', page_locale()) }}</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password', page_locale()) }}</label>
-                    <input type="password" name="password" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
-                </div>
-                <div class="md:col-span-2">
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password_confirm', page_locale()) }}</label>
-                    <input type="password" name="password_confirm" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" required>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('user_database_limit_label', page_locale()) }}</label>
-                    <input type="number" min="0" name="database_limit" value="{{ createForm.database_limit }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                </div>
-                <div class="md:col-span-2 flex flex-wrap items-center gap-4">
-                    <label class="flex items-center gap-2 text-xs text-slate-700">
-                        <input type="hidden" name="member_access_enabled" value="0">
-                        <input type="checkbox" name="member_access_enabled" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ createForm.member_access_enabled ? 'checked' : '' }}>
-                        Member access (ROLE_MEMBER)
-                    </label>
-                    <label class="flex items-center gap-2 text-xs text-slate-700">
-                        <input type="hidden" name="customer_access_enabled" value="0">
-                        <input type="checkbox" name="customer_access_enabled" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ createForm.customer_access_enabled ? 'checked' : '' }}>
-                        Customer access flag (ROLE_CUSTOMER)
-                    </label>
-                </div>
-                <div class="md:col-span-2 flex items-end justify-end">
-                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('user_management_create_action', page_locale()) }}</button>
+                <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+                    <button type="submit" class="ui-button ui-button--primary">{{ t('user_management_create_action', page_locale()) }}</button>
                 </div>
             </form>
         </details>
     {% else %}
-        <div class="rounded-xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-800">
+        <div class="ng-alert ng-alert--warning">
             Nur Superadmins können Kunden/User erstellen oder bearbeiten.
         </div>
     {% endif %}
 
+    {# ── Pending SSH Keys ── #}
     {% if canManageSshKeys and pendingSshKeys is not empty %}
-        <div class="rounded-xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-amber-900">{{ t('user_management_ssh_pending_title', page_locale()) }}</h2>
-            <div class="mt-4 space-y-4">
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('user_management_ssh_pending_title', page_locale()) }}</h2>
+                </div>
+                <span class="ui-badge ui-badge--warning">{{ pendingSshKeys|length }} ausstehend</span>
+            </div>
+            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:12px;">
                 {% for pending in pendingSshKeys %}
-                    <div class="rounded-lg border border-amber-200 bg-white p-4">
+                    <div style="border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);">
                         <div class="flex flex-wrap items-center justify-between gap-3">
-                            <p class="text-sm font-semibold text-slate-900">{{ pending.email }}</p>
-                            <div class="flex items-center gap-2">
+                            <p style="font-size:13px;font-weight:600;color:var(--ng-text);margin:0;">{{ pending.email }}</p>
+                            <div style="display:flex;gap:8px;">
                                 <form method="post" action="/admin/users/{{ pending.id }}/ssh-key/approve">
-                                    <button type="submit" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">{{ t('user_management_ssh_pending_approve', page_locale()) }}</button>
+                                    <button type="submit" class="ui-button ui-button--sm" style="background:rgba(34,197,94,0.15);color:#4ade80;border-color:rgba(34,197,94,0.35);">{{ t('user_management_ssh_pending_approve', page_locale()) }}</button>
                                 </form>
                                 <form method="post" action="/admin/users/{{ pending.id }}/ssh-key/reject">
-                                    <button type="submit" class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">{{ t('user_management_ssh_pending_reject', page_locale()) }}</button>
+                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('user_management_ssh_pending_reject', page_locale()) }}</button>
                                 </form>
                             </div>
                         </div>
-                        <textarea rows="3" class="mt-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" readonly>{{ pending.key }}</textarea>
+                        <textarea rows="2" style="margin-top:10px;width:100%;font-size:11px;font-family:monospace;background:var(--ng-elevated);border-color:var(--ng-border);border-radius:8px;padding:8px;color:var(--ng-text-muted);" readonly>{{ pending.key }}</textarea>
                     </div>
                 {% endfor %}
             </div>
         </div>
     {% endif %}
 
-    <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-200 text-sm">
-                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-700">
-                    <tr>
-                        <th class="px-4 py-3">{{ t('email', page_locale()) }}</th>
-                        <th class="px-4 py-3">{{ t('type', page_locale()) }}</th>
-                        <th class="px-4 py-3">{{ t('created', page_locale()) }}</th>
-                        <th class="px-4 py-3">Status</th>
-                        <th class="px-4 py-3">Aktion</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-200">
-                    {% for user in users %}
-                        <tr class="bg-white">
-                            <td class="px-4 py-3 font-medium text-slate-900">{{ user.email }}</td>
-                            <td class="px-4 py-3 text-xs uppercase text-slate-700">{{ user.type }}</td>
-                            <td class="px-4 py-3 text-xs text-slate-700">{{ user.created_at|date('Y-m-d H:i') }}</td>
-                            <td class="px-4 py-3 text-xs text-slate-600">
-                                {% if user.type in ['admin', 'superadmin'] %}
-                                    {{ user.ssh_key_set ? t('user_management_ssh_key_present', page_locale()) : t('user_management_ssh_key_missing', page_locale()) }}
-                                {% else %}
-                                    {{ t('portal_language', page_locale()) }}: {{ user.portal_language|upper }}
-                                {% endif %}
-                            </td>
-                            <td class="px-4 py-3">
-                                {% if canManageUsers %}
-                                    <details>
-                                        <summary class="cursor-pointer rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">Kunde/User bearbeiten</summary>
-                                        <form method="post" action="/admin/users/{{ user.id }}/details" class="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-6">
-                                            <div class="md:col-span-2">
-                                                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('email', page_locale()) }}</label>
-                                                <input type="email" name="email" value="{{ user.email }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                            </div>
-                                            <div>
-                                                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('type', page_locale()) }}</label>
-                                                <select name="type" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                                    <option value="customer" {{ user.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
-                                                    <option value="reseller" {{ user.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
-                                                    <option value="admin" {{ user.type == 'admin' ? 'selected' : '' }}>{{ t('user_type_admin', page_locale()) }}</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('new_password', page_locale()) }}</label>
-                                                <input type="password" name="password" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                            </div>
-                                            <div>
-                                                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('password_confirm', page_locale()) }}</label>
-                                                <input type="password" name="password_confirm" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                            </div>
-                                            <div>
-                                                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('user_database_limit_label', page_locale()) }}</label>
-                                                <input type="number" min="0" name="database_limit" value="{{ user.database_limit }}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" {{ user.type != 'customer' ? 'disabled' : '' }}>
-                                            </div>
-                                            <div class="md:col-span-4 flex flex-wrap items-center gap-4">
-                                                <label class="flex items-center gap-2 text-xs text-slate-700">
-                                                    <input type="hidden" name="member_access_enabled" value="0">
-                                                    <input type="checkbox" name="member_access_enabled" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ user.member_access_enabled ? 'checked' : '' }}>
-                                                    Member access
-                                                </label>
-                                                <label class="flex items-center gap-2 text-xs text-slate-700">
-                                                    <input type="hidden" name="customer_access_enabled" value="0">
-                                                    <input type="checkbox" name="customer_access_enabled" value="1" class="h-4 w-4 rounded border-slate-300 text-indigo-600" {{ user.customer_access_enabled ? 'checked' : '' }}>
-                                                    Customer access
-                                                </label>
-                                            </div>
-                                            <div class="md:col-span-2 flex items-end justify-end gap-2">
-                                                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">{{ t('user_management_update_action', page_locale()) }}</button>
-                                                {% if canImpersonate and user.type == 'customer' %}
-                                                    <button type="submit" formaction="/admin/users/{{ user.id }}/impersonate" formmethod="post" formtarget="_blank" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white">{{ t('user_management_impersonate_action', page_locale()) }}</button>
-                                                {% endif %}
-                                            </div>
-                                        </form>
-
-                                        <form method="post" action="/admin/users/{{ user.id }}/preferences" class="mt-3 flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-white p-4">
-                                            <div>
-                                                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('portal_language', page_locale()) }}</label>
-                                                <select name="portal_language" class="mt-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
-                                                    {% for code, label in portalLanguages %}
-                                                        <option value="{{ code }}" {{ user.portal_language == code ? 'selected' : '' }}>{{ label }}</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label class="text-xs font-semibold uppercase text-slate-700">{{ t('invoice_locale', page_locale()) }}</label>
-                                                <select name="locale" class="mt-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs">
-                                                    {% for code, label in locales %}
-                                                        <option value="{{ code }}" {{ user.locale == code ? 'selected' : '' }}>{{ label }}</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </div>
-                                            <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white">{{ t('save', page_locale()) }}</button>
-                                        </form>
-                                    </details>
-                                {% else %}
-                                    <span class="text-xs text-slate-500">Nur Ansicht</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% else %}
+    {# ── Users Table ── #}
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">Alle Benutzer</h2>
+                <p class="ng-data-card__sub">Verwalte Kunden, Reseller und Admins</p>
+            </div>
+        </div>
+        <div class="ng-data-card__body--flush">
+            <div class="overflow-x-auto">
+                <table>
+                    <thead>
                         <tr>
-                            <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-600">{{ t('no_users_found', page_locale()) }}</td>
+                            <th>{{ t('email', page_locale()) }}</th>
+                            <th>{{ t('type', page_locale()) }}</th>
+                            <th>{{ t('created', page_locale()) }}</th>
+                            <th>Status</th>
+                            {% if canManageUsers %}<th>Aktionen</th>{% endif %}
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                            <tr>
+                                <td>
+                                    <div style="font-weight:600;color:var(--ng-text);">{{ user.email }}</div>
+                                </td>
+                                <td>
+                                    {% if user.type == 'superadmin' %}
+                                        <span class="ui-badge ui-badge--danger">{{ user.type }}</span>
+                                    {% elseif user.type == 'admin' %}
+                                        <span class="ui-badge ui-badge--primary">{{ user.type }}</span>
+                                    {% elseif user.type == 'reseller' %}
+                                        <span class="ui-badge ui-badge--warning">{{ user.type }}</span>
+                                    {% else %}
+                                        <span class="ui-badge ui-badge--neutral">{{ user.type }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="color:var(--ng-text-muted);font-size:12px;">{{ user.created_at|date('d.m.Y H:i') }}</td>
+                                <td style="font-size:12px;color:var(--ng-text-muted);">
+                                    {% if user.type in ['admin', 'superadmin'] %}
+                                        {% if user.ssh_key_set %}
+                                            <span class="ui-badge ui-badge--success" style="font-size:10px;">SSH Key hinterlegt</span>
+                                        {% else %}
+                                            <span class="ui-badge ui-badge--warning" style="font-size:10px;">Kein SSH Key</span>
+                                        {% endif %}
+                                    {% else %}
+                                        {{ t('portal_language', page_locale()) }}: <strong>{{ user.portal_language|upper }}</strong>
+                                    {% endif %}
+                                </td>
+                                {% if canManageUsers %}
+                                <td>
+                                    <details class="ng-overflow">
+                                        <summary class="ng-overflow__trigger">
+                                            <span class="ng-overflow__dots"></span>
+                                        </summary>
+                                        <div class="ng-overflow__menu" style="min-width:340px;right:0;padding:14px;display:flex;flex-direction:column;gap:12px;">
+                                            <form method="post" action="/admin/users/{{ user.id }}/details" class="grid gap-3" style="grid-template-columns:1fr 1fr;">
+                                                <div class="form-field" style="grid-column:1/-1;">
+                                                    <label class="form-label">{{ t('email', page_locale()) }}</label>
+                                                    <input type="email" name="email" value="{{ user.email }}" class="form-input">
+                                                </div>
+                                                <div class="form-field">
+                                                    <label class="form-label">{{ t('type', page_locale()) }}</label>
+                                                    <select name="type" class="form-input">
+                                                        <option value="customer" {{ user.type == 'customer' ? 'selected' : '' }}>{{ t('user_type_customer', page_locale()) }}</option>
+                                                        <option value="reseller" {{ user.type == 'reseller' ? 'selected' : '' }}>{{ t('user_type_reseller', page_locale()) }}</option>
+                                                        <option value="admin"    {{ user.type == 'admin'    ? 'selected' : '' }}>{{ t('user_type_admin', page_locale()) }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-field">
+                                                    <label class="form-label">{{ t('user_database_limit_label', page_locale()) }}</label>
+                                                    <input type="number" min="0" name="database_limit" value="{{ user.database_limit }}" class="form-input" {{ user.type != 'customer' ? 'disabled' : '' }}>
+                                                </div>
+                                                <div class="form-field">
+                                                    <label class="form-label">{{ t('new_password', page_locale()) }}</label>
+                                                    <input type="password" name="password" class="form-input">
+                                                </div>
+                                                <div class="form-field">
+                                                    <label class="form-label">{{ t('password_confirm', page_locale()) }}</label>
+                                                    <input type="password" name="password_confirm" class="form-input">
+                                                </div>
+                                                <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+                                                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ng-text-muted);cursor:pointer;">
+                                                        <input type="hidden" name="member_access_enabled" value="0">
+                                                        <input type="checkbox" name="member_access_enabled" value="1" style="accent-color:var(--ng-primary);" {{ user.member_access_enabled ? 'checked' : '' }}>
+                                                        Member access
+                                                    </label>
+                                                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ng-text-muted);cursor:pointer;">
+                                                        <input type="hidden" name="customer_access_enabled" value="0">
+                                                        <input type="checkbox" name="customer_access_enabled" value="1" style="accent-color:var(--ng-primary);" {{ user.customer_access_enabled ? 'checked' : '' }}>
+                                                        Customer access
+                                                    </label>
+                                                </div>
+                                                <div style="grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+                                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('user_management_update_action', page_locale()) }}</button>
+                                                    {% if canImpersonate and user.type == 'customer' %}
+                                                        <button type="submit" formaction="/admin/users/{{ user.id }}/impersonate" formmethod="post" formtarget="_blank" class="ui-button ui-button--primary ui-button--sm">{{ t('user_management_impersonate_action', page_locale()) }}</button>
+                                                    {% endif %}
+                                                </div>
+                                            </form>
+
+                                            <form method="post" action="/admin/users/{{ user.id }}/preferences" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;padding-top:10px;border-top:1px solid var(--ng-border);">
+                                                <div class="form-field" style="min-width:120px;">
+                                                    <label class="form-label">{{ t('portal_language', page_locale()) }}</label>
+                                                    <select name="portal_language" class="form-input form-input--slim">
+                                                        {% for code, label in portalLanguages %}
+                                                            <option value="{{ code }}" {{ user.portal_language == code ? 'selected' : '' }}>{{ label }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <div class="form-field" style="min-width:120px;">
+                                                    <label class="form-label">{{ t('invoice_locale', page_locale()) }}</label>
+                                                    <select name="locale" class="form-input form-input--slim">
+                                                        {% for code, label in locales %}
+                                                            <option value="{{ code }}" {{ user.locale == code ? 'selected' : '' }}>{{ label }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('save', page_locale()) }}</button>
+                                            </form>
+                                        </div>
+                                    </details>
+                                </td>
+                                {% endif %}
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="5" style="text-align:center;padding:32px;color:var(--ng-text-muted);">{{ t('no_users_found', page_locale()) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
+
 </div>
 {% endblock %}

@@ -191,6 +191,8 @@ textarea {
 .font-normal { font-weight: 400; }
 .font-medium { font-weight: 500; }
 .font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.font-extrabold { font-weight: 800; }
 .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 .uppercase { text-transform: uppercase; }
 .capitalize { text-transform: capitalize; }
@@ -545,9 +547,16 @@ textarea {
     .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .md\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .md\:grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .md\:col-span-1 { grid-column: span 1 / span 1; }
     .md\:col-span-2 { grid-column: span 2 / span 2; }
+    .md\:col-span-3 { grid-column: span 3 / span 3; }
+    .md\:col-span-4 { grid-column: span 4 / span 4; }
+    .md\:col-span-5 { grid-column: span 5 / span 5; }
+    .md\:col-span-6 { grid-column: span 6 / span 6; }
     .md\:items-end { align-items: flex-end; }
+    .md\:items-center { align-items: center; }
     .md\:justify-between { justify-content: space-between; }
+    .md\:text-xl { font-size: 1.25rem; line-height: 1.75rem; }
 }
 
 @media (min-width: 1024px) {
@@ -579,6 +588,7 @@ textarea {
     .xl\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .xl\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .xl\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .xl\:grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 .from-indigo-950 { --tw-gradient-from: #1e1b4b; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(30,27,75,0)); }
 .from-indigo-950\/90 { --tw-gradient-from: rgba(30, 27, 75, 0.9); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(30,27,75,0)); }

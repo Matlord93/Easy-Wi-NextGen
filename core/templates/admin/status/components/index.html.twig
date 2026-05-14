@@ -1,38 +1,48 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Status Components · Easy-Wi NextGen{% endblock %}
+{% set pageTitle = t('admin_status_components_title', page_locale()) %}
+{% set pageSubtitle = t('admin_status_components_intro', page_locale()) %}
+{% set activeNav = 'status-components' %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="flex flex-col gap-6">
+
     {% include 'admin/status/_nav.html.twig' %}
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-            <h1 class="text-2xl font-semibold">Status Components</h1>
-            <p class="text-sm text-slate-700">Manage public-facing components for the status page.</p>
+
+    <div class="ng-kpi-row">
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">Total</div>
+            <div class="ng-kpi-box__value">{{ summary.total }}</div>
         </div>
-        <div class="grid grid-cols-3 gap-3 text-center">
-            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p class="text-xs uppercase text-slate-700">Total</p>
-                <p class="text-xl font-semibold text-slate-900">{{ summary.total }}</p>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">Public</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.public }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">Hidden</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ summary.hidden }}</div>
+        </div>
+    </div>
+
+    <div class="ng-layout-2col">
+        <div id="status-components-table" class="ng-data-card"
+             hx-trigger="status-components-changed from:body"
+             hx-get="/admin/status/components/table"
+             hx-swap="outerHTML">
+            <div class="ng-data-card__body--flush">
+                {% include 'admin/status/components/_table.html.twig' with { components: components } %}
             </div>
-            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p class="text-xs uppercase text-slate-700">Public</p>
-                <p class="text-xl font-semibold text-emerald-600">{{ summary.public }}</p>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p class="text-xs uppercase text-slate-700">Hidden</p>
-                <p class="text-xl font-semibold text-slate-700">{{ summary.hidden }}</p>
+        </div>
+
+        <div id="status-component-form" class="ng-data-card"
+             hx-trigger="status-components-changed from:body"
+             hx-get="/admin/status/components/form"
+             hx-swap="outerHTML">
+            <div class="ng-data-card__body">
+                {% include 'admin/status/components/_form.html.twig' with { form: form, types: types, statuses: statuses } %}
             </div>
         </div>
     </div>
 
-    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <div class="rounded-xl border border-slate-200 bg-white" id="status-components-table" hx-trigger="status-components-changed from:body" hx-get="/admin/status/components/table" hx-swap="outerHTML">
-            {% include 'admin/status/components/_table.html.twig' with { components: components } %}
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-white" id="status-component-form" hx-trigger="status-components-changed from:body" hx-get="/admin/status/components/form" hx-swap="outerHTML">
-            {% include 'admin/status/components/_form.html.twig' with { form: form, types: types, statuses: statuses } %}
-        </div>
-    </div>
 </div>
 {% endblock %}

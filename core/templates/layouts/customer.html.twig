@@ -23,64 +23,79 @@
     : []
 %}
 
+{% set iconDashboard   = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v5H2V2zm0 7h5v5H2V9zm7-7h5v5H9V2zm0 7h5v5H9V9z" opacity=".15"/><path fill-rule="evenodd" d="M1 2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm1 0v4h4V2H2zm6-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm0 1v4h4V2H9zM1 9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V9zm1 0v4h4V9H2zm6-1h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zm0 1v4h4V9H9z"/></svg>' %}
+{% set iconActivity    = '<svg viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M6 2a.5.5 0 0 1 .47.33L10 12.036l1.53-4.208A.5.5 0 0 1 12 7.5h3.5a.5.5 0 0 1 0 1h-3.15l-1.88 5.17a.5.5 0 0 1-.94 0L6 3.964 4.47 8.172A.5.5 0 0 1 4 8.5H.5a.5.5 0 0 1 0-1h3.15l1.88-5.17A.5.5 0 0 1 6 2z"/></svg>' %}
+{% set iconGamepad     = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 6.027a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm2.5-.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-6.5-3h1v1h1v1h-1v1h-1v-1h-1v-1h1v-1z"/><path d="M3.051 3.26a.5.5 0 0 1 .354-.613l1.932-.518a.5.5 0 0 1 .62.44l.293 1.5 7.499-.255a.5.5 0 0 1 .51.54l-.327 3.498a.5.5 0 0 1-.374.46l-2.555.647a.5.5 0 0 1-.608-.376l-.274-1.371-3.79 1.022a.5.5 0 0 1-.61-.391L3.051 3.26z"/></svg>' %}
+{% set iconVoice       = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5z"/></svg>' %}
+{% set iconGlobe       = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855A7.97 7.97 0 0 0 5.145 4H7.5V1.077zM4.09 4a9.267 9.267 0 0 1 .64-1.539 6.7 6.7 0 0 1 .597-.933A7.025 7.025 0 0 0 2.255 4H4.09zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a6.958 6.958 0 0 0-.656 2.5h2.49zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5H4.847zM8.5 5v2.5h2.99a12.495 12.495 0 0 0-.337-2.5H8.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5H4.51zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5H8.5zM5.145 12c.138.386.295.744.468 1.068.552 1.035 1.218 1.65 1.887 1.855V12H5.145zm.182 2.472a6.696 6.696 0 0 1-.597-.933A9.268 9.268 0 0 1 4.09 12H2.255a7.024 7.024 0 0 0 3.072 2.472zM3.82 11a13.652 13.652 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5H3.82zm6.853 3.472A7.024 7.024 0 0 0 13.745 12H11.91a9.27 9.27 0 0 1-.64 1.539 6.688 6.688 0 0 1-.597.933zM8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855.173-.324.33-.682.468-1.068H8.5zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.65 13.65 0 0 1-.312 2.5zm2.802-3.5a6.959 6.959 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5h2.49z"/></svg>' %}
+{% set iconDatabase    = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.318 2.687C5.234 2.271 6.536 2 8 2s2.766.27 3.682.687C12.644 3.125 13 3.627 13 4c0 .374-.356.875-1.318 1.313C10.766 5.729 9.464 6 8 6s-2.766-.27-3.682-.687C3.356 4.875 3 4.373 3 4c0-.374.356-.875 1.318-1.313z"/><path d="M13 5.698V7c0 .374-.356.875-1.318 1.313C10.766 8.729 9.464 9 8 9s-2.766-.27-3.682-.687C3.356 7.875 3 7.373 3 7V5.698c.271.202.58.378.904.525C4.978 6.711 6.427 7 8 7s3.022-.289 4.096-.777A4.92 4.92 0 0 0 13 5.698zM13 8.698V10c0 .374-.356.875-1.318 1.313C10.766 11.729 9.464 12 8 12s-2.766-.27-3.682-.687C3.356 10.875 3 10.373 3 10V8.698c.271.202.58.378.904.525C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777A4.92 4.92 0 0 0 13 8.698zM13 11.698V13c0 .374-.356.875-1.318 1.313C10.766 14.729 9.464 15 8 15s-2.766-.27-3.682-.687C3.356 13.875 3 13.373 3 13v-1.302c.271.202.58.378.904.525C4.978 12.71 6.427 13 8 13s3.022-.289 4.096-.777c.324-.147.633-.323.904-.525z"/></svg>' %}
+{% set iconDns         = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm7.5-6.923c-.67.204-1.335.82-1.887 1.855-.143.268-.276.56-.395.872.705.157 1.472.257 2.282.287V1.077zM4.249 3.539c.142-.384.304-.744.481-1.078a6.7 6.7 0 0 1 .597-.933A7.01 7.01 0 0 0 3.051 3.05c.362.184.763.349 1.198.49zM3.509 7.5c.036-1.07.188-2.087.436-3.008a9.124 9.124 0 0 1-1.565-.667A6.964 6.964 0 0 0 1.018 7.5h2.49zm1.4-2.741a12.344 12.344 0 0 0-.4 2.741H7.5V5.091c-.91-.03-1.783-.145-2.591-.332zM8.5 5.09V7.5h2.99a12.342 12.342 0 0 0-.399-2.741c-.808.187-1.681.301-2.591.332zM4.51 8.5c.035.987.176 1.914.399 2.741A13.612 13.612 0 0 1 7.5 10.91V8.5H4.51zm3.99 0v2.409c.91.03 1.783.145 2.591.332.223-.827.364-1.754.4-2.741H8.5z"/></svg>' %}
+{% set iconMail        = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/></svg>' %}
+{% set iconTicket      = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 4.5A1.5 1.5 0 0 1 1.5 3h13A1.5 1.5 0 0 1 16 4.5V6a.5.5 0 0 1-.5.5 1.5 1.5 0 0 0 0 3 .5.5 0 0 1 .5.5v1.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 11.5V10a.5.5 0 0 1 .5-.5 1.5 1.5 0 1 0 0-3A.5.5 0 0 1 0 6V4.5z"/></svg>' %}
+{% set iconUser        = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>' %}
+{% set iconLock        = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>' %}
+{% set iconShield      = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524z"/></svg>' %}
+{% set iconShop        = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .49.598l-1 5a.5.5 0 0 1-.465.401l-9.397.472L4.415 11H13a.5.5 0 0 1 0 1H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5zM3.102 4l.84 4.479 9.144-.459L13.89 4H3.102z"/></svg>' %}
+{% set iconSinusbot    = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M9 13c0 1.105-1.12 2-2.5 2S4 14.105 4 13s1.12-2 2.5-2S9 11.895 9 13zm2.5 0c0 1.105-1.12 2-2.5 2s-2.5-.895-2.5-2 1.12-2 2.5-2 2.5.895 2.5 2z"/><path fill-rule="evenodd" d="M14 11V2h1v9h-1zM6 3v10H5V3h1z"/><path d="M5 2.905a1 1 0 0 1 .9-.995l8-.8a1 1 0 0 1 1.1.995V3L5 4V2.905z"/></svg>' %}
+
 {% set sidebarGroups = [
     {
         label: t('customer_nav_group_overview', page_locale()),
         open: true,
         items: [
-            { key: 'dashboard', label: t('customer_nav_dashboard', page_locale()), href: path('customer_dashboard') },
-            { key: 'activity', label: t('customer_nav_activity', page_locale()), href: path('customer_activity') }
+            { key: 'dashboard', label: t('customer_nav_dashboard', page_locale()), href: path('customer_dashboard'), iconSvg: iconDashboard },
+            { key: 'activity',  label: t('customer_nav_activity', page_locale()),  href: path('customer_activity'),  iconSvg: iconActivity }
         ]
     },
     {
         label: t('customer_nav_group_infrastructure', page_locale()),
         open: true,
         items: [
-            moduleGame ? { key: 'gameservers', label: t('customer_nav_game_servers', page_locale()), href: path('customer_instances') } : null,
-            showVoiceserver ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl } : null,
-            moduleGame ? { key: 'sinusbot', label: t('customer_nav_sinusbot', page_locale()), href: path('customer_sinusbot_index') } : null
+            moduleGame ? { key: 'gameservers',  label: t('customer_nav_game_servers', page_locale()),  href: path('customer_instances'),       iconSvg: iconGamepad } : null,
+            showVoiceserver ? { key: 'voiceservers', label: t('customer_nav_voice_servers', page_locale()), href: voiceserverUrl,              iconSvg: iconVoice } : null,
+            moduleGame ? { key: 'sinusbot',     label: t('customer_nav_sinusbot', page_locale()),      href: path('customer_sinusbot_index'),  iconSvg: iconSinusbot } : null
         ]|filter(v => v)
     },
     {
         label: t('customer_nav_group_services', page_locale()),
         open: true,
         items: [
-            moduleWeb ? { key: 'webspaces', label: t('customer_nav_webspace', page_locale()), href: path('customer_webspace') } : null,
-            { key: 'databases', label: t('customer_nav_databases', page_locale()), href: path('customer_databases') }
+            moduleWeb ? { key: 'webspaces',  label: t('customer_nav_webspace', page_locale()),  href: path('customer_webspace'),  iconSvg: iconGlobe } : null,
+            { key: 'databases', label: t('customer_nav_databases', page_locale()), href: path('customer_databases'), iconSvg: iconDatabase }
         ]|filter(v => v)
     },
     {
         label: t('customer_nav_group_domains_mail', page_locale()),
         open: true,
         items: [
-            moduleDns ? { key: 'domains', label: t('customer_nav_domains', page_locale()), href: path('customer_domains') } : null,
-            moduleMail ? { key: 'mail', label: t('customer_nav_mail', page_locale()), href: path('customer_mail') } : null
+            moduleDns  ? { key: 'domains', label: t('customer_nav_domains', page_locale()), href: path('customer_domains'), iconSvg: iconDns }  : null,
+            moduleMail ? { key: 'mail',    label: t('customer_nav_mail', page_locale()),    href: path('customer_mail'),    iconSvg: iconMail } : null
         ]|filter(v => v)
     },
     {
         label: t('customer_nav_group_support', page_locale()),
         open: true,
         items: [
-            { key: 'tickets', label: t('customer_nav_tickets', page_locale()), href: path('customer_tickets') }
+            { key: 'tickets', label: t('customer_nav_tickets', page_locale()), href: path('customer_tickets'), iconSvg: iconTicket }
         ]
     },
     {
         label: t('customer_nav_group_account', page_locale()),
         open: true,
         items: [
-            { key: 'profile', label: t('customer_nav_profile', page_locale()), href: path('customer_profile') },
-            { key: 'security', label: t('customer_nav_security', page_locale()), href: path('customer_security') }
+            { key: 'profile',   label: t('customer_nav_profile', page_locale()),   href: path('customer_profile'),   iconSvg: iconUser },
+            { key: 'security',  label: t('customer_nav_security', page_locale()),  href: path('customer_security'),  iconSvg: iconShield }
         ]
     },
     gdprItems is not empty ? {
         label: t('customer_nav_group_gdpr', page_locale()),
-        open: true,
+        open: false,
         items: gdprItems
     } : null,
     moduleBilling ? {
         label: t('customer_nav_group_marketplace', page_locale()),
         open: true,
-        items: ([{ key: 'shop', label: t('customer_nav_shop', page_locale()), href: path('customer_shop') }]|merge(marketplaceItems))
+        items: ([{ key: 'shop', label: t('customer_nav_shop', page_locale()), href: path('customer_shop'), iconSvg: iconShop }]|merge(marketplaceItems))
     } : null
 ]|filter(v => v) %}
 

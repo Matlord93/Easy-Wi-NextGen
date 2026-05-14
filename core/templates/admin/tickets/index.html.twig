@@ -1,222 +1,232 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('admin_tickets_heading', page_locale()) %}
+{% set pageSubtitle = t('admin_tickets_intro', page_locale()) %}
+{% set activeNav = 'tickets' %}
 
 {% block content %}
-<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('admin_tickets_heading', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('admin_tickets_intro', page_locale()) }}</p>
-    </div>
-    <div class="flex items-center gap-3">
-        <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-            {{ summary.total }} {{ summary.total == 1 ? t('admin_tickets_total_singular', page_locale()) : t('admin_tickets_total_plural', page_locale()) }}
-        </span>
-        <button
-            class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
-            hx-get="/admin/tickets/table"
-            hx-target="#tickets-table"
-            hx-swap="outerHTML"
-        >{{ t('refresh', page_locale()) }}</button>
-    </div>
-</div>
+<div class="flex flex-col gap-6">
 
-{% if success is not empty %}
-    <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
-        <ul class="list-disc space-y-1 pl-4">
-            {% for message in success %}
-                <li>{{ message }}</li>
-            {% endfor %}
-        </ul>
+    {# ── KPI Row ── #}
+    <div class="ng-kpi-row">
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_tickets_total_label', page_locale()) }}</div>
+            <div class="ng-kpi-box__value">{{ summary.total }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_tickets_open', page_locale()) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.open }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_tickets_pending', page_locale()) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ summary.pending }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_tickets_resolved', page_locale()) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.resolved }}</div>
+        </div>
     </div>
-{% endif %}
 
-<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_total_label', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_open', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.open }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_pending', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.pending }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_tickets_resolved', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.resolved }}</p>
-    </div>
-</div>
+    {# ── Flash messages ── #}
+    {% if success is not empty %}
+        <div class="ng-alert ng-alert--success">
+            <ul class="list-disc space-y-1 pl-4">
+                {% for message in success %}<li>{{ message }}</li>{% endfor %}
+            </ul>
+        </div>
+    {% endif %}
 
-<div class="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
-    <div class="rounded-xl bg-white border border-slate-200">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-            <div>
-                <h2 class="text-lg font-semibold">{{ t('admin_tickets_inbox_title', page_locale()) }}</h2>
-                <p class="text-sm text-slate-700">{{ t('admin_tickets_inbox_intro', page_locale()) }}</p>
+    {# ── Inbox + New Ticket ── #}
+    <div class="ng-layout-2col">
+
+        {# Ticket list #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_tickets_inbox_title', page_locale()) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_tickets_inbox_intro', page_locale()) }}</p>
+                </div>
+                <div class="ng-data-card__actions">
+                    <button
+                        class="ui-button ui-button--ghost ui-button--sm"
+                        hx-get="/admin/tickets/table"
+                        hx-target="#tickets-table"
+                        hx-swap="outerHTML"
+                    >
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/></svg>
+                        {{ t('refresh', page_locale()) }}
+                    </button>
+                </div>
             </div>
-            <button
-                class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-                hx-get="/admin/tickets/table"
-                hx-target="#tickets-table"
-                hx-swap="outerHTML"
-            >{{ t('refresh', page_locale()) }}</button>
+            <div class="ng-data-card__body--flush">
+                <div id="tickets-table" hx-get="/admin/tickets/table" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
+                    {% include 'admin/tickets/_table.html.twig' with { tickets: tickets, statusStyles: statusStyles, priorityStyles: priorityStyles } %}
+                </div>
+            </div>
         </div>
-        <div id="tickets-table" hx-get="/admin/tickets/table" hx-trigger="tickets-changed from:body" hx-swap="outerHTML">
-            {% include 'admin/tickets/_table.html.twig' with { tickets: tickets, statusStyles: statusStyles, priorityStyles: priorityStyles } %}
+
+        {# New ticket form #}
+        <div id="ticket-form" class="ng-data-card" hx-trigger="tickets-changed from:body" hx-get="/admin/tickets/form" hx-swap="outerHTML">
+            {% include 'admin/tickets/_form.html.twig' with { form: form, customers: customers, templates: templates, adminSignature: adminSignature } %}
         </div>
     </div>
 
-    <div id="ticket-form" class="rounded-xl bg-white border border-slate-200" hx-trigger="tickets-changed from:body" hx-get="/admin/tickets/form" hx-swap="outerHTML">
-        {% include 'admin/tickets/_form.html.twig' with { form: form, customers: customers, templates: templates, adminSignature: adminSignature } %}
-    </div>
-</div>
+    {# ── Templates + Quick Replies ── #}
+    <div class="ng-layout-2col--equal">
 
-<div class="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6">
-    <div class="rounded-xl border border-slate-200 bg-white">
-        <div class="border-b border-slate-200 px-6 py-4">
-            <h2 class="text-lg font-semibold">{{ t('admin_tickets_templates_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-700">{{ t('admin_tickets_templates_intro', page_locale()) }}</p>
-        </div>
-        <div class="p-6 space-y-4">
-            {% if templateErrors is not empty %}
-                <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    <ul class="list-disc list-inside">
-                        {% for error in templateErrors %}
-                            <li>{{ error }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            {% endif %}
-            <form method="post" action="/admin/tickets/templates" class="space-y-4 rounded-lg border border-slate-200 p-4">
+        {# Ticket Templates #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_title', page_locale()) }}</label>
-                    <input name="title" value="{{ templateForm.title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                    <h2 class="ng-data-card__title">{{ t('admin_tickets_templates_title', page_locale()) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_tickets_templates_intro', page_locale()) }}</p>
                 </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_subject', page_locale()) }}</label>
-                    <input name="subject" value="{{ templateForm.subject }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_category', page_locale()) }}</label>
-                        <select name="category" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                            <option value="general" {{ templateForm.category == 'general' ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
-                            <option value="billing" {{ templateForm.category == 'billing' ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
-                            <option value="technical" {{ templateForm.category == 'technical' ? 'selected' : '' }}>{{ t('admin_tickets_category_technical', page_locale()) }}</option>
-                            <option value="abuse" {{ templateForm.category == 'abuse' ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', page_locale()) }}</option>
-                        </select>
+            </div>
+            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:16px;">
+                {% if templateErrors is not empty %}
+                    <div class="ng-alert ng-alert--danger">
+                        <ul class="list-disc list-inside">
+                            {% for error in templateErrors %}<li>{{ error }}</li>{% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <form method="post" action="/admin/tickets/templates" style="display:flex;flex-direction:column;gap:12px;border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_tickets_template_title', page_locale()) }}</label>
+                        <input name="title" value="{{ templateForm.title }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_tickets_template_subject', page_locale()) }}</label>
+                        <input name="subject" value="{{ templateForm.subject }}" class="form-input">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_tickets_form_category', page_locale()) }}</label>
+                            <select name="category" class="form-input">
+                                <option value="general"   {{ templateForm.category == 'general'   ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
+                                <option value="billing"   {{ templateForm.category == 'billing'   ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
+                                <option value="technical" {{ templateForm.category == 'technical' ? 'selected' : '' }}>{{ t('admin_tickets_category_technical', page_locale()) }}</option>
+                                <option value="abuse"     {{ templateForm.category == 'abuse'     ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', page_locale()) }}</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_tickets_form_priority', page_locale()) }}</label>
+                            <select name="priority" class="form-input">
+                                <option value="low"    {{ templateForm.priority == 'low'    ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
+                                <option value="normal" {{ templateForm.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', page_locale()) }}</option>
+                                <option value="high"   {{ templateForm.priority == 'high'   ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', page_locale()) }}</option>
+                                <option value="urgent" {{ templateForm.priority == 'urgent' ? 'selected' : '' }}>{{ t('admin_tickets_priority_urgent', page_locale()) }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_tickets_template_body', page_locale()) }}</label>
+                        <textarea name="body" rows="4" class="form-input">{{ templateForm.body }}</textarea>
                     </div>
                     <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_form_priority', page_locale()) }}</label>
-                        <select name="priority" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                            <option value="low" {{ templateForm.priority == 'low' ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
-                            <option value="normal" {{ templateForm.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', page_locale()) }}</option>
-                            <option value="high" {{ templateForm.priority == 'high' ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', page_locale()) }}</option>
-                            <option value="urgent" {{ templateForm.priority == 'urgent' ? 'selected' : '' }}>{{ t('admin_tickets_priority_urgent', page_locale()) }}</option>
-                        </select>
+                        <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_tickets_template_create', page_locale()) }}</button>
                     </div>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_template_body', page_locale()) }}</label>
-                    <textarea name="body" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ templateForm.body }}</textarea>
-                </div>
-                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_tickets_template_create', page_locale()) }}</button>
-            </form>
+                </form>
 
-            {% if templates is empty %}
-                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-700">
-                    {{ t('admin_tickets_templates_empty', page_locale()) }}
-                </div>
-            {% else %}
-                <div class="space-y-4">
-                    {% for template in templates %}
-                        <form method="post" action="/admin/tickets/templates/{{ template.id }}" class="rounded-lg border border-slate-200 p-4 space-y-3">
-                            <div class="flex items-center justify-between gap-4">
-                                <h3 class="text-sm font-semibold text-slate-900">{{ template.title }}</h3>
-                                <span class="text-xs text-slate-600">{{ template.updated_at|date('d.m.Y H:i') }}</span>
-                            </div>
-                            <div class="grid gap-3">
-                                <input name="title" value="{{ template.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                <input name="subject" value="{{ template.subject }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                {% if templates is empty %}
+                    <div class="cust-empty">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 4a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm-.5 2.5A.5.5 0 0 1 5 6h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zM5 8a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm0 2a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5z"/><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2z"/></svg>
+                        {{ t('admin_tickets_templates_empty', page_locale()) }}
+                    </div>
+                {% else %}
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        {% for template in templates %}
+                            <form method="post" action="/admin/tickets/templates/{{ template.id }}" style="border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);display:flex;flex-direction:column;gap:10px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                                    <h3 style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{{ template.title }}</h3>
+                                    <span style="font-size:11px;color:var(--ng-text-muted);">{{ template.updated_at|date('d.m.Y H:i') }}</span>
+                                </div>
+                                <input name="title" value="{{ template.title }}" class="form-input">
+                                <input name="subject" value="{{ template.subject }}" class="form-input">
                                 <div class="grid grid-cols-2 gap-3">
-                                    <select name="category" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                        <option value="general" {{ template.category == 'general' ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
-                                        <option value="billing" {{ template.category == 'billing' ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
+                                    <select name="category" class="form-input">
+                                        <option value="general"   {{ template.category == 'general'   ? 'selected' : '' }}>{{ t('admin_tickets_category_general', page_locale()) }}</option>
+                                        <option value="billing"   {{ template.category == 'billing'   ? 'selected' : '' }}>{{ t('admin_tickets_category_billing', page_locale()) }}</option>
                                         <option value="technical" {{ template.category == 'technical' ? 'selected' : '' }}>{{ t('admin_tickets_category_technical', page_locale()) }}</option>
-                                        <option value="abuse" {{ template.category == 'abuse' ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', page_locale()) }}</option>
+                                        <option value="abuse"     {{ template.category == 'abuse'     ? 'selected' : '' }}>{{ t('admin_tickets_category_abuse', page_locale()) }}</option>
                                     </select>
-                                    <select name="priority" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                        <option value="low" {{ template.priority == 'low' ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
+                                    <select name="priority" class="form-input">
+                                        <option value="low"    {{ template.priority == 'low'    ? 'selected' : '' }}>{{ t('admin_tickets_priority_low', page_locale()) }}</option>
                                         <option value="normal" {{ template.priority == 'normal' ? 'selected' : '' }}>{{ t('admin_tickets_priority_normal', page_locale()) }}</option>
-                                        <option value="high" {{ template.priority == 'high' ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', page_locale()) }}</option>
+                                        <option value="high"   {{ template.priority == 'high'   ? 'selected' : '' }}>{{ t('admin_tickets_priority_high', page_locale()) }}</option>
                                         <option value="urgent" {{ template.priority == 'urgent' ? 'selected' : '' }}>{{ t('admin_tickets_priority_urgent', page_locale()) }}</option>
                                     </select>
                                 </div>
-                                <textarea name="body" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ template.body }}</textarea>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-3">
-                                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">{{ t('admin_tickets_template_save', page_locale()) }}</button>
-                                <button type="submit" formmethod="post" formaction="/admin/tickets/templates/{{ template.id }}/delete" class="rounded-lg border border-rose-200 px-4 py-2 text-xs font-semibold text-rose-600">{{ t('admin_tickets_template_delete', page_locale()) }}</button>
-                            </div>
-                        </form>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="rounded-xl border border-slate-200 bg-white">
-        <div class="border-b border-slate-200 px-6 py-4">
-            <h2 class="text-lg font-semibold">{{ t('admin_tickets_quick_replies_title', page_locale()) }}</h2>
-            <p class="text-sm text-slate-700">{{ t('admin_tickets_quick_replies_intro', page_locale()) }}</p>
-        </div>
-        <div class="p-6 space-y-4">
-            {% if quickReplyErrors is not empty %}
-                <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    <ul class="list-disc list-inside">
-                        {% for error in quickReplyErrors %}
-                            <li>{{ error }}</li>
+                                <textarea name="body" rows="3" class="form-input">{{ template.body }}</textarea>
+                                <div style="display:flex;gap:8px;">
+                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_tickets_template_save', page_locale()) }}</button>
+                                    <button type="submit" formmethod="post" formaction="/admin/tickets/templates/{{ template.id }}/delete" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_tickets_template_delete', page_locale()) }}</button>
+                                </div>
+                            </form>
                         {% endfor %}
-                    </ul>
-                </div>
-            {% endif %}
-            <form method="post" action="/admin/tickets/quick-replies" class="space-y-4 rounded-lg border border-slate-200 p-4">
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_quick_reply_title', page_locale()) }}</label>
-                    <input name="title" value="{{ quickReplyForm.title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_tickets_quick_reply_body', page_locale()) }}</label>
-                    <textarea name="body" rows="4" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ quickReplyForm.body }}</textarea>
-                </div>
-                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_tickets_quick_reply_create', page_locale()) }}</button>
-            </form>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
 
-            {% if quickReplies is empty %}
-                <div class="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-700">
-                    {{ t('admin_tickets_quick_replies_empty', page_locale()) }}
+        {# Quick Replies #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_tickets_quick_replies_title', page_locale()) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_tickets_quick_replies_intro', page_locale()) }}</p>
                 </div>
-            {% else %}
-                <div class="space-y-4">
-                    {% for reply in quickReplies %}
-                        <form method="post" action="/admin/tickets/quick-replies/{{ reply.id }}" class="rounded-lg border border-slate-200 p-4 space-y-3">
-                            <div class="flex items-center justify-between gap-4">
-                                <h3 class="text-sm font-semibold text-slate-900">{{ reply.title }}</h3>
-                                <span class="text-xs text-slate-600">{{ reply.updated_at|date('d.m.Y H:i') }}</span>
-                            </div>
-                            <input name="title" value="{{ reply.title }}" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                            <textarea name="body" rows="4" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ reply.body }}</textarea>
-                            <div class="flex flex-wrap items-center gap-3">
-                                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">{{ t('admin_tickets_quick_reply_save', page_locale()) }}</button>
-                                <button type="submit" formmethod="post" formaction="/admin/tickets/quick-replies/{{ reply.id }}/delete" class="rounded-lg border border-rose-200 px-4 py-2 text-xs font-semibold text-rose-600">{{ t('admin_tickets_quick_reply_delete', page_locale()) }}</button>
-                            </div>
-                        </form>
-                    {% endfor %}
-                </div>
-            {% endif %}
+            </div>
+            <div class="ng-data-card__body" style="display:flex;flex-direction:column;gap:16px;">
+                {% if quickReplyErrors is not empty %}
+                    <div class="ng-alert ng-alert--danger">
+                        <ul class="list-disc list-inside">
+                            {% for error in quickReplyErrors %}<li>{{ error }}</li>{% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <form method="post" action="/admin/tickets/quick-replies" style="display:flex;flex-direction:column;gap:12px;border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_tickets_quick_reply_title', page_locale()) }}</label>
+                        <input name="title" value="{{ quickReplyForm.title }}" class="form-input">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_tickets_quick_reply_body', page_locale()) }}</label>
+                        <textarea name="body" rows="4" class="form-input">{{ quickReplyForm.body }}</textarea>
+                    </div>
+                    <div>
+                        <button type="submit" class="ui-button ui-button--primary ui-button--sm">{{ t('admin_tickets_quick_reply_create', page_locale()) }}</button>
+                    </div>
+                </form>
+
+                {% if quickReplies is empty %}
+                    <div class="cust-empty">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1h12z"/></svg>
+                        {{ t('admin_tickets_quick_replies_empty', page_locale()) }}
+                    </div>
+                {% else %}
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        {% for reply in quickReplies %}
+                            <form method="post" action="/admin/tickets/quick-replies/{{ reply.id }}" style="border:1px solid var(--ng-border);border-radius:10px;padding:14px;background:var(--ng-surface-soft);display:flex;flex-direction:column;gap:10px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                                    <h3 style="margin:0;font-size:13px;font-weight:600;color:var(--ng-text);">{{ reply.title }}</h3>
+                                    <span style="font-size:11px;color:var(--ng-text-muted);">{{ reply.updated_at|date('d.m.Y H:i') }}</span>
+                                </div>
+                                <input name="title" value="{{ reply.title }}" class="form-input">
+                                <textarea name="body" rows="3" class="form-input">{{ reply.body }}</textarea>
+                                <div style="display:flex;gap:8px;">
+                                    <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_tickets_quick_reply_save', page_locale()) }}</button>
+                                    <button type="submit" formmethod="post" formaction="/admin/tickets/quick-replies/{{ reply.id }}/delete" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_tickets_quick_reply_delete', page_locale()) }}</button>
+                                </div>
+                            </form>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
         </div>
     </div>
+
 </div>
 {% endblock %}

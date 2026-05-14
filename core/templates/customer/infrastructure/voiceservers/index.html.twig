@@ -1,50 +1,80 @@
 {% extends 'customer/base.html.twig' %}
 
-{% set activeNav = 'voiceservers' %}
-{% set pageTitle = voiceTitle|default('Voiceserver / TeamSpeak') %}
+{% set activeNav    = 'voiceservers' %}
 {% set voiceBaseUrl = voiceBaseUrl|default('/customer/ts3/servers') %}
-{% set pageSubtitle = 'Kerninfos wie ID/Port, Slots, Uptime und Traffic bleiben sichtbar.' %}
-{% set topbarActions = [
-    { label: 'Server bestellen', href: '#', variant: 'primary', size: 'sm' },
-    { label: 'Suche', href: '#', variant: 'secondary', size: 'sm' }
-] %}
 
 {% block content %}
-    {% set locale = page_locale() %}
-    {% embed 'components/_card.html.twig' with { title: t('customer_voiceservers_page_title', locale), subtitle: t('customer_voiceservers_page_desc', locale) } %}
-        {% block card_body %}
-            <div class="ng-server-list">
+{% set locale = page_locale() %}
+<div class="cust-page">
+
+    <div class="cust-hero">
+        <div class="cust-hero__inner">
+            <div>
+                <h1 class="cust-hero__title">{{ t('customer_voiceservers_page_title', locale) }}</h1>
+                <p class="cust-hero__desc">{{ t('customer_voiceservers_page_desc', locale) }}</p>
+            </div>
+            <div class="cust-hero__actions">
+                <a href="#" class="ui-button ui-button--primary ui-button--sm">{{ t('customer_voiceservers_order', locale) }}</a>
+                <a href="#" class="ui-button ui-button--ghost ui-button--sm">{{ t('search', locale) }}</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="cust-panel">
+        <div class="cust-panel__body">
+
+            {% if servers is empty %}
+                <div class="cust-empty">
+                    <p>{{ t('customer_voiceservers_none', locale) }}</p>
+                </div>
+            {% else %}
                 {% for server in servers %}
                     {% set statusTone = server.status == 'online' ? 'success' : 'warning' %}
-                    {% include 'components/_serverRow.html.twig' with {
-                        title: server.name,
-                        subtitle: 'ID #' ~ server.sid ~ ' · Port ' ~ (server.voicePort ?? '—'),
-                        status: server.status|replace({'_': ' '})|title,
-                        statusTone: statusTone,
-                        meta: [
-                            { label: 'Voice', value: server.voicePort ?? '—' },
-                            { label: 'File', value: server.filetransferPort ?? '—' },
-                            { label: t('updated', locale), value: server.updatedAt ? server.updatedAt|date('Y-m-d H:i') : '—' }
-                        ],
-                        actions: [
-                            { label: t('customer_voiceservers_start', locale), href: voiceBaseUrl ~ '/' ~ server.id, variant: 'primary', size: 'sm' },
-                            { label: t('customer_voiceservers_stop', locale), href: voiceBaseUrl ~ '/' ~ server.id, variant: 'secondary', size: 'sm' },
-                            { label: t('customer_voiceservers_restart', locale), href: voiceBaseUrl ~ '/' ~ server.id, variant: 'secondary', size: 'sm' },
-                            { label: 'Token', href: voiceBaseUrl ~ '/' ~ server.id ~ '/token', variant: 'ghost', size: 'sm' },
-                            { label: 'Ban-Liste', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' },
-                            { label: 'Backup', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' },
-                            { label: t('customer_voiceservers_name', locale), href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost', size: 'sm' }
-                        ],
-                        overflowActions: [
-                            { label: 'Channels', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost' },
-                            { label: 'Userverwaltung', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost' },
-                            { label: 'Logs', href: voiceBaseUrl ~ '/' ~ server.id, variant: 'ghost' }
-                        ]
-                    } %}
-                {% else %}
-                    <p>{{ t('customer_voiceservers_none', locale) }}</p>
+                    <div class="cust-server-row">
+                        <div class="cust-server-row__main">
+                            <div class="cust-server-row__identity">
+                                <span class="cust-status-dot cust-status-dot--{{ statusTone }}"></span>
+                                <div>
+                                    <div class="cust-server-row__name">{{ server.name }}</div>
+                                    <div class="cust-server-row__sub">ID #{{ server.sid }} · Port {{ server.voicePort ?? '—' }}</div>
+                                </div>
+                            </div>
+
+                            <div class="cust-server-row__meta">
+                                <span class="ui-badge ui-badge--{{ statusTone }}">{{ server.status|replace({'_': ' '})|title }}</span>
+                                <span class="cust-server-row__meta-item">
+                                    <span class="cust-server-row__meta-label">Voice</span>
+                                    <span class="cust-server-row__meta-value">{{ server.voicePort ?? '—' }}</span>
+                                </span>
+                                <span class="cust-server-row__meta-item">
+                                    <span class="cust-server-row__meta-label">File</span>
+                                    <span class="cust-server-row__meta-value">{{ server.filetransferPort ?? '—' }}</span>
+                                </span>
+                                <span class="cust-server-row__meta-item">
+                                    <span class="cust-server-row__meta-label">{{ t('updated', locale) }}</span>
+                                    <span class="cust-server-row__meta-value">{{ server.updatedAt ? server.updatedAt|date('Y-m-d H:i') : '—' }}</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="cust-server-row__actions">
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}" class="ui-button ui-button--primary ui-button--sm">{{ t('customer_voiceservers_start', locale) }}</a>
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voiceservers_stop', locale) }}</a>
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voiceservers_restart', locale) }}</a>
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}/token" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voiceservers_token', locale) }}</a>
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voiceservers_banlist', locale) }}</a>
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voiceservers_backup', locale) }}</a>
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voiceservers_name', locale) }}</a>
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voiceservers_channels', locale) }}</a>
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voiceservers_users', locale) }}</a>
+                            <a href="{{ voiceBaseUrl }}/{{ server.id }}" class="ui-button ui-button--ghost ui-button--sm">{{ t('customer_voiceservers_logs', locale) }}</a>
+                        </div>
+                    </div>
                 {% endfor %}
-            </div>
-        {% endblock %}
-    {% endembed %}
+            {% endif %}
+
+        </div>
+    </div>
+
+</div>{# /cust-page #}
 {% endblock %}

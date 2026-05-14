@@ -1,21 +1,31 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Shop-Kategorien · Easy-Wi NextGen{% endblock %}
+{% set pageTitle = t('admin_shop_categories_title', page_locale()) %}
+{% set pageSubtitle = t('admin_shop_categories_intro', page_locale()) %}
+{% set activeNav = 'shop-categories' %}
 
 {% block content %}
-<div class="space-y-6">
-    <div>
-        <h1 class="text-2xl font-semibold">Shop-Kategorien</h1>
-        <p class="text-sm text-slate-700">Lege Kategorien für Gameserver, TeamSpeak, Webhosting und Root Server an.</p>
+<div class="flex flex-col gap-6">
+
+    <div class="ng-layout-2col">
+        <div id="shop-categories-table" class="ng-data-card"
+             hx-trigger="shop-categories-changed from:body"
+             hx-get="/admin/shop/categories/table"
+             hx-swap="outerHTML">
+            <div class="ng-data-card__body--flush">
+                {% include 'admin/shop/categories/_table.html.twig' with { categories: categories } %}
+            </div>
+        </div>
+
+        <div id="shop-categories-form" class="ng-data-card"
+             hx-trigger="shop-categories-changed from:body"
+             hx-get="/admin/shop/categories/form"
+             hx-swap="outerHTML">
+            <div class="ng-data-card__body">
+                {% include 'admin/shop/categories/_form.html.twig' with { form: form } %}
+            </div>
+        </div>
     </div>
 
-    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <div class="rounded-xl border border-slate-200 bg-white" id="shop-categories-table" hx-trigger="shop-categories-changed from:body" hx-get="/admin/shop/categories/table" hx-swap="outerHTML">
-            {% include 'admin/shop/categories/_table.html.twig' with { categories: categories } %}
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-white" id="shop-categories-form" hx-trigger="shop-categories-changed from:body" hx-get="/admin/shop/categories/form" hx-swap="outerHTML">
-            {% include 'admin/shop/categories/_form.html.twig' with { form: form } %}
-        </div>
-    </div>
 </div>
 {% endblock %}

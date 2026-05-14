@@ -1,15 +1,14 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('admin_settings_title', page_locale()) %}
+{% set pageSubtitle = t('admin_settings_description', page_locale()) %}
+{% set activeNav = 'settings' %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('admin_settings_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('admin_settings_description', page_locale()) }}</p>
-    </div>
 
     {% if errors is not empty %}
-        <div class="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+        <div class="ng-alert ng-alert--danger">
             <ul class="list-disc space-y-1 pl-4">
                 {% for error in errors %}
                     <li>{{ error }}</li>
@@ -17,17 +16,25 @@
             </ul>
         </div>
     {% elseif tokenRotated %}
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
+        <div class="ng-alert ng-alert--success">
             Agent registration token rotated successfully.
         </div>
     {% elseif saved %}
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
+        <div class="ng-alert ng-alert--success">
             {{ t('admin_settings_saved', page_locale()) }}
         </div>
     {% endif %}
 
-    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">{{ t('admin_settings_title', page_locale()) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_settings_description', page_locale()) }}</p>
+            </div>
+        </div>
+        <div class="ng-data-card__body">
+
+            {# Tab navigation #}
             {% set tabs = [
                 { key: 'general', label: t('admin_webinterface_tab_general', page_locale()) },
                 { key: 'email', label: t('admin_webinterface_tab_email', page_locale()) },
@@ -37,337 +44,338 @@
                 { key: 'maintenance', label: t('admin_webinterface_tab_maintenance', page_locale()) },
                 { key: 'agent', label: 'Agent' }
             ] %}
-            {% for tab in tabs %}
-                <a
-                    href="{{ path('admin_settings', {tab: tab.key}) }}"
-                    class="rounded-lg border px-4 py-2 text-xs font-semibold {{ activeTab == tab.key ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600 hover:text-slate-800' }}"
-                >
-                    {{ tab.label }}
-                </a>
-            {% endfor %}
-        </div>
-
-        <form method="post" action="{{ path('admin_settings_update') }}" class="mt-6 space-y-6">
-            <input type="hidden" name="tab" value="{{ activeTab }}">
-
-            {% if activeTab == 'general' %}
-                <div class="grid gap-5 lg:grid-cols-2">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_site_title', page_locale()) }}</label>
-                        <input type="text" name="site_title" value="{{ settings.site_title }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_branding_name', page_locale()) }}</label>
-                        <input type="text" name="branding_name" value="{{ settings.branding_name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    </div>
-                    <div class="lg:col-span-2">
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_branding_logo', page_locale()) }}</label>
-                        <input type="text" name="branding_logo_url" value="{{ settings.branding_logo_url }}" placeholder="/assets/logo.svg" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                        <p class="mt-2 text-xs text-slate-600">{{ t('admin_webinterface_branding_logo_hint', page_locale()) }}</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_support_email', page_locale()) }}</label>
-                        <input type="email" name="support_email" value="{{ settings.support_email }}" placeholder="support@example.com" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    </div>
-                </div>
-            {% elseif activeTab == 'email' %}
-                <div class="grid gap-5 lg:grid-cols-2">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_mail_from_name', page_locale()) }}</label>
-                        <input type="text" name="mail_from_name" value="{{ settings.mail_from_name }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_mail_from_address', page_locale()) }}</label>
-                        <input type="email" name="mail_from_address" value="{{ settings.mail_from_address }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_mail_reply_to', page_locale()) }}</label>
-                        <input type="email" name="mail_reply_to" value="{{ settings.mail_reply_to }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_mail_default_locale', page_locale()) }}</label>
-                        <select name="mail_default_locale" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                            <option value="de" {{ settings.mail_default_locale == 'de' ? 'selected' : '' }}>DE</option>
-                            <option value="en" {{ settings.mail_default_locale == 'en' ? 'selected' : '' }}>EN</option>
-                        </select>
-                    </div>
-                </div>
-            {% elseif activeTab == 'gameserver' %}
-                <div class="grid gap-5 lg:grid-cols-3">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_gameserver_default_slots', page_locale()) }}</label>
-                        <input type="number" min="1" name="gameserver_default_slots" value="{{ settings.gameserver_default_slots }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_gameserver_min_slots', page_locale()) }}</label>
-                        <input type="number" min="1" name="gameserver_min_slots" value="{{ settings.gameserver_min_slots }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_gameserver_max_slots', page_locale()) }}</label>
-                        <input type="number" min="1" name="gameserver_max_slots" value="{{ settings.gameserver_max_slots }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    </div>
-                    <div class="lg:col-span-3 flex flex-wrap gap-6">
-                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                            <input type="checkbox" name="gameserver_show_port_range" value="1" class="rounded border-slate-300" {{ settings.gameserver_show_port_range ? 'checked' : '' }}>
-                            {{ t('admin_webinterface_gameserver_show_port_range', page_locale()) }}
-                        </label>
-                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                            <input type="checkbox" name="gameserver_allow_start_stop" value="1" class="rounded border-slate-300" {{ settings.gameserver_allow_start_stop ? 'checked' : '' }}>
-                            {{ t('admin_webinterface_gameserver_allow_start_stop', page_locale()) }}
-                        </label>
-                    </div>
-                </div>
-
-                <div>
-                    <h2 class="text-sm font-semibold text-slate-900">{{ t('admin_settings_core_section', page_locale()) }}</h2>
-                    <div class="mt-4 grid gap-5 lg:grid-cols-2">
-                        <div class="lg:col-span-2">
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_instance_base_dir', page_locale()) }}</label>
-                            <input
-                                type="text"
-                                name="instance_base_dir"
-                                value="{{ settings.instance_base_dir }}"
-                                placeholder="/home"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            >
-                            <p class="mt-2 text-xs text-slate-600">{{ t('admin_settings_instance_base_dir_hint', page_locale()) }}</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <h2 class="text-sm font-semibold text-slate-900">{{ t('admin_settings_sftp_section', page_locale()) }}</h2>
-                    <div class="mt-4 grid gap-5 lg:grid-cols-2">
-                        <div>
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_host', page_locale()) }}</label>
-                            <input
-                                type="text"
-                                name="sftp_host"
-                                value="{{ settings.sftp_host }}"
-                                placeholder="node.example.com"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            >
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_port', page_locale()) }}</label>
-                            <input
-                                type="text"
-                                name="sftp_port"
-                                value="{{ settings.sftp_port }}"
-                                placeholder="22"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            >
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_username', page_locale()) }}</label>
-                            <input
-                                type="text"
-                                name="sftp_username"
-                                value="{{ settings.sftp_username }}"
-                                placeholder="easywi"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            >
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_password', page_locale()) }}</label>
-                            <input
-                                type="password"
-                                name="sftp_password"
-                                placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            >
-                        </div>
-                        <div class="lg:col-span-2">
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_private_key', page_locale()) }}</label>
-                            <textarea
-                                name="sftp_private_key"
-                                rows="4"
-                                placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            ></textarea>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_private_key_path', page_locale()) }}</label>
-                            <input
-                                type="text"
-                                name="sftp_private_key_path"
-                                value="{{ settings.sftp_private_key_path }}"
-                                placeholder="/home/easywi/.ssh/id_ed25519"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            >
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_settings_sftp_private_key_passphrase', page_locale()) }}</label>
-                            <input
-                                type="password"
-                                name="sftp_private_key_passphrase"
-                                placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}"
-                                class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                            >
-                        </div>
-                    </div>
-                    <p class="mt-3 text-xs text-slate-600">{{ t('admin_settings_secret_hint', page_locale()) }}</p>
-                </div>
-            {% elseif activeTab == 'customer' %}
-                <div class="space-y-4">
-                    <div class="flex flex-wrap gap-6">
-                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                            <input type="checkbox" name="customer_data_manager_enabled" value="1" class="rounded border-slate-300" {{ settings.customer_data_manager_enabled ? 'checked' : '' }}>
-                            {{ t('admin_webinterface_customer_data_manager', page_locale()) }}
-                        </label>
-                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                            <input type="checkbox" name="customer_file_push_enabled" value="1" class="rounded border-slate-300" {{ settings.customer_file_push_enabled ? 'checked' : '' }}>
-                            {{ t('admin_webinterface_customer_file_push', page_locale()) }}
-                        </label>
-                    </div>
-                    <div class="grid gap-5 lg:grid-cols-2">
-                        <div>
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_customer_console_label', page_locale()) }}</label>
-                            <input type="text" name="customer_console_label" value="{{ settings.customer_console_label }}" placeholder="{{ t('customer_instance_tab_console', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_customer_logs_label', page_locale()) }}</label>
-                            <input type="text" name="customer_logs_label" value="{{ settings.customer_logs_label }}" placeholder="Logs" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                        </div>
-                    </div>
-                </div>
-            {% elseif activeTab == 'security' %}
-                <div class="space-y-6">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_security_session_idle', page_locale()) }}</label>
-                        <input type="number" min="5" name="security_session_idle_minutes" value="{{ settings.security_session_idle_minutes }}" class="mt-2 w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                        <p class="mt-2 text-xs text-slate-600">{{ t('admin_webinterface_security_session_idle_hint', page_locale()) }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_security_2fa_policy', page_locale()) }}</p>
-                        <div class="mt-3 flex flex-col gap-3 text-sm text-slate-700">
-                            <label class="inline-flex items-center gap-2">
-                                <input type="checkbox" name="security_2fa_required_global" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_global ? 'checked' : '' }}>
-                                {{ t('admin_webinterface_security_2fa_global', page_locale()) }}
-                            </label>
-                            <label class="inline-flex items-center gap-2">
-                                <input type="checkbox" name="security_2fa_required_admin" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_admin ? 'checked' : '' }}>
-                                {{ t('admin_webinterface_security_2fa_admin', page_locale()) }}
-                            </label>
-                            <label class="inline-flex items-center gap-2">
-                                <input type="checkbox" name="security_2fa_required_reseller" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_reseller ? 'checked' : '' }}>
-                                {{ t('admin_webinterface_security_2fa_reseller', page_locale()) }}
-                            </label>
-                            <label class="inline-flex items-center gap-2">
-                                <input type="checkbox" name="security_2fa_required_customer" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_customer ? 'checked' : '' }}>
-                                {{ t('admin_webinterface_security_2fa_customer', page_locale()) }}
-                            </label>
-                            <label class="inline-flex items-center gap-2">
-                                <input type="checkbox" name="registration_enabled" value="1" class="rounded border-slate-300" {{ settings.registration_enabled ? 'checked' : '' }}>
-                                Webinterface: Öffentliche Registrierung aktivieren
-                            </label>
-                    <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                        <p class="text-xs font-semibold uppercase text-slate-700">Local Anti Abuse</p>
-                        <div class="mt-3 grid gap-4 md:grid-cols-2">
-                            <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_contact ? 'checked' : '' }}> PoW for contact</label>
-                            <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_registration ? 'checked' : '' }}> PoW for registration</label>
-                            <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_registration ? 'checked' : '' }}> Math captcha for registration</label>
-                            <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_contact ? 'checked' : '' }}> Math captcha for contact</label>
-                            <div><label class="block text-xs font-semibold uppercase text-slate-700">Min submit seconds</label><input type="number" min="1" name="anti_abuse_min_submit_seconds" value="{{ settings.anti_abuse_min_submit_seconds }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></div>
-                            <div><label class="block text-xs font-semibold uppercase text-slate-700">PoW difficulty (0-6)</label><input type="number" min="0" max="6" name="anti_abuse_pow_difficulty" value="{{ settings.anti_abuse_pow_difficulty }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></div>
-                            <div><label class="block text-xs font-semibold uppercase text-slate-700">Daily IP lock threshold</label><input type="number" min="1" name="anti_abuse_daily_ip_limit" value="{{ settings.anti_abuse_daily_ip_limit }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"></div>
-                        </div>
-                    </div>
-
-                        </div>
-                    </div>
-
-                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm font-semibold text-slate-900">{{ t('admin_webinterface_security_2fa_overview', page_locale()) }}</p>
-                                <p class="text-xs text-slate-600">{{ t('admin_webinterface_security_2fa_overview_hint', page_locale()) }}</p>
-                            </div>
-                            <span class="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">{{ twoFactorOverview|length }}</span>
-                        </div>
-                        <div class="mt-4 overflow-x-auto">
-                            <table class="min-w-full divide-y divide-slate-200 text-xs">
-                                <thead class="bg-white text-xs uppercase text-slate-500">
-                                    <tr>
-                                        <th class="px-3 py-2 text-left font-semibold">{{ t('admin_webinterface_security_2fa_user', page_locale()) }}</th>
-                                        <th class="px-3 py-2 text-left font-semibold">{{ t('admin_webinterface_security_2fa_role', page_locale()) }}</th>
-                                        <th class="px-3 py-2 text-left font-semibold">{{ t('admin_webinterface_security_2fa_status', page_locale()) }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-100">
-                                    {% for entry in twoFactorOverview %}
-                                        <tr class="bg-white">
-                                            <td class="px-3 py-2 text-slate-700">{{ entry.email }}</td>
-                                            <td class="px-3 py-2 text-slate-500">{{ entry.type|title }}</td>
-                                            <td class="px-3 py-2">
-                                                <span class="rounded-full px-2 py-1 text-xs font-semibold {{ entry.totpEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">
-                                                    {{ entry.totpEnabled ? t('admin_webinterface_security_2fa_enabled', page_locale()) : t('admin_webinterface_security_2fa_disabled', page_locale()) }}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    {% else %}
-                                        <tr>
-                                            <td colspan="3" class="px-3 py-4 text-center text-slate-500">{{ t('admin_webinterface_security_2fa_empty', page_locale()) }}</td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            {% elseif activeTab == 'maintenance' %}
-                <div class="space-y-6">
-                    <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                        <input type="checkbox" name="cms_maintenance_enabled" value="1" class="rounded border-slate-300" {{ settings.cms_maintenance_enabled ? 'checked' : '' }}>
-                        {{ t('admin_webinterface_maintenance_enabled', page_locale()) }}
-                    </label>
-
-                    <div>
-                        <p class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_maintenance_schedule', page_locale()) }}</p>
-                        <div class="mt-3 grid gap-5 lg:grid-cols-2">
-                            <div>
-                                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_maintenance_start', page_locale()) }}</label>
-                                <input type="datetime-local" name="cms_maintenance_starts_at" value="{{ settings.cms_maintenance_starts_at }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_maintenance_end', page_locale()) }}</label>
-                                <input type="datetime-local" name="cms_maintenance_ends_at" value="{{ settings.cms_maintenance_ends_at }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_maintenance_message', page_locale()) }}</label>
-                        <textarea name="cms_maintenance_message" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">{{ settings.cms_maintenance_message }}</textarea>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">Wartungsmodus Grafik (URL oder /Pfad)</label>
-                        <input type="text" name="cms_maintenance_graphic" value="{{ settings.cms_maintenance_graphic }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="/images/maintenance.png">
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-slate-700">{{ t('admin_webinterface_maintenance_allowlist', page_locale()) }}</label>
-                        <textarea name="cms_maintenance_allowlist" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="203.0.113.10&#10;198.51.100.0/24">{{ settings.cms_maintenance_allowlist }}</textarea>
-                        <p class="mt-2 text-xs text-slate-600">{{ t('admin_webinterface_maintenance_hint', page_locale()) }}</p>
-                    </div>
-                </div>
-            {% elseif activeTab == 'agent' %}
-                <div class="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <h2 class="text-sm font-semibold uppercase text-slate-700">Agent Registration Token</h2>
-                    <p class="text-sm text-slate-700">Status: {{ agentRegistrationTokenSet ? 'set' : 'not set' }}</p>
-                    <p class="text-sm text-slate-700">Masked: <code>{{ agentRegistrationTokenMasked }}</code></p>
-                    <button type="submit" formaction="{{ path('admin_settings_agent_token_rotate') }}" formmethod="post" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700">Rotate token</button>
-                    <p class="text-xs text-slate-500">After rotation, existing agents using the old token for new registrations will fail immediately.</p>
-                </div>
-            {% endif %}
-
-            <div class="flex flex-wrap items-center gap-3">
-                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_settings_save', page_locale()) }}</button>
-                <a href="/admin" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">{{ t('admin_settings_back', page_locale()) }}</a>
+            <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-3 mb-6">
+                {% for tab in tabs %}
+                    <a
+                        href="{{ path('admin_settings', {tab: tab.key}) }}"
+                        class="rounded-lg border px-4 py-2 text-xs font-semibold {{ activeTab == tab.key ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600 hover:text-slate-800' }}"
+                    >
+                        {{ tab.label }}
+                    </a>
+                {% endfor %}
             </div>
-        </form>
+
+            <form method="post" action="{{ path('admin_settings_update') }}">
+                <input type="hidden" name="tab" value="{{ activeTab }}">
+
+                {# ── General ── #}
+                {% if activeTab == 'general' %}
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_site_title', page_locale()) }}</label>
+                            <input type="text" name="site_title" value="{{ settings.site_title }}" class="form-input">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_branding_name', page_locale()) }}</label>
+                            <input type="text" name="branding_name" value="{{ settings.branding_name }}" class="form-input">
+                        </div>
+                        <div class="form-field col-span-2">
+                            <label class="form-label">{{ t('admin_webinterface_branding_logo', page_locale()) }}</label>
+                            <input type="text" name="branding_logo_url" value="{{ settings.branding_logo_url }}" placeholder="/assets/logo.svg" class="form-input">
+                            <p class="mt-2 text-xs text-slate-500">{{ t('admin_webinterface_branding_logo_hint', page_locale()) }}</p>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_support_email', page_locale()) }}</label>
+                            <input type="email" name="support_email" value="{{ settings.support_email }}" placeholder="support@example.com" class="form-input">
+                        </div>
+                    </div>
+
+                {# ── Email ── #}
+                {% elseif activeTab == 'email' %}
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_mail_from_name', page_locale()) }}</label>
+                            <input type="text" name="mail_from_name" value="{{ settings.mail_from_name }}" class="form-input">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_mail_from_address', page_locale()) }}</label>
+                            <input type="email" name="mail_from_address" value="{{ settings.mail_from_address }}" class="form-input">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_mail_reply_to', page_locale()) }}</label>
+                            <input type="email" name="mail_reply_to" value="{{ settings.mail_reply_to }}" class="form-input">
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_mail_default_locale', page_locale()) }}</label>
+                            <select name="mail_default_locale" class="form-input">
+                                <option value="de" {{ settings.mail_default_locale == 'de' ? 'selected' : '' }}>DE</option>
+                                <option value="en" {{ settings.mail_default_locale == 'en' ? 'selected' : '' }}>EN</option>
+                            </select>
+                        </div>
+                    </div>
+
+                {# ── Gameserver ── #}
+                {% elseif activeTab == 'gameserver' %}
+                    <div class="flex flex-col gap-6">
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="form-field">
+                                <label class="form-label">{{ t('admin_webinterface_gameserver_default_slots', page_locale()) }}</label>
+                                <input type="number" min="1" name="gameserver_default_slots" value="{{ settings.gameserver_default_slots }}" class="form-input">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label">{{ t('admin_webinterface_gameserver_min_slots', page_locale()) }}</label>
+                                <input type="number" min="1" name="gameserver_min_slots" value="{{ settings.gameserver_min_slots }}" class="form-input">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label">{{ t('admin_webinterface_gameserver_max_slots', page_locale()) }}</label>
+                                <input type="number" min="1" name="gameserver_max_slots" value="{{ settings.gameserver_max_slots }}" class="form-input">
+                            </div>
+                            <div class="col-span-3 flex flex-wrap gap-6">
+                                <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                                    <input type="checkbox" name="gameserver_show_port_range" value="1" class="rounded border-slate-300" {{ settings.gameserver_show_port_range ? 'checked' : '' }}>
+                                    {{ t('admin_webinterface_gameserver_show_port_range', page_locale()) }}
+                                </label>
+                                <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                                    <input type="checkbox" name="gameserver_allow_start_stop" value="1" class="rounded border-slate-300" {{ settings.gameserver_allow_start_stop ? 'checked' : '' }}>
+                                    {{ t('admin_webinterface_gameserver_allow_start_stop', page_locale()) }}
+                                </label>
+                            </div>
+                        </div>
+
+                        <details class="rounded-lg border border-slate-200">
+                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">{{ t('admin_settings_core_section', page_locale()) }}</summary>
+                            <div class="border-t border-slate-200 px-4 py-4">
+                                <div class="form-field">
+                                    <label class="form-label">{{ t('admin_settings_instance_base_dir', page_locale()) }}</label>
+                                    <input
+                                        type="text"
+                                        name="instance_base_dir"
+                                        value="{{ settings.instance_base_dir }}"
+                                        placeholder="/home"
+                                        class="form-input"
+                                    >
+                                    <p class="mt-2 text-xs text-slate-500">{{ t('admin_settings_instance_base_dir_hint', page_locale()) }}</p>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="rounded-lg border border-slate-200">
+                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">{{ t('admin_settings_sftp_section', page_locale()) }}</summary>
+                            <div class="border-t border-slate-200 px-4 py-4">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="form-field">
+                                        <label class="form-label">{{ t('admin_settings_sftp_host', page_locale()) }}</label>
+                                        <input type="text" name="sftp_host" value="{{ settings.sftp_host }}" placeholder="node.example.com" class="form-input">
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-label">{{ t('admin_settings_sftp_port', page_locale()) }}</label>
+                                        <input type="text" name="sftp_port" value="{{ settings.sftp_port }}" placeholder="22" class="form-input">
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-label">{{ t('admin_settings_sftp_username', page_locale()) }}</label>
+                                        <input type="text" name="sftp_username" value="{{ settings.sftp_username }}" placeholder="easywi" class="form-input">
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-label">{{ t('admin_settings_sftp_password', page_locale()) }}</label>
+                                        <input type="password" name="sftp_password" placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}" class="form-input">
+                                    </div>
+                                    <div class="form-field col-span-2">
+                                        <label class="form-label">{{ t('admin_settings_sftp_private_key', page_locale()) }}</label>
+                                        <textarea name="sftp_private_key" rows="4" placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}" class="form-input"></textarea>
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-label">{{ t('admin_settings_sftp_private_key_path', page_locale()) }}</label>
+                                        <input type="text" name="sftp_private_key_path" value="{{ settings.sftp_private_key_path }}" placeholder="/home/easywi/.ssh/id_ed25519" class="form-input">
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-label">{{ t('admin_settings_sftp_private_key_passphrase', page_locale()) }}</label>
+                                        <input type="password" name="sftp_private_key_passphrase" placeholder="{{ t('admin_settings_secret_placeholder', page_locale()) }}" class="form-input">
+                                    </div>
+                                </div>
+                                <p class="mt-3 text-xs text-slate-500">{{ t('admin_settings_secret_hint', page_locale()) }}</p>
+                            </div>
+                        </details>
+                    </div>
+
+                {# ── Customer ── #}
+                {% elseif activeTab == 'customer' %}
+                    <div class="flex flex-col gap-5">
+                        <div class="flex flex-wrap gap-6">
+                            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                                <input type="checkbox" name="customer_data_manager_enabled" value="1" class="rounded border-slate-300" {{ settings.customer_data_manager_enabled ? 'checked' : '' }}>
+                                {{ t('admin_webinterface_customer_data_manager', page_locale()) }}
+                            </label>
+                            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                                <input type="checkbox" name="customer_file_push_enabled" value="1" class="rounded border-slate-300" {{ settings.customer_file_push_enabled ? 'checked' : '' }}>
+                                {{ t('admin_webinterface_customer_file_push', page_locale()) }}
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="form-field">
+                                <label class="form-label">{{ t('admin_webinterface_customer_console_label', page_locale()) }}</label>
+                                <input type="text" name="customer_console_label" value="{{ settings.customer_console_label }}" placeholder="{{ t('customer_instance_tab_console', page_locale()) }}" class="form-input">
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label">{{ t('admin_webinterface_customer_logs_label', page_locale()) }}</label>
+                                <input type="text" name="customer_logs_label" value="{{ settings.customer_logs_label }}" placeholder="Logs" class="form-input">
+                            </div>
+                        </div>
+                    </div>
+
+                {# ── Security ── #}
+                {% elseif activeTab == 'security' %}
+                    <div class="flex flex-col gap-6">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_security_session_idle', page_locale()) }}</label>
+                            <input type="number" min="5" name="security_session_idle_minutes" value="{{ settings.security_session_idle_minutes }}" class="form-input max-w-xs">
+                            <p class="mt-2 text-xs text-slate-500">{{ t('admin_webinterface_security_session_idle_hint', page_locale()) }}</p>
+                        </div>
+
+                        <details class="rounded-lg border border-slate-200" open>
+                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">{{ t('admin_webinterface_security_2fa_policy', page_locale()) }}</summary>
+                            <div class="border-t border-slate-200 px-4 py-4">
+                                <div class="flex flex-col gap-3 text-sm text-slate-700">
+                                    <label class="inline-flex items-center gap-2">
+                                        <input type="checkbox" name="security_2fa_required_global" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_global ? 'checked' : '' }}>
+                                        {{ t('admin_webinterface_security_2fa_global', page_locale()) }}
+                                    </label>
+                                    <label class="inline-flex items-center gap-2">
+                                        <input type="checkbox" name="security_2fa_required_admin" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_admin ? 'checked' : '' }}>
+                                        {{ t('admin_webinterface_security_2fa_admin', page_locale()) }}
+                                    </label>
+                                    <label class="inline-flex items-center gap-2">
+                                        <input type="checkbox" name="security_2fa_required_reseller" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_reseller ? 'checked' : '' }}>
+                                        {{ t('admin_webinterface_security_2fa_reseller', page_locale()) }}
+                                    </label>
+                                    <label class="inline-flex items-center gap-2">
+                                        <input type="checkbox" name="security_2fa_required_customer" value="1" class="rounded border-slate-300" {{ settings.security_2fa_required_customer ? 'checked' : '' }}>
+                                        {{ t('admin_webinterface_security_2fa_customer', page_locale()) }}
+                                    </label>
+                                    <label class="inline-flex items-center gap-2">
+                                        <input type="checkbox" name="registration_enabled" value="1" class="rounded border-slate-300" {{ settings.registration_enabled ? 'checked' : '' }}>
+                                        Webinterface: Öffentliche Registrierung aktivieren
+                                    </label>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="rounded-lg border border-slate-200">
+                            <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">Local Anti Abuse</summary>
+                            <div class="border-t border-slate-200 px-4 py-4">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_contact ? 'checked' : '' }}> PoW for contact</label>
+                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_pow_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_pow_registration ? 'checked' : '' }}> PoW for registration</label>
+                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_registration" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_registration ? 'checked' : '' }}> Math captcha for registration</label>
+                                    <label class="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="anti_abuse_enable_captcha_contact" value="1" class="rounded border-slate-300" {{ settings.anti_abuse_enable_captcha_contact ? 'checked' : '' }}> Math captcha for contact</label>
+                                    <div class="form-field">
+                                        <label class="form-label">Min submit seconds</label>
+                                        <input type="number" min="1" name="anti_abuse_min_submit_seconds" value="{{ settings.anti_abuse_min_submit_seconds }}" class="form-input">
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-label">PoW difficulty (0-6)</label>
+                                        <input type="number" min="0" max="6" name="anti_abuse_pow_difficulty" value="{{ settings.anti_abuse_pow_difficulty }}" class="form-input">
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-label">Daily IP lock threshold</label>
+                                        <input type="number" min="1" name="anti_abuse_daily_ip_limit" value="{{ settings.anti_abuse_daily_ip_limit }}" class="form-input">
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+
+                        <div class="ng-data-card">
+                            <div class="ng-data-card__header">
+                                <div>
+                                    <h2 class="ng-data-card__title">{{ t('admin_webinterface_security_2fa_overview', page_locale()) }}</h2>
+                                    <p class="ng-data-card__sub">{{ t('admin_webinterface_security_2fa_overview_hint', page_locale()) }}</p>
+                                </div>
+                                <div class="ng-data-card__actions">
+                                    <span class="ui-badge ui-badge--primary">{{ twoFactorOverview|length }}</span>
+                                </div>
+                            </div>
+                            <div class="ng-data-card__body--flush">
+                                <div class="cust-ws-table-wrap">
+                                    <table class="cust-table">
+                                        <thead>
+                                            <tr>
+                                                <th>{{ t('admin_webinterface_security_2fa_user', page_locale()) }}</th>
+                                                <th>{{ t('admin_webinterface_security_2fa_role', page_locale()) }}</th>
+                                                <th>{{ t('admin_webinterface_security_2fa_status', page_locale()) }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for entry in twoFactorOverview %}
+                                                <tr>
+                                                    <td>{{ entry.email }}</td>
+                                                    <td>{{ entry.type|title }}</td>
+                                                    <td>
+                                                        <span class="ui-badge {{ entry.totpEnabled ? 'ui-badge--success' : 'ui-badge--neutral' }}">
+                                                            {{ entry.totpEnabled ? t('admin_webinterface_security_2fa_enabled', page_locale()) : t('admin_webinterface_security_2fa_disabled', page_locale()) }}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            {% else %}
+                                                <tr>
+                                                    <td colspan="3" class="cust-table__empty">{{ t('admin_webinterface_security_2fa_empty', page_locale()) }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                {# ── Maintenance ── #}
+                {% elseif activeTab == 'maintenance' %}
+                    <div class="flex flex-col gap-5">
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="cms_maintenance_enabled" value="1" class="rounded border-slate-300" {{ settings.cms_maintenance_enabled ? 'checked' : '' }}>
+                            {{ t('admin_webinterface_maintenance_enabled', page_locale()) }}
+                        </label>
+
+                        <div>
+                            <p class="form-label mb-3">{{ t('admin_webinterface_maintenance_schedule', page_locale()) }}</p>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="form-field">
+                                    <label class="form-label">{{ t('admin_webinterface_maintenance_start', page_locale()) }}</label>
+                                    <input type="datetime-local" name="cms_maintenance_starts_at" value="{{ settings.cms_maintenance_starts_at }}" class="form-input">
+                                </div>
+                                <div class="form-field">
+                                    <label class="form-label">{{ t('admin_webinterface_maintenance_end', page_locale()) }}</label>
+                                    <input type="datetime-local" name="cms_maintenance_ends_at" value="{{ settings.cms_maintenance_ends_at }}" class="form-input">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_maintenance_message', page_locale()) }}</label>
+                            <textarea name="cms_maintenance_message" rows="3" class="form-input">{{ settings.cms_maintenance_message }}</textarea>
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label">Wartungsmodus Grafik (URL oder /Pfad)</label>
+                            <input type="text" name="cms_maintenance_graphic" value="{{ settings.cms_maintenance_graphic }}" class="form-input" placeholder="/images/maintenance.png">
+                        </div>
+
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_webinterface_maintenance_allowlist', page_locale()) }}</label>
+                            <textarea name="cms_maintenance_allowlist" rows="3" class="form-input" placeholder="203.0.113.10&#10;198.51.100.0/24">{{ settings.cms_maintenance_allowlist }}</textarea>
+                            <p class="mt-2 text-xs text-slate-500">{{ t('admin_webinterface_maintenance_hint', page_locale()) }}</p>
+                        </div>
+                    </div>
+
+                {# ── Agent ── #}
+                {% elseif activeTab == 'agent' %}
+                    <div class="flex flex-col gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <h2 class="text-sm font-semibold uppercase text-slate-700">Agent Registration Token</h2>
+                        <p class="text-sm text-slate-700">Status: <span class="ui-badge {{ agentRegistrationTokenSet ? 'ui-badge--success' : 'ui-badge--neutral' }}">{{ agentRegistrationTokenSet ? 'set' : 'not set' }}</span></p>
+                        <p class="text-sm text-slate-700">Masked: <code class="rounded bg-slate-100 px-2 py-1 text-xs font-mono">{{ agentRegistrationTokenMasked }}</code></p>
+                        <div>
+                            <button type="submit" formaction="{{ path('admin_settings_agent_token_rotate') }}" formmethod="post" class="ui-button ui-button--warning">Rotate token</button>
+                        </div>
+                        <p class="text-xs text-slate-500">After rotation, existing agents using the old token for new registrations will fail immediately.</p>
+                    </div>
+                {% endif %}
+
+                <div class="mt-6 flex flex-wrap items-center gap-3">
+                    <button type="submit" class="ui-button ui-button--primary">{{ t('admin_settings_save', page_locale()) }}</button>
+                    <a href="/admin" class="ui-button ui-button--ghost">{{ t('admin_settings_back', page_locale()) }}</a>
+                </div>
+            </form>
+
+        </div>
     </div>
+
 </div>
 {% endblock %}

@@ -1,38 +1,48 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Incidents · Easy-Wi NextGen{% endblock %}
+{% set pageTitle = t('admin_status_incidents_title', page_locale()) %}
+{% set pageSubtitle = t('admin_status_incidents_intro', page_locale()) %}
+{% set activeNav = 'status-incidents' %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="flex flex-col gap-6">
+
     {% include 'admin/status/_nav.html.twig' %}
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-            <h1 class="text-2xl font-semibold">Incidents</h1>
-            <p class="text-sm text-slate-700">Publish incident timelines and communicate updates.</p>
+
+    <div class="ng-kpi-row">
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">Total</div>
+            <div class="ng-kpi-box__value">{{ summary.total }}</div>
         </div>
-        <div class="grid grid-cols-3 gap-3 text-center">
-            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p class="text-xs uppercase text-slate-700">Total</p>
-                <p class="text-xl font-semibold text-slate-900">{{ summary.total }}</p>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">Open</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.open }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">Resolved</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.resolved }}</div>
+        </div>
+    </div>
+
+    <div class="ng-layout-2col">
+        <div id="incidents-table" class="ng-data-card"
+             hx-trigger="incidents-changed from:body"
+             hx-get="/admin/status/incidents/table"
+             hx-swap="outerHTML">
+            <div class="ng-data-card__body--flush">
+                {% include 'admin/status/incidents/_table.html.twig' with { incidents: incidents } %}
             </div>
-            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p class="text-xs uppercase text-slate-700">Open</p>
-                <p class="text-xl font-semibold text-amber-600">{{ summary.open }}</p>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <p class="text-xs uppercase text-slate-700">Resolved</p>
-                <p class="text-xl font-semibold text-emerald-600">{{ summary.resolved }}</p>
+        </div>
+
+        <div id="incident-form" class="ng-data-card"
+             hx-trigger="incidents-changed from:body"
+             hx-get="/admin/status/incidents/form"
+             hx-swap="outerHTML">
+            <div class="ng-data-card__body">
+                {% include 'admin/status/incidents/_form.html.twig' with { form: form, components: components, statuses: statuses } %}
             </div>
         </div>
     </div>
 
-    <div class="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <div class="rounded-xl border border-slate-200 bg-white" id="incidents-table" hx-trigger="incidents-changed from:body" hx-get="/admin/status/incidents/table" hx-swap="outerHTML">
-            {% include 'admin/status/incidents/_table.html.twig' with { incidents: incidents } %}
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-white" id="incident-form" hx-trigger="incidents-changed from:body" hx-get="/admin/status/incidents/form" hx-swap="outerHTML">
-            {% include 'admin/status/incidents/_form.html.twig' with { form: form, components: components, statuses: statuses } %}
-        </div>
-    </div>
 </div>
 {% endblock %}

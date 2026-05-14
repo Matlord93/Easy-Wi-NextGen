@@ -1,194 +1,230 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('admin_server_ports_title', page_locale()) %}
+{% set pageSubtitle = t('admin_server_ports_intro', page_locale()) %}
+{% set activeNav = 'port-pools' %}
+
 {% block content %}
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h1 class="text-2xl font-semibold">{{ t('admin_server_ports_title', page_locale()) }}</h1>
-            <p class="text-sm text-slate-700">{{ t('admin_server_ports_intro', page_locale()) }}</p>
-        </div>
-    </div>
+<div class="flex flex-col gap-6">
 
     {% if notice %}
-        <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ notice }}</div>
+        <div class="ng-alert ng-alert--success">{{ notice }}</div>
     {% endif %}
     {% if error %}
-        <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{{ error }}</div>
+        <div class="ng-alert ng-alert--danger">{{ error }}</div>
     {% endif %}
 
-    <div class="mt-6 grid gap-6 xl:grid-cols-2">
-        <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 class="text-sm font-semibold uppercase text-slate-700">{{ t('admin_server_ports_pool_create_title', page_locale()) }}</h2>
-            <form class="mt-4 grid gap-4" method="post" action="{{ path('admin_port_pools_create_page') }}">
+    {# Create forms: pool + block assign #}
+    <div class="ng-layout-2col--equal">
+        {# Create pool #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_port_pools_node_label', page_locale()) }}</label>
-                    <select name="node_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" required>
-                        <option value="">{{ t('admin_port_pools_node_placeholder', page_locale()) }}</option>
-                        {% for node in nodes %}
-                            <option value="{{ node.id }}">{{ node.name ?? node.id }}</option>
-                        {% endfor %}
-                    </select>
+                    <h2 class="ng-data-card__title">{{ t('admin_server_ports_pool_create_title', page_locale()) }}</h2>
                 </div>
-
-                <div class="grid gap-3 sm:grid-cols-2">
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_port_pools_name_label', page_locale()) }}</label>
-                        <input type="text" name="name" placeholder="{{ t('admin_port_pools_name_placeholder', page_locale()) }}" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" required>
+            </div>
+            <div class="ng-data-card__body">
+                <form class="flex flex-col gap-4" method="post" action="{{ path('admin_port_pools_create_page') }}">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_port_pools_node_label', page_locale()) }}</label>
+                        <select name="node_id" class="form-input" required>
+                            <option value="">{{ t('admin_port_pools_node_placeholder', page_locale()) }}</option>
+                            {% for node in nodes %}
+                                <option value="{{ node.id }}">{{ node.name ?? node.id }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-700">Tag</label>
-                        <input type="text" name="tag" placeholder="GAME_UDP" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" required>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="form-field">
+                            <label class="form-label">{{ t('admin_port_pools_name_label', page_locale()) }}</label>
+                            <input type="text" name="name" placeholder="{{ t('admin_port_pools_name_placeholder', page_locale()) }}" class="form-input" required>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">Tag</label>
+                            <input type="text" name="tag" placeholder="GAME_UDP" class="form-input" required>
+                        </div>
                     </div>
-                </div>
 
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_port_pools_range_label', page_locale()) }}</label>
-                    <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                        <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_pools_range_start_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" required>
-                        <input type="number" min="1" name="end_port" placeholder="{{ t('admin_port_pools_range_end_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" required>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_port_pools_range_label', page_locale()) }}</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_pools_range_start_placeholder', page_locale()) }}" class="form-input" required>
+                            <input type="number" min="1" name="end_port" placeholder="{{ t('admin_port_pools_range_end_placeholder', page_locale()) }}" class="form-input" required>
+                        </div>
+                        <p class="mt-1 text-xs text-slate-600">{{ t('admin_port_pools_range_hint', page_locale()) }}</p>
                     </div>
-                    <p class="mt-1 text-xs text-slate-600">{{ t('admin_port_pools_range_hint', page_locale()) }}</p>
-                </div>
 
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_server_ports_strategy_label', page_locale()) }}</label>
-                    <select name="allocation_mode" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                        <option value="next">{{ t('admin_server_ports_strategy_next', page_locale()) }}</option>
-                        <option value="gap10">{{ t('admin_server_ports_strategy_gap10', page_locale()) }}</option>
-                    </select>
-                    <p class="mt-1 text-xs text-slate-600">{{ t('admin_server_ports_strategy_hint', page_locale()) }}</p>
-                </div>
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_server_ports_strategy_label', page_locale()) }}</label>
+                        <select name="allocation_mode" class="form-input">
+                            <option value="next">{{ t('admin_server_ports_strategy_next', page_locale()) }}</option>
+                            <option value="gap10">{{ t('admin_server_ports_strategy_gap10', page_locale()) }}</option>
+                        </select>
+                        <p class="mt-1 text-xs text-slate-600">{{ t('admin_server_ports_strategy_hint', page_locale()) }}</p>
+                    </div>
 
-                <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700">
-                    <input type="checkbox" name="enabled" value="1" checked class="h-4 w-4 rounded border-slate-300 text-slate-900">
-                    {{ t('admin_status_enabled', page_locale()) }}
-                </label>
+                    <label class="flex items-center gap-2 text-xs font-semibold uppercase text-slate-700 cursor-pointer">
+                        <input type="checkbox" name="enabled" value="1" checked class="h-4 w-4 rounded border-slate-300 text-slate-900">
+                        {{ t('admin_status_enabled', page_locale()) }}
+                    </label>
 
-                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800">
-                    {{ t('admin_port_pools_create_action', page_locale()) }}
-                </button>
-            </form>
+                    <button type="submit" class="ui-button ui-button--primary">
+                        {{ t('admin_port_pools_create_action', page_locale()) }}
+                    </button>
+                </form>
+            </div>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 class="text-sm font-semibold uppercase text-slate-700">{{ t('admin_server_ports_block_assign_title', page_locale()) }}</h2>
-            <form class="mt-4 grid gap-4" method="post" action="{{ path('admin_port_pools_assign_block') }}">
+        {# Assign block #}
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
                 <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_port_blocks_pool_label', page_locale()) }}</label>
-                    <select name="pool_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" required>
-                        <option value="">{{ t('admin_port_blocks_pool_placeholder', page_locale()) }}</option>
+                    <h2 class="ng-data-card__title">{{ t('admin_server_ports_block_assign_title', page_locale()) }}</h2>
+                </div>
+            </div>
+            <div class="ng-data-card__body">
+                <form class="flex flex-col gap-4" method="post" action="{{ path('admin_port_pools_assign_block') }}">
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_port_blocks_pool_label', page_locale()) }}</label>
+                        <select name="pool_id" class="form-input" required>
+                            <option value="">{{ t('admin_port_blocks_pool_placeholder', page_locale()) }}</option>
+                            {% for pool in portPools %}
+                                <option value="{{ pool.id }}">{{ pool.name }} · {{ pool.node.name ?? pool.node.id }} ({{ pool.start_port }}-{{ pool.end_port }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_port_blocks_customer_label', page_locale()) }}</label>
+                        <select name="customer_id" class="form-input" required>
+                            <option value="">{{ t('admin_port_blocks_customer_placeholder', page_locale()) }}</option>
+                            {% for customer in customers %}
+                                <option value="{{ customer.id }}">{{ customer.email }} (#{{ customer.id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_port_blocks_size_label', page_locale()) }}</label>
+                        <input type="number" min="1" name="size" value="5" class="form-input" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label class="form-label">{{ t('admin_port_blocks_range_input_label', page_locale()) }}</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_blocks_range_start_placeholder', page_locale()) }}" class="form-input">
+                            <input type="number" min="1" name="end_port" placeholder="{{ t('admin_port_blocks_range_end_placeholder', page_locale()) }}" class="form-input">
+                        </div>
+                        <p class="mt-1 text-xs text-slate-600">{{ t('admin_server_ports_block_assign_hint', page_locale()) }}</p>
+                    </div>
+
+                    <button type="submit" class="ui-button ui-button--primary">
+                        {{ t('admin_port_blocks_create_action', page_locale()) }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {# Port pools list #}
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">{{ t('admin_server_ports_pool_list_title', page_locale()) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_port_pools_list_intro', page_locale()) }}</p>
+            </div>
+            <div class="ng-data-card__actions">
+                <span class="ui-badge ui-badge--neutral">{{ portPools|length }}</span>
+            </div>
+        </div>
+        <div class="ng-data-card__body ng-data-card__body--flush">
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t('admin_label_id', page_locale()) }}</th>
+                            <th>{{ t('admin_port_pools_name_label', page_locale()) }}</th>
+                            <th>{{ t('admin_port_pools_node_label', page_locale()) }}</th>
+                            <th>{{ t('admin_port_pools_range_label', page_locale()) }}</th>
+                            <th>{{ t('admin_server_ports_strategy_label', page_locale()) }}</th>
+                            <th>{{ t('admin_status_enabled', page_locale()) }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         {% for pool in portPools %}
-                            <option value="{{ pool.id }}">{{ pool.name }} · {{ pool.node.name ?? pool.node.id }} ({{ pool.start_port }}-{{ pool.end_port }})</option>
+                            <tr>
+                                <td class="font-mono text-xs text-slate-700">{{ pool.id }}</td>
+                                <td>
+                                    <div class="font-semibold text-slate-900">{{ pool.name }}</div>
+                                    <div class="text-xs text-slate-600">{{ pool.tag }}</div>
+                                </td>
+                                <td>{{ pool.node.name ?? pool.node.id }}</td>
+                                <td><span class="ui-badge ui-badge--info">{{ pool.start_port }}-{{ pool.end_port }}</span></td>
+                                <td>{{ pool.allocation_step == 10 ? t('admin_server_ports_strategy_gap10', page_locale()) : t('admin_server_ports_strategy_next', page_locale()) }}</td>
+                                <td>
+                                    {% if pool.enabled %}
+                                        <span class="ui-badge ui-badge--success">{{ t('admin_status_enabled', page_locale()) }}</span>
+                                    {% else %}
+                                        <span class="ui-badge ui-badge--neutral">{{ t('admin_status_disabled', page_locale()) }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="cust-table__empty">{{ t('admin_port_pools_empty', page_locale()) }}</td>
+                            </tr>
                         {% endfor %}
-                    </select>
-                </div>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_port_blocks_customer_label', page_locale()) }}</label>
-                    <select name="customer_id" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" required>
-                        <option value="">{{ t('admin_port_blocks_customer_placeholder', page_locale()) }}</option>
-                        {% for customer in customers %}
-                            <option value="{{ customer.id }}">{{ customer.email }} (#{{ customer.id }})</option>
+    {# Port blocks list #}
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">{{ t('admin_server_ports_blocks_title', page_locale()) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_port_blocks_list_intro', page_locale()) }}</p>
+            </div>
+            <div class="ng-data-card__actions">
+                <span class="ui-badge ui-badge--neutral">{{ portBlocks|length }}</span>
+            </div>
+        </div>
+        <div class="ng-data-card__body ng-data-card__body--flush">
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t('admin_label_id', page_locale()) }}</th>
+                            <th>{{ t('admin_port_blocks_pool_label', page_locale()) }}</th>
+                            <th>{{ t('admin_port_blocks_customer_label', page_locale()) }}</th>
+                            <th>{{ t('admin_port_blocks_range_label', page_locale()) }}</th>
+                            <th>{{ t('admin_port_blocks_instance_label', page_locale()) }}</th>
+                            <th>{{ t('admin_port_blocks_assigned_label', page_locale()) }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for block in portBlocks %}
+                            <tr>
+                                <td class="font-mono text-xs text-slate-700">{{ block.id }}</td>
+                                <td>{{ block.pool.name }}</td>
+                                <td>{{ block.customer.email }}</td>
+                                <td><span class="ui-badge ui-badge--info">{{ block.start_port }}-{{ block.end_port }}</span></td>
+                                <td>{{ block.instance_id ? '#' ~ block.instance_id : '—' }}</td>
+                                <td>{{ block.assigned_at|date('Y-m-d H:i') }}</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="cust-table__empty">{{ t('admin_port_blocks_empty', page_locale()) }}</td>
+                            </tr>
                         {% endfor %}
-                    </select>
-                </div>
-
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_port_blocks_size_label', page_locale()) }}</label>
-                    <input type="number" min="1" name="size" value="5" class="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" required>
-                </div>
-
-                <div>
-                    <label class="text-xs font-semibold uppercase text-slate-700">{{ t('admin_port_blocks_range_input_label', page_locale()) }}</label>
-                    <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                        <input type="number" min="1" name="start_port" placeholder="{{ t('admin_port_blocks_range_start_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                        <input type="number" min="1" name="end_port" placeholder="{{ t('admin_port_blocks_range_end_placeholder', page_locale()) }}" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                    </div>
-                    <p class="mt-1 text-xs text-slate-600">{{ t('admin_server_ports_block_assign_hint', page_locale()) }}</p>
-                </div>
-
-                <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500">
-                    {{ t('admin_port_blocks_create_action', page_locale()) }}
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <div class="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-            <div>
-                <h2 class="text-sm font-semibold uppercase text-slate-700">{{ t('admin_server_ports_pool_list_title', page_locale()) }}</h2>
-                <p class="text-xs text-slate-600">{{ t('admin_port_pools_list_intro', page_locale()) }}</p>
+                    </tbody>
+                </table>
             </div>
-            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ portPools|length }}</span>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                    <th class="px-6 py-3">{{ t('admin_label_id', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_port_pools_name_label', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_port_pools_node_label', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_port_pools_range_label', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_server_ports_strategy_label', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_status_enabled', page_locale()) }}</th>
-                </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-200">
-                {% for pool in portPools %}
-                    <tr>
-                        <td class="px-6 py-3 font-mono text-xs text-slate-700">{{ pool.id }}</td>
-                        <td class="px-6 py-3">
-                            <div class="text-sm font-semibold text-slate-900">{{ pool.name }}</div>
-                            <div class="text-xs text-slate-600">{{ pool.tag }}</div>
-                        </td>
-                        <td class="px-6 py-3 text-sm text-slate-800">{{ pool.node.name ?? pool.node.id }}</td>
-                        <td class="px-6 py-3"><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ pool.start_port }}-{{ pool.end_port }}</span></td>
-                        <td class="px-6 py-3 text-xs text-slate-700">{{ pool.allocation_step == 10 ? t('admin_server_ports_strategy_gap10', page_locale()) : t('admin_server_ports_strategy_next', page_locale()) }}</td>
-                        <td class="px-6 py-3 text-xs text-slate-600">{{ pool.enabled ? t('admin_status_enabled', page_locale()) : t('admin_status_disabled', page_locale()) }}</td>
-                    </tr>
-                {% else %}
-                    <tr><td colspan="6" class="px-6 py-6 text-center text-sm text-slate-600">{{ t('admin_port_pools_empty', page_locale()) }}</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
         </div>
     </div>
 
-    <div class="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-            <div>
-                <h2 class="text-sm font-semibold uppercase text-slate-700">{{ t('admin_server_ports_blocks_title', page_locale()) }}</h2>
-                <p class="text-xs text-slate-600">{{ t('admin_port_blocks_list_intro', page_locale()) }}</p>
-            </div>
-            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ portBlocks|length }}</span>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                    <th class="px-6 py-3">{{ t('admin_label_id', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_port_blocks_pool_label', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_port_blocks_customer_label', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_port_blocks_range_label', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_port_blocks_instance_label', page_locale()) }}</th>
-                    <th class="px-6 py-3">{{ t('admin_port_blocks_assigned_label', page_locale()) }}</th>
-                </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-200">
-                {% for block in portBlocks %}
-                    <tr>
-                        <td class="px-6 py-3 font-mono text-xs text-slate-700">{{ block.id }}</td>
-                        <td class="px-6 py-3 text-sm text-slate-800">{{ block.pool.name }}</td>
-                        <td class="px-6 py-3 text-sm text-slate-800">{{ block.customer.email }}</td>
-                        <td class="px-6 py-3"><span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ block.start_port }}-{{ block.end_port }}</span></td>
-                        <td class="px-6 py-3 text-sm text-slate-700">{{ block.instance_id ? '#' ~ block.instance_id : '—' }}</td>
-                        <td class="px-6 py-3 text-xs text-slate-600">{{ block.assigned_at|date('Y-m-d H:i') }}</td>
-                    </tr>
-                {% else %}
-                    <tr><td colspan="6" class="px-6 py-6 text-center text-sm text-slate-600">{{ t('admin_port_blocks_empty', page_locale()) }}</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+</div>
 {% endblock %}

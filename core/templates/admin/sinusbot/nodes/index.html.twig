@@ -1,59 +1,69 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}{{ t('admin_sinusbot_nodes_page_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+{% set pageTitle = t('admin_sinusbot_nodes_page_title', page_locale()) %}
+{% set pageSubtitle = t('admin_sinusbot_nodes_page_desc', page_locale()) %}
+{% set activeNav = 'sinusbot-nodes' %}
 
 {% block content %}
 {% set locale = page_locale() %}
-    <div class="sinusbot-page">
-        <div class="sinusbot-header">
+<div class="flex flex-col gap-6">
+
+    {% for message in app.flashes('success') %}
+        <div class="ng-alert ng-alert--success">{{ t(message, locale) }}</div>
+    {% endfor %}
+
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
             <div>
-                <h1>{{ t('admin_sinusbot_nodes_page_title', locale) }}</h1>
-                <p>{{ t('admin_sinusbot_nodes_page_desc', locale) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_sinusbot_nodes_page_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_sinusbot_nodes_page_desc', locale) }}</p>
             </div>
-            <div class="sinusbot-actions">
-                <a class="sinusbot-button" href="/admin/sinusbot/nodes/new">{{ t('admin_sinusbot_nodes_add', locale) }}</a>
+            <div class="ng-data-card__actions">
+                <a class="ui-button ui-button--primary ui-button--sm" href="/admin/sinusbot/nodes/new">{{ t('admin_sinusbot_nodes_add', locale) }}</a>
             </div>
         </div>
-
-        {% for message in app.flashes('success') %}
-            <div class="sinusbot-alert sinusbot-alert-success">{{ t(message, page_locale()) }}</div>
-        {% endfor %}
-
-        <div class="sinusbot-card">
-            <table class="sinusbot-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>{{ t('admin_sinusbot_nodes_status', locale) }}</th>
-                        <th>Version</th>
-                        <th>{{ t('admin_sinusbot_nodes_actions', locale) }}</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for node in nodes %}
+        <div class="ng-data-card__body ng-data-card__body--flush">
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
                         <tr>
-                            <td>
-                                <div>{{ node.name }}</div>
-                            </td>
-                            {% set sinusStatusLabel = node.installStatus %}
-                            {% if node.installStatus == 'installed' %}
-                                {% set sinusStatusLabel = node.running ? 'running' : 'stopped' %}
-                            {% endif %}
-                            <td><span class="sinusbot-pill">{{ sinusStatusLabel }}</span></td>
-                            <td>{{ node.installedVersion ?? '–' }}</td>
-                            <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
-                            <td class="sinusbot-align-right">
-                                <a class="sinusbot-link" href="/admin/sinusbot/nodes/{{ node.id }}">{{ t('admin_sinusbot_nodes_details', locale) }}</a>
-                            </td>
+                            <th>Name</th>
+                            <th>{{ t('admin_sinusbot_nodes_status', locale) }}</th>
+                            <th>Version</th>
+                            <th>{{ t('admin_sinusbot_nodes_actions', locale) }}</th>
+                            <th></th>
                         </tr>
-                    {% else %}
-                        <tr>
-                            <td colspan="5" class="sinusbot-empty">{{ t('admin_sinusbot_nodes_none', locale) }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for node in nodes %}
+                            <tr>
+                                <td>
+                                    <div>{{ node.name }}</div>
+                                </td>
+                                <td>
+                                    {% set sinusStatusLabel = node.installStatus %}
+                                    {% if node.installStatus == 'installed' %}
+                                        {% set sinusStatusLabel = node.running ? 'running' : 'stopped' %}
+                                    {% endif %}
+                                    {% set statusBadge = sinusStatusLabel == 'running' ? 'success' : (sinusStatusLabel == 'stopped' ? 'warning' : 'neutral') %}
+                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ sinusStatusLabel }}</span>
+                                </td>
+                                <td>{{ node.installedVersion ?? '–' }}</td>
+                                <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
+                                <td class="text-right">
+                                    <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/sinusbot/nodes/{{ node.id }}">{{ t('admin_sinusbot_nodes_details', locale) }}</a>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="cust-table__empty">{{ t('admin_sinusbot_nodes_none', locale) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
+
+</div>
 {% endblock %}

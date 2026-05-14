@@ -44,6 +44,7 @@ hints:
   enable_extension: "Enable %extension% in Plesk → PHP Extensions."
   writable_var: "Grant write access to var/ (e.g. chmod 775 var/ or adjust ownership)."
   writable_cache: "Grant write access to var/cache/ (e.g. chmod 775 var/cache/ or adjust ownership)."
+  writable_config: "Grant write access to /etc/easywi (for example chown www-data:www-data /etc/easywi && chmod 2775 /etc/easywi, or rerun the Linux installer)."
   writable_env: "Ensure the webserver user can write %path% (adjust permissions or ownership)."
 
 step3:

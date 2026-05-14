@@ -758,20 +758,45 @@ ENV
 
 
 set_easywi_config_permissions() {
-  local readable_group="$1"
-  [[ -z "${readable_group}" ]] && return 0
-  [[ -d /etc/easywi ]] || return 0
+  local runtime_user="$1" readable_group="$2"
+  [[ -z "${runtime_user}" || -z "${readable_group}" ]] && return 0
 
   step "Setze Rechte für /etc/easywi-Konfiguration."
-  chgrp "${readable_group}" /etc/easywi 2>/dev/null || warn "Konnte Gruppe für /etc/easywi nicht setzen."
-  chmod 775 /etc/easywi 2>/dev/null || warn "Konnte Schreibrechte für /etc/easywi nicht setzen."
+  install -d -o "${runtime_user}" -g "${readable_group}" -m 2775 /etc/easywi \
+    || warn "Konnte /etc/easywi nicht für ${runtime_user}:${readable_group} anlegen."
+  chown "${runtime_user}:${readable_group}" /etc/easywi 2>/dev/null || warn "Konnte Besitzer für /etc/easywi nicht setzen."
+  chmod 2775 /etc/easywi 2>/dev/null || warn "Konnte Schreibrechte für /etc/easywi nicht setzen."
 
   local path
   for path in /etc/easywi/secret.key /etc/easywi/db.json; do
     [[ -f "${path}" ]] || continue
-    chgrp "${readable_group}" "${path}" 2>/dev/null || warn "Konnte Gruppe für ${path} nicht setzen."
-    chmod 640 "${path}" 2>/dev/null || warn "Konnte Rechte für ${path} nicht setzen."
+    chown "${runtime_user}:${readable_group}" "${path}" 2>/dev/null || warn "Konnte Besitzer für ${path} nicht setzen."
+    chmod 660 "${path}" 2>/dev/null || warn "Konnte Rechte für ${path} nicht setzen."
   done
+}
+
+set_panel_file_permissions() {
+  local install_dir="$1" core_dir="$2" system_user="$3" web_group="$4"
+
+  step "Setze Panel-Dateiberechtigungen."
+  chown -R "${system_user}:${system_user}" "${install_dir}"
+
+  # nginx/PHP-FPM and EasyWI workers must be able to read public/ and write
+  # runtime/setup state. The setgid bit keeps newly created files in the web
+  # group even after console commands, migrations or cache warmups.
+  install -d -o "${system_user}" -g "${web_group}" -m 2775 \
+    "${core_dir}/var" "${core_dir}/var/cache" "${core_dir}/var/log" \
+    "${core_dir}/var/easywi" "${core_dir}/srv/setup" "${core_dir}/srv/setup/state"
+  chown -R "${system_user}:${web_group}" "${core_dir}/var" "${core_dir}/srv/setup" "${core_dir}/public" 2>/dev/null || true
+  if [[ -f "${core_dir}/.env.local" ]]; then
+    chown "${system_user}:${web_group}" "${core_dir}/.env.local" 2>/dev/null || true
+    chmod 640 "${core_dir}/.env.local" 2>/dev/null || true
+  fi
+  find "${core_dir}/var" "${core_dir}/srv/setup" -type d -exec chmod 2775 {} \; 2>/dev/null || true
+  find "${core_dir}/var" "${core_dir}/srv/setup" -type f -exec chmod 664 {} \; 2>/dev/null || true
+  chmod -R g+rwX "${core_dir}/var" "${core_dir}/srv/setup" 2>/dev/null || true
+  chmod -R g+rX "${core_dir}/public" 2>/dev/null || true
+  set_easywi_config_permissions "${system_user}" "${web_group}"
 }
 
 write_db_config() {
@@ -1088,7 +1113,7 @@ create_agent_bootstrap_token() {
 # ---------------------------------------------------------------------------
 
 write_panel_messenger_service() {
-  local php_bin="$1" console="$2"
+  local php_bin="$1" console="$2" core_dir="$3" system_user="$4" web_group="$5"
   local messenger_dsn="${EASYWI_MESSENGER_TRANSPORT_DSN:-doctrine://default}"
 
   if [[ "${messenger_dsn}" == "sync://" ]]; then
@@ -1108,9 +1133,12 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+WorkingDirectory=${core_dir}
 ExecStart=${php_bin} ${console} messenger:consume async --time-limit=3600
 Restart=always
 RestartSec=5
+User=${system_user}
+Group=${web_group}
 
 [Install]
 WantedBy=multi-user.target
@@ -1120,7 +1148,7 @@ UNIT
 }
 
 write_panel_scheduler_service() {
-  local php_bin="$1" console="$2"
+  local php_bin="$1" console="$2" core_dir="$3" system_user="$4" web_group="$5"
 
   step "Richte zentralen Scheduler ein."
   if has_systemctl; then
@@ -1132,7 +1160,10 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+WorkingDirectory=${core_dir}
 ExecStart=${php_bin} ${console} app:run-schedules --env=prod --no-interaction
+User=${system_user}
+Group=${web_group}
 UNIT
 
     cat > /etc/systemd/system/easywi-scheduler.timer <<UNIT
@@ -1158,7 +1189,7 @@ UNIT
     cat > /etc/cron.d/easywi-scheduler <<CRON
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-* * * * * root ${php_bin} ${console} app:run-schedules --env=prod --no-interaction >/dev/null 2>&1
+* * * * * ${system_user} ${php_bin} ${console} app:run-schedules --env=prod --no-interaction >/dev/null 2>&1
 CRON
     chmod 0644 /etc/cron.d/easywi-scheduler
     start_first_available_service crond cron
@@ -1723,18 +1754,9 @@ install_panel() {
 
   [[ -n "${github_token}" ]] && printf 'APP_GITHUB_TOKEN="%s"\n' "${github_token}" >> "${core_dir}/.env.local"
 
-  step "Setze Dateiberechtigungen."
-  chown -R "${system_user}:${system_user}" "${install_dir}"
-
   # nginx/PHP-FPM must be able to read public/ and write runtime state.
   local web_group; web_group="$(id -gn www-data 2>/dev/null || id -gn nginx 2>/dev/null || echo "${system_user}")"
-  mkdir -p "${core_dir}/var" "${core_dir}/var/cache" "${core_dir}/var/log" "${core_dir}/var/easywi" "${core_dir}/srv/setup/state"
-  chown -R "${system_user}:${web_group}" "${core_dir}/var" "${core_dir}/srv/setup" "${core_dir}/public" 2>/dev/null || true
-  find "${core_dir}/var" "${core_dir}/srv/setup" -type d -exec chmod 775 {} \; 2>/dev/null || true
-  find "${core_dir}/var" "${core_dir}/srv/setup" -type f -exec chmod 664 {} \; 2>/dev/null || true
-  chmod -R g+rwX "${core_dir}/var" "${core_dir}/srv/setup" 2>/dev/null || true
-  chmod -R g+rX "${core_dir}/public" 2>/dev/null || true
-  set_easywi_config_permissions "${web_group}"
+  set_panel_file_permissions "${install_dir}" "${core_dir}" "${system_user}" "${web_group}"
 
   configure_nginx "${family}" "${web_hostname}" "${core_dir}/public" "${PHP_FPM_SOCKET}"
 
@@ -1761,8 +1783,10 @@ install_panel() {
     "${db_name}" "${db_user}" "${db_password}" \
     "$(detect_nginx_conf_dir "${family}")/easywi.conf"
 
-  write_panel_messenger_service        "${php_bin}" "${core_dir}/bin/console"
-  write_panel_scheduler_service        "${php_bin}" "${core_dir}/bin/console"
+  set_panel_file_permissions "${install_dir}" "${core_dir}" "${system_user}" "${web_group}"
+
+  write_panel_messenger_service        "${php_bin}" "${core_dir}/bin/console" "${core_dir}" "${system_user}" "${web_group}"
+  write_panel_scheduler_service        "${php_bin}" "${core_dir}/bin/console" "${core_dir}" "${system_user}" "${web_group}"
   write_panel_console_relay_service    "${php_bin}" "${core_dir}" "${system_user}" "${web_group}"
   write_panel_console_wrapper          "${php_bin}" "${core_dir}/bin/console"
   write_panel_cron                     "${php_bin}" "${core_dir}/bin/console" "${system_user}"

@@ -1,5 +1,8 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('admin_nodes_title', page_locale()) %}
+{% set pageSubtitle = t('admin_nodes_intro', page_locale()) %}
+{% set activeNav = 'nodes' %}
 
 {% block content %}
 {% set selectedNode = selectedNode ?? nodes|first %}

@@ -1,168 +1,177 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('admin_bootstrap_tokens_title', page_locale()) %}
+{% set pageSubtitle = t('admin_bootstrap_tokens_intro', page_locale()) %}
+{% set activeNav = 'agent-bootstrap-tokens' %}
 
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('admin_bootstrap_tokens_title', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('admin_bootstrap_tokens_intro', page_locale()) }}</p>
-    </div>
-</div>
+{% set locale = page_locale() %}
+<div class="flex flex-col gap-6">
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-1 space-y-6">
-        <div class="rounded-xl border border-slate-200 bg-white p-6">
-            <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_bootstrap_tokens_create_title', page_locale()) }}</h2>
-            <p class="mt-1 text-sm text-slate-700">{{ t('admin_bootstrap_tokens_create_intro', page_locale()) }}</p>
+    <div class="ng-layout-2col">
 
-            {% if errors is not empty %}
-                <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    <ul class="list-disc pl-5">
-                        {% for error in errors %}
-                            <li>{{ error }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            {% endif %}
-
-            {% if createdToken %}
-                <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    <p class="font-semibold">{{ t('admin_bootstrap_tokens_created', page_locale()) }}</p>
-                    <p class="mt-2 break-all font-mono text-xs text-emerald-800">{{ createdToken }}</p>
-                    <p class="mt-2 text-xs text-emerald-700">{{ t('admin_bootstrap_tokens_created_hint', page_locale()) }}</p>
-                </div>
-            {% endif %}
-
-            <form method="post" class="mt-4 space-y-4">
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
                 <div>
-                    <label class="text-sm font-medium text-slate-700" for="name">{{ t('admin_bootstrap_tokens_name', page_locale()) }}</label>
-                    <input
-                        id="name"
-                        name="name"
-                        type="text"
-                        value="{{ form.name }}"
-                        placeholder="{{ t('admin_bootstrap_tokens_name_placeholder', page_locale()) }}"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-slate-700" for="expires_in">{{ t('admin_bootstrap_tokens_expires', page_locale()) }}</label>
-                    <input
-                        id="expires_in"
-                        name="expires_in"
-                        type="number"
-                        min="1"
-                        max="1440"
-                        value="{{ form.expires_in }}"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                    <p class="mt-1 text-xs text-slate-700">{{ t('admin_bootstrap_tokens_expires_hint', page_locale()) }}</p>
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-slate-700" for="bound_cidr">{{ t('admin_bootstrap_tokens_cidr', page_locale()) }}</label>
-                    <input
-                        id="bound_cidr"
-                        name="bound_cidr"
-                        type="text"
-                        value="{{ form.bound_cidr }}"
-                        placeholder="203.0.113.0/24"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                    <p class="mt-1 text-xs text-slate-700">{{ t('admin_bootstrap_tokens_cidr_hint', page_locale()) }}</p>
-                </div>
-                <div>
-                    <label class="text-sm font-medium text-slate-700" for="bound_node_name">{{ t('admin_bootstrap_tokens_node_name', page_locale()) }}</label>
-                    <input
-                        id="bound_node_name"
-                        name="bound_node_name"
-                        type="text"
-                        value="{{ form.bound_node_name }}"
-                        placeholder="node-eu-01"
-                        class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                    <p class="mt-1 text-xs text-slate-700">{{ t('admin_bootstrap_tokens_node_name_hint', page_locale()) }}</p>
-                </div>
-                <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">{{ t('admin_bootstrap_tokens_create', page_locale()) }}</button>
-            </form>
-        </div>
-    </div>
-
-    <div class="lg:col-span-2">
-        <div class="rounded-xl border border-slate-200 bg-white p-6">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold text-slate-900">{{ t('admin_bootstrap_tokens_list', page_locale()) }}</h2>
-                    <p class="mt-1 text-sm text-slate-700">{{ t('admin_bootstrap_tokens_list_intro', page_locale()) }}</p>
-                    <p class="mt-1 text-xs text-slate-500">{{ t('admin_bootstrap_tokens_recent_hint', page_locale())|replace({'%count%': recentTokenLimit}) }}</p>
+                    <h2 class="ng-data-card__title">{{ t('admin_bootstrap_tokens_create_title', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_bootstrap_tokens_create_intro', locale) }}</p>
                 </div>
             </div>
+            <div class="ng-data-card__body">
 
-            {% if tokens is empty %}
-                <div class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                    {{ t('admin_bootstrap_tokens_empty', page_locale()) }}
+                {% if errors is not empty %}
+                    <div class="ng-alert ng-alert--danger">
+                        <ul class="list-disc pl-5">
+                            {% for error in errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                {% if createdToken %}
+                    <div class="ng-alert ng-alert--success">
+                        <p class="font-semibold">{{ t('admin_bootstrap_tokens_created', locale) }}</p>
+                        <p class="mt-2 break-all font-mono text-xs">{{ createdToken }}</p>
+                        <p class="mt-2 text-xs">{{ t('admin_bootstrap_tokens_created_hint', locale) }}</p>
+                    </div>
+                {% endif %}
+
+                <form method="post" class="flex flex-col gap-4 mt-4">
+                    <div class="form-field">
+                        <label class="form-label" for="name">{{ t('admin_bootstrap_tokens_name', locale) }}</label>
+                        <input
+                            id="name"
+                            name="name"
+                            type="text"
+                            value="{{ form.name }}"
+                            placeholder="{{ t('admin_bootstrap_tokens_name_placeholder', locale) }}"
+                            class="form-input"
+                        >
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label" for="expires_in">{{ t('admin_bootstrap_tokens_expires', locale) }}</label>
+                        <input
+                            id="expires_in"
+                            name="expires_in"
+                            type="number"
+                            min="1"
+                            max="1440"
+                            value="{{ form.expires_in }}"
+                            class="form-input"
+                        >
+                        <p class="form-hint">{{ t('admin_bootstrap_tokens_expires_hint', locale) }}</p>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label" for="bound_cidr">{{ t('admin_bootstrap_tokens_cidr', locale) }}</label>
+                        <input
+                            id="bound_cidr"
+                            name="bound_cidr"
+                            type="text"
+                            value="{{ form.bound_cidr }}"
+                            placeholder="203.0.113.0/24"
+                            class="form-input"
+                        >
+                        <p class="form-hint">{{ t('admin_bootstrap_tokens_cidr_hint', locale) }}</p>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label" for="bound_node_name">{{ t('admin_bootstrap_tokens_node_name', locale) }}</label>
+                        <input
+                            id="bound_node_name"
+                            name="bound_node_name"
+                            type="text"
+                            value="{{ form.bound_node_name }}"
+                            placeholder="node-eu-01"
+                            class="form-input"
+                        >
+                        <p class="form-hint">{{ t('admin_bootstrap_tokens_node_name_hint', locale) }}</p>
+                    </div>
+                    <div>
+                        <button type="submit" class="ui-button ui-button--primary">{{ t('admin_bootstrap_tokens_create', locale) }}</button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_bootstrap_tokens_list', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_bootstrap_tokens_list_intro', locale) }}</p>
+                    <p class="ng-data-card__sub">{{ t('admin_bootstrap_tokens_recent_hint', locale)|replace({'%count%': recentTokenLimit}) }}</p>
                 </div>
-            {% else %}
-                <div class="mt-4 overflow-x-auto">
-                    <table class="w-full text-sm">
+            </div>
+            <div class="ng-data-card__body ng-data-card__body--flush">
+
+                <div class="cust-ws-table-wrap">
+                    <table class="cust-table">
                         <thead>
-                            <tr class="text-left text-xs uppercase tracking-wide text-slate-500">
-                                <th class="pb-3">{{ t('admin_bootstrap_tokens_table_name', page_locale()) }}</th>
-                                <th class="pb-3">{{ t('admin_bootstrap_tokens_table_prefix', page_locale()) }}</th>
-                                <th class="pb-3">{{ t('admin_bootstrap_tokens_table_constraints', page_locale()) }}</th>
-                                <th class="pb-3">{{ t('admin_bootstrap_tokens_table_expires', page_locale()) }}</th>
-                                <th class="pb-3">{{ t('admin_bootstrap_tokens_table_status', page_locale()) }}</th>
-                                <th class="pb-3">{{ t('admin_bootstrap_tokens_table_actions', page_locale()) }}</th>
+                            <tr>
+                                <th>{{ t('admin_bootstrap_tokens_table_name', locale) }}</th>
+                                <th>{{ t('admin_bootstrap_tokens_table_prefix', locale) }}</th>
+                                <th>{{ t('admin_bootstrap_tokens_table_constraints', locale) }}</th>
+                                <th>{{ t('admin_bootstrap_tokens_table_expires', locale) }}</th>
+                                <th>{{ t('admin_bootstrap_tokens_table_status', locale) }}</th>
+                                <th>{{ t('admin_bootstrap_tokens_table_actions', locale) }}</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-200">
+                        <tbody>
                             {% for token in tokens %}
-                                <tr class="text-slate-700">
-                                    <td class="py-3 font-medium text-slate-900">
-                                        {{ token.name }}
+                                <tr>
+                                    <td>
+                                        <div class="font-medium">{{ token.name }}</div>
                                         {% if token.usedAt %}
-                                            <div class="text-xs text-slate-500">{{ t('admin_bootstrap_tokens_used_at', page_locale())|replace({'%time%': token.usedAt|date('Y-m-d H:i')}) }}</div>
+                                            <div class="text-xs text-slate-500">{{ t('admin_bootstrap_tokens_used_at', locale)|replace({'%time%': token.usedAt|date('Y-m-d H:i')}) }}</div>
                                         {% endif %}
                                     </td>
-                                    <td class="py-3 font-mono text-xs">{{ token.prefix }}</td>
-                                    <td class="py-3 text-xs">
+                                    <td class="font-mono text-xs">{{ token.prefix }}</td>
+                                    <td class="text-xs">
                                         {% if token.boundCidr %}
-                                            <div>{{ t('admin_bootstrap_tokens_bound_cidr', page_locale())|replace({'%cidr%': token.boundCidr}) }}</div>
+                                            <div>{{ t('admin_bootstrap_tokens_bound_cidr', locale)|replace({'%cidr%': token.boundCidr}) }}</div>
                                         {% endif %}
                                         {% if token.boundNodeName %}
-                                            <div>{{ t('admin_bootstrap_tokens_bound_node', page_locale())|replace({'%node%': token.boundNodeName}) }}</div>
+                                            <div>{{ t('admin_bootstrap_tokens_bound_node', locale)|replace({'%node%': token.boundNodeName}) }}</div>
                                         {% endif %}
                                         {% if not token.boundCidr and not token.boundNodeName %}
-                                            <span class="text-slate-500">{{ t('admin_bootstrap_tokens_unbound', page_locale()) }}</span>
+                                            <span class="text-slate-500">{{ t('admin_bootstrap_tokens_unbound', locale) }}</span>
                                         {% endif %}
                                     </td>
-                                    <td class="py-3 text-xs">{{ token.expiresAt|date('Y-m-d H:i') }}</td>
-                                    <td class="py-3">
-                                        {% set statusClass = {
-                                            'active': 'bg-emerald-100 text-emerald-700',
-                                            'used': 'bg-amber-100 text-amber-700',
-                                            'expired': 'bg-slate-200 text-slate-600',
-                                            'revoked': 'bg-rose-100 text-rose-700'
+                                    <td class="text-xs">{{ token.expiresAt|date('Y-m-d H:i') }}</td>
+                                    <td>
+                                        {% set statusBadge = {
+                                            'active': 'success',
+                                            'used': 'warning',
+                                            'expired': 'neutral',
+                                            'revoked': 'danger'
                                         } %}
-                                        <span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold {{ statusClass[token.status] }}">
-                                            {{ t('admin_bootstrap_tokens_status_' ~ token.status, page_locale()) }}
+                                        <span class="ui-badge ui-badge--{{ statusBadge[token.status] ?? 'neutral' }}">
+                                            {{ t('admin_bootstrap_tokens_status_' ~ token.status, locale) }}
                                         </span>
                                     </td>
-                                    <td class="py-3">
+                                    <td>
                                         {% if token.status == 'active' %}
                                             <form method="post" action="/admin/agent-bootstrap-tokens/{{ token.id }}/revoke">
-                                                <button class="text-xs font-semibold text-rose-600 hover:text-rose-700">{{ t('admin_bootstrap_tokens_revoke', page_locale()) }}</button>
+                                                <button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_bootstrap_tokens_revoke', locale) }}</button>
                                             </form>
                                         {% else %}
                                             <span class="text-xs text-slate-400">—</span>
                                         {% endif %}
                                     </td>
                                 </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="cust-table__empty">{{ t('admin_bootstrap_tokens_empty', locale) }}</td>
+                                </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-            {% endif %}
+
+            </div>
         </div>
+
     </div>
+
 </div>
 {% endblock %}

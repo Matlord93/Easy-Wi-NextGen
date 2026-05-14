@@ -1,60 +1,112 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('admin_instances_title', page_locale()) %}
+{% set pageSubtitle = 'Status, Ressourcen, SFTP und Setup auf einen Blick.' %}
+{% set activeNav = 'game-instances' %}
+{% set topbarActions = [
+    { label: t('admin_instances_new', page_locale()), href: path('admin_instances_provision'), variant: 'primary' }
+] %}
+
 {% block content %}
 <div class="flex flex-col gap-6">
-    <div class="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 to-indigo-900 px-6 py-7 text-white shadow-sm">
-        <div class="flex flex-wrap items-start justify-between gap-4">
+
+    {# ── KPI Row ── #}
+    <div class="ng-kpi-row">
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_instances_total', page_locale()) }}</div>
+            <div class="ng-kpi-box__value">{{ summary.total }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_instances_running', page_locale()) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.running }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_instances_pending_setup', page_locale()) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.pending_setup }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_instances_provisioning', page_locale()) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--info">{{ summary.provisioning }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_instances_suspended', page_locale()) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.suspended }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_instances_needs_attention', page_locale()) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--danger">{{ summary.error }}</div>
+        </div>
+    </div>
+
+    {# ── Ops Overview ── #}
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
             <div>
-                <h1 class="text-2xl font-semibold">{{ t('admin_instances_title', page_locale()) }}</h1>
-                <p class="mt-2 max-w-3xl text-sm text-slate-100">
-                    Alles Wichtige auf einen Blick: Status, Ressourcen, Disk, SFTP und Setup-Stand.
-                    Neue Server werden automatisch erstellt und die Installation wird direkt gestartet.
-                </p>
+                <h2 class="ng-data-card__title">Ops Übersicht</h2>
+                <p class="ng-data-card__sub">Kritische Systemmetriken auf einen Blick</p>
             </div>
-            <div class="flex items-center gap-2">
-                <button
-                    class="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white"
-                    hx-get="{{ path('admin_instances_table') }}"
-                    hx-target="#instances-table"
-                    hx-swap="outerHTML"
-                >{{ t('admin_instances_refresh', page_locale()) }}</button>
-                <a class="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900" href="{{ path('admin_instances_provision') }}">
-                    {{ t('admin_instances_new', page_locale()) }}
-                </a>
+        </div>
+        <div class="ng-data-card__body">
+            <div class="ng-ops-grid">
+                <div class="ng-ops-box">
+                    <div class="ng-ops-box__label">Offline Agents</div>
+                    <div class="ng-ops-box__value ng-ops-box__value--danger">{{ ops.offline_agents }}</div>
+                </div>
+                <div class="ng-ops-box">
+                    <div class="ng-ops-box__label">Disk Warnungen</div>
+                    <div class="ng-ops-box__value ng-ops-box__value--warning">{{ ops.disk_problem_instances }}</div>
+                </div>
+                <div class="ng-ops-box">
+                    <div class="ng-ops-box__label">Runtime unbekannt</div>
+                    <div class="ng-ops-box__value ng-ops-box__value--info">{{ ops.runtime_unknown_instances }}</div>
+                </div>
+                <div class="ng-ops-box">
+                    <div class="ng-ops-box__label">Blockierte Schedules</div>
+                    <div class="ng-ops-box__value ng-ops-box__value--danger">{{ ops.blocked_schedules }}</div>
+                </div>
             </div>
         </div>
     </div>
 
+    {# ── Flash notice ── #}
     {% if createNotice %}
-        <div class="rounded-xl px-6 py-4 text-sm {{ createNotice.type == 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-amber-200 bg-amber-50 text-amber-800' }}">
+        <div class="ng-alert ng-alert--{{ createNotice.type == 'success' ? 'success' : 'warning' }}">
             {{ createNotice.message }}
         </div>
     {% endif %}
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-6">
-        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_total', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_running', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.running }}</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_pending_setup', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.pending_setup }}</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_provisioning', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-indigo-600">{{ summary.provisioning }}</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_suspended', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-amber-600">{{ summary.suspended }}</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4"><p class="text-xs uppercase text-slate-600">{{ t('admin_instances_needs_attention', page_locale()) }}</p><p class="mt-2 text-2xl font-semibold text-rose-600">{{ summary.error }}</p></div>
-    </div>
-
-    <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 class="text-sm font-semibold text-slate-900">Ops Übersicht</h2>
-        <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4 text-xs">
-            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3"><span class="text-slate-600">Offline Agents</span><p class="mt-1 text-lg font-semibold text-rose-600">{{ ops.offline_agents }}</p></div>
-            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3"><span class="text-slate-600">Disk Warnungen</span><p class="mt-1 text-lg font-semibold text-amber-600">{{ ops.disk_problem_instances }}</p></div>
-            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3"><span class="text-slate-600">Runtime unbekannt</span><p class="mt-1 text-lg font-semibold text-indigo-600">{{ ops.runtime_unknown_instances }}</p></div>
-            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3"><span class="text-slate-600">Blockierte Schedules</span><p class="mt-1 text-lg font-semibold text-rose-600">{{ ops.blocked_schedules }}</p></div>
+    {# ── Instances Table ── #}
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
+            <div>
+                <h2 class="ng-data-card__title">{{ t('admin_instances_title', page_locale()) }}</h2>
+                <p class="ng-data-card__sub">Alle verwalteten Game-Server Instanzen</p>
+            </div>
+            <div class="ng-data-card__actions">
+                <button
+                    class="ui-button ui-button--ghost ui-button--sm"
+                    hx-get="{{ path('admin_instances_table') }}"
+                    hx-target="#instances-table"
+                    hx-swap="outerHTML"
+                >
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/></svg>
+                    {{ t('admin_instances_refresh', page_locale()) }}
+                </button>
+                <a class="ui-button ui-button--primary ui-button--sm" href="{{ path('admin_instances_provision') }}">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
+                    {{ t('admin_instances_new', page_locale()) }}
+                </a>
+            </div>
+        </div>
+        <div class="ng-data-card__body--flush">
+            <div id="instances-table"
+                 hx-get="{{ path('admin_instances_table') }}"
+                 hx-trigger="instances-changed from:body"
+                 hx-swap="outerHTML">
+                {% include 'admin/instances/_table.html.twig' with { instances: instances } %}
+            </div>
         </div>
     </div>
 
-    <div id="instances-table" class="rounded-xl border border-slate-200 bg-white shadow-sm"
-         hx-get="{{ path('admin_instances_table') }}"
-         hx-trigger="instances-changed from:body"
-         hx-swap="outerHTML">
-        {% include 'admin/instances/_table.html.twig' with { instances: instances } %}
-    </div>
 </div>
 {% endblock %}

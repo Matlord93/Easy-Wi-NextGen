@@ -132,7 +132,7 @@ final class InstallerService
         $requirements[] = $this->buildWritableRequirement(
             'db_config',
             dirname($this->configProvider->getConfigPath()),
-            'hints.writable_var',
+            'hints.writable_config',
         );
 
         return $requirements;

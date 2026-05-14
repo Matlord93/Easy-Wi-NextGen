@@ -1,62 +1,72 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}{{ t('admin_ts3_nodes_title', page_locale()) }} · Easy-Wi NextGen{% endblock %}
+{% set pageTitle = t('admin_ts3_nodes_title', page_locale()) %}
+{% set pageSubtitle = t('admin_ts3_nodes_intro', page_locale()) %}
+{% set activeNav = 'ts3-nodes' %}
 
 {% block content %}
 {% set locale = page_locale() %}
-    <div class="ts3-page">
-        <div class="ts3-header">
+<div class="flex flex-col gap-6">
+
+    {% for message in app.flashes('success') %}
+        <div class="ng-alert ng-alert--success">{{ message }}</div>
+    {% endfor %}
+
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
             <div>
-                <h1>{{ t('admin_ts3_nodes_title', locale) }}</h1>
-                <p>{{ t('admin_ts3_nodes_intro', locale) }}</p>
+                <h2 class="ng-data-card__title">{{ t('admin_ts3_nodes_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_ts3_nodes_intro', locale) }}</p>
             </div>
-            <div class="ts3-actions">
-                <a class="ts3-button" href="/admin/ts3/nodes/new">{{ t('admin_ts3_nodes_add', locale) }}</a>
+            <div class="ng-data-card__actions">
+                <a class="ui-button ui-button--primary ui-button--sm" href="/admin/ts3/nodes/new">{{ t('admin_ts3_nodes_add', locale) }}</a>
             </div>
         </div>
-
-        {% for message in app.flashes('success') %}
-            <div class="ts3-alert ts3-alert-success">{{ message }}</div>
-        {% endfor %}
-
-        <div class="ts3-card">
-            <table class="ts3-table">
-                <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Agent URL</th>
-                    <th>{{ t('admin_ts3_nodes_status', locale) }}</th>
-                    <th>{{ t('admin_ts3_nodes_version', locale) }}</th>
-                    <th>{{ t('admin_ts3_nodes_updated', locale) }}</th>
-                    <th></th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for node in nodes %}
-                    <tr>
-                        <td>
-                            <div>{{ node.name }}</div>
-                            <div class="ts3-muted">#{{ node.id }}</div>
-                        </td>
-                        <td>{{ node.agentBaseUrl }}</td>
-                        {% set ts3StatusLabel = node.installStatus %}
-                        {% if node.installStatus == 'installed' %}
-                            {% set ts3StatusLabel = node.running ? 'running' : 'stopped' %}
-                        {% endif %}
-                        <td><span class="ts3-pill">{{ ts3StatusLabel }}</span></td>
-                        <td>{{ node.installedVersion ?? '—' }}</td>
-                        <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
-                        <td class="ts3-align-right">
-                            <a class="ts3-link" href="/admin/ts3/nodes/{{ node.id }}">{{ t('admin_ts3_nodes_details', locale) }}</a>
-                        </td>
-                    </tr>
-                {% else %}
-                    <tr>
-                        <td colspan="6" class="ts3-empty">{{ t('admin_ts3_nodes_empty', locale) }}</td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+        <div class="ng-data-card__body ng-data-card__body--flush">
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Agent URL</th>
+                            <th>{{ t('admin_ts3_nodes_status', locale) }}</th>
+                            <th>{{ t('admin_ts3_nodes_version', locale) }}</th>
+                            <th>{{ t('admin_ts3_nodes_updated', locale) }}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for node in nodes %}
+                            <tr>
+                                <td>
+                                    <div>{{ node.name }}</div>
+                                    <div class="text-xs text-slate-500">#{{ node.id }}</div>
+                                </td>
+                                <td>{{ node.agentBaseUrl }}</td>
+                                <td>
+                                    {% set ts3StatusLabel = node.installStatus %}
+                                    {% if node.installStatus == 'installed' %}
+                                        {% set ts3StatusLabel = node.running ? 'running' : 'stopped' %}
+                                    {% endif %}
+                                    {% set statusBadge = ts3StatusLabel == 'running' ? 'success' : (ts3StatusLabel == 'stopped' ? 'warning' : 'neutral') %}
+                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ ts3StatusLabel }}</span>
+                                </td>
+                                <td>{{ node.installedVersion ?? '—' }}</td>
+                                <td>{{ node.updatedAt|date('Y-m-d H:i') }}</td>
+                                <td class="text-right">
+                                    <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts3/nodes/{{ node.id }}">{{ t('admin_ts3_nodes_details', locale) }}</a>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="cust-table__empty">{{ t('admin_ts3_nodes_empty', locale) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
+
+</div>
 {% endblock %}

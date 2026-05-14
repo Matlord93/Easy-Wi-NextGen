@@ -44,6 +44,7 @@ hints:
   enable_extension: "Aktivieren Sie %extension% in Plesk → PHP-Erweiterungen."
   writable_var: "Schreibrechte für var/ vergeben (z. B. chmod 775 var/ oder Besitzrechte anpassen)."
   writable_cache: "Schreibrechte für var/cache/ vergeben (z. B. chmod 775 var/cache/ oder Besitzrechte anpassen)."
+  writable_config: "Schreibrechte für /etc/easywi vergeben (z. B. chown www-data:www-data /etc/easywi && chmod 2775 /etc/easywi oder den Linux-Installer erneut ausführen)."
   writable_env: "Stellen Sie sicher, dass der Webserver %path% schreiben darf (Rechte oder Besitz anpassen)."
 
 step3:

@@ -1,49 +1,57 @@
 {% extends 'admin/base.html.twig' %}
 
+{% set pageTitle = t('admin_ts3_heading', page_locale()) %}
+{% set pageSubtitle = t('admin_ts3_intro', page_locale()) %}
+{% set activeNav = 'ts3-instances' %}
 
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <div>
-        <h1 class="text-2xl font-semibold">{{ t('admin_ts3_heading', page_locale()) }}</h1>
-        <p class="text-sm text-slate-700">{{ t('admin_ts3_intro', page_locale()) }}</p>
-    </div>
-    <div class="flex items-center gap-3">
-        <button
-            class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-            hx-get="/admin/ts3/instances/table"
-            hx-target="#ts3-instances-table"
-            hx-swap="outerHTML"
-        >{{ t('refresh', page_locale()) }}</button>
-        <a
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
-            href="/admin/ts3/instances/new"
-        >{{ t('admin_ts3_new_instance', page_locale()) }}</a>
-    </div>
-</div>
+{% set locale = page_locale() %}
+<div class="flex flex-col gap-6">
 
-<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_ts3_total_instances', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold">{{ summary.total }}</p>
+    <div class="ng-kpi-row">
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_ts3_total_instances', locale) }}</div>
+            <div class="ng-kpi-box__value">{{ summary.total }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_ts3_running', locale) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--success">{{ summary.running }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_ts3_stopped', locale) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--warning">{{ summary.stopped }}</div>
+        </div>
+        <div class="ng-kpi-box">
+            <div class="ng-kpi-box__label">{{ t('admin_ts3_needs_attention', locale) }}</div>
+            <div class="ng-kpi-box__value ng-kpi-box__value--danger">{{ summary.error }}</div>
+        </div>
     </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_ts3_running', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ summary.running }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_ts3_stopped', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-amber-500">{{ summary.stopped }}</p>
-    </div>
-    <div class="rounded-xl bg-white border border-slate-200 p-4">
-        <p class="text-xs uppercase text-slate-700">{{ t('admin_ts3_needs_attention', page_locale()) }}</p>
-        <p class="mt-2 text-2xl font-semibold text-rose-500">{{ summary.error }}</p>
-    </div>
-</div>
 
-<div id="ts3-instances-table" class="rounded-xl bg-white border border-slate-200"
-     hx-get="/admin/ts3/instances/table"
-     hx-trigger="ts3-instances-changed from:body"
-     hx-swap="outerHTML">
-    {% include 'admin/ts3/instances/_table.html.twig' with { instances: instances } %}
+    <div id="ts3-instances-table"
+         hx-get="/admin/ts3/instances/table"
+         hx-trigger="ts3-instances-changed from:body"
+         hx-swap="outerHTML">
+        <div class="ng-data-card">
+            <div class="ng-data-card__header">
+                <div>
+                    <h2 class="ng-data-card__title">{{ t('admin_ts3_heading', locale) }}</h2>
+                    <p class="ng-data-card__sub">{{ t('admin_ts3_intro', locale) }}</p>
+                </div>
+                <div class="ng-data-card__actions">
+                    <button
+                        class="ui-button ui-button--ghost ui-button--sm"
+                        hx-get="/admin/ts3/instances/table"
+                        hx-target="#ts3-instances-table"
+                        hx-swap="outerHTML"
+                    >{{ t('refresh', locale) }}</button>
+                    <a class="ui-button ui-button--primary ui-button--sm" href="/admin/ts3/instances/new">{{ t('admin_ts3_new_instance', locale) }}</a>
+                </div>
+            </div>
+            <div class="ng-data-card__body ng-data-card__body--flush">
+                {% include 'admin/ts3/instances/_table.html.twig' with { instances: instances } %}
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

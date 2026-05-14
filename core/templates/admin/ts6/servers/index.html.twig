@@ -1,109 +1,117 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}TS6 Virtual Server · Easy-Wi NextGen{% endblock %}
+{% set pageTitle = t('admin_ts6_servers_title', page_locale()) %}
+{% set pageSubtitle = t('admin_ts6_servers_intro', page_locale()) %}
+{% set activeNav = 'ts6-servers' %}
 
 {% block content %}
 {% set locale = page_locale() %}
-    <div class="ts6-page">
-        <div class="ts6-header">
+<div class="flex flex-col gap-6">
+
+    {% for message in app.flashes('success') %}
+        <div class="ng-alert ng-alert--success">{{ message }}</div>
+    {% endfor %}
+    {% for message in app.flashes('error') %}
+        <div class="ng-alert ng-alert--danger">{{ message }}</div>
+    {% endfor %}
+
+    <div class="ng-data-card">
+        <div class="ng-data-card__header">
             <div>
-                <h1>TS6 Virtual Server</h1>
-                <p>Übersicht und Kunden-Zuordnung für vorhandene Virtual Server.</p>
+                <h2 class="ng-data-card__title">{{ t('admin_ts6_servers_title', locale) }}</h2>
+                <p class="ng-data-card__sub">{{ t('admin_ts6_servers_intro', locale) }}</p>
             </div>
-            <div class="ts6-actions">
-                <a class="ts6-link" href="/admin/ts6/servers/create">Server erstellen</a>
-                <a class="ts6-link" href="/admin/ts6/nodes">Nodes verwalten</a>
+            <div class="ng-data-card__actions">
+                <a class="ui-button ui-button--ghost ui-button--sm" href="/admin/ts6/nodes">{{ t('admin_ts6_servers_manage_nodes', locale) }}</a>
+                <a class="ui-button ui-button--primary ui-button--sm" href="/admin/ts6/servers/create">{{ t('admin_ts6_servers_create', locale) }}</a>
             </div>
         </div>
-
-        {% for message in app.flashes('success') %}
-            <div class="ts6-alert ts6-alert-success">{{ message }}</div>
-        {% endfor %}
-        {% for message in app.flashes('error') %}
-            <div class="ts6-alert ts6-alert-error">{{ message }}</div>
-        {% endfor %}
-
-        <div class="ts6-card">
-            <table class="ts6-table">
-                <thead>
-                    <tr>
-                        <th>Server</th>
-                        <th>Kunde</th>
-                        <th>Node</th>
-                        <th>Slots</th>
-                        <th>Ports</th>
-                        <th>Status</th>
-                        <th>{{ t('updated', locale) }}</th>
-                        <th>{{ t('admin_ts6_assignment', locale) }}</th>
-                        <th>{{ t('actions', locale) }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for server in servers %}
-                        {% set customer = customerMap[server.customerId] ?? null %}
+        <div class="ng-data-card__body ng-data-card__body--flush">
+            <div class="cust-ws-table-wrap">
+                <table class="cust-table">
+                    <thead>
                         <tr>
-                            <td>
-                                <div>{{ server.name }}</div>
-                                <div class="ts6-muted">SID {{ server.sid }} · #{{ server.id }}</div>
-                            </td>
-                            <td>
-                                {% if customer %}
-                                    <div>{{ customer.name ?? customer.email }}</div>
-                                    <div class="ts6-muted">#{{ customer.id }}</div>
-                                {% else %}
-                                    <span class="ts6-muted">{{ t('customer_ts_unknown', locale) }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div>{{ server.node.name }}</div>
-                                <div class="ts6-muted">#{{ server.node.id }}</div>
-                            </td>
-                            <td>{{ server.slots }}</td>
-                            <td>
-                                <div>Voice: {{ server.voicePort ?? '—' }}</div>
-                                <div class="ts6-muted">File: {{ server.filetransferPort ?? '—' }}</div>
-                            </td>
-                            <td>
-                                <span class="ts6-pill">{{ server.status }}</span>
-                                {% set error = serverErrors[server.id] ?? null %}
-                                {% if error %}
-                                    <div class="ts6-error-detail"><strong>{{ t('customer_ts_action_error_prefix', locale) }}:</strong> {{ error.error ?? t('admin_ts6_unknown_error', locale) }}</div>
-                                {% elseif server.status == 'external' %}
-                                    <div class="ts6-error-detail">Server wurde außerhalb des Panels angelegt.</div>
-                                {% elseif server.status == 'missing' %}
-                                    <div class="ts6-error-detail">Server aktuell nicht auf der Node gefunden.</div>
-                                {% elseif server.status == 'error' %}
-                                    <div class="ts6-error-detail">Fehlerdetails nicht verfügbar.</div>
-                                {% endif %}
-                            </td>
-                            <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
-                            <td>
-                                <form method="post" action="/admin/ts6/servers/{{ server.id }}/assign" class="flex gap-2">
-                                    <input type="hidden" name="_token" value="{{ csrf[server.id] ?? '' }}">
-                                    <select name="customer_id" class="rounded-lg border border-slate-200 px-2 py-1 text-xs">
-                                        {% for customerOption in customers %}
-                                            <option value="{{ customerOption.id }}" {{ customerOption.id == server.customerId ? 'selected' : '' }}>
-                                                {{ customerOption.name ?? customerOption.email }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
-                                    <button class="ts6-button" type="submit">Zuweisen</button>
-                                </form>
-                            </td>
-                            <td>
-                                <form method="post" action="/admin/ts6/servers/{{ server.id }}/delete" onsubmit="return confirm('{{ t('admin_ts6_server_delete_confirm', page_locale()) }}');">
-                                    <input type="hidden" name="_token" value="{{ deleteTokens[server.id] ?? '' }}">
-                                    <button class="ts6-button" type="submit">{{ t('admin_ts6_server_delete', page_locale()) }}</button>
-                                </form>
-                            </td>
+                            <th>{{ t('admin_ts6_servers_col_server', locale) }}</th>
+                            <th>{{ t('admin_ts6_servers_col_customer', locale) }}</th>
+                            <th>{{ t('admin_ts6_servers_col_node', locale) }}</th>
+                            <th>{{ t('admin_ts6_servers_col_slots', locale) }}</th>
+                            <th>{{ t('admin_ts6_servers_col_ports', locale) }}</th>
+                            <th>{{ t('admin_ts6_servers_col_status', locale) }}</th>
+                            <th>{{ t('updated', locale) }}</th>
+                            <th>{{ t('admin_ts6_assignment', locale) }}</th>
+                            <th>{{ t('actions', locale) }}</th>
                         </tr>
-                    {% else %}
-                        <tr>
-                            <td colspan="9" class="ts6-empty">Keine TS6 Virtual Server gefunden.</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for server in servers %}
+                            {% set customer = customerMap[server.customerId] ?? null %}
+                            <tr>
+                                <td>
+                                    <div>{{ server.name }}</div>
+                                    <div class="text-xs text-slate-500">SID {{ server.sid }} · #{{ server.id }}</div>
+                                </td>
+                                <td>
+                                    {% if customer %}
+                                        <div>{{ customer.name ?? customer.email }}</div>
+                                        <div class="text-xs text-slate-500">#{{ customer.id }}</div>
+                                    {% else %}
+                                        <span class="text-slate-500 text-xs">{{ t('customer_ts_unknown', locale) }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div>{{ server.node.name }}</div>
+                                    <div class="text-xs text-slate-500">#{{ server.node.id }}</div>
+                                </td>
+                                <td>{{ server.slots }}</td>
+                                <td class="text-xs">
+                                    <div>Voice: {{ server.voicePort ?? '—' }}</div>
+                                    <div class="text-slate-500">File: {{ server.filetransferPort ?? '—' }}</div>
+                                </td>
+                                <td>
+                                    {% set statusBadge = server.status == 'running' ? 'success' : (server.status == 'stopped' ? 'warning' : (server.status == 'error' ? 'danger' : 'neutral')) %}
+                                    <span class="ui-badge ui-badge--{{ statusBadge }}">{{ server.status }}</span>
+                                    {% set error = serverErrors[server.id] ?? null %}
+                                    {% if error %}
+                                        <div class="text-xs text-rose-600 mt-1"><strong>{{ t('customer_ts_action_error_prefix', locale) }}:</strong> {{ error.error ?? t('admin_ts6_unknown_error', locale) }}</div>
+                                    {% elseif server.status == 'external' %}
+                                        <div class="text-xs text-slate-500 mt-1">{{ t('admin_ts6_status_external_hint', locale) }}</div>
+                                    {% elseif server.status == 'missing' %}
+                                        <div class="text-xs text-slate-500 mt-1">{{ t('admin_ts6_status_missing_hint', locale) }}</div>
+                                    {% elseif server.status == 'error' %}
+                                        <div class="text-xs text-slate-500 mt-1">{{ t('admin_ts6_status_error_hint', locale) }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ server.updatedAt|date('Y-m-d H:i') }}</td>
+                                <td>
+                                    <form method="post" action="/admin/ts6/servers/{{ server.id }}/assign" class="flex gap-2 items-center">
+                                        <input type="hidden" name="_token" value="{{ csrf[server.id] ?? '' }}">
+                                        <select name="customer_id" class="form-input text-xs py-1 px-2">
+                                            {% for customerOption in customers %}
+                                                <option value="{{ customerOption.id }}" {{ customerOption.id == server.customerId ? 'selected' : '' }}>
+                                                    {{ customerOption.name ?? customerOption.email }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="ui-button ui-button--ghost ui-button--sm">{{ t('admin_ts6_assign', locale) }}</button>
+                                    </form>
+                                </td>
+                                <td>
+                                    <form method="post" action="/admin/ts6/servers/{{ server.id }}/delete" onsubmit="return confirm('{{ t('admin_ts6_server_delete_confirm', locale) }}');">
+                                        <input type="hidden" name="_token" value="{{ deleteTokens[server.id] ?? '' }}">
+                                        <button type="submit" class="ui-button ui-button--danger ui-button--sm">{{ t('admin_ts6_server_delete', locale) }}</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="9" class="cust-table__empty">{{ t('admin_ts6_servers_empty', locale) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
+
+</div>
 {% endblock %}
