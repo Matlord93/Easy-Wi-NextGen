@@ -344,7 +344,7 @@ final class WebinterfaceUpdateService
         $channel = $this->normalizeReleaseChannel($this->settingsService->getCoreChannel());
         $details = $this->coreReleaseChecker !== null
             ? $this->coreReleaseChecker->describeReleasePackageSelectionFailure($channel)
-            : sprintf('Repository %s wurde geprüft.', $this->releaseRepository !== '' ? $this->releaseRepository : '(nicht konfiguriert)');
+            : sprintf('Kein gültiges Core-Paket im Repository %s gefunden.', $this->releaseRepository !== '' ? $this->releaseRepository : '(nicht konfiguriert)');
 
         return ['manifest' => null, 'error' => sprintf(
             '%s Channel: %s. Erwartet: %s.',
