@@ -14,10 +14,7 @@ jobs:
   gate-critical-findings:
     name: gate-critical-findings
     if: ${{ github.event.workflow_run.event == 'workflow_dispatch' }}
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
       - name: Ensure non-root runner user
         run: |
@@ -25,7 +22,7 @@ jobs:
           current_uid="$(id -u)"
           current_user="$(id -un)"
           if [ "${current_uid}" -eq 0 ]; then
-            echo "Self-hosted runner must execute as a regular user, not root." >&2
+            echo "Selected runner must execute as a regular user, not root." >&2
             exit 1
           fi
           echo "Running as ${current_user} (uid ${current_uid})."

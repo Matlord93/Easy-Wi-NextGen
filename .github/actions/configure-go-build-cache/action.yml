@@ -1,5 +1,5 @@
 name: Configure isolated Go build cache
-description: Use a per-job Go build cache so self-hosted runners do not reuse stale compiled package archives.
+description: Use a per-job Go build cache so selected runners do not reuse stale compiled package archives.
 runs:
   using: composite
   steps:

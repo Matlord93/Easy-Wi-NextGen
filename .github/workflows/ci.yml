@@ -10,10 +10,7 @@ permissions:
 
 jobs:
   core:
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     defaults:
       run:
         working-directory: core
@@ -31,10 +28,7 @@ jobs:
       - run: php bin/phpunit --testsuite default
 
   agent:
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     defaults:
       run:
         working-directory: agent
@@ -51,10 +45,7 @@ jobs:
       - run: go vet ./...
 
   contract:
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v6
 

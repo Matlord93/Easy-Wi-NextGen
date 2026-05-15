@@ -27,10 +27,7 @@ permissions:
 jobs:
   agent:
     name: agent-ci
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     defaults:
       run:
         working-directory: agent
@@ -56,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v python3 >/dev/null 2>&1; then
-            echo 'Python 3 is not installed or is not on PATH. Preinstall Python 3 on the self-hosted runner.' >&2
+            echo 'Python 3 is not installed or is not on PATH. Ensure the selected CI runner provides Python 3.' >&2
             exit 1
           fi
           if ! python3 -c 'import yaml' >/dev/null 2>&1; then

@@ -12,10 +12,7 @@ permissions:
 jobs:
   contract:
     name: Agent - contract
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -28,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v python3 >/dev/null 2>&1; then
-            echo 'Python 3 is not installed or is not on PATH. Preinstall Python 3 on the self-hosted runner.' >&2
+            echo 'Python 3 is not installed or is not on PATH. Ensure the selected CI runner provides Python 3.' >&2
             exit 1
           fi
           if ! python3 -c 'import yaml' >/dev/null 2>&1; then
@@ -63,10 +60,7 @@ jobs:
   build:
     name: Agent - build/test/smoke (${{ matrix.target_os }})
     needs: contract
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     strategy:
       fail-fast: false
       matrix:
@@ -133,10 +127,7 @@ jobs:
     name: Agent - publish release assets
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     permissions:
       contents: write
     steps:

@@ -25,10 +25,7 @@ permissions:
 jobs:
   installer:
     name: installer-ci
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6

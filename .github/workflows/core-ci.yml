@@ -31,10 +31,7 @@ permissions:
 jobs:
   core:
     name: core-ci
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     defaults:
       run:
         working-directory: core
@@ -70,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v python3 >/dev/null 2>&1; then
-            echo 'Python 3 is not installed or is not on PATH. Preinstall Python 3 on the self-hosted runner.' >&2
+            echo 'Python 3 is not installed or is not on PATH. Ensure the selected CI runner provides Python 3.' >&2
             exit 1
           fi
           if ! python3 -c 'import yaml' >/dev/null 2>&1; then
@@ -177,10 +174,7 @@ jobs:
 
   smoke-gates:
     name: smoke-gates
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -192,11 +186,11 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v docker >/dev/null 2>&1; then
-            echo 'Docker is not installed or is not on PATH; skipping compose config validation on this self-hosted runner.' >&2
+            echo 'Docker is not installed or is not on PATH; skipping compose config validation on this runner.' >&2
             exit 0
           fi
           if ! docker compose version >/dev/null 2>&1; then
-            echo 'Docker Compose is not available; skipping compose config validation on this self-hosted runner.' >&2
+            echo 'Docker Compose is not available; skipping compose config validation on this runner.' >&2
             exit 0
           fi
           docker compose --env-file deploy/shared/env/dev.env -f deploy/compose/dev/docker-compose.yml config
@@ -205,11 +199,11 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v docker >/dev/null 2>&1; then
-            echo 'Docker is not installed or is not on PATH; skipping compose config validation on this self-hosted runner.' >&2
+            echo 'Docker is not installed or is not on PATH; skipping compose config validation on this runner.' >&2
             exit 0
           fi
           if ! docker compose version >/dev/null 2>&1; then
-            echo 'Docker Compose is not available; skipping compose config validation on this self-hosted runner.' >&2
+            echo 'Docker Compose is not available; skipping compose config validation on this runner.' >&2
             exit 0
           fi
           docker compose --env-file deploy/shared/env/stage.env -f deploy/compose/stage/docker-compose.yml config

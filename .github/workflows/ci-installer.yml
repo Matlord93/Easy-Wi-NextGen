@@ -12,10 +12,7 @@ permissions:
 jobs:
   lint:
     name: Installer - lint
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v6
 
@@ -31,10 +28,7 @@ jobs:
     name: Installer - publish release assets
     needs: lint
     if: startsWith(github.ref, 'refs/tags/')
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     permissions:
       contents: write
     steps:

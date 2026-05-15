@@ -1,5 +1,5 @@
 name: Verify PHP environment
-description: Verifies the self-hosted runner has PHP 8.5+ and Composer 2, bootstrapping Composer when needed.
+description: Installs/verifies PHP 8.5+ and Composer 2 on GitHub-hosted or fallback runners.
 inputs:
   required-extensions:
     description: Comma-separated PHP extensions that must be loaded.
@@ -8,6 +8,14 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Setup PHP 8.5
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.5'
+        extensions: ${{ inputs.required-extensions }}
+        tools: composer:v2
+        coverage: none
+
     - name: Verify PHP 8.5+ and required extensions
       shell: bash
       env:
@@ -16,7 +24,7 @@ runs:
         set -euo pipefail
 
         if ! command -v php >/dev/null 2>&1; then
-          echo 'PHP is not installed or is not on PATH. Preinstall PHP 8.5+ on the self-hosted runner.' >&2
+          echo 'PHP is not installed or is not on PATH after setup-php completed.' >&2
           exit 1
         fi
 

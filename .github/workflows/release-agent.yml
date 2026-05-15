@@ -17,10 +17,7 @@ permissions:
 jobs:
   build-and-release:
     name: Build agent + publish release
-    runs-on:
-      - self-hosted
-      - k8s-autoscaling-runner
-      - linux
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     env:
       GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
       GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}

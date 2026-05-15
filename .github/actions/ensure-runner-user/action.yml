@@ -1,5 +1,5 @@
 name: Ensure runner user
-description: Fails early when a self-hosted runner executes jobs as root or Administrator.
+description: Fails early when the selected runner executes jobs as root or Administrator.
 runs:
   using: composite
   steps:
@@ -11,7 +11,7 @@ runs:
         current_uid="$(id -u)"
         current_user="$(id -un)"
         if [ "${current_uid}" -eq 0 ]; then
-          echo "Self-hosted runner must execute as a regular user, not root." >&2
+          echo "Selected runner must execute as a regular user, not root." >&2
           exit 1
         fi
         echo "Running as ${current_user} (uid ${current_uid})."
@@ -23,7 +23,7 @@ runs:
         $current = [Security.Principal.WindowsIdentity]::GetCurrent()
         $principal = [Security.Principal.WindowsPrincipal]::new($current)
         if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-          Write-Error "Self-hosted runner must execute as a regular user, not Administrator."
+          Write-Error "Selected runner must execute as a regular user, not Administrator."
           exit 1
         }
         Write-Host "Running as $($current.Name)."
