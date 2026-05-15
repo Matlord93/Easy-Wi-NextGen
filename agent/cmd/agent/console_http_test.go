@@ -194,6 +194,16 @@ func TestConsoleLogsSupportsLastOffsetQuery(t *testing.T) {
 	defer func() { lookupCommand = origLookup }()
 	lookupCommand = func(file string) (string, error) { return "/usr/bin/journalctl", nil }
 
+	origStart := startJournalStream
+	defer func() { startJournalStream = origStart }()
+	startJournalStream = func(ctx context.Context, unitName string) (*startedJournalStream, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
+	globalConsoleSessions = newConsoleSessionManager(2 * time.Minute)
+	t.Cleanup(func() { globalConsoleSessions.stopAll() })
+
 	instanceID := "8"
 	s := globalConsoleSessions.getOrCreate(instanceID, resolveInstanceUnitName(instanceID))
 	s.appendLine("journal", "one", "")

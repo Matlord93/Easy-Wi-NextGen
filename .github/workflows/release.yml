@@ -79,12 +79,15 @@ jobs:
           fi
 
       - name: Sign checksums (optional)
-        if: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY != '' }}
         env:
           EASYWI_RELEASE_PRIVATE_KEY: ${{ secrets.EASYWI_RELEASE_PRIVATE_KEY }}
         shell: bash
         run: |
           set -euo pipefail
+          if [[ -z "${EASYWI_RELEASE_PRIVATE_KEY}" ]]; then
+            echo "EASYWI_RELEASE_PRIVATE_KEY is not configured; skipping checksum signing" >&2
+            exit 0
+          fi
           printf '%s' "$EASYWI_RELEASE_PRIVATE_KEY" > /tmp/easywi-release-key.pem
           openssl dgst -sha256 -sign /tmp/easywi-release-key.pem -out dist/release/checksums-core.txt.asc dist/release/checksums-core.txt
           if [[ -s dist/release/checksums-agent.txt ]]; then
