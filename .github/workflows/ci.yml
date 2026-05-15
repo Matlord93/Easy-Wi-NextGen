@@ -21,10 +21,8 @@ jobs:
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          tools: composer
+      - name: Verify PHP 8.4 environment
+        uses: ./.github/actions/verify-php
       - run: composer validate --strict
       - run: composer install --no-interaction --prefer-dist --no-scripts
         env:

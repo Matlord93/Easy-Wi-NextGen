@@ -24,8 +24,13 @@ jobs:
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
       - name: Setup Python for OpenAPI checks
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install OpenAPI check dependencies
         run: |
-          python3 -m pip install --user --upgrade pip pyyaml
+          python -m pip install --upgrade pip pyyaml
 
       - name: Validate Core-Agent OpenAPI spec
         run: python3 "$GITHUB_WORKSPACE/docs/api/scripts/validate_openapi.py" "$GITHUB_WORKSPACE/docs/api/core-agent.v1.openapi.yaml"

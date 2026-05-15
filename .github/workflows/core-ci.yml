@@ -9,6 +9,7 @@ on:
       - 'VERSION'
       - 'templates_audit.md'
       - '.github/workflows/core-ci.yml'
+      - '.github/actions/verify-php/**'
       - 'scripts/smoke.sh'
       - 'deploy/compose/**'
   push:
@@ -20,6 +21,7 @@ on:
       - 'VERSION'
       - 'templates_audit.md'
       - '.github/workflows/core-ci.yml'
+      - '.github/actions/verify-php/**'
       - 'scripts/smoke.sh'
       - 'deploy/compose/**'
 
@@ -42,15 +44,10 @@ jobs:
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
-      - name: Setup PHP 8.4
-        uses: shivammathur/setup-php@v2
+      - name: Verify PHP 8.4 environment
+        uses: ./.github/actions/verify-php
         with:
-          php-version: '8.4'
-          tools: composer:v2
-          coverage: none
-          extensions: mbstring, intl, pdo, pdo_mysql, pdo_pgsql, openssl
-        env:
-          COMPOSER_ALLOW_PLUGINS: 'symfony/runtime,symfony/flex'
+          required-extensions: mbstring,intl,pdo,pdo_mysql,pdo_pgsql,openssl
 
       - name: Composer validate
         run: composer validate --strict
@@ -68,9 +65,14 @@ jobs:
 
 
       - name: Setup Python for OpenAPI checks
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install OpenAPI check dependencies
         working-directory: .
         run: |
-          python3 -m pip install --user --upgrade pip pyyaml
+          python -m pip install --upgrade pip pyyaml
 
       - name: Validate Core-Agent OpenAPI spec
         working-directory: .

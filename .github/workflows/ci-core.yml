@@ -26,16 +26,10 @@ jobs:
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
-      - name: Setup PHP 8.4
-        uses: shivammathur/setup-php@v2
+      - name: Verify PHP 8.4 environment
+        uses: ./.github/actions/verify-php
         with:
-          php-version: "8.4"
-          extensions: mbstring, intl, pdo, pdo_mysql, pdo_pgsql, openssl
-          tools: composer:v2
-          coverage: none
-        env:
-          # Löst den "symfony/runtime" Fehler durch explizite Erlaubnis
-          COMPOSER_ALLOW_PLUGINS: "symfony/runtime,symfony/flex"
+          required-extensions: mbstring,intl,pdo,pdo_mysql,pdo_pgsql,openssl
 
       - name: Cache Composer
         uses: actions/cache@v5
@@ -47,8 +41,13 @@ jobs:
       - name: Composer install
         run: composer install --no-interaction --no-progress
       - name: Setup Python for OpenAPI checks
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install OpenAPI check dependencies
         run: |
-          python3 -m pip install --user --upgrade pip pyyaml
+          python -m pip install --upgrade pip pyyaml
         working-directory: .
 
       - name: Validate Core-Agent OpenAPI spec
@@ -88,13 +87,8 @@ jobs:
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
-      - name: Setup PHP 8.4
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.4"
-          tools: composer:v2
-        env:
-          COMPOSER_ALLOW_PLUGINS: "symfony/runtime,symfony/flex"
+      - name: Verify PHP 8.4 environment
+        uses: ./.github/actions/verify-php
 
       - name: Install deps (prod)
         run: composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader

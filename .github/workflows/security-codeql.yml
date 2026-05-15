@@ -12,6 +12,7 @@ on:
       - 'VERSION'
       - 'templates_audit.md'
       - '.github/workflows/security-codeql.yml'
+      - '.github/actions/verify-php/**'
   pull_request:
     paths:
       - 'core/**'
@@ -22,6 +23,7 @@ on:
       - 'VERSION'
       - 'templates_audit.md'
       - '.github/workflows/security-codeql.yml'
+      - '.github/actions/verify-php/**'
 
 permissions:
   contents: read
@@ -45,6 +47,14 @@ jobs:
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+          cache: true
+          cache-dependency-path: agent/go.sum
+
       - name: Initialize CodeQL (Go)
         uses: github/codeql-action/init@v4
         with:
@@ -52,19 +62,17 @@ jobs:
           queries: +security-extended
           config-file: .github/codeql/codeql-config.yml
 
-      - name: Autobuild (Go)
-        uses: github/codeql-action/autobuild@v4
+      - name: Build Go for CodeQL
+        run: go build ./...
+        working-directory: agent
 
       - name: Analyze (Go)
         uses: github/codeql-action/analyze@v4
         with:
           fail-on: warning
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          tools: composer
+      - name: Verify PHP 8.4 environment
+        uses: ./.github/actions/verify-php
 
       - name: Run Psalm security scan (PHP)
         id: psalm

@@ -45,10 +45,10 @@ jobs:
           fi
 
       - name: Lint
-        run: make lint
+        run: go vet ./...
 
       - name: Test
-        run: make test
+        run: go test ./...
 
       - name: Build
-        run: make build
+        run: go build -trimpath -o bin/easywi-agent ./cmd/agent

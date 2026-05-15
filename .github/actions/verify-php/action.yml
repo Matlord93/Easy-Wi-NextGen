@@ -1,0 +1,49 @@
+name: Verify PHP environment
+description: Verifies the self-hosted runner already has a usable PHP and Composer installation.
+inputs:
+  required-extensions:
+    description: Comma-separated PHP extensions that must be loaded.
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Verify PHP 8.4+ and Composer
+      shell: bash
+      env:
+        REQUIRED_EXTENSIONS: ${{ inputs.required-extensions }}
+      run: |
+        set -euo pipefail
+
+        if ! command -v php >/dev/null 2>&1; then
+          echo 'PHP is not installed or is not on PATH. Preinstall PHP 8.4+ on the self-hosted runner.' >&2
+          exit 1
+        fi
+
+        if ! command -v composer >/dev/null 2>&1; then
+          echo 'Composer is not installed or is not on PATH. Preinstall Composer 2 on the self-hosted runner.' >&2
+          exit 1
+        fi
+
+        php -r '
+          if (version_compare(PHP_VERSION, "8.4.0", "<")) {
+              fwrite(STDERR, "PHP 8.4+ is required; found " . PHP_VERSION . PHP_EOL);
+              exit(1);
+          }
+
+          $extensions = array_filter(array_map("trim", explode(",", getenv("REQUIRED_EXTENSIONS") ?: "")));
+          $missing = [];
+          foreach ($extensions as $extension) {
+              if (!extension_loaded($extension)) {
+                  $missing[] = $extension;
+              }
+          }
+
+          if ($missing !== []) {
+              fwrite(STDERR, "Missing PHP extensions: " . implode(", ", $missing) . PHP_EOL);
+              exit(1);
+          }
+        '
+
+        php --version
+        composer --version

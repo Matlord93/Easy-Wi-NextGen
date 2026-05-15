@@ -47,9 +47,14 @@ jobs:
 
 
       - name: Setup Python for OpenAPI checks
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install OpenAPI check dependencies
         working-directory: .
         run: |
-          python3 -m pip install --user --upgrade pip pyyaml
+          python -m pip install --upgrade pip pyyaml
 
       - name: Validate Core-Agent OpenAPI spec
         working-directory: .
