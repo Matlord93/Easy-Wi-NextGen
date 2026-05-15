@@ -54,6 +54,9 @@ jobs:
           cache: true
           cache-dependency-path: agent/go.sum
 
+      - name: Configure isolated Go build cache
+        uses: ./.github/actions/configure-go-build-cache
+
       - name: Agent contract tests
         run: go test ./internal/api -run 'Contract|Spec'
         working-directory: agent
@@ -88,6 +91,9 @@ jobs:
           go-version: "1.25.10"
           cache: true
           cache-dependency-path: agent/go.sum
+
+      - name: Configure isolated Go build cache
+        uses: ./.github/actions/configure-go-build-cache
 
       - name: Clear Go build cache
         run: go clean -cache

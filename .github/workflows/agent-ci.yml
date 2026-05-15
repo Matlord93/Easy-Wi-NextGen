@@ -9,6 +9,7 @@ on:
       - 'VERSION'
       - 'templates_audit.md'
       - '.github/workflows/agent-ci.yml'
+      - '.github/actions/configure-go-build-cache/**'
   push:
     branches: [ main, Dev, Beta ]
     paths:
@@ -18,6 +19,7 @@ on:
       - 'VERSION'
       - 'templates_audit.md'
       - '.github/workflows/agent-ci.yml'
+      - '.github/actions/configure-go-build-cache/**'
 
 permissions:
   contents: read
@@ -45,6 +47,9 @@ jobs:
           go-version-file: agent/go.mod
           cache: true
           cache-dependency-path: agent/go.sum
+
+      - name: Configure isolated Go build cache
+        uses: ./.github/actions/configure-go-build-cache
 
 
       - name: Prepare Python for OpenAPI checks

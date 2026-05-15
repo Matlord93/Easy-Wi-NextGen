@@ -1,0 +1,13 @@
+name: Configure isolated Go build cache
+description: Use a per-job Go build cache so self-hosted runners do not reuse stale compiled package archives.
+runs:
+  using: composite
+  steps:
+    - name: Configure GOCACHE
+      shell: bash
+      run: |
+        set -euo pipefail
+        cache_dir="${RUNNER_TEMP}/go-build-cache-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+        mkdir -p "${cache_dir}"
+        echo "GOCACHE=${cache_dir}" >> "${GITHUB_ENV}"
+        echo "Go build cache: ${cache_dir}"

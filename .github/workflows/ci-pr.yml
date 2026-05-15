@@ -131,6 +131,9 @@ jobs:
           cache: true
           cache-dependency-path: agent/go.sum
 
+      - name: Configure isolated Go build cache
+        uses: ./.github/actions/configure-go-build-cache
+
       - name: Go test
         run: go test ./...
 
