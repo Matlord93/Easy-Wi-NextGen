@@ -142,14 +142,14 @@ jobs:
               handle.write("\n")
           PY
 
-      - name: Sign checksums and manifest
+      - name: Sign checksums and manifest (optional)
         env:
           GPG_PRIVATE_KEY: ${{ secrets.EASYWI_GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.EASYWI_GPG_PASSPHRASE }}
         run: |
           if [[ -z "${GPG_PRIVATE_KEY}" ]]; then
-            echo "Missing GPG signing key (EASYWI_GPG_PRIVATE_KEY)." >&2
-            exit 1
+            echo "EASYWI_GPG_PRIVATE_KEY is not configured; skipping checksum and manifest signing." >&2
+            exit 0
           fi
           export GNUPGHOME
           GNUPGHOME="$(mktemp -d)"
@@ -171,3 +171,4 @@ jobs:
             dist/manifest.json
             dist/manifest.json.asc
           generate_release_notes: true
+          fail_on_unmatched_files: false
