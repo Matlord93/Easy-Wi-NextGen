@@ -71,7 +71,7 @@ jobs:
         with:
           fail-on: warning
 
-      - name: Verify PHP 8.4 environment
+      - name: Verify PHP 8.5 environment
         uses: ./.github/actions/verify-php
 
       - name: Run Psalm security scan (PHP)

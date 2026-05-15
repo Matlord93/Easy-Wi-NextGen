@@ -1111,9 +1111,9 @@ func enableRoleServices(role string, output *strings.Builder) error {
 
 	switch role {
 	case "web":
-		services = []string{"nginx", "php-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm", "proftpd", "proftpd.service", "proftpd-basic", "proftpd-basic.service"}
+		services = []string{"nginx", "php-fpm", "php8.5-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm", "proftpd", "proftpd.service", "proftpd-basic", "proftpd-basic.service"}
 	case "core":
-		services = []string{"nginx", "php-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm"}
+		services = []string{"nginx", "php-fpm", "php8.5-fpm", "php8.4-fpm", "php8.3-fpm", "php8.2-fpm", "php8.1-fpm"}
 	case "dns":
 		services = []string{"pdns", "powerdns"}
 	case "mail":

@@ -44,7 +44,7 @@ jobs:
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
-      - name: Verify PHP 8.4 environment
+      - name: Verify PHP 8.5 environment
         uses: ./.github/actions/verify-php
         with:
           required-extensions: mbstring,intl,pdo,pdo_mysql,pdo_pgsql,openssl
@@ -64,15 +64,20 @@ jobs:
           SYMFONY_DISABLE_AUTO_SCRIPTS: '1'
 
 
-      - name: Setup Python for OpenAPI checks
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.x'
-
-      - name: Install OpenAPI check dependencies
+      - name: Prepare Python for OpenAPI checks
         working-directory: .
         run: |
-          python -m pip install --upgrade pip pyyaml
+          set -euo pipefail
+          if ! command -v python3 >/dev/null 2>&1; then
+            echo 'Python 3 is not installed or is not on PATH. Preinstall Python 3 on the self-hosted runner.' >&2
+            exit 1
+          fi
+          if ! python3 -c 'import yaml' >/dev/null 2>&1; then
+            rm -rf "${RUNNER_TEMP}/easywi-openapi-venv"
+            python3 -m venv --system-site-packages "${RUNNER_TEMP}/easywi-openapi-venv"
+            "${RUNNER_TEMP}/easywi-openapi-venv/bin/python" -m pip install pyyaml
+            echo "${RUNNER_TEMP}/easywi-openapi-venv/bin" >> "${GITHUB_PATH}"
+          fi
 
       - name: Validate Core-Agent OpenAPI spec
         working-directory: .
@@ -182,10 +187,30 @@ jobs:
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
       - name: "Pre-deploy gate: validate compose config (dev)"
-        run: docker compose --env-file deploy/shared/env/dev.env -f deploy/compose/dev/docker-compose.yml config
+        run: |
+          set -euo pipefail
+          if ! command -v docker >/dev/null 2>&1; then
+            echo 'Docker is not installed or is not on PATH; skipping compose config validation on this self-hosted runner.' >&2
+            exit 0
+          fi
+          if ! docker compose version >/dev/null 2>&1; then
+            echo 'Docker Compose is not available; skipping compose config validation on this self-hosted runner.' >&2
+            exit 0
+          fi
+          docker compose --env-file deploy/shared/env/dev.env -f deploy/compose/dev/docker-compose.yml config
 
       - name: "Pre-deploy gate: validate compose config (stage)"
-        run: docker compose --env-file deploy/shared/env/stage.env -f deploy/compose/stage/docker-compose.yml config
+        run: |
+          set -euo pipefail
+          if ! command -v docker >/dev/null 2>&1; then
+            echo 'Docker is not installed or is not on PATH; skipping compose config validation on this self-hosted runner.' >&2
+            exit 0
+          fi
+          if ! docker compose version >/dev/null 2>&1; then
+            echo 'Docker Compose is not available; skipping compose config validation on this self-hosted runner.' >&2
+            exit 0
+          fi
+          docker compose --env-file deploy/shared/env/stage.env -f deploy/compose/stage/docker-compose.yml config
 
       - name: "Post-deploy gate: smoke script executable"
         run: SMOKE_SKIP_RUNTIME_CHECKS=1 bash ./scripts/smoke.sh

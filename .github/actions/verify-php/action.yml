@@ -8,7 +8,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Verify PHP 8.4+ and Composer
+    - name: Verify PHP 8.5+ and Composer
       shell: bash
       env:
         REQUIRED_EXTENSIONS: ${{ inputs.required-extensions }}
@@ -16,7 +16,7 @@ runs:
         set -euo pipefail
 
         if ! command -v php >/dev/null 2>&1; then
-          echo 'PHP is not installed or is not on PATH. Preinstall PHP 8.4+ on the self-hosted runner.' >&2
+          echo 'PHP is not installed or is not on PATH. Preinstall PHP 8.5+ on the self-hosted runner.' >&2
           exit 1
         fi
 
@@ -26,8 +26,8 @@ runs:
         fi
 
         php -r '
-          if (version_compare(PHP_VERSION, "8.4.0", "<")) {
-              fwrite(STDERR, "PHP 8.4+ is required; found " . PHP_VERSION . PHP_EOL);
+          if (version_compare(PHP_VERSION, "8.5.0", "<")) {
+              fwrite(STDERR, "PHP 8.5+ is required; found " . PHP_VERSION . PHP_EOL);
               exit(1);
           }
 

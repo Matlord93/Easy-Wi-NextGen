@@ -21,7 +21,7 @@ jobs:
 
       - name: Ensure non-root runner user
         uses: ./.github/actions/ensure-runner-user
-      - name: Verify PHP 8.4 environment
+      - name: Verify PHP 8.5 environment
         uses: ./.github/actions/verify-php
       - run: composer validate --strict
       - run: composer install --no-interaction --prefer-dist --no-scripts
